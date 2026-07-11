@@ -87,7 +87,7 @@ function renderKpQuickDonation(o) {
               </div>
             </div>
 
-            <a href="#/demo/${o.slug}/bagis/${donationId}?amount=${amount}" style="display:flex; justify-content:center; align-items:center; gap:8px; width:100%; background:#93740C; color:#fff; text-decoration:none; padding:16px; border-radius:16px; font-weight:800; font-size:16px; box-shadow:0 8px 20px rgba(147,116,12,0.2); text-align:center; box-sizing:border-box;">Bağış Yap ➔</a>
+            <a href="${prefix}/bagis/${donationId}?amount=${amount}" style="display:flex; justify-content:center; align-items:center; gap:8px; width:100%; background:#93740C; color:#fff; text-decoration:none; padding:16px; border-radius:16px; font-weight:800; font-size:16px; box-shadow:0 8px 20px rgba(147,116,12,0.2); text-align:center; box-sizing:border-box;">Bağış Yap ➔</a>
 
           </div>
 
@@ -144,17 +144,17 @@ function renderHicretQuickDonation(o) {
           <div style="background:#fff; border:1px solid #e5e7eb; border-radius:20px; padding:28px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
             <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 8px;">Genel Bağış</h3>
             <p style="font-size:12.5px; color:#64748b; margin-bottom:16px;">En acil ihtiyaç duyulan eğitim ve gıda alanları için.</p>
-            <a href="#/demo/${o.slug}/bagis/acil-yardim" style="color:#059669; font-weight:700; font-size:13px; text-decoration:none;">Detayları Gör ➔</a>
+            <a href="${prefix}/bagis/acil-yardim" style="color:#059669; font-weight:700; font-size:13px; text-decoration:none;">Detayları Gör ➔</a>
           </div>
           <div style="background:#fff; border:1px solid #e5e7eb; border-radius:20px; padding:28px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
             <h3 style="font-size:1.3rem; font-weight:800; color:#059669; margin:0 0 8px;">Eğitim</h3>
             <p style="font-size:12.5px; color:#64748b; margin-bottom:16px;">Hafızlık ve talebe eğitim faaliyetlerine katkı.</p>
-            <a href="#/demo/${o.slug}/bagis/hafizlik" style="color:#059669; font-weight:700; font-size:13px; text-decoration:none;">Detayları Gör ➔</a>
+            <a href="${prefix}/bagis/hafizlik" style="color:#059669; font-weight:700; font-size:13px; text-decoration:none;">Detayları Gör ➔</a>
           </div>
           <div style="background:#fff; border:1px solid #e5e7eb; border-radius:20px; padding:28px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
             <h3 style="font-size:1.3rem; font-weight:800; color:#dc2626; margin:0 0 8px;">Kurban</h3>
             <p style="font-size:12.5px; color:#64748b; margin-bottom:16px;">Kurban, adak, akika ve şükür kurbanı bağışları.</p>
-            <a href="#/demo/${o.slug}/bagis/kurban" style="color:#dc2626; font-weight:700; font-size:13px; text-decoration:none;">Detayları Gör ➔</a>
+            <a href="${prefix}/bagis/kurban" style="color:#dc2626; font-weight:700; font-size:13px; text-decoration:none;">Detayları Gör ➔</a>
           </div>
         </div>
 
@@ -163,7 +163,7 @@ function renderHicretQuickDonation(o) {
           
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:32px;">
             ${popular.map(p => `
-              <a href="#/demo/${o.slug}/bagis/${p.slug}" style="background:#f9fafb; border:1px solid #e5e7eb; padding:20px; border-radius:16px; text-decoration:none; display:block; text-align:center; transition:all 0.2s;">
+              <a href="${prefix}/bagis/${p.slug}" style="background:#f9fafb; border:1px solid #e5e7eb; padding:20px; border-radius:16px; text-decoration:none; display:block; text-align:center; transition:all 0.2s;">
                 <div style="font-weight:700; color:#1e293b; font-size:13px; margin-bottom:4px;">${p.name}</div>
                 <div style="font-size:15px; font-weight:800; color:#059669;">${p.price}</div>
               </a>
@@ -171,7 +171,7 @@ function renderHicretQuickDonation(o) {
           </div>
 
           <div style="text-align:center;">
-            <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#059669; color:#fff; font-weight:800; text-decoration:none; padding:14px 32px; border-radius:12px; font-size:14px; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 15px rgba(5,150,105,0.2);">Tüm Bağış Seçeneklerini Gör ➔</a>
+            <a href="${prefix}/bagis/acil-yardim" style="background:#059669; color:#fff; font-weight:800; text-decoration:none; padding:14px 32px; border-radius:12px; font-size:14px; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 15px rgba(5,150,105,0.2);">Tüm Bağış Seçeneklerini Gör ➔</a>
           </div>
 
           <div style="border-top:1px solid #e5e7eb; margin-top:32px; padding-top:24px; display:flex; justify-content:center; gap:32px; flex-wrap:wrap; font-size:12.5px; color:#64748b;">
@@ -218,20 +218,20 @@ function themeHeader(o, cfg = {}) {
       </div>
     </div>
     <header class="site-head" style="box-shadow:0 4px 20px rgba(0,0,0,0.03); width:100%; background:${headBg}; backdrop-filter:blur(12px); font-family:${fontFamily}; ${navStyle}">
-      <a class="brand" href="#/demo/${o.slug}">
+      <a class="brand" href="${prefix}">
         <span style="${logoStyle}">${esc(o.name[0])}</span>
         <b>${esc(o.name)}</b>
       </a>
       <nav style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
-        <a href="#/demo/${o.slug}" class="nav-item">Ana Sayfa</a>
-        <a href="#/demo/${o.slug}/bagis/kurban" class="nav-item">Kurban</a>
-        <a href="#/demo/${o.slug}/bagis/zekat" class="nav-item">Zekat</a>
-        <a href="#/demo/${o.slug}/bagis/acil-yardim" class="nav-item">Acil Yardım</a>
+        <a href="${prefix}" class="nav-item">Ana Sayfa</a>
+        <a href="${prefix}/bagis/kurban" class="nav-item">Kurban</a>
+        <a href="${prefix}/bagis/zekat" class="nav-item">Zekat</a>
+        <a href="${prefix}/bagis/acil-yardim" class="nav-item">Acil Yardım</a>
         ${extraNav}
-        <a href="#/demo/${o.slug}/hakkimizda" class="nav-item">Hakkımızda</a>
-        <a href="#/demo/${o.slug}/iletisim" class="nav-item">İletişim</a>
+        <a href="${prefix}/hakkimizda" class="nav-item">Hakkımızda</a>
+        <a href="${prefix}/iletisim" class="nav-item">İletişim</a>
       </nav>
-      <a class="primary" href="#/demo/${o.slug}/bagis/acil-yardim" style="${ctaStyle} box-shadow:0 4px 12px rgba(0,0,0,0.08); font-size:13px; min-height:36px; display:inline-flex; align-items:center; justify-content:center; padding:0 16px; border-radius:var(--r); font-weight:bold;">${ctaText}</a>
+      <a class="primary" href="${prefix}/bagis/acil-yardim" style="${ctaStyle} box-shadow:0 4px 12px rgba(0,0,0,0.08); font-size:13px; min-height:36px; display:inline-flex; align-items:center; justify-content:center; padding:0 16px; border-radius:var(--r); font-weight:bold;">${ctaText}</a>
     </header>
   `;
 }
@@ -263,21 +263,21 @@ function themeFooter(o, cfg = {}) {
         <div>
           <h4 style="color:${headColor}; font-size:14px; margin-top:0; margin-bottom:18px; text-transform:uppercase; letter-spacing:0.5px;">Kurumsal</h4>
           <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; font-size:12.5px;">
-            <li><a href="#/demo/${o.slug}" style="color:${color}; text-decoration:none;">Ana Sayfa</a></li>
-            <li><a href="#/demo/${o.slug}/hakkimizda" style="color:${color}; text-decoration:none;">Hakkımızda</a></li>
-            <li><a href="#/demo/${o.slug}/iletisim" style="color:${color}; text-decoration:none;">İletişim</a></li>
-            <li><a href="#/demo/${o.slug}" style="color:${color}; text-decoration:none;">Yönetim Kurulu</a></li>
-            <li><a href="#/demo/${o.slug}" style="color:${color}; text-decoration:none;">Denetim Raporları</a></li>
+            <li><a href="${prefix}" style="color:${color}; text-decoration:none;">Ana Sayfa</a></li>
+            <li><a href="${prefix}/hakkimizda" style="color:${color}; text-decoration:none;">Hakkımızda</a></li>
+            <li><a href="${prefix}/iletisim" style="color:${color}; text-decoration:none;">İletişim</a></li>
+            <li><a href="${prefix}" style="color:${color}; text-decoration:none;">Yönetim Kurulu</a></li>
+            <li><a href="${prefix}" style="color:${color}; text-decoration:none;">Denetim Raporları</a></li>
           </ul>
         </div>
         <div>
           <h4 style="color:${headColor}; font-size:14px; margin-top:0; margin-bottom:18px; text-transform:uppercase; letter-spacing:0.5px;">Faaliyetler</h4>
           <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:10px; font-size:12.5px;">
-            <li><a href="#/demo/${o.slug}/bagis/acil-yardim" style="color:${color}; text-decoration:none;">Acil Yardım</a></li>
-            <li><a href="#/demo/${o.slug}/bagis/kurban" style="color:${color}; text-decoration:none;">Kurban Hissesi</a></li>
-            <li><a href="#/demo/${o.slug}/bagis/zekat" style="color:${color}; text-decoration:none;">Zekat & Sadaka</a></li>
-            <li><a href="#/demo/${o.slug}" style="color:${color}; text-decoration:none;">Su Kuyuları</a></li>
-            <li><a href="#/demo/${o.slug}" style="color:${color}; text-decoration:none;">Yetim Destekleri</a></li>
+            <li><a href="${prefix}/bagis/acil-yardim" style="color:${color}; text-decoration:none;">Acil Yardım</a></li>
+            <li><a href="${prefix}/bagis/kurban" style="color:${color}; text-decoration:none;">Kurban Hissesi</a></li>
+            <li><a href="${prefix}/bagis/zekat" style="color:${color}; text-decoration:none;">Zekat & Sadaka</a></li>
+            <li><a href="${prefix}" style="color:${color}; text-decoration:none;">Su Kuyuları</a></li>
+            <li><a href="${prefix}" style="color:${color}; text-decoration:none;">Yetim Destekleri</a></li>
           </ul>
         </div>
         <div>
@@ -301,8 +301,8 @@ function themeFooter(o, cfg = {}) {
       <div style="border-top:1px solid #1e293b; padding-top:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; font-size:11.5px; color:#64748b;">
         <div>© 2026 ${esc(o.name)}. Tüm Hakları Saklıdır.</div>
         <div style="display:flex; gap:16px;">
-          <a href="#/demo/${o.slug}" style="color:#64748b; text-decoration:none;">KVKK Politikası</a>
-          <a href="#/demo/${o.slug}" style="color:#64748b; text-decoration:none;">Kullanım Koşulları</a>
+          <a href="${prefix}" style="color:#64748b; text-decoration:none;">KVKK Politikası</a>
+          <a href="${prefix}" style="color:#64748b; text-decoration:none;">Kullanım Koşulları</a>
         </div>
       </div>
     </footer>
@@ -328,7 +328,7 @@ function themeHeroSlider(o, list, cfg = {}) {
             <span style="display:inline-block; background:var(--a); color:#fff; padding:4px 14px; border-radius:20px; font-size:12px; font-weight:bold; margin-bottom:16px; letter-spacing:0.5px;">${esc(labels[c.category] || c.category)}</span>
             <h1 style="color:#fff; font-size:clamp(1.8rem, 4vw, 2.8rem); line-height:1.2; margin:0 0 16px; text-shadow:0 2px 4px rgba(0,0,0,0.3);">${esc(c.title)}</h1>
             <p style="color:rgba(255,255,255,0.85); font-size:16px; line-height:1.6; margin:0 0 24px; max-width:500px;">${esc(c.summary)}</p>
-            <a href="#/demo/${o.slug}/bagis/${c.slug}" style="${btnStyle}">Hemen Bağış Yap <span>➔</span></a>
+            <a href="${prefix}/bagis/${c.slug}" style="${btnStyle}">Hemen Bağış Yap <span>➔</span></a>
           </div>
         </div>
       `).join('')}
@@ -506,6 +506,7 @@ function themeContactPage(o, cfg = {}) {
    ══════════════════════════════════════════════════════════════ */
 themeLayouts.nezir = {
   home(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const hCfg = { font: "'Quicksand', sans-serif", topBg: '#064e3b', topLeft: '☪ İnsani Yardım Portalı', ctaText: 'Şimdi Bağış Yap', ctaStyle: 'background:#00764B; color:#fff;' };
     return `<div class="site" data-theme="nezir" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Quicksand', sans-serif;">
       ${themeHeader(o, hCfg)}
@@ -515,7 +516,7 @@ themeLayouts.nezir = {
         <div style="background:#f0fdf4; padding:20px clamp(18px,5vw,72px); display:flex; gap:12px; align-items:center; border-bottom:1px solid #bbf7d0;">
           <span style="font-size:1.5rem;">🚀</span>
           <span style="font-size:13px; color:#166534; font-weight:600;">Hızlı bağış yaparak acil yardım kampanyalarımıza destek olabilirsiniz.</span>
-          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="margin-left:auto; background:#00764B; color:#fff; padding:8px 20px; border-radius:6px; font-weight:bold; font-size:12px; text-decoration:none;">Hızlı Bağış →</a>
+          <a href="${prefix}/bagis/acil-yardim" style="margin-left:auto; background:#00764B; color:#fff; padding:8px 20px; border-radius:6px; font-weight:bold; font-size:12px; text-decoration:none;">Hızlı Bağış →</a>
         </div>
 
         ${themeCampaignGrid(o, list, { font: "'Quicksand', sans-serif", tabStyle: 'pill', tabActiveBg: '#00764B', sectionBg: '#fff' })}
@@ -535,18 +536,21 @@ themeLayouts.nezir = {
       ${themeFooter(o, { bg: '#022c22', font: "'Quicksand', sans-serif" })}
     </div>`;
   },
-  about(o, list) { return themeAboutPage(o, { font: "'Quicksand', sans-serif", headFont: "'Quicksand', sans-serif", heroBg: '#00764B', headerCfg: { font: "'Quicksand', sans-serif", topBg: '#064e3b' }, footerCfg: { bg: '#022c22', font: "'Quicksand', sans-serif" } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Quicksand', sans-serif", headFont: "'Quicksand', sans-serif", heroBg: '#00764B', headerCfg: { font: "'Quicksand', sans-serif", topBg: '#064e3b' }, footerCfg: { bg: '#022c22', font: "'Quicksand', sans-serif" } }); }
+  about(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug; return themeAboutPage(o, { font: "'Quicksand', sans-serif", headFont: "'Quicksand', sans-serif", heroBg: '#00764B', headerCfg: { font: "'Quicksand', sans-serif", topBg: '#064e3b' }, footerCfg: { bg: '#022c22', font: "'Quicksand', sans-serif" } }); },
+  contact(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug; return themeContactPage(o, { font: "'Quicksand', sans-serif", headFont: "'Quicksand', sans-serif", heroBg: '#00764B', headerCfg: { font: "'Quicksand', sans-serif", topBg: '#064e3b' }, footerCfg: { bg: '#022c22', font: "'Quicksand', sans-serif" } }); }
 };
 
 themeLayouts.hicretdernegi = {
   home(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const cs = state.currentSlideIndex || 0;
     const slides = [
-      { id: 1, bgImage: "/images/hicret/talebe 1.png", title: "HİCRET DERNEĞİ", subtitle: "Eğitim Yuvamıza Hoş Geldiniz", description: "Modern pedagoji ile geleneksel İslami değerleri buluşturan eğitim anlayışımızla, geleceğin Müslüman nesilleri yetiştiriyoruz.", stats: { number: "200+", label: "Öğrenci" }, buttonText: "Hakkımızda", buttonLink: `#/demo/${o.slug}/hakkimizda` },
-      { id: 2, bgImage: "/images/hicret/talebe 2.png", title: "KALİTELİ EĞİTİM", subtitle: "Deneyimli Kadromuzla", description: "15+ tecrübeli eğitimcimiz ile İslami değerleri modern öğretim yöntemleriyle harmanlayan eğitim programları sunuyoruz.", stats: { number: "15+", label: "Eğitimci" }, buttonText: "Kadromuz", buttonLink: `#/demo/${o.slug}/hakkimizda` },
-      { id: 3, bgImage: "/images/hicret/talebe 3.png", title: "4 FARKLI BÖLÜM", subtitle: "Her Yaş İçin Özel Program", description: "Sıbyan (4-7 yaş), İbtida (8-12 yaş), Hafızlık (7+ yaş) ve Arapça (10+ yaş) bölümlerimizle çocuğunuzun yaşına uygun kapsamlı İslami eğitim sunuyoruz.", stats: { number: "4", label: "Özel Program" }, buttonText: "Programlar", buttonLink: `#/demo/${o.slug}/faaliyetlerimiz` },
-      { id: 4, bgImage: "/images/hicret/talebe 4.png", title: "GÜVENLİ ÇEVRE", subtitle: "Aile Ortamında Eğitim", description: "Güvenli ve huzurlu ortamımızda, çocuklarınız hem dinî eğitimlerini alıyor hem de karakter gelişimlerini tamamlıyor.", stats: { number: "8", label: "Yıl Tecrübe" }, buttonText: "Bize Ulaşın", buttonLink: `#/demo/${o.slug}/iletisim` }
+      { id: 1, bgImage: "/images/hicret/talebe 1.png", title: "HİCRET DERNEĞİ", subtitle: "Eğitim Yuvamıza Hoş Geldiniz", description: "Modern pedagoji ile geleneksel İslami değerleri buluşturan eğitim anlayışımızla, geleceğin Müslüman nesilleri yetiştiriyoruz.", stats: { number: "200+", label: "Öğrenci" }, buttonText: "Hakkımızda", buttonLink: `${prefix}/hakkimizda` },
+      { id: 2, bgImage: "/images/hicret/talebe 2.png", title: "KALİTELİ EĞİTİM", subtitle: "Deneyimli Kadromuzla", description: "15+ tecrübeli eğitimcimiz ile İslami değerleri modern öğretim yöntemleriyle harmanlayan eğitim programları sunuyoruz.", stats: { number: "15+", label: "Eğitimci" }, buttonText: "Kadromuz", buttonLink: `${prefix}/hakkimizda` },
+      { id: 3, bgImage: "/images/hicret/talebe 3.png", title: "4 FARKLI BÖLÜM", subtitle: "Her Yaş İçin Özel Program", description: "Sıbyan (4-7 yaş), İbtida (8-12 yaş), Hafızlık (7+ yaş) ve Arapça (10+ yaş) bölümlerimizle çocuğunuzun yaşına uygun kapsamlı İslami eğitim sunuyoruz.", stats: { number: "4", label: "Özel Program" }, buttonText: "Programlar", buttonLink: `${prefix}/faaliyetlerimiz` },
+      { id: 4, bgImage: "/images/hicret/talebe 4.png", title: "GÜVENLİ ÇEVRE", subtitle: "Aile Ortamında Eğitim", description: "Güvenli ve huzurlu ortamımızda, çocuklarınız hem dinî eğitimlerini alıyor hem de karakter gelişimlerini tamamlıyor.", stats: { number: "8", label: "Yıl Tecrübe" }, buttonText: "Bize Ulaşın", buttonLink: `${prefix}/iletisim` }
     ];
 
     const slide = slides[cs] || slides[0];
@@ -580,7 +584,7 @@ themeLayouts.hicretdernegi = {
               </div>
             </div>
             
-            <a href="#/demo/${o.slug}/bagis/${c.slug}" style="display:inline-flex; width:100%; justify-content:center; align-items:center; background:#059669; color:#fff; text-decoration:none; font-size:12.5px; font-weight:700; padding:10px; border-radius:8px; box-shadow:0 4px 10px rgba(5,150,105,0.15);">Hemen Destek Ol <span style="margin-left:4px;">➔</span></a>
+            <a href="${prefix}/bagis/${c.slug}" style="display:inline-flex; width:100%; justify-content:center; align-items:center; background:#059669; color:#fff; text-decoration:none; font-size:12.5px; font-weight:700; padding:10px; border-radius:8px; box-shadow:0 4px 10px rgba(5,150,105,0.15);">Hemen Destek Ol <span style="margin-left:4px;">➔</span></a>
           </div>
         </div>
       `;
@@ -599,7 +603,7 @@ themeLayouts.hicretdernegi = {
       </div>
       
       <header class="site-head" style="background:#fff; border-bottom:2px solid #059669; padding:12px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,0.05); position:sticky; top:0; z-index:100;">
-        <a class="brand" href="#/demo/${o.slug}" style="display:flex; align-items:center; gap:12px; text-decoration:none;">
+        <a class="brand" href="${prefix}" style="display:flex; align-items:center; gap:12px; text-decoration:none;">
           <img src="/images/hicret/logooo.png" style="width:50px; height:50px; border-radius:50%; border:2px solid #059669;" />
           <div>
             <h1 style="font-size:1.15rem; font-weight:800; color:#065f46; margin:0; line-height:1.2;">HİCRET DERNEĞİ</h1>
@@ -607,14 +611,14 @@ themeLayouts.hicretdernegi = {
           </div>
         </a>
         <nav style="display:flex; gap:20px; align-items:center;">
-          <a href="#/demo/${o.slug}" style="color:#065f46; font-weight:700; text-decoration:none; font-size:14px;">Ana Sayfa</a>
-          <a href="#/demo/${o.slug}/faaliyetlerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Faaliyetlerimiz</a>
-          <a href="#/demo/${o.slug}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Hakkımızda</a>
-          <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">İletişim</a>
+          <a href="${prefix}" style="color:#065f46; font-weight:700; text-decoration:none; font-size:14px;">Ana Sayfa</a>
+          <a href="${prefix}/faaliyetlerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Faaliyetlerimiz</a>
+          <a href="${prefix}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Hakkımızda</a>
+          <a href="${prefix}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">İletişim</a>
         </nav>
         <div style="display:flex; gap:10px;">
-          <a href="#/demo/${o.slug}/iletisim" style="background:#2563eb; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(37,99,235,0.2);">BAŞVURU YAP</a>
-          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#059669; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(5,150,105,0.2);">BAĞIŞ YAP</a>
+          <a href="${prefix}/iletisim" style="background:#2563eb; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(37,99,235,0.2);">BAŞVURU YAP</a>
+          <a href="${prefix}/bagis/acil-yardim" style="background:#059669; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(5,150,105,0.2);">BAĞIŞ YAP</a>
         </div>
       </header>
 
@@ -634,7 +638,7 @@ themeLayouts.hicretdernegi = {
               <p style="font-size:16px; line-height:1.6; color:#e2e8f0; margin-bottom:28px; max-width:600px;">${slide.description}</p>
               <div style="display:flex; gap:12px; flex-wrap:wrap;">
                 <a href="${slide.buttonLink}" style="background:linear-gradient(to right, #059669, #047857); color:#fff; font-size:13.5px; font-weight:800; padding:14px 32px; border-radius:30px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 20px rgba(5,150,105,0.3); border:1px solid rgba(255,255,255,0.15);">${slide.buttonText.toUpperCase()} ➔</a>
-                <a href="#/demo/${o.slug}/iletisim" style="background:linear-gradient(to right, #2563eb, #1d4ed8); color:#fff; font-size:13.5px; font-weight:800; padding:14px 32px; border-radius:30px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 20px rgba(37,99,235,0.3);">BAŞVURU YAP ➔</a>
+                <a href="${prefix}/iletisim" style="background:linear-gradient(to right, #2563eb, #1d4ed8); color:#fff; font-size:13.5px; font-weight:800; padding:14px 32px; border-radius:30px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 20px rgba(37,99,235,0.3);">BAŞVURU YAP ➔</a>
               </div>
             </div>
 
@@ -677,7 +681,7 @@ themeLayouts.hicretdernegi = {
           <div style="display:flex; align-items:center; gap:8px; color:#065f46; font-size:13px; font-weight:700;">
             <span>📢</span> Kış dönemi talebe kayıtlarımız devam etmektedir. Detaylı bilgi için başvuru yapabilirsiniz.
           </div>
-          <a href="#/demo/${o.slug}/iletisim" style="background:#065f46; color:#fff; text-decoration:none; font-size:11px; font-weight:700; padding:6px 16px; border-radius:20px;">Başvuru Sayfası ➔</a>
+          <a href="${prefix}/iletisim" style="background:#065f46; color:#fff; text-decoration:none; font-size:11px; font-weight:700; padding:6px 16px; border-radius:20px;">Başvuru Sayfası ➔</a>
         </div>
 
         <!-- Sections -->
@@ -733,6 +737,7 @@ themeLayouts.hicretdernegi = {
     </div>`;
   },
   about(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const programs = [
       { icon: "👶", title: 'Sıbyan Mektebi', description: "4-7 yaş arası çocuklarımız için temel İslami bilgiler, ahlak ve adap eğitimi ile Kur'an öğretimi.", duration: '1-2 Yıl', color: 'background:#f59e0b;' },
       { icon: "🏫", title: 'İbtida Programı', description: "8-12 yaş arası öğrencilerimiz için temel İslami bilgiler, Kur'an okuma, temel Arapça ve dini değerler eğitimi.", duration: '2-3 Yıl', color: 'background:#a855f7;' },
@@ -818,8 +823,8 @@ themeLayouts.hicretdernegi = {
         <h2 style="font-size:1.8rem; font-weight:850; margin:0 0 12px;">Medresemize Katılın</h2>
         <p style="font-size:14px; color:#cbd5e1; max-width:600px; margin:0 auto 24px;">İslami ilimleri öğrenmek, hafızlık yapmak veya Arapça öğrenmek istiyorsanız medresemizle iletişime geçin.</p>
         <div style="display:flex; justify-content:center; gap:12px;">
-          <a href="#/demo/${o.slug}/iletisim" style="background:#fff; color:#065f46; padding:12px 28px; border-radius:99px; font-weight:700; text-decoration:none; font-size:13px;">Başvuru Yap</a>
-          <a href="#/demo/${o.slug}/iletisim" style="border:2px solid rgba(255,255,255,0.3); color:#fff; padding:12px 28px; border-radius:99px; font-weight:700; text-decoration:none; font-size:13px;">İletişim</a>
+          <a href="${prefix}/iletisim" style="background:#fff; color:#065f46; padding:12px 28px; border-radius:99px; font-weight:700; text-decoration:none; font-size:13px;">Başvuru Yap</a>
+          <a href="${prefix}/iletisim" style="border:2px solid rgba(255,255,255,0.3); color:#fff; padding:12px 28px; border-radius:99px; font-weight:700; text-decoration:none; font-size:13px;">İletişim</a>
         </div>
       </section>
 
@@ -827,6 +832,7 @@ themeLayouts.hicretdernegi = {
     </div>`;
   },
   contact(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f9fafb;">
       ${this.headerHtml(o)}
       
@@ -935,6 +941,7 @@ themeLayouts.hicretdernegi = {
     </div>`;
   },
   activities(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const activities = [
       { id: 'sibyan-mektebi', title: 'Sıbyan Mektebi', ageGroup: '4-7 yaş', duration: '1-2 Yıl', participants: '45+ Öğrenci', schedule: 'Pazartesi - Cuma', time: '09:00 - 12:00', description: 'Küçük yaş grubundaki çocuklarımız için temel İslami bilgiler, ahlak ve adap eğitimi.', features: ["Temel İslami bilgiler", "Kur'an-ı Kerim okuma", "Ahlak ve adap eğitimi"], image: "/images/hicret/talebe 1.png", color: "from-orange-500 to-orange-600" },
       { id: 'ibtida-programi', title: 'İbtida Programı', ageGroup: '8-12 yaş', duration: '2-3 Yıl', participants: '35+ Öğrenci', schedule: 'Pazartesi - Cuma', time: '09:00 - 15:00', description: 'Orta yaş grubundaki öğrencilerimiz için kapsamlı İslami eğitim programı.', features: ["Kur'an-ı Kerim tecvidi", "Temel Arapça dersleri", "İslam tarihi"], image: "/images/hicret/talebe 2.png", color: "from-purple-500 to-purple-600" },
@@ -981,17 +988,18 @@ themeLayouts.hicretdernegi = {
     </div>`;
   },
   headerHtml(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     return `<div style="background:#043425; color:#cbd5e1; padding:6px 20px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600;">
         <div>📖 Hicret Medresesi İslami Eğitim Kurumu</div>
         <div style="display:flex; gap:16px;">
-          <a href="#/demo/${o.slug}/portal" style="color:#cbd5e1; text-decoration:none;">👤 Veli Takip Portalı</a>
+          <a href="${prefix}/portal" style="color:#cbd5e1; text-decoration:none;">👤 Veli Takip Portalı</a>
           <span>|</span>
           <a href="#/admin" style="color:#cbd5e1; text-decoration:none;">⚙️ Otomasyon</a>
         </div>
       </div>
       
       <header class="site-head" style="background:#fff; border-bottom:2px solid #059669; padding:12px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,0.05); position:sticky; top:0; z-index:100;">
-        <a class="brand" href="#/demo/${o.slug}" style="display:flex; align-items:center; gap:12px; text-decoration:none;">
+        <a class="brand" href="${prefix}" style="display:flex; align-items:center; gap:12px; text-decoration:none;">
           <img src="/images/hicret/logooo.png" style="width:50px; height:50px; border-radius:50%; border:2px solid #059669;" />
           <div>
             <h1 style="font-size:1.15rem; font-weight:800; color:#065f46; margin:0; line-height:1.2;">HİCRET DERNEĞİ</h1>
@@ -999,20 +1007,21 @@ themeLayouts.hicretdernegi = {
           </div>
         </a>
         <nav style="display:flex; gap:20px; align-items:center;">
-          <a href="#/demo/${o.slug}" style="color:#065f46; font-weight:700; text-decoration:none; font-size:14px;">Ana Sayfa</a>
-          <a href="#/demo/${o.slug}/bolumler" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Eğitim Bölümleri</a>
-          <a href="#/demo/${o.slug}/duyurular" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Duyurular</a>
-          <a href="#/demo/${o.slug}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Hakkımızda</a>
-          <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">İletişim</a>
+          <a href="${prefix}" style="color:#065f46; font-weight:700; text-decoration:none; font-size:14px;">Ana Sayfa</a>
+          <a href="${prefix}/bolumler" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Eğitim Bölümleri</a>
+          <a href="${prefix}/duyurular" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Duyurular</a>
+          <a href="${prefix}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Hakkımızda</a>
+          <a href="${prefix}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">İletişim</a>
         </nav>
         <div style="display:flex; gap:10px;">
-          <a href="#/demo/${o.slug}/basvuru" style="background:#2563eb; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(37,99,235,0.2);">BAŞVURU YAP</a>
-          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#059669; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(5,150,105,0.2);">BAĞIŞ YAP</a>
+          <a href="${prefix}/basvuru" style="background:#2563eb; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(37,99,235,0.2);">BAŞVURU YAP</a>
+          <a href="${prefix}/bagis/acil-yardim" style="background:#059669; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(5,150,105,0.2);">BAĞIŞ YAP</a>
         </div>
       </header>`;
   },
 
   checkout(o, c) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const payMethod = state.hicret_paymethod || 'credit';
     const amount = state.hicret_amount || '200';
     const donor = state.hicret_donor || { firstName: '', lastName: '', email: '', phone: '', message: '' };
@@ -1029,7 +1038,7 @@ themeLayouts.hicretdernegi = {
             <h2 style="font-size:1.75rem; font-weight:800; color:#065f46; margin:0 0 12px;">Ödemeniz Başarıyla Alındı</h2>
             <p style="font-size:14px; color:#4b5563; line-height:1.6; margin-bottom:32px;">Hicret Medresemize yaptığınız destek başarıyla sisteme kaydedilmiştir. Allah kabul etsin.</p>
             <div style="display:flex; flex-direction:column; gap:12px;">
-              <a href="#/demo/${o.slug}" style="background:#059669; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Ana Sayfaya Dön</a>
+              <a href="${prefix}" style="background:#059669; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Ana Sayfaya Dön</a>
             </div>
           </div>
         </main>
@@ -1115,6 +1124,7 @@ themeLayouts.hicretdernegi = {
   },
 
   basvuru(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const sub = !!state.hicret_sub_app;
     if (sub) {
       return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
@@ -1124,7 +1134,7 @@ themeLayouts.hicretdernegi = {
             <div style="width:80px; height:80px; background:#ecfdf5; color:#047857; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 24px;">✓</div>
             <h2 style="font-size:1.75rem; font-weight:800; color:#065f46; margin:0 0 12px;">Başvurunuz Kaydedildi</h2>
             <p style="font-size:14px; color:#4b5563; line-height:1.6; margin-bottom:32px;">Eğitim başvuru talebiniz başarıyla alınmıştır. Mülakat ve kayıt detayları veli telefonuna SMS ile iletilecektir.<br><b>Başvuru No:</b> <span style="font-weight:700; color:#065f46;">#BA2025001</span></p>
-            <a href="#/demo/${o.slug}" style="display:block; background:#059669; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Ana Sayfaya Dön</a>
+            <a href="${prefix}" style="display:block; background:#059669; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Ana Sayfaya Dön</a>
           </div>
         </main>
         ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
@@ -1190,6 +1200,7 @@ themeLayouts.hicretdernegi = {
   },
 
   bolumler(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const list = [
       { id: 'sibyan', title: 'Sıbyan Mektebi', age: '4 - 7 Yaş', desc: 'Erken yaşta Kur\'an-ı Kerim elif-bası, temel dini bilgiler, ahlak eğitimleri ve okul öncesi gelişim.', lessons: 'Kur\'an-ı Kerim, Dua Ezberi, Ahlak, Adab-ı Muaşeret' },
       { id: 'ibtida', title: 'İbtida Mektebi', age: '8 - 12 Yaş', desc: 'İlkokul çağındaki çocuklara okul dersleri ile birlikte temel tecvid, adab, ezber ve Kur\'an-ı Kerim eğitimi.', lessons: 'Mahreç, Tecvid, İlmihal, Temel Hadisler' },
@@ -1218,7 +1229,7 @@ themeLayouts.hicretdernegi = {
                 <div style="font-size:12.5px; color:#6b7280;"><b>Ders İçerikleri:</b> ${l.lessons}</div>
               </div>
               <div style="text-align:right;">
-                <a href="#/demo/${o.slug}/basvuru" style="display:inline-block; background:#059669; color:#fff; text-decoration:none; padding:12px 24px; border-radius:8px; font-weight:700; font-size:13px; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Kayıt Başvurusu Yap</a>
+                <a href="${prefix}/basvuru" style="display:inline-block; background:#059669; color:#fff; text-decoration:none; padding:12px 24px; border-radius:8px; font-weight:700; font-size:13px; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Kayıt Başvurusu Yap</a>
               </div>
             </div>
           `).join('')}
@@ -1230,6 +1241,7 @@ themeLayouts.hicretdernegi = {
   },
 
   duyurular(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const list = [
       { id: 1, title: 'Yaz Dönemi Hafızlık Programı Başvuruları Başladı', excerpt: 'Yaz tatilini değerlendirmek isteyen öğrenciler için özel hafızlık programımıza başvurular başlamıştır.', date: '15 Mayıs 2025', author: 'Medrese İdaresi' },
       { id: 2, title: 'Yeni Eğitim Dönemi Kayıtları Hakkında Duyuru', excerpt: 'Yeni dönem kayıt koşulları, kontenjan durumu ve ders programları belirlendi.', date: '20 Nisan 2025', author: 'İdare' },
@@ -1266,6 +1278,7 @@ themeLayouts.hicretdernegi = {
   },
 
   portal(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const active = state.hicret_portal_student || '1';
     const students = [
       { id: '1', name: 'Ahmet Yılmaz', class: 'Hafızlık - A Sınıfı', attendance: 95, grade: 88, progress: 85 },
@@ -1323,6 +1336,7 @@ themeLayouts.hicretdernegi = {
   },
 
   gizlilik(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh;">
       ${this.headerHtml(o)}
       
@@ -1354,6 +1368,7 @@ themeLayouts.hicretdernegi = {
    ══════════════════════════════════════════════════════════════ */
 themeLayouts.kardeslikpayi = {
   home(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const cs = state.currentSlideIndex || 0;
     const slides = [
       { id: 1, image: "/images/kardeslik/genel-bagislar.png", title: "Afrika'da Umut Oluyoruz", subtitle: 'HAKDER', description: "İnsanî yardım ve eğitim faaliyetlerimizle Afrika'daki kardeşlerimize destek veriyoruz. Kurban organizasyonlarıyla ailelerin sofralarına sıcak yemek ulaştırıyoruz. Medrese öğrencilerine burs ve eğitim materyali sağlıyoruz." },
@@ -1392,7 +1407,7 @@ themeLayouts.kardeslikpayi = {
               </div>
             </div>
             
-            <a href="#/demo/${o.slug}/bagis/${c.slug}" style="display:inline-flex; width:100%; justify-content:center; align-items:center; background:#174C3B; color:#fff; text-decoration:none; font-size:13px; font-weight:700; padding:12px; border-radius:12px; box-shadow:0 4px 12px rgba(23,76,59,0.15); transition:all 0.2s;">Destek Ol <span style="margin-left:4px;">➔</span></a>
+            <a href="${prefix}/bagis/${c.slug}" style="display:inline-flex; width:100%; justify-content:center; align-items:center; background:#174C3B; color:#fff; text-decoration:none; font-size:13px; font-weight:700; padding:12px; border-radius:12px; box-shadow:0 4px 12px rgba(23,76,59,0.15); transition:all 0.2s;">Destek Ol <span style="margin-left:4px;">➔</span></a>
           </div>
         </div>
       `;
@@ -1413,8 +1428,8 @@ themeLayouts.kardeslikpayi = {
               <p style="font-size:13.5px; color:#475569; line-height:1.6; margin-bottom:24px;">${slide.description}</p>
               
               <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;">
-                <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f5a42; color:#fff; font-weight:700; text-decoration:none; padding:12px 24px; border-radius:30px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">Hemen Bağış Yap ➔</a>
-                <a href="#/demo/${o.slug}/projelerimiz" style="background:#93740C; color:#fff; font-weight:700; text-decoration:none; padding:12px 24px; border-radius:8px; font-size:13px;">Projelerimiz</a>
+                <a href="${prefix}/bagis/acil-yardim" style="background:#0f5a42; color:#fff; font-weight:700; text-decoration:none; padding:12px 24px; border-radius:30px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">Hemen Bağış Yap ➔</a>
+                <a href="${prefix}/projelerimiz" style="background:#93740C; color:#fff; font-weight:700; text-decoration:none; padding:12px 24px; border-radius:8px; font-size:13px;">Projelerimiz</a>
               </div>
 
               <!-- Quick donation presets -->
@@ -1422,7 +1437,7 @@ themeLayouts.kardeslikpayi = {
                 <div style="font-size:11px; font-weight:700; color:#64748b; margin-bottom:8px; text-transform:uppercase;">Hızlı Bağış</div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                   ${[50, 100, 250, 500].map(amt => `
-                    <a href="#/demo/${o.slug}/bagis/acil-yardim?amount=${amt}" style="background:#f1f5f9; color:#1e293b; font-weight:700; text-decoration:none; padding:8px 16px; border-radius:20px; font-size:12px;">₺${amt}</a>
+                    <a href="${prefix}/bagis/acil-yardim?amount=${amt}" style="background:#f1f5f9; color:#1e293b; font-weight:700; text-decoration:none; padding:8px 16px; border-radius:20px; font-size:12px;">₺${amt}</a>
                   `).join('')}
                 </div>
               </div>
@@ -1503,6 +1518,7 @@ themeLayouts.kardeslikpayi = {
     </div>`;
   },
   about(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const values = [
       { icon: "🛡️", title: "Güvenilirlik", description: "Tüm yardımlarımızı şeffaf ve hesap verebilir şekilde gerçekleştiriyoruz. Bağışçılarımızın güvenini korumak en önemli önceliğimizdir." },
       { icon: "🤝", title: "Dayanışma", description: "İnsanlık ailesinin bir parçası olarak, kardeşlerimizin acılarını paylaşıyor ve onlara yardım eli uzatıyoruz." },
@@ -1552,8 +1568,8 @@ themeLayouts.kardeslikpayi = {
         <h2 style="font-size:2rem; font-weight:800; margin:0 0 12px;">Bize Katılın</h2>
         <p style="font-size:15px; color:#cbd5e1; max-width:600px; margin:0 auto 24px;">Afrika'daki kardeşlerimize umut olmak ve onların hayatlarına dokunmak için bizimle birlikte hareket edin.</p>
         <div style="display:flex; justify-content:center; gap:12px;">
-          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#fff; color:#174C3B; padding:12px 28px; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">Bağış Yap</a>
-          <a href="#/demo/${o.slug}/iletisim" style="border:2px solid #fff; color:#fff; padding:12px 28px; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">İletişime Geç</a>
+          <a href="${prefix}/bagis/acil-yardim" style="background:#fff; color:#174C3B; padding:12px 28px; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">Bağış Yap</a>
+          <a href="${prefix}/iletisim" style="border:2px solid #fff; color:#fff; padding:12px 28px; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">İletişime Geç</a>
         </div>
       </section>
 
@@ -1561,6 +1577,7 @@ themeLayouts.kardeslikpayi = {
     </div>`;
   },
   contact(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc;">
       ${this.headerHtml(o)}
       
@@ -1652,6 +1669,7 @@ themeLayouts.kardeslikpayi = {
     </div>`;
   },
   projects(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const slides = [
       { id: 1, title: "Afrika'da Umut Oluyoruz", subtitle: 'HAKDER', description: "İnsanî yardım ve eğitim faaliyetlerimizle Afrika'daki kardeşlerimize destek veriyoruz. Kurban organizasyonlarıyla ailelerin sofralarına sıcak yemek ulaştırıyoruz.", image: "/images/kardeslik/genel-bagislar.png" },
       { id: 2, title: 'Medrese Talebelerine Destek', subtitle: 'EĞİTİM', description: "Medrese talebelerine düzenli burs ve barınma desteği sağlıyoruz. Öğrencilerin eğitim materyalleri ve kırtasiye ihtiyaçlarını karşılıyoruz.", image: "/images/kardeslik/mahmud-ustaosmanoglu-hazretleri-ks-su-kuyusu-projesi.png" },
@@ -1698,7 +1716,7 @@ themeLayouts.kardeslikpayi = {
                       </div>
                     </div>
                     <div style="display:flex; gap:8px;">
-                      <a href="#/demo/${o.slug}/bagis/acil-yardim" style="flex:1; text-align:center; background:#174C3B; color:#fff; text-decoration:none; font-size:11.5px; font-weight:700; padding:8px; border-radius:6px;">Destek Ol</a>
+                      <a href="${prefix}/bagis/acil-yardim" style="flex:1; text-align:center; background:#174C3B; color:#fff; text-decoration:none; font-size:11.5px; font-weight:700; padding:8px; border-radius:6px;">Destek Ol</a>
                     </div>
                   </div>
                 </div>
@@ -1712,6 +1730,7 @@ themeLayouts.kardeslikpayi = {
     </div>`;
   },
   headerHtml(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     return `<div style="background:#0d1b1e; color:#cbd5e1; padding:6px 24px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600;">
         <div>Paylaşmak Kardeşliktir | Kardeşlik Payı Derneği</div>
         <div style="display:flex; gap:16px;">
@@ -1721,7 +1740,7 @@ themeLayouts.kardeslikpayi = {
         </div>
       </div>
       <header class="site-head" style="background:#fff; border-bottom:3px solid #0f766e; padding:14px 28px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 15px rgba(0,0,0,0.03); position:sticky; top:0; z-index:100;">
-        <a class="brand" href="#/demo/${o.slug}" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
+        <a class="brand" href="${prefix}" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
           <img src="/images/kardeslik/logo.png" style="width:48px; height:48px; border-radius:8px;" />
           <div>
             <h1 style="font-size:1.2rem; font-weight:900; color:#0f766e; margin:0; line-height:1.2;">KARDEŞLİK PAYI</h1>
@@ -1729,21 +1748,22 @@ themeLayouts.kardeslikpayi = {
           </div>
         </a>
         <nav style="display:flex; gap:14px; align-items:center;">
-          <a href="#/demo/${o.slug}" style="color:#0f766e; font-weight:800; text-decoration:none; font-size:13.5px;">Ana Sayfa</a>
-          <a href="#/demo/${o.slug}/projelerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Projelerimiz</a>
-          <a href="#/demo/${o.slug}/faaliyetlerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Faaliyetlerimiz</a>
-          <a href="#/demo/${o.slug}/basvuru" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Kayıt</a>
-          <a href="#/demo/${o.slug}/hesap-numaralarimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Hesaplarımız</a>
-          <a href="#/demo/${o.slug}/gonullu-ol" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Gönüllü Ol</a>
+          <a href="${prefix}" style="color:#0f766e; font-weight:800; text-decoration:none; font-size:13.5px;">Ana Sayfa</a>
+          <a href="${prefix}/projelerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Projelerimiz</a>
+          <a href="${prefix}/faaliyetlerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Faaliyetlerimiz</a>
+          <a href="${prefix}/basvuru" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Kayıt</a>
+          <a href="${prefix}/hesap-numaralarimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Hesaplarımız</a>
+          <a href="${prefix}/gonullu-ol" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Gönüllü Ol</a>
         </nav>
         <div style="display:flex; align-items:center; gap:12px;">
-          <a href="#/demo/${o.slug}/sepet" style="color:#0f766e; text-decoration:none; font-size:18px; display:flex; align-items:center;">🛒</a>
-          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f766e; color:#fff; text-decoration:none; font-size:12px; font-weight:800; padding:10px 20px; border-radius:8px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">ŞİMDİ BAĞIŞ YAP</a>
+          <a href="${prefix}/sepet" style="color:#0f766e; text-decoration:none; font-size:18px; display:flex; align-items:center;">🛒</a>
+          <a href="${prefix}/bagis/acil-yardim" style="background:#0f766e; color:#fff; text-decoration:none; font-size:12px; font-weight:800; padding:10px 20px; border-radius:8px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">ŞİMDİ BAĞIŞ YAP</a>
         </div>
       </header>`;
   },
   
   checkout(o, c) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const payMethod = state.kp_paymethod || 'credit';
     const amount = state.kp_amount || '100';
     const donor = state.kp_donor || { firstName: '', lastName: '', email: '', phone: '', message: '' };
@@ -1760,7 +1780,7 @@ themeLayouts.kardeslikpayi = {
             <h2 style="font-size:1.8rem; font-weight:900; color:#1e293b; margin:0 0 12px;">Bağışınız Başarıyla Alındı!</h2>
             <p style="font-size:14px; color:#64748b; line-height:1.6; margin-bottom:32px;">Kardeşlik köprüsüne sağladığınız katkı için teşekkür ederiz. Bağış makbuzunuz e-posta adresinize gönderilmiştir.</p>
             <div style="display:flex; flex-direction:column; gap:12px;">
-              <a href="#/demo/${o.slug}" style="background:#174C3B; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px;">Ana Sayfaya Dön</a>
+              <a href="${prefix}" style="background:#174C3B; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px;">Ana Sayfaya Dön</a>
               <button onclick="state.kp_completed = false; render();" style="border:1px solid #174C3B; background:none; color:#174C3B; padding:14px; border-radius:12px; font-weight:700; font-size:14px; cursor:pointer;">Yeni Bağış Yap</button>
             </div>
           </div>
@@ -1906,6 +1926,7 @@ themeLayouts.kardeslikpayi = {
   },
 
   cart(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
       ${this.headerHtml(o)}
       
@@ -1914,7 +1935,7 @@ themeLayouts.kardeslikpayi = {
         <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:40px; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.02);">
           <div style="width:70px; height:70px; background:#f0fdf4; color:#0f766e; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; margin:0 auto 20px;">🛒</div>
           <p style="font-size:14.5px; color:#64748b; line-height:1.6; margin-bottom:28px;">Sepetiniz şu anda boş. Bağış eklemek için projeler veya online bağış sayfasını ziyaret edebilirsiniz.</p>
-          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="display:inline-block; background:#174C3B; color:#fff; text-decoration:none; padding:14px 28px; border-radius:12px; font-weight:700; font-size:13.5px; box-shadow:0 6px 15px rgba(23,76,59,0.25);">Online Bağış Sayfası ➔</a>
+          <a href="${prefix}/bagis/acil-yardim" style="display:inline-block; background:#174C3B; color:#fff; text-decoration:none; padding:14px 28px; border-radius:12px; font-weight:700; font-size:13.5px; box-shadow:0 6px 15px rgba(23,76,59,0.25);">Online Bağış Sayfası ➔</a>
         </div>
       </main>
 
@@ -1923,6 +1944,7 @@ themeLayouts.kardeslikpayi = {
   },
 
   basvuru(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const sub = !!state.kp_sub_app;
     if (sub) {
       return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
@@ -1932,7 +1954,7 @@ themeLayouts.kardeslikpayi = {
             <div style="width:80px; height:80px; background:#f0fdf4; color:#166534; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 24px;">✓</div>
             <h2 style="font-size:1.8rem; font-weight:900; color:#1e293b; margin:0 0 12px;">Başvurunuz Alındı!</h2>
             <p style="font-size:14px; color:#64748b; line-height:1.6; margin-bottom:32px;">Kayıt başvurunuz başarıyla alınmıştır. İnceleme sonrasında sizinle 3 iş günü içinde irtibat kurulacaktır.<br><b>Başvuru No:</b> <span style="font-weight:700; color:#174C3B;">#KP-202501</span></p>
-            <a href="#/demo/${o.slug}" style="display:block; background:#174C3B; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px;">Ana Sayfaya Dön</a>
+            <a href="${prefix}" style="display:block; background:#174C3B; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px;">Ana Sayfaya Dön</a>
           </div>
         </main>
         ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
@@ -2002,6 +2024,7 @@ themeLayouts.kardeslikpayi = {
   },
 
   activities(o, list) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh;">
       ${this.headerHtml(o)}
       
@@ -2044,6 +2067,7 @@ themeLayouts.kardeslikpayi = {
   },
 
   accounts(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const copied = state.kp_copied_iban || null;
     return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh;">
       ${this.headerHtml(o)}
@@ -2081,6 +2105,7 @@ themeLayouts.kardeslikpayi = {
   },
 
   gonullu(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     const sub = !!state.kp_sub_gonullu;
     return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
       ${this.headerHtml(o)}
@@ -2092,7 +2117,7 @@ themeLayouts.kardeslikpayi = {
               <div style="width:70px; height:70px; background:#f0fdf4; color:#166534; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; margin:0 auto 20px;">✓</div>
               <h3 style="font-size:1.5rem; font-weight:900; color:#1e293b; margin:0 0 8px;">Başvurunuz Alındı</h3>
               <p style="font-size:13.5px; color:#64748b; line-height:1.6; margin-bottom:24px;">Gönüllü katılım formunuz başarıyla iletilmiştir. Kardeşlik köprümüze verdiğiniz destek için teşekkür ederiz.</p>
-              <a href="#/demo/${o.slug}" style="display:inline-block; background:#174C3B; color:#fff; text-decoration:none; padding:12px 24px; border-radius:8px; font-weight:700; font-size:13px;">Ana Sayfaya Dön</a>
+              <a href="${prefix}" style="display:inline-block; background:#174C3B; color:#fff; text-decoration:none; padding:12px 24px; border-radius:8px; font-weight:700; font-size:13px;">Ana Sayfaya Dön</a>
             </div>
           ` : `
             <h2 style="font-size:1.6rem; font-weight:900; color:#174C3B; text-align:center; margin:0 0 8px;">Gönüllü Ol</h2>
@@ -2119,6 +2144,7 @@ themeLayouts.kardeslikpayi = {
   },
 
   gizlilik(o) {
+    const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
     return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh;">
       ${this.headerHtml(o)}
       
