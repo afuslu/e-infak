@@ -35,7 +35,7 @@ function route() {
     if (parts[0] === "admin") return { name: "admin" };
     if (parts[0] === "bagisci") return { name: "donor" };
     
-    if (section === "bagis" || section === "hakkimizda" || section === "iletisim") {
+    if (section === "bagis" || section === "hakkimizda" || section === "iletisim" || section === "faaliyetlerimiz" || section === "projelerimiz") {
       return { name: "demo", slug, section, item };
     }
     return { name: "demo", slug, section: "home", item: "" };
@@ -927,6 +927,16 @@ function demoSite(slug) {
       return shell(themeLayouts[o.theme].contact(o, list));
     }
     return contactSite(o);
+  }
+  if (state.route.section === "faaliyetlerimiz") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].activities) {
+      return shell(themeLayouts[o.theme].activities(o, list));
+    }
+  }
+  if (state.route.section === "projelerimiz") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].projects) {
+      return shell(themeLayouts[o.theme].projects(o, list));
+    }
   }
   
   // Theme dispatch: if a custom layout exists for this org's theme, use it

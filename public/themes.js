@@ -357,383 +357,9 @@ themeLayouts.nezir = {
   contact(o, list) { return themeContactPage(o, { font: "'Quicksand', sans-serif", headFont: "'Quicksand', sans-serif", heroBg: '#00764B', headerCfg: { font: "'Quicksand', sans-serif", topBg: '#064e3b' }, footerCfg: { bg: '#022c22', font: "'Quicksand', sans-serif" } }); }
 };
 
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 2: HAKDER (hakder.org) → Umut Köprüsü
-   Corporate blue, trust-oriented, Poppins font
-   ══════════════════════════════════════════════════════════════ */
-themeLayouts.hakder = {
-  home(o, list) {
-    const hCfg = { font: "'Poppins', sans-serif", topBg: '#1e3a5f', topLeft: '📞 0212 555 1020 | info@umut-koprusu.org', topRight: '<span style="background:#22c55e; color:#fff; padding:2px 8px; border-radius:4px; font-size:10px;">WhatsApp Destek</span>', ctaText: 'Bağış Yap', ctaStyle: 'background:#1d4ed8; color:#fff;' };
-    return `<div class="site" data-theme="hakder" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Poppins', sans-serif;">
-      ${themeHeader(o, hCfg)}
-      <main>
-        ${themeHeroSlider(o, list, { font: "'Poppins', sans-serif", overlay: 'linear-gradient(to right, rgba(29,78,216,0.8), rgba(0,0,0,0.3))', height: '480px' })}
-        
-        <div style="background:#eff6ff; padding:16px clamp(18px,5vw,72px); display:flex; gap:20px; justify-content:center; border-bottom:1px solid #bfdbfe;">
-          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#1e40af; font-weight:600;"><span>📩</span> Bağış sonrası WhatsApp video geri bildirimi</div>
-          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#1e40af; font-weight:600;"><span>🔒</span> 3D Secure güvenli ödeme</div>
-          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#1e40af; font-weight:600;"><span>🌐</span> 47 ülkede faaliyet</div>
-        </div>
-
-        ${themeCampaignGrid(o, list, { font: "'Poppins', sans-serif", tabStyle: 'underline', cols: 'three' })}
-
-        <section class="section alt" style="background:#f0f5ff; padding:48px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; margin-bottom:8px;">🌍 Faaliyet Haritası</h2>
-          <p style="text-align:center; color:var(--muted); max-width:600px; margin:0 auto 28px; font-size:14px;">Küresel yardım ağımızı inceleyin.</p>
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
-
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #1e3a8a, #1d4ed8)' })}
-      </main>
-      ${themeFooter(o, { bg: '#0f172a', font: "'Poppins', sans-serif" })}
-    </div>`;
-  },
-  about(o, list) { return themeAboutPage(o, { font: "'Poppins', sans-serif", heroBg: '#1d4ed8', headerCfg: { font: "'Poppins', sans-serif", topBg: '#1e3a5f' }, footerCfg: { bg: '#0f172a', font: "'Poppins', sans-serif" } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Poppins', sans-serif", heroBg: '#1d4ed8', headerCfg: { font: "'Poppins', sans-serif", topBg: '#1e3a5f' }, footerCfg: { bg: '#0f172a', font: "'Poppins', sans-serif" } }); }
-};
-
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 3: EFENDI (efendi.org.tr) → İlim Yolu
-   Traditional warm brown, Playfair Display headings, education focus
-   ══════════════════════════════════════════════════════════════ */
-themeLayouts.efendi = {
-  home(o, list) {
-    const hCfg = { font: "'Inter', sans-serif", topBg: '#451a03', topLeft: '📖 Eğitim ve Hayır Portalı | WhatsApp: 0532 xxx xx xx', ctaText: 'Bağış Yap', ctaStyle: 'background:#7c2d12; color:#fff;' };
-    return `<div class="site" data-theme="efendi" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Inter', sans-serif;">
-      ${themeHeader(o, hCfg)}
-      <main>
-        ${themeHeroSlider(o, list, { font: "'Playfair Display', serif", overlay: 'linear-gradient(135deg, rgba(124,45,18,0.75), rgba(0,0,0,0.4))', height: '500px', btnStyle: 'background:#d97706; color:#fff; padding:14px 28px; border-radius:6px; font-weight:700; font-size:14px; display:inline-flex; align-items:center; gap:8px; text-decoration:none; box-shadow:0 4px 15px rgba(217,119,6,0.3); font-family:Inter,sans-serif;' })}
-        
-        <div style="background:#fef3c7; padding:16px clamp(18px,5vw,72px); text-align:center; border-bottom:1px solid #fcd34d;">
-          <span style="font-size:13px; color:#92400e; font-weight:600;">📚 Hafızlık ve Medrese eğitim destekleri — Eğitime destek verin, geleceğe yatırım yapın</span>
-        </div>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; font-family:'Playfair Display', serif; margin-bottom:8px;">Eğitim & Hayır Projeleri</h2>
-          <p style="text-align:center; color:var(--muted); font-size:14px; margin-bottom:24px;">Hafızlık, medrese, külliye ve yetim eğitim desteklerimiz</p>
-          <div class="cards three">${list.map(c => campaignCard(o, c)).join('')}</div>
-        </section>
-
-        <section class="section alt" style="background:#fffbeb; padding:48px clamp(18px,5vw,72px);">
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; margin-bottom:8px;">🌍 Faaliyet Alanlarımız</h2>
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #451a03, #7c2d12)' })}
-      </main>
-      ${themeFooter(o, { bg: '#1c1917', font: "'Inter', sans-serif" })}
-    </div>`;
-  },
-  about(o, list) { return themeAboutPage(o, { font: "'Inter', sans-serif", headFont: "'Playfair Display', serif", heroBg: '#7c2d12', headerCfg: { font: "'Inter', sans-serif", topBg: '#451a03' }, footerCfg: { bg: '#1c1917' } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Inter', sans-serif", headFont: "'Playfair Display', serif", heroBg: '#7c2d12', headerCfg: { font: "'Inter', sans-serif", topBg: '#451a03' }, footerCfg: { bg: '#1c1917' } }); }
-};
-
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 4: VUSLAT (vuslat.org.tr) → Vuslat Kapısı
-   Indigo/purple modern, Outfit font, donor dashboard focus
-   ══════════════════════════════════════════════════════════════ */
-themeLayouts.vuslat = {
-  home(o, list) {
-    const hCfg = { font: "'Outfit', sans-serif", topBg: '#312e81', topLeft: '🕌 Vuslat Kapısı Yardım Vakfı', topRight: '<a href="#/demo/' + o.slug + '" style="color:#c4b5fd; text-decoration:none; font-size:11px;">🌐 TR</a><span style="color:#818cf8;">|</span><a href="#/demo/' + o.slug + '" style="color:#c4b5fd; text-decoration:none; font-size:11px;">EN</a><span style="color:#818cf8;">|</span><a href="#/demo/' + o.slug + '" style="color:#c4b5fd; text-decoration:none; font-size:11px;">AR</a>', ctaStyle: 'background:#4f46e5; color:#fff;', extraNav: '<a href="#/demo/' + o.slug + '/bagis/su-kuyusu" class="nav-item">Su Kuyusu</a><a href="#/demo/' + o.slug + '/bagis/yetim" class="nav-item">Yetim</a>' };
-    return `<div class="site" data-theme="vuslat" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Outfit', sans-serif;">
-      ${themeHeader(o, hCfg)}
-      <main>
-        ${themeHeroSlider(o, list, { font: "'Outfit', sans-serif", overlay: 'linear-gradient(135deg, rgba(79,70,229,0.75), rgba(6,182,212,0.4))', height: '540px', contentPos: 'center' })}
-
-        ${themeCampaignGrid(o, list, { font: "'Outfit', sans-serif", tabStyle: 'pill', tabActiveBg: '#4f46e5', sectionBg: '#fff' })}
-
-        <section class="section alt" style="background:#eef2ff; padding:48px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; margin-bottom:8px;">🌍 Küresel Varlığımız</h2>
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
-
-        ${renderTransparencyChart(o)}
-
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #312e81, #4f46e5)' })}
-      </main>
-      ${themeFooter(o, { bg: '#1e1b4b', font: "'Outfit', sans-serif" })}
-    </div>`;
-  },
-  about(o, list) { return themeAboutPage(o, { font: "'Outfit', sans-serif", heroBg: '#4f46e5', headerCfg: { font: "'Outfit', sans-serif", topBg: '#312e81' }, footerCfg: { bg: '#1e1b4b', font: "'Outfit', sans-serif" } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Outfit', sans-serif", heroBg: '#4f46e5', headerCfg: { font: "'Outfit', sans-serif", topBg: '#312e81' }, footerCfg: { bg: '#1e1b4b', font: "'Outfit', sans-serif" } }); }
-};
-
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 5: IHH (ihh.org.tr) → Mazlumlara Umut
-   Red/urgent, high contrast, minimalist, Inter font, crisis-focused
-   ══════════════════════════════════════════════════════════════ */
-themeLayouts.ihh = {
-  home(o, list) {
-    const hCfg = { font: "'Inter', sans-serif", topBg: '#7f1d1d', topLeft: '🆘 Acil Yardım Hattı: 0212 631 21 21', topRight: '<a href="#/demo/' + o.slug + '" style="color:#fca5a5; text-decoration:none; font-size:11px;">TR</a><span style="color:#991b1b;">|</span><a href="#/demo/' + o.slug + '" style="color:#fca5a5; text-decoration:none; font-size:11px;">EN</a><span style="color:#991b1b;">|</span><a href="#/demo/' + o.slug + '" style="color:#fca5a5; text-decoration:none; font-size:11px;">AR</a>', ctaText: '❤️ Bağış Yap', ctaStyle: 'background:#b91c1c; color:#fff;', extraNav: '<a href="#/demo/' + o.slug + '/bagis/su-kuyusu" class="nav-item">Su Kuyusu</a><a href="#/demo/' + o.slug + '/bagis/yetim" class="nav-item">Yetim Sponsorluk</a>' };
-    return `<div class="site" data-theme="ihh" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Inter', sans-serif;">
-      ${themeHeader(o, hCfg)}
-      <main>
-        <div style="background:#fef2f2; padding:10px clamp(18px,5vw,72px); display:flex; align-items:center; gap:12px; border-bottom:2px solid #fecaca; animation:pulse 2s ease-in-out infinite;">
-          <span style="font-size:1.2rem;">🚨</span>
-          <span style="font-size:13px; color:#991b1b; font-weight:700;">ACİL ÇAĞRI: Gazze'ye insani yardım devam ediyor — Desteğiniz hayat kurtarıyor!</span>
-          <a href="#/demo/${o.slug}/bagis/gazze-yardim" style="margin-left:auto; background:#b91c1c; color:#fff; padding:8px 20px; border-radius:6px; font-weight:bold; font-size:12px; text-decoration:none; white-space:nowrap;">Acil Bağış Yap</a>
-        </div>
-
-        ${themeHeroSlider(o, list, { font: "'Inter', sans-serif", overlay: 'linear-gradient(135deg, rgba(185,28,28,0.75), rgba(0,0,0,0.5))', height: '560px', btnStyle: 'background:#f97316; color:#fff; padding:16px 32px; border-radius:8px; font-weight:800; font-size:15px; display:inline-flex; align-items:center; gap:8px; text-decoration:none; box-shadow:0 6px 20px rgba(249,115,22,0.4); text-transform:uppercase; letter-spacing:0.5px; font-family:Inter,sans-serif;' })}
-
-        ${themeCampaignGrid(o, list, { font: "'Inter', sans-serif", tabStyle: 'underline', tabActiveBg: '#b91c1c' })}
-
-        <section class="section alt" style="background:#fff7ed; padding:48px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; margin-bottom:8px;">🧮 Zekat Hesaplayıcı</h2>
-          <p style="text-align:center; color:var(--muted); font-size:14px; margin-bottom:24px;">Diyanet İşleri Başkanlığı standartlarına uygun zekat hesaplama</p>
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; margin-bottom:8px;">🌍 123 Ülkede Faaliyet</h2>
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        ${renderTransparencyChart(o)}
-
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #7f1d1d, #b91c1c)' })}
-      </main>
-      ${themeFooter(o, { bg: '#1c1917', font: "'Inter', sans-serif" })}
-    </div>`;
-  },
-  about(o, list) { return themeAboutPage(o, { font: "'Inter', sans-serif", heroBg: '#b91c1c', heroImg: 'https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?w=1200&h=400&fit=crop', headerCfg: { font: "'Inter', sans-serif", topBg: '#7f1d1d' }, footerCfg: { bg: '#1c1917' } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Inter', sans-serif", heroBg: '#b91c1c', headerCfg: { font: "'Inter', sans-serif", topBg: '#7f1d1d' }, footerCfg: { bg: '#1c1917' } }); }
-};
-
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 6: IDDEF (iddef.org) → Emanet Vakfı
-   Emerald green, Poppins font, federation structure, multi-currency
-   ══════════════════════════════════════════════════════════════ */
-themeLayouts.iddef = {
-  home(o, list) {
-    const hCfg = { font: "'Poppins', sans-serif", topBg: '#064e3b', topLeft: '🏛️ Emanet Vakfı — 45 Dernek Federasyonu', topRight: '<span style="font-size:10px; color:#a7f3d0;">₺ TL</span><span style="color:#065f46;">|</span><span style="font-size:10px; color:#a7f3d0;">$ USD</span><span style="color:#065f46;">|</span><span style="font-size:10px; color:#a7f3d0;">€ EUR</span>', ctaText: 'Hızlı Bağış', ctaStyle: 'background:#047857; color:#fff;' };
-    return `<div class="site" data-theme="iddef" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Poppins', sans-serif;">
-      ${themeHeader(o, hCfg)}
-      <main>
-        ${themeHeroSlider(o, list, { font: "'Poppins', sans-serif", overlay: 'linear-gradient(135deg, rgba(4,120,87,0.8), rgba(0,0,0,0.3))', height: '500px' })}
-
-        <div style="background:#ecfdf5; padding:20px clamp(18px,5vw,72px); display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; border-bottom:1px solid #a7f3d0;">
-          ${['🕌 Zekat', '🐄 Kurban', '📿 Sadaka', '🆘 Acil Yardım'].map(label => `
-            <a href="#/demo/${o.slug}/bagis/${label.includes('Zekat') ? 'zekat' : label.includes('Kurban') ? 'kurban' : label.includes('Sadaka') ? 'sadaka' : 'acil-yardim'}" style="text-align:center; padding:12px; background:#fff; border-radius:var(--r); border:1px solid #d1fae5; text-decoration:none; color:var(--ink); font-weight:600; font-size:13px;">${label}</a>
-          `).join('')}
-        </div>
-
-        ${themeCampaignGrid(o, list, { font: "'Poppins', sans-serif", tabStyle: 'pill', tabActiveBg: '#047857' })}
-
-        <section class="section alt" style="background:#f0fdf4; padding:48px clamp(18px,5vw,72px);">
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; margin-bottom:8px;">🌍 55 Ülkede Faaliyet</h2>
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #064e3b, #047857)' })}
-      </main>
-      ${themeFooter(o, { bg: '#022c22', font: "'Poppins', sans-serif" })}
-    </div>`;
-  },
-  about(o, list) { return themeAboutPage(o, { font: "'Poppins', sans-serif", heroBg: '#047857', headerCfg: { font: "'Poppins', sans-serif", topBg: '#064e3b' }, footerCfg: { bg: '#022c22', font: "'Poppins', sans-serif" } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Poppins', sans-serif", heroBg: '#047857', headerCfg: { font: "'Poppins', sans-serif", topBg: '#064e3b' }, footerCfg: { bg: '#022c22', font: "'Poppins', sans-serif" } }); }
-};
-
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 7: VERENEL (verenel.org) → Veren El
-   Burgundy/red, Roboto font, gift card system, social market
-   ══════════════════════════════════════════════════════════════ */
-themeLayouts.verenel = {
-  home(o, list) {
-    const hCfg = { font: "'Roboto', sans-serif", topBg: '#881337', topLeft: '🌐 TR | EN | AR — Ankara İnsani Yardım', topRight: '<span style="background:#14b8a6; color:#fff; padding:2px 8px; border-radius:4px; font-size:10px;">🛒 Sepetim</span>', ctaText: 'Bağış Yap', ctaStyle: 'background:#be123c; color:#fff;', extraNav: '<a href="#/demo/' + o.slug + '" class="nav-item">Sosyal Market</a><a href="#/demo/' + o.slug + '" class="nav-item">Hediye Kartı</a>' };
-    return `<div class="site" data-theme="verenel" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Roboto', sans-serif;">
-      ${themeHeader(o, hCfg)}
-      <main>
-        ${themeHeroSlider(o, list, { font: "'Roboto', sans-serif", overlay: 'linear-gradient(135deg, rgba(190,18,60,0.75), rgba(0,0,0,0.4))', height: '480px' })}
-
-        <div style="background:#fff1f2; padding:20px clamp(18px,5vw,72px); text-align:center; border-bottom:1px solid #fecdd3;">
-          <span style="font-size:1.5rem;">🎁</span>
-          <span style="font-size:13px; color:#be123c; font-weight:600; margin-left:8px;">Hediye Kartı ile Bağış — Sevdikleriniz adına bağış hediyesi verin!</span>
-        </div>
-
-        ${themeCampaignGrid(o, list, { font: "'Roboto', sans-serif", tabStyle: 'pill', tabActiveBg: '#be123c' })}
-
-        <section class="section alt" style="background:#fdf2f8; padding:48px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; margin-bottom:8px;">🛒 Sosyal Market Projesi</h2>
-          <p style="text-align:center; color:var(--muted); font-size:14px; max-width:600px; margin:0 auto 24px;">İhtiyaç sahibi ailelerin market alışverişini karşılayın.</p>
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #881337, #be123c)' })}
-      </main>
-      ${themeFooter(o, { bg: '#1c1917', font: "'Roboto', sans-serif" })}
-    </div>`;
-  },
-  about(o, list) { return themeAboutPage(o, { font: "'Roboto', sans-serif", heroBg: '#be123c', headerCfg: { font: "'Roboto', sans-serif", topBg: '#881337' }, footerCfg: { bg: '#1c1917', font: "'Roboto', sans-serif" } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Roboto', sans-serif", heroBg: '#be123c', headerCfg: { font: "'Roboto', sans-serif", topBg: '#881337' }, footerCfg: { bg: '#1c1917', font: "'Roboto', sans-serif" } }); }
-};
-
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 8: BESIR (besir.org.tr) → Bereket Derneği
-   Teal/turquoise, Inter font, fast donation focus, mobile app highlight
-   ══════════════════════════════════════════════════════════════ */
-themeLayouts.besir = {
-  home(o, list) {
-    const hCfg = { font: "'Inter', sans-serif", topBg: '#134e4a', topLeft: '📱 Mobil Uygulamamızı İndirin!', ctaText: 'Hızlı Bağış', ctaStyle: 'background:#0e7490; color:#fff;' };
-    return `<div class="site" data-theme="besir" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Inter', sans-serif;">
-      ${themeHeader(o, hCfg)}
-      <main>
-        ${themeHeroSlider(o, list, { font: "'Inter', sans-serif", overlay: 'linear-gradient(135deg, rgba(14,116,144,0.8), rgba(0,0,0,0.3))', height: '500px' })}
-
-        <div style="background:#ecfeff; padding:16px clamp(18px,5vw,72px); display:flex; gap:20px; justify-content:center; border-bottom:1px solid #a5f3fc;">
-          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#0e7490; font-weight:600;"><span>📱</span> iOS & Android Uygulama</div>
-          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#0e7490; font-weight:600;"><span>🎥</span> Video Galeri</div>
-          <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:#0e7490; font-weight:600;"><span>🏛️</span> Kamu Yararına Dernek</div>
-        </div>
-
-        ${themeCampaignGrid(o, list, { font: "'Inter', sans-serif", tabStyle: 'pill', tabActiveBg: '#0e7490' })}
-
-        <section class="section alt" style="background:#f0fdfa; padding:48px clamp(18px,5vw,72px);">
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        ${renderTransparencyChart(o)}
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #134e4a, #0e7490)' })}
-      </main>
-      ${themeFooter(o, { bg: '#042f2e', font: "'Inter', sans-serif" })}
-    </div>`;
-  },
-  about(o, list) { return themeAboutPage(o, { font: "'Inter', sans-serif", heroBg: '#0e7490', headerCfg: { font: "'Inter', sans-serif", topBg: '#134e4a' }, footerCfg: { bg: '#042f2e' } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Inter', sans-serif", heroBg: '#0e7490', headerCfg: { font: "'Inter', sans-serif", topBg: '#134e4a' }, footerCfg: { bg: '#042f2e' } }); }
-};
-
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 9: HAYRAT (hayratyardim.org) → Hayrat Köprüsü
-   Forest green, Quicksand, sponsorship tracking, preset donations
-   ══════════════════════════════════════════════════════════════ */
-themeLayouts.hayrat = {
-  home(o, list) {
-    const hCfg = { font: "'Quicksand', sans-serif", topBg: '#14532d', topLeft: '📖 Dünya Kur\'an Okuyor — 70 Ülkede Faaliyet', topRight: '<span style="font-size:10px; color:#86efac;">TR</span><span style="color:#166534;">|</span><span style="font-size:10px; color:#86efac;">EN</span>', ctaText: 'Hızlı Bağış', ctaStyle: 'background:#166534; color:#fff;' };
-    return `<div class="site" data-theme="hayrat" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Quicksand', sans-serif;">
-      ${themeHeader(o, hCfg)}
-      <main>
-        <div style="background:#166534; padding:10px clamp(18px,5vw,72px); display:flex; justify-content:center; gap:12px; align-items:center;">
-          <span style="color:#fff; font-size:12px; font-weight:700;">⚡ Hızlı Bağış:</span>
-          ${[50, 100, 200, 500].map(amt => `
-            <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#fff; color:#166534; padding:6px 14px; border-radius:6px; font-weight:bold; font-size:12px; text-decoration:none;">${amt}₺</a>
-          `).join('')}
-        </div>
-
-        ${themeHeroSlider(o, list, { font: "'Quicksand', sans-serif", overlay: 'linear-gradient(135deg, rgba(22,101,52,0.75), rgba(0,0,0,0.4))', height: '500px' })}
-
-        <div style="background:#f0fdf4; padding:24px clamp(18px,5vw,72px); display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; text-align:center; border-bottom:1px solid #bbf7d0;">
-          <div><b style="font-size:1.8rem; color:#166534; display:block;">70</b><span style="font-size:12px; color:var(--muted);">Ülke</span></div>
-          <div><b style="font-size:1.8rem; color:#166534; display:block;">300+</b><span style="font-size:12px; color:var(--muted);">Koordinasyon Merkezi</span></div>
-          <div><b style="font-size:1.8rem; color:#166534; display:block;">3.7M</b><span style="font-size:12px; color:var(--muted);">Kişiye Ulaşıldı</span></div>
-          <div><b style="font-size:1.8rem; color:#166534; display:block;">1000+</b><span style="font-size:12px; color:var(--muted);">Aktif Hamil</span></div>
-        </div>
-
-        ${themeCampaignGrid(o, list, { font: "'Quicksand', sans-serif", tabStyle: 'pill', tabActiveBg: '#166534' })}
-
-        <section class="section alt" style="background:#f8faf8; padding:48px clamp(18px,5vw,72px);">
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #14532d, #166534)' })}
-      </main>
-      ${themeFooter(o, { bg: '#052e16', font: "'Quicksand', sans-serif" })}
-    </div>`;
-  },
-  about(o, list) { return themeAboutPage(o, { font: "'Quicksand', sans-serif", heroBg: '#166534', headerCfg: { font: "'Quicksand', sans-serif", topBg: '#14532d' }, footerCfg: { bg: '#052e16', font: "'Quicksand', sans-serif" } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Quicksand', sans-serif", heroBg: '#166534', headerCfg: { font: "'Quicksand', sans-serif", topBg: '#14532d' }, footerCfg: { bg: '#052e16', font: "'Quicksand', sans-serif" } }); }
-};
-
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 10: GOZYASI (gozyasi.org) → Gözyaşı İyilik
-   Purple/violet, Outfit font, emotional imagery, Hafiz sponsorship
-   ══════════════════════════════════════════════════════════════ */
-themeLayouts.gozyasi = {
-  home(o, list) {
-    const hCfg = { font: "'Outfit', sans-serif", topBg: '#3b0764', topLeft: '💜 Gözyaşı İyilik Vakfı — Ankara', ctaText: 'Bağış Yap', ctaStyle: 'background:#6d28d9; color:#fff;' };
-    return `<div class="site" data-theme="gozyasi" style="--p:${o.primaryColor};--a:${o.accentColor}; font-family:'Outfit', sans-serif;">
-      ${themeHeader(o, hCfg)}
-      <main>
-        ${themeHeroSlider(o, list, { font: "'Outfit', sans-serif", overlay: 'linear-gradient(135deg, rgba(109,40,217,0.75), rgba(251,113,133,0.3))', height: '520px', contentPos: 'center' })}
-
-        <div style="background:#faf5ff; padding:16px clamp(18px,5vw,72px); text-align:center; border-bottom:1px solid #e9d5ff;">
-          <span style="font-size:13px; color:#6d28d9; font-weight:600;">📖 Hafız Sponsorluk Programı — Bir hafızın eğitimine destek olun</span>
-        </div>
-
-        ${themeCampaignGrid(o, list, { font: "'Outfit', sans-serif", tabStyle: 'pill', tabActiveBg: '#6d28d9' })}
-
-        <section class="section alt" style="background:#faf5ff; padding:48px clamp(18px,5vw,72px);">
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
-
-        <section class="section" style="padding:48px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; margin-bottom:8px;">🌍 Faaliyet Alanlarımız</h2>
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #3b0764, #6d28d9)' })}
-      </main>
-      ${themeFooter(o, { bg: '#1e1b4b', font: "'Outfit', sans-serif" })}
-    </div>`;
-  },
-  about(o, list) { return themeAboutPage(o, { font: "'Outfit', sans-serif", heroBg: '#6d28d9', headerCfg: { font: "'Outfit', sans-serif", topBg: '#3b0764' }, footerCfg: { bg: '#1e1b4b', font: "'Outfit', sans-serif" } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Outfit', sans-serif", heroBg: '#6d28d9', headerCfg: { font: "'Outfit', sans-serif", topBg: '#3b0764' }, footerCfg: { bg: '#1e1b4b', font: "'Outfit', sans-serif" } }); }
-};
-
-
-/* ══════════════════════════════════════════════════════════════
-   THEME 11: HICRET DERNEGI (hicretdernegi.org)
-   Islamic Education School Theme, Emerald Green & Blue highlights
-   ══════════════════════════════════════════════════════════════ */
 themeLayouts.hicretdernegi = {
   home(o, list) {
-    const headCfg = {
-      font: "'Poppins', sans-serif",
-      topBg: '#043425',
-      topLeft: '📖 Hicret Medresesi İslami Eğitim Kurumu',
-      ctaText: 'GÖNÜLDEN BAĞIŞ',
-      logoStyle: `background:url('/images/hicret/logooo.png') center/cover; border-radius:50%;`,
-      ctaStyle: 'background:#059669; color:#fff; border-radius:99px; padding:8px 24px;',
-      extraNav: `<a href="#/demo/${o.slug}/hakkimizda" class="nav-item" style="color:#047857; font-weight:700;">Medresemiz</a>`
-    };
-
-    // Custom Hero Slides directly referencing their local copied images
+    const cs = state.currentSlideIndex || 0;
     const slides = [
       { visual: "/images/hicret/talebe 1.png", title: "HİCRET DERNEĞİ", subtitle: "Eğitim Yuvamıza Hoş Geldiniz", desc: "Modern pedagoji ile geleneksel İslami değerleri buluşturan eğitim anlayışımızla geleceğin Müslüman nesillerini yetiştiriyoruz." },
       { visual: "/images/hicret/talebe 2.png", title: "KALİTELİ EĞİTİM", subtitle: "Deneyimli Kadromuzla", desc: "15+ tecrübeli eğitimcimiz ile İslami değerleri modern öğretim yöntemleriyle harmanlayan eğitim programları sunuyoruz." },
@@ -741,12 +367,10 @@ themeLayouts.hicretdernegi = {
       { visual: "/images/hicret/talebe 4.png", title: "GÜVENLİ ÇEVRE", subtitle: "Aile Ortamında Eğitim", desc: "Huzurlu ve güvenli medrese ortamımızda çocuklarınız hem dinî eğitimlerini alıyor hem de karakter gelişimlerini tamamlıyor." }
     ];
 
-    const cs = state.currentSlideIndex || 0;
-
     return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f9fafb;">
       
-      <!-- Custom Header matching Next.js design -->
-      <div style="background:#043425; color:#cbd5e1; padding:6px 20px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600; font-family:'Poppins',sans-serif;">
+      <!-- Header -->
+      <div style="background:#043425; color:#cbd5e1; padding:6px 20px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600;">
         <div>📖 Hicret Medresesi İslami Eğitim Kurumu</div>
         <div style="display:flex; gap:16px;">
           <a href="#/bagisci" style="color:#cbd5e1; text-decoration:none;">👤 Bağışçı Girişi</a>
@@ -755,7 +379,7 @@ themeLayouts.hicretdernegi = {
         </div>
       </div>
       
-      <header class="site-head" style="background:#fff; border-bottom:2px solid #059669; padding:12px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+      <header class="site-head" style="background:#fff; border-bottom:2px solid #059669; padding:12px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,0.05); position:sticky; top:0; z-index:100;">
         <a class="brand" href="#/demo/${o.slug}" style="display:flex; align-items:center; gap:12px; text-decoration:none;">
           <img src="/images/hicret/logooo.png" style="width:50px; height:50px; border-radius:50%; border:2px solid #059669;" />
           <div>
@@ -765,8 +389,7 @@ themeLayouts.hicretdernegi = {
         </a>
         <nav style="display:flex; gap:20px; align-items:center;">
           <a href="#/demo/${o.slug}" style="color:#065f46; font-weight:700; text-decoration:none; font-size:14px;">Ana Sayfa</a>
-          <a href="#/demo/${o.slug}/bagis/zekat" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Zekat</a>
-          <a href="#/demo/${o.slug}/bagis/kurban" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Kurban</a>
+          <a href="#/demo/${o.slug}/faaliyetlerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Faaliyetlerimiz</a>
           <a href="#/demo/${o.slug}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Hakkımızda</a>
           <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">İletişim</a>
         </nav>
@@ -777,7 +400,7 @@ themeLayouts.hicretdernegi = {
       </header>
 
       <main>
-        <!-- Custom Hero Slider -->
+        <!-- Hero Slider -->
         <section style="position:relative; height:500px; overflow:hidden; background:#043425;">
           ${slides.map((s, idx) => `
             <div style="display:${idx === cs ? 'flex' : 'none'}; position:absolute; inset:0; background:linear-gradient(rgba(4,52,37,0.85), rgba(4,52,37,0.4)), url('${s.visual}') center/cover no-repeat; align-items:center; padding:0 clamp(20px,8vw,100px); transition:opacity 1s ease-in-out;">
@@ -789,15 +412,14 @@ themeLayouts.hicretdernegi = {
               </div>
             </div>
           `).join('')}
-          <!-- Slide dots -->
-          <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:8px;">
+          <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:10;">
             ${slides.map((_, idx) => `
               <span data-slide-dot="${idx}" style="width:${idx === cs ? '24px' : '8px'}; height:8px; border-radius:4px; background:${idx === cs ? '#059669' : 'rgba(255,255,255,0.4)'}; cursor:pointer; transition:all 0.3s;"></span>
             `).join('')}
           </div>
         </section>
 
-        <!-- Slider altı hızlı bildirim -->
+        <!-- Notification Bar -->
         <div style="background:#ecfdf5; border-bottom:1px solid #d1fae5; padding:16px clamp(18px,5vw,72px); display:flex; align-items:center; gap:12px; justify-content:space-between; flex-wrap:wrap;">
           <div style="display:flex; align-items:center; gap:8px; color:#065f46; font-size:13px; font-weight:700;">
             <span>📢</span> Kış dönemi talebe kayıtlarımız devam etmektedir. Detaylı bilgi için başvuru yapabilirsiniz.
@@ -805,7 +427,7 @@ themeLayouts.hicretdernegi = {
           <a href="#/demo/${o.slug}/iletisim" style="background:#065f46; color:#fff; text-decoration:none; font-size:11px; font-weight:700; padding:6px 16px; border-radius:20px;">Başvuru Sayfası ➔</a>
         </div>
 
-        <!-- Medrese Eğitim Bölümleri Bölgesi -->
+        <!-- Sections -->
         <section class="section" style="background:#fff; padding:60px clamp(18px,5vw,72px);">
           <div style="text-align:center; max-width:700px; margin:0 auto 40px;">
             <span style="color:#0284c7; font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase;">EĞİTİM PROGRAMLARIMIZ</span>
@@ -835,10 +457,8 @@ themeLayouts.hicretdernegi = {
           </div>
         </section>
 
-        <!-- Dinamik Kampanyalar -->
         ${themeCampaignGrid(o, list, { font: "'Poppins', sans-serif", tabStyle: 'pill', tabActiveBg: '#059669', sectionBg: '#f9fafb' })}
 
-        <!-- Zekat Hesaplayıcı ve İletişim -->
         <section class="section" style="background:#fff; padding:60px clamp(18px,5vw,72px);">
           <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
         </section>
@@ -848,8 +468,284 @@ themeLayouts.hicretdernegi = {
       ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
     </div>`;
   },
-  about(o, list) { return themeAboutPage(o, { font: "'Poppins', sans-serif", heroBg: '#059669', headerCfg: { font: "'Poppins', sans-serif", topBg: '#043425' }, footerCfg: { bg: '#032017' } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Poppins', sans-serif", heroBg: '#059669', headerCfg: { font: "'Poppins', sans-serif", topBg: '#043425' }, footerCfg: { bg: '#032017' } }); }
+  about(o, list) {
+    const programs = [
+      { icon: "👶", title: 'Sıbyan Mektebi', description: "4-7 yaş arası çocuklarımız için temel İslami bilgiler, ahlak ve adap eğitimi ile Kur'an öğretimi.", duration: '1-2 Yıl', color: 'background:#f59e0b;' },
+      { icon: "🏫", title: 'İbtida Programı', description: "8-12 yaş arası öğrencilerimiz için temel İslami bilgiler, Kur'an okuma, temel Arapça ve dini değerler eğitimi.", duration: '2-3 Yıl', color: 'background:#a855f7;' },
+      { icon: "🕌", title: 'Hafızlık Programı', description: "Kur'an-ı Kerim'i ezberleme programımızda, öğrencilerimiz tecvid kuralları ile birlikte Kur'an'ı hafızalarına nakşederler.", duration: '3-4 Yıl', color: 'background:#10b981;' },
+      { icon: "📚", title: 'Arapça Dil Eğitimi', description: "Arapça gramer, sarf, nahiv dersleri ile öğrencilerimiz Arapça'yı konuşma ve anlama düzeyinde öğrenirler.", duration: '2-3 Yıl', color: 'background:#3b82f6;' }
+    ];
+
+    const features = [
+      { icon: "❤️", title: 'Köklü Gelenek', description: 'Asırlık medrese geleneğini modern eğitim yöntemleri ile harmanlayarak sürdürüyoruz.' },
+      { icon: "✨", title: 'Bireysel İlgi', description: 'Her öğrencimize özel ilgi göstererek onların potansiyellerini en üst düzeyde geliştiriyoruz.' },
+      { icon: "✓", title: 'Güvenilir Eğitim', description: 'Deneyimli hocalarımız ve kaliteli müfredatımız ile güvenilir bir eğitim ortamı sunuyoruz.' },
+      { icon: "⭐", title: 'Manevi Gelişim', description: 'Sadece ilmi değil, aynı zamanda manevi ve ahlaki gelişimi de hedefleyen bir eğitim anlayışı.' }
+    ];
+
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f9fafb;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #043425, #065f46); color:#fff; padding:80px 24px; text-align:center; position:relative; overflow:hidden;">
+        <div style="max-width:800px; margin:0 auto; position:relative; z-index:2;">
+          <span style="background:rgba(255,255,255,0.1); padding:6px 16px; border-radius:99px; font-size:11px; font-weight:700; letter-spacing:1px; display:inline-block; margin-bottom:16px;">📖 İSLAMİ EĞİTİM MERKEZİ</span>
+          <h1 style="font-size:clamp(2.2rem,5vw,3.5rem); font-weight:850; line-height:1.2; margin:0 0 16px;">Hicret İslami İlimler Medresesi</h1>
+          <p style="font-size:16px; color:#cbd5e1; line-height:1.6; margin:0;">İslami ilimler, hafızlık, Arapça ve sıbyan eğitimi veren köklü medresemizde geleneksel bilgi modern pedagoji ile buluşuyor.</p>
+        </div>
+      </section>
+
+      <section class="section" style="padding:60px 24px; background:#fff;">
+        <div style="max-width:900px; margin:0 auto;">
+          <div style="text-align:center; margin-bottom:48px;">
+            <h2 style="font-size:2rem; font-weight:800; color:#065f46;">Medresemiz Hakkında</h2>
+            <p style="color:#64748b; font-size:14px; line-height:1.6; margin-top:8px;">Hicret İslami İlimler Medresesi, İslami ilimlerin öğretildiği, hafızlık eğitimi verildiği ve Arapça dil eğitiminin sağlandığı köklü bir eğitim kurumudur. Sıbyan mektebimizden yüksek medrese seviyesine kadar farklı yaş gruplarına hitap eden programlarımızla, öğrencilerimizin hem dünyevi hem de uhrevi hayatlarına katkı sağlamayı hedefliyoruz.</p>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:48px;">
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:32px; border-radius:16px;">
+              <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 12px;">Misyonumuz</h3>
+              <p style="font-size:13px; color:#475569; line-height:1.6; margin:0;">Kur'an ve Sünnet rehberliğinde, İslami ilimleri öğreten, hafızlık eğitimi veren ve Arapça dil becerileri kazandıran kaliteli bir medrese eğitimi sunarak, topluma faydalı, ahlaklı ve bilgili bireyler yetiştirmek.</p>
+            </div>
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:32px; border-radius:16px;">
+              <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 12px;">Vizyonumuz</h3>
+              <p style="font-size:13px; color:#475569; line-height:1.6; margin:0;">Geleneksel medrese eğitimini modern pedagojik yöntemlerle harmanlayarak, İslami ilimlerde uzman, hafız ve Arapça bilen nesiller yetiştiren, örnek bir eğitim kurumu olmak.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Programs Grid -->
+      <section style="padding:60px 24px; background:#f3f4f6;">
+        <div style="max-width:1100px; margin:0 auto;">
+          <h2 style="font-size:2rem; font-weight:800; color:#065f46; text-align:center; margin-bottom:32px;">Eğitim Programlarımız</h2>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:20px;">
+            ${programs.map(p => `
+              <div style="background:#fff; padding:28px; border-radius:16px; box-shadow:0 4px 10px rgba(0,0,0,0.03); display:flex; flex-direction:column; justify-content:between;">
+                <div>
+                  <span style="font-size:2.2rem; display:block; margin-bottom:12px;">${p.icon}</span>
+                  <h3 style="font-size:1.15rem; font-weight:800; color:#065f46; margin:0 0 8px;">${p.title}</h3>
+                  <p style="font-size:12px; color:#64748b; line-height:1.5; margin-bottom:16px;">${p.description}</p>
+                </div>
+                <div style="font-size:11px; font-weight:700; color:#059669;">⏱ Süre: ${p.duration}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </section>
+
+      <!-- Why Us -->
+      <section style="padding:60px 24px; background:#fff;">
+        <div style="max-width:1000px; margin:0 auto; text-align:center;">
+          <h2 style="font-size:2rem; font-weight:800; color:#065f46; margin-bottom:40px;">Neden Hicret İslami İlimler Medresesi?</h2>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:32px;">
+            ${features.map(f => `
+              <div>
+                <div style="width:50px; height:50px; background:#e6f4ea; color:#059669; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.4rem; margin:0 auto 16px;">${f.icon}</div>
+                <h3 style="font-size:1.1rem; font-weight:800; color:#065f46; margin:0 0 8px;">${f.title}</h3>
+                <p style="font-size:12px; color:#64748b; line-height:1.5; margin:0;">${f.description}</p>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section style="background:linear-gradient(135deg, #059669, #065f46); color:#fff; padding:60px 24px; text-align:center;">
+        <h2 style="font-size:1.8rem; font-weight:850; margin:0 0 12px;">Medresemize Katılın</h2>
+        <p style="font-size:14px; color:#cbd5e1; max-width:600px; margin:0 auto 24px;">İslami ilimleri öğrenmek, hafızlık yapmak veya Arapça öğrenmek istiyorsanız medresemizle iletişime geçin.</p>
+        <div style="display:flex; justify-content:center; gap:12px;">
+          <a href="#/demo/${o.slug}/iletisim" style="background:#fff; color:#065f46; padding:12px 28px; border-radius:99px; font-weight:700; text-decoration:none; font-size:13px;">Başvuru Yap</a>
+          <a href="#/demo/${o.slug}/iletisim" style="border:2px solid rgba(255,255,255,0.3); color:#fff; padding:12px 28px; border-radius:99px; font-weight:700; text-decoration:none; font-size:13px;">İletişim</a>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
+  },
+  contact(o, list) {
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f9fafb;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #043425, #065f46); color:#fff; padding:80px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <span style="background:rgba(255,255,255,0.1); padding:6px 16px; border-radius:99px; font-size:11px; font-weight:700; display:inline-block; margin-bottom:16px;">✉ BİZİMLE İLETİŞİME GEÇİN</span>
+          <h1 style="font-size:2.8rem; font-weight:850; margin:0 0 12px;">İletişim</h1>
+          <p style="font-size:15px; color:#cbd5e1; margin:0;">Sorularınız, önerileriniz veya başvurularınız için bizimle iletişime geçin. Size yardımcı olmaktan mutluluk duyarız.</p>
+        </div>
+      </section>
+
+      <section class="section" style="padding:60px 24px; background:#fff;">
+        <div style="max-width:1100px; margin:0 auto; display:grid; grid-template-columns:1.2fr 1.8fr; gap:40px;">
+          
+          <!-- Info -->
+          <div>
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:28px; border-radius:20px; box-shadow:0 4px 12px rgba(0,0,0,0.02);">
+              <h2 style="font-size:1.4rem; font-weight:800; color:#065f46; margin:0 0 20px;">İletişim Bilgileri</h2>
+              
+              <div style="display:flex; flex-direction:column; gap:20px;">
+                <div>
+                  <h4 style="font-weight:700; color:#065f46; margin:0 0 4px; font-size:13px;">📍 Adresimiz</h4>
+                  <p style="font-size:12.5px; color:#475569; margin:0; line-height:1.5;">Hicret İslami İlimler Medresesi<br>71 Evler Mh. Esenyazı Sk. No:41<br>Odunpazarı, Eskişehir, Türkiye</p>
+                </div>
+                <div>
+                  <h4 style="font-weight:700; color:#065f46; margin:0 0 4px; font-size:13px;">📞 Telefon & WhatsApp</h4>
+                  <p style="font-size:12.5px; color:#475569; margin:0;">+90 542 641 26 26</p>
+                </div>
+                <div>
+                  <h4 style="font-weight:700; color:#065f46; margin:0 0 4px; font-size:13px;">✉ E-posta</h4>
+                  <p style="font-size:12.5px; color:#475569; margin:0;">hicretdernegi26@gmail.com</p>
+                </div>
+                <div>
+                  <h4 style="font-weight:700; color:#065f46; margin:0 0 4px; font-size:13px;">⏱ Çalışma Saatleri</h4>
+                  <p style="font-size:12px; color:#475569; margin:0; line-height:1.4;">Pazartesi - Cuma: 08:00 - 17:00<br>Cumartesi: 09:00 - 14:00<br>Pazar: Kapalı</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form -->
+          <div>
+            <div style="background:#fff; border:1px solid #e5e7eb; padding:32px; border-radius:24px; box-shadow:0 4px 20px rgba(0,0,0,0.03);">
+              <h2 style="font-size:1.5rem; font-weight:800; color:#065f46; margin:0 0 8px; text-align:center;">Bize Ulaşın</h2>
+              <p style="font-size:12px; color:#64748b; text-align:center; margin-bottom:24px;">Mesajınızı gönderin, en kısa sürede size dönüş yapalım.</p>
+              
+              <form data-form="contact" style="display:flex; flex-direction:column; gap:16px;">
+                <input type="hidden" name="orgSlug" value="${o.slug}">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                  <div>
+                    <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Ad Soyad *</label>
+                    <input type="text" name="name" required placeholder="Adınız" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">E-Posta *</label>
+                    <input type="email" name="email" required placeholder="E-Posta Adresiniz" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px;">
+                  </div>
+                </div>
+                <div>
+                  <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Telefon</label>
+                  <input type="text" name="phone" placeholder="05xx xxx xx xx" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px;">
+                </div>
+                <div>
+                  <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Mesajınız *</label>
+                  <textarea name="message" required placeholder="Mesajınız..." style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; height:100px;"></textarea>
+                </div>
+                <button type="submit" style="background:#059669; color:#fff; border:0; padding:12px; font-weight:700; border-radius:8px; font-size:14px; cursor:pointer;">MESAJ GÖNDER</button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Transportation & FAQ -->
+      <section style="padding:60px 24px; background:#f9fafb; border-top:1px solid #e5e7eb;">
+        <div style="max-width:1100px; margin:0 auto;">
+          <h2 style="font-size:1.8rem; font-weight:800; color:#065f46; text-align:center; margin-bottom:32px;">Ulaşım & Sıkça Sorulan Sorular</h2>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px;">
+            <div>
+              <h3 style="font-size:1.2rem; font-weight:800; color:#065f46; margin-bottom:16px;">🚌 Ulaşım Bilgileri</h3>
+              <ul style="padding:0; list-style:none; display:flex; flex-direction:column; gap:12px; font-size:13px; color:#475569;">
+                <li><b>Otobüs Hatları:</b> 48 SİYAH, 43 SİYAH, 13 SİYAH hatları medrese yakınından geçmektedir.</li>
+                <li><b>Tramvay:</b> 10 (Şehir Hastanesi - Kumlubel) veya 12 (75. Yıl - OGÜ) tramvay hatlarını kullanabilirsiniz.</li>
+                <li><b>Taksi / Navigasyon:</b> Navigasyona 'Hicret Medresesi Odunpazarı' yazarak kolayca rota oluşturabilirsiniz.</li>
+              </ul>
+            </div>
+            <div>
+              <h3 style="font-size:1.2rem; font-weight:800; color:#065f46; margin-bottom:16px;">❓ Sıkça Sorulan Sorular</h3>
+              <div style="display:flex; flex-direction:column; gap:12px; font-size:12.5px; color:#475569;">
+                <div>
+                  <b style="color:#065f46;">Evli olmayan talebelerimiz için yatılı imkanınız var mı?</b>
+                  <p style="margin:2px 0 0;">Evet, evli olmayan talebelerimiz için yatılı eğitim imkanımız mevcuttur.</p>
+                </div>
+                <div>
+                  <b style="color:#065f46;">Hangi yaş grupları için eğitim veriyorsunuz?</b>
+                  <p style="margin:2px 0 0;">4 yaş ve üzeri tüm yavrularımız için eğitim programlarımız mevcuttur.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
+  },
+  activities(o, list) {
+    const activities = [
+      { id: 'sibyan-mektebi', title: 'Sıbyan Mektebi', ageGroup: '4-7 yaş', duration: '1-2 Yıl', participants: '45+ Öğrenci', schedule: 'Pazartesi - Cuma', time: '09:00 - 12:00', description: 'Küçük yaş grubundaki çocuklarımız için temel İslami bilgiler, ahlak ve adap eğitimi.', features: ["Temel İslami bilgiler", "Kur'an-ı Kerim okuma", "Ahlak ve adap eğitimi"], image: "/images/hicret/talebe 1.png", color: "from-orange-500 to-orange-600" },
+      { id: 'ibtida-programi', title: 'İbtida Programı', ageGroup: '8-12 yaş', duration: '2-3 Yıl', participants: '35+ Öğrenci', schedule: 'Pazartesi - Cuma', time: '09:00 - 15:00', description: 'Orta yaş grubundaki öğrencilerimiz için kapsamlı İslami eğitim programı.', features: ["Kur'an-ı Kerim tecvidi", "Temel Arapça dersleri", "İslam tarihi"], image: "/images/hicret/talebe 2.png", color: "from-purple-500 to-purple-600" },
+      { id: 'hafizlik-programi', title: 'Hafızlık Programı', ageGroup: '7+ yaş', duration: '3-4 Yıl', participants: '60+ Hafız', schedule: 'Pazartesi - Cumartesi', time: '08:00 - 17:00', description: "Kur'an-ı Kerim'i ezberlemek isteyen öğrencilerimiz için özel program.", features: ["Kur'an-ı Kerim ezberi", "Tecvid kuralları", "Bireysel takip sistemi"], image: "/images/hicret/talebe 3.png", color: "from-emerald-500 to-emerald-600" },
+      { id: 'arapca-egitimi', title: 'Arapça Dil Eğitimi', ageGroup: '10+ yaş', duration: '2-3 Yıl', participants: '40+ Öğrenci', schedule: 'Pazartesi - Perşembe', time: '14:00 - 17:00', description: 'Arapça dilini konuşma ve anlama düzeyinde öğrenmek isteyenler için.', features: ["Arapça gramer (Nahiv)", "Arapça morfoloji (Sarf)", "Konuşma pratiği"], image: "/images/hicret/talebe 4.png", color: "from-blue-500 to-blue-600" }
+    ];
+
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f9fafb;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #043425, #065f46); color:#fff; padding:80px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <span style="background:rgba(255,255,255,0.1); padding:6px 16px; border-radius:99px; font-size:11px; font-weight:700; display:inline-block; margin-bottom:16px;">✨ EĞİTİM FAALİYETLERİMİZ</span>
+          <h1 style="font-size:2.8rem; font-weight:850; margin:0 0 12px;">Faaliyetlerimiz</h1>
+          <p style="font-size:15px; color:#cbd5e1; margin:0;">Sıbyan mektebinden hafızlık programlarına, Arapça eğitiminden özel etkinliklere kadar geniş yelpazede İslami eğitim faaliyetlerimiz.</p>
+        </div>
+      </section>
+
+      <section class="section" style="padding:60px 24px; background:#fff;">
+        <div style="max-width:1100px; margin:0 auto;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:24px;">
+            ${activities.map(a => `
+              <div style="background:#fff; border:1px solid #e5e7eb; border-radius:20px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.02); display:flex; flex-direction:column; justify-content:between; height:100%;">
+                <div style="height:180px; background:url('${a.image}') center/cover no-repeat; position:relative;">
+                  <span style="position:absolute; top:12px; left:12px; background:#043425; color:#fff; font-size:10px; font-weight:700; padding:4px 10px; border-radius:20px;">${a.ageGroup}</span>
+                </div>
+                <div style="padding:20px; display:flex; flex-direction:column; flex-grow:1; justify-content:between;">
+                  <div>
+                    <h3 style="font-size:1.2rem; font-weight:800; color:#065f46; margin:0 0 8px;">${a.title}</h3>
+                    <p style="font-size:12px; color:#64748b; line-height:1.5; margin-bottom:16px;">${a.description}</p>
+                    <ul style="padding:0; list-style:none; font-size:11.5px; color:#475569; display:flex; flex-direction:column; gap:6px; margin-bottom:20px;">
+                      ${a.features.map(f => `<li>• ${f}</li>`).join('')}
+                    </ul>
+                  </div>
+                  <div style="font-size:11px; font-weight:700; color:#0284c7; border-top:1px solid #f3f4f6; pt:12px;">⏰ Zaman: ${a.schedule} (${a.time})</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
+  },
+  headerHtml(o) {
+    return `<div style="background:#043425; color:#cbd5e1; padding:6px 20px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600;">
+        <div>📖 Hicret Medresesi İslami Eğitim Kurumu</div>
+        <div style="display:flex; gap:16px;">
+          <a href="#/bagisci" style="color:#cbd5e1; text-decoration:none;">👤 Bağışçı Girişi</a>
+          <span>|</span>
+          <a href="#/admin" style="color:#cbd5e1; text-decoration:none;">⚙️ Otomasyon</a>
+        </div>
+      </div>
+      
+      <header class="site-head" style="background:#fff; border-bottom:2px solid #059669; padding:12px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,0.05); position:sticky; top:0; z-index:100;">
+        <a class="brand" href="#/demo/${o.slug}" style="display:flex; align-items:center; gap:12px; text-decoration:none;">
+          <img src="/images/hicret/logooo.png" style="width:50px; height:50px; border-radius:50%; border:2px solid #059669;" />
+          <div>
+            <h1 style="font-size:1.15rem; font-weight:800; color:#065f46; margin:0; line-height:1.2;">HİCRET DERNEĞİ</h1>
+            <p style="font-size:10px; color:#0284c7; font-weight:700; margin:0; text-transform:uppercase; letter-spacing:0.5px;">İslami Eğitim Kurumu</p>
+          </div>
+        </a>
+        <nav style="display:flex; gap:20px; align-items:center;">
+          <a href="#/demo/${o.slug}" style="color:#065f46; font-weight:700; text-decoration:none; font-size:14px;">Ana Sayfa</a>
+          <a href="#/demo/${o.slug}/faaliyetlerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Faaliyetlerimiz</a>
+          <a href="#/demo/${o.slug}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Hakkımızda</a>
+          <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">İletişim</a>
+        </nav>
+        <div style="display:flex; gap:10px;">
+          <a href="#/demo/${o.slug}/iletisim" style="background:#2563eb; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(37,99,235,0.2);">BAŞVURU YAP</a>
+          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#059669; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(5,150,105,0.2);">BAĞIŞ YAP</a>
+        </div>
+      </header>`;
+  }
 };
 
 
@@ -952,7 +848,240 @@ themeLayouts.kardeslikpayi = {
       ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
     </div>`;
   },
-  about(o, list) { return themeAboutPage(o, { font: "'Outfit', sans-serif", heroBg: '#0f766e', headerCfg: { font: "'Outfit', sans-serif", topBg: '#0d1b1e' }, footerCfg: { bg: '#0a1416' } }); },
-  contact(o, list) { return themeContactPage(o, { font: "'Outfit', sans-serif", heroBg: '#0f766e', headerCfg: { font: "'Outfit', sans-serif", topBg: '#0d1b1e' }, footerCfg: { bg: '#0a1416' } }); }
+  about(o, list) {
+    const values = [
+      { icon: "🛡️", title: "Güvenilirlik", description: "Tüm yardımlarımızı şeffaf ve hesap verebilir şekilde gerçekleştiriyoruz. Bağışçılarımızın güvenini korumak en önemli önceliğimizdir." },
+      { icon: "🤝", title: "Dayanışma", description: "İnsanlık ailesinin bir parçası olarak, kardeşlerimizin acılarını paylaşıyor ve onlara yardım eli uzatıyoruz." },
+      { icon: "📚", title: "Eğitim", description: "Afrika'daki İslami medreselerde okuyan talebelere eğitim desteği sağlayarak gelecek nesillere yatırım yapıyoruz." }
+    ];
+
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #0d1b1e, #174C3B); color:#fff; padding:80px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <span style="background:rgba(255,255,255,0.1); padding:6px 16px; border-radius:99px; font-size:11px; font-weight:700; display:inline-block; margin-bottom:16px;">❤️ HAKDER HAKKINDA</span>
+          <h1 style="font-size:3rem; font-weight:900; margin:0 0 16px;">Hakkımızda</h1>
+          <p style="font-size:16px; color:#cbd5e1; margin:0;">Afrika'da Umut Dağıtan Bir Yardım Köprüsü. İnsani yardım ve İslami değerleri yaşatma misyonumuz.</p>
+        </div>
+      </section>
+
+      <section class="section" style="padding:60px 24px; background:#fff;">
+        <div style="max-width:1000px; margin:0 auto;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:center; margin-bottom:48px;">
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:32px; border-radius:20px;">
+              <h2 style="font-size:1.8rem; font-weight:800; color:#174C3B; margin:0 0 16px;">Misyonumuz</h2>
+              <p style="font-size:13.5px; color:#475569; line-height:1.6; margin:0;">HAKDER (Hayra Açılan Kapı İnsanî Yardım ve Sosyal Dayanışma Derneği) olarak, Afrika kıtasında yaşayan kardeşlerimize insani yardım ulaştırma ve İslami değerleri yaşatma konusunda öncü bir kuruluş olmayı hedefliyoruz.</p>
+            </div>
+            <div style="background:#fff; border:2px solid #93740C; padding:32px; border-radius:20px; text-align:center;">
+              <span style="font-size:2.5rem; display:block; margin-bottom:12px;">🌍</span>
+              <h3 style="font-size:1.3rem; font-weight:800; color:#174C3B; margin:0 0 12px;">Afrika'ya Uzanan El</h3>
+              <p style="font-size:13px; color:#64748b; line-height:1.5; margin:0;">2010 yılından bu yana Afrika'nın çeşitli ülkelerinde kurban hizmetleri ve İslami medrese talebelerine eğitim desteği sağlıyoruz.</p>
+            </div>
+          </div>
+
+          <h2 style="font-size:2rem; font-weight:800; color:#174C3B; text-align:center; margin-bottom:32px;">Değerlerimiz</h2>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:24px;">
+            ${values.map(v => `
+              <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:28px; border-radius:16px; text-align:center;">
+                <div style="width:50px; height:50px; background:#93740C; color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.5rem; margin:0 auto 16px;">${v.icon}</div>
+                <h3 style="font-size:1.15rem; font-weight:800; color:#174C3B; margin:0 0 8px;">${v.title}</h3>
+                <p style="font-size:12.5px; color:#64748b; line-height:1.5; margin:0;">${v.description}</p>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section style="background:#174C3B; color:#fff; padding:60px 24px; text-align:center;">
+        <h2 style="font-size:2rem; font-weight:800; margin:0 0 12px;">Bize Katılın</h2>
+        <p style="font-size:15px; color:#cbd5e1; max-width:600px; margin:0 auto 24px;">Afrika'daki kardeşlerimize umut olmak ve onların hayatlarına dokunmak için bizimle birlikte hareket edin.</p>
+        <div style="display:flex; justify-content:center; gap:12px;">
+          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#fff; color:#174C3B; padding:12px 28px; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">Bağış Yap</a>
+          <a href="#/demo/${o.slug}/iletisim" style="border:2px solid #fff; color:#fff; padding:12px 28px; border-radius:8px; font-weight:700; text-decoration:none; font-size:13px;">İletişime Geç</a>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+  contact(o, list) {
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #0d1b1e, #174C3B); color:#fff; padding:80px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <span style="background:rgba(255,255,255,0.1); padding:6px 16px; border-radius:99px; font-size:11px; font-weight:700; display:inline-block; margin-bottom:16px;">✉ BİZİMLE İLETİŞİME GEÇİN</span>
+          <h1 style="font-size:2.8rem; font-weight:900; margin:0 0 12px;">İletişim</h1>
+          <p style="font-size:15px; color:#cbd5e1; margin:0;">Sorularınız, önerileriniz ve yardım talepleriniz için bizimle iletişime geçmekten çekinmeyin.</p>
+        </div>
+      </section>
+
+      <section class="section" style="padding:60px 24px; background:#fff;">
+        <div style="max-width:1100px; margin:0 auto; display:grid; grid-template-columns:1.2fr 1.8fr; gap:40px;">
+          
+          <!-- Info -->
+          <div>
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:28px; border-radius:20px; box-shadow:0 4px 12px rgba(0,0,0,0.02);">
+              <h2 style="font-size:1.4rem; font-weight:800; color:#174C3B; margin:0 0 20px;">İletişim Bilgileri</h2>
+              
+              <div style="display:flex; flex-direction:column; gap:20px;">
+                <div>
+                  <h4 style="font-weight:700; color:#174C3B; margin:0 0 4px; font-size:13px;">📍 Adresimiz</h4>
+                  <p style="font-size:12.5px; color:#475569; margin:0; line-height:1.5;">Hicret İslami İlimler Medresesi<br>71 Evler Mh. Esenyazı Sk. No:41<br>Odunpazarı, Eskişehir, Türkiye</p>
+                </div>
+                <div>
+                  <h4 style="font-weight:700; color:#174C3B; margin:0 0 4px; font-size:13px;">📞 Telefon & WhatsApp</h4>
+                  <p style="font-size:12.5px; color:#475569; margin:0;">+90 542 641 26 26</p>
+                </div>
+                <div>
+                  <h4 style="font-weight:700; color:#174C3B; margin:0 0 4px; font-size:13px;">✉ E-posta</h4>
+                  <p style="font-size:12.5px; color:#475569; margin:0;">hicretdernegi26@gmail.com</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form -->
+          <div>
+            <div style="background:#fff; border:1px solid #e5e7eb; padding:32px; border-radius:24px; box-shadow:0 4px 20px rgba(0,0,0,0.03);">
+              <h2 style="font-size:1.5rem; font-weight:800; color:#174C3B; margin:0 0 8px; text-align:center;">Bize Ulaşın</h2>
+              <p style="font-size:12px; color:#64748b; text-align:center; margin-bottom:24px;">Mesajınızı gönderin, en kısa sürede size dönüş yapalım.</p>
+              
+              <form data-form="contact" style="display:flex; flex-direction:column; gap:16px;">
+                <input type="hidden" name="orgSlug" value="${o.slug}">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                  <div>
+                    <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Ad Soyad *</label>
+                    <input type="text" name="name" required placeholder="Adınız" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px;">
+                  </div>
+                  <div>
+                    <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">E-Posta *</label>
+                    <input type="email" name="email" required placeholder="E-Posta Adresiniz" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px;">
+                  </div>
+                </div>
+                <div>
+                  <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Telefon</label>
+                  <input type="text" name="phone" placeholder="05xx xxx xx xx" style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px;">
+                </div>
+                <div>
+                  <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Mesajınız *</label>
+                  <textarea name="message" required placeholder="Mesajınız..." style="width:100%; padding:10px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; height:100px;"></textarea>
+                </div>
+                <button type="submit" style="background:#174C3B; color:#fff; border:0; padding:12px; font-weight:700; border-radius:8px; font-size:14px; cursor:pointer;">MESAJ GÖNDER</button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- FAQ Section -->
+      <section style="padding:60px 24px; background:#f9fafb; border-top:1px solid #e5e7eb;">
+        <div style="max-width:900px; margin:0 auto;">
+          <h2 style="font-size:1.8rem; font-weight:800; color:#174C3B; text-align:center; margin-bottom:32px;">Sıkça Sorulan Sorular</h2>
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="background:#fff; border:1px solid #e5e7eb; padding:20px; border-radius:12px;">
+              <b style="color:#174C3B; font-size:14px;">Kurban bağışımın gerçekten Afrika'da kesildiğinden nasıl emin olabilirim?</b>
+              <p style="margin:6px 0 0; font-size:12.5px; color:#475569; line-height:1.5;">HAKDER olarak her kurban kesim faaliyetimizi fotoğraf ve video raporları ile belgelendiriyoruz. Kurban bağışçılarımıza kurbanlarının hangi bölgede kesildiğine dair bilgilendirme yapıyor ve görsel kanıtlar sunuyoruz.</p>
+            </div>
+            <div style="background:#fff; border:1px solid #e5e7eb; padding:20px; border-radius:12px;">
+              <b style="color:#174C3B; font-size:14px;">Afrika'daki medrese talebelerine nasıl destek olabilirim?</b>
+              <p style="margin:6px 0 0; font-size:12.5px; color:#475569; line-height:1.5;">Talebe sponsorluğu programımız ile aylık düzenli bağışlar yaparak bir talebenin eğitim, barınma ve beslenme ihtiyaçlarını karşılayabilirsiniz.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+  projects(o, list) {
+    const slides = [
+      { id: 1, title: "Afrika'da Umut Oluyoruz", subtitle: 'HAKDER', description: "İnsanî yardım ve eğitim faaliyetlerimizle Afrika'daki kardeşlerimize destek veriyoruz. Kurban organizasyonlarıyla ailelerin sofralarına sıcak yemek ulaştırıyoruz.", image: "/images/kardeslik/genel-bagislar.png" },
+      { id: 2, title: 'Medrese Talebelerine Destek', subtitle: 'EĞİTİM', description: "Medrese talebelerine düzenli burs ve barınma desteği sağlıyoruz. Öğrencilerin eğitim materyalleri ve kırtasiye ihtiyaçlarını karşılıyoruz.", image: "/images/kardeslik/mahmud-ustaosmanoglu-hazretleri-ks-su-kuyusu-projesi.png" },
+      { id: 3, title: 'Su Kuyuları ile Hayat', subtitle: 'YARDIM', description: "Temiz su kuyuları açarak köy ve kasabalarda hijyen ve sağlık koşullarını iyileştiriyoruz.", image: "/images/kardeslik/haci-ali-elcin-camii-insaati.png" }
+    ];
+
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #0d1b1e, #174C3B); color:#fff; padding:80px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <span style="background:rgba(255,255,255,0.1); padding:6px 16px; border-radius:99px; font-size:11px; font-weight:700; display:inline-block; margin-bottom:16px;">🌍 PROJELERİMİZ</span>
+          <h1 style="font-size:2.8rem; font-weight:900; margin:0 0 12px;">Projelerimiz</h1>
+          <p style="font-size:15px; color:#cbd5e1; margin:0;">Sahada yürüttüğümüz eğitim, su kuyusu ve insani yardım projelerini buradan görebilirsiniz.</p>
+        </div>
+      </section>
+
+      <section class="section" style="padding:60px 24px; background:#f9fafb;">
+        <div style="max-width:1100px; margin:0 auto;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:24px;">
+            ${slides.map(s => {
+              const target = 100000;
+              const collected = 68000;
+              const pct = 68;
+              return `
+                <div style="background:#fff; border:1px solid #e5e7eb; border-radius:20px; overflow:hidden; box-shadow:0 4px 15px rgba(0,0,0,0.02); display:flex; flex-direction:column; height:100%;">
+                  <div style="height:180px; background:url('${s.image}') center/cover no-repeat; position:relative;">
+                    <span style="position:absolute; bottom:12px; left:12px; background:#174C3B; color:#fff; font-size:10px; font-weight:700; padding:4px 10px; border-radius:4px;">${s.subtitle}</span>
+                  </div>
+                  <div style="padding:20px; display:flex; flex-direction:column; flex-grow:1; justify-content:between;">
+                    <div>
+                      <h3 style="font-size:1.15rem; font-weight:800; color:#174C3B; margin:0 0 8px;">${s.title}</h3>
+                      <p style="font-size:12px; color:#64748b; line-height:1.5; margin-bottom:16px;">${s.description}</p>
+                      
+                      <!-- Progress bar -->
+                      <div style="margin-bottom:16px;">
+                        <div style="display:flex; justify-content:between; font-size:10.5px; color:#64748b; margin-bottom:4px;">
+                          <span>Toplanan: 68.000₺</span>
+                          <span style="font-weight:700; color:#174C3B;">%68</span>
+                        </div>
+                        <div style="height:6px; background:#f1f5f9; border-radius:3px; overflow:hidden;">
+                          <div style="width:68%; height:100%; background:#174C3B; border-radius:3px;"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                      <a href="#/demo/${o.slug}/bagis/acil-yardim" style="flex:1; text-align:center; background:#174C3B; color:#fff; text-decoration:none; font-size:11.5px; font-weight:700; padding:8px; border-radius:6px;">Destek Ol</a>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+  headerHtml(o) {
+    return `<div style="background:#0d1b1e; color:#cbd5e1; padding:6px 24px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600;">
+        <div>Paylaşmak Kardeşliktir | Kardeşlik Payı Derneği</div>
+        <div style="display:flex; gap:16px;">
+          <a href="#/bagisci" style="color:#cbd5e1; text-decoration:none;">👤 Bağışçı Paneli</a>
+          <span>|</span>
+          <a href="#/admin" style="color:#cbd5e1; text-decoration:none;">⚙️ Yönetici Girişi</a>
+        </div>
+      </div>
+      <header class="site-head" style="background:#fff; border-bottom:3px solid #0f766e; padding:14px 28px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 15px rgba(0,0,0,0.03); position:sticky; top:0; z-index:100;">
+        <a class="brand" href="#/demo/${o.slug}" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
+          <img src="/images/kardeslik/logo.png" style="width:48px; height:48px; border-radius:8px;" />
+          <div>
+            <h1 style="font-size:1.2rem; font-weight:900; color:#0f766e; margin:0; line-height:1.2;">KARDEŞLİK PAYI</h1>
+            <p style="font-size:10px; color:#f59e0b; font-weight:800; margin:0; letter-spacing:1px; text-transform:uppercase;">Yardımlaşma Derneği</p>
+          </div>
+        </a>
+        <nav style="display:flex; gap:20px; align-items:center;">
+          <a href="#/demo/${o.slug}" style="color:#0f766e; font-weight:800; text-decoration:none; font-size:14.5px;">Ana Sayfa</a>
+          <a href="#/demo/${o.slug}/projelerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Projelerimiz</a>
+          <a href="#/demo/${o.slug}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Hakkımızda</a>
+          <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">İletişim</a>
+        </nav>
+        <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f766e; color:#fff; text-decoration:none; font-size:12.5px; font-weight:800; padding:10px 24px; border-radius:8px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">ŞİMDİ BAĞIŞ YAP</a>
+      </header>`;
+  }
 };
 

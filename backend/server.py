@@ -29,16 +29,6 @@ DATA = ROOT / "data"
 DB_PATH = Path(os.environ.get("EINFAK_DB_PATH", DATA / "einfak.sqlite3"))
 
 DEMOS = [
-    ("rahmet-eli", "Rahmet Eli Yardım Derneği", "rahmeteli.org", "nezir", "#0f766e", "#f59e0b", "İstanbul", "Mazluma hızlı ulaşan sade yardım sitesi"),
-    ("umut-koprusu", "Umut Köprüsü Vakfı", "umutkoprusu.org", "hakder", "#1d4ed8", "#22c55e", "Bursa", "Yerel dernekler için güven veren bağış arayüzü"),
-    ("ilim-yolu", "İlim Yolu Eğitim Vakfı", "ilimyolu.org", "efendi", "#7c2d12", "#d97706", "Konya", "Medrese, hafızlık ve eğitim destekleri için kurumsal site"),
-    ("vuslat-kapisi", "Vuslat Kapısı Yardım Vakfı", "vuslatkapisi.org", "vuslat", "#4f46e5", "#06b6d4", "Ankara", "Külliye, sosyal yardım ve proje fonlama odaklı site"),
-    ("mazlumlara-umut", "Mazlumlara Umut Platformu", "mazlumlaraumut.org", "ihh", "#b91c1c", "#f97316", "İstanbul", "Acil yardım, kriz ve uluslararası bağış akışı"),
-    ("emanet-vakfi", "Emanet Vakfı", "emanetvakfi.org", "iddef", "#047857", "#84cc16", "Sakarya", "Kurban, sponsorluk ve bağışçı hesabı odaklı site"),
-    ("veren-el", "Veren El İnsani Yardım", "vereneliyilik.org", "verenel", "#be123c", "#14b8a6", "Kayseri", "SMS, ayni yardım ve saha operasyonları için site"),
-    ("bereket-dernegi", "Bereket Derneği", "bereketdernegi.org", "besir", "#0e7490", "#eab308", "İzmir", "Hızlı bağış ve yaygın kampanya kartları"),
-    ("hayrat-koprusu", "Hayrat Köprüsü Vakfı", "hayratkoprusu.org", "hayrat", "#166534", "#38bdf8", "Trabzon", "Çok dilli yardım, eğitim ve yayın destekleri"),
-    ("gozyasi-iyilik", "Gözyaşı İyilik Vakfı", "gozyasiiyilik.org", "gozyasi", "#6d28d9", "#fb7185", "Gaziantep", "Geniş kategori ve insani yardım kampanyaları"),
     ("hicret-dernegi", "Hicret Derneği", "hicretdernegi.org,hicretdernegi.org.tr", "hicretdernegi", "#065f46", "#0284c7", "Ankara", "İslami Eğitim Kurumu ve İlim Medresesi"),
     ("kardeslik-payi", "Kardeşlik Payı Derneği", "kardeslikpayi.org", "kardeslikpayi", "#0f766e", "#f59e0b", "İstanbul", "Paylaşmak Kardeşliktir, Bağış ve Sosyal Yardımlaşma Platformu"),
 ]
