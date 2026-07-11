@@ -262,7 +262,7 @@ def init_db() -> None:
                         """,
                         (org_id, slug, title, category, summary,
                          f"{title} kampanyası, bağışların makbuzlandığı ve operasyon sürecine otomatik işlendiği E-İnfak altyapısı ile yönetilir.",
-                         target * 100, ",".join(map(str, suggestions)), visual(category), 0, sort_order, now_iso(), now_iso())
+                         target * 100, json.dumps(suggestions), visual(category), 0, sort_order, now_iso(), now_iso())
                     )
         
         refresh_seed_texts(conn)
@@ -466,7 +466,14 @@ def money_out(r: sqlite3.Row, *money_fields: str) -> dict[str, Any]:
 
 def campaign_out(r: sqlite3.Row) -> dict[str, Any]:
     d = money_out(r, "target_cents", "collected_cents")
-    d["suggestedAmounts"] = json.loads(d.pop("suggestedAmounts") or "[]")
+    raw_suggested = d.pop("suggestedAmounts") or "[]"
+    try:
+        d["suggestedAmounts"] = json.loads(raw_suggested)
+    except Exception:
+        try:
+            d["suggestedAmounts"] = [int(x.strip()) for x in raw_suggested.split(",") if x.strip()]
+        except Exception:
+            d["suggestedAmounts"] = []
     d["featured"] = bool(d["featured"])
     d["active"] = bool(d["active"])
     return d
