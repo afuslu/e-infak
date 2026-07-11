@@ -139,7 +139,7 @@ function company(focusDemos = false) {
             </p>
             <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:28px;">
               <a class="primary" href="#/demos" style="min-height:48px; padding:0 28px; font-size:15px; border-radius:var(--r); background:#059669; box-shadow:0 6px 20px rgba(5,150,105,0.3);">
-                10 Gerçek STK Klonunu Gör <span style="margin-left:4px;">→</span>
+                STK Temalarını Gör <span style="margin-left:4px;">→</span>
               </a>
               <a class="ghost" href="#lead" style="min-height:48px; padding:0 28px; font-size:15px; border-radius:var(--r); background:rgba(255,255,255,0.05); color:#fff; border:1px solid rgba(255,255,255,0.15);">
                 🤝 Projeniz İçin Teklif Alın
@@ -201,8 +201,8 @@ function company(focusDemos = false) {
         <section id="demos" class="section" style="background:#1e293b; padding:80px clamp(18px,5vw,72px);">
           <div style="text-align:center; max-width:750px; margin:0 auto 50px;">
             <p class="eyebrow" style="color:#34d399;">Gerçek Referans Siteler</p>
-            <h2 style="margin:0 0 12px; color:#fff; font-size:clamp(1.8rem,3vw,2.5rem);">10 Benzersiz STK Sitesinin Birebir Klonu</h2>
-            <p style="color:#94a3b8; font-size:15px; line-height:1.6;">İHH, İDDEF, Nezir, Beşir gibi Türkiye'nin en büyük sivil toplum kuruluşlarının tasarımlarının, menülerinin ve slider yapılarının birebir aynısını entegre ettik. İstediğiniz temayı seçin.</p>
+            <h2 style="margin:0 0 12px; color:#fff; font-size:clamp(1.8rem,3vw,2.5rem);">Benzersiz STK Temalarının Birebir Klonları</h2>
+            <p style="color:#94a3b8; font-size:15px; line-height:1.6;">Hicret Derneği, Kardeşlik Payı gibi sivil toplum kuruluşlarının tasarımlarının, menülerinin, alt sayfalarının ve slider yapılarının birebir aynısını entegre ettik. İstediğiniz temayı seçin.</p>
           </div>
           <div class="cards three" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:24px;">
             ${orgs().map(modernDemoCard).join("")}
