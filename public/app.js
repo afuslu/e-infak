@@ -110,7 +110,7 @@ function company(focusDemos = false) {
   return shell(`
     <div style="background:#0f172a; color:#f1f5f9; min-height:100vh;">
       <header class="topbar" style="background:rgba(15,23,42,0.8); border-bottom:1px solid rgba(255,255,255,0.08); backdrop-filter:blur(16px);">
-        <a class="brand" href="#/" style="color:#fff;"><span style="background:#059669;">E</span><b>E-İnfak</b></a>
+        <a class="brand" href="#/" style="color:#fff; display:flex; align-items:center; gap:8px;"><img src="/images/e-infak-logo.png" style="width:32px; height:32px; object-fit:contain; border-radius:6px;" /><b>E-İnfak</b></a>
         <nav style="color:#94a3b8;">
           <a href="#services" style="color:#94a3b8; transition:color 0.2s;">Hizmetlerimiz</a>
           <a href="#demos" style="color:#94a3b8; transition:color 0.2s;">STK Demoları</a>
@@ -361,7 +361,7 @@ function modernFooter() {
     <div style="display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr; gap:40px; margin-bottom:40px;">
       <div>
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
-          <span style="width:36px; height:36px; background:var(--brand); color:#fff; display:flex; align-items:center; justify-content:center; border-radius:10px; font-weight:900; font-size:14px;">E</span>
+          <img src="/images/e-infak-logo.png" style="width:36px; height:36px; object-fit:contain; border-radius:8px;" />
           <b style="color:#fff; font-size:1.15rem;">E-İnfak</b>
         </div>
         <p style="font-size:13px; line-height:1.6; color:#64748b; margin:0 0 20px; max-width:280px;">STK'lar için online bağış sitesi, bağışçı CRM, makbuz, kurban, sponsorluk, banka hareketleri ve raporlama otomasyonu.</p>
@@ -1557,7 +1557,7 @@ function donationPage(o, c) {
 
 function admin() {
   const o = org();
-  return shell(`<div class="admin"><aside><a class="brand" href="#/"><span>E</span><b>E-İnfak</b></a><select data-org>${orgs().map((x) => `<option value="${x.slug}" ${x.slug === o.slug ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select><nav>${["dashboard:Kontrol", "donations:Bağışlar", "donors:Bağışçılar", "campaigns:Kampanyalar", "kurban:Kurban Operasyon", "bank:Banka", "messages:SMS/Mail", "reports:Raporlar", "settings:Kurulum"].map((x) => { const [id, label] = x.split(":"); return `<button class="${state.adminTab === id ? "on" : ""}" data-tab="${id}">${label}</button>`; }).join("")}</nav></aside><main><header class="admin-top"><div><p>Admin otomasyon</p><h1>${esc(o.name)}</h1></div><div><a class="ghost" href="#/demo/${o.slug}">Siteyi gör</a><a class="primary" href="/api/export/donations">CSV indir</a></div></header>${adminTab(o)}</main></div>`);
+  return shell(`<div class="admin"><aside><a class="brand" href="#/" style="display:flex; align-items:center; gap:8px;"><img src="/images/e-infak-logo.png" style="width:32px; height:32px; object-fit:contain; border-radius:6px;" /><b>E-İnfak</b></a><select data-org>${orgs().map((x) => `<option value="${x.slug}" ${x.slug === o.slug ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select><nav>${["dashboard:Kontrol", "donations:Bağışlar", "donors:Bağışçılar", "campaigns:Kampanyalar", "kurban:Kurban Operasyon", "bank:Banka", "messages:SMS/Mail", "reports:Raporlar", "settings:Kurulum"].map((x) => { const [id, label] = x.split(":"); return `<button class="${state.adminTab === id ? "on" : ""}" data-tab="${id}">${label}</button>`; }).join("")}</nav></aside><main><header class="admin-top"><div><p>Admin otomasyon</p><h1>${esc(o.name)}</h1></div><div><a class="ghost" href="#/demo/${o.slug}">Siteyi gör</a><a class="primary" href="/api/export/donations">CSV indir</a></div></header>${adminTab(o)}</main></div>`);
 }
 function renderLineChart(slug) {
   const dList = donations(slug);
@@ -1990,7 +1990,7 @@ function donorPanel() {
   return shell(`
     <div>
       <header class="topbar">
-        <a class="brand" href="#/"><span>E</span><b>E-İnfak</b></a>
+        <a class="brand" href="#/" style="display:flex; align-items:center; gap:8px;"><img src="/images/e-infak-logo.png" style="width:32px; height:32px; object-fit:contain; border-radius:6px;" /><b>E-İnfak</b></a>
         <nav>
           <a href="#/demos">Geri Dön (STK Siteleri)</a>
           <a href="#/admin">Otomasyon Paneli</a>
