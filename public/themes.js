@@ -367,6 +367,41 @@ themeLayouts.hicretdernegi = {
       { visual: "/images/hicret/talebe 4.png", title: "GÜVENLİ ÇEVRE", subtitle: "Aile Ortamında Eğitim", desc: "Huzurlu ve güvenli medrese ortamımızda çocuklarınız hem dinî eğitimlerini alıyor hem de karakter gelişimlerini tamamlıyor." }
     ];
 
+    const cardsHtml = list.map(c => {
+      const p = pct(c.collected, c.target);
+      return `
+        <div class="hicret-card" style="background:#fff; border-radius:20px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.03); border:1px solid #e5e7eb; display:flex; flex-direction:column; height:100%;">
+          <div style="height:190px; background:url('${c.image || '/images/hicret/talebe 1.png'}') center/cover no-repeat; position:relative;">
+            <div style="position:absolute; top:12px; left:12px;">
+              <span style="background:#043425; color:#fff; font-size:10px; font-weight:700; padding:4px 10px; border-radius:20px;">${c.featured ? 'Acil' : 'Devam Ediyor'}</span>
+            </div>
+          </div>
+          <div style="padding:20px; display:flex; flex-direction:column; flex-grow:1; justify-content:space-between;">
+            <div>
+              <h3 style="font-size:1.15rem; font-weight:800; color:#065f46; margin:0 0 8px;">${c.title}</h3>
+              <p style="font-size:12.5px; color:#64748b; line-height:1.5; margin-bottom:16px; height:60px; overflow:hidden;">${c.description}</p>
+              
+              <div style="margin-bottom:16px;">
+                <div style="display:flex; justify-content:space-between; font-size:10.5px; color:#64748b; margin-bottom:4px;">
+                  <span>Hedef</span>
+                  <span style="font-weight:700;">${money(c.target)}</span>
+                </div>
+                <div style="height:6px; background:#f1f5f9; border-radius:3px; overflow:hidden;">
+                  <div style="width:${p}%; height:100%; background:#059669; border-radius:3px;"></div>
+                </div>
+                <div style="margin-top:8px; display:flex; justify-content:space-between; font-size:11px; color:#64748b;">
+                  <span>Toplanan: ${money(c.collected)}</span>
+                  <span style="font-weight:700; color:#059669;">%${p}</span>
+                </div>
+              </div>
+            </div>
+            
+            <a href="#/demo/${o.slug}/bagis/${c.slug}" style="display:inline-flex; width:100%; justify-content:center; align-items:center; background:#059669; color:#fff; text-decoration:none; font-size:12.5px; font-weight:700; padding:10px; border-radius:8px; box-shadow:0 4px 10px rgba(5,150,105,0.15);">Hemen Destek Ol <span style="margin-left:4px;">➔</span></a>
+          </div>
+        </div>
+      `;
+    }).join('');
+
     return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f9fafb;">
       
       <!-- Header -->
@@ -457,7 +492,15 @@ themeLayouts.hicretdernegi = {
           </div>
         </section>
 
-        ${themeCampaignGrid(o, list, { font: "'Poppins', sans-serif", tabStyle: 'pill', tabActiveBg: '#059669', sectionBg: '#f9fafb' })}
+        <!-- Custom Campaign Grid matching Next.js -->
+        <section class="section" style="padding:60px clamp(18px,5vw,72px); background:#f9fafb;">
+          <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:32px;">
+            <h2 style="font-size:2rem; font-weight:900; color:#065f46; margin:0;">Güncel Kampanyalar</h2>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:32px;">
+            ${cardsHtml}
+          </div>
+        </section>
 
         <section class="section" style="background:#fff; padding:60px clamp(18px,5vw,72px);">
           <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
@@ -755,15 +798,6 @@ themeLayouts.hicretdernegi = {
    ══════════════════════════════════════════════════════════════ */
 themeLayouts.kardeslikpayi = {
   home(o, list) {
-    const headCfg = {
-      font: "'Outfit', sans-serif",
-      topBg: '#0d1b1e',
-      topLeft: '🤝 Paylaşmak Kardeşliktir | Kardeşlik Payı Derneği',
-      logoStyle: `background:url('/images/kardeslik/logo.png') center/cover;`,
-      ctaText: 'Hızlı Bağış',
-      ctaStyle: 'background:#0f766e; color:#fff;'
-    };
-
     const cs = state.currentSlideIndex || 0;
     const slides = [
       { visual: "/images/kardeslik/genel-bagislar.png", title: "GENEL BAĞIŞLAR", subtitle: "Paylaşmak Kardeşliktir", desc: "Zekat, sadaka, gıda kolisi ve eğitim bursu yardımlarınızla binlerce ihtiyaç sahibi ailenin yüzünü güldürüyoruz." },
@@ -771,36 +805,44 @@ themeLayouts.kardeslikpayi = {
       { visual: "/images/kardeslik/haci-ali-elcin-camii-insaati.png", title: "KALICI ESERLER", subtitle: "Cami ve Mescit İnşaatları", desc: "Müslümanların cemaatle ibadet edebileceği, yavrularımızın Kur'an eğitimi alabileceği cami ve külliyeler inşa ediyoruz." }
     ];
 
-    return `<div class="site" data-theme="kardeslikpayi" style="--p:#0f766e;--a:#f59e0b; font-family:'Outfit', sans-serif; background:#f8fafc;">
-      
-      <!-- Custom Header matching original style -->
-      <div style="background:#0d1b1e; color:#cbd5e1; padding:6px 24px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600; font-family:'Outfit',sans-serif;">
-        <div>🤝 Paylaşmak Kardeşliktir | Kardeşlik Payı Derneği</div>
-        <div style="display:flex; gap:16px;">
-          <a href="#/bagisci" style="color:#cbd5e1; text-decoration:none;">👤 Bağışçı Paneli</a>
-          <span>|</span>
-          <a href="#/admin" style="color:#cbd5e1; text-decoration:none;">⚙️ Yönetici Girişi</a>
-        </div>
-      </div>
-
-      <header class="site-head" style="background:#fff; border-bottom:3px solid #0f766e; padding:14px 28px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 15px rgba(0,0,0,0.03);">
-        <a class="brand" href="#/demo/${o.slug}" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
-          <img src="/images/kardeslik/logo.png" style="width:48px; height:48px; border-radius:8px;" />
-          <div>
-            <h1 style="font-size:1.2rem; font-weight:900; color:#0f766e; margin:0; line-height:1.2;">KARDEŞLİK PAYI</h1>
-            <p style="font-size:10px; color:#f59e0b; font-weight:800; margin:0; letter-spacing:1px; text-transform:uppercase;">Yardımlaşma Derneği</p>
+    const cardsHtml = list.map(c => {
+      const p = pct(c.collected, c.target);
+      return `
+        <div class="kardeslik-card" style="background:#fff; border-radius:24px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.04); border:1px solid #e2e8f0; display:flex; flex-direction:column; height:100%;">
+          <div style="height:200px; background:url('${c.image || '/images/kardeslik/genel-bagislar.png'}') center/cover no-repeat; position:relative;">
+            <div style="position:absolute; top:12px; left:12px; display:flex; gap:8px;">
+              <span style="background:${c.featured ? '#dc2626' : '#174C3B'}; color:#fff; font-size:10px; font-weight:700; padding:4px 10px; border-radius:6px; text-transform:uppercase;">${c.featured ? 'Acil' : 'Devam'}</span>
+            </div>
           </div>
-        </a>
-        <nav style="display:flex; gap:20px; align-items:center;">
-          <a href="#/demo/${o.slug}" style="color:#0f766e; font-weight:800; text-decoration:none; font-size:14.5px;">Ana Sayfa</a>
-          <a href="#/demo/${o.slug}/bagis/su-kuyusu" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Su Kuyusu</a>
-          <a href="#/demo/${o.slug}/bagis/yetim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Yetim</a>
-          <a href="#/demo/${o.slug}/bagis/kurban" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Kurban</a>
-          <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">İletişim</a>
-        </nav>
-        <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f766e; color:#fff; text-decoration:none; font-size:12.5px; font-weight:800; padding:10px 24px; border-radius:8px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">ŞİMDİ BAĞIŞ YAP</a>
-      </header>
+          <div style="padding:24px; display:flex; flex-direction:column; flex-grow:1; justify-content:space-between;">
+            <div>
+              <h3 style="font-size:1.15rem; font-weight:800; color:#1e293b; margin:0 0 8px; line-height:1.3;">${c.title}</h3>
+              <p style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:20px; height:80px; overflow:hidden;">${c.description}</p>
+              
+              <div style="margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:#64748b; margin-bottom:6px;">
+                  <span>Hedef</span>
+                  <span style="font-weight:700; color:#1e293b;">${money(c.target)}</span>
+                </div>
+                <div style="height:8px; background:#f1f5f9; border-radius:4px; overflow:hidden; position:relative;">
+                  <div style="width:${p}%; height:100%; background:#174C3B; border-radius:4px;"></div>
+                </div>
+                <div style="margin-top:8px; display:flex; justify-content:space-between; font-size:11.5px; color:#64748b;">
+                  <span>Toplanan: <b>${money(c.collected)}</b></span>
+                  <span style="font-weight:700; color:#174C3B;">%${p}</span>
+                </div>
+              </div>
+            </div>
+            
+            <a href="#/demo/${o.slug}/bagis/${c.slug}" style="display:inline-flex; width:100%; justify-content:center; align-items:center; background:#174C3B; color:#fff; text-decoration:none; font-size:13px; font-weight:700; padding:12px; border-radius:12px; box-shadow:0 4px 12px rgba(23,76,59,0.15); transition:all 0.2s;">Destek Ol <span style="margin-left:4px;">➔</span></a>
+          </div>
+        </div>
+      `;
+    }).join('');
 
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc;">
+      ${this.headerHtml(o)}
+      
       <main>
         <!-- Custom Hero Slider -->
         <section style="position:relative; height:520px; overflow:hidden; background:#0d1b1e;">
@@ -814,8 +856,7 @@ themeLayouts.kardeslikpayi = {
               </div>
             </div>
           `).join('')}
-          <!-- Slide dots -->
-          <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:8px;">
+          <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:10;">
             ${slides.map((_, idx) => `
               <span data-slide-dot="${idx}" style="width:${idx === cs ? '24px' : '8px'}; height:8px; border-radius:4px; background:${idx === cs ? '#f59e0b' : 'rgba(255,255,255,0.4)'}; cursor:pointer; transition:all 0.3s;"></span>
             `).join('')}
@@ -829,8 +870,15 @@ themeLayouts.kardeslikpayi = {
           <div style="font-size:13px; color:#0f766e; font-weight:700; display:flex; align-items:center; gap:6px;"><span>✓</span> Fotoğraflı & Videolu Geri Bildirim</div>
         </div>
 
-        <!-- Dinamik Kampanya Kartları -->
-        ${themeCampaignGrid(o, list, { font: "'Outfit', sans-serif", tabStyle: 'pill', tabActiveBg: '#0f766e', sectionBg: '#fff' })}
+        <!-- Custom Campaign Grid matching Next.js -->
+        <section class="section" style="padding:60px clamp(18px,5vw,72px); background:#fff;">
+          <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:32px;">
+            <h2 style="font-size:2rem; font-weight:900; color:#174C3B; margin:0;">Güncel Projeler</h2>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:32px;">
+            ${cardsHtml}
+          </div>
+        </section>
 
         <!-- Zekat Paneli -->
         <section class="section alt" style="background:#f8fafc; padding:60px clamp(18px,5vw,72px);">
