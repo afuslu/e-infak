@@ -361,11 +361,13 @@ themeLayouts.hicretdernegi = {
   home(o, list) {
     const cs = state.currentSlideIndex || 0;
     const slides = [
-      { visual: "/images/hicret/talebe 1.png", title: "HİCRET DERNEĞİ", subtitle: "Eğitim Yuvamıza Hoş Geldiniz", desc: "Modern pedagoji ile geleneksel İslami değerleri buluşturan eğitim anlayışımızla geleceğin Müslüman nesillerini yetiştiriyoruz." },
-      { visual: "/images/hicret/talebe 2.png", title: "KALİTELİ EĞİTİM", subtitle: "Deneyimli Kadromuzla", desc: "15+ tecrübeli eğitimcimiz ile İslami değerleri modern öğretim yöntemleriyle harmanlayan eğitim programları sunuyoruz." },
-      { visual: "/images/hicret/talebe 3.png", title: "4 FARKLI BÖLÜM", subtitle: "Her Yaş İçin Özel Program", desc: "Sıbyan, İbtida, Hafızlık ve Arapça bölümlerimizle çocuğunuzun yaşına uygun kapsamlı İslami eğitim veriyoruz." },
-      { visual: "/images/hicret/talebe 4.png", title: "GÜVENLİ ÇEVRE", subtitle: "Aile Ortamında Eğitim", desc: "Huzurlu ve güvenli medrese ortamımızda çocuklarınız hem dinî eğitimlerini alıyor hem de karakter gelişimlerini tamamlıyor." }
+      { id: 1, bgImage: "/images/hicret/talebe 1.png", title: "HİCRET DERNEĞİ", subtitle: "Eğitim Yuvamıza Hoş Geldiniz", description: "Modern pedagoji ile geleneksel İslami değerleri buluşturan eğitim anlayışımızla, geleceğin Müslüman nesilleri yetiştiriyoruz.", stats: { number: "200+", label: "Öğrenci" }, buttonText: "Hakkımızda", buttonLink: `#/demo/${o.slug}/hakkimizda` },
+      { id: 2, bgImage: "/images/hicret/talebe 2.png", title: "KALİTELİ EĞİTİM", subtitle: "Deneyimli Kadromuzla", description: "15+ tecrübeli eğitimcimiz ile İslami değerleri modern öğretim yöntemleriyle harmanlayan eğitim programları sunuyoruz.", stats: { number: "15+", label: "Eğitimci" }, buttonText: "Kadromuz", buttonLink: `#/demo/${o.slug}/hakkimizda` },
+      { id: 3, bgImage: "/images/hicret/talebe 3.png", title: "4 FARKLI BÖLÜM", subtitle: "Her Yaş İçin Özel Program", description: "Sıbyan (4-7 yaş), İbtida (8-12 yaş), Hafızlık (7+ yaş) ve Arapça (10+ yaş) bölümlerimizle çocuğunuzun yaşına uygun kapsamlı İslami eğitim sunuyoruz.", stats: { number: "4", label: "Özel Program" }, buttonText: "Programlar", buttonLink: `#/demo/${o.slug}/faaliyetlerimiz` },
+      { id: 4, bgImage: "/images/hicret/talebe 4.png", title: "GÜVENLİ ÇEVRE", subtitle: "Aile Ortamında Eğitim", description: "Güvenli ve huzurlu ortamımızda, çocuklarınız hem dinî eğitimlerini alıyor hem de karakter gelişimlerini tamamlıyor.", stats: { number: "8", label: "Yıl Tecrübe" }, buttonText: "Bize Ulaşın", buttonLink: `#/demo/${o.slug}/iletisim` }
     ];
+
+    const slide = slides[cs] || slides[0];
 
     const cardsHtml = list.map(c => {
       const p = pct(c.collected, c.target);
@@ -435,23 +437,57 @@ themeLayouts.hicretdernegi = {
       </header>
 
       <main>
-        <!-- Hero Slider -->
-        <section style="position:relative; height:500px; overflow:hidden; background:#043425;">
-          ${slides.map((s, idx) => `
-            <div style="display:${idx === cs ? 'flex' : 'none'}; position:absolute; inset:0; background:linear-gradient(rgba(4,52,37,0.85), rgba(4,52,37,0.4)), url('${s.visual}') center/cover no-repeat; align-items:center; padding:0 clamp(20px,8vw,100px); transition:opacity 1s ease-in-out;">
-              <div style="max-width:650px; color:#fff;">
-                <span style="background:#0284c7; color:#fff; font-size:10px; font-weight:800; padding:4px 12px; border-radius:20px; text-transform:uppercase; letter-spacing:1px; display:inline-block; margin-bottom:16px;">${s.title}</span>
-                <h1 style="font-size:2.8rem; font-weight:800; line-height:1.2; margin:0 0 12px; text-shadow:0 2px 4px rgba(0,0,0,0.3);">${s.subtitle}</h1>
-                <p style="font-size:15px; line-height:1.6; color:#e2e8f0; margin-bottom:24px;">${s.desc}</p>
-                <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#059669; color:#fff; font-size:13px; font-weight:700; padding:12px 28px; border-radius:99px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 15px rgba(5,150,105,0.3);">Hemen Bağış Yap ➔</a>
+        <!-- Vuslat Style Hero Slider Section -->
+        <section style="position:relative; height:600px; overflow:hidden; background:#043425; display:flex; align-items:center; padding:0 clamp(20px,8vw,100px);">
+          
+          <!-- Background image fade -->
+          <div style="position:absolute; inset:0; background:linear-gradient(rgba(4,52,37,0.9), rgba(4,52,37,0.5)), url('${slide.bgImage}') center/cover no-repeat; transition:all 1s ease-in-out; z-index:1;"></div>
+
+          <div style="max-width:1200px; margin:0 auto; width:100%; display:grid; grid-template-columns:1.2fr 0.8fr; gap:40px; position:relative; z-index:2; align-items:center;">
+            
+            <!-- Left Info Panel -->
+            <div style="color:#fff;">
+              <span style="background:linear-gradient(to right, #059669, #047857); color:#fff; px:4px; font-size:11px; font-weight:700; padding:6px 16px; border-radius:20px; text-transform:uppercase; letter-spacing:1px; display:inline-block; margin-bottom:18px; box-shadow:0 4px 12px rgba(5,150,105,0.3); border:1px solid rgba(255,255,255,0.15);">${slide.subtitle}</span>
+              <h1 style="font-size:3.2rem; font-weight:900; line-height:1.2; margin:0 0 16px; text-shadow:0 2px 4px rgba(0,0,0,0.3);">${slide.title}</h1>
+              <p style="font-size:16px; line-height:1.6; color:#e2e8f0; margin-bottom:28px; max-width:600px;">${slide.description}</p>
+              <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                <a href="${slide.buttonLink}" style="background:linear-gradient(to right, #059669, #047857); color:#fff; font-size:13.5px; font-weight:800; padding:14px 32px; border-radius:30px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 20px rgba(5,150,105,0.3); border:1px solid rgba(255,255,255,0.15);">${slide.buttonText.toUpperCase()} ➔</a>
+                <a href="#/demo/${o.slug}/iletisim" style="background:linear-gradient(to right, #2563eb, #1d4ed8); color:#fff; font-size:13.5px; font-weight:800; padding:14px 32px; border-radius:30px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 20px rgba(37,99,235,0.3);">BAŞVURU YAP ➔</a>
               </div>
             </div>
-          `).join('')}
-          <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:10;">
-            ${slides.map((_, idx) => `
-              <span data-slide-dot="${idx}" style="width:${idx === cs ? '24px' : '8px'}; height:8px; border-radius:4px; background:${idx === cs ? '#059669' : 'rgba(255,255,255,0.4)'}; cursor:pointer; transition:all 0.3s;"></span>
+
+            <!-- Right Stats Grid Panel (Glassmorphism) -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+              <div style="background:rgba(255,255,255,0.1); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.25); border-radius:16px; padding:20px; text-align:center; color:#fff; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+                <div style="font-size:2rem; font-weight:900; margin-bottom:4px; color:#fff;">${slide.stats.number}</div>
+                <div style="font-size:12px; opacity:0.9;">${slide.stats.label}</div>
+              </div>
+              <div style="background:rgba(255,255,255,0.1); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.25); border-radius:16px; padding:20px; text-align:center; color:#fff; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+                <div style="font-size:2rem; font-weight:900; margin-bottom:4px; color:#fff;">8+</div>
+                <div style="font-size:12px; opacity:0.9;">Yıl Tecrübe</div>
+              </div>
+              <div style="background:rgba(255,255,255,0.1); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.25); border-radius:16px; padding:20px; text-align:center; color:#fff; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+                <div style="font-size:2rem; font-weight:900; margin-bottom:4px; color:#fff;">%98</div>
+                <div style="font-size:12px; opacity:0.9;">Memnuniyet</div>
+              </div>
+              <div style="background:rgba(255,255,255,0.1); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,0.25); border-radius:16px; padding:20px; text-align:center; color:#fff; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+                <div style="font-size:2rem; font-weight:900; margin-bottom:4px; color:#fff;">8</div>
+                <div style="font-size:12px; opacity:0.9;">Şube</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Vertical Slide indicators (Right Side Thumbnails) -->
+          <div style="position:absolute; right:20px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:16px; z-index:10;">
+            ${slides.map((s, idx) => `
+              <button onclick="state.currentSlideIndex = ${idx}; render();" style="border:none; background:none; padding:0; cursor:pointer; outline:none; text-align:right;">
+                <div style="width:120px; height:70px; background:url('${s.bgImage}') center/cover no-repeat; border-radius:10px; border:${idx === cs ? '3px solid #059669' : '1px solid rgba(255,255,255,0.3)'}; opacity:${idx === cs ? '1' : '0.65'}; transition:all 0.2s; box-shadow:0 4px 10px rgba(0,0,0,0.25);"></div>
+                <span style="font-size:10px; font-weight:800; color:#fff; display:block; margin-top:4px; text-shadow:0 1px 2px rgba(0,0,0,0.8);">${s.title}</span>
+              </button>
             `).join('')}
           </div>
+
         </section>
 
         <!-- Notification Bar -->
@@ -800,10 +836,12 @@ themeLayouts.kardeslikpayi = {
   home(o, list) {
     const cs = state.currentSlideIndex || 0;
     const slides = [
-      { visual: "/images/kardeslik/genel-bagislar.png", title: "GENEL BAĞIŞLAR", subtitle: "Paylaşmak Kardeşliktir", desc: "Zekat, sadaka, gıda kolisi ve eğitim bursu yardımlarınızla binlerce ihtiyaç sahibi ailenin yüzünü güldürüyoruz." },
-      { visual: "/images/kardeslik/mahmud-ustaosmanoglu-hazretleri-ks-su-kuyusu-projesi.png", title: "SU KUYUSU PROJESİ", subtitle: "Mahmud Ustaosmanoğlu Hz. Su Kuyuları", desc: "Afrika ve Asya'nın kurak topraklarında temiz suya erişimi olmayan kardeşlerimize can suyu oluyoruz." },
-      { visual: "/images/kardeslik/haci-ali-elcin-camii-insaati.png", title: "KALICI ESERLER", subtitle: "Cami ve Mescit İnşaatları", desc: "Müslümanların cemaatle ibadet edebileceği, yavrularımızın Kur'an eğitimi alabileceği cami ve külliyeler inşa ediyoruz." }
+      { id: 1, image: "/images/kardeslik/genel-bagislar.png", title: "Afrika'da Umut Oluyoruz", subtitle: 'HAKDER', description: "İnsanî yardım ve eğitim faaliyetlerimizle Afrika'daki kardeşlerimize destek veriyoruz. Kurban organizasyonlarıyla ailelerin sofralarına sıcak yemek ulaştırıyoruz. Medrese öğrencilerine burs ve eğitim materyali sağlıyoruz." },
+      { id: 2, image: "/images/kardeslik/mahmud-ustaosmanoglu-hazretleri-ks-su-kuyusu-projesi.png", title: 'Medrese Talebelerine Destek', subtitle: 'EĞİTİM', description: "Medrese talebelerine düzenli burs ve barınma desteği sağlıyoruz. Öğrencilerin eğitim materyalleri ve kırtasiye ihtiyaçlarını karşılıyoruz. Gelecek nesiller için sürdürülebilir eğitim fırsatları inşa ediyoruz." },
+      { id: 3, image: "/images/kardeslik/haci-ali-elcin-camii-insaati.png", title: 'Su Kuyuları ile Hayat', subtitle: 'YARDIM', description: "Temiz su kuyuları açarak köy ve kasabalarda hijyen ve sağlık koşullarını iyileştiriyoruz. Suya erişim sayesinde çocuklarımızın okul devamlılığı ve günlük yaşam standardı yükseliyor." }
     ];
+
+    const slide = slides[cs] || slides[0];
 
     const cardsHtml = list.map(c => {
       const p = pct(c.collected, c.target);
@@ -844,31 +882,76 @@ themeLayouts.kardeslikpayi = {
       ${this.headerHtml(o)}
       
       <main>
-        <!-- Custom Hero Slider -->
-        <section style="position:relative; height:520px; overflow:hidden; background:#0d1b1e;">
-          ${slides.map((s, idx) => `
-            <div style="display:${idx === cs ? 'flex' : 'none'}; position:absolute; inset:0; background:linear-gradient(to right, rgba(13,27,30,0.9), rgba(13,27,30,0.5)), url('${s.visual}') center/cover no-repeat; align-items:center; padding:0 clamp(20px,8vw,100px);">
-              <div style="max-width:650px; color:#fff;">
-                <span style="background:#f59e0b; color:#1e293b; font-size:10px; font-weight:800; padding:4px 14px; border-radius:4px; text-transform:uppercase; letter-spacing:1px; display:inline-block; margin-bottom:18px;">${s.title}</span>
-                <h1 style="font-size:2.8rem; font-weight:900; line-height:1.15; margin:0 0 16px; text-shadow:0 2px 4px rgba(0,0,0,0.4);">${s.subtitle}</h1>
-                <p style="font-size:15.5px; line-height:1.6; color:#94a3b8; margin-bottom:28px;">${s.desc}</p>
-                <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f766e; color:#fff; font-size:13.5px; font-weight:800; padding:14px 32px; border-radius:8px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 20px rgba(15,118,110,0.3);">Gönülden Destek Ol ➔</a>
+        <!-- ModernCompactHero Section from Next.js -->
+        <section style="position:relative; background:#174C3B; padding:48px 24px 140px; overflow:hidden;">
+          <div style="max-width:1200px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:32px; align-items:center; position:relative; z-index:2;">
+            
+            <!-- Content card (Left) -->
+            <div style="background:rgba(255,255,255,0.98); backdrop-filter:blur(8px); padding:32px; border-radius:24px; box-shadow:0 20px 40px rgba(0,0,0,0.15); max-width:540px;">
+              <span style="background:#0f5a42; color:#fff; font-size:10px; font-weight:700; padding:4px 12px; border-radius:4px; display:inline-block; margin-bottom:12px; text-transform:uppercase;">${slide.subtitle}</span>
+              <h2 style="font-size:2rem; font-weight:900; color:#1e293b; line-height:1.2; margin:0 0 12px;">${slide.title}</h2>
+              <p style="font-size:13.5px; color:#475569; line-height:1.6; margin-bottom:24px;">${slide.description}</p>
+              
+              <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;">
+                <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f5a42; color:#fff; font-weight:700; text-decoration:none; padding:12px 24px; border-radius:30px; font-size:13px; display:inline-flex; align-items:center; gap:6px;">Hemen Bağış Yap ➔</a>
+                <a href="#/demo/${o.slug}/projelerimiz" style="background:#93740C; color:#fff; font-weight:700; text-decoration:none; padding:12px 24px; border-radius:8px; font-size:13px;">Projelerimiz</a>
+              </div>
+
+              <!-- Quick donation presets -->
+              <div style="border-top:1px solid #e2e8f0; pt:16px;">
+                <div style="font-size:11px; font-weight:700; color:#64748b; margin-bottom:8px; text-transform:uppercase;">Hızlı Bağış</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  ${[50, 100, 250, 500].map(amt => `
+                    <a href="#/demo/${o.slug}/bagis/acil-yardim?amount=${amt}" style="background:#f1f5f9; color:#1e293b; font-weight:700; text-decoration:none; padding:8px 16px; border-radius:20px; font-size:12px;">₺${amt}</a>
+                  `).join('')}
+                </div>
               </div>
             </div>
-          `).join('')}
-          <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:10;">
-            ${slides.map((_, idx) => `
-              <span data-slide-dot="${idx}" style="width:${idx === cs ? '24px' : '8px'}; height:8px; border-radius:4px; background:${idx === cs ? '#f59e0b' : 'rgba(255,255,255,0.4)'}; cursor:pointer; transition:all 0.3s;"></span>
-            `).join('')}
+
+            <!-- Image (Right) -->
+            <div style="position:relative; height:380px; border-radius:24px; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,0.3);">
+              <div style="position:absolute; inset:0; background:url('${slide.image}') center/cover no-repeat;"></div>
+              <div style="position:absolute; inset:0; background:rgba(0,0,0,0.15);"></div>
+            </div>
+
           </div>
+
+          <!-- Slider detailed navigator (Bottom center overlay) -->
+          <div style="position:absolute; bottom:-60px; left:0; right:0; z-index:10; display:flex; justify-content:center; padding:0 24px;">
+            <div style="background:#fff; border-radius:24px; box-shadow:0 15px 35px rgba(0,0,0,0.1); border:1px solid #f1f5f9; padding:16px; display:flex; gap:16px; overflow-x:auto; max-width:850px; pointer-events:auto;">
+              ${slides.map((s, idx) => `
+                <button onclick="state.currentSlideIndex = ${idx}; render();" style="border:0; background:none; padding:0; display:flex; align-items:center; gap:12px; width:220px; text-align:left; cursor:pointer; flex-shrink:0; opacity:${idx === cs ? '1' : '0.65'}; transition:opacity 0.2s;">
+                  <div style="width:70px; height:44px; background:url('${s.image}') center/cover no-repeat; border-radius:8px; flex-shrink:0;"></div>
+                  <span style="font-size:12px; font-weight:800; color:#1e293b; line-height:1.2; display:block;">${s.title}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
         </section>
 
-        <!-- Kardeşlik Şeridi -->
-        <div style="background:#f0fdfa; border-bottom:1px solid #ccfbf1; padding:20px clamp(18px,5vw,72px); display:flex; justify-content:center; align-items:center; gap:32px; flex-wrap:wrap;">
-          <div style="font-size:13px; color:#0f766e; font-weight:700; display:flex; align-items:center; gap:6px;"><span>✓</span> Güvenli Altyapı</div>
-          <div style="font-size:13px; color:#0f766e; font-weight:700; display:flex; align-items:center; gap:6px;"><span>✓</span> Resmi Kurul Onaylı</div>
-          <div style="font-size:13px; color:#0f766e; font-weight:700; display:flex; align-items:center; gap:6px;"><span>✓</span> Fotoğraflı & Videolu Geri Bildirim</div>
-        </div>
+        <!-- Spacer for Carousel navigator -->
+        <div style="height:80px;"></div>
+
+        <!-- SMS ile Bağış Şeridi -->
+        <section style="background:linear-gradient(rgba(23,76,59,0.9), rgba(23,76,59,0.9)), url('/images/kardeslik/genel-bagislar.png') center/cover no-repeat; color:#fff; padding:60px 24px; text-align:center;">
+          <h3 style="font-size:1.8rem; font-weight:800; margin:0 0 12px;">SMS ile Anında Bağış</h3>
+          <p style="font-size:15px; margin:0 0 24px; color:#cbd5e1;"><b>HAKDER</b> yazıp <b>7230</b>'a göndererek 50₺ bağış yapabilirsiniz.</p>
+          <div style="display:flex; justify-content:center; gap:16px; flex-wrap:wrap; max-width:800px; margin:0 auto;">
+            <div style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); padding:16px; border-radius:16px; min-width:180px;">
+              <div style="font-size:12px; font-weight:800; color:#f59e0b; margin-bottom:4px;">1. ADIM</div>
+              <div style="font-size:13px;">HAKDER yazın</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); padding:16px; border-radius:16px; min-width:180px;">
+              <div style="font-size:12px; font-weight:800; color:#f59e0b; margin-bottom:4px;">2. ADIM</div>
+              <div style="font-size:13px;">7230'a gönderin</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); padding:16px; border-radius:16px; min-width:180px;">
+              <div style="font-size:12px; font-weight:800; color:#f59e0b; margin-bottom:4px;">3. ADIM</div>
+              <div style="font-size:13px;">50₺ bağış yapın</div>
+            </div>
+          </div>
+        </section>
 
         <!-- Custom Campaign Grid matching Next.js -->
         <section class="section" style="padding:60px clamp(18px,5vw,72px); background:#fff;">
