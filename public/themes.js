@@ -715,3 +715,244 @@ themeLayouts.gozyasi = {
   about(o, list) { return themeAboutPage(o, { font: "'Outfit', sans-serif", heroBg: '#6d28d9', headerCfg: { font: "'Outfit', sans-serif", topBg: '#3b0764' }, footerCfg: { bg: '#1e1b4b', font: "'Outfit', sans-serif" } }); },
   contact(o, list) { return themeContactPage(o, { font: "'Outfit', sans-serif", heroBg: '#6d28d9', headerCfg: { font: "'Outfit', sans-serif", topBg: '#3b0764' }, footerCfg: { bg: '#1e1b4b', font: "'Outfit', sans-serif" } }); }
 };
+
+
+/* ══════════════════════════════════════════════════════════════
+   THEME 11: HICRET DERNEGI (hicretdernegi.org)
+   Islamic Education School Theme, Emerald Green & Blue highlights
+   ══════════════════════════════════════════════════════════════ */
+themeLayouts.hicretdernegi = {
+  home(o, list) {
+    const headCfg = {
+      font: "'Poppins', sans-serif",
+      topBg: '#043425',
+      topLeft: '📖 Hicret Medresesi İslami Eğitim Kurumu',
+      ctaText: 'GÖNÜLDEN BAĞIŞ',
+      logoStyle: `background:url('/images/hicret/logooo.png') center/cover; border-radius:50%;`,
+      ctaStyle: 'background:#059669; color:#fff; border-radius:99px; padding:8px 24px;',
+      extraNav: `<a href="#/demo/${o.slug}/hakkimizda" class="nav-item" style="color:#047857; font-weight:700;">Medresemiz</a>`
+    };
+
+    // Custom Hero Slides directly referencing their local copied images
+    const slides = [
+      { visual: "/images/hicret/talebe 1.png", title: "HİCRET DERNEĞİ", subtitle: "Eğitim Yuvamıza Hoş Geldiniz", desc: "Modern pedagoji ile geleneksel İslami değerleri buluşturan eğitim anlayışımızla geleceğin Müslüman nesillerini yetiştiriyoruz." },
+      { visual: "/images/hicret/talebe 2.png", title: "KALİTELİ EĞİTİM", subtitle: "Deneyimli Kadromuzla", desc: "15+ tecrübeli eğitimcimiz ile İslami değerleri modern öğretim yöntemleriyle harmanlayan eğitim programları sunuyoruz." },
+      { visual: "/images/hicret/talebe 3.png", title: "4 FARKLI BÖLÜM", subtitle: "Her Yaş İçin Özel Program", desc: "Sıbyan, İbtida, Hafızlık ve Arapça bölümlerimizle çocuğunuzun yaşına uygun kapsamlı İslami eğitim veriyoruz." },
+      { visual: "/images/hicret/talebe 4.png", title: "GÜVENLİ ÇEVRE", subtitle: "Aile Ortamında Eğitim", desc: "Huzurlu ve güvenli medrese ortamımızda çocuklarınız hem dinî eğitimlerini alıyor hem de karakter gelişimlerini tamamlıyor." }
+    ];
+
+    const cs = state.currentSlideIndex || 0;
+
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f9fafb;">
+      
+      <!-- Custom Header matching Next.js design -->
+      <div style="background:#043425; color:#cbd5e1; padding:6px 20px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600; font-family:'Poppins',sans-serif;">
+        <div>📖 Hicret Medresesi İslami Eğitim Kurumu</div>
+        <div style="display:flex; gap:16px;">
+          <a href="#/bagisci" style="color:#cbd5e1; text-decoration:none;">👤 Bağışçı Girişi</a>
+          <span>|</span>
+          <a href="#/admin" style="color:#cbd5e1; text-decoration:none;">⚙️ Otomasyon</a>
+        </div>
+      </div>
+      
+      <header class="site-head" style="background:#fff; border-bottom:2px solid #059669; padding:12px 24px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+        <a class="brand" href="#/demo/${o.slug}" style="display:flex; align-items:center; gap:12px; text-decoration:none;">
+          <img src="/images/hicret/logooo.png" style="width:50px; height:50px; border-radius:50%; border:2px solid #059669;" />
+          <div>
+            <h1 style="font-size:1.15rem; font-weight:800; color:#065f46; margin:0; line-height:1.2;">HİCRET DERNEĞİ</h1>
+            <p style="font-size:10px; color:#0284c7; font-weight:700; margin:0; text-transform:uppercase; letter-spacing:0.5px;">İslami Eğitim Kurumu</p>
+          </div>
+        </a>
+        <nav style="display:flex; gap:20px; align-items:center;">
+          <a href="#/demo/${o.slug}" style="color:#065f46; font-weight:700; text-decoration:none; font-size:14px;">Ana Sayfa</a>
+          <a href="#/demo/${o.slug}/bagis/zekat" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Zekat</a>
+          <a href="#/demo/${o.slug}/bagis/kurban" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Kurban</a>
+          <a href="#/demo/${o.slug}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Hakkımızda</a>
+          <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">İletişim</a>
+        </nav>
+        <div style="display:flex; gap:10px;">
+          <a href="#/demo/${o.slug}/iletisim" style="background:#2563eb; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(37,99,235,0.2);">BAŞVURU YAP</a>
+          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#059669; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(5,150,105,0.2);">BAĞIŞ YAP</a>
+        </div>
+      </header>
+
+      <main>
+        <!-- Custom Hero Slider -->
+        <section style="position:relative; height:500px; overflow:hidden; background:#043425;">
+          ${slides.map((s, idx) => `
+            <div style="display:${idx === cs ? 'flex' : 'none'}; position:absolute; inset:0; background:linear-gradient(rgba(4,52,37,0.85), rgba(4,52,37,0.4)), url('${s.visual}') center/cover no-repeat; align-items:center; padding:0 clamp(20px,8vw,100px); transition:opacity 1s ease-in-out;">
+              <div style="max-width:650px; color:#fff;">
+                <span style="background:#0284c7; color:#fff; font-size:10px; font-weight:800; padding:4px 12px; border-radius:20px; text-transform:uppercase; letter-spacing:1px; display:inline-block; margin-bottom:16px;">${s.title}</span>
+                <h1 style="font-size:2.8rem; font-weight:800; line-height:1.2; margin:0 0 12px; text-shadow:0 2px 4px rgba(0,0,0,0.3);">${s.subtitle}</h1>
+                <p style="font-size:15px; line-height:1.6; color:#e2e8f0; margin-bottom:24px;">${s.desc}</p>
+                <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#059669; color:#fff; font-size:13px; font-weight:700; padding:12px 28px; border-radius:99px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 15px rgba(5,150,105,0.3);">Hemen Bağış Yap ➔</a>
+              </div>
+            </div>
+          `).join('')}
+          <!-- Slide dots -->
+          <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:8px;">
+            ${slides.map((_, idx) => `
+              <span data-slide-dot="${idx}" style="width:${idx === cs ? '24px' : '8px'}; height:8px; border-radius:4px; background:${idx === cs ? '#059669' : 'rgba(255,255,255,0.4)'}; cursor:pointer; transition:all 0.3s;"></span>
+            `).join('')}
+          </div>
+        </section>
+
+        <!-- Slider altı hızlı bildirim -->
+        <div style="background:#ecfdf5; border-bottom:1px solid #d1fae5; padding:16px clamp(18px,5vw,72px); display:flex; align-items:center; gap:12px; justify-content:space-between; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:8px; color:#065f46; font-size:13px; font-weight:700;">
+            <span>📢</span> Kış dönemi talebe kayıtlarımız devam etmektedir. Detaylı bilgi için başvuru yapabilirsiniz.
+          </div>
+          <a href="#/demo/${o.slug}/iletisim" style="background:#065f46; color:#fff; text-decoration:none; font-size:11px; font-weight:700; padding:6px 16px; border-radius:20px;">Başvuru Sayfası ➔</a>
+        </div>
+
+        <!-- Medrese Eğitim Bölümleri Bölgesi -->
+        <section class="section" style="background:#fff; padding:60px clamp(18px,5vw,72px);">
+          <div style="text-align:center; max-width:700px; margin:0 auto 40px;">
+            <span style="color:#0284c7; font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase;">EĞİTİM PROGRAMLARIMIZ</span>
+            <h2 style="font-size:2rem; font-weight:800; color:#065f46; margin:8px 0 0;">Yavrularımız İçin 4 Özel Eğitim Bölümü</h2>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:20px;">
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:16px; padding:24px; text-align:center;">
+              <span style="font-size:2rem; display:block; margin-bottom:12px;">👶</span>
+              <h3 style="font-size:1.1rem; font-weight:700; color:#065f46; margin:0 0 8px;">Sıbyan Mektebi</h3>
+              <p style="font-size:12px; color:#64748b; line-height:1.6; margin:0;">4-7 yaş grubu miniklerimiz için eğlenerek öğrenme, Kur'an harfleri ve adap dersleri.</p>
+            </div>
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:16px; padding:24px; text-align:center;">
+              <span style="font-size:2rem; display:block; margin-bottom:12px;">📖</span>
+              <h3 style="font-size:1.1rem; font-weight:700; color:#065f46; margin:0 0 8px;">İbtida Sınıfı</h3>
+              <p style="font-size:12px; color:#64748b; line-height:1.6; margin:0;">8-12 yaş grubu öğrencilerimiz için temel dini bilgiler, Kur'an-ı Kerim tecvidli okuma.</p>
+            </div>
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:16px; padding:24px; text-align:center;">
+              <span style="font-size:2rem; display:block; margin-bottom:12px;">🕌</span>
+              <h3 style="font-size:1.1rem; font-weight:700; color:#065f46; margin:0 0 8px;">Hafızlık Eğitimi</h3>
+              <p style="font-size:12px; color:#64748b; line-height:1.6; margin:0;">Ezber yeteneği güçlü talebelerimiz için yatılı ve gündüzlü hafızlık hazırlık ve ezber sınıfları.</p>
+            </div>
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:16px; padding:24px; text-align:center;">
+              <span style="font-size:2rem; display:block; margin-bottom:12px;">📚</span>
+              <h3 style="font-size:1.1rem; font-weight:700; color:#065f46; margin:0 0 8px;">Arapça ve İslami İlimler</h3>
+              <p style="font-size:12px; color:#64748b; line-height:1.6; margin:0;">Hafızlığını tamamlayan veya lise çağındaki öğrencilerimiz için emsile, bina, maksut ve fıkıh dersleri.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Dinamik Kampanyalar -->
+        ${themeCampaignGrid(o, list, { font: "'Poppins', sans-serif", tabStyle: 'pill', tabActiveBg: '#059669', sectionBg: '#f9fafb' })}
+
+        <!-- Zekat Hesaplayıcı ve İletişim -->
+        <section class="section" style="background:#fff; padding:60px clamp(18px,5vw,72px);">
+          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
+        </section>
+
+        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #043425, #059669)' })}
+      </main>
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
+  },
+  about(o, list) { return themeAboutPage(o, { font: "'Poppins', sans-serif", heroBg: '#059669', headerCfg: { font: "'Poppins', sans-serif", topBg: '#043425' }, footerCfg: { bg: '#032017' } }); },
+  contact(o, list) { return themeContactPage(o, { font: "'Poppins', sans-serif", heroBg: '#059669', headerCfg: { font: "'Poppins', sans-serif", topBg: '#043425' }, footerCfg: { bg: '#032017' } }); }
+};
+
+
+/* ══════════════════════════════════════════════════════════════
+   THEME 12: KARDESLIK PAYI (kardeslikpayi.org)
+   Modern Turkuaz/Teal NGO, soft cards, quick donation widget
+   ══════════════════════════════════════════════════════════════ */
+themeLayouts.kardeslikpayi = {
+  home(o, list) {
+    const headCfg = {
+      font: "'Outfit', sans-serif",
+      topBg: '#0d1b1e',
+      topLeft: '🤝 Paylaşmak Kardeşliktir | Kardeşlik Payı Derneği',
+      logoStyle: `background:url('/images/kardeslik/logo.png') center/cover;`,
+      ctaText: 'Hızlı Bağış',
+      ctaStyle: 'background:#0f766e; color:#fff;'
+    };
+
+    const cs = state.currentSlideIndex || 0;
+    const slides = [
+      { visual: "/images/kardeslik/genel-bagislar.png", title: "GENEL BAĞIŞLAR", subtitle: "Paylaşmak Kardeşliktir", desc: "Zekat, sadaka, gıda kolisi ve eğitim bursu yardımlarınızla binlerce ihtiyaç sahibi ailenin yüzünü güldürüyoruz." },
+      { visual: "/images/kardeslik/mahmud-ustaosmanoglu-hazretleri-ks-su-kuyusu-projesi.png", title: "SU KUYUSU PROJESİ", subtitle: "Mahmud Ustaosmanoğlu Hz. Su Kuyuları", desc: "Afrika ve Asya'nın kurak topraklarında temiz suya erişimi olmayan kardeşlerimize can suyu oluyoruz." },
+      { visual: "/images/kardeslik/haci-ali-elcin-camii-insaati.png", title: "KALICI ESERLER", subtitle: "Cami ve Mescit İnşaatları", desc: "Müslümanların cemaatle ibadet edebileceği, yavrularımızın Kur'an eğitimi alabileceği cami ve külliyeler inşa ediyoruz." }
+    ];
+
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#0f766e;--a:#f59e0b; font-family:'Outfit', sans-serif; background:#f8fafc;">
+      
+      <!-- Custom Header matching original style -->
+      <div style="background:#0d1b1e; color:#cbd5e1; padding:6px 24px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600; font-family:'Outfit',sans-serif;">
+        <div>🤝 Paylaşmak Kardeşliktir | Kardeşlik Payı Derneği</div>
+        <div style="display:flex; gap:16px;">
+          <a href="#/bagisci" style="color:#cbd5e1; text-decoration:none;">👤 Bağışçı Paneli</a>
+          <span>|</span>
+          <a href="#/admin" style="color:#cbd5e1; text-decoration:none;">⚙️ Yönetici Girişi</a>
+        </div>
+      </div>
+
+      <header class="site-head" style="background:#fff; border-bottom:3px solid #0f766e; padding:14px 28px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 15px rgba(0,0,0,0.03);">
+        <a class="brand" href="#/demo/${o.slug}" style="display:flex; align-items:center; gap:10px; text-decoration:none;">
+          <img src="/images/kardeslik/logo.png" style="width:48px; height:48px; border-radius:8px;" />
+          <div>
+            <h1 style="font-size:1.2rem; font-weight:900; color:#0f766e; margin:0; line-height:1.2;">KARDEŞLİK PAYI</h1>
+            <p style="font-size:10px; color:#f59e0b; font-weight:800; margin:0; letter-spacing:1px; text-transform:uppercase;">Yardımlaşma Derneği</p>
+          </div>
+        </a>
+        <nav style="display:flex; gap:20px; align-items:center;">
+          <a href="#/demo/${o.slug}" style="color:#0f766e; font-weight:800; text-decoration:none; font-size:14.5px;">Ana Sayfa</a>
+          <a href="#/demo/${o.slug}/bagis/su-kuyusu" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Su Kuyusu</a>
+          <a href="#/demo/${o.slug}/bagis/yetim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Yetim</a>
+          <a href="#/demo/${o.slug}/bagis/kurban" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Kurban</a>
+          <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">İletişim</a>
+        </nav>
+        <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f766e; color:#fff; text-decoration:none; font-size:12.5px; font-weight:800; padding:10px 24px; border-radius:8px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">ŞİMDİ BAĞIŞ YAP</a>
+      </header>
+
+      <main>
+        <!-- Custom Hero Slider -->
+        <section style="position:relative; height:520px; overflow:hidden; background:#0d1b1e;">
+          ${slides.map((s, idx) => `
+            <div style="display:${idx === cs ? 'flex' : 'none'}; position:absolute; inset:0; background:linear-gradient(to right, rgba(13,27,30,0.9), rgba(13,27,30,0.5)), url('${s.visual}') center/cover no-repeat; align-items:center; padding:0 clamp(20px,8vw,100px);">
+              <div style="max-width:650px; color:#fff;">
+                <span style="background:#f59e0b; color:#1e293b; font-size:10px; font-weight:800; padding:4px 14px; border-radius:4px; text-transform:uppercase; letter-spacing:1px; display:inline-block; margin-bottom:18px;">${s.title}</span>
+                <h1 style="font-size:2.8rem; font-weight:900; line-height:1.15; margin:0 0 16px; text-shadow:0 2px 4px rgba(0,0,0,0.4);">${s.subtitle}</h1>
+                <p style="font-size:15.5px; line-height:1.6; color:#94a3b8; margin-bottom:28px;">${s.desc}</p>
+                <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f766e; color:#fff; font-size:13.5px; font-weight:800; padding:14px 32px; border-radius:8px; text-decoration:none; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 20px rgba(15,118,110,0.3);">Gönülden Destek Ol ➔</a>
+              </div>
+            </div>
+          `).join('')}
+          <!-- Slide dots -->
+          <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:8px;">
+            ${slides.map((_, idx) => `
+              <span data-slide-dot="${idx}" style="width:${idx === cs ? '24px' : '8px'}; height:8px; border-radius:4px; background:${idx === cs ? '#f59e0b' : 'rgba(255,255,255,0.4)'}; cursor:pointer; transition:all 0.3s;"></span>
+            `).join('')}
+          </div>
+        </section>
+
+        <!-- Kardeşlik Şeridi -->
+        <div style="background:#f0fdfa; border-bottom:1px solid #ccfbf1; padding:20px clamp(18px,5vw,72px); display:flex; justify-content:center; align-items:center; gap:32px; flex-wrap:wrap;">
+          <div style="font-size:13px; color:#0f766e; font-weight:700; display:flex; align-items:center; gap:6px;"><span>✓</span> Güvenli Altyapı</div>
+          <div style="font-size:13px; color:#0f766e; font-weight:700; display:flex; align-items:center; gap:6px;"><span>✓</span> Resmi Kurul Onaylı</div>
+          <div style="font-size:13px; color:#0f766e; font-weight:700; display:flex; align-items:center; gap:6px;"><span>✓</span> Fotoğraflı & Videolu Geri Bildirim</div>
+        </div>
+
+        <!-- Dinamik Kampanya Kartları -->
+        ${themeCampaignGrid(o, list, { font: "'Outfit', sans-serif", tabStyle: 'pill', tabActiveBg: '#0f766e', sectionBg: '#fff' })}
+
+        <!-- Zekat Paneli -->
+        <section class="section alt" style="background:#f8fafc; padding:60px clamp(18px,5vw,72px);">
+          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
+        </section>
+
+        <!-- Faaliyet Haritası -->
+        <section class="section" style="background:#fff; padding:60px clamp(18px,5vw,72px);">
+          <h2 style="text-align:center; color:#0f766e; font-weight:800; margin-bottom:32px;">🌍 Dünyada Kardeşlik Köprüleri</h2>
+          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
+        </section>
+
+        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #0d1b1e, #0f766e)' })}
+      </main>
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+  about(o, list) { return themeAboutPage(o, { font: "'Outfit', sans-serif", heroBg: '#0f766e', headerCfg: { font: "'Outfit', sans-serif", topBg: '#0d1b1e' }, footerCfg: { bg: '#0a1416' } }); },
+  contact(o, list) { return themeContactPage(o, { font: "'Outfit', sans-serif", heroBg: '#0f766e', headerCfg: { font: "'Outfit', sans-serif", topBg: '#0d1b1e' }, footerCfg: { bg: '#0a1416' } }); }
+};
+

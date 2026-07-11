@@ -2522,6 +2522,87 @@
 
 
 /* ============================================================
+   THEME 11: HICRET DERNEGI (hicretdernegi.org)
+   ============================================================ */
+.site[data-theme="hicretdernegi"] {
+  --primary: #065f46;
+  --primary-rgb: 6, 95, 70;
+  --accent: #0284c7;
+  --accent-rgb: 2, 132, 199;
+  --font-family: 'Poppins', sans-serif;
+  font-family: 'Poppins', sans-serif;
+}
+
+.site[data-theme="hicretdernegi"] .nav-item {
+  color: #475569;
+  font-weight: 600;
+  position: relative;
+}
+
+.site[data-theme="hicretdernegi"] .nav-item::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: #059669;
+  transition: width 0.3s ease;
+}
+
+.site[data-theme="hicretdernegi"] .nav-item:hover::after {
+  width: 100%;
+}
+
+.site[data-theme="hicretdernegi"] .card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.site[data-theme="hicretdernegi"] .card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+  border-color: #d1fae5;
+}
+
+
+/* ============================================================
+   THEME 12: KARDESLIK PAYI (kardeslikpayi.org)
+   ============================================================ */
+.site[data-theme="kardeslikpayi"] {
+  --primary: #0f766e;
+  --primary-rgb: 15, 118, 110;
+  --accent: #f59e0b;
+  --accent-rgb: 245, 158, 11;
+  --font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit', sans-serif;
+}
+
+.site[data-theme="kardeslikpayi"] .site-head {
+  border-bottom: 3px solid #0f766e;
+}
+
+.site[data-theme="kardeslikpayi"] .card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.site[data-theme="kardeslikpayi"] .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -10px rgba(15,118,110,0.15);
+  border-color: #ccfbf1;
+}
+
+.site[data-theme="kardeslikpayi"] .nav-item:hover {
+  color: #0f766e;
+}
+
+
+/* ============================================================
    SHARED UTILITY — THEME TRANSITIONS
    Smooth transitions when switching themes dynamically
    ============================================================ */

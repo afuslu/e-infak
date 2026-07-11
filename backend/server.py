@@ -39,6 +39,8 @@ DEMOS = [
     ("bereket-dernegi", "Bereket Derneği", "bereketdernegi.org", "besir", "#0e7490", "#eab308", "İzmir", "Hızlı bağış ve yaygın kampanya kartları"),
     ("hayrat-koprusu", "Hayrat Köprüsü Vakfı", "hayratkoprusu.org", "hayrat", "#166534", "#38bdf8", "Trabzon", "Çok dilli yardım, eğitim ve yayın destekleri"),
     ("gozyasi-iyilik", "Gözyaşı İyilik Vakfı", "gozyasiiyilik.org", "gozyasi", "#6d28d9", "#fb7185", "Gaziantep", "Geniş kategori ve insani yardım kampanyaları"),
+    ("hicret-dernegi", "Hicret Derneği", "hicretdernegi.org", "hicretdernegi", "#065f46", "#0284c7", "Ankara", "İslami Eğitim Kurumu ve İlim Medresesi"),
+    ("kardeslik-payi", "Kardeşlik Payı Derneği", "kardeslikpayi.org", "kardeslikpayi", "#0f766e", "#f59e0b", "İstanbul", "Paylaşmak Kardeşliktir, Bağış ve Sosyal Yardımlaşma Platformu"),
 ]
 
 CAMPAIGNS = [
@@ -424,19 +426,62 @@ def seed_org(conn: sqlite3.Connection, org_id: int, org_index: int) -> None:
 def refresh_seed_texts(conn: sqlite3.Connection) -> None:
     for demo in DEMOS:
         slug, name, domain, theme, primary, accent, city, tagline = demo
+        # Hicret ve Kardeşlik Payı için özel iletişim bilgileri
+        phone = "+90 312 444 01 01" if slug == "hicret-dernegi" else "+90 212 555 44 33" if slug == "kardeslik-payi" else "+90 212 000 00 00"
+        address = "Hacı Bayram Mah. Anafartalar Cad. No: 45, Altındağ, Ankara" if slug == "hicret-dernegi" else "İskenderpaşa Mah. Sofular Cad. No: 12, Fatih, İstanbul" if slug == "kardeslik-payi" else f"{city} merkez ofis"
+        iban = "TR12 0001 0009 0000 1234 5678 90" if slug == "hicret-dernegi" else "TR98 0006 2000 0000 9876 5432 10" if slug == "kardeslik-payi" else "TR00 0000 0000 0000 0000 0000 00"
+        
         conn.execute(
-            "UPDATE organizations SET name=?,domain=?,theme=?,primary_color=?,accent_color=?,city=?,tagline=?,description=?,email=?,address=? WHERE slug=?",
+            "UPDATE organizations SET name=?,domain=?,theme=?,primary_color=?,accent_color=?,city=?,tagline=?,description=?,phone=?,address=?,iban=?,email=? WHERE slug=?",
             (name, domain, theme, primary, accent, city, tagline,
              f"{name}, online bağış sitesi ve E-İnfak otomasyon paneli ile tüm bağış süreçlerini tek merkezden yönetir.",
-             f"iletisim@{domain}", f"{city} merkez ofis", slug),
+             phone, address, iban, f"iletisim@{domain}", slug),
         )
-    for slug, title, category, summary, _target, _suggest in CAMPAIGNS:
-        conn.execute(
-            "UPDATE campaigns SET title=?,category=?,summary=?,story=?,visual=?,updated_at=? WHERE slug=?",
-            (title, category, summary,
-             f"{title} kampanyası, bağışların makbuzlandığı ve operasyon sürecine otomatik işlendiği E-İnfak altyapısı ile yönetilir.",
-             visual(category), now_iso(), slug),
-        )
+    
+    # Bütün organizasyonları çekelim
+    org_rows = conn.execute("SELECT id, slug FROM organizations").fetchall()
+    for org_id, org_slug in org_rows:
+        for slug, title, category, summary, _target, _suggest in CAMPAIGNS:
+            img_url = visual(category)
+            
+            # Özel görsel atamaları
+            if org_slug == "hicret-dernegi":
+                if category == "su-kuyusu" or slug == "su-kuyusu":
+                    img_url = "/images/hicret/talebe 4.png"
+                elif category == "hafizlik" or slug == "hafizlik":
+                    img_url = "/images/hicret/talebe 1.png"
+                elif category == "zekat" or slug == "zekat":
+                    img_url = "/images/hicret/talebe 2.png"
+                elif category == "sadaka" or slug == "sadaka":
+                    img_url = "/images/hicret/talebe 3.png"
+                else:
+                    img_url = "/images/hicret/talebe 5.jpeg"
+            elif org_slug == "kardeslik-payi":
+                if slug == "su-kuyusu":
+                    img_url = "/images/kardeslik/mahmud-ustaosmanoglu-hazretleri-ks-su-kuyusu-projesi.png"
+                elif slug == "yetim":
+                    img_url = "/images/kardeslik/yetim-sponsorlugu.jpg"
+                elif slug == "zekat":
+                    img_url = "/images/kardeslik/genel-bagislar.png"
+                elif slug == "gida":
+                    img_url = "/images/kardeslik/gida-yardimi.jpg"
+                elif slug == "kurban":
+                    img_url = "/images/kardeslik/kurban-bagisi.jpg"
+                elif slug == "hafizlik":
+                    img_url = "/images/kardeslik/kiz-medresesi-insaati.jpg"
+                elif slug == "fitre-fidye":
+                    img_url = "/images/kardeslik/egitim-bursu.jpg"
+                elif slug == "mescit-camii":
+                    img_url = "/images/kardeslik/haci-ali-elcin-camii-insaati.png"
+                elif slug == "su-kuyusu" or category == "su-kuyusu":
+                    img_url = "/images/kardeslik/su-kuyusu.jpg"
+
+            conn.execute(
+                "UPDATE campaigns SET title=?,category=?,summary=?,story=?,visual=?,updated_at=? WHERE organization_id=? AND slug=?",
+                (title, category, summary,
+                 f"{title} kampanyası, bağışların makbuzlandığı ve operasyon sürecine otomatik işlendiği E-İnfak altyapısı ile yönetilir.",
+                 img_url, now_iso(), org_id, slug),
+            )
 
 
 def row(row: sqlite3.Row) -> dict[str, Any]:
