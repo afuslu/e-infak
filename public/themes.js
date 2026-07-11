@@ -731,11 +731,7 @@ themeLayouts.hicretdernegi = {
           </div>
         </section>
 
-        <section class="section" style="background:#fff; padding:60px clamp(18px,5vw,72px);">
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
 
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #043425, #059669)' })}
       </main>
       ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
     </div>`;
@@ -1505,18 +1501,7 @@ themeLayouts.kardeslikpayi = {
           </div>
         </section>
 
-        <!-- Zekat Paneli -->
-        <section class="section alt" style="background:#f8fafc; padding:60px clamp(18px,5vw,72px);">
-          <div class="split">${renderZekatCalculator(o)}${renderFaqAccordion()}</div>
-        </section>
 
-        <!-- Faaliyet Haritası -->
-        <section class="section" style="background:#fff; padding:60px clamp(18px,5vw,72px);">
-          <h2 style="text-align:center; color:#0f766e; font-weight:800; margin-bottom:32px;">🌍 Dünyada Kardeşlik Köprüleri</h2>
-          <div class="split" style="gap:28px; align-items:center;">${renderWorldMap()}${renderImpactPanel(o)}</div>
-        </section>
-
-        ${themeImpactStats(o, list, { bg: 'linear-gradient(135deg, #0d1b1e, #0f766e)' })}
       </main>
       ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
     </div>`;
