@@ -6,7 +6,7 @@ set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/var/www/e-infak}"
 PORT="${PORT:-8020}"
-BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:$PORT/api/live/}"
+BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:$PORT/api/health}"
 FRONTEND_HEALTH_URL="${FRONTEND_HEALTH_URL:-http://127.0.0.1:$PORT/}"
 
 echo "--------------------------------------------------"
