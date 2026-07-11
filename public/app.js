@@ -1,4 +1,5 @@
-const state = { data: null, route: route(), selectedOrgSlug: "rahmet-eli", adminTab: "dashboard", toast: "" };
+const state = { data: null, route: null, selectedOrgSlug: "rahmet-eli", adminTab: "dashboard", toast: "" };
+state.route = route();
 
 const labels = {
   acil: "Acil Yardım", gazze: "Gazze", afrika: "Afrika", afganistan: "Afganistan", kurban: "Kurban",
@@ -28,7 +29,7 @@ function route() {
     const item = parts[1] || "";
     
     // Support custom domains by safely checking state if initialized
-    const slug = (typeof state !== 'undefined' && state.data?.selectedOrganization?.slug) || "rahmet-eli";
+    const slug = state.data?.selectedOrganization?.slug || state.selectedOrgSlug || "rahmet-eli";
     
     // Support admin panel on custom domain too
     if (parts[0] === "admin") return { name: "admin" };
