@@ -39,7 +39,7 @@ DEMOS = [
     ("bereket-dernegi", "Bereket Derneği", "bereketdernegi.org", "besir", "#0e7490", "#eab308", "İzmir", "Hızlı bağış ve yaygın kampanya kartları"),
     ("hayrat-koprusu", "Hayrat Köprüsü Vakfı", "hayratkoprusu.org", "hayrat", "#166534", "#38bdf8", "Trabzon", "Çok dilli yardım, eğitim ve yayın destekleri"),
     ("gozyasi-iyilik", "Gözyaşı İyilik Vakfı", "gozyasiiyilik.org", "gozyasi", "#6d28d9", "#fb7185", "Gaziantep", "Geniş kategori ve insani yardım kampanyaları"),
-    ("hicret-dernegi", "Hicret Derneği", "hicretdernegi.org", "hicretdernegi", "#065f46", "#0284c7", "Ankara", "İslami Eğitim Kurumu ve İlim Medresesi"),
+    ("hicret-dernegi", "Hicret Derneği", "hicretdernegi.org,hicretdernegi.org.tr", "hicretdernegi", "#065f46", "#0284c7", "Ankara", "İslami Eğitim Kurumu ve İlim Medresesi"),
     ("kardeslik-payi", "Kardeşlik Payı Derneği", "kardeslikpayi.org", "kardeslikpayi", "#0f766e", "#f59e0b", "İstanbul", "Paylaşmak Kardeşliktir, Bağış ve Sosyal Yardımlaşma Platformu"),
 ]
 
@@ -530,7 +530,8 @@ def bootstrap(conn: sqlite3.Connection, demo_slug: str | None = None, host: str 
     # Try finding by host domain first, then by slug, then default to first org
     selected = None
     if host:
-        selected = next((o for o in organizations if o["domain"] == host), None)
+        # Virgülle ayrılmış domain listelerini de kapsayacak şekilde kontrol et
+        selected = next((o for o in organizations if host in [d.strip().lower() for d in o["domain"].split(",")]), None)
     if not selected and demo_slug:
         selected = next((o for o in organizations if o["slug"] == demo_slug), None)
     if not selected:
