@@ -9,6 +9,7 @@ const themeLayouts = {};
    DYNAMIC WIDGET HELPERS FOR NEXT.JS ALIGNMENT
    ────────────────────────────────────────────────────────────── */
 function renderKpQuickDonation(o) {
+  const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
   const donationId = state.kp_donationId || 'acil-yardim';
   const amount = state.kp_amount || '100';
   const dropdown = !!state.kp_dropdown;
@@ -123,6 +124,7 @@ function renderKpQuickDonation(o) {
 }
 
 function renderHicretQuickDonation(o) {
+  const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
   const popular = [
     { name: 'Hafız Yetiştiriyorum', price: '1.200₺', slug: 'hafizlik' },
     { name: 'Genel Bağış', price: 'Serbest Miktar', slug: 'acil-yardim' },
@@ -191,6 +193,7 @@ function renderHicretQuickDonation(o) {
    SHARED HELPERS
    ────────────────────────────────────────────────────────────── */
 function themeHeader(o, cfg = {}) {
+  const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
   const topBg = cfg.topBg || '#0f172a';
   const topColor = cfg.topColor || '#cbd5e1';
   const headBg = cfg.headBg || 'rgba(255,255,255,0.95)';
@@ -237,6 +240,7 @@ function themeHeader(o, cfg = {}) {
 }
 
 function themeFooter(o, cfg = {}) {
+  const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug;
   const bg = cfg.bg || '#0f172a';
   const color = cfg.color || '#94a3b8';
   const headColor = cfg.headColor || '#fff';

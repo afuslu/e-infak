@@ -1255,7 +1255,7 @@ function quickDonate(o, list) {
   `;
 }
 
-function campaignCard(o, c) { const p = pct(c.collected, c.target); return `<article class="campaign"><div class="visual" style="background: url('${c.visual}') center/cover no-repeat"><span>${esc(labels[c.category] || c.category)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><div class="bar"><i style="width:${p}%"></i></div><div class="row"><span>${money(c.collected)}</span><span>%${p}</span></div><a href="#/demo/${o.slug}/bagis/${c.slug}">Bağış yap</a></article>`; }
+function campaignCard(o, c) { const p = pct(c.collected, c.target); const prefix = isCustomDomain() ? '#' : '#/demo/' + o.slug; return `<article class="campaign"><div class="visual" style="background: url('${c.visual}') center/cover no-repeat"><span>${esc(labels[c.category] || c.category)}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary)}</p><div class="bar"><i style="width:${p}%"></i></div><div class="row"><span>${money(c.collected)}</span><span>%${p}</span></div><a href="${prefix}/bagis/${c.slug}">Bağış yap</a></article>`; }
 function siteFooter(o) {
   return `
     <footer class="site-foot" style="background:#0f172a; color:#94a3b8; padding:60px clamp(18px, 5vw, 72px) 30px; border-top:1px solid #1e293b; font-family:sans-serif; margin-top:60px; box-sizing:border-box;">
