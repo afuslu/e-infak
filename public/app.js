@@ -106,184 +106,198 @@ function paint(html) { document.getElementById("app").innerHTML = html; }
 function company(focusDemos = false) {
   const s = state.data.stats;
   return shell(`
-    <header class="topbar">
-      <a class="brand" href="#/"><span>E</span><b>E-İnfak</b></a>
-      <nav>
-        <a href="#features">Özellikler</a>
-        <a href="#packages">Fiyatlandırma</a>
-        <a href="#/demos">Demolar</a>
-        <a href="#lead">Demo Talep</a>
-      </nav>
-      <div style="display:flex; gap:10px; align-items:center;">
-        <a class="ghost" href="#/bagisci" style="min-height:38px; font-size:13px; padding:0 14px;">Bağışçı Girişi</a>
-        <a class="black-btn" href="#/admin" style="min-height:38px; font-size:13px; padding:0 14px;">Otomasyon Paneli</a>
-      </div>
-    </header>
-    <main>
-      <!-- ▸ HERO — Premium gradient + glassmorphism -->
-      <section class="hero" style="min-height:calc(100vh - 74px); display:grid; grid-template-columns:1.2fr 0.8fr; gap:clamp(28px,5vw,72px); align-items:center; padding:clamp(44px,7vw,92px) clamp(18px,5vw,72px); background:linear-gradient(135deg, #0f766e08, #f59e0b06, transparent 60%), linear-gradient(180deg, #fff 0%, #f8fafc 100%); position:relative; overflow:hidden;">
-        <!-- Decorative shapes -->
-        <div style="position:absolute; top:-100px; right:-100px; width:400px; height:400px; background:radial-gradient(circle, rgba(15,118,110,0.06), transparent 70%); border-radius:50%; pointer-events:none;"></div>
-        <div style="position:absolute; bottom:-80px; left:-60px; width:300px; height:300px; background:radial-gradient(circle, rgba(245,158,11,0.06), transparent 70%); border-radius:50%; pointer-events:none;"></div>
-        
-        <div style="position:relative; z-index:2;">
-          <div style="display:inline-flex; align-items:center; gap:8px; background:linear-gradient(135deg, #ecfdf5, #f0fdf4); border:1px solid #bbf7d0; border-radius:99px; padding:6px 16px 6px 8px; margin-bottom:20px;">
-            <span style="background:#0f766e; color:#fff; font-size:9px; font-weight:800; padding:3px 8px; border-radius:99px; letter-spacing:0.5px;">YENİ</span>
-            <span style="font-size:12px; font-weight:600; color:#166534;">10 farklı STK teması artık hazır →</span>
-          </div>
-          <h1 style="margin:0; font-size:clamp(2.4rem,5vw,4rem); line-height:1.05; font-weight:900; letter-spacing:-0.03em;">
-            ${esc(state.data.company.headline)}
-          </h1>
-          <p style="font-size:1.1rem; line-height:1.7; color:var(--muted); max-width:560px; margin:20px 0 0;">
-            ${esc(state.data.company.subtitle)}
-          </p>
-          <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:28px;">
-            <a class="primary" href="#/demos" style="min-height:48px; padding:0 28px; font-size:15px; border-radius:var(--r); box-shadow:0 6px 20px rgba(15,118,110,0.25);">
-              10 Demoyu İncele <span style="margin-left:4px;">→</span>
-            </a>
-            <a class="ghost" href="#lead" style="min-height:48px; padding:0 28px; font-size:15px; border-radius:var(--r);">
-              📞 Sizi Arayalım
-            </a>
-          </div>
-          <!-- Trust badges -->
-          <div style="display:flex; gap:16px; margin-top:32px; align-items:center;">
-            <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); font-weight:600;"><span style="color:#22c55e;">✓</span> 3D Secure</div>
-            <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); font-weight:600;"><span style="color:#22c55e;">✓</span> KVKK Uyumlu</div>
-            <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); font-weight:600;"><span style="color:#22c55e;">✓</span> GEBİS Entegrasyonu</div>
-          </div>
+    <div style="background:#0f172a; color:#f1f5f9; min-height:100vh;">
+      <header class="topbar" style="background:rgba(15,23,42,0.8); border-bottom:1px solid rgba(255,255,255,0.08); backdrop-filter:blur(16px);">
+        <a class="brand" href="#/" style="color:#fff;"><span style="background:#059669;">E</span><b>E-İnfak</b></a>
+        <nav style="color:#94a3b8;">
+          <a href="#services" style="color:#94a3b8; transition:color 0.2s;">Hizmetlerimiz</a>
+          <a href="#demos" style="color:#94a3b8; transition:color 0.2s;">STK Demoları</a>
+          <a href="#lead" style="color:#94a3b8; transition:color 0.2s;">Teklif Alın</a>
+        </nav>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <a class="ghost" href="#/bagisci" style="min-height:38px; font-size:13px; padding:0 14px; background:rgba(255,255,255,0.05); color:#fff; border:1px solid rgba(255,255,255,0.15);">Bağışçı Girişi</a>
+          <a class="black-btn" href="#/admin" style="min-height:38px; font-size:13px; padding:0 14px; background:#059669; color:#fff;">Yönetim Paneli</a>
         </div>
-        
-        <!-- Glassmorphic stats panel -->
-        <aside style="background:rgba(255,255,255,0.7); backdrop-filter:blur(20px); border:1px solid rgba(226,232,240,0.8); border-radius:20px; padding:32px; box-shadow:0 20px 50px -12px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset; position:relative; z-index:2;">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
-            <span style="width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e; animation:pulse 2s infinite;"></span>
-            <span style="font-size:11px; font-weight:700; color:#22c55e; text-transform:uppercase; letter-spacing:1px;">Canlı Platform Verileri</span>
-          </div>
-          <strong style="display:block; margin:8px 0 20px; font-size:2.5rem; font-weight:900; background:linear-gradient(135deg, var(--brand), var(--accent)); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">${money(s.totalCollected)}</strong>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <div style="padding:16px; background:rgba(15,118,110,0.04); border:1px solid rgba(15,118,110,0.1); border-radius:12px; text-align:center;">
-              <b style="display:block; font-size:1.4rem; font-weight:800; color:var(--ink);">${esc(s.tenantCount)}</b>
-              <small style="font-size:11px; color:var(--muted); font-weight:600;">Aktif Kurum</small>
+      </header>
+      
+      <main>
+        <!-- ▸ HERO — Deep Navy DernekPro Theme -->
+        <section class="hero" style="min-height:calc(100vh - 74px); display:grid; grid-template-columns:1.2fr 0.8fr; gap:clamp(28px,5vw,72px); align-items:center; padding:clamp(44px,7vw,92px) clamp(18px,5vw,72px); background:radial-gradient(circle at 10% 20%, rgba(5,150,105,0.08) 0%, transparent 40%), #0f172a; position:relative; overflow:hidden; border:0;">
+          <div style="position:absolute; top:-100px; right:-100px; width:400px; height:400px; background:radial-gradient(circle, rgba(59,130,246,0.05), transparent 70%); border-radius:50%; pointer-events:none;"></div>
+          
+          <div style="position:relative; z-index:2;">
+            <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(5,150,105,0.1); border:1px solid rgba(5,150,105,0.3); border-radius:99px; padding:6px 16px 6px 8px; margin-bottom:20px;">
+              <span style="background:#059669; color:#fff; font-size:9px; font-weight:800; padding:3px 8px; border-radius:99px; letter-spacing:0.5px;">DERNEKPRO STYLE</span>
+              <span style="font-size:12px; font-weight:600; color:#34d399;">Yeni Nesil STK Dijital Ajansı</span>
             </div>
-            <div style="padding:16px; background:rgba(245,158,11,0.04); border:1px solid rgba(245,158,11,0.1); border-radius:12px; text-align:center;">
-              <b style="display:block; font-size:1.4rem; font-weight:800; color:var(--ink);">${esc(s.campaignCount)}</b>
-              <small style="font-size:11px; color:var(--muted); font-weight:600;">Kampanya</small>
+            <h1 style="margin:0; font-size:clamp(2.4rem,4.5vw,3.6rem); line-height:1.1; font-weight:900; letter-spacing:-0.03em; color:#fff;">
+              Dernek ve Vakıflar İçin<br><span style="background:linear-gradient(90deg, #34d399, #60a5fa); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Profesyonel Dijital Çözümler</span>
+            </h1>
+            <p style="font-size:1.1rem; line-height:1.7; color:#94a3b8; max-width:560px; margin:20px 0 0;">
+              Sivil toplum kuruluşunuzun online bağış toplama altyapısı, web sitesi tasarımı, Google Grants reklam yönetimi ve tüm otomasyon süreçlerini tek merkezden yönetiyoruz.
+            </p>
+            <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:28px;">
+              <a class="primary" href="#/demos" style="min-height:48px; padding:0 28px; font-size:15px; border-radius:var(--r); background:#059669; box-shadow:0 6px 20px rgba(5,150,105,0.3);">
+                10 Gerçek STK Klonunu Gör <span style="margin-left:4px;">→</span>
+              </a>
+              <a class="ghost" href="#lead" style="min-height:48px; padding:0 28px; font-size:15px; border-radius:var(--r); background:rgba(255,255,255,0.05); color:#fff; border:1px solid rgba(255,255,255,0.15);">
+                🤝 Projeniz İçin Teklif Alın
+              </a>
             </div>
-            <div style="padding:16px; background:rgba(99,102,241,0.04); border:1px solid rgba(99,102,241,0.1); border-radius:12px; text-align:center;">
-              <b style="display:block; font-size:1.4rem; font-weight:800; color:var(--ink);">${esc(s.donorCount)}</b>
-              <small style="font-size:11px; color:var(--muted); font-weight:600;">Bağışçı</small>
-            </div>
-            <div style="padding:16px; background:rgba(236,72,153,0.04); border:1px solid rgba(236,72,153,0.1); border-radius:12px; text-align:center;">
-              <b style="display:block; font-size:1.4rem; font-weight:800; color:var(--ink);">${esc(s.kurbanAssignedShareCount)}</b>
-              <small style="font-size:11px; color:var(--muted); font-weight:600;">Kurban Hissesi</small>
+            <!-- Trust badges -->
+            <div style="display:flex; gap:16px; margin-top:32px; align-items:center; flex-wrap:wrap;">
+              <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#94a3b8; font-weight:600;"><span style="color:#34d399;">✓</span> Sanal POS Entegrasyonu</div>
+              <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#94a3b8; font-weight:600;"><span style="color:#34d399;">✓</span> Google Ad Grants Desteği</div>
+              <div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#94a3b8; font-weight:600;"><span style="color:#34d399;">✓</span> 7/24 Kesintisiz Sunucu</div>
             </div>
           </div>
-        </aside>
-      </section>
-
-      <!-- ▸ SOCIAL PROOF BAR -->
-      <section style="padding:24px clamp(18px,5vw,72px); background:#fff; border-top:1px solid var(--line); border-bottom:1px solid var(--line); display:flex; justify-content:center; align-items:center; gap:40px; flex-wrap:wrap;">
-        <span style="font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1px;">Güvenli Altyapı:</span>
-        <span style="font-size:13px; font-weight:600; color:#475569; display:flex; align-items:center; gap:6px;">🏦 Vakıf Katılım POS</span>
-        <span style="font-size:13px; font-weight:600; color:#475569; display:flex; align-items:center; gap:6px;">🔒 256-bit SSL</span>
-        <span style="font-size:13px; font-weight:600; color:#475569; display:flex; align-items:center; gap:6px;">📱 Mobil Uyumlu</span>
-        <span style="font-size:13px; font-weight:600; color:#475569; display:flex; align-items:center; gap:6px;">📊 GEBİS e-Devlet</span>
-        <span style="font-size:13px; font-weight:600; color:#475569; display:flex; align-items:center; gap:6px;">🌐 Multi-tenant SaaS</span>
-      </section>
-
-      <!-- ▸ FEATURES — Icon grid -->
-      <section id="features" class="section" style="background:#fff;">
-        <div style="text-align:center; max-width:700px; margin:0 auto 40px;">
-          <p class="eyebrow">Neden E-İnfak?</p>
-          <h2 style="font-size:clamp(1.8rem,3vw,2.8rem); margin:0 0 12px;">Şirket sitesi, bağış siteleri ve otomasyon<br>net şekilde ayrıldı</h2>
-          <p style="color:var(--muted); font-size:15px; line-height:1.6;">Her katman bağımsız çalışır: SaaS pazarlama sitesi, bağış toplama arayüzleri ve kurumsal yönetim paneli.</p>
-        </div>
-        <div class="cards four">
-          ${featureCard("🌐", "E-İnfak.org", "Hizmeti satan sade kurumsal SaaS sitesi. Bağış kalemleri burada kalabalık yapmaz.", "#ecfdf5", "#0f766e")}
-          ${featureCard("🕌", "Kurum Alan Adı", "Her STK kendi domaininde sliderlı, menülü ve sepetli bağış sitesi kullanır.", "#eff6ff", "#1d4ed8")}
-          ${featureCard("⚙️", "Admin Otomasyon", "Bağışçı CRM, makbuz, kurban, sponsorluk, banka, SMS/mail ve raporlar.", "#fef3c7", "#92400e")}
-          ${featureCard("👤", "Bağışçı Paneli", "Makbuz, kurban videosu, düzenli bağış ve proje süreçleri bağışçıya gösterilir.", "#f0fdf4", "#166534")}
-        </div>
-
-        <!-- Extra feature highlights -->
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; margin-top:40px;">
-          ${miniFeature("🧮", "Zekat Hesaplama", "Altın-nakit-döviz bazlı otomatik zekat hesaplama modülü")}
-          ${miniFeature("🐄", "Kurban Operasyonu", "Vekalet, hisse atama, kesim takibi ve video eşleştirme")}
-          ${miniFeature("👶", "Yetim Sponsorluğu", "Aylık düzenli destek, fotoğraf/karne paylaşımı")}
-          ${miniFeature("💧", "Su Kuyusu", "Proje tabanlı bağış, koordinat ve tabela raporu")}
-          ${miniFeature("📱", "SMS & E-Posta", "Otomatik makbuz, bildirim ve kampanya mesajları")}
-          ${miniFeature("📊", "Şeffaflık Paneli", "Bağış dağılımı, faaliyet haritası ve canlı veriler")}
-        </div>
-      </section>
-
-      <!-- ▸ PRICING — Modern cards with popular badge -->
-      <section id="packages" class="section alt" style="background:linear-gradient(180deg, #f8fafc, #f1f5f9);">
-        <div style="text-align:center; max-width:650px; margin:0 auto 40px;">
-          <p class="eyebrow">Fiyatlandırma</p>
-          <h2 style="margin:0 0 12px;">Kurumunuza uygun paketi seçin</h2>
-          <p style="color:var(--muted); font-size:14px; line-height:1.6;">Tüm paketlerde SSL, 3D Secure ve 7/24 teknik destek dahildir.</p>
-        </div>
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; max-width:1000px; margin:0 auto;">
-          ${pricingCard("Başlangıç", "2,900", "ay", ["Bağış sitesi (1 tema)", "Bağışçı CRM", "Otomatik makbuz", "Temel raporlama", "E-posta bildirimleri"], false)}
-          ${pricingCard("Profesyonel", "5,900", "ay", ["Başlangıç paketindeki herşey", "Kurban operasyonu", "Yetim sponsorluğu", "Banka hareketleri", "SMS bildirimleri", "Zekat hesaplama modülü"], true)}
-          ${pricingCard("Kurumsal", "Özel", "", ["Profesyonel paketindeki herşey", "Çok kurumlu yapı (multi-tenant)", "Rol ve yetki yönetimi", "Gelişmiş raporlama & BI", "Özel tema tasarımı", "Öncelikli teknik destek", "API erişimi"], false)}
-        </div>
-      </section>
-
-      <!-- ▸ DEMOS — Gallery with live preview -->
-      <section class="section ${focusDemos ? "focus" : ""}" style="background:#fff;">
-        <div style="text-align:center; max-width:700px; margin:0 auto 40px;">
-          <p class="eyebrow">Canlı Demolar</p>
-          <h2 style="margin:0 0 12px;">10 ayrı STK bağış sitesi — her biri benzersiz</h2>
-          <p style="color:var(--muted); font-size:14px; line-height:1.6;">Nezir.org, IHH, IDDEF ve daha birçok gerçek STK sitesinden ilham alınarak tasarlanmış benzersiz temalar.</p>
-        </div>
-        <div class="cards three">${orgs().map(modernDemoCard).join("")}</div>
-      </section>
-
-      <!-- ▸ HOW IT WORKS -->
-      <section class="section alt" style="background:linear-gradient(180deg, #f8fafc, #fff);">
-        <div style="text-align:center; max-width:700px; margin:0 auto 40px;">
-          <p class="eyebrow">Nasıl Çalışır?</p>
-          <h2 style="margin:0 0 12px;">3 adımda bağış sitenizi kurun</h2>
-        </div>
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:28px; max-width:900px; margin:0 auto;">
-          ${stepCard("01", "Demo Seçin", "10 farklı STK temasından kurumunuza en uygun olanı seçin.", "#0f766e")}
-          ${stepCard("02", "Kurulum Yapılır", "Alan adınız, logonuz ve banka bilgileriniz sisteme tanımlanır.", "#f59e0b")}
-          ${stepCard("03", "Bağış Başlasın", "STK siteniz yayında! Bağışçılar güvenle online bağış yapabilir.", "#6366f1")}
-        </div>
-      </section>
-
-      <!-- ▸ LEAD FORM — CTA -->
-      <section id="lead" class="section" style="background:#0f172a; color:#fff; position:relative; overflow:hidden;">
-        <div style="position:absolute; top:0; right:0; width:500px; height:500px; background:radial-gradient(circle, rgba(15,118,110,0.15), transparent 70%); pointer-events:none;"></div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center; position:relative; z-index:2;">
-          <div>
-            <p class="eyebrow" style="color:#0f766e;">Demo Talebi</p>
-            <h2 style="color:#fff; font-size:clamp(1.8rem,3vw,2.5rem); margin:0 0 16px;">Kurumunuz için ücretsiz demo oluşturalım</h2>
-            <p style="color:#94a3b8; font-size:14px; line-height:1.7;">Formu doldurduğunuzda ekibimiz sizinle 24 saat içinde iletişime geçecek. Kurulumu birlikte tamamlayacağız.</p>
-            <div style="display:flex; flex-direction:column; gap:12px; margin-top:24px;">
-              <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#cbd5e1;"><span style="color:#22c55e;">✓</span> 14 gün ücretsiz deneme</div>
-              <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#cbd5e1;"><span style="color:#22c55e;">✓</span> Kurulum ücretsiz</div>
-              <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#cbd5e1;"><span style="color:#22c55e;">✓</span> İstediğiniz zaman iptal</div>
+          
+          <!-- Glassmorphic stats panel -->
+          <aside style="background:rgba(30,41,59,0.7); backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:32px; box-shadow:0 20px 50px -12px rgba(0,0,0,0.25); position:relative; z-index:2;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <span style="width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981;"></span>
+              <span style="font-size:11px; font-weight:700; color:#10b981; text-transform:uppercase; letter-spacing:1px;">Aktif STK İstatistikleri</span>
             </div>
-          </div>
-          <form class="form" data-form="lead" style="background:rgba(255,255,255,0.05); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:32px; display:grid; gap:12px;">
-            <input name="organizationName" placeholder="Dernek / Vakıf adı" required style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff;">
+            <strong style="display:block; margin:8px 0 20px; font-size:2.5rem; font-weight:900; background:linear-gradient(135deg, #34d399, #3b82f6); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">${money(s.totalCollected)}</strong>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-              <input name="fullName" placeholder="Ad Soyad" required style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff;">
-              <input name="phone" placeholder="Telefon" required style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff;">
+              <div style="padding:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; text-align:center;">
+                <b style="display:block; font-size:1.4rem; font-weight:800; color:#fff;">${esc(s.tenantCount)}</b>
+                <small style="font-size:11px; color:#94a3b8; font-weight:600;">Aktif STK Portal</small>
+              </div>
+              <div style="padding:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; text-align:center;">
+                <b style="display:block; font-size:1.4rem; font-weight:800; color:#fff;">${esc(s.campaignCount)}</b>
+                <small style="font-size:11px; color:#94a3b8; font-weight:600;">Bağış Kampanyası</small>
+              </div>
+              <div style="padding:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; text-align:center;">
+                <b style="display:block; font-size:1.4rem; font-weight:800; color:#fff;">${esc(s.donorCount)}</b>
+                <small style="font-size:11px; color:#94a3b8; font-weight:600;">Kayıtlı Bağışçı</small>
+              </div>
+              <div style="padding:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; text-align:center;">
+                <b style="display:block; font-size:1.4rem; font-weight:800; color:#fff;">${esc(s.kurbanAssignedShareCount)}</b>
+                <small style="font-size:11px; color:#94a3b8; font-weight:600;">Kurban Vekaleti</small>
+              </div>
             </div>
-            <input name="email" type="email" placeholder="E-posta adresi" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff;">
-            <select name="selectedDemo" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff;">${orgs().map((o) => `<option value="${o.slug}">${esc(o.name)}</option>`).join("")}</select>
-            <textarea name="note" placeholder="Ek not (isteğe bağlı)" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; min-height:70px;"></textarea>
-            <button class="primary" style="min-height:48px; font-size:15px; border-radius:var(--r); box-shadow:0 6px 20px rgba(15,118,110,0.3); margin-top:4px;">🚀 Demo Talebi Gönder</button>
+          </aside>
+        </section>
+
+        <!-- ▸ SERVICES — DernekPro core agency offerings -->
+        <section id="services" class="section" style="background:#0f172a; padding:60px clamp(18px,5vw,72px) 80px;">
+          <div style="text-align:center; max-width:700px; margin:0 auto 50px;">
+            <p class="eyebrow" style="color:#059669;">Neler Yapıyoruz?</p>
+            <h2 style="font-size:clamp(1.8rem,3vw,2.5rem); margin:0 0 12px; color:#fff;">STK'nız İçin Uçtan Uca Dijital Ajans Hizmetleri</h2>
+            <p style="color:#94a3b8; font-size:15px; line-height:1.6;">Yalnızca yazılım sağlamıyoruz; derneğinizin tüm dijital dönüşüm süreçlerini ve bağış toplama operasyonlarını profesyonel bir ekiple yönetiyoruz.</p>
+          </div>
+          
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:20px;">
+            ${agencyServiceCard("💻", "Profesyonel Web Tasarım", "Tüm cihazlarla tam uyumlu (responsive), hızlı ve arama motorlarında (SEO) üst sıralarda listelenen modern dernek web siteleri tasarlıyoruz.", "#1e293b")}
+            ${agencyServiceCard("💳", "Online Güvenli Bağış", "Sanal POS entegrasyonu (3D Secure) sayesinde, bağışçılarınızın tüm banka ve kredi kartlarıyla 7/24 güvenli bağış yapabileceği altyapıyı kuruyoruz.", "#1e293b")}
+            ${agencyServiceCard("🐄", "Kurban Yönetim Otomasyonu", "Hisse atamaları, vekalet sahipleri yönetimi, otomatik SMS bilgilendirmeleri ve kesim videosu eşleştirme paneliyle profesyonel süreç yönetimi.", "#1e293b")}
+            ${agencyServiceCard("📈", "Google & Sosyal Medya Reklamları", "STK'nız için aylık 10.000$ Google Ad Grants reklam hibesini alıyor ve bağış toplama amaçlı reklam kampanyalarınızı profesyonelce yönetiyoruz.", "#1e293b")}
+          </div>
+        </section>
+
+        <!-- ▸ CUSTOM CLONE DEMOS — 10 STK Birebir Klon Alanı -->
+        <section id="demos" class="section" style="background:#1e293b; padding:80px clamp(18px,5vw,72px);">
+          <div style="text-align:center; max-width:750px; margin:0 auto 50px;">
+            <p class="eyebrow" style="color:#34d399;">Gerçek Referans Siteler</p>
+            <h2 style="margin:0 0 12px; color:#fff; font-size:clamp(1.8rem,3vw,2.5rem);">10 Benzersiz STK Sitesinin Birebir Klonu</h2>
+            <p style="color:#94a3b8; font-size:15px; line-height:1.6;">İHH, İDDEF, Nezir, Beşir gibi Türkiye'nin en büyük sivil toplum kuruluşlarının tasarımlarının, menülerinin ve slider yapılarının birebir aynısını entegre ettik. İstediğiniz temayı seçin.</p>
+          </div>
+          <div class="cards three" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:24px;">
+            ${orgs().map(modernDemoCard).join("")}
+          </div>
+        </section>
+
+        <!-- ▸ HOW WE WORK -->
+        <section class="section" style="background:#0f172a; padding:80px clamp(18px,5vw,72px);">
+          <div style="text-align:center; max-width:700px; margin:0 auto 50px;">
+            <p class="eyebrow" style="color:#059669;">Ajans İşleyişi</p>
+            <h2 style="margin:0 0 12px; color:#fff;">Süreç Nasıl İlerliyor?</h2>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:28px; max-width:1000px; margin:0 auto;">
+            ${stepCard("01", "Planlama & Teklif", "STK'nızın ihtiyaçlarını (tema tercihi, POS bankası, kurban hacmi) analiz edip size özel proje teklifi hazırlarız.", "#059669")}
+            ${stepCard("02", "Tasarım & Entegrasyon", "Seçtiğiniz temayı kendi alan adınızda kurar, logoları, kampanyaları ve Sanal POS altyapısını sisteme bağlarız.", "#3b82f6")}
+            ${stepCard("03", "Reklam & Bağış Akışı", "Reklam kampanyalarınızı açıp sitenizi yayına alırız. Bağışlar doğrudan banka hesabınıza akmaya başlar.", "#10b981")}
+          </div>
+        </section>
+
+        <!-- ▸ LEAD FORM — CTA (Teklif Al) -->
+        <section id="lead" class="section" style="background:radial-gradient(circle at 90% 10%, rgba(5,150,105,0.1), transparent 50%), #0f172a; color:#fff; border-top:1px solid rgba(255,255,255,0.06); padding:80px clamp(18px,5vw,72px);">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center; max-width:1100px; margin:0 auto;">
+            <div>
+              <p class="eyebrow" style="color:#059669;">Teklif Talep Formu</p>
+              <h2 style="color:#fff; font-size:clamp(1.8rem,3vw,2.5rem); margin:0 0 16px;">Derneğinizi Dijital Dünyaya Taşıyalım</h2>
+              <p style="color:#94a3b8; font-size:14px; line-height:1.7;">İhtiyaçlarınızı belirtin, STK dijital çözümleri ekibimiz sizinle en kısa sürede iletişime geçerek detaylı fiyat ve proje teklifini paylaşsın.</p>
+              <div style="display:flex; flex-direction:column; gap:12px; margin-top:24px;">
+                <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#cbd5e1;"><span style="color:#34d399;">✓</span> İhtiyaca özel modüler fiyatlandırma</div>
+                <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#cbd5e1;"><span style="color:#34d399;">✓</span> Alan adı ve hosting hizmeti dahil</div>
+                <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#cbd5e1;"><span style="color:#34d399;">✓</span> Google Ad Grants reklam danışmanlığı hibe kurulumu</div>
+              </div>
+            </div>
+            
+            <form class="form" data-form="lead" style="background:rgba(30,41,59,0.7); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:32px; display:grid; gap:12px;">
+              <input name="organizationName" placeholder="Dernek / Vakıf Adı" required style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); color:#fff; font-size:13.5px; border-radius:var(--r); padding:10px 14px;">
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <input name="fullName" placeholder="Ad Soyad" required style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); color:#fff; font-size:13.5px; border-radius:var(--r); padding:10px 14px;">
+                <input name="phone" placeholder="Telefon" required style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); color:#fff; font-size:13.5px; border-radius:var(--r); padding:10px 14px;">
+              </div>
+              <input name="email" type="email" placeholder="E-Posta Adresi" style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); color:#fff; font-size:13.5px; border-radius:var(--r); padding:10px 14px;">
+              <select name="selectedDemo" style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); color:#fff; font-size:13.5px; border-radius:var(--r); padding:10px 14px; height:40px;">
+                ${orgs().map((o) => `<option value="${o.slug}">${esc(o.name)}</option>`).join("")}
+              </select>
+              <textarea name="note" placeholder="Ek açıklama veya talepleriniz..." style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); color:#fff; min-height:70px; font-size:13.5px; border-radius:var(--r); padding:10px 14px; font-family:sans-serif;"></textarea>
+              <button class="primary" style="min-height:48px; font-size:15px; border-radius:var(--r); background:#059669; box-shadow:0 6px 20px rgba(5,150,105,0.3); margin-top:4px; font-weight:bold;">🚀 Teklif Talebini Gönder</button>
+            <textarea name="note" placeholder="Ek açıklama veya talepleriniz..." style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.1); color:#fff; min-height:70px; font-size:13.5px; border-radius:var(--r); padding:10px 14px; font-family:sans-serif;"></textarea>
+            <button class="primary" style="min-height:48px; font-size:15px; border-radius:var(--r); background:#059669; box-shadow:0 6px 20px rgba(5,150,105,0.3); margin-top:4px; font-weight:bold;">🚀 Teklif Talebini Gönder</button>
           </form>
+        </div>
+      </section>
+      
+      <!-- ▸ HOW IT WORKS -->
+      <section class="section" style="background:#0f172a; padding:80px clamp(18px,5vw,72px);">
+        <div style="text-align:center; max-width:700px; margin:0 auto 50px;">
+          <p class="eyebrow" style="color:#059669;">Ajans İşleyişi</p>
+          <h2 style="margin:0 0 12px; color:#fff;">Süreç Nasıl İlerliyor?</h2>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:28px; max-width:1000px; margin:0 auto;">
+          ${stepCard("01", "Planlama & Teklif", "STK'nızın ihtiyaçlarını (tema tercihi, POS bankası, kurban hacmi) analiz edip size özel proje teklifi hazırlarız.", "#059669")}
+          ${stepCard("02", "Tasarım & Entegrasyon", "Seçtiğiniz temayı kendi alan adınızda kurar, logoları, kampanyaları ve Sanal POS altyapısını sisteme bağlarız.", "#3b82f6")}
+          ${stepCard("03", "Reklam & Bağış Akışı", "Reklam kampanyalarınızı açıp sitenizi yayına alırız. Bağışlar doğrudan banka hesabınıza akmaya başlar.", "#10b981")}
         </div>
       </section>
     </main>
     ${modernFooter()}
+  </div>
   `);
 }
+
+function agencyServiceCard(icon, title, text, bg) {
+  return `<article style="background:${bg}; padding:32px; border-radius:16px; border:1px solid rgba(255,255,255,0.05); box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+    <span style="font-size:2.2rem; display:block; margin-bottom:16px;">${icon}</span>
+    <h3 style="margin:0 0 10px; font-size:1.15rem; color:#fff; font-weight:800;">${esc(title)}</h3>
+    <p style="margin:0; font-size:13px; line-height:1.6; color:#94a3b8;">${esc(text)}</p>
+  </article>`;
+}
+
+function featureCard(icon, title, text, bg, color) {
+  return `<article class="card" style="border:none; background:${bg}; padding:28px; border-radius:16px; box-shadow:none;">
+    <span style="font-size:2rem; display:block; margin-bottom:12px;">${icon}</span>
+    <h3 style="margin:0 0 8px; font-size:1.1rem; color:${color};">${esc(title)}</h3>
+    <p style="margin:0; font-size:13px; line-height:1.6; color:var(--muted);">${esc(text)}</p>
+  </article>`;
+}
+
+function miniFeature(icon, title, text) {
+  return `<div style="display:flex; gap:14px; align-items:start; padding:20px; background:#fff; border:1px solid var(--line); border-radius:12px;">
+    <span style="font-size:1.5rem; flex-shrink:0; margin-top:2px;">${icon}</span>
+    <div>
+      <h4 style="margin:0 0 4px; font-size:13px; font-weight:700; color:var(--ink);">${esc(title)}</h4>
+      <p style="margin:0; font-size:12px; color:var(--muted); line-height:1.5;">${esc(text)}</p>
+    </div>
+  </div>`;
+}
+
+
 
 function featureCard(icon, title, text, bg, color) {
   return `<article class="card" style="border:none; background:${bg}; padding:28px; border-radius:16px; box-shadow:none;">
@@ -1785,7 +1799,7 @@ function adminTab(o) {
     }
     return panel("Bağışçı CRM (Detay görmek için listeden bir bağışçıya tıklayın)", donorTable);
   }
-  if (state.adminTab === "campaigns") return `<div class="cards three">${campaigns(o.slug).map((c) => campaignCard(o, c)).join("")}</div>`;
+  if (state.adminTab === "campaigns") return campaignsEditor(o);
   if (state.adminTab === "kurban") return kurban(o);
   if (state.adminTab === "bank") {
     const bList = (state.data.bankMovements || []).filter((b) => b.organizationId === o.id);
@@ -2117,6 +2131,22 @@ document.addEventListener("submit", async (e) => {
       state.toast = "Banka hareketi bağış kaydıyla başarıyla eşleştirildi.";
       state.selectedBankMovementId = null;
     }
+    if (type === "campaignCMS") {
+      const isEdit = !!payload.id;
+      // Convert suggested amounts from string to array of numbers
+      const suggestedStr = payload.suggestedAmounts || "100, 250, 500, 1000";
+      payload.suggestedAmounts = suggestedStr.split(",").map(n => Number(n.trim())).filter(Boolean);
+      payload.active = !!payload.active;
+      
+      if (isEdit) {
+        res = await api(`/api/campaigns/${payload.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+        state.toast = "Kampanya başarıyla güncellendi.";
+      } else {
+        res = await api("/api/campaigns", { method: "POST", body: JSON.stringify(payload) });
+        state.toast = "Yeni kampanya başarıyla yayına alındı.";
+      }
+      state.editingCampaignId = null;
+    }
     if (res?.data) state.data = res.data;
     form.reset(); render(); setTimeout(() => { state.toast = ""; render(); }, 2600);
   } catch (err) { state.toast = err.message; render(); }
@@ -2269,6 +2299,32 @@ document.addEventListener("click", async (e) => {
     }
     return;
   }
+  if (action.dataset.action === "editCampaign") {
+    state.editingCampaignId = Number(action.dataset.id);
+    render();
+    return;
+  }
+  if (action.dataset.action === "cancelCampaignEdit") {
+    state.editingCampaignId = null;
+    render();
+    return;
+  }
+  if (action.dataset.action === "deleteCampaign") {
+    if (confirm("Bu kampanyayı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
+      try {
+        const orgSlug = action.dataset.org;
+        const res = await api(`/api/campaigns/${action.dataset.id}?orgSlug=${encodeURIComponent(orgSlug)}`, { method: "DELETE" });
+        if (res?.data) state.data = res.data;
+        if (state.editingCampaignId === Number(action.dataset.id)) state.editingCampaignId = null;
+        state.toast = "Kampanya başarıyla silindi.";
+        render();
+      } catch (err) {
+        state.toast = err.message;
+        render();
+      }
+    }
+    return;
+  }
 
   try {
     let res;
@@ -2403,4 +2459,113 @@ document.addEventListener("focusout", (e) => {
     if (sim) sim.classList.remove("flipped");
   }
 });
+function campaignsEditor(o) {
+  const list = campaigns(o.slug);
+  const editing = state.editingCampaignId ? list.find(c => c.id === state.editingCampaignId) : null;
+  
+  const formHtml = `
+    <article class="panel">
+      <h2>${editing ? "Kampanyayı Düzenle" : "Yeni Kampanya Oluştur"}</h2>
+      <form class="form" data-form="campaignCMS" style="gap: 12px;">
+        <input type="hidden" name="id" value="${editing ? editing.id : ''}">
+        <input type="hidden" name="orgSlug" value="${o.slug}">
+        
+        <div>
+          <label style="font-size:11px; font-weight:bold; color:var(--muted); display:block; margin-bottom:4px;">Kampanya Başlığı</label>
+          <input name="title" required placeholder="Kampanya Başlığı" value="${editing ? esc(editing.title) : ''}" style="font-size:13px; padding:8px 10px; width:100%; border: 1px solid var(--line); border-radius: var(--r);">
+        </div>
+        
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="font-size:11px; font-weight:bold; color:var(--muted); display:block; margin-bottom:4px;">Kategori</label>
+            <select name="category" required style="font-size:13px; padding:8px 10px; height: 38px; width:100%; border: 1px solid var(--line); border-radius: var(--r);">
+              ${Object.entries(labels).map(([val, name]) => `<option value="${val}" ${editing && editing.category === val ? "selected" : ""}>${esc(name)}</option>`).join("")}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px; font-weight:bold; color:var(--muted); display:block; margin-bottom:4px;">Hedef Tutar (TL)</label>
+            <input type="number" name="target" required placeholder="Hedef Tutar" value="${editing ? Math.round(editing.target) : '500000'}" style="font-size:13px; padding:8px 10px; width:100%; border: 1px solid var(--line); border-radius: var(--r);">
+          </div>
+        </div>
+        
+        <div>
+          <label style="font-size:11px; font-weight:bold; color:var(--muted); display:block; margin-bottom:4px;">Kapak Görseli (URL veya boş bırakın)</label>
+          <input name="visual" placeholder="https://images.unsplash.com/photo-..." value="${editing ? esc(editing.visual) : ''}" style="font-size:13px; padding:8px 10px; width:100%; border: 1px solid var(--line); border-radius: var(--r);">
+        </div>
+
+        <div>
+          <label style="font-size:11px; font-weight:bold; color:var(--muted); display:block; margin-bottom:4px;">Önerilen Tutar Seçenekleri (Virgülle ayırın)</label>
+          <input name="suggestedAmounts" placeholder="100, 250, 500, 1000" value="${editing ? (editing.suggestedAmounts || []).join(', ') : '100, 250, 500, 1000'}" style="font-size:13px; padding:8px 10px; width:100%; border: 1px solid var(--line); border-radius: var(--r);">
+        </div>
+        
+        <div>
+          <label style="font-size:11px; font-weight:bold; color:var(--muted); display:block; margin-bottom:4px;">Kısa Özet (Arama sonuçları için)</label>
+          <input name="summary" required placeholder="Kısa kampanya özeti..." value="${editing ? esc(editing.summary) : ''}" style="font-size:13px; padding:8px 10px; width:100%; border: 1px solid var(--line); border-radius: var(--r);">
+        </div>
+        
+        <div>
+          <label style="font-size:11px; font-weight:bold; color:var(--muted); display:block; margin-bottom:4px;">Kampanya Detaylı Hikayesi</label>
+          <textarea name="story" required placeholder="Kampanyanın amacı ve detaylı açıklaması..." style="font-size:13px; padding:8px 10px; height:80px; font-family:sans-serif; width:100%; border: 1px solid var(--line); border-radius: var(--r);">${editing ? esc(editing.story) : ''}</textarea>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" name="active" id="cms-active-cb" ${!editing || editing.active ? 'checked' : ''} style="width:auto; margin:0;">
+          <label for="cms-active-cb" style="font-size:12px; font-weight:bold; color:var(--ink); cursor:pointer; user-select:none; margin:0;">Kampanya Aktif (Sitede Gösterilsin)</label>
+        </div>
+        
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button class="primary" style="flex:1;">${editing ? "Değişiklikleri Kaydet" : "Kampanyayı Yayına Al"}</button>
+          ${editing ? `<button type="button" class="ghost" data-action="cancelCampaignEdit" style="flex:1;">Vazgeç</button>` : ''}
+        </div>
+      </form>
+    </article>
+  `;
+
+  const listHtml = `
+    <article class="panel" style="overflow-x: auto;">
+      <h2>Mevcut Kampanyalar</h2>
+      <div class="table">
+        <table>
+          <thead>
+            <tr>
+              <th>Kampanya</th>
+              <th>Kategori</th>
+              <th>Toplanan / Hedef</th>
+              <th>Durum</th>
+              <th class="no-print" style="text-align:right;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(c => `
+              <tr>
+                <td>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <div style="width:40px; height:30px; background:url('${c.visual}') center/cover; border-radius:4px; flex-shrink:0;"></div>
+                    <div>
+                      <strong style="font-size:13px; color:var(--ink);">${esc(c.title)}</strong><br>
+                      <small style="color:var(--muted); font-size:10px;">${esc(c.slug)}</small>
+                    </div>
+                  </div>
+                </td>
+                <td>${esc(labels[c.category] || c.category)}</td>
+                <td><b>${money(c.collected)}</b> / <small style="color:var(--muted);">${money(c.target)}</small></td>
+                <td><span style="font-weight:bold; color:${c.active ? '#0f766e' : '#64748b'}">${c.active ? 'Aktif' : 'Pasif'}</span></td>
+                <td class="no-print" style="text-align:right; white-space:nowrap;">
+                  <button class="ghost" data-action="editCampaign" data-id="${c.id}" style="min-height:28px; padding:0 10px; font-size:11px; font-weight:bold; border: 1px solid var(--line); border-radius: var(--r); margin-right:4px;">Düzenle</button>
+                  <button class="primary" data-action="deleteCampaign" data-id="${c.id}" data-org="${o.slug}" style="min-height:28px; padding:0 10px; font-size:11px; font-weight:bold; background:#e11d48; box-shadow:none; border-radius: var(--r);">Sil</button>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  `;
+
+  return `<section class="split" style="grid-template-columns:1fr 1.3fr; gap:20px; align-items:start;">
+    ${formHtml}
+    ${listHtml}
+  </section>`;
+}
+
 load().catch((err) => paint(`<main class="loading"><h1>Uygulama açılamadı</h1><p>${esc(err.message)}</p></main>`));

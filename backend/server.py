@@ -837,6 +837,36 @@ class Handler(SimpleHTTPRequestHandler):
                     )
                     conn.commit()
                     return self.json({"ok": True, "data": bootstrap(conn)}, HTTPStatus.CREATED)
+                if parsed.path == "/api/campaigns":
+                    import random
+                    org = find_org(conn, payload.get("orgSlug"))
+                    title = str(payload.get("title") or "").strip()
+                    category = str(payload.get("category") or "sadaka").strip()
+                    summary = str(payload.get("summary") or "").strip()
+                    story = str(payload.get("story") or "").strip()
+                    target_cents = cents(payload.get("target"))
+                    suggested = payload.get("suggestedAmounts") or [100, 250, 500, 1000]
+                    visual_url = str(payload.get("visual") or "").strip() or visual(category)
+                    
+                    if len(title) < 3:
+                        raise ValueError("Kampanya başlığı en az 3 karakter olmalıdır")
+                        
+                    slug = slugify(title)
+                    existing = conn.execute("SELECT 1 FROM campaigns WHERE organization_id=? AND slug=?", (org["id"], slug)).fetchone()
+                    if existing:
+                        slug = f"{slug}-{random.randint(100, 999)}"
+                        
+                    stamp = now_iso()
+                    conn.execute(
+                        """
+                        INSERT INTO campaigns
+                        (organization_id, slug, title, category, summary, story, target_cents, collected_cents, suggested_amounts, visual, featured, active, sort_order, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0, 1, 99, ?, ?)
+                        """,
+                        (org["id"], slug, title, category, summary, story, target_cents, json.dumps(suggested), visual_url, stamp, stamp)
+                    )
+                    conn.commit()
+                    return self.json({"ok": True, "data": bootstrap(conn, payload.get("orgSlug"))}, HTTPStatus.CREATED)
                 if parsed.path == "/api/tenants":
                     slug = create_tenant(conn, payload)
                     conn.commit()
@@ -1106,6 +1136,42 @@ class Handler(SimpleHTTPRequestHandler):
                     conn.execute("UPDATE kurban_animals SET status=?, updated_at=? WHERE id=?", (status, now_iso(), animal_id))
                     conn.commit()
                     return self.json({"ok": True, "data": bootstrap(conn, payload.get("orgSlug"))})
+                if parsed.path.startswith("/api/campaigns/"):
+                    camp_id = int(parsed.path.rsplit("/", 1)[-1])
+                    title = str(payload.get("title") or "").strip()
+                    category = str(payload.get("category") or "").strip()
+                    summary = str(payload.get("summary") or "").strip()
+                    story = str(payload.get("story") or "").strip()
+                    target_cents = cents(payload.get("target"))
+                    suggested = payload.get("suggestedAmounts") or [100, 250, 500, 1000]
+                    visual_url = str(payload.get("visual") or "").strip()
+                    active = 1 if payload.get("active") else 0
+                    
+                    conn.execute(
+                        """
+                        UPDATE campaigns 
+                        SET title=?, category=?, summary=?, story=?, target_cents=?, suggested_amounts=?, visual=?, active=?, updated_at=?
+                        WHERE id=?
+                        """,
+                        (title, category, summary, story, target_cents, json.dumps(suggested), visual_url, active, now_iso(), camp_id)
+                    )
+                    conn.commit()
+                    return self.json({"ok": True, "data": bootstrap(conn, payload.get("orgSlug"))})
+        except Exception as exc:
+            return self.json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
+        return self.json({"ok": False, "error": "Endpoint bulunamadı"}, HTTPStatus.NOT_FOUND)
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        try:
+            params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
+            org_slug = params.get("orgSlug")
+            with db() as conn:
+                if parsed.path.startswith("/api/campaigns/"):
+                    camp_id = int(parsed.path.rsplit("/", 1)[-1])
+                    conn.execute("DELETE FROM campaigns WHERE id=?", (camp_id,))
+                    conn.commit()
+                    return self.json({"ok": True, "data": bootstrap(conn, org_slug)})
         except Exception as exc:
             return self.json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
         return self.json({"ok": False, "error": "Endpoint bulunamadı"}, HTTPStatus.NOT_FOUND)
