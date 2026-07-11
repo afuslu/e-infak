@@ -6,6 +6,188 @@
 const themeLayouts = {};
 
 /* ──────────────────────────────────────────────────────────────
+   DYNAMIC WIDGET HELPERS FOR NEXT.JS ALIGNMENT
+   ────────────────────────────────────────────────────────────── */
+function renderKpQuickDonation(o) {
+  const donationId = state.kp_donationId || 'acil-yardim';
+  const amount = state.kp_amount || '100';
+  const dropdown = !!state.kp_dropdown;
+
+  const donationOptions = [
+    { id: 'acil-yardim', title: 'ACİL YARDIM', description: 'En acil ihtiyaç duyulan afet bölgelerine', color: '#174C3B', icon: '❤️' },
+    { id: 'zekat', title: 'ZEKAT', description: 'Dini hassasiyetler gözetilerek ihtiyaç sahiplerine', color: '#174C3B', icon: '🌙' },
+    { id: 'fitre-fidye', title: 'FİTRE & FİDYE', description: 'Ramazan ayı fitre ve fidye bağışları', color: '#174C3B', icon: '🎁' },
+    { id: 'sadaka', title: 'SADAKA', description: 'Gönüllü olarak verilen hayır ve sadakalar', color: '#174C3B', icon: '✨' },
+    { id: 'hafizlik', title: 'EĞİTİM BURSU', description: 'Afrika medrese talebelerine eğitim desteği', color: '#174C3B', icon: '📖' },
+    { id: 'kuran-hediye', title: 'KİTAP YARDIMI', description: 'Medrese öğrencileri için Kur\'an hediyesi', color: '#174C3B', icon: '📚' },
+    { id: 'kurban', title: 'KURBAN BAĞIŞI', description: 'Afrika ülkelerinde kurban organizasyonu', color: '#B91C1C', icon: '🌍' },
+    { id: 'su-kuyusu', title: 'SU KUYUSU', description: 'Afrika ve Asya\'da temiz su kuyusu projeleri', color: '#174C3B', icon: '💧' }
+  ];
+
+  const selected = donationOptions.find(opt => opt.id === donationId) || donationOptions[0];
+
+  return `
+    <section style="position:relative; padding:60px 24px; background:linear-gradient(to bottom right, #f8fafc, #fff, #f0fdf4);">
+      <div style="max-width:1100px; margin:0 auto;">
+        
+        <div style="text-align:center; margin-bottom:48px;">
+          <div style="display:inline-flex; align-items:center; gap:12px; background:#fff; padding:12px 28px; border-radius:99px; border:1px solid #ccfbf1; box-shadow:0 10px 25px rgba(0,0,0,0.03); margin-bottom:20px;">
+            <div style="width:40px; height:40px; background:#174C3B; color:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">❤️</div>
+            <div style="text-align:left;">
+              <div style="font-size:10px; font-weight:700; color:#174C3B; text-transform:uppercase;">Hayırseverlik</div>
+              <div style="font-size:15px; font-weight:800; color:#174C3B;">Hızlı Bağış</div>
+            </div>
+          </div>
+          <h2 style="font-size:2.2rem; font-weight:900; color:#174C3B; margin:0 0 8px;">Umuda Dokunun</h2>
+          <p style="font-size:14px; color:#475569; max-width:600px; margin:0 auto;">Afrika'daki kardeşlerimize ulaştırdığımız yardımlarda siz de yer alın.<br>Birkaç tıkla bağış yapın, hayat değiştirin.</p>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:40px; align-items:center;">
+          
+          <div style="background:#fff; border:1px solid #e2e8f0; padding:32px; border-radius:24px; box-shadow:0 15px 35px rgba(0,0,0,0.02); position:relative;">
+            <div style="margin-bottom:20px; position:relative;">
+              <label style="display:block; font-size:14px; font-weight:800; color:#174C3B; margin-bottom:8px;">Bağış Kategorisi Seçin</label>
+              
+              <button onclick="state.kp_dropdown = !state.kp_dropdown; render();" style="width:100%; text-align:left; background:#fff; border:2px solid rgba(23,76,59,0.2); padding:16px; border-radius:16px; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="width:40px; height:40px; background:${selected.color}; color:#fff; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:1.3rem;">${selected.icon}</div>
+                  <div>
+                    <div style="font-weight:700; color:#1e293b; font-size:13.5px;">${selected.title}</div>
+                    <div style="font-size:11.5px; color:#64748b;">${selected.description}</div>
+                  </div>
+                </div>
+                <span style="font-size:12px; color:#64748b;">▼</span>
+              </button>
+
+              ${dropdown ? `
+                <div style="position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e2e8f0; border-radius:16px; box-shadow:0 15px 30px rgba(0,0,0,0.1); z-index:100; max-height:280px; overflow-y:auto; margin-top:8px; padding:8px;">
+                  ${donationOptions.map(opt => `
+                    <button onclick="state.kp_donationId = '${opt.id}'; state.kp_dropdown = false; render();" style="width:100%; border:0; background:none; text-align:left; padding:10px 12px; border-radius:8px; display:flex; align-items:center; gap:12px; cursor:pointer; hover:background:#f8fafc;">
+                      <div style="width:36px; height:36px; background:${opt.color}; color:#fff; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0;">${opt.icon}</div>
+                      <div>
+                        <div style="font-weight:700; color:#1e293b; font-size:12.5px;">${opt.title}</div>
+                        <div style="font-size:11px; color:#64748b;">${opt.description}</div>
+                      </div>
+                    </button>
+                  `).join('')}
+                </div>
+              ` : ''}
+            </div>
+
+            <div style="margin-bottom:20px;">
+              <label style="display:block; font-size:14px; font-weight:800; color:#1e293b; margin-bottom:10px;">Bağış Miktarı</label>
+              <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-bottom:12px;">
+                ${[50, 100, 250, 500, 1000].map(amt => `
+                  <button onclick="state.kp_amount = '${amt}'; render();" style="border:${amount === amt.toString() ? '2px solid #174C3B' : '2px solid rgba(23,76,59,0.1)'}; background:${amount === amt.toString() ? '#174C3B' : '#fff'}; color:${amount === amt.toString() ? '#fff' : '#1e293b'}; font-weight:700; padding:10px 4px; border-radius:12px; font-size:12px; cursor:pointer; text-align:center; box-sizing:border-box;">${amt}₺</button>
+                `).join('')}
+              </div>
+              <div style="position:relative;">
+                <input type="number" value="${amount}" oninput="state.kp_amount = this.value; render();" placeholder="Özel miktar girin" style="width:100%; border:2px solid rgba(23,76,59,0.2); padding:12px 36px 12px 16px; border-radius:16px; font-size:14px; font-weight:700; color:#1e293b; outline:none; box-sizing:border-box;" />
+                <span style="position:absolute; right:16px; top:50%; transform:translateY(-50%); font-weight:700; color:#64748b;">₺</span>
+              </div>
+            </div>
+
+            <a href="#/demo/${o.slug}/bagis/${donationId}?amount=${amount}" style="display:flex; justify-content:center; align-items:center; gap:8px; width:100%; background:#93740C; color:#fff; text-decoration:none; padding:16px; border-radius:16px; font-weight:800; font-size:16px; box-shadow:0 8px 20px rgba(147,116,12,0.2); text-align:center; box-sizing:border-box;">Bağış Yap ➔</a>
+
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:20px;">
+            <div style="background:rgba(255,255,255,0.7); border:1px solid #e2e8f0; padding:24px; border-radius:20px; display:flex; gap:16px; align-items:start; box-shadow:0 10px 25px rgba(0,0,0,0.01);">
+              <div style="width:48px; height:48px; background:#174C3B; color:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">⚡</div>
+              <div>
+                <h4 style="font-size:15px; font-weight:800; color:#1e293b; margin:0 0 6px;">Anında İşlem</h4>
+                <p style="font-size:12.5px; color:#64748b; line-height:1.5; margin:0;">Bağışınız anında işleme alınır ve hızla ihtiyaç sahiplerine ulaştırılır.</p>
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.7); border:1px solid #e2e8f0; padding:24px; border-radius:20px; display:flex; gap:16px; align-items:start; box-shadow:0 10px 25px rgba(0,0,0,0.01);">
+              <div style="width:48px; height:48px; background:#174C3B; color:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">✨</div>
+              <div>
+                <h4 style="font-size:15px; font-weight:800; color:#1e293b; margin:0 0 6px;">Şeffaf Süreç</h4>
+                <p style="font-size:12.5px; color:#64748b; line-height:1.5; margin:0;">Bağışınızın nereye gittiğini fotoğraf ve video raporlarıyla takip edebilirsiniz.</p>
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.7); border:1px solid #e2e8f0; padding:24px; border-radius:20px; display:flex; gap:16px; align-items:start; box-shadow:0 10px 25px rgba(0,0,0,0.01);">
+              <div style="width:48px; height:48px; background:#174C3B; color:#fff; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">🌍</div>
+              <div>
+                <h4 style="font-size:15px; font-weight:800; color:#1e293b; margin:0 0 6px;">Küresel Etki</h4>
+                <p style="font-size:12.5px; color:#64748b; line-height:1.5; margin:0;">Afrika ve Asya'da temiz su, kurban ve eğitim projeleriyle binlerce hayata dokunuyoruz.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+  `;
+}
+
+function renderHicretQuickDonation(o) {
+  const popular = [
+    { name: 'Hafız Yetiştiriyorum', price: '1.200₺', slug: 'hafizlik' },
+    { name: 'Genel Bağış', price: 'Serbest Miktar', slug: 'acil-yardim' },
+    { name: 'Büyükbaş Kurban', price: '3.500₺', slug: 'kurban' },
+    { name: 'Su Kuyusu', price: '15.000₺', slug: 'su-kuyusu' }
+  ];
+
+  return `
+    <section style="padding:60px 24px; background:linear-gradient(to bottom right, #f9fafb, #fff);">
+      <div style="max-width:1100px; margin:0 auto;">
+        
+        <div style="text-align:center; margin-bottom:48px;">
+          <span style="background:#d1fae5; color:#065f46; font-size:11px; font-weight:800; padding:6px 16px; border-radius:99px; text-transform:uppercase; letter-spacing:1px; display:inline-block; margin-bottom:16px;">Bağış Yap</span>
+          <h2 style="font-size:2.2rem; font-weight:900; color:#065f46; margin:0 0 8px;">Hayırlı İşlere Vesile Olun</h2>
+          <p style="font-size:14px; color:#64748b; max-width:600px; margin:0 auto;">İslami eğitim ve yardım faaliyetlerimize destek olmak için online bağış yapabilirsiniz.</p>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:24px; margin-bottom:48px;">
+          <div style="background:#fff; border:1px solid #e5e7eb; border-radius:20px; padding:28px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
+            <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 8px;">Genel Bağış</h3>
+            <p style="font-size:12.5px; color:#64748b; margin-bottom:16px;">En acil ihtiyaç duyulan eğitim ve gıda alanları için.</p>
+            <a href="#/demo/${o.slug}/bagis/acil-yardim" style="color:#059669; font-weight:700; font-size:13px; text-decoration:none;">Detayları Gör ➔</a>
+          </div>
+          <div style="background:#fff; border:1px solid #e5e7eb; border-radius:20px; padding:28px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
+            <h3 style="font-size:1.3rem; font-weight:800; color:#059669; margin:0 0 8px;">Eğitim</h3>
+            <p style="font-size:12.5px; color:#64748b; margin-bottom:16px;">Hafızlık ve talebe eğitim faaliyetlerine katkı.</p>
+            <a href="#/demo/${o.slug}/bagis/hafizlik" style="color:#059669; font-weight:700; font-size:13px; text-decoration:none;">Detayları Gör ➔</a>
+          </div>
+          <div style="background:#fff; border:1px solid #e5e7eb; border-radius:20px; padding:28px; text-align:center; box-shadow:0 4px 15px rgba(0,0,0,0.02);">
+            <h3 style="font-size:1.3rem; font-weight:800; color:#dc2626; margin:0 0 8px;">Kurban</h3>
+            <p style="font-size:12.5px; color:#64748b; margin-bottom:16px;">Kurban, adak, akika ve şükür kurbanı bağışları.</p>
+            <a href="#/demo/${o.slug}/bagis/kurban" style="color:#dc2626; font-weight:700; font-size:13px; text-decoration:none;">Detayları Gör ➔</a>
+          </div>
+        </div>
+
+        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:24px; padding:32px; box-shadow:0 10px 30px rgba(0,0,0,0.02);">
+          <h3 style="font-size:1.5rem; font-weight:900; color:#043425; text-align:center; margin:0 0 24px;">Popüler Bağış Kalemleri</h3>
+          
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:32px;">
+            ${popular.map(p => `
+              <a href="#/demo/${o.slug}/bagis/${p.slug}" style="background:#f9fafb; border:1px solid #e5e7eb; padding:20px; border-radius:16px; text-decoration:none; display:block; text-align:center; transition:all 0.2s;">
+                <div style="font-weight:700; color:#1e293b; font-size:13px; margin-bottom:4px;">${p.name}</div>
+                <div style="font-size:15px; font-weight:800; color:#059669;">${p.price}</div>
+              </a>
+            `).join('')}
+          </div>
+
+          <div style="text-align:center;">
+            <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#059669; color:#fff; font-weight:800; text-decoration:none; padding:14px 32px; border-radius:12px; font-size:14px; display:inline-flex; align-items:center; gap:8px; box-shadow:0 6px 15px rgba(5,150,105,0.2);">Tüm Bağış Seçeneklerini Gör ➔</a>
+          </div>
+
+          <div style="border-top:1px solid #e5e7eb; margin-top:32px; padding-top:24px; display:flex; justify-content:center; gap:32px; flex-wrap:wrap; font-size:12.5px; color:#64748b;">
+            <div><span style="color:#059669; font-weight:800;">✓</span> Güvenli Ödeme</div>
+            <div><span style="color:#059669; font-weight:800;">✓</span> Şeffaf Raporlama</div>
+            <div><span style="color:#059669; font-weight:800;">✓</span> Anında İşlem</div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+  `;
+}
+
+/* ──────────────────────────────────────────────────────────────
    SHARED HELPERS
    ────────────────────────────────────────────────────────────── */
 function themeHeader(o, cfg = {}) {
@@ -528,6 +710,9 @@ themeLayouts.hicretdernegi = {
           </div>
         </section>
 
+        <!-- Hicret Quick Donation Widget -->
+        ${renderHicretQuickDonation(o)}
+
         <!-- Custom Campaign Grid matching Next.js -->
         <section class="section" style="padding:60px clamp(18px,5vw,72px); background:#f9fafb;">
           <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:32px;">
@@ -952,6 +1137,9 @@ themeLayouts.kardeslikpayi = {
             </div>
           </div>
         </section>
+
+        <!-- Kardeşlik Payı Quick Donation Widget -->
+        ${renderKpQuickDonation(o)}
 
         <!-- Custom Campaign Grid matching Next.js -->
         <section class="section" style="padding:60px clamp(18px,5vw,72px); background:#fff;">
