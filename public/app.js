@@ -27,8 +27,8 @@ function route() {
     const section = parts[0] || "home";
     const item = parts[1] || "";
     
-    // We will resolve the actual organization slug inside load() from state.data.selectedOrganization
-    const slug = state.data?.selectedOrganization?.slug || state.selectedOrgSlug;
+    // Support custom domains by safely checking state if initialized
+    const slug = (typeof state !== 'undefined' && state.data?.selectedOrganization?.slug) || "rahmet-eli";
     
     // Support admin panel on custom domain too
     if (parts[0] === "admin") return { name: "admin" };
