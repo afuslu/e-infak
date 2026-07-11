@@ -234,6 +234,12 @@ def init_db() -> None:
                 conn.execute("ALTER TABLE donations ADD COLUMN certificate_message TEXT")
 
         conn.executescript(SCHEMA)
+
+        # Clean up organizations that are not in the allowed DEMOS list
+        allowed_slugs = [demo[0] for demo in DEMOS]
+        placeholders = ",".join("?" for _ in allowed_slugs)
+        conn.execute(f"DELETE FROM organizations WHERE slug NOT IN ({placeholders})", allowed_slugs)
+
         if conn.execute("SELECT COUNT(*) FROM organizations").fetchone()[0] == 0:
             for index, demo in enumerate(DEMOS, start=1):
                 org_id = insert_org(conn, demo)
