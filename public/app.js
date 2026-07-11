@@ -624,9 +624,25 @@ function demoSite(slug) {
   const o = org(slug);
   const list = campaigns(slug);
   if (state.route.section === "bagis") return donationPage(o, list.find((c) => c.slug === state.route.item) || list[0]);
-  if (state.route.section === "hakkimizda") return aboutSite(o);
-  if (state.route.section === "iletisim") return contactSite(o);
+  if (state.route.section === "hakkimizda") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].about) {
+      return shell(themeLayouts[o.theme].about(o, list));
+    }
+    return aboutSite(o);
+  }
+  if (state.route.section === "iletisim") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].contact) {
+      return shell(themeLayouts[o.theme].contact(o, list));
+    }
+    return contactSite(o);
+  }
   
+  // Theme dispatch: if a custom layout exists for this org's theme, use it
+  if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].home) {
+    return shell(themeLayouts[o.theme].home(o, list));
+  }
+  
+  // Fallback: original layout
   const featured = list.filter((c) => c.featured).slice(0, 5);
   const currentSlide = state.currentSlideIndex || 0;
   
