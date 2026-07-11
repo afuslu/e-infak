@@ -479,9 +479,18 @@ def campaign_out(r: sqlite3.Row) -> dict[str, Any]:
     return d
 
 
-def bootstrap(conn: sqlite3.Connection, demo_slug: str | None = None) -> dict[str, Any]:
+def bootstrap(conn: sqlite3.Connection, demo_slug: str | None = None, host: str | None = None) -> dict[str, Any]:
     organizations = [org_out(r) for r in conn.execute("SELECT * FROM organizations ORDER BY id")]
-    selected = next((o for o in organizations if o["slug"] == demo_slug), organizations[0])
+    
+    # Try finding by host domain first, then by slug, then default to first org
+    selected = None
+    if host:
+        selected = next((o for o in organizations if o["domain"] == host), None)
+    if not selected and demo_slug:
+        selected = next((o for o in organizations if o["slug"] == demo_slug), None)
+    if not selected:
+        selected = organizations[0]
+
     campaigns = [campaign_out(r) for r in conn.execute("SELECT * FROM campaigns ORDER BY organization_id, sort_order")]
     donors = [camel(row(r)) for r in conn.execute("SELECT * FROM donors ORDER BY id DESC LIMIT 500")]
     donations = [money_out(r, "amount_cents") for r in conn.execute("SELECT * FROM donations ORDER BY id DESC LIMIT 500")]
@@ -646,25 +655,42 @@ def create_donation(conn: sqlite3.Connection, payload: dict[str, Any], host: str
 
 
 def assign_kurban(conn: sqlite3.Connection, org_id: int, donation_id: int, did: int, receipt: str, payload: dict[str, Any]) -> int:
+    # 1. Determine intention type
+    note = str(payload.get("note") or "").lower()
+    intention = payload.get("intentionType") or ("adak" if "adak" in note else "akika" if "akika" in note else "vacip")
+    
     animals = conn.execute("SELECT * FROM kurban_animals WHERE organization_id=? AND status IN ('open','planned') ORDER BY id", (org_id,)).fetchall()
+    
+    # 2. Try to find a matching animal (same intention or empty)
     for animal in animals:
-        used = {r["share_no"] for r in conn.execute("SELECT share_no FROM kurban_shares WHERE animal_id=?", (animal["id"],))}
-        for share_no in range(1, int(animal["total_shares"]) + 1):
-            if share_no not in used:
-                return insert_share(conn, org_id, int(animal["id"]), share_no, donation_id, did, receipt, payload)
+        shares = conn.execute("SELECT intention_type, share_no FROM kurban_shares WHERE animal_id=?", (animal["id"],)).fetchall()
+        used = {r["share_no"] for r in shares}
+        
+        # If animal is already full, skip
+        if len(used) >= int(animal["total_shares"]):
+            continue
+            
+        # Animal is eligible if it has no shares yet, or if its shares match the new intention
+        is_empty = len(used) == 0
+        has_same_intention = any(r["intention_type"] == intention for r in shares)
+        
+        if is_empty or has_same_intention:
+            for share_no in range(1, int(animal["total_shares"]) + 1):
+                if share_no not in used:
+                    return insert_share(conn, org_id, int(animal["id"]), share_no, donation_id, did, receipt, payload, intention)
+                    
+    # 3. Fallback: Create a new animal
     stamp = now_iso()
     code = f"KRB-{org_id:02d}-{conn.execute('SELECT COUNT(*) FROM kurban_animals WHERE organization_id=?', (org_id,)).fetchone()[0] + 1:03d}"
     cur = conn.execute(
         "INSERT INTO kurban_animals (organization_id,code,animal_type,region,country,total_shares,share_price_cents,status,created_at,updated_at) VALUES (?,?,?,?,?,7,?,'open',?,?)",
         (org_id, code, "buyukbas", payload.get("region", "Yurt dışı"), payload.get("country", "Afrika"), cents(payload.get("amount")), stamp, stamp),
     )
-    return insert_share(conn, org_id, int(cur.lastrowid), 1, donation_id, did, receipt, payload)
+    return insert_share(conn, org_id, int(cur.lastrowid), 1, donation_id, did, receipt, payload, intention)
 
 
 def insert_share(conn: sqlite3.Connection, org_id: int, animal_id: int, share_no: int, donation_id: int,
-                 did: int, receipt: str, payload: dict[str, Any]) -> int:
-    note = str(payload.get("note") or "").lower()
-    intention = "adak" if "adak" in note else "akika" if "akika" in note else "vacip"
+                 did: int, receipt: str, payload: dict[str, Any], intention: str) -> int:
     stamp = now_iso()
     cur = conn.execute(
         """
@@ -732,8 +758,9 @@ class Handler(SimpleHTTPRequestHandler):
             return self.json({"ok": True, "time": now_iso()})
         if parsed.path == "/api/bootstrap":
             demo = parse_qs(parsed.query).get("demo", [None])[0]
+            host_header = self.headers.get("Host", "").split(":")[0]
             with db() as conn:
-                return self.json(bootstrap(conn, demo))
+                return self.json(bootstrap(conn, demo, host_header))
         if parsed.path == "/api/export/donations":
             return self.export_donations()
         if parsed.path.startswith("/makbuz/"):
@@ -1175,27 +1202,101 @@ class Handler(SimpleHTTPRequestHandler):
             """
 
         body = f"""<!doctype html>
-<meta charset='utf-8'>
-<title>Makbuz {html.escape(receipt_no)}</title>
-<style>
-body {{font-family:Arial,sans-serif;background:#f7fafc;padding:40px}}
-.box {{max-width:720px;margin:auto;background:white;padding:36px;border-radius:12px;box-shadow:0 20px 70px #0001}}
-@media print {{
-  body {{ background: none; padding: 0; }}
-  .no-print {{ display: none !important; }}
-  .box {{ box-shadow: none; padding: 0; border: 0; }}
-  .cert-container {{ border: 4px double #000 !important; box-shadow: none !important; margin: 0 !important; page-break-before: always; }}
-}}
-</style>
+<html lang='tr'>
+<head>
+  <meta charset='utf-8'>
+  <title>Makbuz {html.escape(receipt_no)}</title>
+  <style>
+    body {{ font-family: 'Inter', Arial, sans-serif; background: #f8fafc; padding: 40px 20px; color: #1e293b; margin: 0; }}
+    .box {{ max-width: 720px; margin: auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.04); border: 1px solid #e2e8f0; }}
+    .receipt-header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f766e; padding-bottom: 20px; margin-bottom: 30px; }}
+    .receipt-title {{ text-align: right; }}
+    .receipt-title h1 {{ margin: 0; font-size: 1.6rem; color: #0f766e; font-weight: 800; }}
+    .receipt-title p {{ margin: 4px 0 0; font-size: 12px; color: #64748b; font-weight: 600; }}
+    .logo-box {{ display: flex; align-items: center; gap: 10px; }}
+    .logo-icon {{ width: 36px; height: 36px; background: #0f766e; color: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 15px; }}
+    .logo-text {{ font-size: 1.15rem; font-weight: 800; color: #1e293b; }}
+    
+    .receipt-table {{ width: 100%; border-collapse: collapse; margin-bottom: 30px; }}
+    .receipt-table th {{ text-align: left; padding: 12px; background: #f8fafc; font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e2e8f0; }}
+    .receipt-table td {{ padding: 14px 12px; font-size: 13.5px; border-bottom: 1px solid #f1f5f9; color: #334155; }}
+    .receipt-table tr:last-child td {{ border-bottom: 2px solid #e2e8f0; }}
+    .label-col {{ font-weight: bold; color: #475569; width: 30%; }}
+    
+    .receipt-footer {{ display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; border-top: 1px solid #f1f5f9; padding-top: 20px; font-size: 12px; color: #64748b; }}
+    .seal-box {{ text-align: center; transform: rotate(-10deg); border: 3px double #0f766e; color: #0f766e; padding: 8px 16px; border-radius: 8px; font-weight: 900; font-size: 11px; display: inline-block; }}
+    
+    @media print {{
+      body {{ background: none; padding: 0; color: #000; }}
+      .no-print {{ display: none !important; }}
+      .box {{ box-shadow: none; padding: 0; border: 0; max-width: 100%; }}
+      .receipt-header {{ border-bottom-color: #000; }}
+      .logo-icon {{ border: 1px solid #000; background: #000 !important; color: #fff !important; }}
+      .receipt-table th {{ background: #f0f0f0; border-bottom-color: #000; }}
+      .receipt-table td {{ border-bottom-color: #e0e0e0; }}
+      .seal-box {{ border-color: #000; color: #000; }}
+      .cert-container {{ border: 4px double #000 !important; box-shadow: none !important; margin-top: 40px !important; page-break-before: always; }}
+    }}
+  </style>
+</head>
+<body>
 <div class='box'>
-  <h1 style='margin-top:0;'>Bağış Makbuzu</h1>
-  <p><b>Kurum:</b> {html.escape(r['org_name'] or '')}</p>
-  <p><b>Bağışçı:</b> {html.escape(r['donor_name'] or '')}</p>
-  <p><b>Kampanya:</b> {html.escape(r['campaign_title'] or '')}</p>
-  <p><b>Tutar:</b> {amount(r['amount_cents'])} {html.escape(r['currency'])}</p>
-  <p><b>Makbuz No:</b> {html.escape(receipt_no)}</p>
+  <div class='receipt-header'>
+    <div class='logo-box'>
+      <div class='logo-icon'>E</div>
+      <div class='logo-text'>{html.escape(r['org_name'] or '')}</div>
+    </div>
+    <div class='receipt-title'>
+      <h1>BAĞIŞ MAKBUZU</h1>
+      <p>Makbuz No: {html.escape(receipt_no)}</p>
+    </div>
+  </div>
   
-  {cert_html}
+  <table class='receipt-table'>
+    <tr>
+      <td class='label-col'>Bağışçı</td>
+      <td>{html.escape(r['donor_name'] or '')}</td>
+    </tr>
+    <tr>
+      <td class='label-col'>Kampanya / Proje</td>
+      <td>{html.escape(r['campaign_title'] or '')}</td>
+    </tr>
+    <tr>
+      <td class='label-col'>Bağış Tutarı</td>
+      <td style='font-size: 16px; font-weight: 900; color: #0f766e;'>{amount(r['amount_cents'])} {html.escape(r['currency'])}</td>
+    </tr>
+    <tr>
+      <td class='label-col'>Ödeme Yöntemi</td>
+      <td>{statuses.get(r['payment_method'], r['payment_method'])} ({statuses.get(r['payment_status'], r['payment_status'])})</td>
+    </tr>
+    <tr>
+      <td class='label-col'>İşlem Tarihi</td>
+      <td>{html.escape(r['created_at'].replace('T', ' ').split('.')[0])}</td>
+    </tr>
+    {f"<tr><td class='label-col'>Banka Onay Kodu</td><td>{html.escape(r['bank_auth_code'])}</td></tr>" if r['bank_auth_code'] else ""}
+  </table>
+  
+  <p style='font-size: 11px; color: #94a3b8; text-align: center; margin: 20px 0;'>
+    Bu makbuz E-İnfak Online Bağış ve STK Otomasyonu altyapısı ile dijital olarak oluşturulmuştur.<br>
+    Zekat, sadaka ve kurban bağışlarınız fıkhi denetime tabi olarak ilgili projeye aktarılmıştır.
+  </p>
+  
+  <div class='receipt-footer'>
+    <div>
+      <strong>{html.escape(r['org_name'] or '')}</strong><br>
+      E-Posta: iletisim@{html.escape(r['org_name'].lower().replace(' ', ''))}.org
+    </div>
+    <div style='text-align: right;'>
+      <div class='seal-box'>E-İNFAK ONAYLI</div>
+    </div>
+  </div>
+  
+  <div style='text-align: center; margin-top: 30px;' class='no-print'>
+    <button onclick='window.print()' style='padding: 12px 24px; font-size: 14px; font-weight: bold; background: #0f766e; color: #fff; border: 0; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 12px rgba(15,118,110,0.25); display: inline-flex; align-items: center; gap: 8px;'>
+      <span>🖨️</span> Makbuzu Yazdır / PDF Kaydet
+    </button>
+    <a href='/#/' style='padding: 12px 24px; font-size: 14px; font-weight: bold; background: #f1f5f9; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 8px; text-decoration: none; margin-left: 10px; display: inline-flex; align-items: center;'>Geri Dön</a>
+  </div>
 </div>
 """
         data = body.encode("utf-8")

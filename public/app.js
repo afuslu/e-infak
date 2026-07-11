@@ -11,8 +11,35 @@ const statuses = {
   confirmed: "Onaylandı", unmatched: "Eşleşmedi", matched: "Eşleşti", queued: "Kuyrukta", active: "Aktif",
 };
 
+function isCustomDomain() {
+  const host = location.hostname;
+  return host !== "e-infak.org" && host !== "www.e-infak.org" && host !== "localhost" && host !== "127.0.0.1";
+}
+
 function route() {
+  const host = location.hostname;
   const parts = (location.hash || "#/").replace(/^#\/?/, "").split("/").filter(Boolean);
+  
+  // Custom Domain Active
+  if (isCustomDomain()) {
+    // Under custom domain, all routes map to the tenant's demo pages
+    // Parts can be: empty (home), 'bagis' / 'kurban' / etc.
+    const section = parts[0] || "home";
+    const item = parts[1] || "";
+    
+    // We will resolve the actual organization slug inside load() from state.data.selectedOrganization
+    const slug = state.data?.selectedOrganization?.slug || state.selectedOrgSlug;
+    
+    // Support admin panel on custom domain too
+    if (parts[0] === "admin") return { name: "admin" };
+    if (parts[0] === "bagisci") return { name: "donor" };
+    
+    if (section === "bagis" || section === "hakkimizda" || section === "iletisim") {
+      return { name: "demo", slug, section, item };
+    }
+    return { name: "demo", slug, section: "home", item: "" };
+  }
+  
   if (!parts.length) return { name: "company" };
   if (parts[0] === "demos") return { name: "demos" };
   if (parts[0] === "admin") return { name: "admin" };
@@ -42,9 +69,15 @@ async function api(path, options = {}) {
 }
 
 async function load() {
-  const demo = state.route.name === "demo" ? state.route.slug : state.selectedOrgSlug;
+  // If it's a custom domain, fetch default bootstrap, backend will resolve the organization by Host header
+  const demo = isCustomDomain() ? "" : (state.route.name === "demo" ? state.route.slug : state.selectedOrgSlug);
   state.data = await api(`/api/bootstrap?demo=${encodeURIComponent(demo)}`);
-  if (state.route.name === "demo") state.selectedOrgSlug = state.route.slug;
+  
+  if (state.data?.selectedOrganization) {
+    state.selectedOrgSlug = state.data.selectedOrganization.slug;
+    // Re-evaluate routes after we get organization info to bind the slug
+    state.route = route();
+  }
   render();
   startAutoplay();
 }
@@ -1717,7 +1750,12 @@ function renderBankMatchPanel(o, b) {
 }
 
 function adminTab(o) {
-  if (state.adminTab === "donations") return panel("Bağış ve makbuz kayıtları", table(["Makbuz", "Bağışçı", "Kampanya", "Tutar", "Durum"], donations(o.slug).map((d) => [d.receiptNo, donorById(d.donorId)?.fullName || "-", campaignById(d.campaignId)?.title || "-", money(d.amount), statuses[d.paymentStatus] || d.paymentStatus])));
+  if (state.adminTab === "donations") return panel("Bağış ve makbuz kayıtları", `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:12px;" class="no-print">
+      <button onclick="window.print()" class="ghost" style="min-height:32px; padding:0 12px; font-size:11px; font-weight:bold;">🖨️ Listeyi Yazdır</button>
+    </div>
+    ${table(["Makbuz", "Bağışçı", "Kampanya", "Tutar", "Durum"], donations(o.slug).map((d) => [d.receiptNo, donorById(d.donorId)?.fullName || "-", campaignById(d.campaignId)?.title || "-", money(d.amount), statuses[d.paymentStatus] || d.paymentStatus]))}
+  `);
   if (state.adminTab === "donors") {
     const list = donors(o.slug);
     const donorTable = `
@@ -1783,7 +1821,12 @@ function adminTab(o) {
     return panel("Banka Hesap Hareketleri Eşleştirme Otomasyonu", bankTable);
   }
   if (state.adminTab === "messages") return messages(o);
-  if (state.adminTab === "reports") return panel("Raporlama", table(["Kampanya", "Toplanan", "Hedef", "Durum"], campaigns(o.slug).map((c) => [c.title, money(c.collected), money(c.target), `%${pct(c.collected, c.target)}`])));
+  if (state.adminTab === "reports") return panel("Raporlama", `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:12px;" class="no-print">
+      <button onclick="window.print()" class="ghost" style="min-height:32px; padding:0 12px; font-size:11px; font-weight:bold;">🖨️ Raporu Yazdır / PDF Kaydet</button>
+    </div>
+    ${table(["Kampanya", "Toplanan", "Hedef", "Durum"], campaigns(o.slug).map((c) => [c.title, money(c.collected), money(c.target), `%${pct(c.collected, c.target)}`]))}
+  `);
   if (state.adminTab === "settings") return settings(o);
   
   // Dashboard default view (with line and donut SVG charts)

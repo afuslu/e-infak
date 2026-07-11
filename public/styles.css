@@ -1384,3 +1384,70 @@ body.dark-theme .iban-card {
   display: none;
   font-family: sans-serif;
 }
+
+/* ============================================================
+   GLOBAL PRINT MEDIA & PRINT UTILITIES
+   ============================================================ */
+.no-print {
+  display: block;
+}
+
+@media print {
+  .no-print, 
+  .no-print *,
+  header.topbar,
+  .admin > aside,
+  .admin-top,
+  aside.quick,
+  .footer,
+  .site-head,
+  .site-topbar,
+  button,
+  a.primary,
+  a.ghost,
+  a.black-btn {
+    display: none !important;
+  }
+  
+  body, #app {
+    background: none !important;
+    color: #000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .admin {
+    display: block !important;
+  }
+  
+  .admin > main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  
+  .panel {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+  
+  .table {
+    border: 1px solid #000 !important;
+    border-radius: 0 !important;
+  }
+  
+  .table table {
+    width: 100% !important;
+  }
+  
+  .table th, .table td {
+    border-color: #000 !important;
+    color: #000 !important;
+  }
+}
+
