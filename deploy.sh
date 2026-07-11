@@ -35,6 +35,10 @@ if [[ "$HAS_STASH" -eq 1 ]]; then
     git stash pop || echo "⚠️  Stash geri yüklenirken çakışma çıktı, lütfen manuel kontrol edin!"
 fi
 
+# Her git pull sonrasında yeni gelen dosyaların izinlerini Nginx kullanıcısına (www-data) geçir
+echo "🔑 Dosya izinleri www-data kullanıcısına eşitleniyor..."
+chown -R www-data:www-data "${PROJECT_DIR}"
+
 echo "🧾 Güncel Commit: $(git rev-parse --short HEAD)"
 
 # Python Sanal Ortamını Etkinleştirme
