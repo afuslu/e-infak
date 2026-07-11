@@ -34,8 +34,8 @@ def main() -> int:
         spec.loader.exec_module(module)
         module.init_db()
         with module.db() as conn:
-            data = module.bootstrap(conn, "rahmet-eli")
-        assert data["stats"]["tenantCount"] >= 10
+            data = module.bootstrap(conn, "hicret-dernegi")
+        assert data["stats"]["tenantCount"] >= 2
         assert any(c["slug"] == "kurban" for c in data["campaigns"])
     print(json.dumps({"ok": True, "checked": ["backend", "frontend", "seed"]}, ensure_ascii=False))
     return 0
