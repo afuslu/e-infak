@@ -984,7 +984,7 @@ themeLayouts.hicretdernegi = {
     return `<div style="background:#043425; color:#cbd5e1; padding:6px 20px; display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:600;">
         <div>📖 Hicret Medresesi İslami Eğitim Kurumu</div>
         <div style="display:flex; gap:16px;">
-          <a href="#/bagisci" style="color:#cbd5e1; text-decoration:none;">👤 Bağışçı Girişi</a>
+          <a href="#/demo/${o.slug}/portal" style="color:#cbd5e1; text-decoration:none;">👤 Veli Takip Portalı</a>
           <span>|</span>
           <a href="#/admin" style="color:#cbd5e1; text-decoration:none;">⚙️ Otomasyon</a>
         </div>
@@ -1000,15 +1000,350 @@ themeLayouts.hicretdernegi = {
         </a>
         <nav style="display:flex; gap:20px; align-items:center;">
           <a href="#/demo/${o.slug}" style="color:#065f46; font-weight:700; text-decoration:none; font-size:14px;">Ana Sayfa</a>
-          <a href="#/demo/${o.slug}/faaliyetlerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Faaliyetlerimiz</a>
+          <a href="#/demo/${o.slug}/bolumler" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Eğitim Bölümleri</a>
+          <a href="#/demo/${o.slug}/duyurular" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Duyurular</a>
           <a href="#/demo/${o.slug}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">Hakkımızda</a>
           <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14px;">İletişim</a>
         </nav>
         <div style="display:flex; gap:10px;">
-          <a href="#/demo/${o.slug}/iletisim" style="background:#2563eb; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(37,99,235,0.2);">BAŞVURU YAP</a>
+          <a href="#/demo/${o.slug}/basvuru" style="background:#2563eb; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(37,99,235,0.2);">BAŞVURU YAP</a>
           <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#059669; color:#fff; text-decoration:none; font-size:12px; font-weight:700; padding:8px 18px; border-radius:99px; box-shadow:0 4px 10px rgba(5,150,105,0.2);">BAĞIŞ YAP</a>
         </div>
       </header>`;
+  },
+
+  checkout(o, c) {
+    const payMethod = state.hicret_paymethod || 'credit';
+    const amount = state.hicret_amount || '200';
+    const donor = state.hicret_donor || { firstName: '', lastName: '', email: '', phone: '', message: '' };
+    const card = state.hicret_card || { number: '', expiry: '', cvv: '', name: '' };
+    const loading = !!state.hicret_loading;
+    const completed = !!state.hicret_completed;
+
+    if (completed) {
+      return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
+        ${this.headerHtml(o)}
+        <main style="flex:1; display:flex; align-items:center; justify-content:center; padding:60px 24px;">
+          <div style="max-width:480px; width:100%; background:#fff; border-radius:24px; box-shadow:0 20px 45px rgba(0,0,0,0.06); border:1px solid #d1fae5; padding:40px; text-align:center;">
+            <div style="width:80px; height:80px; background:#ecfdf5; color:#047857; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 24px;">✓</div>
+            <h2 style="font-size:1.75rem; font-weight:800; color:#065f46; margin:0 0 12px;">Ödemeniz Başarıyla Alındı</h2>
+            <p style="font-size:14px; color:#4b5563; line-height:1.6; margin-bottom:32px;">Hicret Medresemize yaptığınız destek başarıyla sisteme kaydedilmiştir. Allah kabul etsin.</p>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <a href="#/demo/${o.slug}" style="background:#059669; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Ana Sayfaya Dön</a>
+            </div>
+          </div>
+        </main>
+        ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+      </div>`;
+    }
+
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #032017, #065f46); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.4rem; font-weight:800; margin:0 0 8px;">Medrese Güvenli Bağış Ödemesi</h1>
+          <p style="font-size:14px; color:#a7f3d0; margin:0;">Talebe destekleri ve genel yardımlarınız için güvenli ödeme sayfası.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:1100px; margin:0 auto;">
+        <div style="display:grid; grid-template-columns:1.8fr 1.2fr; gap:40px; align-items:start;">
+          
+          <div style="display:flex; flex-direction:column; gap:24px;">
+            <div style="background:#fff; border:1px solid #e5e7eb; border-radius:24px; padding:32px; box-shadow:0 10px 30px rgba(0,0,0,0.01);">
+              <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 20px;">1. Bağışçı Bilgileri</h3>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <input type="text" value="${esc(donor.firstName)}" oninput="state.hicret_donor = state.hicret_donor || {}; state.hicret_donor.firstName = this.value; render();" placeholder="Adınız *" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" required />
+                <input type="text" value="${esc(donor.lastName)}" oninput="state.hicret_donor = state.hicret_donor || {}; state.hicret_donor.lastName = this.value; render();" placeholder="Soyadınız *" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" required />
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <input type="email" value="${esc(donor.email)}" oninput="state.hicret_donor = state.hicret_donor || {}; state.hicret_donor.email = this.value; render();" placeholder="E-Posta Adresiniz *" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" required />
+                <input type="tel" value="${esc(donor.phone)}" oninput="state.hicret_donor = state.hicret_donor || {}; state.hicret_donor.phone = this.value; render();" placeholder="Telefon Numaranız *" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" required />
+              </div>
+            </div>
+
+            <div style="background:#fff; border:1px solid #e5e7eb; border-radius:24px; padding:32px; box-shadow:0 10px 30px rgba(0,0,0,0.01);">
+              <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 20px;">2. Ödeme Metodu</h3>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <button onclick="state.hicret_paymethod = 'credit'; render();" style="border:${payMethod === 'credit' ? '2px solid #059669' : '1px solid #cbd5e1'}; background:${payMethod === 'credit' ? '#ecfdf5' : '#fff'}; color:#065f46; padding:14px; border-radius:10px; font-weight:700; cursor:pointer;">💳 Kredi Kartı</button>
+                <button onclick="state.hicret_paymethod = 'bank'; render();" style="border:${payMethod === 'bank' ? '2px solid #059669' : '1px solid #cbd5e1'}; background:${payMethod === 'bank' ? '#ecfdf5' : '#fff'}; color:#065f46; padding:14px; border-radius:10px; font-weight:700; cursor:pointer;">🏦 Havale / EFT</button>
+              </div>
+            </div>
+
+            <div style="background:#fff; border:1px solid #e5e7eb; border-radius:24px; padding:32px; box-shadow:0 10px 30px rgba(0,0,0,0.01);">
+              <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 20px;">3. Ödeme Detayları</h3>
+              
+              ${payMethod === 'credit' ? `
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                  <input type="text" placeholder="Kart Numarası *" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                    <input type="text" placeholder="AA/YY *" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                    <input type="text" placeholder="CVV *" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                  </div>
+                  <input type="text" placeholder="Kart Üzerindeki İsim *" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                </div>
+              ` : `
+                <div style="background:#f9fafb; border:1px solid #e5e7eb; padding:20px; border-radius:12px; font-size:13px; line-height:1.6; display:flex; flex-direction:column; gap:8px;">
+                  <div><b>Banka:</b> Vakıf Katılım Bankası</div>
+                  <div><b>Hesap Sahibi:</b> Hicret Derneği</div>
+                  <div><b>IBAN:</b> TR98 0006 2000 0001 9876 5432 10</div>
+                </div>
+              `}
+
+              <button onclick="state.hicret_loading = true; render(); setTimeout(() => { state.hicret_loading = false; state.hicret_completed = true; render(); }, 1200);" style="width:100%; background:#059669; color:#fff; border:0; padding:16px; border-radius:12px; font-weight:800; font-size:15px; margin-top:24px; cursor:pointer; box-shadow:0 4px 15px rgba(5,150,105,0.25);">
+                ${loading ? 'İşleniyor...' : `Güvenli Ödeme Yap (₺${amount})`}
+              </button>
+            </div>
+          </div>
+
+          <div style="background:#fff; border:1px solid #e5e7eb; border-radius:24px; padding:32px; box-shadow:0 10px 30px rgba(0,0,0,0.01);">
+            <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 20px; border-bottom:1px solid #f3f4f6; padding-bottom:12px;">Bağış Detayı</h3>
+            <div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:12px;"><span style="color:#6b7280;">Proje:</span><span style="font-weight:700; color:#1f2937;">${esc(c.title)}</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:20px;"><span style="color:#6b7280;">Kategori:</span><span style="font-weight:700; color:#1f2937;">${esc(labels[c.category] || c.category)}</span></div>
+            <div style="border-top:1px solid #f3f4f6; padding-top:16px; display:flex; justify-content:space-between; font-size:15px; font-weight:800; color:#065f46;">
+              <span>TOPLAM:</span>
+              <span>₺${amount}</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
+  },
+
+  basvuru(o) {
+    const sub = !!state.hicret_sub_app;
+    if (sub) {
+      return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
+        ${this.headerHtml(o)}
+        <main style="flex:1; display:flex; align-items:center; justify-content:center; padding:60px 24px;">
+          <div style="max-width:480px; width:100%; background:#fff; border-radius:24px; box-shadow:0 20px 45px rgba(0,0,0,0.06); border:1px solid #d1fae5; padding:40px; text-align:center;">
+            <div style="width:80px; height:80px; background:#ecfdf5; color:#047857; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 24px;">✓</div>
+            <h2 style="font-size:1.75rem; font-weight:800; color:#065f46; margin:0 0 12px;">Başvurunuz Kaydedildi</h2>
+            <p style="font-size:14px; color:#4b5563; line-height:1.6; margin-bottom:32px;">Eğitim başvuru talebiniz başarıyla alınmıştır. Mülakat ve kayıt detayları veli telefonuna SMS ile iletilecektir.<br><b>Başvuru No:</b> <span style="font-weight:700; color:#065f46;">#BA2025001</span></p>
+            <a href="#/demo/${o.slug}" style="display:block; background:#059669; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Ana Sayfaya Dön</a>
+          </div>
+        </main>
+        ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+      </div>`;
+    }
+
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #032017, #065f46); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.4rem; font-weight:800; margin:0 0 8px;">Öğrenci Kayıt Başvuru Formu</h1>
+          <p style="font-size:14px; color:#a7f3d0; margin:0;">Hicret Medresesi Sıbyan, Hafızlık ve Arapça programları kayıt sayfası.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:800px; margin:0 auto;">
+        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:24px; padding:36px; box-shadow:0 10px 30px rgba(0,0,0,0.02);">
+          
+          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:36px; text-align:center; border-bottom:1px solid #f3f4f6; padding-bottom:16px;">
+            <div style="font-weight:700; font-size:12px; color:#065f46;">1. Başvuru</div>
+            <div style="font-weight:600; font-size:12px; color:#9ca3af;">2. Değerlendirme</div>
+            <div style="font-weight:600; font-size:12px; color:#9ca3af;">3. Mülakat</div>
+            <div style="font-weight:600; font-size:12px; color:#9ca3af;">4. Kayıt</div>
+          </div>
+
+          <form onsubmit="event.preventDefault(); state.hicret_sub_app = true; render();" style="display:flex; flex-direction:column; gap:20px;">
+            <div>
+              <h4 style="font-size:13.5px; font-weight:800; color:#065f46; margin:0 0 12px; border-left:3px solid #059669; padding-left:8px;">Talebe (Öğrenci) Bilgileri</h4>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:12px;">
+                <input type="text" placeholder="Talebe Adı Soyadı *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                <input type="text" placeholder="Doğum Yılı (Örn: 2015) *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+              </div>
+            </div>
+
+            <div>
+              <h4 style="font-size:13.5px; font-weight:800; color:#065f46; margin:0 0 12px; border-left:3px solid #059669; padding-left:8px;">Veli İletişim Bilgileri</h4>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:12px;">
+                <input type="text" placeholder="Veli Adı Soyadı *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                <input type="tel" placeholder="Telefon Numarası *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+              </div>
+            </div>
+
+            <div>
+              <h4 style="font-size:13.5px; font-weight:800; color:#065f46; margin:0 0 12px; border-left:3px solid #059669; padding-left:8px;">Eğitim Programı & Tercih</h4>
+              <select required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;">
+                <option value="">Medrese Programı Seçin... *</option>
+                <option value="sibyan">Sıbyan Mektebi (4-7 Yaş Okul Öncesi)</option>
+                <option value="ibtida">İbtida Mektebi (İlkokul Destek)</option>
+                <option value="hafizlik">Hafızlık Hazırlık & Hafızlık Sınıfı</option>
+                <option value="arapca">Arapça Hazırlık & İslami İlimler</option>
+              </select>
+            </div>
+
+            <button type="submit" style="background:#059669; color:#fff; border:0; padding:16px; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Kayıt Başvurusunu Gönder</button>
+          </form>
+
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
+  },
+
+  bolumler(o) {
+    const list = [
+      { id: 'sibyan', title: 'Sıbyan Mektebi', age: '4 - 7 Yaş', desc: 'Erken yaşta Kur\'an-ı Kerim elif-bası, temel dini bilgiler, ahlak eğitimleri ve okul öncesi gelişim.', lessons: 'Kur\'an-ı Kerim, Dua Ezberi, Ahlak, Adab-ı Muaşeret' },
+      { id: 'ibtida', title: 'İbtida Mektebi', age: '8 - 12 Yaş', desc: 'İlkokul çağındaki çocuklara okul dersleri ile birlikte temel tecvid, adab, ezber ve Kur\'an-ı Kerim eğitimi.', lessons: 'Mahreç, Tecvid, İlmihal, Temel Hadisler' },
+      { id: 'hafizlik', title: 'Hafızlık Sınıfı', age: '10+ Yaş', desc: 'Kur\'an-ı Kerim\'i ezberleme metodolojisi, hafızlık hazırlık dersleri ve yoğun hafızlık ezber müfredatı.', lessons: 'Kur\'an Ezberi, Sağ-Sol Ezber Takibi, Hasıl Okuma' },
+      { id: 'arapca', title: 'Arapça & İslami İlimler', age: '12+ Yaş', desc: 'Arapça dil bilgisi (Sarf-Nahiv), tefsir dersleri, fıkıh, akaid ve İslam tarihi usulleri eğitimi.', lessons: 'Sarf, Nahiv, Fıkıh Usulü, Hadis Usulü, Tefsir' }
+    ];
+
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #032017, #065f46); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.4rem; font-weight:800; margin:0 0 8px;">Eğitim Bölümlerimiz</h1>
+          <p style="font-size:14px; color:#a7f3d0; margin:0;">Hicret Medresemizdeki tüm eğitim şubeleri ve program detayları.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:1100px; margin:0 auto;">
+        <div style="display:grid; grid-template-columns:1fr; gap:32px;">
+          ${list.map(l => `
+            <div style="background:#fff; border:1px solid #e5e7eb; border-radius:24px; padding:32px; box-shadow:0 10px 30px rgba(0,0,0,0.01); display:grid; grid-template-columns:1.5fr 1fr; gap:24px; align-items:center;">
+              <div>
+                <span style="background:#ecfdf5; color:#047857; font-size:11px; font-weight:700; padding:4px 10px; border-radius:4px; display:inline-block; margin-bottom:12px;">${l.age}</span>
+                <h3 style="font-size:1.6rem; font-weight:800; color:#065f46; margin:0 0 12px;">${l.title}</h3>
+                <p style="font-size:13.5px; color:#4b5563; line-height:1.6; margin-bottom:16px;">${l.desc}</p>
+                <div style="font-size:12.5px; color:#6b7280;"><b>Ders İçerikleri:</b> ${l.lessons}</div>
+              </div>
+              <div style="text-align:right;">
+                <a href="#/demo/${o.slug}/basvuru" style="display:inline-block; background:#059669; color:#fff; text-decoration:none; padding:12px 24px; border-radius:8px; font-weight:700; font-size:13px; box-shadow:0 4px 12px rgba(5,150,105,0.25);">Kayıt Başvurusu Yap</a>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
+  },
+
+  duyurular(o) {
+    const list = [
+      { id: 1, title: 'Yaz Dönemi Hafızlık Programı Başvuruları Başladı', excerpt: 'Yaz tatilini değerlendirmek isteyen öğrenciler için özel hafızlık programımıza başvurular başlamıştır.', date: '15 Mayıs 2025', author: 'Medrese İdaresi' },
+      { id: 2, title: 'Yeni Eğitim Dönemi Kayıtları Hakkında Duyuru', excerpt: 'Yeni dönem kayıt koşulları, kontenjan durumu ve ders programları belirlendi.', date: '20 Nisan 2025', author: 'İdare' },
+      { id: 3, title: 'Arapça Sınıfı Mezuniyet Merasimi Gerçekleştirildi', excerpt: '3 yıllık eğitimini tamamlayan Arapça bölümü talebelerimize icazetleri takdim edildi.', date: '25 Mart 2025', author: 'Arapça Bölümü' }
+    ];
+
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #032017, #065f46); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.4rem; font-weight:800; margin:0 0 8px;">Medrese Duyuruları</h1>
+          <p style="font-size:14px; color:#a7f3d0; margin:0;">Hicret Medresesi duyuruları, haberleri ve bülten bildirimleri.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:900px; margin:0 auto;">
+        <div style="display:flex; flex-direction:column; gap:24px;">
+          ${list.map(d => `
+            <article style="background:#fff; border:1px solid #e5e7eb; border-radius:20px; padding:28px; box-shadow:0 10px 30px rgba(0,0,0,0.01);">
+              <div style="display:flex; justify-content:space-between; font-size:11.5px; color:#9ca3af; margin-bottom:12px;">
+                <span>📅 ${d.date}</span>
+                <span>✍ ${d.author}</span>
+              </div>
+              <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 8px;">${d.title}</h3>
+              <p style="font-size:13px; color:#4b5563; line-height:1.6; margin:0;">${d.excerpt}</p>
+            </article>
+          `).join('')}
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
+  },
+
+  portal(o) {
+    const active = state.hicret_portal_student || '1';
+    const students = [
+      { id: '1', name: 'Ahmet Yılmaz', class: 'Hafızlık - A Sınıfı', attendance: 95, grade: 88, progress: 85 },
+      { id: '2', name: 'Fatma Kaya', class: 'Sıbyan - B Sınıfı', attendance: 88, grade: 92, progress: 95 }
+    ];
+    const s = students.find(st => st.id === active) || students[0];
+
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #032017, #065f46); color:#fff; padding:48px 24px; text-align:center;">
+        <h1 style="font-size:2.2rem; font-weight:800; margin:0 0 6px;">Öğrenci Veli Takip Portalı</h1>
+        <p style="font-size:13px; color:#a7f3d0; margin:0;">Talebelerimizin devamsızlık, ders ilerleme ve başarı karnesini anlık takip edin.</p>
+      </section>
+
+      <section style="padding:20px 24px; background:#fff; border-bottom:1px solid #e5e7eb; display:flex; justify-content:center; gap:16px;">
+        ${students.map(st => `
+          <button onclick="state.hicret_portal_student = '${st.id}'; render();" style="border:0; background:${active === st.id ? '#059669' : '#f3f4f6'}; color:${active === st.id ? '#fff' : '#4b5563'}; font-weight:700; padding:10px 20px; border-radius:8px; cursor:pointer; font-size:13px; transition:0.2s;">
+            ${st.name}
+          </button>
+        `).join('')}
+      </section>
+
+      <section style="padding:48px 24px; max-width:900px; margin:0 auto;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:20px; margin-bottom:32px;">
+          <div style="background:#fff; border:1px solid #e5e7eb; padding:20px; border-radius:16px; text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:#059669; margin-bottom:4px;">${s.attendance}%</div>
+            <div style="font-size:12.5px; color:#6b7280; font-weight:700;">Devam Oranı</div>
+          </div>
+          <div style="background:#fff; border:1px solid #e5e7eb; padding:20px; border-radius:16px; text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:#0284c7; margin-bottom:4px;">${s.grade}</div>
+            <div style="font-size:12.5px; color:#6b7280; font-weight:700;">Genel Ortalama</div>
+          </div>
+          <div style="background:#fff; border:1px solid #e5e7eb; padding:20px; border-radius:16px; text-align:center;">
+            <div style="font-size:24px; font-weight:800; color:#b45309; margin-bottom:4px;">%${s.progress}</div>
+            <div style="font-size:12.5px; color:#6b7280; font-weight:700;">Ders İlerleme</div>
+          </div>
+        </div>
+
+        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:24px; padding:32px; box-shadow:0 10px 30px rgba(0,0,0,0.01);">
+          <h3 style="font-size:1.3rem; font-weight:800; color:#065f46; margin:0 0 20px; border-bottom:1px solid #f3f4f6; padding-bottom:12px;">Haftalık Ders Takvimi</h3>
+          <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; text-align:center;">
+            ${['Pzt', 'Sal', 'Çar', 'Per', 'Cum'].map(day => `
+              <div style="border:1px solid #f3f4f6; padding:12px; border-radius:8px; background:#f9fafb;">
+                <b style="font-size:12.5px; color:#1f2937; display:block; margin-bottom:6px;">${day}</b>
+                <span style="font-size:10.5px; color:#059669; font-weight:700;">Kur'an-ı Kerim</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
+  },
+
+  gizlilik(o) {
+    return `<div class="site" data-theme="hicretdernegi" style="--p:#065f46;--a:#0284c7; font-family:'Poppins', sans-serif; background:#f4f9f6; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #032017, #065f46); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.4rem; font-weight:800; margin:0 0 8px;">Gizlilik Politikası</h1>
+          <p style="font-size:14px; color:#a7f3d0; margin:0;">Medresemiz yasal aydınlatma ve gizlilik esasları.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:800px; margin:0 auto;">
+        <div style="background:#fff; border:1px solid #e5e7eb; border-radius:24px; padding:36px; box-shadow:0 10px 30px rgba(0,0,0,0.01); line-height:1.6; font-size:13px; color:#4b5563;">
+          <h4 style="font-weight:800; color:#065f46; font-size:14px; margin-top:0;">KVKK Bilgilendirmesi</h4>
+          <p style="margin-bottom:16px;">Öğrenci başvuru ve veli takip platformlarında paylaştığınız tüm kişisel veriler, Kişisel Verilerin Korunması Kanunu uyarınca koruma altında olup hiçbir şekilde üçüncü taraflara aktarılmaz.</p>
+          <h4 style="font-weight:800; color:#065f46; font-size:14px;">Çerez Politikası</h4>
+          <p style="margin:0;">Veli takip portalı ve kayıt formlarında oturum güvenliği ve tercih takibi amacıyla zorunlu teknik çerezler kullanılmaktadır.</p>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#032017', font: "'Poppins', sans-serif" })}
+    </div>`;
   }
 };
 
@@ -1393,14 +1728,422 @@ themeLayouts.kardeslikpayi = {
             <p style="font-size:10px; color:#f59e0b; font-weight:800; margin:0; letter-spacing:1px; text-transform:uppercase;">Yardımlaşma Derneği</p>
           </div>
         </a>
-        <nav style="display:flex; gap:20px; align-items:center;">
-          <a href="#/demo/${o.slug}" style="color:#0f766e; font-weight:800; text-decoration:none; font-size:14.5px;">Ana Sayfa</a>
-          <a href="#/demo/${o.slug}/projelerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Projelerimiz</a>
-          <a href="#/demo/${o.slug}/hakkimizda" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">Hakkımızda</a>
-          <a href="#/demo/${o.slug}/iletisim" style="color:#475569; font-weight:600; text-decoration:none; font-size:14.5px;">İletişim</a>
+        <nav style="display:flex; gap:14px; align-items:center;">
+          <a href="#/demo/${o.slug}" style="color:#0f766e; font-weight:800; text-decoration:none; font-size:13.5px;">Ana Sayfa</a>
+          <a href="#/demo/${o.slug}/projelerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Projelerimiz</a>
+          <a href="#/demo/${o.slug}/faaliyetlerimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Faaliyetlerimiz</a>
+          <a href="#/demo/${o.slug}/basvuru" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Kayıt</a>
+          <a href="#/demo/${o.slug}/hesap-numaralarimiz" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Hesaplarımız</a>
+          <a href="#/demo/${o.slug}/gonullu-ol" style="color:#475569; font-weight:600; text-decoration:none; font-size:13.5px;">Gönüllü Ol</a>
         </nav>
-        <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f766e; color:#fff; text-decoration:none; font-size:12.5px; font-weight:800; padding:10px 24px; border-radius:8px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">ŞİMDİ BAĞIŞ YAP</a>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <a href="#/demo/${o.slug}/sepet" style="color:#0f766e; text-decoration:none; font-size:18px; display:flex; align-items:center;">🛒</a>
+          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="background:#0f766e; color:#fff; text-decoration:none; font-size:12px; font-weight:800; padding:10px 20px; border-radius:8px; box-shadow:0 4px 12px rgba(15,118,110,0.25);">ŞİMDİ BAĞIŞ YAP</a>
+        </div>
       </header>`;
+  },
+  
+  checkout(o, c) {
+    const payMethod = state.kp_paymethod || 'credit';
+    const amount = state.kp_amount || '100';
+    const donor = state.kp_donor || { firstName: '', lastName: '', email: '', phone: '', message: '' };
+    const card = state.kp_card || { number: '', expiry: '', cvv: '', name: '' };
+    const loading = !!state.kp_loading;
+    const completed = !!state.kp_completed;
+
+    if (completed) {
+      return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
+        ${this.headerHtml(o)}
+        <main style="flex:1; display:flex; align-items:center; justify-content:center; padding:60px 24px;">
+          <div style="max-width:480px; width:100%; background:#fff; border-radius:24px; box-shadow:0 20px 40px rgba(0,0,0,0.05); border:1px solid #e2e8f0; padding:40px; text-align:center;">
+            <div style="width:80px; height:80px; background:#f0fdf4; color:#166534; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 24px;">✓</div>
+            <h2 style="font-size:1.8rem; font-weight:900; color:#1e293b; margin:0 0 12px;">Bağışınız Başarıyla Alındı!</h2>
+            <p style="font-size:14px; color:#64748b; line-height:1.6; margin-bottom:32px;">Kardeşlik köprüsüne sağladığınız katkı için teşekkür ederiz. Bağış makbuzunuz e-posta adresinize gönderilmiştir.</p>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <a href="#/demo/${o.slug}" style="background:#174C3B; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px;">Ana Sayfaya Dön</a>
+              <button onclick="state.kp_completed = false; render();" style="border:1px solid #174C3B; background:none; color:#174C3B; padding:14px; border-radius:12px; font-weight:700; font-size:14px; cursor:pointer;">Yeni Bağış Yap</button>
+            </div>
+          </div>
+        </main>
+        ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+      </div>`;
+    }
+
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #0d1b1e, #174C3B); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.5rem; font-weight:900; margin:0 0 8px;">Güvenli Bağış Ödemesi</h1>
+          <p style="font-size:14px; color:#cbd5e1; margin:0;">Bağışınızı güvenle tamamlayarak Afrika'da bir hayata dokunun.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:1100px; margin:0 auto;">
+        <div style="display:grid; grid-template-columns:1.8fr 1.2fr; gap:40px; align-items:start;">
+          
+          <!-- Left Forms -->
+          <div style="display:flex; flex-direction:column; gap:24px;">
+            
+            <!-- Step 1: Donor Info -->
+            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:32px; box-shadow:0 10px 25px rgba(0,0,0,0.01);">
+              <h3 style="font-size:1.3rem; font-weight:800; color:#174C3B; margin:0 0 20px;">1. Bağışçı Bilgileri</h3>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">Ad *</label>
+                  <input type="text" value="${esc(donor.firstName)}" oninput="state.kp_donor = state.kp_donor || {}; state.kp_donor.firstName = this.value; render();" placeholder="Adınız" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" required />
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">Soyad *</label>
+                  <input type="text" value="${esc(donor.lastName)}" oninput="state.kp_donor = state.kp_donor || {}; state.kp_donor.lastName = this.value; render();" placeholder="Soyadınız" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" required />
+                </div>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">E-posta *</label>
+                  <input type="email" value="${esc(donor.email)}" oninput="state.kp_donor = state.kp_donor || {}; state.kp_donor.email = this.value; render();" placeholder="ornek@email.com" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" required />
+                </div>
+                <div>
+                  <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">Telefon *</label>
+                  <input type="tel" value="${esc(donor.phone)}" oninput="state.kp_donor = state.kp_donor || {}; state.kp_donor.phone = this.value; render();" placeholder="0555 123 45 67" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" required />
+                </div>
+              </div>
+              <div>
+                <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">Bağış Notu</label>
+                <textarea oninput="state.kp_donor = state.kp_donor || {}; state.kp_donor.message = this.value; render();" placeholder="Bağışınızla ilgili notunuz..." style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; height:80px; outline:none; font-family:sans-serif; box-sizing:border-box;">${esc(donor.message)}</textarea>
+              </div>
+            </div>
+
+            <!-- Step 2: Payment Method -->
+            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:32px; box-shadow:0 10px 25px rgba(0,0,0,0.01);">
+              <h3 style="font-size:1.3rem; font-weight:800; color:#174C3B; margin:0 0 20px;">2. Ödeme Yöntemi</h3>
+              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px;">
+                <button onclick="state.kp_paymethod = 'credit'; render();" style="border:${payMethod === 'credit' ? '2px solid #174C3B' : '1px solid #cbd5e1'}; background:${payMethod === 'credit' ? '#f0fdf4' : '#fff'}; color:#1e293b; padding:16px; border-radius:12px; text-align:center; cursor:pointer; font-weight:700; font-size:12.5px;">💳 Kartla Öde</button>
+                <button onclick="state.kp_paymethod = 'bank'; render();" style="border:${payMethod === 'bank' ? '2px solid #174C3B' : '1px solid #cbd5e1'}; background:${payMethod === 'bank' ? '#f0fdf4' : '#fff'}; color:#1e293b; padding:16px; border-radius:12px; text-align:center; cursor:pointer; font-weight:700; font-size:12.5px;">🏦 EFT/Havale</button>
+                <button onclick="state.kp_paymethod = 'mobile'; render();" style="border:${payMethod === 'mobile' ? '2px solid #174C3B' : '1px solid #cbd5e1'}; background:${payMethod === 'mobile' ? '#f0fdf4' : '#fff'}; color:#1e293b; padding:16px; border-radius:12px; text-align:center; cursor:pointer; font-weight:700; font-size:12.5px;">📱 Mobil Ödeme</button>
+              </div>
+            </div>
+
+            <!-- Step 3: Payment Details -->
+            <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:32px; box-shadow:0 10px 25px rgba(0,0,0,0.01);">
+              <h3 style="font-size:1.3rem; font-weight:800; color:#174C3B; margin:0 0 20px;">3. Güvenlik & Kart Bilgileri</h3>
+              
+              ${payMethod === 'credit' ? `
+                <div style="background:#174C3B; color:#fff; border-radius:20px; padding:24px; margin-bottom:20px; box-shadow:0 10px 20px rgba(23,76,59,0.15); display:flex; flex-direction:column; gap:16px;">
+                  <div>
+                    <label style="display:block; font-size:11px; opacity:0.8; font-weight:700; margin-bottom:4px; text-transform:uppercase;">Kart Numarası</label>
+                    <input type="text" value="${esc(card.number)}" oninput="state.kp_card = state.kp_card || {}; state.kp_card.number = this.value; render();" placeholder="1234 5678 9012 3456" style="width:100%; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:8px; padding:12px; color:#fff; font-size:14px; font-weight:700; outline:none; box-sizing:border-box;" />
+                  </div>
+                  <div style="display:grid; grid-template-columns:1.2fr 0.8fr; gap:16px;">
+                    <div>
+                      <label style="display:block; font-size:11px; opacity:0.8; font-weight:700; margin-bottom:4px; text-transform:uppercase;">Son Kullanma (AA/YY)</label>
+                      <input type="text" value="${esc(card.expiry)}" oninput="state.kp_card = state.kp_card || {}; state.kp_card.expiry = this.value; render();" placeholder="08/28" style="width:100%; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:8px; padding:12px; color:#fff; font-size:14px; font-weight:700; outline:none; box-sizing:border-box;" />
+                    </div>
+                    <div>
+                      <label style="display:block; font-size:11px; opacity:0.8; font-weight:700; margin-bottom:4px; text-transform:uppercase;">CVC/CVV</label>
+                      <input type="text" value="${esc(card.cvv)}" oninput="state.kp_card = state.kp_card || {}; state.kp_card.cvv = this.value; render();" placeholder="123" style="width:100%; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:8px; padding:12px; color:#fff; font-size:14px; font-weight:700; outline:none; box-sizing:border-box;" />
+                    </div>
+                  </div>
+                  <div>
+                    <label style="display:block; font-size:11px; opacity:0.8; font-weight:700; margin-bottom:4px; text-transform:uppercase;">Kart Üzerindeki İsim</label>
+                    <input type="text" value="${esc(card.name)}" oninput="state.kp_card = state.kp_card || {}; state.kp_card.name = this.value; render();" placeholder="KART SAHİBİNİN ADI" style="width:100%; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.25); border-radius:8px; padding:12px; color:#fff; font-size:14px; font-weight:700; outline:none; box-sizing:border-box;" />
+                  </div>
+                </div>
+              ` : ''}
+
+              ${payMethod === 'bank' ? `
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:12px; margin-bottom:20px;">
+                  <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:#64748b; font-weight:700;">Banka:</span><span style="font-weight:800; color:#1e293b;">Kuveyt Türk Katılım Bankası</span></div>
+                  <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:#64748b; font-weight:700;">Hesap Sahibi:</span><span style="font-weight:800; color:#1e293b;">Kardeşlik Payı Derneği</span></div>
+                  <div style="display:flex; justify-content:space-between; font-size:13px;"><span style="color:#64748b; font-weight:700;">IBAN:</span><span style="font-weight:800; color:#166534; font-family:monospace;">TR12 0006 2000 0001 2345 6789 01</span></div>
+                  <div style="background:#fef3c7; color:#92400e; padding:12px; border-radius:8px; font-size:11.5px; line-height:1.5;"><b>Lütfen Dikkat:</b> EFT veya Havale yaparken açıklama kısmına <b>Bağışçı Adını ve Telefonunu</b> yazmayı unutmayınız.</div>
+                </div>
+              ` : ''}
+
+              ${payMethod === 'mobile' ? `
+                <div style="margin-bottom:20px;">
+                  <label style="display:block; font-size:12px; font-weight:700; color:#475569; margin-bottom:6px;">GSM Numaranız *</label>
+                  <input type="tel" placeholder="05xx xxx xx xx" style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                  <p style="font-size:11px; color:#64748b; margin-top:6px; line-height:1.4;">Bağış tutarı faturanıza yansıtılacak veya TL bakiyenizden düşülecektir. Gelen SMS'i onaylamanız gerekmektedir.</p>
+                </div>
+              ` : ''}
+
+              <!-- Submit button action wrapper -->
+              <button onclick="state.kp_loading = true; render(); setTimeout(() => { state.kp_loading = false; state.kp_completed = true; render(); }, 1500);" style="display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:#93740C; color:#fff; border:0; padding:16px; border-radius:12px; font-weight:800; font-size:16px; cursor:pointer; box-shadow:0 8px 25px rgba(147,116,12,0.25);">
+                ${loading ? 'İşleniyor...' : `Güvenli Ödeme Yap (₺${amount}) ➔`}
+              </button>
+            </div>
+
+          </div>
+
+          <!-- Right Summary Card -->
+          <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:32px; box-shadow:0 10px 25px rgba(0,0,0,0.01); position:sticky; top:110px;">
+            <h3 style="font-size:1.3rem; font-weight:800; color:#174C3B; margin:0 0 20px; border-bottom:1px solid #f1f5f9; padding-bottom:12px;">Bağış Özeti</h3>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:14px; margin-bottom:16px;">
+              <span style="color:#64748b; font-weight:700;">Kampanya:</span>
+              <span style="font-weight:800; color:#1e293b; text-align:right;">${esc(c.title)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:14px; margin-bottom:20px;">
+              <span style="color:#64748b; font-weight:700;">Kategori:</span>
+              <span style="font-weight:800; color:#1e293b;">${esc(labels[c.category] || c.category)}</span>
+            </div>
+            <div style="border-top:1px solid #f1f5f9; padding-top:16px; display:flex; justify-content:space-between; align-items:center; font-size:16px; font-weight:900; color:#174C3B; margin-bottom:24px;">
+              <span>TOPLAM TUTAR:</span>
+              <span>₺${amount}</span>
+            </div>
+            <div style="background:#f8fafc; border-radius:12px; padding:16px; border:1px solid #f1f5f9; display:flex; flex-direction:column; gap:10px; font-size:12px; color:#64748b;">
+              <div>🔒 256-Bit SSL Güvenli Bağlantı</div>
+              <div>✓ Resmi Onaylı Yardım Kuruluşu</div>
+              <div>⚡ Anında Makbuz & Şeffaf Süreç</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+
+  cart(o) {
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
+      ${this.headerHtml(o)}
+      
+      <main style="flex:1; max-width:800px; width:100%; margin:0 auto; padding:60px 24px; box-sizing:border-box;">
+        <h1 style="font-size:2.2rem; font-weight:900; color:#174C3B; margin:0 0 24px;">Bağış Sepetim</h1>
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:40px; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.02);">
+          <div style="width:70px; height:70px; background:#f0fdf4; color:#0f766e; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; margin:0 auto 20px;">🛒</div>
+          <p style="font-size:14.5px; color:#64748b; line-height:1.6; margin-bottom:28px;">Sepetiniz şu anda boş. Bağış eklemek için projeler veya online bağış sayfasını ziyaret edebilirsiniz.</p>
+          <a href="#/demo/${o.slug}/bagis/acil-yardim" style="display:inline-block; background:#174C3B; color:#fff; text-decoration:none; padding:14px 28px; border-radius:12px; font-weight:700; font-size:13.5px; box-shadow:0 6px 15px rgba(23,76,59,0.25);">Online Bağış Sayfası ➔</a>
+        </div>
+      </main>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+
+  basvuru(o) {
+    const sub = !!state.kp_sub_app;
+    if (sub) {
+      return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
+        ${this.headerHtml(o)}
+        <main style="flex:1; display:flex; align-items:center; justify-content:center; padding:60px 24px;">
+          <div style="max-width:480px; width:100%; background:#fff; border-radius:24px; box-shadow:0 20px 40px rgba(0,0,0,0.05); border:1px solid #e2e8f0; padding:40px; text-align:center;">
+            <div style="width:80px; height:80px; background:#f0fdf4; color:#166534; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2.5rem; margin:0 auto 24px;">✓</div>
+            <h2 style="font-size:1.8rem; font-weight:900; color:#1e293b; margin:0 0 12px;">Başvurunuz Alındı!</h2>
+            <p style="font-size:14px; color:#64748b; line-height:1.6; margin-bottom:32px;">Kayıt başvurunuz başarıyla alınmıştır. İnceleme sonrasında sizinle 3 iş günü içinde irtibat kurulacaktır.<br><b>Başvuru No:</b> <span style="font-weight:700; color:#174C3B;">#KP-202501</span></p>
+            <a href="#/demo/${o.slug}" style="display:block; background:#174C3B; color:#fff; text-decoration:none; padding:14px; border-radius:12px; font-weight:700; font-size:14px;">Ana Sayfaya Dön</a>
+          </div>
+        </main>
+        ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+      </div>`;
+    }
+
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #0d1b1e, #174C3B); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.5rem; font-weight:900; margin:0 0 8px;">Kayıt Başvuru Formu</h1>
+          <p style="font-size:14px; color:#cbd5e1; margin:0;">Medresemizde İslami eğitim ve hafızlık programlarımıza başvuru yapın.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:800px; margin:0 auto;">
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:36px; box-shadow:0 10px 25px rgba(0,0,0,0.02);">
+          
+          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:36px; text-align:center;">
+            <div style="padding:8px; border-bottom:3px solid #174C3B; font-weight:700; font-size:12px; color:#174C3B;">1. Başvuru</div>
+            <div style="padding:8px; border-bottom:3px solid #cbd5e1; font-weight:700; font-size:12px; color:#64748b;">2. İnceleme</div>
+            <div style="padding:8px; border-bottom:3px solid #cbd5e1; font-weight:700; font-size:12px; color:#64748b;">3. Mülakat</div>
+            <div style="padding:8px; border-bottom:3px solid #cbd5e1; font-weight:700; font-size:12px; color:#64748b;">4. Kayıt</div>
+          </div>
+
+          <form onsubmit="event.preventDefault(); state.kp_sub_app = true; render();" style="display:flex; flex-direction:column; gap:20px;">
+            <div>
+              <h4 style="font-size:14px; font-weight:800; color:#174C3B; margin:0 0 12px; border-left:3px solid #174C3B; padding-left:8px;">Öğrenci Bilgileri</h4>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:12px;">
+                <input type="text" placeholder="Öğrenci Adı Soyadı *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                <input type="date" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+              </div>
+            </div>
+
+            <div>
+              <h4 style="font-size:14px; font-weight:800; color:#174C3B; margin:0 0 12px; border-left:3px solid #174C3B; padding-left:8px;">Veli / Vasi Bilgileri</h4>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:12px;">
+                <input type="text" placeholder="Veli Adı Soyadı *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                <input type="tel" placeholder="Telefon Numarası *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:12px;">
+                <input type="email" placeholder="E-Posta Adresi *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+                <input type="text" placeholder="İkamet Adresi *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+              </div>
+            </div>
+
+            <div>
+              <h4 style="font-size:14px; font-weight:800; color:#174C3B; margin:0 0 12px; border-left:3px solid #174C3B; padding-left:8px;">Bölüm Tercihi</h4>
+              <select required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;">
+                <option value="">Bölüm seçiniz... *</option>
+                <option value="sibyan">Sıbyan Mektebi (4-7 yaş)</option>
+                <option value="ibtida">İbtida Sınıfı (8-12 yaş)</option>
+                <option value="hafizlik">Hafızlık Eğitimi (7+ yaş)</option>
+                <option value="arapca">Arapça & İslami İlimler (10+ yaş)</option>
+              </select>
+            </div>
+
+            <button type="submit" style="background:#174C3B; color:#fff; border:0; padding:16px; border-radius:12px; font-weight:800; font-size:15px; cursor:pointer; box-shadow:0 6px 15px rgba(23,76,59,0.2);">Başvuruyu Tamamla</button>
+          </form>
+
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+
+  activities(o, list) {
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #0d1b1e, #174C3B); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.5rem; font-weight:900; margin:0 0 8px;">Faaliyetlerimiz</h1>
+          <p style="font-size:14px; color:#cbd5e1; margin:0;">Afrika'da yürüttüğümüz kurban, eğitim ve insani yardım faaliyetlerimiz.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:1100px; margin:0 auto; display:grid; grid-template-columns:1fr; gap:32px;">
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:32px;">
+          <h2 style="font-size:1.6rem; font-weight:800; color:#174C3B; margin:0 0 16px;">Kurban Hizmetleri</h2>
+          <p style="font-size:13.5px; color:#64748b; line-height:1.6; margin-bottom:20px;">Afrika genelinde 20'den fazla ülkede kesim ve dağıtım gerçekleştirerek mazlum kardeşlerimize ulaşıyoruz.</p>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
+            ${['Somali', 'Nijer', 'Sudan', 'Mali', 'Gambiya', 'Senegal', 'Çad', 'Gana'].map(c => `
+              <div style="background:#f8fafc; border:1px solid #f1f5f9; padding:12px; border-radius:8px; text-align:center; font-weight:700; font-size:13px; color:#1e293b;">${c}</div>
+            `).join('')}
+          </div>
+        </div>
+        
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:32px;">
+          <h2 style="font-size:1.6rem; font-weight:800; color:#174C3B; margin:0 0 16px;">Medrese Destekleri</h2>
+          <p style="font-size:13.5px; color:#64748b; line-height:1.6; margin-bottom:16px;">Talebelerimizin barınma, gıda, Kur'an ve kırtasiye ihtiyaçlarını karşılıyoruz.</p>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:16px;">
+            <div style="border:1px solid #f1f5f9; padding:16px; border-radius:12px; background:#f8fafc;">
+              <h4 style="font-weight:800; color:#174C3B; margin:0 0 4px; font-size:13.5px;">📖 Kur'an Yardımı</h4>
+              <p style="font-size:12px; color:#64748b; margin:0;">Öğrencilere Kur'an-ı Kerim mushafları ulaştırıyoruz.</p>
+            </div>
+            <div style="border:1px solid #f1f5f9; padding:16px; border-radius:12px; background:#f8fafc;">
+              <h4 style="font-weight:800; color:#174C3B; margin:0 0 4px; font-size:13.5px;">🍱 Yemek Dağıtımı</h4>
+              <p style="font-size:12px; color:#64748b; margin:0;">Sıcak yemek ve iftar programları gerçekleştiriyoruz.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+
+  accounts(o) {
+    const copied = state.kp_copied_iban || null;
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #0d1b1e, #174C3B); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.5rem; font-weight:900; margin:0 0 8px;">Hesap Numaralarımız</h1>
+          <p style="font-size:14px; color:#cbd5e1; margin:0;">Banka transferi (EFT/Havale) yoluyla resmi hesaplarımıza bağış yapabilirsiniz.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:900px; margin:0 auto;">
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:32px; box-shadow:0 10px 25px rgba(0,0,0,0.01);">
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            ${[
+              { bank: 'Vakıf Katılım', iban: 'TR12 0006 2000 0001 2345 6789 01', branch: 'Merkez Şubesi' },
+              { bank: 'Ziraat Katılım', iban: 'TR34 0001 5000 0002 3456 7890 12', branch: 'Fatih Şubesi' }
+            ].map((acc, idx) => `
+              <div style="border:1px solid #e2e8f0; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:8px; background:#f8fafc;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <b style="color:#174C3B; font-size:14px;">${acc.bank} (${acc.branch})</b>
+                  <button onclick="navigator.clipboard.writeText('${acc.iban.replace(/\s+/g, '')}'); state.kp_copied_iban = '${idx}'; render(); setTimeout(() => { state.kp_copied_iban = null; render(); }, 1500);" style="background:#174C3B; color:#fff; border:0; padding:6px 12px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700;">
+                    ${copied === idx.toString() ? 'Kopyalandı!' : 'Kopyala'}
+                  </button>
+                </div>
+                <code style="font-family:monospace; font-size:14px; color:#1e293b; background:#fff; padding:10px; border:1px solid #e2e8f0; border-radius:8px; letter-spacing:1px; word-break:break-all;">${acc.iban}</code>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+
+  gonullu(o) {
+    const sub = !!state.kp_sub_gonullu;
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh; display:flex; flex-direction:column; justify-content:space-between;">
+      ${this.headerHtml(o)}
+      
+      <main style="flex:1; max-width:550px; width:100%; margin:0 auto; padding:60px 24px; box-sizing:border-box;">
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:36px; box-shadow:0 10px 30px rgba(0,0,0,0.02);">
+          ${sub ? `
+            <div style="text-align:center;">
+              <div style="width:70px; height:70px; background:#f0fdf4; color:#166534; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; margin:0 auto 20px;">✓</div>
+              <h3 style="font-size:1.5rem; font-weight:900; color:#1e293b; margin:0 0 8px;">Başvurunuz Alındı</h3>
+              <p style="font-size:13.5px; color:#64748b; line-height:1.6; margin-bottom:24px;">Gönüllü katılım formunuz başarıyla iletilmiştir. Kardeşlik köprümüze verdiğiniz destek için teşekkür ederiz.</p>
+              <a href="#/demo/${o.slug}" style="display:inline-block; background:#174C3B; color:#fff; text-decoration:none; padding:12px 24px; border-radius:8px; font-weight:700; font-size:13px;">Ana Sayfaya Dön</a>
+            </div>
+          ` : `
+            <h2 style="font-size:1.6rem; font-weight:900; color:#174C3B; text-align:center; margin:0 0 8px;">Gönüllü Ol</h2>
+            <p style="font-size:12px; color:#64748b; text-align:center; margin-bottom:24px;">Sosyal sorumluluk ve medrese faaliyetlerimizde gönüllü olarak yer alabilirsiniz.</p>
+            <form onsubmit="event.preventDefault(); state.kp_sub_gonullu = true; render();" style="display:flex; flex-direction:column; gap:16px;">
+              <input type="text" placeholder="Ad Soyad *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+              <input type="email" placeholder="E-Posta *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+              <input type="tel" placeholder="Telefon Numarası *" required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;" />
+              <select required style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; outline:none; box-sizing:border-box;">
+                <option value="">İlgi Alanı Seçin *</option>
+                <option value="egitim">Eğitim & Medrese</option>
+                <option value="saglik">Sağlık & Gıda</option>
+                <option value="lojistik">Sosyal Medya & Tanıtım</option>
+              </select>
+              <textarea placeholder="Gönüllü olarak nasıl destek olabilirsiniz?..." style="width:100%; border:1px solid #cbd5e1; padding:12px; border-radius:8px; font-size:13px; height:80px; outline:none; font-family:sans-serif; box-sizing:border-box;"></textarea>
+              <button type="submit" style="background:#174C3B; color:#fff; border:0; padding:14px; border-radius:8px; font-weight:800; font-size:14.5px; cursor:pointer; box-shadow:0 4px 12px rgba(23,76,59,0.2);">Başvuruyu Gönder</button>
+            </form>
+          `}
+        </div>
+      </main>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
+  },
+
+  gizlilik(o) {
+    return `<div class="site" data-theme="kardeslikpayi" style="--p:#174C3B;--a:#93740C; font-family:'Outfit', sans-serif; background:#f8fafc; min-height:100vh;">
+      ${this.headerHtml(o)}
+      
+      <section style="background:linear-gradient(135deg, #0d1b1e, #174C3B); color:#fff; padding:60px 24px; text-align:center;">
+        <div style="max-width:800px; margin:0 auto;">
+          <h1 style="font-size:2.5rem; font-weight:900; margin:0 0 8px;">Gizlilik Politikası</h1>
+          <p style="font-size:14px; color:#cbd5e1; margin:0;">Kişisel verilerinizin korunması ve güvenliği esaslarımız.</p>
+        </div>
+      </section>
+
+      <section style="padding:48px 24px; max-width:800px; margin:0 auto;">
+        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:24px; padding:36px; box-shadow:0 10px 25px rgba(0,0,0,0.01); line-height:1.6; font-size:13.5px; color:#475569;">
+          <h3 style="color:#174C3B; font-weight:800; font-size:1.15rem; margin-top:0;">1. Veri Sorumlusu</h3>
+          <p style="margin-bottom:20px;">Kişisel verileriniz, Kardeşlik Payı Derneği tarafından 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) kapsamında veri sorumlusu sıfatıyla işlenmektedir.</p>
+          
+          <h3 style="color:#174C3B; font-weight:800; font-size:1.15rem;">2. Toplanan Veriler</h3>
+          <p style="margin-bottom:20px;">Kayıt, bağış veya iletişim formları aracılığıyla adınız, soyadınız, telefon numaranız, e-posta adresiniz ve ödeme bilgileriniz yasal yükümlülüklerimiz ve bağış süreçlerinizin takibi amacıyla güvenli sunucularda işlenmektedir.</p>
+
+          <h3 style="color:#174C3B; font-weight:800; font-size:1.15rem;">3. Verilerin Güvenliği</h3>
+          <p style="margin:0;">Toplanan tüm veriler SSL şifreleme sertifikası ve veri tabanı koruma önlemleri ile güvence altına alınmakta, üçüncü şahıslarla rızanız dışında kesinlikle paylaşılmamaktadır.</p>
+        </div>
+      </section>
+
+      ${themeFooter(o, { bg: '#0a1416', font: "'Outfit', sans-serif" })}
+    </div>`;
   }
 };
 

@@ -35,7 +35,8 @@ function route() {
     if (parts[0] === "admin") return { name: "admin" };
     if (parts[0] === "bagisci") return { name: "donor" };
     
-    if (section === "bagis" || section === "hakkimizda" || section === "iletisim" || section === "faaliyetlerimiz" || section === "projelerimiz") {
+    const allowed = ["bagis", "hakkimizda", "iletisim", "faaliyetlerimiz", "projelerimiz", "sepet", "basvuru", "bolumler", "duyurular", "hesap-numaralarimiz", "portal", "gonullu-ol", "gizlilik-politikasi"];
+    if (allowed.includes(section)) {
       return { name: "demo", slug, section, item };
     }
     return { name: "demo", slug, section: "home", item: "" };
@@ -915,7 +916,53 @@ function contactSite(o) {
 function demoSite(slug) {
   const o = org(slug);
   const list = campaigns(slug);
-  if (state.route.section === "bagis") return donationPage(o, list.find((c) => c.slug === state.route.item) || list[0]);
+  if (state.route.section === "bagis") {
+    const campaign = list.find((c) => c.slug === state.route.item) || list[0];
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].checkout) {
+      return shell(themeLayouts[o.theme].checkout(o, campaign));
+    }
+    return donationPage(o, campaign);
+  }
+  if (state.route.section === "sepet") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].cart) {
+      return shell(themeLayouts[o.theme].cart(o));
+    }
+  }
+  if (state.route.section === "basvuru") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].basvuru) {
+      return shell(themeLayouts[o.theme].basvuru(o));
+    }
+  }
+  if (state.route.section === "bolumler") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].bolumler) {
+      return shell(themeLayouts[o.theme].bolumler(o));
+    }
+  }
+  if (state.route.section === "duyurular") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].duyurular) {
+      return shell(themeLayouts[o.theme].duyurular(o));
+    }
+  }
+  if (state.route.section === "hesap-numaralarimiz") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].accounts) {
+      return shell(themeLayouts[o.theme].accounts(o));
+    }
+  }
+  if (state.route.section === "portal") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].portal) {
+      return shell(themeLayouts[o.theme].portal(o));
+    }
+  }
+  if (state.route.section === "gonullu-ol") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].gonullu) {
+      return shell(themeLayouts[o.theme].gonullu(o));
+    }
+  }
+  if (state.route.section === "gizlilik-politikasi") {
+    if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].gizlilik) {
+      return shell(themeLayouts[o.theme].gizlilik(o));
+    }
+  }
   if (state.route.section === "hakkimizda") {
     if (typeof themeLayouts !== 'undefined' && themeLayouts[o.theme] && themeLayouts[o.theme].about) {
       return shell(themeLayouts[o.theme].about(o, list));
