@@ -21,6 +21,9 @@ from app.models.subscription import Subscription
 from app.models.student import Student
 from app.models.student_progress import StudentProgress
 from app.models.expense import Expense
+from app.models.donor_note import DonorNote
+from app.models.sms_template import SmsTemplate
+from app.models.audit_log import AuditLog
 
 config = context.config
 
