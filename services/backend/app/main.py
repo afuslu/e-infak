@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.middleware.tenant import TenantMiddleware
-from app.api.v1 import campaigns, auth, donations, kurban, orphans
+from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -28,6 +28,8 @@ app.include_router(campaigns.router, prefix="/api/v1")
 app.include_router(donations.router, prefix="/api/v1")
 app.include_router(kurban.router, prefix="/api/v1")
 app.include_router(orphans.router, prefix="/api/v1")
+app.include_router(donor_portal.router, prefix="/api/v1")
+app.include_router(parent_portal.router, prefix="/api/v1")
 
 
 @app.get("/health")

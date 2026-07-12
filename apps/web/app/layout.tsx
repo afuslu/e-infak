@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter, Outfit, Playfair_Display } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
+import { DonationCart } from '../components/DonationCart'
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -31,7 +32,10 @@ export default function RootLayout({
   return (
     <html lang="tr" className={`${inter.variable} ${outfit.variable} ${playfair.variable}`}>
       <body className={inter.className}>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <DonationCart />
+        </Providers>
       </body>
     </html>
   )

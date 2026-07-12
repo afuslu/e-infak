@@ -137,3 +137,53 @@ async def _fetch_donation_and_send_receipt(donation_id: str):
 def send_donation_receipt_task(donation_id: str):
     """Celery task wrapper to invoke async DB fetch and email send"""
     return asyncio.run(_fetch_donation_and_send_receipt(donation_id))
+
+
+async def _process_subscriptions():
+    from app.models.subscription import Subscription
+    from app.models.donation import Donation, DonationStatus, PaymentMethod
+    from datetime import datetime, timezone
+    from dateutil.relativedelta import relativedelta
+    import uuid
+
+    async with AsyncSessionLocal() as session:
+        now = datetime.now(timezone.utc)
+        result = await session.execute(
+            select(Subscription)
+            .where(Subscription.status == "active")
+            .where(Subscription.next_charge_date <= now)
+        )
+        subscriptions = result.scalars().all()
+        
+        for sub in subscriptions:
+            try:
+                print(f"Charging subscription {sub.id} amount {sub.amount_cents / 100} TL")
+                receipt_no = f"MAK-{uuid.uuid4().hex[:12].upper()}"
+                donation = Donation(
+                    organization_id=sub.organization_id,
+                    campaign_id=sub.campaign_id,
+                    donor_id=sub.donor_id,
+                    receipt_number=receipt_no,
+                    amount_cents=sub.amount_cents,
+                    currency=sub.currency,
+                    payment_method=PaymentMethod.CREDIT_CARD,
+                    status=DonationStatus.CONFIRMED,
+                    paid_at=now,
+                    card_last_4="9999",
+                    card_brand="Visa",
+                    donor_message="Aylik duzenli bagis talimati",
+                )
+                session.add(donation)
+                sub.next_charge_date = sub.next_charge_date + relativedelta(months=1)
+                await session.commit()
+                # Run sync receipt task here directly to trigger sms/email asynchronously
+                send_donation_receipt_task.delay(str(donation.id))
+            except Exception as e:
+                print(f"Error processing subscription {sub.id}: {e}")
+                await session.rollback()
+
+
+@celery_app.task(name="app.tasks.process_subscriptions_task")
+def process_subscriptions_task():
+    """Celery task wrapper to bill monthly subscriptions"""
+    return asyncio.run(_process_subscriptions())

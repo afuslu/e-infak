@@ -17,6 +17,9 @@ from app.models.campaign import Campaign
 from app.models.donation import Donation, Donor
 from app.models.kurban import KurbanCampaign, KurbanAnimal, KurbanShare
 from app.models.orphan import Orphan, OrphanSponsorship
+from app.models.subscription import Subscription
+from app.models.student import Student
+from app.models.student_progress import StudentProgress
 
 config = context.config
 
