@@ -20,6 +20,7 @@ from app.models.orphan import Orphan, OrphanSponsorship
 from app.models.subscription import Subscription
 from app.models.student import Student
 from app.models.student_progress import StudentProgress
+from app.models.expense import Expense
 
 config = context.config
 
