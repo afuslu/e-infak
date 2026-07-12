@@ -107,6 +107,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </li>
             <li>
               <Link
+                href="/admin/students"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                🎓 Öğrenci Sponsorluk
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/admin/banners"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                📢 Duyuru Banner'ları
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/admin/subscriptions"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                💳 Düzenli Ödemeler
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/admin/zakat"
                 className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
               >
