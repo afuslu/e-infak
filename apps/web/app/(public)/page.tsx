@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   title: 'Ana Sayfa | E-İnfak',
 }
 
+export const dynamic = 'force-dynamic'
+
 export default function HomePage() {
   return (
     <div className="min-h-screen">
