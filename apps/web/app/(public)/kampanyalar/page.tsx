@@ -1,5 +1,5 @@
 import { Metadata } from 'next'
-import { CampaignList } from '@/components/campaign/CampaignList'
+import { CampaignList } from '../../../components/campaign/CampaignList'
 
 export const metadata: Metadata = {
   title: 'Kampanyalar | E-İnfak',
