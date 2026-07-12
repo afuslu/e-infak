@@ -3,24 +3,27 @@ import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
+  const url = new URL(request.url)
   
-  // Extract organization slug from hostname
-  let orgSlug = 'default'
+  // Extract organization slug from hostname or query param
+  let orgSlug = url.searchParams.get('org') || ''
   
-  // Custom domain mapping
-  if (hostname.includes('hicretdernegi.org')) {
-    orgSlug = 'hicret-dernegi'
-  } else if (hostname.includes('kardeslikpayi.org')) {
-    orgSlug = 'kardeslik-payi'
-  } else if (hostname.includes('e-infak.org')) {
-    // Subdomain routing: tenant.e-infak.org
-    const subdomain = hostname.split('.')[0]
-    if (subdomain && subdomain !== 'www' && subdomain !== 'e-infak') {
-      orgSlug = subdomain
+  if (!orgSlug) {
+    // Custom domain mapping
+    if (hostname.includes('hicretdernegi.org')) {
+      orgSlug = 'hicret-dernegi'
+    } else if (hostname.includes('kardeslikpayi.org')) {
+      orgSlug = 'kardeslik-payi'
+    } else if (hostname.includes('e-infak.org')) {
+      // Subdomain routing: tenant.e-infak.org
+      const subdomain = hostname.split('.')[0]
+      if (subdomain && subdomain !== 'www' && subdomain !== 'e-infak') {
+        orgSlug = subdomain
+      }
+    } else if (hostname.includes('localhost')) {
+      // Default dev tenant
+      orgSlug = 'hicret-dernegi'
     }
-  } else if (hostname.includes('localhost')) {
-    // For development, allow localhost with port
-    orgSlug = 'hicret-dernegi' // Default for development
   }
 
   // Set organization context in headers for backend requests

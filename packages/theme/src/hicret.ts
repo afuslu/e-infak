@@ -4,40 +4,40 @@ export const hicretTheme: ThemeConfig = {
   slug: 'hicret-dernegi',
   name: 'Hicret Derneği',
   primaryColor: {
-    // Emerald/Green - #065f46 base
-    50: '#ecfdf5',
-    100: '#d1fae5',
-    200: '#a7f3d0',
-    300: '#6ee7b7',
-    400: '#34d399',
-    500: '#10b981',
-    600: '#065f46', // Main brand color
-    700: '#047857',
-    800: '#065f46',
-    900: '#064e3b',
-    950: '#022c22',
+    // Forest Green / Kubbe Yeşili (#1B5E20)
+    50: '#e8f5e9',
+    100: '#c8e6c9',
+    200: '#a5d6a7',
+    300: '#81c784',
+    400: '#66bb6a',
+    500: '#4caf50',
+    600: '#1b5e20', // Main brand color (Logodaki kubbe yeşili)
+    700: '#388e3c',
+    800: '#2e7d32',
+    900: '#1b5e20',
+    950: '#0d2c10',
   },
   accentColor: {
-    // Sky Blue - #0284c7 base
-    50: '#f0f9ff',
-    100: '#e0f2fe',
-    200: '#bae6fd',
-    300: '#7dd3fc',
-    400: '#38bdf8',
-    500: '#0ea5e9',
-    600: '#0284c7', // Main accent color
-    700: '#0369a1',
-    800: '#075985',
-    900: '#0c4a6e',
-    950: '#082f49',
+    // Antique Gold / Vurgu Altın Rengi (#D4AF37)
+    50: '#fdfbf2',
+    100: '#faf6db',
+    200: '#f3e9b1',
+    300: '#ebd87e',
+    400: '#e3c552',
+    500: '#d4af37', // Main accent color (Geleneksel altın yaldız)
+    600: '#b5902b',
+    700: '#917120',
+    800: '#6e5218',
+    900: '#4b360f',
+    950: '#312207',
   },
   logo: {
     light: '/images/hicret/logo.png',
-    icon: '/images/hicret/indir.png',
+    icon: '/images/hicret/logooo.png', // cropped transparent logo
   },
   fonts: {
     primary: 'Inter',
-    heading: 'Outfit',
+    heading: 'var(--font-playfair)', // custom font setup
   },
   meta: {
     title: 'Hicret Derneği - Bağış Platformu',
