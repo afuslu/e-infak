@@ -13,6 +13,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
     """
     
     async def dispatch(self, request: Request, call_next):
+        # Bypass health check and API documentation endpoints
+        if request.url.path == "/health" or request.url.path in ["/docs", "/redoc", "/openapi.json"]:
+            return await call_next(request)
+            
         # Get hostname from request
         hostname = request.headers.get("host", "").split(":")[0]
         
