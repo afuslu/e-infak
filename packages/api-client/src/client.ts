@@ -105,6 +105,9 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
 
 export function getApiClient(): ApiClient {
   if (!defaultClient) {
+    if (typeof window === 'undefined') {
+      return new ApiClient({ baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000' })
+    }
     throw new Error('API client not initialized. Call createApiClient first.')
   }
   return defaultClient
