@@ -27,6 +27,9 @@ from app.models.audit_log import AuditLog
 from app.models.zakat_setting import ZakatSetting
 from app.models.student_sponsorship import StudentSponsorship
 from app.models.banner import Banner
+from app.models.api_key import ApiKey
+from app.models.webhook_setting import WebhookSetting
+from app.models.water_well import WaterWell
 
 config = context.config
 

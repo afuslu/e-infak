@@ -99,6 +99,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </li>
             <li>
               <Link
+                href="/admin/broadcast"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                💬 Toplu SMS Gönder
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/admin/kurban"
                 className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
               >
@@ -111,6 +119,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
               >
                 🎓 Öğrenci Sponsorluk
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/admin/wells"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                📍 Su Kuyusu Takibi
               </Link>
             </li>
             <li>
@@ -135,6 +151,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
               >
                 🪙 Zekat Ayarları
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/admin/integrations"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                🔌 Webhook & API Key
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/admin/ai"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                🧠 AI Tahmin Motoru
               </Link>
             </li>
             <li>
