@@ -2,49 +2,41 @@ import type { Config } from 'tailwindcss'
 
 const config: Config = {
   content: [
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
-    '../../packages/ui/src/**/*.{js,ts,jsx,tsx,mdx}',
+    './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       colors: {
-        // Theme colors will be injected dynamically via CSS variables
         primary: {
-          50: 'var(--color-primary-50)',
-          100: 'var(--color-primary-100)',
-          200: 'var(--color-primary-200)',
-          300: 'var(--color-primary-300)',
-          400: 'var(--color-primary-400)',
-          500: 'var(--color-primary-500)',
-          600: 'var(--color-primary-600)',
-          700: 'var(--color-primary-700)',
-          800: 'var(--color-primary-800)',
-          900: 'var(--color-primary-900)',
-          950: 'var(--color-primary-950)',
+          50: '#ecfdf5',
+          100: '#d1fae5',
+          200: '#a7f3d0',
+          300: '#6ee7b7',
+          400: '#34d399',
+          500: '#10b981',
+          600: '#065f46',
+          700: '#047857',
+          800: '#065f46',
+          900: '#064e3b',
+          950: '#022c22',
         },
         accent: {
-          50: 'var(--color-accent-50)',
-          100: 'var(--color-accent-100)',
-          200: 'var(--color-accent-200)',
-          300: 'var(--color-accent-300)',
-          400: 'var(--color-accent-400)',
-          500: 'var(--color-accent-500)',
-          600: 'var(--color-accent-600)',
-          700: 'var(--color-accent-700)',
-          800: 'var(--color-accent-800)',
-          900: 'var(--color-accent-900)',
-          950: 'var(--color-accent-950)',
+          50: '#f0f9ff',
+          100: '#e0f2fe',
+          200: '#bae6fd',
+          300: '#7dd3fc',
+          400: '#38bdf8',
+          500: '#0ea5e9',
+          600: '#0284c7',
+          700: '#0369a1',
+          800: '#075985',
+          900: '#0c4a6e',
+          950: '#082f49',
         },
-      },
-      fontFamily: {
-        sans: ['var(--font-primary)', 'sans-serif'],
-        heading: ['var(--font-heading)', 'sans-serif'],
       },
     },
   },
-  plugins: [],
 }
 
 export default config
