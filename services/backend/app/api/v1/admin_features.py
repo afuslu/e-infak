@@ -14,8 +14,10 @@ from app.models.donor_note import DonorNote
 from app.models.sms_template import SmsTemplate
 from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign
-from app.models.user import User
-from app.models.donation import Donor
+from app.models.user import User, UserRole
+from app.models.donation import Donor, Donation
+from app.models.kurban import KurbanAnimal, KurbanShare, KurbanStatus
+from app.models.zakat_setting import ZakatSetting
 from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -294,11 +296,247 @@ async def update_campaign_gallery(
     campaign.gallery_urls = payload.gallery_urls
     await db.commit()
     
+    return {"status": "success", "gallery_urls": campaign.gallery_urls}
+
+# --- Phase 3 Pydantic Schemas ---
+class KurbanAnimalUpdate(BaseModel):
+    status: KurbanStatus
+    video_url: Optional[str] = None
+
+class ZakatSettingUpdate(BaseModel):
+    gold_price_per_gram: float
+    nisap_amount_lira: float
+    is_auto_sync: bool
+
+class UserRoleUpdate(BaseModel):
+    role: UserRole
+
+# --- Phase 3: Kurban Animal Video & Status Management ---
+@router.get("/kurban/animals")
+async def list_kurban_animals(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(KurbanAnimal).where(KurbanAnimal.organization_id == org_id).order_by(KurbanAnimal.animal_number.asc())
+    res = await db.execute(query)
+    return res.scalars().all()
+
+@router.put("/kurban/animals/{animal_id}")
+async def update_kurban_animal(
+    request: Request,
+    animal_id: UUID,
+    payload: KurbanAnimalUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    
+    # 1. Fetch animal
+    query = select(KurbanAnimal).where(
+        KurbanAnimal.id == animal_id,
+        KurbanAnimal.organization_id == org_id
+    )
+    res = await db.execute(query)
+    animal = res.scalar_one_or_none()
+    if not animal:
+        raise HTTPException(status_code=404, detail="Kurban animal not found")
+        
+    # 2. Update status and video URL
+    animal.status = payload.status
+    if payload.video_url is not None:
+        animal.video_url = payload.video_url
+        
+    # 3. Propagate status to all associated shares
+    shares_query = select(KurbanShare).where(KurbanShare.animal_id == animal_id)
+    shares_res = await db.execute(shares_query)
+    shares = shares_res.scalars().all()
+    for share in shares:
+        share.status = payload.status
+        
+    await db.commit()
+    
     # Audit log
     await write_audit_log(
         db, org_id, current_user.id,
-        action="kampanya_galeri_guncelle",
-        details={"campaign_id": str(campaign_id), "campaign_title": campaign.title}
+        action="kurban_hayvan_guncelle",
+        details={"animal_id": str(animal_id), "animal_number": animal.animal_number, "status": payload.status}
     )
     
-    return {"status": "success", "gallery_urls": campaign.gallery_urls}
+    return {"status": "success", "animal": animal}
+
+# --- Phase 3: Zakat Settings Manager ---
+@router.get("/zakat-settings")
+async def get_zakat_settings(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(ZakatSetting).where(ZakatSetting.organization_id == org_id)
+    res = await db.execute(query)
+    setting = res.scalar_one_or_none()
+    
+    if not setting:
+        setting = ZakatSetting(
+            organization_id=org_id,
+            gold_price_per_gram=3000.0,
+            nisap_amount_lira=255000.0,
+            is_auto_sync=True
+        )
+        db.add(setting)
+        await db.commit()
+        await db.refresh(setting)
+        
+    return setting
+
+@router.put("/zakat-settings")
+async def update_zakat_settings(
+    request: Request,
+    payload: ZakatSettingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(ZakatSetting).where(ZakatSetting.organization_id == org_id)
+    res = await db.execute(query)
+    setting = res.scalar_one_or_none()
+    
+    if not setting:
+        setting = ZakatSetting(organization_id=org_id)
+        db.add(setting)
+        
+    setting.gold_price_per_gram = payload.gold_price_per_gram
+    setting.nisap_amount_lira = payload.nisap_amount_lira
+    setting.is_auto_sync = payload.is_auto_sync
+    
+    await db.commit()
+    await db.refresh(setting)
+    
+    # Audit log
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="zekat_ayari_guncelle",
+        details={"gold_price": payload.gold_price_per_gram, "nisap": payload.nisap_amount_lira}
+    )
+    
+    return setting
+
+# --- Phase 3: Staff & User Roles ---
+@router.get("/users")
+async def list_staff_users(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(User).where(User.organization_id == org_id).order_by(User.first_name.asc())
+    res = await db.execute(query)
+    return [
+        {
+            "id": str(u.id),
+            "first_name": u.first_name,
+            "last_name": u.last_name,
+            "email": u.email,
+            "role": u.role,
+            "is_active": u.is_active
+        }
+        for u in res.scalars().all()
+    ]
+
+@router.put("/users/{user_id}/role")
+async def update_user_role(
+    request: Request,
+    user_id: UUID,
+    payload: UserRoleUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    
+    # Check current user's role: only superadmins (PLATFORM_ADMIN, STK_ADMIN) can change roles
+    if current_user.role not in [UserRole.PLATFORM_ADMIN, UserRole.STK_ADMIN]:
+        raise HTTPException(status_code=403, detail="Only administrators can manage user roles")
+        
+    query = select(User).where(User.id == user_id, User.organization_id == org_id)
+    res = await db.execute(query)
+    user = res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    old_role = user.role
+    user.role = payload.role
+    await db.commit()
+    
+    # Audit log
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="kullanici_rol_guncelle",
+        details={"target_user_id": str(user_id), "target_email": user.email, "old_role": old_role, "new_role": payload.role}
+    )
+    
+    return {"status": "success", "role": user.role}
+
+# --- Phase 3: Receipt Digital QR Verification ---
+@router.get("/donations/{donation_id}/receipt")
+async def get_donation_receipt(
+    request: Request,
+    donation_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(Donation).where(Donation.id == donation_id, Donation.organization_id == org_id)
+    res = await db.execute(query)
+    donation = res.scalar_one_or_none()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
+        
+    # Generate digital verification signature checksum
+    import hashlib
+    verification_hash = hashlib.sha256(f"receipt-{donation.receipt_number}-{donation.amount_cents}".encode('utf-8')).hexdigest()[:16]
+    
+    return {
+        "donation_id": str(donation.id),
+        "receipt_number": donation.receipt_number,
+        "verification_hash": verification_hash,
+        "verify_url": f"https://e-infak.org/verify/receipt/{donation.receipt_number}"
+    }
+
+@router.get("/public-verify/receipt/{receipt_number}")
+async def public_verify_receipt(
+    receipt_number: str,
+    db: AsyncSession = Depends(get_db)
+):
+    # Public verification endpoint (doesn't require auth!)
+    query = (
+        select(Donation, Donor)
+        .join(Donor, Donation.donor_id == Donor.id)
+        .where(Donation.receipt_number == receipt_number, Donation.status == "confirmed")
+    )
+    res = await db.execute(query)
+    row = res.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Geçersiz makbuz numarası veya bağış onaylanmamış.")
+        
+    donation, donor = row
+    
+    # Obfuscate names for privacy (Ahmet Yılmaz -> A*** Y***)
+    def obfuscate(name: str):
+        if len(name) <= 1:
+            return name
+        return name[0] + "*" * (len(name) - 1)
+        
+    first_name_obf = obfuscate(donor.first_name)
+    last_name_obf = obfuscate(donor.last_name or "")
+    
+    return {
+        "status": "valid",
+        "receipt_number": donation.receipt_number,
+        "donor_name": f"{first_name_obf} {last_name_obf}".strip(),
+        "amount_lira": donation.amount_cents / 100,
+        "created_at": donation.created_at,
+        "payment_method": "Kredi Kartı" if donation.payment_method == "credit_card" else "Havale/EFT"
+    }
+

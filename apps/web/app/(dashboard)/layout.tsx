@@ -99,6 +99,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </li>
             <li>
               <Link
+                href="/admin/kurban"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                🐏 Kurban Takip
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/admin/zakat"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                🪙 Zekat Ayarları
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/admin/users"
+                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
+              >
+                👥 Personel Yetkileri
+              </Link>
+            </li>
+            <li>
+              <Link
                 href="/admin/logs"
                 className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
               >
