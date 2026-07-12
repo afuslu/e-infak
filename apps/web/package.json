@@ -33,6 +33,7 @@
     "@types/react-dom": "^19",
     "typescript": "^5",
     "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "^4.0.0",
     "postcss": "^8",
     "autoprefixer": "^10",
     "eslint": "^8",
