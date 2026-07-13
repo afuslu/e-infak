@@ -10,7 +10,13 @@ export class ApiClient {
   private accessToken: string | null = null
 
   constructor(config: ApiClientConfig) {
-    const { baseURL, version = 'v1' } = config
+    let { baseURL, version = 'v1' } = config
+
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      if (!baseURL || baseURL.includes('localhost') || baseURL.includes('127.0.0.1')) {
+        baseURL = window.location.origin
+      }
+    }
 
     this.client = axios.create({
       baseURL: `${baseURL}/api/${version}`,
