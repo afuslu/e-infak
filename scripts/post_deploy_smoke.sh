@@ -20,6 +20,32 @@ http_code() {
   curl --connect-timeout 5 --max-time 15 -sS -o /dev/null -w '%{http_code}' -L "$1"
 }
 
+# Servis Ayağa Kalkana Kadar Bekleyen Yardımcı Fonksiyon
+# Systemd servisleri yeniden başlatıldıktan hemen sonra (özellikle Next.js)
+# port'u dinlemeye başlaması birkaç saniye sürebilir; bu yüzden sabit sayıda
+# deneme ile bekleriz, aksi halde "Connection refused" script'i anında
+# (set -e nedeniyle) çökertir.
+wait_for_url() {
+  local url="$1"
+  local max_attempts="${2:-10}"
+  local delay="${3:-1}"
+  local attempt=1
+  local code="000"
+
+  while (( attempt <= max_attempts )); do
+    code="$(http_code "$url" 2>/dev/null || echo "000")"
+    if [[ "$code" == "200" ]]; then
+      return 0
+    fi
+    log "Bekleniyor (${attempt}/${max_attempts}): ${url} -> ${code}"
+    sleep "$delay"
+    ((attempt++))
+  done
+
+  log "HATA: ${url} zaman aşımına uğradı (son durum kodu: ${code})"
+  return 0
+}
+
 # HTTP Başlık Değerini Okuyan Yardımcı Fonksiyon
 extract_header() {
   local url="$1"
@@ -78,10 +104,15 @@ main() {
   log "Ön Yüz Adresi (Frontend): ${INDEX_URL}"
   log "Arka Plan Sağlık Adresi (Backend Health): ${API_HEALTH_URL}"
 
+  # Servisler yeni yeniden başlatıldığı için hazır olmalarını bekle
+  wait_for_url "$INDEX_URL"
+  wait_for_url "$API_HEALTH_URL"
+  wait_for_url "$API_ROOT_URL"
+
   local index_status api_health_status api_root_status
-  index_status="$(http_code "$INDEX_URL")"
-  api_health_status="$(http_code "$API_HEALTH_URL")"
-  api_root_status="$(http_code "$API_ROOT_URL")"
+  index_status="$(http_code "$INDEX_URL" 2>/dev/null || echo "000")"
+  api_health_status="$(http_code "$API_HEALTH_URL" 2>/dev/null || echo "000")"
+  api_root_status="$(http_code "$API_ROOT_URL" 2>/dev/null || echo "000")"
 
   # Durum Kodu Kontrolleri
   require_status_in "$INDEX_URL" "$index_status" 200
@@ -90,7 +121,7 @@ main() {
 
   # API Yanıt İçeriği Kontrolü (FastAPI health endpoint "healthy" dönmeli)
   local health_payload
-  health_payload="$(curl --connect-timeout 5 --max-time 15 -fsS "$API_HEALTH_URL")"
+  health_payload="$(curl --connect-timeout 5 --max-time 15 -fsS "$API_HEALTH_URL" 2>/dev/null || echo "")"
   if [[ "$health_payload" != *"healthy"* ]]; then
     log "HATA: API sağlık yanıtı beklenen içeriği barındırmıyor: ${health_payload}"
     return 1
