@@ -30,7 +30,7 @@ export default function AdminReceiptsPage() {
   const [receiptDetail, setReceiptDetail] = useState<ReceiptDetail | null>(null)
   const [receiptLoadingId, setReceiptLoadingId] = useState<string | null>(null)
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
 
   const getAuthHeaders = () => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null

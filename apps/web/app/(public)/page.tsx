@@ -6,7 +6,7 @@ import type { Campaign } from '@e-infak/api-client'
 
 export const dynamic = 'force-dynamic'
 
-const API_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020'
+const API_URL = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020'
 
 async function getCampaigns(orgSlug: string): Promise<Campaign[]> {
   try {
