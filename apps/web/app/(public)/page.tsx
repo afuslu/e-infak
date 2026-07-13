@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { HicretHome } from '../../components/HicretHome'
 import { KardeslikHome } from '../../components/KardeslikHome'
+import { EInfakPortal } from '../../components/EInfakPortal'
 import type { Campaign } from '@e-infak/api-client'
 
 export const dynamic = 'force-dynamic'
@@ -45,7 +46,11 @@ async function getPublic<T>(path: string, orgSlug: string, fallback: T): Promise
 
 export default async function HomePage() {
   const headersList = await headers()
-  const orgSlug = headersList.get('x-organization-slug') || 'hicret-dernegi'
+  const orgSlug = headersList.get('x-organization-slug') || ''
+
+  if (!orgSlug) {
+    return <EInfakPortal />
+  }
 
   const [campaigns, newsPosts, categories] = await Promise.all([
     getCampaigns(orgSlug),
