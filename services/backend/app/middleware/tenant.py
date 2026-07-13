@@ -17,11 +17,16 @@ class TenantMiddleware(BaseHTTPMiddleware):
         if request.url.path == "/health" or request.url.path in ["/docs", "/redoc", "/openapi.json"]:
             return await call_next(request)
             
-        # Get hostname from request
-        hostname = request.headers.get("host", "").split(":")[0]
-        
-        # Extract organization slug from hostname
-        org_slug = await self.get_org_slug_from_hostname(hostname)
+        # Prefer an explicit x-organization-slug header (set by the Next.js
+        # frontend after it resolves the tenant from the browser's Host header)
+        # over re-deriving it from this request's own Host header, which is
+        # almost always the internal API host (e.g. 127.0.0.1:8020) and would
+        # otherwise always resolve to the dev default tenant.
+        org_slug = request.headers.get("x-organization-slug") or None
+
+        if not org_slug:
+            hostname = request.headers.get("host", "").split(":")[0]
+            org_slug = await self.get_org_slug_from_hostname(hostname)
         
         if not org_slug:
             # For API routes, allow without organization (will be handled by endpoint)

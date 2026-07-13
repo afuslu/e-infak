@@ -25,6 +25,9 @@ from app.models.banner import Banner
 from app.models.api_key import ApiKey
 from app.models.webhook_setting import WebhookSetting
 from app.models.water_well import WaterWell
+from app.models.donation_category import DonationCategory
+from app.models.organization_settings import OrganizationSettings
+from app.models.content_post import ContentPost
 from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -494,30 +497,38 @@ async def get_donation_receipt(
     current_user: User = Depends(get_current_user)
 ):
     org_id = UUID(request.state.organization_id)
-    query = select(Donation).where(Donation.id == donation_id, Donation.organization_id == org_id)
+    query = (
+        select(Donation)
+        .options(selectinload(Donation.donor))
+        .where(Donation.id == donation_id, Donation.organization_id == org_id)
+    )
     res = await db.execute(query)
     donation = res.scalar_one_or_none()
     if not donation:
         raise HTTPException(status_code=404, detail="Donation not found")
-        
+
     # Generate digital verification signature checksum
     import hashlib
     verification_hash = hashlib.sha256(f"receipt-{donation.receipt_number}-{donation.amount_cents}".encode('utf-8')).hexdigest()[:16]
-    
+
+    donor = donation.donor
+    if donor and not donation.is_anonymous:
+        first_name_obf = donor.first_name
+        last_name_obf = f"{donor.last_name[0]}." if donor.last_name else ""
+        donor_name = f"{first_name_obf} {last_name_obf}".strip()
+    else:
+        donor_name = "Anonim Bağışçı"
+
     return {
         "donation_id": str(donation.id),
         "receipt_number": donation.receipt_number,
         "verification_hash": verification_hash,
-        "verify_url": f"https://e-infak.org/verify/receipt/{donation.receipt_number}"
-    }
-
-    return {
-        "status": "valid",
-        "receipt_number": donation.receipt_number,
-        "donor_name": f"{first_name_obf} {last_name_obf}".strip(),
+        "verify_url": f"https://e-infak.org/verify/receipt/{donation.receipt_number}",
+        "status": "valid" if donation.status == "confirmed" else donation.status,
+        "donor_name": donor_name,
         "amount_lira": donation.amount_cents / 100,
         "created_at": donation.created_at,
-        "payment_method": "Kredi Kartı" if donation.payment_method == "credit_card" else "Havale/EFT"
+        "payment_method": "Kredi Kartı" if donation.payment_method == "credit_card" else "Havale/EFT",
     }
 
 # --- Phase 4 Pydantic Schemas ---
@@ -1137,6 +1148,246 @@ async def get_ai_donor_insights(
         "churn_list": churn_list,
         "predictive_amounts": predictive_amounts
     }
+
+# --- Faz 3: Bağış Kalemleri (Donation Categories) ---
+class DonationCategoryCreate(BaseModel):
+    icon: str = "🤝"
+    title: str
+    description: str
+    campaign_id: Optional[UUID] = None
+    display_order: int = 0
+    is_active: bool = True
+
+@router.get("/donation-categories")
+async def list_donation_categories(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(DonationCategory).where(DonationCategory.organization_id == org_id).order_by(DonationCategory.display_order)
+    res = await db.execute(query)
+    return res.scalars().all()
+
+@router.post("/donation-categories")
+async def create_donation_category(
+    request: Request,
+    payload: DonationCategoryCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    category = DonationCategory(organization_id=org_id, **payload.model_dump())
+    db.add(category)
+    await db.commit()
+    await db.refresh(category)
+
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="bagis_kalemi_olustur",
+        details={"category_id": str(category.id), "title": category.title}
+    )
+    return category
+
+@router.put("/donation-categories/{category_id}")
+async def update_donation_category(
+    request: Request,
+    category_id: UUID,
+    payload: DonationCategoryCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(DonationCategory).where(DonationCategory.id == category_id, DonationCategory.organization_id == org_id)
+    res = await db.execute(query)
+    category = res.scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=404, detail="Donation category not found")
+
+    for key, value in payload.model_dump().items():
+        setattr(category, key, value)
+
+    await db.commit()
+    await db.refresh(category)
+
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="bagis_kalemi_guncelle",
+        details={"category_id": str(category_id), "title": category.title}
+    )
+    return category
+
+@router.delete("/donation-categories/{category_id}")
+async def delete_donation_category(
+    request: Request,
+    category_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(DonationCategory).where(DonationCategory.id == category_id, DonationCategory.organization_id == org_id)
+    res = await db.execute(query)
+    category = res.scalar_one_or_none()
+    if not category:
+        raise HTTPException(status_code=404, detail="Donation category not found")
+
+    await db.delete(category)
+    await db.commit()
+
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="bagis_kalemi_sil",
+        details={"category_id": str(category_id), "title": category.title}
+    )
+    return {"status": "success"}
+
+# --- Faz 3: Site Ayarları (Görünüm/Tema — iletişim & IBAN bilgileri) ---
+class OrgSettingsUpdate(BaseModel):
+    contact_phone: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_address: Optional[str] = None
+    bank1_name: Optional[str] = None
+    bank1_iban: Optional[str] = None
+    bank2_name: Optional[str] = None
+    bank2_iban: Optional[str] = None
+
+@router.get("/org-settings")
+async def get_org_settings(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(OrganizationSettings).where(OrganizationSettings.organization_id == org_id)
+    res = await db.execute(query)
+    settings = res.scalar_one_or_none()
+
+    if not settings:
+        settings = OrganizationSettings(organization_id=org_id)
+        db.add(settings)
+        await db.commit()
+        await db.refresh(settings)
+
+    return settings
+
+@router.put("/org-settings")
+async def update_org_settings(
+    request: Request,
+    payload: OrgSettingsUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(OrganizationSettings).where(OrganizationSettings.organization_id == org_id)
+    res = await db.execute(query)
+    settings = res.scalar_one_or_none()
+
+    if not settings:
+        settings = OrganizationSettings(organization_id=org_id)
+        db.add(settings)
+
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(settings, key, value)
+
+    await db.commit()
+    await db.refresh(settings)
+
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="site_ayarlari_guncelle",
+        details={"contact_phone": settings.contact_phone, "contact_email": settings.contact_email}
+    )
+    return settings
+
+# --- Faz 3: İçerikler (Content Posts / Faaliyet Haberleri) ---
+class ContentPostCreate(BaseModel):
+    title: str
+    image_url: Optional[str] = None
+    display_order: int = 0
+    is_active: bool = True
+
+@router.get("/content-posts")
+async def list_content_posts(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(ContentPost).where(ContentPost.organization_id == org_id).order_by(ContentPost.display_order)
+    res = await db.execute(query)
+    return res.scalars().all()
+
+@router.post("/content-posts")
+async def create_content_post(
+    request: Request,
+    payload: ContentPostCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    post = ContentPost(organization_id=org_id, **payload.model_dump())
+    db.add(post)
+    await db.commit()
+    await db.refresh(post)
+
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="icerik_olustur",
+        details={"post_id": str(post.id), "title": post.title}
+    )
+    return post
+
+@router.put("/content-posts/{post_id}")
+async def update_content_post(
+    request: Request,
+    post_id: UUID,
+    payload: ContentPostCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(ContentPost).where(ContentPost.id == post_id, ContentPost.organization_id == org_id)
+    res = await db.execute(query)
+    post = res.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail="Content post not found")
+
+    for key, value in payload.model_dump().items():
+        setattr(post, key, value)
+
+    await db.commit()
+    await db.refresh(post)
+
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="icerik_guncelle",
+        details={"post_id": str(post_id), "title": post.title}
+    )
+    return post
+
+@router.delete("/content-posts/{post_id}")
+async def delete_content_post(
+    request: Request,
+    post_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = UUID(request.state.organization_id)
+    query = select(ContentPost).where(ContentPost.id == post_id, ContentPost.organization_id == org_id)
+    res = await db.execute(query)
+    post = res.scalar_one_or_none()
+    if not post:
+        raise HTTPException(status_code=404, detail="Content post not found")
+
+    await db.delete(post)
+    await db.commit()
+
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="icerik_sil",
+        details={"post_id": str(post_id), "title": post.title}
+    )
+    return {"status": "success"}
 
 
 

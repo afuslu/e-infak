@@ -110,6 +110,47 @@ export interface TokenResponse {
   expires_in: number
 }
 
+export interface ContactMessageCreate {
+  name: string
+  phone: string
+  message: string
+}
+
+export interface ContactMessageResponse {
+  id: string
+  name: string
+  created_at: string
+}
+
+export interface PreRegistrationCreate {
+  program: string
+  student_name: string
+  student_age: string
+  parent_name: string
+  parent_phone: string
+}
+
+export interface PreRegistrationResponse {
+  id: string
+  student_name: string
+  created_at: string
+}
+
+export interface ZakatInfo {
+  gold_price_per_gram: number
+  nisap_amount_lira: number
+}
+
+export interface OrgSettingsInfo {
+  contact_phone?: string
+  contact_email?: string
+  contact_address?: string
+  bank1_name?: string
+  bank1_iban?: string
+  bank2_name?: string
+  bank2_iban?: string
+}
+
 export interface User {
   id: string
   email: string

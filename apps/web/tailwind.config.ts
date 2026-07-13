@@ -9,9 +9,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ['var(--font-primary)', 'sans-serif'],
-        heading: ['var(--font-heading)', 'sans-serif'],
-        playfair: ['var(--font-playfair)', 'serif'],
-        outfit: ['var(--font-outfit)', 'sans-serif'],
+        heading: ['var(--font-heading)', 'serif'],
       },
       colors: {
         primary: {

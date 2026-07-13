@@ -14,6 +14,8 @@ from app.schemas.donation import (
     DonorResponse,
 )
 from app.utils.vpos import get_vpos_client
+from app.models.user import User
+from app.api.deps import get_current_user
 
 router = APIRouter(prefix="/donations", tags=["donations"])
 
@@ -251,8 +253,9 @@ async def get_donation(
     request: Request,
     donation_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Get donation by ID"""
+    """Get donation by ID (admin only — contains payment/donor linkage data)"""
     
     organization_id = request.state.organization_id
     
@@ -278,8 +281,9 @@ async def list_donations(
     status: Optional[DonationStatus] = None,
     campaign_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """List donations with filtering"""
+    """List donations with filtering (admin only — contains payment/donor linkage data)"""
     
     organization_id = request.state.organization_id
     

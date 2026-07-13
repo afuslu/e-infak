@@ -5,10 +5,11 @@ import type { Campaign } from '@e-infak/api-client'
 
 export const dynamic = 'force-dynamic'
 
+const API_URL = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020'
+
 async function getCampaigns(orgSlug: string): Promise<Campaign[]> {
-  const apiUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020'
   try {
-    const res = await fetch(`${apiUrl}/api/v1/campaigns?status=active`, {
+    const res = await fetch(`${API_URL}/api/v1/campaigns?status=active`, {
       headers: {
         'x-organization-slug': orgSlug,
       },
@@ -28,17 +29,34 @@ async function getCampaigns(orgSlug: string): Promise<Campaign[]> {
   }
 }
 
+async function getPublic<T>(path: string, orgSlug: string, fallback: T): Promise<T> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/public/${path}`, {
+      headers: { 'x-organization-slug': orgSlug },
+      next: { revalidate: 30 },
+    })
+    if (!res.ok) return fallback
+    return await res.json()
+  } catch (e) {
+    console.error(`Error fetching public/${path} from backend API:`, e)
+    return fallback
+  }
+}
+
 export default async function HomePage() {
   const headersList = await headers()
   const orgSlug = headersList.get('x-organization-slug') || 'hicret-dernegi'
 
-  // Fetch campaigns filtered by the current organization slug
-  const campaigns = await getCampaigns(orgSlug)
+  const [campaigns, newsPosts, categories] = await Promise.all([
+    getCampaigns(orgSlug),
+    getPublic('content-posts', orgSlug, [] as any[]),
+    getPublic('donation-categories', orgSlug, [] as any[]),
+  ])
 
   if (orgSlug === 'kardeslik-payi') {
-    return <KardeslikHome campaigns={campaigns} />
+    return <KardeslikHome campaigns={campaigns} newsPosts={newsPosts} categories={categories} />
   }
 
   // Default to Hicret Derneği layout
-  return <HicretHome campaigns={campaigns} />
+  return <HicretHome campaigns={campaigns} newsPosts={newsPosts} />
 }

@@ -131,7 +131,7 @@ export function DonationCart() {
       {/* Floating cart button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-white shadow-2xl hover:scale-110 active:scale-95 transition-all"
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-white shadow-2xl hover:scale-110 active:scale-95 transition-all"
         aria-label="Sepeti Aç"
       >
         <span className="text-2xl">🤝</span>
@@ -226,7 +226,7 @@ export function DonationCart() {
 
                       <button
                         onClick={() => setIsCheckingOut(true)}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm uppercase tracking-wider mt-6"
+                        className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm uppercase tracking-wider mt-6"
                       >
                         Bağış Yapmayı Tamamla
                       </button>
@@ -245,14 +245,14 @@ export function DonationCart() {
                           placeholder="Adınız *"
                           value={firstName}
                           onChange={(e) => setFirstName(e.target.value)}
-                          className="rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-red-500"
+                          className="rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
                         />
                         <input
                           type="text"
                           placeholder="Soyadınız *"
                           value={lastName}
                           onChange={(e) => setLastName(e.target.value)}
-                          className="rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-red-500"
+                          className="rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
                         />
                       </div>
                       <input
@@ -260,14 +260,14 @@ export function DonationCart() {
                         placeholder="E-posta *"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-red-500"
+                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
                       />
                       <input
                         type="tel"
                         placeholder="Telefon *"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-red-500"
+                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
                       />
 
                       <div className="flex gap-3 pt-4">
@@ -279,7 +279,7 @@ export function DonationCart() {
                         </button>
                         <button
                           onClick={handleNextStep}
-                          className="flex-1 rounded-xl bg-red-600 text-white font-bold py-3 text-xs"
+                          className="flex-1 rounded-xl bg-primary-600 text-white font-bold py-3 text-xs"
                         >
                           Kart Ödemesine Geç
                         </button>
@@ -295,14 +295,14 @@ export function DonationCart() {
                         placeholder="Kart Sahibi Adı *"
                         value={cardHolderName}
                         onChange={(e) => setCardHolderName(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-red-500"
+                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
                       />
                       <input
                         type="text"
                         placeholder="Kart Numarası *"
                         value={cardNumber}
                         onChange={(e) => setCardNumber(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-red-500"
+                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
                       />
                       <div className="grid grid-cols-3 gap-2">
                         <input
@@ -333,7 +333,7 @@ export function DonationCart() {
 
                       <div className="p-3 bg-slate-50 border rounded-xl flex justify-between items-center text-xs mt-4">
                         <span className="text-slate-500 font-semibold">Toplam Çekim:</span>
-                        <span className="font-black text-red-600">{totalAmount} ₺</span>
+                        <span className="font-black text-primary-600">{totalAmount} ₺</span>
                       </div>
 
                       <div className="flex gap-3 pt-4">
@@ -346,7 +346,7 @@ export function DonationCart() {
                         <button
                           onClick={handleSubmitCartDonations}
                           disabled={createDonation.isPending}
-                          className="flex-1 rounded-xl bg-red-600 text-white font-bold py-3 text-xs disabled:bg-red-300"
+                          className="flex-1 rounded-xl bg-primary-600 text-white font-bold py-3 text-xs disabled:bg-primary-300"
                         >
                           {createDonation.isPending ? 'Ödeniyor...' : 'Ödemeyi Tamamla'}
                         </button>

@@ -4,301 +4,376 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { Campaign } from '@e-infak/api-client'
+import { useOrgSettings } from '@e-infak/api-client'
 import { QuickDonationForm } from './QuickDonationForm'
+
+interface DonationCategoryDto {
+  id: string
+  icon: string
+  title: string
+  description: string
+}
+
+interface ContentPostDto {
+  id: string
+  title: string
+  image_url?: string
+  published_at: string
+}
 
 interface KardeslikHomeProps {
   campaigns: Campaign[]
+  categories?: DonationCategoryDto[]
+  newsPosts?: ContentPostDto[]
 }
 
-export function KardeslikHome({ campaigns }: KardeslikHomeProps) {
+const stats = [
+  { value: '500+', label: 'Açılan Su Kuyusu' },
+  { value: '10,000+', label: 'Gıda Yardım Kolisi' },
+  { value: '2,500+', label: 'Desteklenen Yetim' },
+  { value: '81', label: 'İl Genelinde Hizmet' },
+]
+
+const FALLBACK_CATEGORIES = [
+  { title: 'Gıda Kolisi', desc: 'Bir ailenin bir aylık temel gıda ihtiyacını karşılayın.', img: '/images/kardeslik/kp-ic-gida.png' },
+  { title: 'Askıda Fatura', desc: 'Elektrik, su ve doğalgaz borcunu üstlenerek nefes aldırın.', img: '/images/kardeslik/kp-ic-fatura.png' },
+  { title: 'Aşevi Desteği', desc: 'Sıcak yemeğin sofralara ulaşmasına katkı sağlayın.', img: '/images/kardeslik/kp-ic-asevi.png' },
+  { title: 'Barınma Yardımı', desc: 'Kira ve barınma ihtiyacı olan ailelere destek olun.', img: '/images/kardeslik/kp-ic-barinma.png' },
+  { title: 'Eğitim Bursu', desc: 'Bir öğrencinin eğitim masraflarına ortak olun.', img: '/images/kardeslik/kp-ic-egitim.png' },
+  { title: 'Sağlık Desteği', desc: 'Tedavi ve ilaç masraflarına destek olun.', img: '/images/kardeslik/kp-ic-saglik.png' },
+  { title: 'Genel Bağış', desc: 'En acil ihtiyaca yönlendirilecek genel bağış.', img: '/images/kardeslik/kp-ic-genel.png' },
+  { title: 'Zekât & Fitre', desc: 'Zekât ve fitrenizi ihtiyaç sahiplerine ulaştırın.', img: '/images/kardeslik/kp-ic-zekat.png' },
+]
+
+const FALLBACK_NEWS = [
+  { date: '5 TEMMUZ 2026', title: 'Yeni Su Kuyusu Açılış Töreni', img: '/images/kardeslik/kp-news1.png' },
+  { date: '22 HAZİRAN 2026', title: 'Aşevimizden 10.000. Sıcak Yemek', img: '/images/kardeslik/kp-news2.png' },
+  { date: '9 HAZİRAN 2026', title: 'Kırsalda Gıda Kolisi Dağıtımı', img: '/images/kardeslik/kp-news3.png' },
+]
+
+const FALLBACK_ADDRESS_DETAIL = 'İskenderpaşa Mah. Sofular Cad. No: 12, Fatih, İstanbul'
+
+export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHomeProps) {
+  const { data: settings } = useOrgSettings()
+  const phone = settings?.contact_phone || '0 (212) 555 44 33'
+  const email = settings?.contact_email || 'info@kardeslikpayi.org'
+  const address = settings?.contact_address || 'Fatih, İstanbul, Türkiye'
+
+  const trust = [
+    { glyph: '📍', title: 'Resmi Adres', desc: settings?.contact_address || FALLBACK_ADDRESS_DETAIL },
+    { glyph: '☎', title: 'İletişim & Danışma', desc: `Telefon: ${phone} · ${email}` },
+    { glyph: '🔒', title: 'Yasal Mevzuat', desc: 'T.C. İçişleri Bakanlığı denetiminde, şeffaf raporlama ile faaliyet gösteriyoruz.' },
+  ]
+
   const [zekatMiktar, setZekatMiktar] = useState<number | string>('')
   const [zekatSonuc, setZekatSonuc] = useState<number | null>(null)
+
+  const displayCategories = categories && categories.length > 0
+    ? categories.map((c) => ({ title: c.title, desc: c.description, icon: c.icon }))
+    : FALLBACK_CATEGORIES.map((c) => ({ title: c.title, desc: c.desc, img: c.img }))
+
+  const displayNews = newsPosts && newsPosts.length > 0
+    ? newsPosts.map((n) => ({
+        title: n.title,
+        img: n.image_url || '/images/kardeslik/kp-news1.png',
+        date: new Date(n.published_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase(),
+      }))
+    : FALLBACK_NEWS
 
   const handleHesaplaZekat = (e: React.FormEvent) => {
     e.preventDefault()
     const parsed = Number(zekatMiktar)
-    if (parsed && parsed >= 85) { // Minimum nisap amount check mock
-      setZekatSonuc(parsed * 0.025) // 1/40 ratio
+    if (parsed && parsed >= 85) {
+      setZekatSonuc(parsed * 0.025)
     } else {
       setZekatSonuc(0)
     }
   }
 
   return (
-    <div className="font-sans antialiased text-slate-800 bg-slate-50">
-      {/* Top bar info */}
-      <div className="bg-slate-900 text-slate-300 py-2 px-4 text-xs font-semibold">
-        <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
-          <span>🤝 Kardeşlik Payı Yardımlaşma Derneği | "Birlikte Daha Güçlüyüz"</span>
-          <div className="flex gap-4">
-            <Link href="/giris" className="hover:text-red-400 transition-colors">👤 Bağışçı Girişi</Link>
-            <span>|</span>
-            <Link href="/admin" className="hover:text-red-400 transition-colors">⚙️ Otomasyon</Link>
+    <div className="font-sans antialiased text-[#241C1B] bg-[#FAF7F5]">
+      {/* Üst bilgi bandı */}
+      <div className="bg-[#4A0D0F] text-[#F0D5D2] text-[13px] py-2">
+        <div className="max-w-[1200px] mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-2">
+          <div className="flex gap-5 flex-wrap">
+            <span>{phone}</span>
+            <span>{email}</span>
+          </div>
+          <div className="flex gap-4 items-center">
+            <Link href="/giris" className="text-[#F0D5D2] font-semibold hover:text-white">Bağışçı Girişi</Link>
+            <span className="opacity-40">|</span>
+            <Link href="/verify" className="text-[#F0D5D2] hover:text-white">Online Makbuz</Link>
           </div>
         </div>
       </div>
 
-      {/* Main Header / Navbar */}
-      <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
-        <div className="container mx-auto px-4 py-3.5 flex justify-between items-center">
+      {/* Ana menü */}
+      <header className="bg-white border-b border-[#EDE3E0] sticky top-0 z-50">
+        <div className="max-w-[1200px] mx-auto px-6 h-[76px] flex items-center justify-between gap-6">
           <Link href="/" className="flex items-center gap-3">
-            <div className="relative h-12 w-12 rounded-full border border-slate-100 overflow-hidden bg-white">
-              <Image 
-                src="/images/kardeslik/logo.png" 
-                alt="Kardeşlik Payı Logo" 
-                fill 
-                className="object-contain p-1"
-              />
+            <div className="relative h-14 w-14 rounded-full overflow-hidden bg-white">
+              <Image src="/images/kardeslik/logo.jpeg" alt="Kardeşlik Payı" fill className="object-cover" />
             </div>
-            <div>
-              <h1 className="font-outfit text-lg md:text-xl font-black text-red-600 leading-none tracking-tight">
-                KARDEŞLİK PAYI
-              </h1>
-              <p className="text-[9px] text-slate-500 font-bold tracking-widest uppercase mt-0.5">
-                Birlikte Daha Güçlüyüz
-              </p>
+            <div className="flex flex-col leading-tight">
+              <span className="font-heading font-bold text-[20px] text-[#241C1B] tracking-wide">KARDEŞLİK PAYI</span>
+              <span className="text-[11px] tracking-[2.5px] text-[#C2181B] font-semibold">BİRLİKTE DAHA GÜÇLÜYÜZ</span>
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6 text-sm font-bold text-slate-700">
-            <Link href="/" className="hover:text-red-600 transition-colors">Ana Sayfa</Link>
-            <Link href="#istatistikler" className="hover:text-red-600 transition-colors">Etki Analizimiz</Link>
-            <Link href="#kampanyalar" className="hover:text-red-600 transition-colors">Kampanyalar</Link>
-            <Link href="#zekat" className="hover:text-red-600 transition-colors">Zekat Hesapla</Link>
+          <nav className="hidden lg:flex items-center gap-6 text-[15px] font-semibold">
+            <Link href="/" className="text-[#C2181B]">Ana Sayfa</Link>
+            <a href="#kategoriler" className="text-[#453735] hover:text-[#C2181B]">Bağış Kategorileri</a>
+            <a href="#kampanyalar" className="text-[#453735] hover:text-[#C2181B]">Kampanyalar</a>
+            <a href="#haberler" className="text-[#453735] hover:text-[#C2181B]">Faaliyetler</a>
+            <Link href="/hakkimizda" className="text-[#453735] hover:text-[#C2181B]">Hakkımızda</Link>
+            <Link href="/zekat-hesapla" className="text-[#453735] hover:text-[#C2181B]">Zekât Hesapla</Link>
+            <Link href="/iletisim" className="text-[#453735] hover:text-[#C2181B]">İletişim</Link>
+            <a href="#hizli-bagis" className="bg-[#C2181B] hover:bg-[#961114] text-white font-bold px-6 py-3 rounded-lg">Bağış Yap</a>
           </nav>
-
-          <div className="flex items-center gap-3">
-            <Link 
-              href="#zekat" 
-              className="hidden sm:inline-block border border-red-600 text-red-600 hover:bg-red-50 font-bold text-xs py-2.5 px-5 rounded-xl shadow-sm transition-all uppercase tracking-wider"
-            >
-              Zekat Hesapla
-            </Link>
-            <Link 
-              href="#hizli-bagis" 
-              className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2.5 px-5 rounded-xl shadow-md transition-all uppercase tracking-wider"
-            >
-              Bağış Yap
-            </Link>
-          </div>
         </div>
       </header>
 
-      {/* Hero Section with Embedded Form Widget (High-Converting Layout) */}
-      <section className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-red-950 text-white py-16 lg:py-24">
-        {/* Background Grid */}
-        <div className="absolute inset-0 opacity-5 bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] [background-size:30px_30px]" />
-        
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="grid lg:grid-cols-12 gap-12 items-center">
-            
-            {/* Text details (Left Side) */}
-            <div className="lg:col-span-7 space-y-6">
-              <span className="inline-block bg-red-600/20 border border-red-500/30 text-red-400 text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider">
-                🌍 Dünya Genelinde İnsani Yardım
-              </span>
-              <h2 className="font-outfit text-4xl md:text-5xl lg:text-6xl font-black leading-tight">
-                Yeryüzünde Bir <br className="hidden md:inline" />
-                <span className="text-red-500">Kardeşlik Payı</span> Bırakın
-              </h2>
-              <p className="text-sm md:text-base text-slate-300 leading-relaxed max-w-xl">
-                Su kuyusu projeleri, gıda kolileri, yetim sponsorlukları ve kurban payı dağıtımları ile dünyanın neresinde mazlum bir yürek varsa oraya el uzatıyoruz. Birlikte daha güçlüyüz.
-              </p>
-
-              <div className="flex flex-wrap gap-4 pt-4">
-                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-xs font-semibold">
-                  <span>💧</span> 500+ Su Kuyusu
-                </div>
-                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-xs font-semibold">
-                  <span>👶</span> 2500+ Yetim Kardeş
-                </div>
-                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl py-2 px-4 text-xs font-semibold">
-                  <span>🍚</span> 10K+ Gıda Kolisi
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Donation Form (Right Side) */}
-            <div id="hizli-bagis" className="lg:col-span-5">
-              <QuickDonationForm 
-                campaignId={campaigns[0]?.id || 'genel-bagis'} 
-                campaignTitle={campaigns[0]?.title || 'Kardeşlik Payı Genel Bağış'}
-                primaryColor="#E10606"
-                accentColor="#1E293B"
-                themeSlug="kardeslik-payi"
-              />
-            </div>
-
-          </div>
+      {/* Hero */}
+      <section className="relative bg-[#4A0D0F]">
+        <div className="absolute inset-0 opacity-50">
+          <Image src="/images/kardeslik/kp-hero.png" alt="" fill className="object-cover" priority />
         </div>
-      </section>
-
-      {/* Statistics Section */}
-      <section id="istatistikler" className="py-12 bg-white border-b border-slate-200">
-        <div className="container mx-auto px-4">
-          <div className="grid gap-8 grid-cols-2 md:grid-cols-4">
-            <div className="text-center space-y-1">
-              <div className="text-3xl md:text-4xl font-extrabold text-red-600 font-outfit">500+</div>
-              <div className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-wider">Açılan Su Kuyusu</div>
-            </div>
-            <div className="text-center space-y-1 border-l border-slate-200">
-              <div className="text-3xl md:text-4xl font-extrabold text-red-600 font-outfit">10,000+</div>
-              <div className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-wider">Gıda Yardım Kolisi</div>
-            </div>
-            <div className="text-center space-y-1 border-l border-slate-200">
-              <div className="text-3xl md:text-4xl font-extrabold text-red-600 font-outfit">2,500+</div>
-              <div className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-wider">Desteklenen Yetim</div>
-            </div>
-            <div className="text-center space-y-1 border-l border-slate-200">
-              <div className="text-3xl md:text-4xl font-extrabold text-red-600 font-outfit">40+</div>
-              <div className="text-xs md:text-sm font-bold text-slate-500 uppercase tracking-wider">Hizmet Bölgesi</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Campaigns Grid Section */}
-      <section id="kampanyalar" className="py-20">
-        <div className="container mx-auto px-4">
-          <div className="max-w-2xl mx-auto text-center mb-16 space-y-3">
-            <span className="text-red-600 font-bold text-xs uppercase tracking-wider block">Acil Hayır Projelerimiz</span>
-            <h3 className="font-outfit text-3xl md:text-4xl font-extrabold text-slate-900">
-              Aktif Yardım Kampanyaları
-            </h3>
-            <p className="text-sm text-slate-500 leading-relaxed max-w-lg mx-auto">
-              Dünyadaki yoksulluk, açlık ve susuzlukla mücadelede can suyu olan aktif projelerimizi inceleyin ve bir kardeşlik payı verin.
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, rgba(48,8,9,0.93) 0%, rgba(48,8,9,0.55) 55%, rgba(48,8,9,0.15) 100%)' }}
+        />
+        <div className="relative max-w-[1200px] mx-auto px-6 py-24 grid md:grid-cols-[1.15fr_0.85fr] gap-12 items-center">
+          <div>
+            <span className="inline-block bg-[#E2423C]/20 border border-[#E2423C]/55 text-[#F2A7A0] text-[13px] font-bold tracking-[2px] px-4 py-2 rounded-full mb-6">
+              KOMŞUDAN BAŞLAYAN İYİLİK
+            </span>
+            <h1 className="font-heading text-[36px] md:text-[52px] leading-[1.15] text-white font-bold mb-5">
+              Bu topraklarda kimse yalnız kalmasın.
+            </h1>
+            <p className="text-lg leading-relaxed text-[#EDD8D4] mb-8 max-w-xl">
+              Türkiye&apos;nin her ilinde ihtiyaç sahibi ailelere gıda, barınma, eğitim ve sağlık desteği ulaştırıyoruz. Kardeşlik payınızı ayırın, komşunuza umut olun.
             </p>
+            <div className="flex flex-wrap gap-3.5">
+              <a href="#hizli-bagis" className="bg-[#E2423C] hover:bg-[#EE5A52] text-white font-extrabold text-base px-8 py-4 rounded-[10px]">
+                Kardeşlik Payı Ver
+              </a>
+              <a href="#kategoriler" className="border-[1.5px] border-white/45 hover:border-white text-white font-semibold text-base px-8 py-4 rounded-[10px]">
+                Bağış Kategorileri
+              </a>
+            </div>
           </div>
 
-          {campaigns.length === 0 ? (
-            <div className="bg-white border rounded-2xl p-8 text-center text-gray-500 shadow-md">
-              Aktif yardım kampanyası bulunmamaktadır.
+          <div id="hizli-bagis">
+            <QuickDonationForm
+              campaignId={campaigns[0]?.id || 'genel-bagis'}
+              campaignTitle={campaigns[0]?.title || 'Kardeşlik Payı Genel Bağış'}
+              primaryColor="#C2181B"
+              accentColor="#E2423C"
+              themeSlug="kardeslik-payi"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Sayaçlar */}
+      <section className="bg-white border-b border-[#EDE3E0]">
+        <div className="max-w-[1200px] mx-auto px-6 py-9 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          {stats.map((st) => (
+            <div key={st.label}>
+              <div className="font-heading text-[36px] font-bold text-[#C2181B]">{st.value}</div>
+              <div className="text-sm text-[#82706D] font-medium mt-1">{st.label}</div>
             </div>
-          ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {campaigns.map((c) => {
-                const progress = c.progress_percentage || 0
-                return (
-                  <div 
-                    key={c.id} 
-                    className="bg-white rounded-2xl shadow-sm border border-slate-200/80 hover:shadow-xl hover:border-slate-300 transition-all flex flex-col justify-between overflow-hidden"
-                  >
-                    <div>
-                      {/* Image */}
-                      <div className="relative aspect-video w-full overflow-hidden bg-slate-100">
-                        {c.cover_image_url ? (
-                          <Image 
-                            src={c.cover_image_url} 
-                            alt={c.title} 
-                            fill 
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="h-full flex items-center justify-center text-red-800/20 text-3xl font-bold">🤝</div>
-                        )}
-                        {c.is_featured && (
-                          <span className="absolute top-3 left-3 bg-red-600 text-white text-[10px] font-extrabold uppercase tracking-wider py-1 px-3.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                            <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-                            ACİL PROJE
-                          </span>
-                        )}
-                      </div>
+          ))}
+        </div>
+      </section>
 
-                      {/* Content */}
-                      <div className="p-6 space-y-3">
-                        <h4 className="font-outfit text-lg font-bold text-slate-900 line-clamp-2 leading-snug">
-                          {c.title}
-                        </h4>
-                        <p className="text-xs text-slate-500 line-clamp-3 leading-relaxed">
-                          {c.summary}
-                        </p>
-                      </div>
-                    </div>
+      {/* Bağış kategorileri */}
+      <section id="kategoriler" className="max-w-[1200px] mx-auto px-6 pt-[72px]">
+        <div className="text-center max-w-xl mx-auto mb-10">
+          <div className="text-[13px] font-bold tracking-[2px] text-[#C2181B] mb-2">BAĞIŞ KATEGORİLERİ</div>
+          <h2 className="font-heading text-[36px] font-bold text-[#241C1B] mb-3">Payınızı nereye ayırmak istersiniz?</h2>
+          <p className="text-base leading-relaxed text-[#82706D]">Tek seferlik ya da düzenli; dilediğiniz kaleme, dilediğiniz tutarla.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {displayCategories.map((k) => (
+            <a
+              key={k.title}
+              href="#hizli-bagis"
+              className="bg-white border-[1.5px] border-[#EDE3E0] hover:border-[#C2181B] hover:shadow-[0_10px_26px_rgba(194,24,27,0.12)] rounded-2xl p-5 flex flex-col gap-2 transition-all"
+            >
+              {'img' in k ? (
+                <div className="relative w-11 h-11 rounded-[10px] overflow-hidden">
+                  <Image src={k.img} alt={k.title} fill className="object-cover" />
+                </div>
+              ) : (
+                <div className="w-11 h-11 rounded-[10px] bg-[#FBEDEB] flex items-center justify-center text-2xl">{k.icon}</div>
+              )}
+              <div className="font-bold text-base text-[#241C1B]">{k.title}</div>
+              <div className="text-[13px] leading-relaxed text-[#82706D]">{k.desc}</div>
+              <div className="font-bold text-[13px] text-[#C2181B] mt-auto">Bağış yap →</div>
+            </a>
+          ))}
+        </div>
+      </section>
 
-                    {/* Progress Bar & Actions */}
-                    <div className="p-6 pt-0 space-y-4">
-                      {c.show_collected && (
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-center text-xs font-semibold text-slate-600">
-                            <span>Toplanan: <b className="text-slate-800">{c.collected_lira.toLocaleString('tr-TR')} ₺</b></span>
-                            <span className="text-red-600 font-bold">% {progress}</span>
-                          </div>
-                          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-red-600 to-rose-400 rounded-full"
-                              style={{ width: `${Math.min(progress, 100)}%` }}
-                            />
-                          </div>
-                          <div className="text-[10px] text-right text-slate-400">Hedef: {c.target_lira.toLocaleString('tr-TR')} ₺</div>
+      {/* Kampanyalar */}
+      <section id="kampanyalar" className="max-w-[1200px] mx-auto px-6 py-[72px]">
+        <div className="flex justify-between items-end mb-9 gap-6 flex-wrap">
+          <div>
+            <div className="text-[13px] font-bold tracking-[2px] text-[#C2181B] mb-2">AKTİF KAMPANYALAR</div>
+            <h2 className="font-heading text-[36px] font-bold text-[#241C1B]">Türkiye&apos;nin her yerinde, yılın her günü</h2>
+          </div>
+          <Link href="/kampanyalar" className="font-bold text-[15px] text-[#C2181B] whitespace-nowrap">Tüm kampanyalar →</Link>
+        </div>
+
+        {campaigns.length === 0 ? (
+          <div className="bg-white border border-[#EDE3E0] rounded-2xl p-10 text-center text-[#82706D]">
+            Aktif yardım kampanyası bulunmamaktadır.
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {campaigns.map((c) => {
+              const progress = c.progress_percentage || 0
+              return (
+                <div key={c.id} className="bg-white border border-[#EDE3E0] rounded-2xl overflow-hidden flex flex-col hover:shadow-[0_12px_32px_rgba(74,13,15,0.12)] transition-shadow">
+                  <div className="relative h-[190px] bg-[#FBEDEB]">
+                    {c.cover_image_url ? (
+                      <Image src={c.cover_image_url} alt={c.title} fill className="object-cover" />
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-[#C2181B]/30 text-2xl">🤝</div>
+                    )}
+                    {c.is_featured && (
+                      <span className="absolute top-3 left-3 bg-[#4A0D0F] text-white text-xs font-bold px-3 py-1.5 rounded-md">
+                        Acil Proje
+                      </span>
+                    )}
+                  </div>
+                  <div className="p-5 flex flex-col gap-3 flex-1">
+                    <div className="font-heading text-xl font-bold text-[#241C1B] line-clamp-2">{c.title}</div>
+                    <p className="text-sm leading-relaxed text-[#82706D] flex-1 line-clamp-3">{c.summary}</p>
+                    {c.show_collected && (
+                      <div>
+                        <div className="flex justify-between text-[13px] font-semibold mb-1.5">
+                          <span className="text-[#C2181B]">{c.collected_lira.toLocaleString('tr-TR')} ₺</span>
+                          <span className="text-[#9A8885]">Hedef: {c.target_lira.toLocaleString('tr-TR')} ₺</span>
                         </div>
-                      )}
-
-                      <Link 
+                        <div className="h-2 bg-[#F5E9E6] rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${Math.min(progress, 100)}%`, background: 'linear-gradient(90deg,#C2181B,#E2423C)' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Link
                         href={`/kampanyalar/${c.slug}`}
-                        className="block text-center w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl shadow-sm transition-colors text-xs uppercase tracking-wider"
+                        className="flex-1 text-center bg-[#FBEDEB] hover:bg-[#C2181B] hover:text-white text-[#C2181B] border-[1.5px] border-[#EFCDC9] hover:border-[#C2181B] font-bold text-sm py-3 rounded-lg transition-colors"
                       >
-                        Kampanya Detayları / Bağış Yap
+                        Bağış yap
+                      </Link>
+                      <Link
+                        href={`/kampanyalar/${c.slug}`}
+                        className="bg-white text-[#453735] hover:text-[#C2181B] hover:border-[#C2181B] border-[1.5px] border-[#E7DBD8] font-bold text-sm px-4 py-3 rounded-lg transition-colors"
+                      >
+                        Detay
                       </Link>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Askıda Kardeşlik Payı */}
+      <section className="bg-[#4A0D0F]">
+        <div className="max-w-[1200px] mx-auto px-6 py-14 grid md:grid-cols-[1fr_auto] gap-8 items-center">
+          <div>
+            <h3 className="font-heading text-[28px] font-bold text-white mb-2">Askıda Kardeşlik Payı</h3>
+            <p className="text-[15px] text-[#E0C3BE] leading-relaxed max-w-xl">
+              Aylık 300 ₺ ile bir ailenin market alışverişini üstlenin. Düzenli talimatla her ay otomatik tahsil edilir, makbuzunuz anında iletilir.
+            </p>
+          </div>
+          <a href="#hizli-bagis" className="bg-[#E2423C] hover:bg-[#EE5A52] text-white font-extrabold text-base px-8 py-4 rounded-[10px] whitespace-nowrap">
+            Düzenli Bağış Başlat
+          </a>
         </div>
       </section>
 
-      {/* Zekat Calculator Widget Section */}
-      <section id="zekat" className="py-20 bg-slate-900 text-white relative">
-        <div className="container mx-auto px-4 max-w-4xl relative z-10">
+      {/* Haberler */}
+      <section id="haberler" className="max-w-[1200px] mx-auto px-6 py-[72px]">
+        <div className="flex justify-between items-end mb-9 gap-6 flex-wrap">
+          <div>
+            <div className="text-[13px] font-bold tracking-[2px] text-[#C2181B] mb-2">FAALİYETLER</div>
+            <h2 className="font-heading text-[36px] font-bold text-[#241C1B]">Sahadan haberler</h2>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {displayNews.map((n) => (
+            <div key={n.title} className="bg-white border border-[#EDE3E0] rounded-2xl overflow-hidden flex flex-col hover:shadow-[0_12px_32px_rgba(74,13,15,0.12)] transition-shadow">
+              <div className="relative h-40">
+                <Image src={n.img} alt={n.title} fill className="object-cover" />
+              </div>
+              <div className="p-5">
+                <div className="text-xs font-bold text-[#C2181B] tracking-wider mb-2">{n.date}</div>
+                <div className="font-heading text-lg font-semibold leading-snug">{n.title}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Zekât Hesaplama */}
+      <section id="zekat" className="bg-[#4A0D0F]">
+        <div className="max-w-[1200px] mx-auto px-6 py-20">
           <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-4">
-              <span className="text-red-500 font-bold text-xs uppercase tracking-wider block">Farz İbadetimiz</span>
-              <h3 className="font-outfit text-3xl font-black">
-                Kolay Zekat Hesaplama Modülü
-              </h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Nisap miktarı olan 85 gram altın veya karşılığı nakit birikiminize göre zekat yükümlülüğünüzü ve ödemeniz gereken zekat miktarını hızlıca hesaplayabilirsiniz.
+            <div>
+              <div className="text-[13px] font-bold tracking-[2px] text-[#F2A7A0] mb-2">FARZ İBADETİMİZ</div>
+              <h3 className="font-heading text-[28px] font-bold text-white mb-3">Kolay Zekât Hesaplama Modülü</h3>
+              <p className="text-[15px] text-[#E0C3BE] leading-relaxed">
+                Nisap miktarı olan 85 gram altın veya karşılığı nakit birikiminize göre zekât yükümlülüğünüzü ve ödemeniz gereken zekât miktarını hızlıca hesaplayabilirsiniz.
               </p>
             </div>
 
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-4">
+            <div className="bg-white/5 border border-white/15 rounded-2xl p-6 space-y-4">
               <form onSubmit={handleHesaplaZekat} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">Toplam Nakit/Altın Birikiminiz (TL)</label>
+                  <label className="block text-xs font-bold text-[#E0C3BE] uppercase tracking-wider mb-2">Toplam Nakit/Altın Birikiminiz (TL)</label>
                   <input
                     type="number"
                     placeholder="Örn: 200000"
                     value={zekatMiktar}
                     onChange={(e) => setZekatMiktar(e.target.value)}
-                    className="w-full rounded-xl bg-slate-900 border border-slate-700 p-3 text-white text-sm outline-none focus:border-red-500"
+                    className="w-full rounded-xl bg-[#300809] border border-white/15 p-3 text-white text-sm outline-none focus:border-[#E2423C]"
                     required
                   />
                 </div>
                 <button
                   type="submit"
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-xs uppercase tracking-wider"
+                  className="w-full bg-[#E2423C] hover:bg-[#EE5A52] text-white font-bold py-3 rounded-xl transition-colors text-xs uppercase tracking-wider"
                 >
                   Hesapla
                 </button>
               </form>
 
               {zekatSonuc !== null && (
-                <div className="pt-4 border-t border-slate-700/80 text-center animate-fade-in">
+                <div className="pt-4 border-t border-white/15 text-center">
                   {zekatSonuc > 0 ? (
                     <div className="space-y-3">
-                      <p className="text-sm text-slate-300">Hesaplanan Zekat Miktarınız:</p>
-                      <h4 className="font-outfit text-3xl font-black text-red-500">{zekatSonuc.toLocaleString('tr-TR')} ₺</h4>
-                      <Link
+                      <p className="text-sm text-[#E0C3BE]">Hesaplanan Zekât Miktarınız:</p>
+                      <h4 className="font-heading text-3xl font-black text-[#F2A7A0]">{zekatSonuc.toLocaleString('tr-TR')} ₺</h4>
+                      <a
                         href="#hizli-bagis"
-                        className="inline-block bg-white text-slate-900 hover:bg-slate-100 font-bold text-xs py-2 px-5 rounded-lg shadow-sm transition-all uppercase tracking-wider"
+                        className="inline-block bg-white text-[#241C1B] hover:bg-[#EDE3E0] font-bold text-xs py-2 px-5 rounded-lg transition-all uppercase tracking-wider"
                       >
-                        Zekatımı Bağışla
-                      </Link>
+                        Zekâtımı Bağışla
+                      </a>
                     </div>
                   ) : (
-                    <p className="text-xs text-amber-400 font-semibold leading-relaxed">
-                      Nakit birikiminiz nisap miktarının altında veya geçersiz tutar girdiniz. Zekat farz olmayabilir, ancak dilerseniz sadaka bağışında bulunabilirsiniz.
+                    <p className="text-xs text-[#F2A7A0] font-semibold leading-relaxed">
+                      Nakit birikiminiz nisap miktarının altında veya geçersiz tutar girdiniz. Zekât farz olmayabilir, ancak dilerseniz sadaka bağışında bulunabilirsiniz.
                     </p>
                   )}
                 </div>
@@ -308,38 +383,67 @@ export function KardeslikHome({ campaigns }: KardeslikHomeProps) {
         </div>
       </section>
 
-      {/* Traditional Bank details and secure icons */}
-      <section className="py-16 bg-slate-950 text-slate-400 border-t border-slate-800">
-        <div className="container mx-auto px-4 grid md:grid-cols-3 gap-8">
-          <div className="space-y-2 border-b md:border-b-0 md:border-r border-slate-800 pb-6 md:pb-0 pr-6">
-            <h5 className="font-outfit text-sm font-bold uppercase tracking-widest text-slate-200">Resmi Adres</h5>
-            <p className="text-xs leading-relaxed text-slate-400">
-              Kardeşlik Payı Yardımlaşma Derneği<br />
-              İskenderpaşa Mah. Sofular Cad. No: 12<br />
-              Fatih, İstanbul, Türkiye
-            </p>
-          </div>
-          <div className="space-y-2 border-b md:border-b-0 md:border-r border-slate-800 pb-6 md:pb-0 pr-6">
-            <h5 className="font-outfit text-sm font-bold uppercase tracking-widest text-slate-200">İletişim & Danışma</h5>
-            <p className="text-xs leading-relaxed text-slate-400">
-              Telefon: +90 212 555 44 33<br />
-              E-posta: kardeslikpayi2026@gmail.com
-            </p>
-          </div>
-          <div className="space-y-3">
-            <h5 className="font-outfit text-sm font-bold uppercase tracking-widest text-slate-200">Yasal Mevzuat</h5>
-            <p className="text-xs leading-relaxed text-slate-500">
-              Derneğimiz, T.C. İçişleri Bakanlığı Sivil Toplumla İlişkiler Genel Müdürlüğü denetiminde faaliyet göstermektedir. Bağışlarınız şeffaf şekilde raporlanır.
-            </p>
-          </div>
+      {/* Şeffaflık bandı */}
+      <section id="iletisim" className="bg-white border-t border-[#EDE3E0]">
+        <div className="max-w-[1200px] mx-auto px-6 py-14 grid md:grid-cols-3 gap-8">
+          {trust.map((t) => (
+            <div key={t.title} className="flex gap-4 items-start">
+              <div className="w-11 h-11 rounded-[10px] bg-[#FBEDEB] text-[#C2181B] flex items-center justify-center text-xl flex-shrink-0">
+                {t.glyph}
+              </div>
+              <div>
+                <div className="font-bold text-base mb-1">{t.title}</div>
+                <div className="text-sm text-[#82706D] leading-relaxed">{t.desc}</div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Simple Footer */}
-      <footer className="bg-slate-950 py-6 text-center text-[10px] text-slate-600 border-t border-slate-900/60">
-        <div className="container mx-auto px-4">
-          <p>© {new Date().getFullYear()} Kardeşlik Payı Yardımlaşma Derneği. Tüm Hakları Saklıdır.</p>
-          <p className="mt-1 text-slate-700">E-İnfak Otomasyon Sistemi Altyapısı ile Entegre Çalışmaktadır.</p>
+      {/* Footer */}
+      <footer className="bg-[#300809] text-[#C4A6A2] mt-auto">
+        <div className="max-w-[1200px] mx-auto px-6 pt-14 pb-8 grid md:grid-cols-[1.4fr_1fr_1fr_1.2fr] gap-10">
+          <div id="footer-hakkimizda">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="relative h-11 w-11 rounded-full overflow-hidden">
+                <Image src="/images/kardeslik/logo.jpeg" alt="" fill className="object-cover" />
+              </div>
+              <span className="font-heading font-bold text-lg text-white">KARDEŞLİK PAYI</span>
+            </div>
+            <p className="text-sm leading-relaxed">&quot;Birlikte daha güçlüyüz&quot; anlayışıyla Türkiye genelinde ihtiyaç sahibi ailelere ulaşan yurt içi yardım kuruluşu.</p>
+          </div>
+          <div>
+            <div className="text-white font-bold text-sm tracking-wider mb-3.5">KURUMSAL</div>
+            <div className="flex flex-col gap-2.5 text-sm">
+              <Link href="/hakkimizda" className="hover:text-white">Hakkımızda</Link>
+              <Link href="/hakkimizda" className="hover:text-white">Şeffaflık Raporları</Link>
+              <Link href="/hakkimizda" className="hover:text-white">KVKK Aydınlatma</Link>
+              <Link href="/iletisim" className="hover:text-white">İletişim</Link>
+            </div>
+          </div>
+          <div>
+            <div className="text-white font-bold text-sm tracking-wider mb-3.5">BAĞIŞ</div>
+            <div className="flex flex-col gap-2.5 text-sm">
+              <a href="#kategoriler" className="hover:text-white">Gıda Kolisi</a>
+              <a href="#kategoriler" className="hover:text-white">Askıda Fatura</a>
+              <a href="#kategoriler" className="hover:text-white">Barınma Yardımı</a>
+              <Link href="/zekat-hesapla" className="hover:text-white">Zekât &amp; Fitre</Link>
+            </div>
+          </div>
+          <div>
+            <div className="text-white font-bold text-sm tracking-wider mb-3.5">İLETİŞİM</div>
+            <div className="flex flex-col gap-2.5 text-sm">
+              <span>{address}</span>
+              <span>{phone}</span>
+              <span>{email}</span>
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-white/10">
+          <div className="max-w-[1200px] mx-auto px-6 py-5 flex justify-between text-[13px] flex-wrap gap-2">
+            <span>© {new Date().getFullYear()} Kardeşlik Payı Yardımlaşma Derneği. Tüm hakları saklıdır.</span>
+            <span>E-İnfak altyapısı ile güçlendirilmiştir</span>
+          </div>
         </div>
       </footer>
     </div>

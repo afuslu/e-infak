@@ -4,40 +4,40 @@ export const kardeslikTheme: ThemeConfig = {
   slug: 'kardeslik-payi',
   name: 'Kardeşlik Payı',
   primaryColor: {
-    // Crimson Red / Kalp Kırmızısı (#E10606)
-    50: '#fff5f5',
-    100: '#ffe3e3',
-    200: '#ffc9c9',
-    300: '#ffa3a3',
-    400: '#ff7373',
-    500: '#ff4444',
-    600: '#e10606', // Main brand color (Logodaki ana kırmızı)
-    700: '#c00404',
-    800: '#9f0202',
-    900: '#7e0101',
-    950: '#4f0000',
+    // Kalp Kırmızısı / Bordo — 2026 tasarım paketi (Claude Design)
+    50: '#FDF6F5',
+    100: '#FBEDEB',
+    200: '#F5D2CE',
+    300: '#EBA9A1',
+    400: '#DE7A70',
+    500: '#D14840',
+    600: '#C2181B', // Main brand color
+    700: '#961114', // Hover / koyu ton
+    800: '#4A0D0F', // Bordo zemin
+    900: '#300809', // En koyu bordo zemin
+    950: '#1D0405',
   },
   accentColor: {
-    // Slate Anthracite / Koyu Gri (#1E293B)
-    50: '#f8fafc',
-    100: '#f1f5f9',
-    200: '#e2e8f0',
-    300: '#cbd5e1',
-    400: '#94a3b8',
-    500: '#64748b',
-    600: '#475569',
-    700: '#334155',
-    800: '#1e293b', // Main accent color
-    900: '#0f172a',
-    950: '#020617',
+    // Açık vurgu kırmızısı
+    50: '#FEF1F0',
+    100: '#FCD9D6',
+    200: '#F7B0AA',
+    300: '#F0827A',
+    400: '#EE5A52',
+    500: '#E2423C', // Main accent color
+    600: '#C23129',
+    700: '#9C2822',
+    800: '#74211D',
+    900: '#3F1613',
+    950: '#240C0A',
   },
   logo: {
-    light: '/images/kardeslik/logo.png', // The main logo provided by user
-    icon: '/images/kardeslik/vakiflogo.png',
+    light: '/images/kardeslik/logo.jpeg',
+    icon: '/images/kardeslik/logo.jpeg',
   },
   fonts: {
-    primary: 'Inter',
-    heading: 'var(--font-outfit)', // custom font setup
+    primary: 'var(--font-primary)', // Public Sans
+    heading: 'var(--font-heading)', // Lora
   },
   meta: {
     title: 'Kardeşlik Payı - Bağış Platformu',

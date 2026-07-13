@@ -403,7 +403,7 @@ export function QuickDonationForm({
       {/* STEP 4: Success Message */}
       {step === 4 && success && (
         <div className="text-center py-6 space-y-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary-100 text-3xl">
             ✨
           </div>
           <h5 className="font-heading text-2xl font-bold text-gray-800">Bağışınız Kabul Olsun!</h5>

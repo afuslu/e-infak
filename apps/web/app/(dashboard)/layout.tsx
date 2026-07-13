@@ -6,6 +6,22 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@e-infak/ui'
 
+// Admin panel'in kendi sabit markası (E-İnfak yeşili) — mevcut kiracının
+// (Hicret/Kardeşlik) renklerinden bağımsız; `primary-*` sınıflarını burada geçersiz kılar.
+const ADMIN_PRIMARY_VARS = {
+  '--color-primary-50': '#E6F5EE',
+  '--color-primary-100': '#C9EBDD',
+  '--color-primary-200': '#9DDCC3',
+  '--color-primary-300': '#6BC9A5',
+  '--color-primary-400': '#3DAE87',
+  '--color-primary-500': '#2FA884',
+  '--color-primary-600': '#0E7A5F',
+  '--color-primary-700': '#0A5C47',
+  '--color-primary-800': '#0A4436',
+  '--color-primary-900': '#073327',
+  '--color-primary-950': '#041D16',
+} as React.CSSProperties
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { data: user, isLoading } = useCurrentUser()
@@ -19,9 +35,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#EEF1F4]">
         <div className="text-center">
-          <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary-200 border-t-primary-600" />
+          <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[#0E7A5F]/20 border-t-[#0E7A5F]" />
           <p className="text-gray-600">Yükleniyor...</p>
         </div>
       </div>
@@ -37,176 +53,79 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/')
   }
 
+  const navItems = [
+    { href: '/admin', label: 'Dashboard', icon: '📊' },
+    { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: '📢' },
+    { href: '/admin/bagislar', label: 'Bağışlar', icon: '💰' },
+    { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: '🧾' },
+    { href: '/admin/bagiscilar', label: 'Bağışçılar (CRM)', icon: '👥' },
+    { href: '/admin/bagis-kalemleri', label: 'Bağış Kalemleri', icon: '🗂️' },
+    { href: '/admin/icerikler', label: 'İçerikler', icon: '📰' },
+    { href: '/admin/finance', label: 'Kasa & Raporlar', icon: '💼' },
+    { href: '/admin/sms', label: 'SMS Şablonları', icon: '✉️' },
+    { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: '💬' },
+    { href: '/admin/kurban', label: 'Kurban Takip', icon: '🐏' },
+    { href: '/admin/students', label: 'Öğrenci Sponsorluk', icon: '🎓' },
+    { href: '/admin/wells', label: 'Su Kuyusu Takibi', icon: '📍' },
+    { href: '/admin/banners', label: "Slider / Duyuru Banner'ları", icon: '🖼️' },
+    { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: '💳' },
+    { href: '/admin/zakat', label: 'Zekât Ayarları', icon: '🪙' },
+    { href: '/admin/site-ayarlari', label: 'Site Ayarları (Görünüm)', icon: '🎨' },
+    { href: '/admin/integrations', label: 'Ayarlar / POS / API', icon: '🔌' },
+    { href: '/admin/ai', label: 'AI Tahmin Motoru', icon: '🧠' },
+    { href: '/admin/users', label: 'Personel Yetkileri', icon: '👥' },
+    { href: '/admin/logs', label: 'Güvenlik Günlüğü', icon: '📜' },
+  ]
+
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-[#EEF1F4]" style={ADMIN_PRIMARY_VARS}>
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-sm">
-        <div className="flex h-16 items-center border-b px-6">
-          <Link href="/admin" className="text-xl font-bold text-primary-600">
-            E-İnfak Admin
-          </Link>
+      <aside className="w-60 flex-shrink-0 bg-[#12202E] text-[#8FA3B5] flex flex-col">
+        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-white/[0.08]">
+          <div className="h-9 w-9 rounded-[9px] flex items-center justify-center text-white font-extrabold text-base" style={{ background: 'linear-gradient(135deg,#0E7A5F,#2FA884)' }}>
+            e
+          </div>
+          <div>
+            <div className="text-white font-extrabold text-[16px] tracking-wide">E-İNFAK</div>
+            <div className="text-[10px] tracking-[1.5px] text-[#5F7488]">DERNEK OTOMASYONU</div>
+          </div>
         </div>
 
-        <nav className="p-4">
-          <ul className="space-y-2">
-            <li>
-              <Link
-                href="/admin"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                📊 Dashboard
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/kampanyalar"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                📢 Kampanyalar
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/bagislar"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                💰 Bağışlar
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/bagiscilar"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                👥 Bağışçılar
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/finance"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                💼 Kasa & Raporlar
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/sms"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                ✉️ SMS Şablonları
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/broadcast"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                💬 Toplu SMS Gönder
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/kurban"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                🐏 Kurban Takip
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/students"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                🎓 Öğrenci Sponsorluk
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/wells"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                📍 Su Kuyusu Takibi
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/banners"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                📢 Duyuru Banner'ları
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/subscriptions"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                💳 Düzenli Ödemeler
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/zakat"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                🪙 Zekat Ayarları
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/integrations"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                🔌 Webhook & API Key
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/ai"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                🧠 AI Tahmin Motoru
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/users"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                👥 Personel Yetkileri
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/logs"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                📜 Güvenlik Günlüğü
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/admin/ayarlar"
-                className="block rounded-lg px-4 py-2 text-gray-700 hover:bg-primary-50 hover:text-primary-700"
-              >
-                ⚙️ Ayarlar
-              </Link>
-            </li>
-          </ul>
+        <nav className="flex-1 flex flex-col gap-0.5 px-2.5 py-3.5 overflow-y-auto">
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13.5px] font-semibold text-[#8FA3B5] hover:bg-white/[0.06] hover:text-white transition-colors"
+            >
+              <span>{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
         </nav>
+        <div className="px-4 py-4 border-t border-white/[0.08] text-[11px] text-[#5F7488]">
+          E-İnfak v1.0 · admin@e-infak.org
+        </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1">
-        {/* Header */}
-        <header className="h-16 border-b bg-white">
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Topbar */}
+        <header className="h-[60px] flex-shrink-0 border-b border-[#E2E8EE] bg-white">
           <div className="flex h-full items-center justify-between px-6">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-[16px] font-bold text-[#1D2733]">
               Hoş geldiniz, {user.first_name}
             </h2>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">{user.email}</span>
+            <div className="flex items-center gap-3.5">
+              <Link href="/" className="text-[13px] font-semibold border border-[#D8E0E8] px-3.5 py-2 rounded-lg text-[#3D4C5C] hover:border-[#0E7A5F] hover:text-[#0E7A5F] transition-colors">
+                Siteyi Görüntüle ↗
+              </Link>
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-full bg-[#0E7A5F] text-white flex items-center justify-center font-bold text-[13px]">
+                  {user.first_name?.[0]?.toUpperCase() || 'A'}
+                </div>
+                <span className="text-[13px] font-semibold text-[#1D2733]">{user.first_name}</span>
+              </div>
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 Çıkış
               </Button>
@@ -215,7 +134,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Page Content */}
-        <main className="p-6">{children}</main>
+        <main className="flex-1 p-6 overflow-auto min-w-0">{children}</main>
       </div>
     </div>
   )

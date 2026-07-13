@@ -1,22 +1,17 @@
 import type { Metadata } from 'next'
-import { Inter, Outfit, Playfair_Display } from 'next/font/google'
+import { Lora, Public_Sans } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import { DonationCart } from '../components/DonationCart'
 
-const inter = Inter({ 
+const publicSans = Public_Sans({
   subsets: ['latin'],
   variable: '--font-primary',
 })
 
-const outfit = Outfit({
+const lora = Lora({
   subsets: ['latin'],
-  variable: '--font-outfit',
-})
-
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  variable: '--font-playfair',
+  variable: '--font-heading',
 })
 
 export const metadata: Metadata = {
@@ -30,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="tr" className={`${inter.variable} ${outfit.variable} ${playfair.variable}`}>
-      <body className={inter.className}>
+    <html lang="tr" className={`${publicSans.variable} ${lora.variable}`}>
+      <body className={publicSans.className}>
         <Providers>
           {children}
           <DonationCart />
