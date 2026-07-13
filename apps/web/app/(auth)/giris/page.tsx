@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Button, Input, Label, Card } from '@e-infak/ui'
 import Link from 'next/link'
 
 const loginSchema = z.object({
@@ -37,39 +36,64 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
-      <Card className="w-full max-w-md p-8">
+    <div className="relative min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center overflow-hidden font-sans px-4 py-12">
+      {/* Background Glowing Blurs */}
+      <div className="absolute top-1/4 -left-1/4 w-[500px] h-[500px] bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-1/4 -right-1/4 w-[500px] h-[500px] bg-red-600/5 rounded-full blur-[100px] pointer-events-none" />
+
+      <div className="relative z-10 w-full max-w-md p-8 bg-slate-900/30 backdrop-blur-xl border border-slate-900 rounded-2xl shadow-2xl">
         <div className="mb-8 text-center">
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">Giriş Yap</h1>
-          <p className="text-gray-600">Admin paneline erişim</p>
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-500 to-red-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 mx-auto mb-4">
+            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-black bg-gradient-to-b from-white to-slate-400 bg-clip-text text-transparent">Giriş Yap</h1>
+          <p className="text-sm text-slate-500 mt-1">Admin paneline erişim</p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div>
-            <Label htmlFor="email">E-posta</Label>
-            <Input id="email" type="email" {...register('email')} />
-            {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
+            <label htmlFor="email" className="block text-sm font-medium text-slate-400 mb-2">E-posta</label>
+            <input
+              id="email"
+              type="email"
+              {...register('email')}
+              className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-800/80 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 text-white placeholder-slate-600 outline-none transition-all duration-300"
+              placeholder="admin@e-infak.org"
+            />
+            {errors.email && <p className="mt-1.5 text-xs text-red-500">{errors.email.message}</p>}
           </div>
 
           <div>
-            <Label htmlFor="password">Şifre</Label>
-            <Input id="password" type="password" {...register('password')} />
+            <label htmlFor="password" className="block text-sm font-medium text-slate-400 mb-2">Şifre</label>
+            <input
+              id="password"
+              type="password"
+              {...register('password')}
+              className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-800/80 focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50 text-white placeholder-slate-600 outline-none transition-all duration-300"
+              placeholder="••••••••"
+            />
             {errors.password && (
-              <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+              <p className="mt-1.5 text-xs text-red-500">{errors.password.message}</p>
             )}
           </div>
 
-          <Button type="submit" size="lg" className="w-full" disabled={login.isPending}>
-            {login.isPending ? 'Giriş yapılıyor...' : 'Giriş Yap'}
-          </Button>
+          <button
+            type="submit"
+            disabled={login.isPending}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-red-600 hover:from-emerald-600 hover:to-red-700 text-white font-semibold transition-all duration-300 shadow-lg shadow-emerald-950/30 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+          >
+            {login.isPending ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
+          </button>
         </form>
 
         <div className="mt-6 text-center">
-          <Link href="/" className="text-sm text-primary-600 hover:text-primary-700">
+          <Link href="/" className="text-sm text-slate-400 hover:text-white transition-colors duration-300">
             Ana Sayfaya Dön
           </Link>
         </div>
-      </Card>
+      </div>
     </div>
   )
 }
