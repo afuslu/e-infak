@@ -67,15 +67,21 @@ async def login(
 ):
     """Login user and return tokens"""
     
-    organization_id = request.state.organization_id
+    # Safely get organization_id from request state (None for main portal domain)
+    organization_id = getattr(request.state, "organization_id", None)
     
     # Find user
-    result = await db.execute(
-        select(User).where(
-            User.email == credentials.email,
-            User.organization_id == organization_id,
+    if organization_id:
+        result = await db.execute(
+            select(User).where(
+                User.email == credentials.email,
+                User.organization_id == organization_id,
+            )
         )
-    )
+    else:
+        result = await db.execute(
+            select(User).where(User.email == credentials.email)
+        )
     user = result.scalar_one_or_none()
     
     if not user or not verify_password(credentials.password, user.hashed_password):
