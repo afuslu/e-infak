@@ -20,6 +20,16 @@ interface Stats {
   category_breakdown_lira: Record<string, number>
 }
 
+interface BankTransaction {
+  id: string
+  booked_at: string
+  amount_cents: number
+  currency: string
+  sender_name?: string
+  description?: string
+  status: 'unmatched' | 'matched' | 'ambiguous' | 'ignored'
+}
+
 export default function AdminFinancePage() {
   const [stats, setStats] = useState<Stats>({
     total_income_lira: 0,
@@ -28,6 +38,8 @@ export default function AdminFinancePage() {
     category_breakdown_lira: {}
   })
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [bankTransactions, setBankTransactions] = useState<BankTransaction[]>([])
+  const [statementFile, setStatementFile] = useState<File | null>(null)
   
   // Form state
   const [title, setTitle] = useState('')
@@ -45,26 +57,48 @@ export default function AdminFinancePage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi' // Default context
     }
   }
 
   const loadData = async () => {
     try {
       const headers = getAuthHeaders()
-      const [statsRes, expensesRes] = await Promise.all([
+      const [statsRes, expensesRes, reconciliationRes] = await Promise.all([
         axios.get(`${API_BASE}/api/v1/finance/stats`, { headers }),
-        axios.get(`${API_BASE}/api/v1/finance/expenses`, { headers })
+        axios.get(`${API_BASE}/api/v1/finance/expenses`, { headers }),
+        axios.get(`${API_BASE}/api/v1/admin/reconciliation`, { headers })
       ])
       setStats(statsRes.data)
       setExpenses(expensesRes.data)
+      setBankTransactions(reconciliationRes.data)
     } catch (err) {
       console.error('Failed to load finance data:', err)
     }
   }
 
+  const handleStatementImport = async () => {
+    if (!statementFile) return
+    setLoading(true)
+    setErrorMsg('')
+    try {
+      const form = new FormData()
+      form.append('file', statementFile)
+      const response = await axios.post(`${API_BASE}/api/v1/admin/bank-statements/import`, form, {
+        headers: getAuthHeaders(),
+      })
+      setSuccessMsg(`${response.data.imported_count} hareket içe aktarıldı; ${response.data.skipped_count} tekrar kayıt atlandı.`)
+      setStatementFile(null)
+      await loadData()
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.detail || 'Ekstre içe aktarılamadı.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadData()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSubmitExpense = async (e: React.FormEvent) => {
@@ -112,7 +146,6 @@ export default function AdminFinancePage() {
       const response = await fetch(`${API_BASE}/api/v1/finance/derbis-export`, {
         headers: {
           'Authorization': `Bearer ${token}`,
-          'x-organization-slug': 'hicret-dernegi'
         }
       })
       if (!response.ok) throw new Error('İndirme başarısız.')
@@ -175,6 +208,31 @@ export default function AdminFinancePage() {
           </h4>
         </Card>
       </div>
+
+      <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Ziraat Ekstresi ve Mutabakat</h2>
+            <p className="mt-1 text-xs text-gray-500">CSV/XLSX dosyaları tekrar yüklemeye karşı korunur; açıklama kodu ve tutar üzerinden eşleştirilir.</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input aria-label="Banka ekstresi" type="file" accept=".csv,.xlsx" onChange={(e) => setStatementFile(e.target.files?.[0] || null)}
+              className="rounded-lg border p-2 text-xs" />
+            <Button type="button" onClick={handleStatementImport} disabled={!statementFile || loading}
+              className="bg-slate-900 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">
+              Ekstreyi İçe Aktar
+            </Button>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {(['matched', 'unmatched', 'ambiguous'] as const).map((status) => (
+            <div key={status} className="rounded-xl bg-slate-50 p-3">
+              <p className="text-xs font-bold uppercase text-slate-500">{status === 'matched' ? 'Eşleşen' : status === 'unmatched' ? 'Bekleyen' : 'İncelenecek'}</p>
+              <p className="mt-1 text-2xl font-black">{bankTransactions.filter((item) => item.status === status).length}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <div className="grid lg:grid-cols-12 gap-8 items-start">
         {/* Left side: Add Expense Form */}

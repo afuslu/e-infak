@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.db import get_db
@@ -8,10 +8,44 @@ from app.models.zakat_setting import ZakatSetting
 from app.models.donation_category import DonationCategory
 from app.models.organization_settings import OrganizationSettings
 from app.models.content_post import ContentPost
+from app.models.donation import Donation, DonationStatus
+from sqlalchemy.orm import selectinload
 from app.schemas.contact import ContactMessageCreate, ContactMessageResponse
 from app.schemas.preregistration import PreRegistrationCreate, PreRegistrationResponse
 
 router = APIRouter(prefix="/public", tags=["public-forms"])
+
+
+@router.get("/receipts/{receipt_number}")
+async def verify_public_receipt(
+    request: Request,
+    receipt_number: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Donation)
+        .options(selectinload(Donation.donor))
+        .where(
+            Donation.organization_id == request.state.organization_id,
+            Donation.receipt_number == receipt_number,
+            Donation.status.in_([DonationStatus.CONFIRMED, DonationStatus.REFUNDED]),
+        )
+    )
+    donation = result.scalar_one_or_none()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Makbuz bulunamadı")
+    donor_name = "Anonim Bağışçı"
+    if donation.donor and not donation.is_anonymous:
+        last_initial = f"{donation.donor.last_name[0]}." if donation.donor.last_name else ""
+        donor_name = f"{donation.donor.first_name} {last_initial}".strip()
+    return {
+        "status": "refunded" if donation.status == DonationStatus.REFUNDED else "valid",
+        "receipt_number": donation.receipt_number,
+        "donor_name": donor_name,
+        "amount_lira": donation.amount_cents / 100,
+        "created_at": donation.paid_at or donation.created_at,
+        "payment_method": "Kredi Kartı" if donation.payment_method == "credit_card" else "Havale / EFT",
+    }
 
 
 @router.post("/contact-messages", response_model=ContactMessageResponse, status_code=201)

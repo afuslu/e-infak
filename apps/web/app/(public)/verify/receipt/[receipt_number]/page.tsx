@@ -32,7 +32,7 @@ export default function PublicVerifyReceiptPage() {
       setLoading(true)
       setErrorMsg('')
       try {
-        const res = await axios.get(`${API_BASE}/api/v1/admin-features/public-verify/receipt/${receiptNumber}`)
+        const res = await axios.get(`${API_BASE}/api/v1/public/receipts/${receiptNumber}`)
         setData(res.data)
       } catch (err: any) {
         console.error(err)
@@ -43,7 +43,7 @@ export default function PublicVerifyReceiptPage() {
     }
     
     verifyReceipt()
-  }, [receiptNumber])
+  }, [receiptNumber, API_BASE])
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">

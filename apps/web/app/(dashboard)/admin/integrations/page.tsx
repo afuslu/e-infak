@@ -14,7 +14,8 @@ interface ApiKey {
 interface Webhook {
   id: string
   target_url: string
-  secret_token: string
+  secret_ref: string
+  subscribed_events: string
   is_active: boolean
 }
 
@@ -30,7 +31,7 @@ export default function AdminIntegrationsPage() {
   // Webhooks state
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
   const [targetUrl, setTargetUrl] = useState('')
-  const [secretToken, setSecretToken] = useState('')
+  const [secretRef, setSecretRef] = useState('')
   const [creatingWebhook, setCreatingWebhook] = useState(false)
 
   const [loading, setLoading] = useState(false)
@@ -42,7 +43,6 @@ export default function AdminIntegrationsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 
@@ -108,19 +108,20 @@ export default function AdminIntegrationsPage() {
 
   const handleCreateWebhook = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!targetUrl.trim() || !secretToken.trim()) return
+    if (!targetUrl.trim() || !secretRef.trim()) return
 
     setCreatingWebhook(true)
     try {
       const headers = getAuthHeaders()
       const res = await axios.post(`${API_BASE}/api/v1/admin-features/integrations/webhooks`, {
         target_url: targetUrl,
-        secret_token: secretToken
+        secret_ref: secretRef,
+        subscribed_events: ['donation.paid']
       }, { headers })
       
       setWebhooks(prev => [...prev, res.data])
       setTargetUrl('')
-      setSecretToken('')
+      setSecretRef('')
       setSuccessMsg('Webhook başarıyla eklendi!')
     } catch (err) {
       console.error('Failed to create webhook:', err)
@@ -268,12 +269,12 @@ export default function AdminIntegrationsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Gizli Token (Secret Key) *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Secret Store Referansı *</label>
                   <input
                     type="text"
-                    placeholder="Örn: webhook_super_secret"
-                    value={secretToken}
-                    onChange={(e) => setSecretToken(e.target.value)}
+                    placeholder="Örn: env:EINFAK_WEBHOOK_HICRET"
+                    value={secretRef}
+                    onChange={(e) => setSecretRef(e.target.value)}
                     className="w-full rounded-lg border border-gray-300 p-2.5 text-xs outline-none focus:border-primary-500"
                     required
                   />
@@ -299,7 +300,7 @@ export default function AdminIntegrationsPage() {
                     <thead>
                       <tr className="border-b text-gray-500 uppercase tracking-wider text-[10px] font-bold">
                         <th className="pb-3">Hedef URL</th>
-                        <th className="pb-3">Token</th>
+                        <th className="pb-3">Secret Referansı</th>
                         <th className="pb-3 text-right">İşlem</th>
                       </tr>
                     </thead>
@@ -308,7 +309,7 @@ export default function AdminIntegrationsPage() {
                         <tr key={h.id} className="hover:bg-gray-50/50">
                           <td className="py-3 font-semibold text-gray-900 break-all max-w-xs">🔌 {h.target_url}</td>
                           <td className="py-3 font-mono text-gray-400 text-[10px]">
-                            {h.secret_token.substring(0,4)}****
+                            {h.secret_ref}
                           </td>
                           <td className="py-3 text-right">
                             <button

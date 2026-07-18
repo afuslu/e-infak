@@ -27,50 +27,25 @@ interface KardeslikHomeProps {
   newsPosts?: ContentPostDto[]
 }
 
-const stats = [
-  { value: '500+', label: 'Açılan Su Kuyusu' },
-  { value: '10,000+', label: 'Gıda Yardım Kolisi' },
-  { value: '2,500+', label: 'Desteklenen Yetim' },
-  { value: '81', label: 'İl Genelinde Hizmet' },
-]
-
-const FALLBACK_CATEGORIES = [
-  { title: 'Gıda Kolisi', desc: 'Bir ailenin bir aylık temel gıda ihtiyacını karşılayın.', img: '/images/kardeslik/kp-ic-gida.png' },
-  { title: 'Askıda Fatura', desc: 'Elektrik, su ve doğalgaz borcunu üstlenerek nefes aldırın.', img: '/images/kardeslik/kp-ic-fatura.png' },
-  { title: 'Aşevi Desteği', desc: 'Sıcak yemeğin sofralara ulaşmasına katkı sağlayın.', img: '/images/kardeslik/kp-ic-asevi.png' },
-  { title: 'Barınma Yardımı', desc: 'Kira ve barınma ihtiyacı olan ailelere destek olun.', img: '/images/kardeslik/kp-ic-barinma.png' },
-  { title: 'Eğitim Bursu', desc: 'Bir öğrencinin eğitim masraflarına ortak olun.', img: '/images/kardeslik/kp-ic-egitim.png' },
-  { title: 'Sağlık Desteği', desc: 'Tedavi ve ilaç masraflarına destek olun.', img: '/images/kardeslik/kp-ic-saglik.png' },
-  { title: 'Genel Bağış', desc: 'En acil ihtiyaca yönlendirilecek genel bağış.', img: '/images/kardeslik/kp-ic-genel.png' },
-  { title: 'Zekât & Fitre', desc: 'Zekât ve fitrenizi ihtiyaç sahiplerine ulaştırın.', img: '/images/kardeslik/kp-ic-zekat.png' },
-]
-
-const FALLBACK_NEWS = [
-  { date: '5 TEMMUZ 2026', title: 'Yeni Su Kuyusu Açılış Töreni', img: '/images/kardeslik/kp-news1.png' },
-  { date: '22 HAZİRAN 2026', title: 'Aşevimizden 10.000. Sıcak Yemek', img: '/images/kardeslik/kp-news2.png' },
-  { date: '9 HAZİRAN 2026', title: 'Kırsalda Gıda Kolisi Dağıtımı', img: '/images/kardeslik/kp-news3.png' },
-]
-
-const FALLBACK_ADDRESS_DETAIL = 'İskenderpaşa Mah. Sofular Cad. No: 12, Fatih, İstanbul'
+const stats: Array<{ value: string; label: string }> = []
 
 export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHomeProps) {
   const { data: settings } = useOrgSettings()
-  const phone = settings?.contact_phone || '0 (212) 555 44 33'
-  const email = settings?.contact_email || 'info@kardeslikpayi.org'
-  const address = settings?.contact_address || 'Fatih, İstanbul, Türkiye'
+  const phone = settings?.contact_phone || ''
+  const email = settings?.contact_email || ''
+  const address = settings?.contact_address || ''
 
   const trust = [
-    { glyph: '📍', title: 'Resmi Adres', desc: settings?.contact_address || FALLBACK_ADDRESS_DETAIL },
-    { glyph: '☎', title: 'İletişim & Danışma', desc: `Telefon: ${phone} · ${email}` },
-    { glyph: '🔒', title: 'Yasal Mevzuat', desc: 'T.C. İçişleri Bakanlığı denetiminde, şeffaf raporlama ile faaliyet gösteriyoruz.' },
-  ]
+    settings?.contact_address ? { glyph: '📍', title: 'Resmi Adres', desc: settings.contact_address } : null,
+    phone || email ? { glyph: '☎', title: 'İletişim & Danışma', desc: [phone, email].filter(Boolean).join(' · ') } : null,
+  ].filter((item): item is { glyph: string; title: string; desc: string } => Boolean(item))
 
   const [zekatMiktar, setZekatMiktar] = useState<number | string>('')
   const [zekatSonuc, setZekatSonuc] = useState<number | null>(null)
 
   const displayCategories = categories && categories.length > 0
     ? categories.map((c) => ({ title: c.title, desc: c.description, icon: c.icon }))
-    : FALLBACK_CATEGORIES.map((c) => ({ title: c.title, desc: c.desc, img: c.img }))
+    : []
 
   const displayNews = newsPosts && newsPosts.length > 0
     ? newsPosts.map((n) => ({
@@ -78,7 +53,7 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
         img: n.image_url || '/images/kardeslik/kp-news1.png',
         date: new Date(n.published_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase(),
       }))
-    : FALLBACK_NEWS
+    : []
 
   const handleHesaplaZekat = (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,11 +71,11 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
       <div className="bg-[#4A0D0F] text-[#F0D5D2] text-[13px] py-2">
         <div className="max-w-[1200px] mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-2">
           <div className="flex gap-5 flex-wrap">
-            <span>{phone}</span>
-            <span>{email}</span>
+            {phone && <span>{phone}</span>}
+            {email && <span>{email}</span>}
           </div>
           <div className="flex gap-4 items-center">
-            <Link href="/giris" className="text-[#F0D5D2] font-semibold hover:text-white">Bağışçı Girişi</Link>
+            <Link href="/portal" className="text-[#F0D5D2] font-semibold hover:text-white">Bağışçı Girişi</Link>
             <span className="opacity-40">|</span>
             <Link href="/verify" className="text-[#F0D5D2] hover:text-white">Online Makbuz</Link>
           </div>
@@ -122,9 +97,9 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
 
           <nav className="hidden lg:flex items-center gap-6 text-[15px] font-semibold">
             <Link href="/" className="text-[#C2181B]">Ana Sayfa</Link>
-            <a href="#kategoriler" className="text-[#453735] hover:text-[#C2181B]">Bağış Kategorileri</a>
+            {displayCategories.length > 0 && <a href="#kategoriler" className="text-[#453735] hover:text-[#C2181B]">Bağış Kategorileri</a>}
             <a href="#kampanyalar" className="text-[#453735] hover:text-[#C2181B]">Kampanyalar</a>
-            <a href="#haberler" className="text-[#453735] hover:text-[#C2181B]">Faaliyetler</a>
+            {displayNews.length > 0 && <a href="#haberler" className="text-[#453735] hover:text-[#C2181B]">Faaliyetler</a>}
             <Link href="/hakkimizda" className="text-[#453735] hover:text-[#C2181B]">Hakkımızda</Link>
             <Link href="/zekat-hesapla" className="text-[#453735] hover:text-[#C2181B]">Zekât Hesapla</Link>
             <Link href="/iletisim" className="text-[#453735] hover:text-[#C2181B]">İletişim</Link>
@@ -151,32 +126,36 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
               Bu topraklarda kimse yalnız kalmasın.
             </h1>
             <p className="text-lg leading-relaxed text-[#EDD8D4] mb-8 max-w-xl">
-              Türkiye&apos;nin her ilinde ihtiyaç sahibi ailelere gıda, barınma, eğitim ve sağlık desteği ulaştırıyoruz. Kardeşlik payınızı ayırın, komşunuza umut olun.
+              Kurum tarafından yayınlanan doğrulanmış yardım kampanyalarını inceleyin; seçtiğiniz projeye güvenli biçimde destek olun.
             </p>
             <div className="flex flex-wrap gap-3.5">
               <a href="#hizli-bagis" className="bg-[#E2423C] hover:bg-[#EE5A52] text-white font-extrabold text-base px-8 py-4 rounded-[10px]">
                 Kardeşlik Payı Ver
               </a>
-              <a href="#kategoriler" className="border-[1.5px] border-white/45 hover:border-white text-white font-semibold text-base px-8 py-4 rounded-[10px]">
+              {displayCategories.length > 0 && <a href="#kategoriler" className="border-[1.5px] border-white/45 hover:border-white text-white font-semibold text-base px-8 py-4 rounded-[10px]">
                 Bağış Kategorileri
-              </a>
+              </a>}
             </div>
           </div>
 
           <div id="hizli-bagis">
-            <QuickDonationForm
-              campaignId={campaigns[0]?.id || 'genel-bagis'}
-              campaignTitle={campaigns[0]?.title || 'Kardeşlik Payı Genel Bağış'}
+            {campaigns[0] ? <QuickDonationForm
+              campaignId={campaigns[0].id}
+              campaignTitle={campaigns[0].title}
               primaryColor="#C2181B"
               accentColor="#E2423C"
               themeSlug="kardeslik-payi"
-            />
+            /> : (
+              <div className="rounded-3xl border border-white/30 bg-white p-7 text-center text-[#453735]">
+                Aktif bağış kampanyaları kurum tarafından yayınlandığında güvenli bağış formu burada açılacaktır.
+              </div>
+            )}
           </div>
         </div>
       </section>
 
       {/* Sayaçlar */}
-      <section className="bg-white border-b border-[#EDE3E0]">
+      {stats.length > 0 && <section className="bg-white border-b border-[#EDE3E0]">
         <div className="max-w-[1200px] mx-auto px-6 py-9 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
           {stats.map((st) => (
             <div key={st.label}>
@@ -185,10 +164,10 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* Bağış kategorileri */}
-      <section id="kategoriler" className="max-w-[1200px] mx-auto px-6 pt-[72px]">
+      {displayCategories.length > 0 && <section id="kategoriler" className="max-w-[1200px] mx-auto px-6 pt-[72px]">
         <div className="text-center max-w-xl mx-auto mb-10">
           <div className="text-[13px] font-bold tracking-[2px] text-[#C2181B] mb-2">BAĞIŞ KATEGORİLERİ</div>
           <h2 className="font-heading text-[36px] font-bold text-[#241C1B] mb-3">Payınızı nereye ayırmak istersiniz?</h2>
@@ -201,27 +180,21 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
               href="#hizli-bagis"
               className="bg-white border-[1.5px] border-[#EDE3E0] hover:border-[#C2181B] hover:shadow-[0_10px_26px_rgba(194,24,27,0.12)] rounded-2xl p-5 flex flex-col gap-2 transition-all"
             >
-              {'img' in k ? (
-                <div className="relative w-11 h-11 rounded-[10px] overflow-hidden">
-                  <Image src={k.img} alt={k.title} fill className="object-cover" />
-                </div>
-              ) : (
-                <div className="w-11 h-11 rounded-[10px] bg-[#FBEDEB] flex items-center justify-center text-2xl">{k.icon}</div>
-              )}
+              <div className="w-11 h-11 rounded-[10px] bg-[#FBEDEB] flex items-center justify-center text-2xl">{k.icon}</div>
               <div className="font-bold text-base text-[#241C1B]">{k.title}</div>
               <div className="text-[13px] leading-relaxed text-[#82706D]">{k.desc}</div>
               <div className="font-bold text-[13px] text-[#C2181B] mt-auto">Bağış yap →</div>
             </a>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* Kampanyalar */}
       <section id="kampanyalar" className="max-w-[1200px] mx-auto px-6 py-[72px]">
         <div className="flex justify-between items-end mb-9 gap-6 flex-wrap">
           <div>
             <div className="text-[13px] font-bold tracking-[2px] text-[#C2181B] mb-2">AKTİF KAMPANYALAR</div>
-            <h2 className="font-heading text-[36px] font-bold text-[#241C1B]">Türkiye&apos;nin her yerinde, yılın her günü</h2>
+            <h2 className="font-heading text-[36px] font-bold text-[#241C1B]">Yayınlanan yardım kampanyaları</h2>
           </div>
           <Link href="/kampanyalar" className="font-bold text-[15px] text-[#C2181B] whitespace-nowrap">Tüm kampanyalar →</Link>
         </div>
@@ -293,17 +266,17 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
           <div>
             <h3 className="font-heading text-[28px] font-bold text-white mb-2">Askıda Kardeşlik Payı</h3>
             <p className="text-[15px] text-[#E0C3BE] leading-relaxed max-w-xl">
-              Aylık 300 ₺ ile bir ailenin market alışverişini üstlenin. Düzenli talimatla her ay otomatik tahsil edilir, makbuzunuz anında iletilir.
+              Banka tokenlı tahsilat yetkisi açılana kadar aylık güvenli ödeme bağlantısı ile desteğinizi sürdürebilirsiniz.
             </p>
           </div>
           <a href="#hizli-bagis" className="bg-[#E2423C] hover:bg-[#EE5A52] text-white font-extrabold text-base px-8 py-4 rounded-[10px] whitespace-nowrap">
-            Düzenli Bağış Başlat
+            Aylık Ödeme Bağlantısı
           </a>
         </div>
       </section>
 
       {/* Haberler */}
-      <section id="haberler" className="max-w-[1200px] mx-auto px-6 py-[72px]">
+      {displayNews.length > 0 && <section id="haberler" className="max-w-[1200px] mx-auto px-6 py-[72px]">
         <div className="flex justify-between items-end mb-9 gap-6 flex-wrap">
           <div>
             <div className="text-[13px] font-bold tracking-[2px] text-[#C2181B] mb-2">FAALİYETLER</div>
@@ -323,7 +296,7 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* Zekât Hesaplama */}
       <section id="zekat" className="bg-[#4A0D0F]">
@@ -384,7 +357,7 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
       </section>
 
       {/* Şeffaflık bandı */}
-      <section id="iletisim" className="bg-white border-t border-[#EDE3E0]">
+      {trust.length > 0 && <section id="iletisim" className="bg-white border-t border-[#EDE3E0]">
         <div className="max-w-[1200px] mx-auto px-6 py-14 grid md:grid-cols-3 gap-8">
           {trust.map((t) => (
             <div key={t.title} className="flex gap-4 items-start">
@@ -398,7 +371,7 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* Footer */}
       <footer className="bg-[#300809] text-[#C4A6A2] mt-auto">
@@ -410,32 +383,31 @@ export function KardeslikHome({ campaigns, categories, newsPosts }: KardeslikHom
               </div>
               <span className="font-heading font-bold text-lg text-white">KARDEŞLİK PAYI</span>
             </div>
-            <p className="text-sm leading-relaxed">&quot;Birlikte daha güçlüyüz&quot; anlayışıyla Türkiye genelinde ihtiyaç sahibi ailelere ulaşan yurt içi yardım kuruluşu.</p>
+            <p className="text-sm leading-relaxed">Doğrulanmış kampanyaları ve kurum bilgilerini tenant bazında yayınlayan bağış platformu.</p>
           </div>
           <div>
             <div className="text-white font-bold text-sm tracking-wider mb-3.5">KURUMSAL</div>
             <div className="flex flex-col gap-2.5 text-sm">
               <Link href="/hakkimizda" className="hover:text-white">Hakkımızda</Link>
-              <Link href="/hakkimizda" className="hover:text-white">Şeffaflık Raporları</Link>
-              <Link href="/hakkimizda" className="hover:text-white">KVKK Aydınlatma</Link>
+              <Link href="/kvkk" className="hover:text-white">KVKK Aydınlatma</Link>
+              <Link href="/gizlilik" className="hover:text-white">Gizlilik</Link>
+              <Link href="/bagis-kosullari" className="hover:text-white">Bağış ve İade Koşulları</Link>
               <Link href="/iletisim" className="hover:text-white">İletişim</Link>
             </div>
           </div>
           <div>
             <div className="text-white font-bold text-sm tracking-wider mb-3.5">BAĞIŞ</div>
             <div className="flex flex-col gap-2.5 text-sm">
-              <a href="#kategoriler" className="hover:text-white">Gıda Kolisi</a>
-              <a href="#kategoriler" className="hover:text-white">Askıda Fatura</a>
-              <a href="#kategoriler" className="hover:text-white">Barınma Yardımı</a>
+              <Link href="/kampanyalar" className="hover:text-white">Kampanyalar</Link>
               <Link href="/zekat-hesapla" className="hover:text-white">Zekât &amp; Fitre</Link>
             </div>
           </div>
           <div>
             <div className="text-white font-bold text-sm tracking-wider mb-3.5">İLETİŞİM</div>
             <div className="flex flex-col gap-2.5 text-sm">
-              <span>{address}</span>
-              <span>{phone}</span>
-              <span>{email}</span>
+              {address && <span>{address}</span>}
+              {phone && <span>{phone}</span>}
+              {email && <span>{email}</span>}
             </div>
           </div>
         </div>

@@ -1,4 +1,8 @@
+import os
 import pytest
+
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://einfak:einfak123@localhost:5432/einfak_test")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-characters")
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.core.db import Base
 from app.core.config import settings

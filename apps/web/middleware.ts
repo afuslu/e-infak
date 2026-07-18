@@ -2,28 +2,25 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  const hostname = request.headers.get('host') || ''
+  const hostname = (request.headers.get('host') || '').split(':')[0].toLowerCase()
   const url = new URL(request.url)
   
-  // Extract organization slug from hostname or query param
-  let orgSlug = url.searchParams.get('org') || ''
-  
-  if (!orgSlug) {
-    // Custom domain mapping
-    if (hostname.includes('hicretdernegi.org')) {
-      orgSlug = 'hicret-dernegi'
-    } else if (hostname.includes('kardeslikpayi.org')) {
-      orgSlug = 'kardeslik-payi'
-    } else if (hostname.includes('e-infak.org')) {
-      // Subdomain routing: tenant.e-infak.org
-      const subdomain = hostname.split('.')[0]
-      if (subdomain && subdomain !== 'www' && subdomain !== 'e-infak') {
-        orgSlug = subdomain
-      }
-    } else if (hostname.includes('localhost')) {
-      // Default dev tenant
-      orgSlug = 'hicret-dernegi'
+  // Production custom domains are authoritative; query/cookie tenant selection is
+  // allowed only on local development hosts.
+  let orgSlug = ''
+  if (hostname === 'hicretdernegi.org' || hostname === 'www.hicretdernegi.org') {
+    orgSlug = 'hicret-dernegi'
+  } else if (hostname === 'kardeslikpayi.org' || hostname === 'www.kardeslikpayi.org') {
+    orgSlug = 'kardeslik-payi'
+  } else if (hostname.endsWith('.e-infak.org')) {
+    const subdomain = hostname.split('.')[0]
+    if (subdomain && subdomain !== 'www') {
+      orgSlug = subdomain
     }
+  } else if (hostname.startsWith('localhost') || hostname.startsWith('127.0.0.1')) {
+    orgSlug = url.searchParams.get('org')
+      || request.cookies.get('org-slug')?.value
+      || 'hicret-dernegi'
   }
 
   // Set organization context in headers for backend requests
@@ -39,6 +36,7 @@ export function middleware(request: NextRequest) {
   // Set cookie for client-side access
   response.cookies.set('org-slug', orgSlug, {
     httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
   })

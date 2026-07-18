@@ -25,9 +25,7 @@ class OrganizationBase(BaseModel):
 
 
 class OrganizationCreate(OrganizationBase):
-    vpos_merchant_id: Optional[str] = None
-    vpos_terminal_id: Optional[str] = None
-    vpos_password: Optional[str] = None
+    payment_secret_ref: Optional[str] = None
 
 
 class OrganizationUpdate(BaseModel):

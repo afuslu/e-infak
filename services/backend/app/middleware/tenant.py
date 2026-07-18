@@ -22,16 +22,17 @@ class TenantMiddleware(BaseHTTPMiddleware):
         # over re-deriving it from this request's own Host header, which is
         # almost always the internal API host (e.g. 127.0.0.1:8020) and would
         # otherwise always resolve to the dev default tenant.
-        org_slug = request.headers.get("x-organization-slug") or None
-
-        if not org_slug:
-            hostname = request.headers.get("host", "").split(":")[0]
-            org_slug = await self.get_org_slug_from_hostname(hostname)
+        hostname = request.headers.get("host", "").split(":")[0].lower()
+        hostname_org = await self.get_org_slug_from_hostname(hostname)
+        if hostname in {
+            "hicretdernegi.org", "www.hicretdernegi.org",
+            "kardeslikpayi.org", "www.kardeslikpayi.org",
+        } or hostname.endswith(".e-infak.org"):
+            org_slug = hostname_org
+        else:
+            org_slug = request.headers.get("x-organization-slug") or hostname_org
         
         if not org_slug:
-            # For API routes, allow without organization (will be handled by endpoint)
-            if request.url.path.startswith("/api/"):
-                return await call_next(request)
             raise HTTPException(status_code=404, detail="Organization not found")
         
         # Get organization from database
@@ -78,13 +79,13 @@ class TenantMiddleware(BaseHTTPMiddleware):
             return domain_map[hostname]
         
         # Subdomain routing (*.e-infak.org)
-        if "e-infak.org" in hostname:
+        if hostname.endswith(".e-infak.org"):
             subdomain = hostname.split(".")[0]
             if subdomain not in ["www", "e-infak"]:
                 return subdomain
         
         # Development default
-        if "localhost" in hostname or "127.0.0.1" in hostname:
+        if hostname == "localhost" or hostname == "127.0.0.1":
             return "hicret-dernegi"
         
         return None

@@ -205,7 +205,8 @@ pnpm --filter web test
 DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/einfak
 REDIS_URL=redis://localhost:6379/0
 SECRET_KEY=your-secret-key
-VPOS_MERCHANT_ID=your-merchant-id
+ZIRAATPAY_TENANT_CREDENTIALS={"hicret-dernegi":{"merchant":"...","merchant_user":"...","merchant_password":"...","secret_key":"..."},"kardeslik-payi":{"merchant":"...","merchant_user":"...","merchant_password":"...","secret_key":"..."}}
+PAYMENTS_LIVE_ENABLED=false
 ```
 
 ### Frontend (.env.local)

@@ -39,10 +39,9 @@ class Organization(Base):
     iban = Column(String(32))
     account_holder = Column(String(200))
     
-    # VPOS Configuration
-    vpos_merchant_id = Column(String(100))
-    vpos_terminal_id = Column(String(100))
-    vpos_password = Column(String(255))
+    # Payment credentials are kept outside the database. This opaque reference
+    # points to the tenant's secret-store entry.
+    payment_secret_ref = Column(String(255))
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

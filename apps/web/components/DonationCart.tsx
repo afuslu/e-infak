@@ -1,372 +1,206 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useCreateDonation } from '@e-infak/api-client'
+import { useEffect, useState } from 'react'
+import { useCreateCheckout, type CheckoutSessionResponse } from '@e-infak/api-client'
 
 export interface CartItem {
   campaignId: string
   campaignTitle: string
   amount: number
+  quantity?: number
+  metadata?: Record<string, unknown>
 }
 
+const makeKey = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`
+
 export function DonationCart() {
-  const [isOpen, setIsOpen] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [step, setStep] = useState<'cart' | 'donor' | 'transfer'>('cart')
   const [cart, setCart] = useState<CartItem[]>([])
-  
-  // Checkout flow state inside cart
-  const [isCheckingOut, setIsCheckingOut] = useState(false)
-  const [checkoutStep, setCheckoutStep] = useState(1)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [cardNumber, setCardNumber] = useState('')
-  const [cardHolderName, setCardHolderName] = useState('')
-  const [cardExpiryMonth, setCardExpiryMonth] = useState('')
-  const [cardExpiryYear, setCardExpiryYear] = useState('')
-  const [cardCvv, setCardCvv] = useState('')
-  
-  const createDonation = useCreateDonation()
-  const [errorMsg, setErrorMsg] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'bank_transfer'>('credit_card')
+  const [locale, setLocale] = useState<'tr' | 'en' | 'ar'>('tr')
+  const [currency] = useState<'TRY' | 'EUR' | 'USD'>('TRY')
+  const [kvkk, setKvkk] = useState(false)
+  const [allowEmail, setAllowEmail] = useState(false)
+  const [allowSms, setAllowSms] = useState(false)
+  const [error, setError] = useState('')
+  const [transfer, setTransfer] = useState<CheckoutSessionResponse | null>(null)
+  const checkout = useCreateCheckout()
 
-  // Load cart from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('einfak_cart')
-    if (saved) {
-      try {
-        setCart(JSON.parse(saved))
-      } catch (e) {
-        console.error(e)
-      }
-    }
-  }, [])
-
-  // Listen to custom event to add to cart dynamically
-  useEffect(() => {
-    const handleAddToCart = (e: Event) => {
-      const item = (e as CustomEvent).detail as CartItem
-      setCart((prev) => {
-        const next = [...prev.filter(i => i.campaignId !== item.campaignId), item]
-        localStorage.setItem('einfak_cart', JSON.stringify(next))
-        return next
-      })
-      setIsOpen(true) // Automatically open drawer on item add!
-    }
-    
-    window.addEventListener('add-to-donation-cart', handleAddToCart)
-    return () => {
-      window.removeEventListener('add-to-donation-cart', handleAddToCart)
-    }
-  }, [])
-
-  const removeFromCart = (campaignId: string) => {
-    const next = cart.filter(i => i.campaignId !== campaignId)
+  const persist = (next: CartItem[]) => {
     setCart(next)
     localStorage.setItem('einfak_cart', JSON.stringify(next))
   }
 
-  const clearCart = () => {
-    setCart([])
-    localStorage.removeItem('einfak_cart')
-    setIsCheckingOut(false)
-    setCheckoutStep(1)
-  }
-
-  const handleNextStep = () => {
-    if (checkoutStep === 1) {
-      if (!firstName || !lastName || !email || !phone) {
-        setErrorMsg('Lütfen tüm zorunlu kişisel bilgileri doldurunuz.')
-        return
-      }
-      setErrorMsg('')
-      setCheckoutStep(2)
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('einfak_cart') || '[]')
+      if (Array.isArray(saved)) setCart(saved)
+    } catch {
+      localStorage.removeItem('einfak_cart')
     }
+    const add = (event: Event) => {
+      const item = (event as CustomEvent<CartItem>).detail
+      setCart((current) => {
+        const found = current.find((entry) => entry.campaignId === item.campaignId && entry.amount === item.amount)
+        const next = found
+          ? current.map((entry) => entry === found ? { ...entry, quantity: (entry.quantity || 1) + (item.quantity || 1) } : entry)
+          : [...current, { ...item, quantity: item.quantity || 1 }]
+        localStorage.setItem('einfak_cart', JSON.stringify(next))
+        return next
+      })
+      setOpen(true)
+    }
+    window.addEventListener('add-to-donation-cart', add)
+    return () => window.removeEventListener('add-to-donation-cart', add)
+  }, [])
+
+  const update = (index: number, patch: Partial<CartItem>) => {
+    persist(cart.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
   }
 
-  const handleSubmitCartDonations = async () => {
-    setErrorMsg('')
-    if (!cardNumber || !cardHolderName || !cardExpiryMonth || !cardExpiryYear || !cardCvv) {
-      setErrorMsg('Lütfen kart bilgilerini eksiksiz giriniz.')
+  const total = cart.reduce((sum, item) => sum + item.amount * (item.quantity || 1), 0)
+
+  const submit = async () => {
+    if (!firstName || !lastName || !email || !phone) {
+      setError('Lütfen zorunlu bağışçı bilgilerini doldurun.')
       return
     }
-
+    if (!kvkk) {
+      setError('KVKK aydınlatma metni onayı zorunludur.')
+      return
+    }
+    setError('')
     try {
-      // Loop and submit all donations sharing the same credit card details
-      for (const item of cart) {
-        await createDonation.mutateAsync({
+      const result = await checkout.mutateAsync({
+        items: cart.map((item) => ({
           campaign_id: item.campaignId,
-          amount_cents: item.amount * 100,
-          payment_method: 'credit_card',
-          donor: {
-            donor_type: 'individual',
-            first_name: firstName,
-            last_name: lastName,
-            email: email,
-            phone: phone,
-          },
-          card_number: cardNumber.replace(/\s/g, ''),
-          card_holder_name: cardHolderName,
-          card_expiry_month: cardExpiryMonth,
-          card_expiry_year: cardExpiryYear,
-          card_cvv: cardCvv,
-        })
+          quantity: item.quantity || 1,
+          unit_amount_cents: Math.round(item.amount * 100),
+          metadata: item.metadata,
+        })),
+        donor: {
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          phone,
+          is_anonymous: false,
+          allow_email: allowEmail,
+          allow_sms: allowSms,
+        },
+        payment_method: paymentMethod,
+        currency,
+        locale,
+        idempotency_key: makeKey(),
+        consent_version: '2026-07',
+        kvkk_accepted: kvkk,
+      })
+      if (result.redirect_url) {
+        window.location.assign(result.redirect_url)
+        return
       }
-      setSuccess(true)
-      setCheckoutStep(3)
-      setCart([])
-      localStorage.removeItem('einfak_cart')
-    } catch (e: any) {
-      console.error(e)
-      setErrorMsg(e?.response?.data?.detail || 'Ödeme işlemi başarısız. Lütfen bilgilerinizi kontrol ediniz.')
+      setTransfer(result)
+      setStep('transfer')
+      persist([])
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Ödeme başlatılamadı. Lütfen tekrar deneyin.')
     }
   }
 
-  const totalAmount = cart.reduce((sum, item) => sum + item.amount, 0)
-
-  if (cart.length === 0 && !isOpen) return null
+  if (!cart.length && !open) return null
 
   return (
     <>
-      {/* Floating cart button */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-white shadow-2xl hover:scale-110 active:scale-95 transition-all"
-        aria-label="Sepeti Aç"
-      >
-        <span className="text-2xl">🤝</span>
-        {cart.length > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-xs font-black text-slate-950 border-2 border-white animate-pulse">
-            {cart.length}
-          </span>
-        )}
+      <button type="button" onClick={() => setOpen(true)} aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-2xl text-white shadow-2xl">
+        🤝
+        {!!cart.length && <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1 text-xs font-black text-slate-900">{cart.length}</span>}
       </button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/60" role="dialog" aria-modal="true" aria-label="Bağış sepeti">
+          <button type="button" className="flex-1" aria-label="Sepeti kapat" onClick={() => setOpen(false)} />
+          <aside dir={locale === 'ar' ? 'rtl' : 'ltr'} className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
+            <header className="mb-5 flex items-center justify-between border-b pb-4">
+              <h2 className="text-xl font-black text-slate-900">Bağış Sepetim</h2>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Kapat" className="rounded-full p-2">✕</button>
+            </header>
+            {error && <div role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-      {/* Cart Drawer Overlay */}
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm transition-all duration-300">
-          {/* Outside click area */}
-          <div className="flex-1" onClick={() => setIsOpen(false)} />
-          
-          {/* Drawer content */}
-          <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col justify-between p-6 overflow-y-auto">
-            {/* Header */}
-            <div>
-              <div className="flex justify-between items-center border-b pb-4 mb-4">
-                <h4 className="font-heading text-lg font-bold text-slate-800">Bağış Sepetim</h4>
-                <button 
-                  onClick={() => setIsOpen(false)}
-                  className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 font-bold"
-                >
-                  ✕
-                </button>
+            {step === 'cart' && (
+              <div className="space-y-4">
+                {!cart.length ? <p className="py-12 text-center text-slate-500">Sepetiniz boş.</p> : cart.map((item, index) => (
+                  <div key={`${item.campaignId}-${item.amount}`} className="rounded-2xl border bg-slate-50 p-4">
+                    <div className="flex justify-between gap-3">
+                      <p className="font-bold text-slate-800">{item.campaignTitle}</p>
+                      <button type="button" onClick={() => persist(cart.filter((_, i) => i !== index))} className="text-xs font-bold text-red-600">Sil</button>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <label className="text-xs font-bold text-slate-500">Tutar
+                        <input inputMode="numeric" value={item.amount} onChange={(e) => update(index, { amount: Math.max(1, Number(e.target.value)) })}
+                          className="mt-1 w-full rounded-lg border bg-white p-2 text-slate-900" />
+                      </label>
+                      <label className="text-xs font-bold text-slate-500">Adet
+                        <input type="number" min={1} max={100} value={item.quantity || 1} onChange={(e) => update(index, { quantity: Math.max(1, Number(e.target.value)) })}
+                          className="mt-1 w-full rounded-lg border bg-white p-2 text-slate-900" />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+                {!!cart.length && (
+                  <>
+                    <div className="flex justify-between border-t pt-4"><span>Toplam</span><b className="text-xl">{total.toLocaleString('tr-TR')} ₺</b></div>
+                    <button type="button" onClick={() => setStep('donor')} className="w-full rounded-xl bg-primary-600 py-3 font-black text-white">Bağışı Tamamla</button>
+                    <button type="button" onClick={() => persist([])} className="w-full text-xs font-bold text-slate-400">Sepeti temizle</button>
+                  </>
+                )}
               </div>
-
-              {errorMsg && (
-                <div className="mb-4 rounded-lg bg-red-50 p-3 text-xs text-red-600 font-semibold">
-                  ⚠️ {errorMsg}
-                </div>
-              )}
-
-              {success ? (
-                <div className="text-center py-10 space-y-4">
-                  <span className="text-5xl block">✨</span>
-                  <h5 className="font-heading text-xl font-bold text-slate-800">Bağışlarınız Kabul Olsun!</h5>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                    Sepetinizdeki tüm yardımlar derneklere başarıyla ulaştırılmıştır. Dijital makbuzlarınız e-posta adresinize gönderilecektir.
-                  </p>
-                  <button
-                    onClick={() => {
-                      setIsOpen(false)
-                      setSuccess(false)
-                      setIsCheckingOut(false)
-                      setCheckoutStep(1)
-                    }}
-                    className="w-full bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition-colors"
-                  >
-                    Kapat
-                  </button>
-                </div>
-              ) : !isCheckingOut ? (
-                /* Cart Items List view */
-                <div className="space-y-4">
-                  {cart.length === 0 ? (
-                    <div className="text-center py-12 text-slate-400 text-sm">
-                      Sepetiniz boş. Bir hayır projesine bağış ekleyin.
-                    </div>
-                  ) : (
-                    <>
-                      <div className="space-y-2">
-                        {cart.map((item) => (
-                          <div 
-                            key={item.campaignId} 
-                            className="flex justify-between items-center p-3 rounded-xl border border-slate-100 bg-slate-50"
-                          >
-                            <div className="max-w-[70%]">
-                              <p className="font-bold text-xs text-slate-800 line-clamp-1">{item.campaignTitle}</p>
-                              <span className="text-[10px] text-slate-400">Bağış kalemi</span>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <span className="font-bold text-sm text-slate-800">{item.amount} ₺</span>
-                              <button 
-                                onClick={() => removeFromCart(item.campaignId)}
-                                className="text-red-500 hover:text-red-700 text-xs font-bold"
-                              >
-                                Sil
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="border-t pt-4 flex justify-between items-center">
-                        <span className="text-slate-500 text-xs font-semibold">Toplam Bağış:</span>
-                        <span className="font-black text-xl text-slate-800">{totalAmount} ₺</span>
-                      </div>
-
-                      <button
-                        onClick={() => setIsCheckingOut(true)}
-                        className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors text-sm uppercase tracking-wider mt-6"
-                      >
-                        Bağış Yapmayı Tamamla
-                      </button>
-                    </>
-                  )}
-                </div>
-              ) : (
-                /* Step-by-Step Cart Checkout Wizard */
-                <div className="space-y-4">
-                  {checkoutStep === 1 && (
-                    <div className="space-y-3">
-                      <h5 className="font-bold text-sm text-slate-600">Adım 1: Kişisel Bilgiler</h5>
-                      <div className="grid grid-cols-2 gap-3">
-                        <input
-                          type="text"
-                          placeholder="Adınız *"
-                          value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
-                          className="rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Soyadınız *"
-                          value={lastName}
-                          onChange={(e) => setLastName(e.target.value)}
-                          className="rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
-                        />
-                      </div>
-                      <input
-                        type="email"
-                        placeholder="E-posta *"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
-                      />
-                      <input
-                        type="tel"
-                        placeholder="Telefon *"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
-                      />
-
-                      <div className="flex gap-3 pt-4">
-                        <button
-                          onClick={() => setIsCheckingOut(false)}
-                          className="flex-1 rounded-xl border py-3 text-xs font-bold text-slate-500"
-                        >
-                          Sepete Dön
-                        </button>
-                        <button
-                          onClick={handleNextStep}
-                          className="flex-1 rounded-xl bg-primary-600 text-white font-bold py-3 text-xs"
-                        >
-                          Kart Ödemesine Geç
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {checkoutStep === 2 && (
-                    <div className="space-y-3">
-                      <h5 className="font-bold text-sm text-slate-600">Adım 2: Kart Bilgileri</h5>
-                      <input
-                        type="text"
-                        placeholder="Kart Sahibi Adı *"
-                        value={cardHolderName}
-                        onChange={(e) => setCardHolderName(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Kart Numarası *"
-                        value={cardNumber}
-                        onChange={(e) => setCardNumber(e.target.value)}
-                        className="w-full rounded-xl border border-slate-300 p-3 text-xs outline-none focus:border-primary-500"
-                      />
-                      <div className="grid grid-cols-3 gap-2">
-                        <input
-                          type="text"
-                          placeholder="AA"
-                          maxLength={2}
-                          value={cardExpiryMonth}
-                          onChange={(e) => setCardExpiryMonth(e.target.value)}
-                          className="rounded-xl border border-slate-300 p-3 text-xs text-center outline-none"
-                        />
-                        <input
-                          type="text"
-                          placeholder="YY"
-                          maxLength={2}
-                          value={cardExpiryYear}
-                          onChange={(e) => setCardExpiryYear(e.target.value)}
-                          className="rounded-xl border border-slate-300 p-3 text-xs text-center outline-none"
-                        />
-                        <input
-                          type="password"
-                          placeholder="CVV"
-                          maxLength={3}
-                          value={cardCvv}
-                          onChange={(e) => setCardCvv(e.target.value)}
-                          className="rounded-xl border border-slate-300 p-3 text-xs text-center outline-none"
-                        />
-                      </div>
-
-                      <div className="p-3 bg-slate-50 border rounded-xl flex justify-between items-center text-xs mt-4">
-                        <span className="text-slate-500 font-semibold">Toplam Çekim:</span>
-                        <span className="font-black text-primary-600">{totalAmount} ₺</span>
-                      </div>
-
-                      <div className="flex gap-3 pt-4">
-                        <button
-                          onClick={() => setCheckoutStep(1)}
-                          className="flex-1 rounded-xl border py-3 text-xs font-bold text-slate-500"
-                        >
-                          Geri Dön
-                        </button>
-                        <button
-                          onClick={handleSubmitCartDonations}
-                          disabled={createDonation.isPending}
-                          className="flex-1 rounded-xl bg-primary-600 text-white font-bold py-3 text-xs disabled:bg-primary-300"
-                        >
-                          {createDonation.isPending ? 'Ödeniyor...' : 'Ödemeyi Tamamla'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Clear all link */}
-            {cart.length > 0 && !success && (
-              <button
-                onClick={clearCart}
-                className="text-center text-[10px] text-slate-400 hover:text-slate-600 font-bold uppercase tracking-wider pt-6"
-              >
-                Sepeti Temizle
-              </button>
             )}
-          </div>
+
+            {step === 'donor' && (
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-slate-600">Dil
+                  <select value={locale} onChange={(e) => setLocale(e.target.value as 'tr' | 'en' | 'ar')} className="mt-1 w-full rounded-xl border p-3">
+                    <option value="tr">Türkçe</option><option value="en">English</option><option value="ar">العربية</option>
+                  </select>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input aria-label="Ad" placeholder="Ad *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="rounded-xl border p-3" />
+                  <input aria-label="Soyad" placeholder="Soyad *" value={lastName} onChange={(e) => setLastName(e.target.value)} className="rounded-xl border p-3" />
+                </div>
+                <input aria-label="E-posta" type="email" placeholder="E-posta *" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border p-3" />
+                <input aria-label="Telefon" type="tel" placeholder="Telefon *" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border p-3" />
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setPaymentMethod('credit_card')} className={`rounded-xl border p-3 text-xs font-bold ${paymentMethod === 'credit_card' ? 'border-primary-600 bg-primary-50' : ''}`}>Kart / Ziraat Pay</button>
+                  <button type="button" onClick={() => setPaymentMethod('bank_transfer')} className={`rounded-xl border p-3 text-xs font-bold ${paymentMethod === 'bank_transfer' ? 'border-primary-600 bg-primary-50' : ''}`}>Havale / EFT</button>
+                </div>
+                <label className="flex gap-2 text-xs"><input type="checkbox" checked={allowEmail} onChange={(e) => setAllowEmail(e.target.checked)} /> E-posta izni</label>
+                <label className="flex gap-2 text-xs"><input type="checkbox" checked={allowSms} onChange={(e) => setAllowSms(e.target.checked)} /> SMS izni</label>
+                <label className="flex gap-2 rounded-xl bg-slate-50 p-3 text-xs font-semibold"><input type="checkbox" checked={kvkk} onChange={(e) => setKvkk(e.target.checked)} /> KVKK aydınlatma metnini okudum. *</label>
+                <p className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">Kart bilgileriniz yalnızca Ziraat Pay’in güvenli sayfasında girilir.</p>
+                <div className="flex gap-3 pt-3">
+                  <button type="button" onClick={() => setStep('cart')} className="flex-1 rounded-xl border py-3 font-bold">Geri</button>
+                  <button type="button" onClick={submit} disabled={checkout.isPending} className="flex-1 rounded-xl bg-primary-600 py-3 font-black text-white disabled:opacity-60">{checkout.isPending ? 'Hazırlanıyor…' : 'Devam Et'}</button>
+                </div>
+              </div>
+            )}
+
+            {step === 'transfer' && transfer && (
+              <div className="space-y-4 text-center">
+                <div className="text-5xl">🏦</div><h3 className="text-xl font-black">Havale kaydınız hazır</h3>
+                <div className="rounded-2xl bg-slate-50 p-4 text-left text-sm">
+                  <p><b>Banka:</b> {transfer.bank_name || 'Tanımlanmadı'}</p>
+                  <p><b>Alıcı:</b> {transfer.account_holder || 'Dernek hesabı'}</p>
+                  <p className="break-all"><b>IBAN:</b> {transfer.iban || 'Tanımlanmadı'}</p>
+                  <p className="mt-3 rounded-lg bg-amber-100 p-2"><b>Açıklama:</b> {transfer.transfer_reference}</p>
+                </div>
+                <button type="button" onClick={() => setOpen(false)} className="w-full rounded-xl bg-slate-900 py-3 font-bold text-white">Kapat</button>
+              </div>
+            )}
+          </aside>
         </div>
       )}
     </>

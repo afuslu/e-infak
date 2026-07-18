@@ -25,7 +25,6 @@ export default function AdminSmsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 
@@ -48,6 +47,7 @@ export default function AdminSmsPage() {
 
   useEffect(() => {
     loadTemplates()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSelectTemplate = (tpl: SmsTemplate) => {

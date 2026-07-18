@@ -39,7 +39,6 @@ export default function AdminKurbanPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 
@@ -58,6 +57,7 @@ export default function AdminKurbanPage() {
 
   useEffect(() => {
     loadAnimals()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSelectAnimal = async (animal: KurbanAnimal) => {

@@ -6,13 +6,15 @@ import { CampaignCard } from './CampaignCard'
 interface CampaignListProps {
   featured?: boolean
   limit?: number
+  category?: string
 }
 
-export function CampaignList({ featured, limit }: CampaignListProps) {
+export function CampaignList({ featured, limit, category }: CampaignListProps) {
   const { data, isLoading, error } = useCampaigns({
     featured,
     page_size: limit || 25,
     status: 'active',
+    category: category || undefined,
   })
 
   if (isLoading) {

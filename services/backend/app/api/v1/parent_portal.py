@@ -40,12 +40,18 @@ class ParentOTPVerifyRequest(BaseModel):
 
 # Dependency to get current authenticated parent (linked by phone number)
 async def get_current_parent_phone(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> str:
     token = credentials.credentials
     payload = decode_token(token)
     
-    if not payload or payload.get("type") != "access" or payload.get("role") != "parent":
+    if (
+        not payload
+        or payload.get("type") != "access"
+        or payload.get("role") != "parent"
+        or payload.get("organization_id") != request.state.organization_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Veli portalı için geçersiz kimlik doğrulama",
@@ -61,21 +67,37 @@ async def get_current_parent_phone(
     return parent_phone
 
 @router.post("/send-otp")
-async def send_parent_otp(payload: ParentOTPRequest):
+async def send_parent_otp(request: Request, payload: ParentOTPRequest):
     phone = payload.phone.strip()
     if not phone:
         raise HTTPException(status_code=400, detail="Telefon numarası gereklidir.")
         
     code = f"{random.randint(100000, 999999)}"
     
+    tenant = request.state.organization_id
+    client_ip = request.client.host if request.client else "unknown"
+    otp_key = f"{tenant}:{phone}"
     r = get_redis_client()
     if r:
         try:
-            r.setex(f"otp:parent:{phone}", 180, code)
+            ip_limit_key = f"otp-parent-ip:{tenant}:{client_ip}"
+            ip_count = r.incr(ip_limit_key)
+            r.expire(ip_limit_key, 3600)
+            if ip_count > 20:
+                raise HTTPException(status_code=429, detail="Bu bağlantıdan çok fazla kod istendi.")
+            if not r.set(f"otp-parent-cooldown:{otp_key}", "1", ex=60, nx=True):
+                raise HTTPException(status_code=429, detail="Yeni kod istemeden önce 60 saniye bekleyin.")
+            r.setex(f"otp:parent:{otp_key}", 180, code)
+            r.delete(f"otp-parent-attempts:{otp_key}")
+        except HTTPException:
+            raise
         except Exception:
-            _parent_otp_fallback_store[phone] = (code, datetime.now(timezone.utc) + timedelta(minutes=3))
+            _parent_otp_fallback_store[otp_key] = (code, datetime.now(timezone.utc) + timedelta(minutes=3), 0)
     else:
-        _parent_otp_fallback_store[phone] = (code, datetime.now(timezone.utc) + timedelta(minutes=3))
+        existing = _parent_otp_fallback_store.get(otp_key)
+        if existing and datetime.now(timezone.utc) < existing[1] - timedelta(minutes=2):
+            raise HTTPException(status_code=429, detail="Yeni kod istemeden önce 60 saniye bekleyin.")
+        _parent_otp_fallback_store[otp_key] = (code, datetime.now(timezone.utc) + timedelta(minutes=3), 0)
         
     sms_message = f"Hicret Medresesi Veli Bilgi Sistemi giris kodunuz: {code}. Bu kod 3 dakika gecerlidir."
     await send_sms(phone, sms_message)
@@ -91,6 +113,7 @@ async def verify_parent_otp(
     phone = payload.phone.strip()
     code = payload.code.strip()
     organization_id = request.state.organization_id
+    otp_key = f"{organization_id}:{phone}"
     
     if not phone or not code:
         raise HTTPException(status_code=400, detail="Telefon numarası ve OTP kodu gereklidir.")
@@ -100,25 +123,36 @@ async def verify_parent_otp(
     r = get_redis_client()
     if r:
         try:
-            saved_code = r.get(f"otp:parent:{phone}")
+            saved_code = r.get(f"otp:parent:{otp_key}")
         except Exception:
             pass
             
     if not saved_code:
-        entry = _parent_otp_fallback_store.get(phone)
+        entry = _parent_otp_fallback_store.get(otp_key)
         if entry:
-            val, expiry = entry
+            val, expiry, attempts = entry
             if datetime.now(timezone.utc) < expiry:
                 saved_code = val
+                attempts += 1
+                _parent_otp_fallback_store[otp_key] = (val, expiry, attempts)
+                if attempts > 5:
+                    raise HTTPException(status_code=429, detail="Çok fazla hatalı deneme. Yeni kod isteyin.")
             else:
-                _parent_otp_fallback_store.pop(phone, None)
+                _parent_otp_fallback_store.pop(otp_key, None)
 
-    # Allow master bypass or exact match
-    if code == "123456" or (saved_code and saved_code == code):
+    if r:
+        attempts = r.incr(f"otp-parent-attempts:{otp_key}")
+        r.expire(f"otp-parent-attempts:{otp_key}", 180)
+        if attempts > 5:
+            raise HTTPException(status_code=429, detail="Çok fazla hatalı deneme. Yeni kod isteyin.")
+
+    if saved_code and saved_code == code:
         if r:
-            try: r.delete(f"otp:parent:{phone}")
+            try:
+                r.delete(f"otp:parent:{otp_key}")
+                r.delete(f"otp-parent-attempts:{otp_key}")
             except Exception: pass
-        _parent_otp_fallback_store.pop(phone, None)
+        _parent_otp_fallback_store.pop(otp_key, None)
         
         # Verify if a student has this parent phone registered
         result = await db.execute(
@@ -135,8 +169,9 @@ async def verify_parent_otp(
                 detail="Sistemimizde bu telefon numarasına kayıtlı bir öğrenci bulunamadı."
             )
             
-        access_token = create_access_token({"sub": phone, "role": "parent"})
-        refresh_token = create_refresh_token({"sub": phone, "role": "parent"})
+        token_claims = {"sub": phone, "role": "parent", "organization_id": organization_id}
+        access_token = create_access_token(token_claims)
+        refresh_token = create_refresh_token(token_claims)
         
         return {
             "access_token": access_token,
@@ -149,12 +184,14 @@ async def verify_parent_otp(
 
 @router.get("/students")
 async def get_my_students(
+    request: Request,
     parent_phone: str = Depends(get_current_parent_phone),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
         select(Student).where(
             Student.parent_phone == parent_phone,
+            Student.organization_id == UUID(request.state.organization_id),
             Student.is_active == True
         )
     )
@@ -172,6 +209,7 @@ async def get_my_students(
 
 @router.get("/students/{student_id}/progress")
 async def get_student_progress(
+    request: Request,
     student_id: str,
     parent_phone: str = Depends(get_current_parent_phone),
     db: AsyncSession = Depends(get_db)
@@ -180,7 +218,8 @@ async def get_student_progress(
     student_res = await db.execute(
         select(Student).where(
             Student.id == UUID(student_id),
-            Student.parent_phone == parent_phone
+            Student.parent_phone == parent_phone,
+            Student.organization_id == UUID(request.state.organization_id),
         )
     )
     student = student_res.scalar_one_or_none()

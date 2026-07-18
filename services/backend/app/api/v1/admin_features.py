@@ -2,7 +2,7 @@ import logging
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -28,10 +28,15 @@ from app.models.water_well import WaterWell
 from app.models.donation_category import DonationCategory
 from app.models.organization_settings import OrganizationSettings
 from app.models.content_post import ContentPost
-from app.api.deps import get_current_user
+from app.models.subscription import Subscription
+from app.api.deps import get_current_user, require_admin_route_permission
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/admin-features", tags=["admin-features"])
+router = APIRouter(
+    prefix="/admin-features",
+    tags=["admin-features"],
+    dependencies=[Depends(require_admin_route_permission)],
+)
 
 # Pydantic Schemas
 class NoteCreate(BaseModel):
@@ -132,7 +137,10 @@ async def add_donor_note(
     org_id = UUID(request.state.organization_id)
     
     # Verify donor exists
-    donor_query = select(Donor).where(Donor.id == donor_id)
+    donor_query = select(Donor).where(
+        Donor.id == donor_id,
+        Donor.organization_id == org_id,
+    )
     donor_res = await db.execute(donor_query)
     donor = donor_res.scalar_one_or_none()
     if not donor:
@@ -163,14 +171,20 @@ async def add_donor_note(
 
 @router.get("/donors/{donor_id}/notes", response_model=List[NoteResponse])
 async def list_donor_notes(
+    request: Request,
     donor_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    org_id = UUID(request.state.organization_id)
     query = (
         select(DonorNote, User)
+        .join(Donor, Donor.id == DonorNote.donor_id)
         .outerjoin(User, DonorNote.author_id == User.id)
-        .where(DonorNote.donor_id == donor_id)
+        .where(
+            DonorNote.donor_id == donor_id,
+            Donor.organization_id == org_id,
+        )
         .order_by(DonorNote.created_at.desc())
     )
     result = await db.execute(query)
@@ -823,28 +837,25 @@ async def list_subscriptions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Returns simulated active monthly subscription plans linked to our donors
+    org_id = UUID(request.state.organization_id)
+    result = await db.execute(
+        select(Subscription)
+        .options(selectinload(Subscription.donor), selectinload(Subscription.campaign))
+        .where(Subscription.organization_id == org_id)
+        .order_by(Subscription.created_at.desc())
+    )
     return [
         {
-            "id": "sub-1",
-            "donor_name": "Ahmet Yılmaz",
-            "campaign_title": "Eğitim Bursu",
-            "amount_lira": 500.0,
-            "status": "active",
-            "next_billing_date": "2026-08-01",
-            "card_brand": "Visa",
-            "card_last4": "4242"
-        },
-        {
-            "id": "sub-2",
-            "donor_name": "Fatma Demir",
-            "campaign_title": "Yetim Sponsorluğu",
-            "amount_lira": 600.0,
-            "status": "failed",
-            "next_billing_date": "2026-07-15",
-            "card_brand": "Mastercard",
-            "card_last4": "5555"
+            "id": str(sub.id),
+            "donor_name": sub.donor.full_name,
+            "campaign_title": sub.campaign.title,
+            "amount_lira": sub.amount_cents / 100,
+            "status": sub.status,
+            "next_billing_date": sub.next_charge_date,
+            "card_brand": None,
+            "card_last4": None,
         }
+        for sub in result.scalars().all()
     ]
 
 @router.post("/subscriptions/{subscription_id}/retry")
@@ -855,21 +866,21 @@ async def retry_failed_subscription(
     current_user: User = Depends(get_current_user)
 ):
     org_id = UUID(request.state.organization_id)
-    # Trigger a mock retry run tasks (similar to what celery worker would do)
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="abonelik_tahsilat_tekrar",
-        details={"subscription_id": subscription_id}
+    raise HTTPException(
+        status_code=503,
+        detail="Ziraat Pay tokenlı tahsilat yetkisi etkin değil; sahte tahsilat yapılmadı.",
     )
-    return {"status": "success", "message": "Kart tahsilat denemesi arka planda başlatıldı."}
 
 # --- Phase 5 Pydantic Schemas ---
 class ApiKeyCreate(BaseModel):
     name: str
+    scopes: List[str] = Field(default_factory=list)
+    expires_at: Optional[datetime] = None
 
 class WebhookSettingCreate(BaseModel):
     target_url: str
-    secret_token: str
+    secret_ref: str
+    subscribed_events: List[str] = Field(default_factory=lambda: ["donation.paid"])
 
 class BroadcastSms(BaseModel):
     filter_type: str
@@ -898,6 +909,9 @@ async def list_api_keys(
             "id": str(k.id),
             "name": k.name,
             "is_active": k.is_active,
+            "scopes": k.scopes,
+            "expires_at": k.expires_at,
+            "last_used_at": k.last_used_at,
             "created_at": k.created_at
         }
         for k in res.scalars().all()
@@ -921,6 +935,8 @@ async def create_api_key(
         organization_id=org_id,
         name=payload.name,
         key_hash=hash_value,
+        scopes=payload.scopes,
+        expires_at=payload.expires_at,
         is_active=True
     )
     db.add(key)
@@ -987,7 +1003,8 @@ async def create_webhook(
     hook = WebhookSetting(
         organization_id=org_id,
         target_url=payload.target_url,
-        secret_token=payload.secret_token,
+        secret_ref=payload.secret_ref,
+        subscribed_events=",".join(payload.subscribed_events),
         is_active=True
     )
     db.add(hook)
@@ -1388,6 +1405,3 @@ async def delete_content_post(
         details={"post_id": str(post_id), "title": post.title}
     )
     return {"status": "success"}
-
-
-

@@ -1,4 +1,4 @@
-export type Language = 'TR' | 'EN' | 'DE' | 'AR'
+export type Language = 'TR' | 'EN' | 'AR'
 export type Currency = 'TRY' | 'USD' | 'EUR'
 
 export const translations = {
@@ -42,26 +42,6 @@ export const translations = {
     memorized: 'Memorized Pages',
     currentSurah: 'Current Juz / Surah'
   },
-  DE: {
-    quickDonation: 'Schnelle Spende',
-    personalInfo: 'Persönliche Infos',
-    paymentInfo: 'Zahlungsdetails',
-    amount: 'Betrag',
-    next: 'Weiter',
-    back: 'Zurück',
-    donateNow: 'Jetzt Spenden',
-    bankTransfer: 'Banküberweisung',
-    creditCard: 'Kreditkarte',
-    donorPortal: 'Spenderportal',
-    parentPortal: 'Elternportal',
-    zekatCalc: 'Zakat-Rechner',
-    wellDone: 'Vielen Dank für Ihre Spende!',
-    currencySign: '€',
-    language: 'Sprache',
-    currency: 'Währung',
-    memorized: 'Auswendig gelernte Seiten',
-    currentSurah: 'Aktueller Juz / Sure'
-  },
   AR: {
     quickDonation: 'تبرع سريع',
     personalInfo: 'معلومات شخصية',
@@ -84,14 +64,5 @@ export const translations = {
   }
 }
 
-// Simple Exchange rates logic (Base is TRY)
-export const exchangeRates = {
-  TRY: 1.0,
-  USD: 0.029, // 1 TRY = 0.029 USD (Mock)
-  EUR: 0.027  // 1 TRY = 0.027 EUR (Mock)
-}
-
-export function convertAmount(amountTry: number, toCurrency: Currency): number {
-  const rate = exchangeRates[toCurrency]
-  return Math.round(amountTry * rate * 10) / 10
-}
+// Exchange rates are deliberately not guessed. Amount conversion must come
+// from a tenant-approved rate provider before non-TRY checkout is enabled.

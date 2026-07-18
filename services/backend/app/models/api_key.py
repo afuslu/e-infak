@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
@@ -13,6 +13,9 @@ class ApiKey(Base):
 
     name = Column(String(100), nullable=False)
     key_hash = Column(String(255), nullable=False, unique=True, index=True)
+    scopes = Column(JSONB, nullable=False, default=list)
+    expires_at = Column(DateTime(timezone=True))
+    last_used_at = Column(DateTime(timezone=True))
     is_active = Column(Boolean, nullable=False, default=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

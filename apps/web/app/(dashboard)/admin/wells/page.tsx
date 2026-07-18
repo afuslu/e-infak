@@ -46,7 +46,6 @@ export default function AdminWellsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 

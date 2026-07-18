@@ -29,7 +29,6 @@ export default function AdminDonationsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 
@@ -48,6 +47,7 @@ export default function AdminDonationsPage() {
 
   useEffect(() => {
     loadDonations()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const filteredDonations = donations.filter(d => {

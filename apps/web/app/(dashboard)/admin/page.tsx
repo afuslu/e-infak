@@ -34,7 +34,6 @@ export default function AdminDashboardPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 
@@ -55,6 +54,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     loadAnalytics()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Find max monthly trend value to scale CSS bars dynamically

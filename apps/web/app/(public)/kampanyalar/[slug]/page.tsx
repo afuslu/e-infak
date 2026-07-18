@@ -13,6 +13,17 @@ export default function CampaignDetailPage({
 }) {
   const { slug } = use(params)
   const { data: campaign, isLoading, error } = useCampaign(slug)
+  const addToCart = (amountCents: number) => {
+    if (!campaign) return
+    window.dispatchEvent(new CustomEvent('add-to-donation-cart', {
+      detail: {
+        campaignId: campaign.id,
+        campaignTitle: campaign.title,
+        amount: amountCents / 100,
+        quantity: 1,
+      },
+    }))
+  }
 
   if (isLoading) {
     return (
@@ -111,6 +122,8 @@ export default function CampaignDetailPage({
                     {campaign.suggested_amounts_cents.map((amount) => (
                       <button
                         key={amount}
+                        type="button"
+                        onClick={() => addToCart(amount)}
                         className="rounded-lg border-2 border-gray-200 py-2 text-center font-semibold text-gray-700 transition-colors hover:border-primary-500 hover:bg-primary-50 hover:text-primary-700"
                       >
                         {(amount / 100).toLocaleString('tr-TR')} ₺

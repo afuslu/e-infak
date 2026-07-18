@@ -23,6 +23,14 @@ export interface Campaign {
   start_date?: string
   end_date?: string
   tags: string[]
+  translations: Record<string, { title?: string; summary?: string; story?: string }>
+  checkout_fields_schema: Array<{
+    key: string
+    label: string
+    type: 'text' | 'number' | 'list' | 'select'
+    required?: boolean
+    options?: string[]
+  }>
   created_at: string
   updated_at?: string
 }
@@ -58,11 +66,62 @@ export interface DonationCreate {
   donor: Donor
   donor_message?: string
   is_anonymous?: boolean
-  card_number?: string
-  card_expiry_month?: string
-  card_expiry_year?: string
-  card_cvv?: string
-  card_holder_name?: string
+}
+
+export interface CheckoutItem {
+  campaign_id: string
+  quantity: number
+  unit_amount_cents: number
+  donor_message?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface CheckoutSessionCreate {
+  items: CheckoutItem[]
+  donor: {
+    first_name: string
+    last_name: string
+    email: string
+    phone: string
+    is_anonymous: boolean
+    allow_email: boolean
+    allow_sms: boolean
+  }
+  payment_method: 'credit_card' | 'bank_transfer'
+  currency: 'TRY' | 'EUR' | 'USD'
+  locale: 'tr' | 'en' | 'ar'
+  idempotency_key: string
+  consent_version: string
+  kvkk_accepted: boolean
+}
+
+export interface CheckoutSessionResponse {
+  checkout_id: string
+  status: string
+  redirect_url?: string
+  expires_at?: string
+  transfer_reference?: string
+  bank_name?: string
+  iban?: string
+  account_holder?: string
+}
+
+export interface CheckoutStatus {
+  checkout_id: string
+  status: string
+  total_cents: number
+  currency: string
+  transfer_reference?: string
+  failure_message?: string
+  refunded_cents: number
+  reconciliation_status?: string
+  items: Array<{
+    campaign_id: string
+    campaign_title: string
+    quantity: number
+    total_amount_cents: number
+    receipt_number?: string
+  }>
 }
 
 export interface ThreeDSecureResponse {

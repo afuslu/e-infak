@@ -25,7 +25,6 @@ export default function AdminUsersPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 
@@ -44,6 +43,7 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     loadUsers()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleRoleChange = async (userId: string, newRole: string) => {

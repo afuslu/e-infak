@@ -44,8 +44,8 @@ class Donor(Base):
     last_donation_at = Column(DateTime(timezone=True))
     
     # Preferences
-    allow_email = Column(Boolean, default=True)
-    allow_sms = Column(Boolean, default=True)
+    allow_email = Column(Boolean, default=False)
+    allow_sms = Column(Boolean, default=False)
     is_anonymous = Column(Boolean, default=False)
     
     # Tags and Notes
@@ -124,6 +124,12 @@ class Donation(Base):
     
     # Idempotency
     idempotency_key = Column(String(100), unique=True, index=True)
+    payment_order_item_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("payment_order_items.id"),
+        unique=True,
+        index=True,
+    )
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

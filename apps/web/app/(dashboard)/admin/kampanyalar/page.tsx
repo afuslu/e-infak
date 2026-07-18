@@ -31,7 +31,6 @@ export default function AdminCampaignsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 
@@ -50,6 +49,7 @@ export default function AdminCampaignsPage() {
 
   useEffect(() => {
     loadCampaigns()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleOpenGalleryEdit = (camp: Campaign) => {
@@ -155,7 +155,7 @@ export default function AdminCampaignsPage() {
                 <form onSubmit={handleSaveGallery} className="space-y-4">
                   {/* Add URL Field */}
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-gray-500 uppercase">Görsel Resim URL'si Ekle</label>
+                    <label className="block text-xs font-bold text-gray-500 uppercase">Görsel Resim URL&apos;si Ekle</label>
                     <div className="flex gap-2">
                       <input
                         type="text"

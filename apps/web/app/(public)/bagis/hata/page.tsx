@@ -1,53 +1,24 @@
+'use client'
+
 import Link from 'next/link'
-import { Button } from '@e-infak/ui'
+import { useSearchParams } from 'next/navigation'
+import { useCheckoutStatus } from '@e-infak/api-client'
 
 export default function DonationErrorPage() {
+  const checkoutId = useSearchParams().get('checkout') || undefined
+  const { data } = useCheckoutStatus(checkoutId)
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md text-center">
-        <div className="mb-6 flex justify-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-100">
-            <svg
-              className="h-10 w-10 text-red-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </div>
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <section className="w-full max-w-lg rounded-3xl border bg-white p-8 text-center shadow-xl">
+        <div className="text-6xl">!</div>
+        <h1 className="mt-4 text-3xl font-black">Ödeme Tamamlanamadı</h1>
+        <p className="mt-3 text-slate-600">{data?.failure_message || 'Banka işlemi onaylamadı veya ödeme sayfası kapatıldı.'}</p>
+        <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">Tekrar denemeden önce banka hareketlerinizi kontrol edin. Belirsiz işlemler banka üzerinden sorgulanır.</p>
+        <div className="mt-7 grid gap-3">
+          <Link href="/kampanyalar" className="rounded-xl bg-primary-600 px-5 py-3 font-black text-white">Güvenli Şekilde Tekrar Dene</Link>
+          <Link href="/iletisim" className="rounded-xl border px-5 py-3 font-bold">Destek Al</Link>
         </div>
-
-        <h1 className="mb-2 text-3xl font-bold text-gray-900">İşlem Başarısız</h1>
-        <p className="mb-8 text-lg text-gray-600">
-          Bağış işleminiz tamamlanamadı. Lütfen bilgilerinizi kontrol edip tekrar deneyin.
-        </p>
-
-        <div className="mb-8 rounded-lg bg-red-50 p-6">
-          <p className="text-sm text-red-900">
-            Sorun devam ederse lütfen banka kartınızın internet ödemelerine açık olduğundan emin
-            olun veya bizimle iletişime geçin.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <Link href="/kampanyalar">
-            <Button size="lg" className="w-full">
-              Tekrar Dene
-            </Button>
-          </Link>
-          <Link href="/">
-            <Button size="lg" variant="outline" className="w-full">
-              Ana Sayfaya Dön
-            </Button>
-          </Link>
-        </div>
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }

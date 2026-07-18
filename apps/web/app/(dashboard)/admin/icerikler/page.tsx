@@ -28,7 +28,6 @@ export default function AdminContentPostsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi',
     }
   }
 
@@ -46,6 +45,8 @@ export default function AdminContentPostsPage() {
 
   useEffect(() => {
     loadPosts()
+  // Initial tenant-scoped load; subsequent refreshes are user-triggered.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const startEdit = (p: ContentPost) => {

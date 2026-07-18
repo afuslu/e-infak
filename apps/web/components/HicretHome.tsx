@@ -18,59 +18,21 @@ interface HicretHomeProps {
   newsPosts?: ContentPostDto[]
 }
 
-const programs = [
-  {
-    title: 'Sıbyan Mektebi',
-    age: '4-7 YAŞ',
-    desc: 'Çocuklarımızın okul öncesi dönemde oyun eşliğinde temel Kur\'an okuma, ahlak ve adap eğitimi aldığı en kıymetli başlangıç halkası.',
-    img: '/images/hicret/h-sibyan.png',
-  },
-  {
-    title: 'İbtida Programı',
-    age: '8-12 YAŞ',
-    desc: 'Kur\'an-ı Kerim tecvid dersleri, temel dini bilgiler, namaz sureleri ezberleri ve İslam ahlakı müfredatının uygulandığı ara kademe.',
-    img: '/images/hicret/h-ibtida.png',
-  },
-  {
-    title: 'Hafızlık Eğitimi',
-    age: '10+ YAŞ',
-    desc: 'Her öğrenciye özel ezber takip programı ile zihni berrak evlatlarımızın Kur\'an-ı Kerim\'i baştan sona ezberlediği medrese çekirdeği.',
-    img: '/images/hicret/h-hafizlik.png',
-  },
-  {
-    title: 'Arapça Dil Eğitimi',
-    age: '12+ YAŞ',
-    desc: 'Sarf, Nahiv ve İslami ilimler (Tefsir, Hadis, Fıkıh) temel metin okumalarının yapıldığı yüksek medrese seviyesi arapça dersleri.',
-    img: '/images/hicret/h-arapca.png',
-  },
-]
+const programs: Array<{ title: string; age: string; desc: string; img: string }> = []
 
-const stats = [
-  { value: '200+', label: 'Aktif Öğrenci' },
-  { value: '15+', label: 'Müderris Hoca' },
-  { value: '4', label: 'Özel Bölüm' },
-  { value: '10+', label: 'Yıl Tecrübe' },
-]
-
-const FALLBACK_NEWS = [
-  { date: '3 TEMMUZ 2026', title: 'Kış Yardımı Dağıtımı Tamamlandı', img: '/images/hicret/h-news1.png' },
-  { date: '18 HAZİRAN 2026', title: 'Yeni Hafızlık Sınıfı Açıldı', img: '/images/hicret/h-news2.png' },
-  { date: '2 HAZİRAN 2026', title: 'Su Kuyusu Açılış Töreni', img: '/images/hicret/h-news3.png' },
-]
-
-const FALLBACK_ADDRESS_DETAIL = '71 Evler Mah. Esenyazı Sok. No: 41, Odunpazarı, Eskişehir'
+const stats: Array<{ value: string; label: string }> = []
 
 export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
   const { data: settings } = useOrgSettings()
-  const phone = settings?.contact_phone || '0 (222) 000 00 00'
-  const email = settings?.contact_email || 'info@hicretdernegi.org'
-  const address = settings?.contact_address || 'Eskişehir, Türkiye'
+  const phone = settings?.contact_phone || ''
+  const email = settings?.contact_email || ''
+  const address = settings?.contact_address || ''
 
   const trust = [
-    { glyph: '🕌', title: 'Medrese Adresimiz', desc: settings?.contact_address || FALLBACK_ADDRESS_DETAIL },
-    { glyph: '☎', title: 'İletişim & Başvuru', desc: `Telefon: ${phone} · ${email}` },
-    { glyph: '🔒', title: 'Güvenli Bağış Altyapısı', desc: 'Tüm bağışlarınız 3D Secure 256-bit şifreli altyapıda tahsil edilir.' },
-  ]
+    settings?.contact_address ? { glyph: '🕌', title: 'Medrese Adresimiz', desc: settings.contact_address } : null,
+    phone || email ? { glyph: '☎', title: 'İletişim & Başvuru', desc: [phone, email].filter(Boolean).join(' · ') } : null,
+    { glyph: '🔒', title: 'Güvenli Bağış Altyapısı', desc: 'Kart bilgileri E‑İnfak sistemine girilmez; ödeme banka sayfasında tamamlanır.' },
+  ].filter((item): item is { glyph: string; title: string; desc: string } => Boolean(item))
 
   const displayNews = newsPosts && newsPosts.length > 0
     ? newsPosts.map((n) => ({
@@ -78,7 +40,7 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
         img: n.image_url || '/images/hicret/h-news1.png',
         date: new Date(n.published_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase(),
       }))
-    : FALLBACK_NEWS
+    : []
 
   return (
     <div className="font-sans antialiased text-[#1C2420] bg-[#F7F8F5]">
@@ -86,11 +48,11 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
       <div className="bg-[#123D1D] text-[#CFE3D2] text-[13px] py-2">
         <div className="max-w-[1200px] mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-2">
           <div className="flex gap-5 flex-wrap">
-            <span>{phone}</span>
-            <span>{email}</span>
+            {phone && <span>{phone}</span>}
+            {email && <span>{email}</span>}
           </div>
           <div className="flex gap-4 items-center">
-            <Link href="/giris" className="text-[#CFE3D2] font-semibold hover:text-white">Bağışçı Girişi</Link>
+            <Link href="/portal" className="text-[#CFE3D2] font-semibold hover:text-white">Bağışçı Girişi</Link>
             <span className="opacity-40">|</span>
             <Link href="/verify" className="text-[#CFE3D2] hover:text-white">Online Makbuz</Link>
           </div>
@@ -112,9 +74,9 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
 
           <nav className="hidden md:flex items-center gap-7 text-[15px] font-semibold">
             <Link href="/" className="text-[#1E7A34]">Ana Sayfa</Link>
-            <a href="#egitim" className="text-[#3A4540] hover:text-[#1E7A34]">Eğitim</a>
+            {programs.length > 0 && <a href="#egitim" className="text-[#3A4540] hover:text-[#1E7A34]">Eğitim</a>}
             <a href="#projeler" className="text-[#3A4540] hover:text-[#1E7A34]">Projelerimiz</a>
-            <a href="#haberler" className="text-[#3A4540] hover:text-[#1E7A34]">Faaliyetler</a>
+            {displayNews.length > 0 && <a href="#haberler" className="text-[#3A4540] hover:text-[#1E7A34]">Faaliyetler</a>}
             <Link href="/hakkimizda" className="text-[#3A4540] hover:text-[#1E7A34]">Hakkımızda</Link>
             <Link href="/iletisim" className="text-[#3A4540] hover:text-[#1E7A34]">İletişim</Link>
             <a href="#hizli-bagis" className="bg-[#1E7A34] hover:bg-[#166028] text-white font-bold px-6 py-3 rounded-lg">Bağış Yap</a>
@@ -140,12 +102,12 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
               Hafızlıktan Arapça&apos;ya, gönül eğitiminin adresi.
             </h1>
             <p className="text-lg leading-relaxed text-[#D5E2D6] mb-8 max-w-xl">
-              Eskişehir&apos;de sıbyan mektebinden hafızlık ve Arapça eğitimine uzanan kurumlarımızla nesil yetiştiriyor; bağışlarınızla bu eğitimi herkes için erişilebilir kılıyoruz.
+              Kurum tarafından yayınlanan doğrulanmış yardım kampanyalarını inceleyin; seçtiğiniz projeye banka sayfasında güvenle destek olun.
             </p>
             <div className="flex flex-wrap gap-3.5">
-              <a href="#egitim" className="bg-[#6CB33F] hover:bg-[#7DC44F] text-[#0E2A14] font-extrabold text-base px-8 py-4 rounded-[10px]">
+              {programs.length > 0 && <a href="#egitim" className="bg-[#6CB33F] hover:bg-[#7DC44F] text-[#0E2A14] font-extrabold text-base px-8 py-4 rounded-[10px]">
                 Eğitim Programları
-              </a>
+              </a>}
               <a href="#hizli-bagis" className="border-[1.5px] border-white/45 hover:border-white text-white font-semibold text-base px-8 py-4 rounded-[10px]">
                 Bağış Yap
               </a>
@@ -153,19 +115,23 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
           </div>
 
           <div id="hizli-bagis">
-            <QuickDonationForm
-              campaignId={campaigns[0]?.id || 'genel-bagis'}
-              campaignTitle={campaigns[0]?.title || 'Hicret Medresesi Genel Bağış'}
+            {campaigns[0] ? <QuickDonationForm
+              campaignId={campaigns[0].id}
+              campaignTitle={campaigns[0].title}
               primaryColor="#1E7A34"
               accentColor="#6CB33F"
               themeSlug="hicret-dernegi"
-            />
+            /> : (
+              <div className="rounded-3xl border border-white/30 bg-white p-7 text-center text-[#3A4540]">
+                Aktif bağış kampanyaları kurum tarafından yayınlandığında güvenli bağış formu burada açılacaktır.
+              </div>
+            )}
           </div>
         </div>
       </section>
 
       {/* Sayaçlar */}
-      <section className="bg-white border-b border-[#E4E9E2]">
+      {stats.length > 0 && <section className="bg-white border-b border-[#E4E9E2]">
         <div className="max-w-[1200px] mx-auto px-6 py-9 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
           {stats.map((st) => (
             <div key={st.label}>
@@ -174,10 +140,10 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* Eğitim kurumları */}
-      <section id="egitim" className="max-w-[1200px] mx-auto px-6 pt-[72px]">
+      {programs.length > 0 && <section id="egitim" className="max-w-[1200px] mx-auto px-6 pt-[72px]">
         <div className="text-center max-w-xl mx-auto mb-10">
           <div className="text-[13px] font-bold tracking-[2px] text-[#1E7A34] mb-2">EĞİTİM KURUMLARIMIZ</div>
           <h2 className="font-heading text-[36px] font-bold text-[#1C2420] mb-3">Sıbyandan hafızlığa kesintisiz eğitim</h2>
@@ -207,7 +173,7 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
             Ön Kayıt Formu
           </Link>
         </div>
-      </section>
+      </section>}
 
       {/* Kampanyalar */}
       <section id="projeler" className="max-w-[1200px] mx-auto px-6 py-[72px]">
@@ -296,7 +262,7 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
       </section>
 
       {/* Haberler */}
-      <section id="haberler" className="max-w-[1200px] mx-auto px-6 py-[72px]">
+      {displayNews.length > 0 && <section id="haberler" className="max-w-[1200px] mx-auto px-6 py-[72px]">
         <div className="flex justify-between items-end mb-9 gap-6 flex-wrap">
           <div>
             <div className="text-[13px] font-bold tracking-[2px] text-[#1E7A34] mb-2">FAALİYETLER</div>
@@ -316,7 +282,7 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
       {/* Şeffaflık bandı */}
       <section id="iletisim" className="bg-white border-t border-[#E4E9E2]">
@@ -351,8 +317,9 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
             <div className="text-white font-bold text-sm tracking-wider mb-3.5">KURUMSAL</div>
             <div className="flex flex-col gap-2.5 text-sm">
               <Link href="/hakkimizda" className="hover:text-white">Hakkımızda</Link>
-              <Link href="/hakkimizda" className="hover:text-white">Şeffaflık Raporları</Link>
-              <Link href="/hakkimizda" className="hover:text-white">KVKK Aydınlatma</Link>
+              <Link href="/kvkk" className="hover:text-white">KVKK Aydınlatma</Link>
+              <Link href="/gizlilik" className="hover:text-white">Gizlilik</Link>
+              <Link href="/bagis-kosullari" className="hover:text-white">Bağış ve İade Koşulları</Link>
               <Link href="/iletisim" className="hover:text-white">İletişim</Link>
             </div>
           </div>
@@ -368,9 +335,9 @@ export function HicretHome({ campaigns, newsPosts }: HicretHomeProps) {
           <div>
             <div className="text-white font-bold text-sm tracking-wider mb-3.5">İLETİŞİM</div>
             <div className="flex flex-col gap-2.5 text-sm">
-              <span>{address}</span>
-              <span>{phone}</span>
-              <span>{email}</span>
+              {address && <span>{address}</span>}
+              {phone && <span>{phone}</span>}
+              {email && <span>{email}</span>}
             </div>
           </div>
         </div>

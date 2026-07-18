@@ -30,33 +30,11 @@ async def register(
     user_in: UserRegister,
     db: AsyncSession = Depends(get_db),
 ):
-    """Register new user"""
-    
-    organization_id = request.state.organization_id
-    
-    # Check if user exists
-    result = await db.execute(select(User).where(User.email == user_in.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
-    
-    # Create user
-    user = User(
-        organization_id=organization_id,
-        email=user_in.email,
-        hashed_password=get_password_hash(user_in.password),
-        first_name=user_in.first_name,
-        last_name=user_in.last_name,
-        phone=user_in.phone,
+    """Public staff registration is intentionally disabled."""
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Personel hesabı yalnız kurum yöneticisi davetiyle oluşturulabilir",
     )
-    
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    return user
 
 
 @router.post("/login", response_model=TokenResponse)

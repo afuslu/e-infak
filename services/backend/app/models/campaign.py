@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Enum, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.dialects.postgresql import UUID, ARRAY, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
@@ -66,6 +66,8 @@ class Campaign(Base):
     
     # Meta
     tags = Column(ARRAY(String), default=list)
+    translations = Column(JSONB, nullable=False, default=dict)
+    checkout_fields_schema = Column(JSONB, nullable=False, default=list)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

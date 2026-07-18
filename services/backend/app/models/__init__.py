@@ -16,4 +16,12 @@ from app.models.student_sponsorship import StudentSponsorship
 from app.models.banner import Banner
 from app.models.api_key import ApiKey
 from app.models.webhook_setting import WebhookSetting
+from app.models.automation import (
+    BankStatementImport,
+    BankTransaction,
+    ConsentRecord,
+    OutboxEvent,
+    PaymentRefund,
+)
 from app.models.water_well import WaterWell
+from app.models.payment import PaymentOrder, PaymentOrderItem, PaymentAttempt, PaymentOrderStatus

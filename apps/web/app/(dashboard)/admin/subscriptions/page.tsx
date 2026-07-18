@@ -27,7 +27,6 @@ export default function AdminSubscriptionsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 
@@ -46,6 +45,7 @@ export default function AdminSubscriptionsPage() {
 
   useEffect(() => {
     loadSubscriptions()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleRetry = async (subId: string) => {
@@ -54,10 +54,8 @@ export default function AdminSubscriptionsPage() {
     try {
       const headers = getAuthHeaders()
       await axios.post(`${API_BASE}/api/v1/admin-features/subscriptions/${subId}/retry`, {}, { headers })
-      setSuccessMsg('Kart tahsilat denemesi arka planda başlatıldı! Sonuç SMS/Log olarak yansıyacaktır.')
-      
-      // If retry succeeds, let's mock update status to active
-      setSubscriptions(prev => prev.map(s => s.id === subId ? { ...s, status: 'active' } : s))
+      setSuccessMsg('Tahsilat talebi alındı. Kesin sonuç banka sorgusundan sonra görüntülenecektir.')
+      await loadSubscriptions()
     } catch (err) {
       console.error('Failed to retry subscription billing:', err)
       alert('İşlem başarısız.')

@@ -1,6 +1,7 @@
+import json
 from typing import List
 from pydantic_settings import BaseSettings
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, model_validator
 
 
 class Settings(BaseSettings):
@@ -43,11 +44,17 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str = "e-infak-files"
     S3_REGION: str = "auto"
 
-    # VPOS
-    VPOS_MERCHANT_ID: str = ""
-    VPOS_TERMINAL_ID: str = ""
-    VPOS_PASSWORD: str = ""
-    VPOS_TEST_MODE: bool = True
+    # Ziraat Pay API v2 / Hosted Payment Page
+    ZIRAATPAY_API_URL: str = "https://test.ziraatpay.com.tr/ziraatpay/api/v2"
+    ZIRAATPAY_HPP_URL: str = "https://test.ziraatpay.com.tr/payment"
+    ZIRAATPAY_MERCHANT: str = ""
+    ZIRAATPAY_MERCHANT_USER: str = ""
+    ZIRAATPAY_MERCHANT_PASSWORD: str = ""
+    ZIRAATPAY_SECRET_KEY: str = ""
+    # Optional JSON secret map: {"hicret-dernegi": {"merchant": "...", ...}}
+    ZIRAATPAY_TENANT_CREDENTIALS: str = ""
+    PAYMENTS_LIVE_ENABLED: bool = False
+    PUBLIC_WEB_URL: str = "http://localhost:3000"
 
     # SMS
     NETGSM_USERNAME: str = ""
@@ -60,6 +67,27 @@ class Settings(BaseSettings):
 
     # Monitoring
     SENTRY_DSN: str = ""
+
+    @model_validator(mode="after")
+    def validate_production_gate(self):
+        if self.ENVIRONMENT != "production":
+            return self
+        if self.DEBUG:
+            raise ValueError("Production requires DEBUG=false")
+        if len(self.SECRET_KEY) < 32 or "change-in-production" in self.SECRET_KEY:
+            raise ValueError("Production requires a strong SECRET_KEY")
+        if self.PAYMENTS_LIVE_ENABLED:
+            if "test." in self.ZIRAATPAY_API_URL or "test." in self.ZIRAATPAY_HPP_URL:
+                raise ValueError("Live payments cannot use Ziraat Pay test URLs")
+            try:
+                tenant_credentials = json.loads(self.ZIRAATPAY_TENANT_CREDENTIALS)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Live payments require tenant-specific Ziraat credentials") from exc
+            required = {"merchant", "merchant_user", "merchant_password", "secret_key"}
+            for tenant in ("hicret-dernegi", "kardeslik-payi"):
+                if not required.issubset(tenant_credentials.get(tenant, {})):
+                    raise ValueError(f"Missing Ziraat credentials for {tenant}")
+        return self
 
     class Config:
         env_file = ".env"

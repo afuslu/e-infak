@@ -35,6 +35,23 @@ interface Subscription {
   next_charge_date: string
 }
 
+interface PaymentOrder {
+  id: string
+  status: string
+  total_cents: number
+  refunded_cents: number
+  currency: string
+  payment_method: string
+  transfer_reference?: string
+  created_at: string
+}
+
+interface DonorProjects {
+  water_wells: Array<{ id: string; name: string; location?: string; status: string; gallery_urls?: string[] }>
+  orphan_sponsorships: Array<{ id: string; person_name: string; active: boolean; start_date?: string; end_date?: string }>
+  student_sponsorships: Array<{ id: string; person_name: string; active: boolean; amount_cents: number }>
+}
+
 interface Student {
   id: string
   full_name: string
@@ -50,6 +67,11 @@ interface StudentProgress {
 }
 
 export default function PortalPage() {
+  const tenantHeaders = () => {
+    const slug = document.cookie.split(';').map((value) => value.trim())
+      .find((value) => value.startsWith('org-slug='))?.split('=')[1]
+    return { 'x-organization-slug': slug || '' }
+  }
   const [activeTab, setActiveTab] = useState<'donor' | 'parent'>('donor')
   const [step, setStep] = useState<'login' | 'otp' | 'dashboard'>('login')
   const [phone, setPhone] = useState('')
@@ -63,6 +85,8 @@ export default function PortalPage() {
   const [donations, setDonations] = useState<Donation[]>([])
   const [shares, setShares] = useState<KurbanShare[]>([])
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
+  const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>([])
+  const [projects, setProjects] = useState<DonorProjects>({ water_wells: [], orphan_sponsorships: [], student_sponsorships: [] })
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [studentProgress, setStudentProgress] = useState<StudentProgress[]>([])
@@ -96,10 +120,10 @@ export default function PortalPage() {
 
     try {
       await axios.post(endpoint, { phone }, {
-        headers: { 'x-organization-slug': 'hicret-dernegi' } // Default tenant context
+        headers: tenantHeaders()
       })
       setStep('otp')
-      setSuccessMsg('Telefonunuza 6 haneli doğrulama kodu gönderildi (Test için: 123456)')
+      setSuccessMsg('Telefonunuza 6 haneli doğrulama kodu gönderildi.')
     } catch (err: any) {
       console.error(err)
       setErrorMsg(err.response?.data?.detail || 'OTP gönderimi başarısız oldu.')
@@ -121,7 +145,7 @@ export default function PortalPage() {
 
     try {
       const res = await axios.post(endpoint, { phone, code: otpCode }, {
-        headers: { 'x-organization-slug': 'hicret-dernegi' }
+        headers: tenantHeaders()
       })
       const { access_token } = res.data
       setToken(access_token)
@@ -145,16 +169,20 @@ export default function PortalPage() {
 
   // Load Donor Dashboard details
   const loadDonorDashboard = async (authToken: string) => {
-    const authHeaders = { Authorization: `Bearer ${authToken}`, 'x-organization-slug': 'hicret-dernegi' }
+    const authHeaders = { Authorization: `Bearer ${authToken}`, ...tenantHeaders() }
     try {
-      const [donationsRes, sharesRes, subsRes] = await Promise.all([
+      const [donationsRes, sharesRes, subsRes, ordersRes, projectsRes] = await Promise.all([
         axios.get(`${API_BASE}/api/v1/portal/me/donations`, { headers: authHeaders }),
         axios.get(`${API_BASE}/api/v1/portal/me/kurban-shares`, { headers: authHeaders }),
         axios.get(`${API_BASE}/api/v1/portal/me/subscriptions`, { headers: authHeaders }),
+        axios.get(`${API_BASE}/api/v1/portal/me/payment-orders`, { headers: authHeaders }),
+        axios.get(`${API_BASE}/api/v1/portal/me/projects`, { headers: authHeaders }),
       ])
       setDonations(donationsRes.data)
       setShares(sharesRes.data)
       setSubscriptions(subsRes.data)
+      setPaymentOrders(ordersRes.data)
+      setProjects(projectsRes.data)
     } catch (err) {
       console.error('Failed to load donor dashboard data:', err)
     }
@@ -162,7 +190,7 @@ export default function PortalPage() {
 
   // Load Parent Dashboard details
   const loadParentDashboard = async (authToken: string) => {
-    const authHeaders = { Authorization: `Bearer ${authToken}`, 'x-organization-slug': 'hicret-dernegi' }
+    const authHeaders = { Authorization: `Bearer ${authToken}`, ...tenantHeaders() }
     try {
       const res = await axios.get(`${API_BASE}/api/v1/parent/students`, { headers: authHeaders })
       setStudents(res.data)
@@ -176,7 +204,7 @@ export default function PortalPage() {
 
   const handleSelectStudent = async (student: Student, authToken = token) => {
     setSelectedStudent(student)
-    const authHeaders = { Authorization: `Bearer ${authToken}`, 'x-organization-slug': 'hicret-dernegi' }
+    const authHeaders = { Authorization: `Bearer ${authToken}`, ...tenantHeaders() }
     try {
       const res = await axios.get(`${API_BASE}/api/v1/parent/students/${student.id}/progress`, { headers: authHeaders })
       setStudentProgress(res.data)
@@ -187,7 +215,7 @@ export default function PortalPage() {
 
   const handleCancelSub = async (subId: string) => {
     if (!confirm('Aylık düzenli bağış talimatınızı iptal etmek istediğinize emin misiniz?')) return
-    const authHeaders = { Authorization: `Bearer ${token}`, 'x-organization-slug': 'hicret-dernegi' }
+    const authHeaders = { Authorization: `Bearer ${token}`, ...tenantHeaders() }
     try {
       await axios.delete(`${API_BASE}/api/v1/portal/subscriptions/${subId}`, { headers: authHeaders })
       setSubscriptions(prev => prev.filter(s => s.id !== subId))
@@ -377,6 +405,44 @@ export default function PortalPage() {
               </div>
             </div>
 
+            <div className="grid gap-6 lg:grid-cols-2">
+              <section className="rounded-3xl border bg-white p-6 shadow-sm">
+                <h3 className="font-heading text-lg font-black text-slate-800">Ödeme ve Havale Durumu</h3>
+                <div className="mt-4 space-y-3">
+                  {paymentOrders.length === 0 ? (
+                    <p className="py-5 text-center text-xs text-slate-400">Henüz ödeme siparişi bulunmamaktadır.</p>
+                  ) : paymentOrders.map((order) => (
+                    <div key={order.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-black text-slate-800">{(order.total_cents / 100).toLocaleString('tr-TR')} {order.currency}</span>
+                        <span className="rounded-full bg-white px-2 py-1 font-bold uppercase text-slate-600">{order.status.replaceAll('_', ' ')}</span>
+                      </div>
+                      {order.transfer_reference && <p className="mt-2 text-slate-600">Havale açıklaması: <b>{order.transfer_reference}</b></p>}
+                      {order.refunded_cents > 0 && <p className="mt-1 text-red-600">İade: {(order.refunded_cents / 100).toLocaleString('tr-TR')} {order.currency}</p>}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-3xl border bg-white p-6 shadow-sm">
+                <h3 className="font-heading text-lg font-black text-slate-800">Proje ve Sponsorluk Takibi</h3>
+                <div className="mt-4 space-y-3 text-xs">
+                  {[...projects.water_wells.map((item) => ({ id: item.id, title: item.name, detail: item.location, status: item.status })),
+                    ...projects.orphan_sponsorships.map((item) => ({ id: item.id, title: `Yetim desteği: ${item.person_name}`, detail: undefined, status: item.active ? 'Aktif' : 'Tamamlandı' })),
+                    ...projects.student_sponsorships.map((item) => ({ id: item.id, title: `Öğrenci desteği: ${item.person_name}`, detail: `${(item.amount_cents / 100).toLocaleString('tr-TR')} ₺`, status: item.active ? 'Aktif' : 'Tamamlandı' })),
+                  ].map((item) => (
+                    <div key={item.id} className="flex items-center justify-between rounded-2xl border border-slate-100 p-4">
+                      <div><p className="font-bold text-slate-800">{item.title}</p>{item.detail && <p className="mt-1 text-slate-500">{item.detail}</p>}</div>
+                      <span className="rounded-full bg-emerald-50 px-2 py-1 font-bold text-emerald-700">{item.status}</span>
+                    </div>
+                  ))}
+                  {projects.water_wells.length + projects.orphan_sponsorships.length + projects.student_sponsorships.length === 0 && (
+                    <p className="py-5 text-center text-slate-400">Takip edilen proje veya sponsorluk bulunmamaktadır.</p>
+                  )}
+                </div>
+              </section>
+            </div>
+
             {/* List of Donations */}
             <div className="bg-white border rounded-3xl p-6 shadow-sm space-y-4">
               <h3 className="font-heading text-lg font-black text-slate-800">Bağış Geçmişim</h3>
@@ -563,7 +629,7 @@ export default function PortalPage() {
                             p.instructor_notes && (
                               <div key={p.id} className="p-4 rounded-2xl bg-amber-50 border border-amber-100 text-xs leading-relaxed text-amber-950">
                                 <span className="font-bold block text-amber-800 mb-1">Hoca Değerlendirmesi ({new Date(p.check_date).toLocaleDateString('tr-TR')}):</span>
-                                "{p.instructor_notes}"
+                                &ldquo;{p.instructor_notes}&rdquo;
                               </div>
                             )
                           ))}

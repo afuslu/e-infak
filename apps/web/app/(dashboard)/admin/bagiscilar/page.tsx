@@ -47,7 +47,6 @@ export default function AdminDonorsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi'
     }
   }
 
@@ -63,6 +62,7 @@ export default function AdminDonorsPage() {
 
   useEffect(() => {
     loadDonors()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSelectDonor = async (donor: Donor) => {
@@ -78,7 +78,7 @@ export default function AdminDonorsPage() {
       const notesRes = await axios.get(`${API_BASE}/api/v1/admin-features/donors/${donor.id}/notes`, { headers })
       setNotes(notesRes.data)
       
-      // Fetch donor specific donations (mocking or filtering from global donations)
+      // Fetch and scope the tenant donation list to this donor.
       const donationsRes = await axios.get(`${API_BASE}/api/v1/donations`, { headers })
       const filtered = donationsRes.data.filter((d: any) => d.donor_id === donor.id || d.donor?.email === donor.email)
       setDonorDonations(filtered)

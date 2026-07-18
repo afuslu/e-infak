@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Any, Optional, List, Dict
 from datetime import datetime
 from uuid import UUID
 from app.models.campaign import CampaignStatus, CampaignCategory
@@ -23,6 +23,8 @@ class CampaignBase(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     tags: List[str] = []
+    translations: Dict[str, Dict[str, str]] = {}
+    checkout_fields_schema: List[Dict[str, Any]] = []
 
 
 class CampaignCreate(CampaignBase):
@@ -39,6 +41,8 @@ class CampaignUpdate(BaseModel):
     cover_image_url: Optional[str] = None
     gallery_urls: Optional[List[str]] = None
     is_featured: Optional[bool] = None
+    translations: Optional[Dict[str, Dict[str, str]]] = None
+    checkout_fields_schema: Optional[List[Dict[str, Any]]] = None
 
 
 class CampaignResponse(CampaignBase):

@@ -18,13 +18,13 @@ const brand = {
     bgBorder: '#CBDFC9',
     text: '#6B7A70',
     heading: '#1C2420',
-    address: 'Eskişehir, Türkiye',
-    phone: '0 (222) 000 00 00',
-    email: 'info@hicretdernegi.org',
-    bank1: 'Vakıf Katılım',
-    bank1Iban: 'TR00 0000 0000 0000 0000 0000 00',
-    bank2: 'Ziraat Katılım',
-    bank2Iban: 'TR00 0000 0000 0000 0000 0000 00',
+    address: '',
+    phone: '',
+    email: '',
+    bank1: '',
+    bank1Iban: '',
+    bank2: '',
+    bank2Iban: '',
   },
   'kardeslik-payi': {
     name: 'Kardeşlik Payı',
@@ -35,13 +35,13 @@ const brand = {
     bgBorder: '#EFCDC9',
     text: '#82706D',
     heading: '#241C1B',
-    address: 'Fatih, İstanbul, Türkiye',
-    phone: '0 (212) 555 44 33',
-    email: 'info@kardeslikpayi.org',
-    bank1: 'Vakıf Katılım',
-    bank1Iban: 'TR00 0000 0000 0000 0000 0000 00',
-    bank2: 'Kuveyt Türk Katılım',
-    bank2Iban: 'TR00 0000 0000 0000 0000 0000 00',
+    address: '',
+    phone: '',
+    email: '',
+    bank1: '',
+    bank1Iban: '',
+    bank2: '',
+    bank2Iban: '',
   },
 } as const
 
@@ -89,15 +89,15 @@ export function ContactPageClient({ orgSlug }: ContactPageClientProps) {
 
         <div className="grid md:grid-cols-[1fr_1.2fr] gap-6 items-start">
           <div className="flex flex-col gap-4">
-            <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${c.border}` }}>
+            {(c.address || c.phone || c.email) && <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${c.border}` }}>
               <div className="font-bold text-[15px] mb-3">Dernek Merkezi</div>
               <div className="text-sm leading-loose" style={{ color: c.text }}>
                 {c.address}<br />
                 {c.phone}<br />
                 {c.email}
               </div>
-            </div>
-            <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${c.border}` }}>
+            </div>}
+            {(c.bank1Iban || c.bank2Iban) && <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${c.border}` }}>
               <div className="font-bold text-[15px] mb-3">Banka Hesapları</div>
               <div className="text-[13px] leading-[1.9]" style={{ color: c.text }}>
                 <div className="font-bold" style={{ color: c.heading }}>{c.bank1}</div>
@@ -105,13 +105,13 @@ export function ContactPageClient({ orgSlug }: ContactPageClientProps) {
                 <div className="font-bold mt-2" style={{ color: c.heading }}>{c.bank2}</div>
                 {c.bank2Iban}
               </div>
-              <div className="mt-2.5 text-xs" style={{ color: c.text }}>Açıklamaya telefon numaranızı yazmayı unutmayınız.</div>
-            </div>
+              <div className="mt-2.5 text-xs" style={{ color: c.text }}>Havale kaydında üretilen açıklama kodunu kullanınız.</div>
+            </div>}
           </div>
 
           <div className="bg-white rounded-2xl p-7" style={{ border: `1px solid ${c.border}` }}>
             <div className="font-heading text-xl font-bold mb-1">Bize Ulaşın</div>
-            <div className="text-[13px] mb-4.5" style={{ color: c.text }}>Mesajınız en geç 1 iş günü içinde yanıtlanır.</div>
+            <div className="text-[13px] mb-4.5" style={{ color: c.text }}>Sorularınızı güvenli iletişim formu üzerinden iletebilirsiniz.</div>
 
             {sendContact.isSuccess ? (
               <div className="rounded-[10px] p-4 text-sm font-semibold" style={{ background: c.bg, border: `1px solid ${c.bgBorder}`, color: c.primary }}>

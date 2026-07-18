@@ -9,6 +9,8 @@ from app.schemas.orphan import (
     OrphanCreate, OrphanResponse,
     OrphanSponsorshipCreate, OrphanSponsorshipResponse
 )
+from app.api.deps import require_role
+from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/orphans", tags=["orphans"])
 
@@ -16,7 +18,8 @@ router = APIRouter(prefix="/orphans", tags=["orphans"])
 async def create_orphan(
     request: Request,
     orphan_in: OrphanCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.OPERASYON)),
 ):
     organization_id = request.state.organization_id
     orphan = Orphan(
@@ -53,7 +56,8 @@ async def sponsor_orphan(
     request: Request,
     orphan_id: UUID,
     sponsorship_in: OrphanSponsorshipCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.OPERASYON)),
 ):
     organization_id = request.state.organization_id
     # Fetch orphan

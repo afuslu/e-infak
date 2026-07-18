@@ -14,11 +14,11 @@ const content = {
     heading: '#1C2420',
     hero: '/images/hicret/hicret-hero.png',
     intro:
-      'Hicret Derneği, Eskişehir merkezli; sıbyan mektebinden hafızlık ve Arapça eğitimine uzanan eğitim kurumları işleten, yurt içi ve yurt dışında insani yardım çalışmaları yürüten dernektir.',
+      'Hicret Derneği kurumsal tanıtım bilgileri, yetkili kurum yöneticisi tarafından doğrulandıktan sonra bu alanda yayınlanacaktır.',
     mission:
-      "İlimle yetişen nesiller için erişilebilir, ehil hocalarla yürütülen Kur'an ve Arapça eğitimi sunmak; bağışçılarımızın emanetini kurban, su kuyusu ve yetim sponsorluğu çalışmalarıyla ihtiyaç sahiplerine ulaştırmak.",
+      'Doğrulanmış kurum misyonu henüz yayınlanmadı.',
     vision:
-      "Hafızlıktan Arapça'ya kesintisiz bir eğitim yolu kurarak Eskişehir'in referans eğitim kurumu olmak; iyiliği dünyanın dört bir yanına taşımak.",
+      'Doğrulanmış kurum vizyonu henüz yayınlanmadı.',
   },
   'kardeslik-payi': {
     primary: '#C2181B',
@@ -29,11 +29,11 @@ const content = {
     heading: '#241C1B',
     hero: '/images/kardeslik/kp-hero.png',
     intro:
-      '"Birlikte daha güçlüyüz" anlayışıyla Türkiye genelinde ihtiyaç sahibi ailelere ulaşan yurt içi yardım kuruluşuyuz.',
+      'Kardeşlik Payı kurumsal tanıtım bilgileri, yetkili kurum yöneticisi tarafından doğrulandıktan sonra bu alanda yayınlanacaktır.',
     mission:
-      'Bu topraklarda kimse yalnız kalmasın. Gıda, barınma, eğitim ve sağlık alanlarında tespit ettiğimiz ihtiyaç sahiplerine, bağışçılarımızın emanetini şeffaflıkla ulaştırmak.',
+      'Doğrulanmış kurum misyonu henüz yayınlanmadı.',
     vision:
-      "81 ilde gönüllü ağıyla, yardıma muhtaç her haneye komşuluk hukukuyla dokunan, Türkiye'nin en güvenilir yurt içi yardım kuruluşu olmak.",
+      'Doğrulanmış kurum vizyonu henüz yayınlanmadı.',
   },
 } as const
 
@@ -72,10 +72,7 @@ export default async function AboutPage() {
         <div className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${c.border}` }}>
           <div className="font-heading text-xl font-bold mb-3.5">Şeffaflık ve Belgeler</div>
           <div className="flex flex-col gap-2.5">
-            <a href="#" className="font-semibold text-[14.5px]" style={{ color: c.primary }}>→ Dernek Tüzüğü (PDF)</a>
-            <a href="#" className="font-semibold text-[14.5px]" style={{ color: c.primary }}>→ 2025 Faaliyet Raporu (PDF)</a>
-            <a href="#" className="font-semibold text-[14.5px]" style={{ color: c.primary }}>→ Gelir-Gider Tablosu (PDF)</a>
-            <a href="#" className="font-semibold text-[14.5px]" style={{ color: c.primary }}>→ KVKK Aydınlatma Metni</a>
+            <a href="/kvkk" className="font-semibold text-[14.5px]" style={{ color: c.primary }}>→ KVKK Aydınlatma Metni</a>
           </div>
         </div>
       </div>

@@ -16,6 +16,11 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.models.donation import Donor, Donation, DonationStatus
 from app.models.kurban import KurbanShare, KurbanAnimal
 from app.models.subscription import Subscription
+from app.models.payment import PaymentOrder
+from app.models.water_well import WaterWell
+from app.models.orphan import Orphan, OrphanSponsorship
+from app.models.student import Student
+from app.models.student_sponsorship import StudentSponsorship
 from app.utils.sms import send_sms
 
 logger = logging.getLogger(__name__)
@@ -43,11 +48,6 @@ class OTPVerifyRequest(BaseModel):
 class SubscriptionCreate(BaseModel):
     campaign_id: str
     amount_cents: int
-    card_number: str
-    card_holder_name: str
-    card_expiry_month: str
-    card_expiry_year: str
-    card_cvv: str
 
 # Dependency to get current authenticated donor
 async def get_current_donor(
@@ -72,7 +72,12 @@ async def get_current_donor(
             detail="Geçersiz token payload",
         )
     
-    result = await db.execute(select(Donor).where(Donor.id == UUID(donor_id)))
+    result = await db.execute(
+        select(Donor).where(
+            Donor.id == UUID(donor_id),
+            Donor.organization_id == UUID(request.state.organization_id),
+        )
+    )
     donor = result.scalar_one_or_none()
     
     if not donor:
@@ -84,7 +89,7 @@ async def get_current_donor(
     return donor
 
 @router.post("/send-otp")
-async def send_portal_otp(payload: OTPRequest):
+async def send_portal_otp(request: Request, payload: OTPRequest):
     phone = payload.phone.strip()
     if not phone:
         raise HTTPException(status_code=400, detail="Telefon numarası gereklidir.")
@@ -93,14 +98,28 @@ async def send_portal_otp(payload: OTPRequest):
     code = f"{random.randint(100000, 999999)}"
     
     # Store OTP with 3-minute expiry
+    tenant = request.state.organization_id
+    client_ip = request.client.host if request.client else "unknown"
+    otp_key = f"{tenant}:{phone}"
     r = get_redis_client()
     if r:
         try:
-            r.setex(f"otp:{phone}", 180, code)
+            ip_limit_key = f"otp-ip:{tenant}:{client_ip}"
+            ip_count = r.incr(ip_limit_key)
+            r.expire(ip_limit_key, 3600)
+            if ip_count > 20:
+                raise HTTPException(status_code=429, detail="Bu bağlantıdan çok fazla kod istendi.")
+            cooldown_key = f"otp-cooldown:{otp_key}"
+            if not r.set(cooldown_key, "1", ex=60, nx=True):
+                raise HTTPException(status_code=429, detail="Yeni kod istemeden önce 60 saniye bekleyin.")
+            r.setex(f"otp:{otp_key}", 180, code)
+            r.delete(f"otp-attempts:{otp_key}")
+        except HTTPException:
+            raise
         except Exception:
-            _otp_fallback_store[phone] = (code, datetime.now(timezone.utc) + timedelta(minutes=3))
+            _otp_fallback_store[otp_key] = (code, datetime.now(timezone.utc) + timedelta(minutes=3))
     else:
-        _otp_fallback_store[phone] = (code, datetime.now(timezone.utc) + timedelta(minutes=3))
+        _otp_fallback_store[otp_key] = (code, datetime.now(timezone.utc) + timedelta(minutes=3))
         
     # Send SMS
     sms_message = f"E-Infak bagisci giris sifreniz: {code}. Bu kod 3 dakika gecerlidir."
@@ -117,6 +136,7 @@ async def verify_portal_otp(
     phone = payload.phone.strip()
     code = payload.code.strip()
     organization_id = request.state.organization_id
+    otp_key = f"{organization_id}:{phone}"
     
     if not phone or not code:
         raise HTTPException(status_code=400, detail="Telefon numarası ve OTP kodu gereklidir.")
@@ -126,27 +146,32 @@ async def verify_portal_otp(
     r = get_redis_client()
     if r:
         try:
-            saved_code = r.get(f"otp:{phone}")
+            saved_code = r.get(f"otp:{otp_key}")
         except Exception:
             pass
             
     if not saved_code:
         # Check fallback store
-        entry = _otp_fallback_store.get(phone)
+        entry = _otp_fallback_store.get(otp_key)
         if entry:
             val, expiry = entry
             if datetime.now(timezone.utc) < expiry:
                 saved_code = val
             else:
-                _otp_fallback_store.pop(phone, None)
+                _otp_fallback_store.pop(otp_key, None)
 
-    # Master bypass for testing/development
-    if code == "123456" or (saved_code and saved_code == code):
+    if r:
+        attempts = r.incr(f"otp-attempts:{otp_key}")
+        r.expire(f"otp-attempts:{otp_key}", 180)
+        if attempts > 5:
+            raise HTTPException(status_code=429, detail="Çok fazla hatalı deneme. Yeni kod isteyin.")
+
+    if saved_code and saved_code == code:
         # Remove used OTP
         if r:
-            try: r.delete(f"otp:{phone}")
+            try: r.delete(f"otp:{otp_key}")
             except Exception: pass
-        _otp_fallback_store.pop(phone, None)
+        _otp_fallback_store.pop(otp_key, None)
         
         # Check if donor exists in this organization
         result = await db.execute(
@@ -165,8 +190,8 @@ async def verify_portal_otp(
                 last_name="Bağışçı",
                 phone=phone,
                 donor_type="individual",
-                allow_email=True,
-                allow_sms=True
+                allow_email=False,
+                allow_sms=False
             )
             db.add(donor)
             await db.commit()
@@ -213,13 +238,80 @@ async def get_my_donations(
             "payment_method": d.payment_method,
             "donor_message": d.donor_message,
             "created_at": d.created_at,
-            # Add simple mock well pictures for demo purposes
-            "water_well_images": [
-                "https://images.unsplash.com/photo-1541959837701-4478b4f3ee36?auto=format&fit=crop&q=80&w=600"
-            ] if "kuyu" in d.donor_message.lower() else []
+            "water_well_images": []
         }
         for d in donations
     ]
+
+
+@router.get("/me/payment-orders")
+async def get_my_payment_orders(
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(PaymentOrder)
+        .where(
+            PaymentOrder.donor_id == current_donor.id,
+            PaymentOrder.organization_id == current_donor.organization_id,
+        )
+        .order_by(PaymentOrder.created_at.desc())
+    )
+    return [
+        {
+            "id": order.id,
+            "status": order.status,
+            "total_cents": order.total_cents,
+            "refunded_cents": order.refunded_cents,
+            "currency": order.currency,
+            "payment_method": order.payment_method,
+            "transfer_reference": order.transfer_reference,
+            "created_at": order.created_at,
+        }
+        for order in result.scalars().all()
+    ]
+
+
+@router.get("/me/projects")
+async def get_my_projects(
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    org_id = current_donor.organization_id
+    wells = (await db.execute(select(WaterWell).where(
+        WaterWell.organization_id == org_id,
+        WaterWell.donor_id == current_donor.id,
+    ))).scalars().all()
+    orphan_rows = (await db.execute(
+        select(OrphanSponsorship, Orphan)
+        .join(Orphan, Orphan.id == OrphanSponsorship.orphan_id)
+        .where(
+            OrphanSponsorship.organization_id == org_id,
+            OrphanSponsorship.donor_phone == current_donor.phone,
+        )
+    )).all()
+    student_rows = (await db.execute(
+        select(StudentSponsorship, Student)
+        .join(Student, Student.id == StudentSponsorship.student_id)
+        .where(
+            StudentSponsorship.donor_id == current_donor.id,
+            Student.organization_id == org_id,
+        )
+    )).all()
+    return {
+        "water_wells": [
+            {"id": item.id, "name": item.name, "location": item.location_name, "status": item.status, "gallery_urls": item.gallery_urls}
+            for item in wells
+        ],
+        "orphan_sponsorships": [
+            {"id": sponsorship.id, "person_name": orphan.first_name, "active": sponsorship.active, "start_date": sponsorship.start_date, "end_date": sponsorship.end_date}
+            for sponsorship, orphan in orphan_rows
+        ],
+        "student_sponsorships": [
+            {"id": sponsorship.id, "person_name": f"{student.first_name} {student.last_name}", "active": sponsorship.is_active, "amount_cents": sponsorship.amount_cents}
+            for sponsorship, student in student_rows
+        ],
+    }
 
 @router.get("/me/kurban-shares")
 async def get_my_kurban_shares(
@@ -229,7 +321,10 @@ async def get_my_kurban_shares(
     # Match by phone number
     result = await db.execute(
         select(KurbanShare)
-        .where(KurbanShare.donor_phone == current_donor.phone)
+        .where(
+            KurbanShare.donor_phone == current_donor.phone,
+            KurbanShare.organization_id == current_donor.organization_id,
+        )
         .order_by(KurbanShare.created_at.desc())
     )
     shares = result.scalars().all()
@@ -237,7 +332,10 @@ async def get_my_kurban_shares(
     response = []
     for s in shares:
         # Load animal video URL
-        animal_res = await db.execute(select(KurbanAnimal).where(KurbanAnimal.id == s.animal_id))
+        animal_res = await db.execute(select(KurbanAnimal).where(
+            KurbanAnimal.id == s.animal_id,
+            KurbanAnimal.organization_id == current_donor.organization_id,
+        ))
         animal = animal_res.scalar_one_or_none()
         
         response.append({
@@ -259,39 +357,10 @@ async def create_new_subscription(
     current_donor: Donor = Depends(get_current_donor),
     db: AsyncSession = Depends(get_db)
 ):
-    organization_id = request.state.organization_id
-    
-    # Mock credit card validation & tokenization
-    card_number = payload.card_number.replace(" ", "")
-    if len(card_number) < 15:
-        raise HTTPException(status_code=400, detail="Geçersiz kredi kartı numarası.")
-        
-    mock_token = f"TOK_SUB_{random.randint(10000000, 99999999)}"
-    
-    # Calculate next charge date (one month from now)
-    next_charge = datetime.now(timezone.utc) + timedelta(days=30)
-    
-    subscription = Subscription(
-        organization_id=UUID(organization_id),
-        donor_id=current_donor.id,
-        campaign_id=UUID(payload.campaign_id),
-        amount_cents=payload.amount_cents,
-        currency="TRY",
-        status="active",
-        card_token=mock_token,
-        next_charge_date=next_charge
+    raise HTTPException(
+        status_code=503,
+        detail="Düzenli bağış, Ziraat Pay tokenlı tahsilat yetkisi açıldıktan sonra kullanılabilir.",
     )
-    
-    db.add(subscription)
-    await db.commit()
-    await db.refresh(subscription)
-    
-    return {
-        "status": "success",
-        "subscription_id": subscription.id,
-        "next_charge_date": subscription.next_charge_date,
-        "message": "Aylık düzenli bağış talimatınız başarıyla oluşturulmuştur."
-    }
 
 @router.get("/me/subscriptions")
 async def get_my_subscriptions(

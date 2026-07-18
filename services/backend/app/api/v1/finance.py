@@ -13,10 +13,14 @@ import io
 from app.core.db import get_db
 from app.models.expense import Expense
 from app.models.donation import Donation, DonationStatus, Donor
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin_route_permission
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/finance", tags=["finance"])
+router = APIRouter(
+    prefix="/finance",
+    tags=["finance"],
+    dependencies=[Depends(require_admin_route_permission)],
+)
 
 # Pydantic Schemas
 class ExpenseCreate(BaseModel):

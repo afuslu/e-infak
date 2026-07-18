@@ -12,6 +12,7 @@ class UserRole(str, enum.Enum):
     STK_ADMIN = "stk_admin"
     MUHASEBE = "muhasebe"
     CRM = "crm"
+    EDITOR = "editor"
     OPERASYON = "operasyon"
     READONLY = "readonly"
 

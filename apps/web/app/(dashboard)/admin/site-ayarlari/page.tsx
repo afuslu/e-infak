@@ -36,7 +36,6 @@ export default function AdminSiteSettingsPage() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
     return {
       Authorization: `Bearer ${token}`,
-      'x-organization-slug': 'hicret-dernegi',
     }
   }
 
@@ -54,6 +53,7 @@ export default function AdminSiteSettingsPage() {
 
   useEffect(() => {
     loadSettings()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSave = async (e: React.FormEvent) => {

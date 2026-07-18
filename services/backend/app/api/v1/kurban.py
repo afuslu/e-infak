@@ -12,6 +12,8 @@ from app.schemas.kurban import (
     KurbanSlaughterRequest
 )
 from app.tasks import send_sms_task
+from app.api.deps import require_role
+from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/kurban", tags=["kurban"])
 
@@ -20,7 +22,8 @@ router = APIRouter(prefix="/kurban", tags=["kurban"])
 async def create_kurban_campaign(
     request: Request,
     campaign_in: KurbanCampaignCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.OPERASYON)),
 ):
     organization_id = request.state.organization_id
     campaign = KurbanCampaign(
@@ -47,7 +50,8 @@ async def list_kurban_campaigns(
 async def create_kurban_animal(
     request: Request,
     animal_in: KurbanAnimalCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.OPERASYON)),
 ):
     organization_id = request.state.organization_id
     # Verify campaign exists
@@ -81,7 +85,8 @@ async def list_kurban_animals(
 async def create_kurban_share(
     request: Request,
     share_in: KurbanShareCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.OPERASYON)),
 ):
     organization_id = request.state.organization_id
     # Verify animal exists
@@ -112,7 +117,8 @@ async def slaughter_kurban_animal(
     request: Request,
     animal_id: UUID,
     slaughter_in: KurbanSlaughterRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.OPERASYON)),
 ):
     organization_id = request.state.organization_id
     # Fetch animal

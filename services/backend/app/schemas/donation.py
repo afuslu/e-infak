@@ -41,13 +41,6 @@ class DonationCreate(BaseModel):
     donor: DonorCreate
     donor_message: Optional[str] = None
     is_anonymous: bool = False
-    
-    # Card info (will be used for VPOS)
-    card_number: Optional[str] = Field(None, min_length=16, max_length=16)
-    card_expiry_month: Optional[str] = Field(None, min_length=2, max_length=2)
-    card_expiry_year: Optional[str] = Field(None, min_length=2, max_length=2)
-    card_cvv: Optional[str] = Field(None, min_length=3, max_length=4)
-    card_holder_name: Optional[str] = None
 
 
 class DonationResponse(BaseModel):

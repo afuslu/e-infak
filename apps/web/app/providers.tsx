@@ -20,7 +20,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   )
 
   useEffect(() => {
-    const orgSlug = getOrgSlugFromCookie() || 'hicret-dernegi'
+    const orgSlug = getOrgSlugFromCookie()
+    if (!orgSlug) return
     const theme = loadTheme(orgSlug)
     if (theme) applyTheme(theme)
   }, [])
