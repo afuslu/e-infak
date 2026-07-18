@@ -91,14 +91,19 @@ run_pre_deploy_quality_gates
 # 4. KÜTÜPHANE VE ARAYÜZ KURULUMU / DERLEMESİ
 echo "📦 Bağımlılıklar kuruluyor ve Frontend derleniyor..."
 
-# pnpm monorepo paketlerini yükle ve derle (Next.js derlemesini içerir)
+# pnpm monorepo paketlerini yükle
 if command -v pnpm >/dev/null 2>&1; then
 	pnpm install
-	pnpm build
 else
 	echo "❌ 'pnpm' bulunamadı! Lütfen önce 'npm install -g pnpm' çalıştırın."
 	exit 1
 fi
+
+# Next.js frontend derlemesi (Turbo yerine doğrudan, RAM tasarrufu için)
+echo "🔨 Frontend (Next.js) derleniyor..."
+cd apps/web
+NODE_OPTIONS="--max-old-space-size=2048" npx next build
+cd "${PROJECT_DIR}"
 
 # Python bağımlılıklarını kur
 if activate_backend_python; then
