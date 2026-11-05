@@ -70,6 +70,14 @@ ssh afuslu@31.97.159.228 cat /opt/e_infak/yonetici-sifreleri.txt
 ssh afuslu@31.97.159.228 rm /opt/e_infak/yonetici-sifreleri.txt
 ```
 
+## Platform konsolu (e-infak.org/platform)
+
+Bütün kurumları yöneten süper yönetici paneli: kurum açma, paket değiştirme, askıya alma, alan adı, ödeme/SMS hesapları, destek girişi ve işlem kayıtları.
+
+- Giriş: https://e-infak.org/platform/giris — e-posta `admin@e-infak.org`
+- İlk şifre: `ssh afuslu@31.97.159.228 cat /opt/e_infak/platform-yonetici.txt` (girişten sonra sağ üstteki e-postanıza tıklayıp değiştirin, ardından dosyayı silin)
+- Şifre unutulursa yenisi: `ssh afuslu@31.97.159.228 "docker exec einfak-backend-1 python -m app.cli create-platform-admin --email admin@e-infak.org"`
+
 ## Şifreleme anahtarının yedeği (önemli)
 
 Kurumların panele girdiği ödeme/SMS şifreleri `CREDENTIALS_ENCRYPTION_KEY` ile şifrelenir. Anahtar kaybolursa o şifreler okunamaz. Anahtarı bir kez şifre yöneticinize kaydedin:
