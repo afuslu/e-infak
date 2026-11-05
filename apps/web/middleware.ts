@@ -19,6 +19,11 @@ export async function middleware(request: NextRequest) {
     ? devOrgSlug(url.searchParams.get('org'), request.cookies.get('org-slug')?.value)
     : await resolveHostSlug(hostname)
 
+  // The platform console exists only on the platform host, never on an organisation's site.
+  if (url.pathname.startsWith('/platform') && orgSlug && !isLocalHost(hostname)) {
+    return new NextResponse('Not found', { status: 404 })
+  }
+
   // Website language: ?lang=xx switches and is remembered in a cookie.
   const requestedLang = (url.searchParams.get('lang') || '').toLowerCase()
   const cookieLang = (request.cookies.get('lang')?.value || '').toLowerCase()

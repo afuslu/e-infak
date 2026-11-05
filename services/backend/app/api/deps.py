@@ -59,7 +59,7 @@ async def get_current_user(
     token = credentials.credentials
     payload = decode_token(token)
     
-    if not payload or payload.get("type") != "access":
+    if not payload or payload.get("type") != "access" or payload.get("scope") == "platform":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",

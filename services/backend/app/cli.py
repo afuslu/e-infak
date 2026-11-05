@@ -4,6 +4,10 @@
         Copies ZIRAATPAY_TENANT_CREDENTIALS (env, keyed by organisation slug) into
         the encrypted per-organisation credential store. Existing records are kept.
 
+    python -m app.cli create-platform-admin --email ad@ornek.org [--name "Ad Soyad"]
+        Creates a platform console (e-infak.org/platform) operator and prints a
+        one-time password, or resets the password of an existing operator.
+
     python -m app.cli bootstrap-sites
         First installation on an empty database: creates Hicret Derneği and
         Kardeşlik Payı with their domains and site design, and one administrator
@@ -99,15 +103,44 @@ async def bootstrap_sites() -> None:
         await db.commit()
 
 
+async def create_platform_admin(email: str, name: str) -> None:
+    import secrets as secrets_lib
+
+    from sqlalchemy import func
+
+    from app.core.db import AsyncSessionLocal
+    from app.core.security import get_password_hash
+    from app.models.platform import PlatformUser
+
+    password = secrets_lib.token_urlsafe(14)
+    async with AsyncSessionLocal() as db:
+        user = (await db.execute(
+            select(PlatformUser).where(func.lower(PlatformUser.email) == email.lower())
+        )).scalar_one_or_none()
+        if user:
+            user.hashed_password, user.is_active = get_password_hash(password), True
+            print(f"Platform yöneticisinin şifresi yenilendi: {email}")
+        else:
+            db.add(PlatformUser(email=email, full_name=name, hashed_password=get_password_hash(password)))
+            print(f"Platform yöneticisi oluşturuldu: {email}")
+        await db.commit()
+    print(f"Geçici şifre: {password}  (ilk girişte değiştirin)")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
     legacy = commands.add_parser("import-legacy-credentials", help="Ortam değişkenindeki Ziraat Pay bilgilerini panele taşır")
     legacy.add_argument("--dry-run", action="store_true")
+    admin = commands.add_parser("create-platform-admin", help="Platform konsolu yöneticisi oluşturur")
+    admin.add_argument("--email", required=True)
+    admin.add_argument("--name", default="Platform Yöneticisi")
     commands.add_parser("bootstrap-sites", help="Boş veritabanında Hicret ve Kardeşlik kurumlarını oluşturur")
     args = parser.parse_args()
     if args.command == "import-legacy-credentials":
         asyncio.run(import_legacy_credentials(args.dry_run))
+    elif args.command == "create-platform-admin":
+        asyncio.run(create_platform_admin(args.email.strip(), args.name.strip()))
     elif args.command == "bootstrap-sites":
         asyncio.run(bootstrap_sites())
 

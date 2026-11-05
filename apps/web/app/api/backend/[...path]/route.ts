@@ -11,6 +11,10 @@ async function orgForRequest(request: NextRequest) {
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params
   const orgSlug = await orgForRequest(request)
+  // Platform API only through the platform host (it also needs a platform token).
+  if (orgSlug && path[0] === 'api' && path[2] === 'platform' && !isLocalHost(normalizeHost(request.headers.get('host')))) {
+    return NextResponse.json({ detail: 'Not found' }, { status: 404 })
+  }
   const timestamp = Math.floor(Date.now() / 1000).toString()
   const secret = process.env.TENANT_PROXY_SECRET || ''
   const headers = new Headers()

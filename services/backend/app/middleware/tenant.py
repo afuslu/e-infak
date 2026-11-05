@@ -79,7 +79,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
         if not auth.lower().startswith("bearer "):
             return None
         payload = decode_token(auth[7:].strip())
-        if not payload or payload.get("type", "access") != "access" or not payload.get("sub"):
+        if (not payload or payload.get("type", "access") != "access" or payload.get("scope") == "platform"
+                or not payload.get("sub")):
             return None
         try:
             user_id = UUID(str(payload["sub"]))

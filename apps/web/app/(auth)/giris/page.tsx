@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
+import { useEffect } from 'react'
 
 const loginSchema = z.object({
   email: z.string().email('Geçerli bir e-posta adresi girin'),
@@ -17,6 +18,18 @@ type LoginForm = z.infer<typeof loginSchema>
 export default function LoginPage() {
   const router = useRouter()
   const login = useLogin()
+
+  // Platform support sign-in: e-infak.org/platform opens /giris#destek=<short-lived token>.
+  // The fragment never reaches a server; it is removed from the address bar at once.
+  useEffect(() => {
+    const match = window.location.hash.match(/^#destek=([A-Za-z0-9._-]+)$/)
+    if (!match) return
+    window.history.replaceState(null, '', window.location.pathname)
+    localStorage.setItem('access_token', match[1])
+    localStorage.removeItem('refresh_token')
+    sessionStorage.setItem('support_session', '1')
+    router.replace('/admin')
+  }, [router])
 
   const {
     register,
