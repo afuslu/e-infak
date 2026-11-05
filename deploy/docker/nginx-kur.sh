@@ -49,7 +49,8 @@ sunucu_ip="$(curl -s --max-time 5 https://api.ipify.org || true)"
 sertifika_args=()
 for alan in $ALAN_ADLARI; do
   for ad in "$alan" "www.$alan"; do
-    ip="$(getent ahostsv4 "$ad" | awk 'NR==1{print $1}')"
+    # A name that does not resolve at all must not stop the script (set -e + pipefail).
+    ip="$(getent ahostsv4 "$ad" 2>/dev/null | awk 'NR==1{print $1}' || true)"
     if [[ -n "$sunucu_ip" && "$ip" == "$sunucu_ip" ]]; then
       sertifika_args+=(-d "$ad")
     else
