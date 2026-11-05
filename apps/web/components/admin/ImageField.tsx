@@ -4,8 +4,10 @@ import { useRef, useState } from 'react'
 import axios from 'axios'
 import { adminApiBase, adminAuthHeaders, apiErrorMessage } from '../../lib/admin-access'
 import { inputClass } from './FormKit'
+import { MediaPicker } from './MediaPicker'
 
-/** Image address field with an upload button (PNG, JPEG, WEBP, GIF, ICO; max 5 MB). */
+/** Image address field with a media library picker and an upload button (PNG, JPEG, WEBP, GIF, ICO; max 5 MB).
+ *  Direct uploads land in the media library too. */
 export function ImageField({ label, value, onChange, hint, preview = 'wide' }: {
   label: string
   value: string | null | undefined
@@ -16,6 +18,7 @@ export function ImageField({ label, value, onChange, hint, preview = 'wide' }: {
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [picking, setPicking] = useState(false)
 
   const upload = async (file: File) => {
     setBusy(true)
@@ -41,6 +44,10 @@ export function ImageField({ label, value, onChange, hint, preview = 'wide' }: {
           <img src={value} alt="" className={`flex-shrink-0 rounded border bg-gray-50 object-cover ${preview === 'square' ? 'h-10 w-10' : 'h-10 w-16'}`} />
         )}
         <input className={inputClass} placeholder="https://… veya yükleyin" value={value || ''} onChange={(e) => onChange(e.target.value)} />
+        <button type="button" onClick={() => setPicking(true)}
+          className="whitespace-nowrap rounded-lg border bg-white px-3 text-xs font-bold text-gray-700 hover:border-primary-600">
+          Kütüphaneden seç
+        </button>
         <button type="button" disabled={busy} onClick={() => fileRef.current?.click()}
           className="whitespace-nowrap rounded-lg border bg-white px-3 text-xs font-bold text-gray-700 hover:border-primary-600 disabled:opacity-50">
           {busy ? 'Yükleniyor…' : 'Yükle'}
@@ -50,6 +57,7 @@ export function ImageField({ label, value, onChange, hint, preview = 'wide' }: {
       </div>
       {hint && <span className="mt-1 block font-normal text-gray-400">{hint}</span>}
       {error && <span className="mt-1 block font-semibold text-red-600">{error}</span>}
+      <MediaPicker open={picking} onClose={() => setPicking(false)} onSelect={(asset) => onChange(asset.url)} />
     </div>
   )
 }

@@ -98,27 +98,30 @@ async def test_appearance_roundtrip_and_public_site(db_session):
     assert data["url"] == f"https://{org.subdomain}.e-infak.org"
 
 
-async def test_image_upload_accepts_real_images_only(tmp_path, monkeypatch):
+async def test_image_upload_accepts_real_images_only(db_session, tmp_path, monkeypatch):
     import io
     from fastapi import HTTPException, UploadFile
     from PIL import Image
     from app.core.config import settings
 
     monkeypatch.setattr(settings, "MEDIA_ROOT", str(tmp_path))
-    org_id = str(uuid.uuid4())
+    org = await _org(db_session)
+    org_id = str(org.id)
     request = Request({"type": "http", "method": "POST", "path": "/", "headers": [], "query_string": b""})
     request.state.organization_id = org_id
 
     png = io.BytesIO()
     Image.new("RGB", (8, 8), "#C2181B").save(png, format="PNG")
-    result = await site_api.upload_image(request, UploadFile(io.BytesIO(png.getvalue()), filename="logo.png"), None, None)
-    assert result["url"].startswith(f"/api/v1/media/{org_id}/") and result["url"].endswith(".png")
+    result = await site_api.upload_image(request, UploadFile(io.BytesIO(png.getvalue()), filename="logo.png"),
+                                         db_session, None, None)
+    # Stored in the media library and served as WebP
+    assert result["url"].startswith(f"/api/v1/media/{org_id}/") and result["url"].endswith(".webp")
     served = await site_api.get_media(uuid.UUID(org_id), result["url"].rsplit("/", 1)[1])
-    assert served.media_type == "image/png"
+    assert served.media_type == "image/webp"
 
     svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
     with pytest.raises(HTTPException) as exc:
-        await site_api.upload_image(request, UploadFile(io.BytesIO(svg), filename="x.png"), None, None)
+        await site_api.upload_image(request, UploadFile(io.BytesIO(svg), filename="x.png"), db_session, None, None)
     assert exc.value.status_code == 422
     with pytest.raises(HTTPException):
         await site_api.get_media(uuid.UUID(org_id), "../../etc/passwd")

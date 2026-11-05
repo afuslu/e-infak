@@ -44,6 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: '💳', feature: 'recurring' },
   { href: '/admin/zakat', label: 'Zekât Ayarları', icon: '🪙' },
   { href: '/admin/gorunum', label: 'Görünüm & Tema', icon: '🎨', permission: 'settings_manage' },
+  { href: '/admin/medya', label: 'Medya Kütüphanesi', icon: '🖼️', permission: 'content_manage' },
   { href: '/admin/site-ayarlari', label: 'Site Ayarları', icon: '⚙️', permission: 'settings_manage' },
   { href: '/admin/odeme-sms', label: 'Ödeme & SMS Hesapları', icon: '🔐', permission: 'settings_manage' },
   { href: '/admin/integrations', label: 'Ayarlar / POS / API', icon: '🔌', permission: 'settings_manage' },
