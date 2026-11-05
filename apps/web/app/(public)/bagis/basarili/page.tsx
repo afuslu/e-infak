@@ -3,11 +3,20 @@
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useCheckoutStatus } from '@e-infak/api-client'
+import { useEffect, useRef } from 'react'
+import { trackConversion } from '../../../../lib/analytics'
 
 export default function DonationSuccessPage() {
   const checkoutId = useSearchParams().get('checkout') || undefined
   const { data, isLoading } = useCheckoutStatus(checkoutId)
   const verified = data?.status === 'paid'
+  const wasTracked = useRef(false)
+  useEffect(() => {
+    if (verified && !wasTracked.current) {
+      trackConversion('payment_succeeded', { checkout_id: checkoutId })
+      wasTracked.current = true
+    }
+  }, [checkoutId, verified])
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-16">
       <section className="w-full max-w-xl rounded-3xl border bg-white p-8 text-center shadow-xl">

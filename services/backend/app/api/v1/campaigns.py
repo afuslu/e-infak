@@ -9,6 +9,17 @@ from app.schemas.campaign import CampaignCreate, CampaignUpdate, CampaignRespons
 from app.api.deps import Permission, require_permission
 from app.models.user import User, UserRole
 from slugify import slugify
+from app.schemas.campaign import CAMPAIGN_I18N
+from app.utils.i18n import request_language
+
+
+def _localized(campaign: Campaign, lang: Optional[str]) -> CampaignResponse:
+    """Response in the requested language; untranslated fields keep the default text."""
+    response = CampaignResponse.model_validate(campaign)
+    overlay = (campaign.translations or {}).get(lang) if lang else None
+    if overlay:
+        response = response.model_copy(update={f: overlay[f] for f in CAMPAIGN_I18N if overlay.get(f)})
+    return response
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -52,8 +63,9 @@ async def list_campaigns(
     result = await db.execute(query)
     campaigns = result.scalars().all()
     
+    lang = request_language(request)
     return CampaignListResponse(
-        items=campaigns,
+        items=[_localized(c, lang) for c in campaigns],
         total=total,
         page=page,
         page_size=page_size,
@@ -82,7 +94,7 @@ async def get_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
     
-    return campaign
+    return _localized(campaign, request_language(request))
 
 
 @router.post("", response_model=CampaignResponse, status_code=201)

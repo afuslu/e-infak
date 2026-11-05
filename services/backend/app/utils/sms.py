@@ -1,49 +1,32 @@
+import asyncio
 import logging
-import httpx
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-async def send_sms(phone: str, message: str) -> bool:
+
+async def send_sms(phone: str, message: str, organization_id=None) -> bool:
+    """Send an SMS with the organisation's own provider account (platform account as fallback).
+
+    Without any configured account the message is only logged outside production.
     """
-    Sends SMS using Netgsm API. Falls back to logging the SMS in development mode.
-    """
-    # Clean phone number (remove spaces, leading zeros, etc.)
-    cleaned_phone = "".join(filter(str.isdigit, phone))
-    # Standardize to Turkish phone format without leading zero/country code prefix if not needed
-    if len(cleaned_phone) == 11 and cleaned_phone.startswith("0"):
-        cleaned_phone = cleaned_phone[1:]
-    elif len(cleaned_phone) == 12 and cleaned_phone.startswith("90"):
-        cleaned_phone = cleaned_phone[2:]
-        
-    logger.info(f"📱 SMS Gönderiliyor -> {phone}: {message}")
-    
-    # Check if Netgsm credentials are set
-    if settings.NETGSM_USERNAME and settings.NETGSM_PASSWORD:
-        url = "https://api.netgsm.com.tr/sms/send/get"
-        params = {
-            "usercode": settings.NETGSM_USERNAME,
-            "password": settings.NETGSM_PASSWORD,
-            "gsmno": cleaned_phone,
-            "message": message,
-            "msgheader": settings.NETGSM_SENDER or "EINFAK",
-            "dil": "TR"
-        }
+    from app.core.db import AsyncSessionLocal
+    from app.services.tenant_credentials import sms_account
+    from app.sms import PROVIDERS, SmsError, deliver
+
+    async with AsyncSessionLocal() as session:
+        account = await sms_account(session, organization_id)
+    provider = PROVIDERS.get(account.get("provider") or "")
+    if provider and not account.get("disabled") and provider(account).configured:
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(url, params=params)
-                if response.status_code == 200 and "00" in response.text:
-                    logger.info(f"✅ SMS başarıyla gönderildi: {response.text}")
-                    return True
-                else:
-                    logger.error(f"❌ SMS gönderimi başarısız. Netgsm Yanıtı: {response.text}")
-        except Exception as e:
-            logger.error(f"❌ SMS API hatası: {str(e)}")
-            
-    # Dev mode fallback
-    print(f"\n=======================================================")
-    print(f"📱 MOCK SMS GÖNDERİLDİ")
-    print(f"Alıcı: +90 {cleaned_phone}")
-    print(f"Mesaj: {message}")
-    print(f"=======================================================\n")
+            await asyncio.to_thread(deliver, phone, message, account)
+            return True
+        except SmsError as exc:
+            logger.error("SMS gönderilemedi: %s", exc)
+            return False
+    if settings.ENVIRONMENT == "production":
+        logger.error("SMS hesabı yapılandırılmadı; mesaj gönderilmedi")
+        return False
+    logger.info("[dev] SMS %s: %s", phone, message)
     return True

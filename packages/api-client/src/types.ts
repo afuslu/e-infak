@@ -10,6 +10,7 @@ export interface Campaign {
   collected_cents: number
   target_lira: number
   collected_lira: number
+  currency?: 'TRY' | 'USD' | 'EUR'
   progress_percentage: number
   cover_image_url?: string
   gallery_urls: string[]
@@ -73,6 +74,8 @@ export interface CheckoutItem {
   quantity: number
   unit_amount_cents: number
   donor_message?: string
+  /** Name of the person the donation is made on behalf of ("X adına"). */
+  on_behalf_of?: string
   metadata?: Record<string, unknown>
 }
 
@@ -208,6 +211,15 @@ export interface OrgSettingsInfo {
   bank1_iban?: string
   bank2_name?: string
   bank2_iban?: string
+  enabled_payment_currencies?: Array<'TRY' | 'EUR' | 'USD'>
+  whatsapp_number?: string | null
+  whatsapp_message?: string | null
+  live_chat_provider?: 'tawk' | null
+  live_chat_id?: string | null
+  seo_title?: string | null
+  seo_description?: string | null
+  seo_keywords?: string | null
+  languages?: string[]
 }
 
 export interface User {

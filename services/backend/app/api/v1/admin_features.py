@@ -1,8 +1,9 @@
 import logging
 from uuid import UUID
 from datetime import datetime
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any, Literal
+from urllib.parse import urlparse
+from pydantic import BaseModel, Field, field_validator
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -16,7 +17,6 @@ from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign
 from app.models.user import User, UserRole
 from app.models.donation import Donor, Donation
-from app.models.kurban import KurbanAnimal, KurbanShare, KurbanStatus
 from app.models.zakat_setting import ZakatSetting
 from app.models.student import Student
 from app.models.student_progress import StudentProgress
@@ -29,13 +29,14 @@ from app.models.donation_category import DonationCategory
 from app.models.organization_settings import OrganizationSettings
 from app.models.content_post import ContentPost
 from app.models.subscription import Subscription
-from app.api.deps import get_current_user, require_admin_route_permission
+from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission
+from app.utils.content import sanitize_public_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/admin-features",
     tags=["admin-features"],
-    dependencies=[Depends(require_admin_route_permission)],
+    dependencies=[Depends(require_admin_route_permission), Depends(require_admin_route_feature)],
 )
 
 # Pydantic Schemas
@@ -77,6 +78,12 @@ class GalleryUpdate(BaseModel):
     gallery_urls: List[str]
 
 # Helper to log actions
+
+
+async def _public_site_url(db: AsyncSession, request: Request) -> str:
+    from app.api.v1.site import site_url
+    return await site_url(db, request.state.organization)
+
 async def write_audit_log(
     db: AsyncSession,
     org_id: UUID,
@@ -94,37 +101,6 @@ async def write_audit_log(
     await db.commit()
 
 # --- Donor Listing (STK CRM) ---
-@router.get("/donors")
-async def list_organization_donors(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    
-    # Query distinct donors who made donations for this org
-    query = (
-        select(Donor)
-        .join(Donation, Donation.donor_id == Donor.id)
-        .where(Donation.organization_id == org_id)
-        .group_by(Donor.id)
-        .order_by(Donor.first_name.asc())
-    )
-    result = await db.execute(query)
-    donors = result.scalars().all()
-    
-    return [
-        {
-            "id": str(donor.id),
-            "first_name": donor.first_name,
-            "last_name": donor.last_name,
-            "email": donor.email,
-            "phone": donor.phone,
-            "created_at": donor.created_at
-        }
-        for donor in donors
-    ]
-
 # --- Donor Notes (STK CRM) ---
 @router.post("/donors/{donor_id}/notes", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
 async def add_donor_note(
@@ -323,72 +299,10 @@ async def update_campaign_gallery(
     return {"status": "success", "gallery_urls": campaign.gallery_urls}
 
 # --- Phase 3 Pydantic Schemas ---
-class KurbanAnimalUpdate(BaseModel):
-    status: KurbanStatus
-    video_url: Optional[str] = None
-
 class ZakatSettingUpdate(BaseModel):
     gold_price_per_gram: float
     nisap_amount_lira: float
     is_auto_sync: bool
-
-class UserRoleUpdate(BaseModel):
-    role: UserRole
-
-# --- Phase 3: Kurban Animal Video & Status Management ---
-@router.get("/kurban/animals")
-async def list_kurban_animals(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    query = select(KurbanAnimal).where(KurbanAnimal.organization_id == org_id).order_by(KurbanAnimal.animal_number.asc())
-    res = await db.execute(query)
-    return res.scalars().all()
-
-@router.put("/kurban/animals/{animal_id}")
-async def update_kurban_animal(
-    request: Request,
-    animal_id: UUID,
-    payload: KurbanAnimalUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    
-    # 1. Fetch animal
-    query = select(KurbanAnimal).where(
-        KurbanAnimal.id == animal_id,
-        KurbanAnimal.organization_id == org_id
-    )
-    res = await db.execute(query)
-    animal = res.scalar_one_or_none()
-    if not animal:
-        raise HTTPException(status_code=404, detail="Kurban animal not found")
-        
-    # 2. Update status and video URL
-    animal.status = payload.status
-    if payload.video_url is not None:
-        animal.video_url = payload.video_url
-        
-    # 3. Propagate status to all associated shares
-    shares_query = select(KurbanShare).where(KurbanShare.animal_id == animal_id)
-    shares_res = await db.execute(shares_query)
-    shares = shares_res.scalars().all()
-    for share in shares:
-        share.status = payload.status
-        
-    await db.commit()
-    
-    # Audit log
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="kurban_hayvan_guncelle",
-        details={"animal_id": str(animal_id), "animal_number": animal.animal_number, "status": payload.status}
-    )
-    
-    return {"status": "success", "animal": animal}
 
 # --- Phase 3: Zakat Settings Manager ---
 @router.get("/zakat-settings")
@@ -447,61 +361,6 @@ async def update_zakat_settings(
     
     return setting
 
-# --- Phase 3: Staff & User Roles ---
-@router.get("/users")
-async def list_staff_users(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    query = select(User).where(User.organization_id == org_id).order_by(User.first_name.asc())
-    res = await db.execute(query)
-    return [
-        {
-            "id": str(u.id),
-            "first_name": u.first_name,
-            "last_name": u.last_name,
-            "email": u.email,
-            "role": u.role,
-            "is_active": u.is_active
-        }
-        for u in res.scalars().all()
-    ]
-
-@router.put("/users/{user_id}/role")
-async def update_user_role(
-    request: Request,
-    user_id: UUID,
-    payload: UserRoleUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    
-    # Check current user's role: only superadmins (PLATFORM_ADMIN, STK_ADMIN) can change roles
-    if current_user.role not in [UserRole.PLATFORM_ADMIN, UserRole.STK_ADMIN]:
-        raise HTTPException(status_code=403, detail="Only administrators can manage user roles")
-        
-    query = select(User).where(User.id == user_id, User.organization_id == org_id)
-    res = await db.execute(query)
-    user = res.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    old_role = user.role
-    user.role = payload.role
-    await db.commit()
-    
-    # Audit log
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="kullanici_rol_guncelle",
-        details={"target_user_id": str(user_id), "target_email": user.email, "old_role": old_role, "new_role": payload.role}
-    )
-    
-    return {"status": "success", "role": user.role}
-
 # --- Phase 3: Receipt Digital QR Verification ---
 @router.get("/donations/{donation_id}/receipt")
 async def get_donation_receipt(
@@ -537,13 +396,66 @@ async def get_donation_receipt(
         "donation_id": str(donation.id),
         "receipt_number": donation.receipt_number,
         "verification_hash": verification_hash,
-        "verify_url": f"https://e-infak.org/verify/receipt/{donation.receipt_number}",
+        "verify_url": f"{await _public_site_url(db, request)}/verify/receipt/{donation.receipt_number}",
         "status": "valid" if donation.status == "confirmed" else donation.status,
         "donor_name": donor_name,
         "amount_lira": donation.amount_cents / 100,
         "created_at": donation.created_at,
         "payment_method": "Kredi Kartı" if donation.payment_method == "credit_card" else "Havale/EFT",
     }
+
+
+@router.get("/donations/{donation_id}/receipt.pdf")
+async def download_donation_receipt_pdf(
+    request: Request,
+    donation_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """İdareci için indirilebilir resmi PDF makbuz (bağışçının tam adı görünür)."""
+    from fastapi.responses import Response
+    from app.models.donation import DonationStatus
+    from app.core.config import settings
+    from app.utils.receipt_pdf import build_receipt_pdf
+
+    org_id = UUID(request.state.organization_id)
+    res = await db.execute(
+        select(Donation)
+        .options(selectinload(Donation.donor), selectinload(Donation.campaign))
+        .where(Donation.id == donation_id, Donation.organization_id == org_id)
+    )
+    donation = res.scalar_one_or_none()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Donation not found")
+
+    donor_name = "Anonim Bağışçı"
+    if donation.donor:
+        donor_name = donation.donor.full_name
+
+    org = request.state.organization
+    verify_base = (
+        f"https://{org.primary_domain}"
+        if settings.ENVIRONMENT == "production" and getattr(org, "primary_domain", None)
+        else settings.PUBLIC_WEB_URL
+    )
+    pdf_bytes = build_receipt_pdf(
+        organization=org,
+        campaign=donation.campaign,
+        donor_name=donor_name,
+        receipt_number=donation.receipt_number,
+        amount_cents=donation.amount_cents,
+        currency=donation.currency or "TRY",
+        payment_method=donation.payment_method.value if hasattr(donation.payment_method, "value") else str(donation.payment_method),
+        paid_at=donation.paid_at or donation.created_at,
+        status={DonationStatus.REFUNDED: "refunded", DonationStatus.CANCELLED: "cancelled"}.get(donation.status, "valid"),
+        on_behalf_of=donation.on_behalf_of,
+        verify_base_url=verify_base,
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="makbuz-{donation.receipt_number}.pdf"'},
+    )
 
 # --- Phase 4 Pydantic Schemas ---
 class StudentCreate(BaseModel):
@@ -592,23 +504,22 @@ async def get_analytics_stats(
         for c in campaigns
     ]
     
-    # 2. Mock some beautiful trend data since we don't have historical months filled out
+    # 2. Son 6 ayın gerçek bağış toplamları ve bu yılın ödeme kanalı dağılımı
+    from datetime import date
+    from app.api.v1.reports import dashboard_kpis, last_months_totals, payment_method_totals, today_local
+
     monthly_donations = [
-        {"month": "Ocak", "total_lira": 120000.0},
-        {"month": "Şubat", "total_lira": 145000.0},
-        {"month": "Mart", "total_lira": 190000.0},
-        {"month": "Nisan", "total_lira": 230000.0},
-        {"month": "Mayıs", "total_lira": 310000.0},
-        {"month": "Haziran", "total_lira": 425890.0}
+        {"month": m["label"], "total_lira": m["total_cents"] / 100, "count": m["count"]}
+        for m in await last_months_totals(db, org_id, months=6)
     ]
-    
-    # 3. Ödeme kanalları dağılımı
+    today = today_local()
     payment_methods = [
-        {"method": "Kredi Kartı", "count": 843, "total_lira": 285890.0},
-        {"method": "Havale/EFT", "count": 404, "total_lira": 140000.0}
+        {"method": p["label"], "count": p["count"], "total_lira": p["total_cents"] / 100}
+        for p in await payment_method_totals(db, org_id, date(today.year, 1, 1), today)
     ]
-    
+
     return {
+        "kpis": await dashboard_kpis(db, org_id),
         "monthly_donations": monthly_donations,
         "campaigns_progress": campaigns_progress,
         "payment_methods": payment_methods
@@ -697,6 +608,36 @@ async def add_student_progress(
         action="ogrenci_ders_girisi",
         details={"student_id": str(student_id), "student_name": student.full_name, "surah": payload.current_surah}
     )
+
+    # Notify sponsors of this student
+    try:
+        spons_query = (
+            select(Donor)
+            .join(StudentSponsorship, StudentSponsorship.donor_id == Donor.id)
+            .where(StudentSponsorship.student_id == student_id, StudentSponsorship.is_active.is_(True))
+        )
+        spons_res = await db.execute(spons_query)
+        sponsors = spons_res.scalars().all()
+
+        for sponsor in sponsors:
+            if sponsor.email:
+                from app.tasks import send_email_task
+                email_html = f"""
+                <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
+                    <h2 style="color: #0284c7; text-align: center;">ÖĞRENCİ GELİŞİM RAPORU</h2>
+                    <p>Sayın <b>{sponsor.first_name} {sponsor.last_name or ''}</b>,</p>
+                    <p>Hamisi olduğunuz <b>{student.full_name}</b> isimli öğrencimizin yeni gelişim/karne raporu eklenmiştir:</p>
+                    <ul>
+                        <li><b>Mevcut Sure/Ders:</b> {payload.current_surah or '-'}</li>
+                        <li><b>Ezberlenen Sayfa:</b> {payload.memorized_pages}</li>
+                        <li><b>Hoca Notu:</b> {payload.instructor_notes or '-'}</li>
+                    </ul>
+                </div>
+                """
+                send_email_task.delay(sponsor.email, f"Gelişim Raporu - {student.full_name}", email_html)
+    except Exception as err:
+        logger.error(f"Failed to send student progress notification to sponsors: {err}")
+
     return prog
 
 @router.get("/students/{student_id}/sponsorships")
@@ -775,7 +716,7 @@ async def get_banners(
     if not banners:
         banner = Banner(
             organization_id=org_id,
-            text="Hicret Derneği Kurban Kampanyası Bağış Alımları Başlamıştır!",
+            text=f"{request.state.organization.name}: kampanyalarımıza destek olabilirsiniz.",
             bg_color="#1b5e20", # Emerald Green
             link_url="/kampanyalar",
             is_active=False
@@ -885,14 +826,6 @@ class WebhookSettingCreate(BaseModel):
 class BroadcastSms(BaseModel):
     filter_type: str
     message: str
-
-class WaterWellCreate(BaseModel):
-    name: str
-    location_name: str
-    latitude: float
-    longitude: float
-    status: str
-    donor_id: Optional[UUID] = None
 
 # --- Phase 5: Webhooks & API Keys Integration ---
 @router.get("/integrations/api-keys")
@@ -1071,68 +1004,6 @@ async def broadcast_bulk_sms(
     return {"status": "success", "sent_count": count}
 
 # --- Phase 5: Water Well Management ---
-@router.get("/water-wells")
-async def list_water_wells(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    query = select(WaterWell).where(WaterWell.organization_id == org_id).order_by(WaterWell.name.asc())
-    res = await db.execute(query)
-    return res.scalars().all()
-
-@router.post("/water-wells")
-async def create_water_well(
-    request: Request,
-    payload: WaterWellCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    well = WaterWell(
-        organization_id=org_id,
-        name=payload.name,
-        location_name=payload.location_name,
-        latitude=payload.latitude,
-        longitude=payload.longitude,
-        status=payload.status,
-        donor_id=payload.donor_id,
-        gallery_urls=[]
-    )
-    db.add(well)
-    await db.commit()
-    await db.refresh(well)
-    
-    # Audit log
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="su_kuyusu_ekle",
-        details={"well_id": str(well.id), "well_name": well.name, "location": well.location_name}
-    )
-    return well
-
-@router.get("/public-verify/water-wells")
-async def get_public_water_wells(
-    request: Request,
-    db: AsyncSession = Depends(get_db)
-):
-    # Public endpoint to render wells on interactive map on homepages
-    org_id = UUID(request.state.organization_id)
-    query = select(WaterWell).where(WaterWell.organization_id == org_id, WaterWell.status == "completed")
-    res = await db.execute(query)
-    return [
-        {
-            "id": str(w.id),
-            "name": w.name,
-            "location_name": w.location_name,
-            "latitude": w.latitude,
-            "longitude": w.longitude,
-            "gallery_urls": w.gallery_urls
-        }
-        for w in res.scalars().all()
-    ]
-
 # --- Phase 5: AI-Powered Insights ---
 @router.get("/ai/donor-insights")
 async def get_ai_donor_insights(
@@ -1267,6 +1138,74 @@ class OrgSettingsUpdate(BaseModel):
     bank1_iban: Optional[str] = None
     bank2_name: Optional[str] = None
     bank2_iban: Optional[str] = None
+    about_text: Optional[str] = Field(default=None, max_length=5000)
+    mission_text: Optional[str] = Field(default=None, max_length=3000)
+    vision_text: Optional[str] = Field(default=None, max_length=3000)
+    bylaws_url: Optional[str] = Field(default=None, max_length=500)
+    board_url: Optional[str] = Field(default=None, max_length=500)
+    audit_report_url: Optional[str] = Field(default=None, max_length=500)
+    activity_report_url: Optional[str] = Field(default=None, max_length=500)
+    fundraising_permit_url: Optional[str] = Field(default=None, max_length=500)
+    whatsapp_number: Optional[str] = Field(default=None, max_length=32)
+    whatsapp_message: Optional[str] = Field(default=None, max_length=300)
+    live_chat_provider: Optional[Literal["tawk"]] = None
+    live_chat_id: Optional[str] = Field(default=None, max_length=200)
+    seo_title: Optional[str] = Field(default=None, max_length=160)
+    seo_description: Optional[str] = Field(default=None, max_length=320)
+    seo_keywords: Optional[str] = Field(default=None, max_length=300)
+    languages: Optional[List[str]] = Field(default=None, max_length=30)
+
+    @field_validator("languages", mode="before")
+    @classmethod
+    def validate_languages(cls, value):
+        if value is None:
+            return None
+        from app.utils.i18n import DEFAULT_LANGUAGE, valid_language
+        codes = []
+        for item in value if isinstance(value, list) else str(value).split(","):
+            code = valid_language(item)
+            if not code:
+                raise ValueError(f"Geçersiz dil kodu: {item!r} (iki harfli ISO kodu olmalı, ör. en, ar, de)")
+            if code not in codes:
+                codes.append(code)
+        return [DEFAULT_LANGUAGE] + [c for c in codes if c != DEFAULT_LANGUAGE]
+
+    @field_validator("whatsapp_number", mode="before")
+    @classmethod
+    def validate_whatsapp(cls, value):
+        from app.utils.cms import normalize_whatsapp
+        return normalize_whatsapp(value)
+
+    @field_validator("live_chat_provider", mode="before")
+    @classmethod
+    def empty_provider(cls, value):
+        return value or None
+
+    @field_validator("live_chat_id", mode="before")
+    @classmethod
+    def validate_live_chat_id(cls, value):
+        from app.utils.cms import validate_tawk_id
+        return validate_tawk_id(value)
+
+    @field_validator("whatsapp_message", "seo_title", "seo_description", "seo_keywords", mode="before")
+    @classmethod
+    def clean_plain(cls, value):
+        cleaned = sanitize_public_text(value) if value else None
+        return cleaned.replace("\n", " ") if cleaned else None
+
+    @field_validator(
+        "bylaws_url", "board_url", "audit_report_url", "activity_report_url", "fundraising_permit_url",
+        mode="before",
+    )
+    @classmethod
+    def validate_public_document_url(cls, value):
+        if value is None or not str(value).strip():
+            return None
+        normalized = str(value).strip()
+        parsed = urlparse(normalized)
+        if parsed.scheme not in {"https", "http"} or not parsed.netloc:
+            raise ValueError("Belge bağlantısı geçerli bir http(s) URL olmalıdır.")
+        return normalized
 
 @router.get("/org-settings")
 async def get_org_settings(
@@ -1303,7 +1242,14 @@ async def update_org_settings(
         settings = OrganizationSettings(organization_id=org_id)
         db.add(settings)
 
+    if payload.languages and len(payload.languages) > 1:
+        from app.core.plans import Feature, org_has_feature
+        organization = getattr(request.state, "organization", None)
+        if organization is not None and not org_has_feature(organization, Feature.MULTI_LANGUAGE):
+            raise HTTPException(status_code=403, detail="Çoklu dil desteği kurumunuzun paketinde yer almıyor")
     for key, value in payload.model_dump(exclude_unset=True).items():
+        if key == "languages" and value is None:
+            continue
         setattr(settings, key, value)
 
     await db.commit()
@@ -1316,92 +1262,3 @@ async def update_org_settings(
     )
     return settings
 
-# --- Faz 3: İçerikler (Content Posts / Faaliyet Haberleri) ---
-class ContentPostCreate(BaseModel):
-    title: str
-    image_url: Optional[str] = None
-    display_order: int = 0
-    is_active: bool = True
-
-@router.get("/content-posts")
-async def list_content_posts(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    query = select(ContentPost).where(ContentPost.organization_id == org_id).order_by(ContentPost.display_order)
-    res = await db.execute(query)
-    return res.scalars().all()
-
-@router.post("/content-posts")
-async def create_content_post(
-    request: Request,
-    payload: ContentPostCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    post = ContentPost(organization_id=org_id, **payload.model_dump())
-    db.add(post)
-    await db.commit()
-    await db.refresh(post)
-
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="icerik_olustur",
-        details={"post_id": str(post.id), "title": post.title}
-    )
-    return post
-
-@router.put("/content-posts/{post_id}")
-async def update_content_post(
-    request: Request,
-    post_id: UUID,
-    payload: ContentPostCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    query = select(ContentPost).where(ContentPost.id == post_id, ContentPost.organization_id == org_id)
-    res = await db.execute(query)
-    post = res.scalar_one_or_none()
-    if not post:
-        raise HTTPException(status_code=404, detail="Content post not found")
-
-    for key, value in payload.model_dump().items():
-        setattr(post, key, value)
-
-    await db.commit()
-    await db.refresh(post)
-
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="icerik_guncelle",
-        details={"post_id": str(post_id), "title": post.title}
-    )
-    return post
-
-@router.delete("/content-posts/{post_id}")
-async def delete_content_post(
-    request: Request,
-    post_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    query = select(ContentPost).where(ContentPost.id == post_id, ContentPost.organization_id == org_id)
-    res = await db.execute(query)
-    post = res.scalar_one_or_none()
-    if not post:
-        raise HTTPException(status_code=404, detail="Content post not found")
-
-    await db.delete(post)
-    await db.commit()
-
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="icerik_sil",
-        details={"post_id": str(post_id), "title": post.title}
-    )
-    return {"status": "success"}

@@ -39,16 +39,28 @@ export function useLogout() {
   const client = getApiClient()
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: async () => {
-      await client.post('/auth/logout')
-    },
-    onSuccess: () => {
-      client.clearAccessToken()
+  const clearSession = () => {
+    client.clearAccessToken()
+    if (typeof window !== 'undefined') {
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
-      queryClient.setQueryData(authKeys.user, null)
-      queryClient.clear()
+    }
+    queryClient.setQueryData(authKeys.user, null)
+    queryClient.clear()
+  }
+
+  return useMutation({
+    mutationFn: async () => {
+      try {
+        await client.post('/auth/logout')
+      } catch {
+        // Backend session might be expired or already revoked; local tokens must still be cleared
+      } finally {
+        clearSession()
+      }
+    },
+    onSettled: () => {
+      clearSession()
     },
   })
 }

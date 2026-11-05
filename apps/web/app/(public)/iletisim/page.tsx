@@ -1,11 +1,9 @@
-import { headers } from 'next/headers'
 import { ContactPageClient } from '../../../components/ContactPageClient'
+import { getSite } from '../../../lib/public-content'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ContactPage() {
-  const headersList = await headers()
-  const orgSlug = headersList.get('x-organization-slug') || 'hicret-dernegi'
-
-  return <ContactPageClient orgSlug={orgSlug} />
+  const site = await getSite()
+  return <ContactPageClient orgName={site?.name || ''} />
 }

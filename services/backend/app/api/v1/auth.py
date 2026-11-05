@@ -20,6 +20,7 @@ from app.schemas.auth import (
     UserResponse,
 )
 from app.api.deps import get_current_user
+from app.core.rate_limit import rate_limit
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -42,6 +43,7 @@ async def login(
     request: Request,
     credentials: UserLogin,
     db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("staff-login", limit=10, window_seconds=300)),
 ):
     """Login user and return tokens"""
     

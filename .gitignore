@@ -60,7 +60,14 @@ pnpm-debug.log*
 *.sqlite3
 *.db
 
+# Deploy DB backups (migration öncesi pg_dump çıktıları)
+backups/
+*.dump
+
 # Misc
 .cache/
 temp/
 tmp/
+
+# pnpm local store
+.pnpm-store/

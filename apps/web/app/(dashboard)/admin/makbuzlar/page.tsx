@@ -3,14 +3,20 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card } from '@e-infak/ui'
+import { adminGet, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 
 interface Donation {
   id: string
   receipt_number: string
-  amount_lira: number
+  amount_cents: number
+  currency: string
   status: string
-  payment_method: string
-  created_at: string
+  payment_method_label: string
+  is_manual: boolean
+  donor_name: string
+  on_behalf_of: string | null
+  paid_at: string
 }
 
 interface ReceiptDetail {
@@ -29,6 +35,10 @@ export default function AdminReceiptsPage() {
   const [loading, setLoading] = useState(false)
   const [receiptDetail, setReceiptDetail] = useState<ReceiptDetail | null>(null)
   const [receiptLoadingId, setReceiptLoadingId] = useState<string | null>(null)
+  const [showManual, setShowManual] = useState(false)
+  const [notice, setNotice] = useState('')
+  const { data: access } = useAdminAccess()
+  const canIssue = hasPermission(access, 'finance_manage')
 
   const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
 
@@ -42,11 +52,10 @@ export default function AdminReceiptsPage() {
   const loadDonations = async () => {
     setLoading(true)
     try {
-      const res = await axios.get(`${API_BASE}/api/v1/donations`, {
-        headers: getAuthHeaders(),
-        params: { status: 'confirmed', page_size: 100 },
+      const res = await adminGet<{ items: Donation[] }>('/donations', {
+        status: 'confirmed', q: searchQuery || undefined, page_size: 100,
       })
-      setDonations(res.data)
+      setDonations(res.data.items)
     } catch (err) {
       console.error('Failed to load donations:', err)
     } finally {
@@ -55,9 +64,10 @@ export default function AdminReceiptsPage() {
   }
 
   useEffect(() => {
-    loadDonations()
+    const t = setTimeout(loadDonations, 300)
+    return () => clearTimeout(t)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [searchQuery])
 
   const viewReceipt = async (donationId: string) => {
     setReceiptLoadingId(donationId)
@@ -73,21 +83,38 @@ export default function AdminReceiptsPage() {
     }
   }
 
-  const filteredDonations = donations.filter((d) =>
-    d.receipt_number.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filteredDonations = donations
 
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Makbuzlar</h1>
-        <button
-          onClick={loadDonations}
-          className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
-        >
-          🔄 Yenile
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={loadDonations}
+            className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
+          >
+            🔄 Yenile
+          </button>
+          {canIssue && (
+            <button onClick={() => setShowManual((v) => !v)} className="text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 px-3 py-1.5 rounded-lg shadow-sm">
+              {showManual ? 'Vazgeç' : '+ Elle Makbuz Kes'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {notice && <div className="rounded-lg border border-green-100 bg-green-50 p-3 text-sm font-semibold text-green-700">{notice}</div>}
+
+      {showManual && (
+        <Card className="p-6 border border-primary-100 shadow-sm">
+          <ManualReceiptForm onDone={(r) => {
+            setShowManual(false)
+            setNotice(`${r.receipt_number} numaralı makbuz kesildi`)
+            loadDonations()
+          }} />
+        </Card>
+      )}
 
       {receiptDetail && (
         <Card className="p-6 border-2 border-primary-200 shadow-sm space-y-3 bg-primary-50/40">
@@ -125,7 +152,7 @@ export default function AdminReceiptsPage() {
       <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
         <input
           type="text"
-          placeholder="Makbuz numarası ile ara..."
+          placeholder="Makbuz no, bağışçı adı veya telefon ile ara..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full max-w-md rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
@@ -141,6 +168,7 @@ export default function AdminReceiptsPage() {
               <thead>
                 <tr className="border-b text-gray-500 uppercase tracking-wider text-[10px] font-bold">
                   <th className="pb-3">Makbuz No</th>
+                  <th className="pb-3">Bağışçı</th>
                   <th className="pb-3">Ödeme Tipi</th>
                   <th className="pb-3">Tarih</th>
                   <th className="pb-3 text-right">Tutar</th>
@@ -151,9 +179,13 @@ export default function AdminReceiptsPage() {
                 {filteredDonations.map((don) => (
                   <tr key={don.id} className="hover:bg-gray-50/50">
                     <td className="py-3.5 font-bold text-gray-900">{don.receipt_number}</td>
-                    <td className="py-3.5 capitalize">{don.payment_method === 'credit_card' ? 'Kredi Kartı' : 'Havale/EFT'}</td>
-                    <td className="py-3.5 text-gray-400">{new Date(don.created_at).toLocaleDateString('tr-TR')}</td>
-                    <td className="py-3.5 text-right font-bold text-emerald-800">{don.amount_lira.toLocaleString('tr-TR')} ₺</td>
+                    <td className="py-3.5">
+                      {don.donor_name}
+                      {don.on_behalf_of && <div className="text-[10px] text-primary-700">Adına: {don.on_behalf_of}</div>}
+                    </td>
+                    <td className="py-3.5">{don.payment_method_label}{don.is_manual && ' (elle)'}</td>
+                    <td className="py-3.5 text-gray-400">{new Date(don.paid_at).toLocaleDateString('tr-TR')}</td>
+                    <td className="py-3.5 text-right font-bold text-emerald-800">{formatMoney(don.amount_cents, don.currency)}</td>
                     <td className="py-3.5 text-right">
                       <button
                         onClick={() => viewReceipt(don.id)}
@@ -161,6 +193,12 @@ export default function AdminReceiptsPage() {
                         className="text-primary-600 hover:text-primary-700 font-bold"
                       >
                         {receiptLoadingId === don.id ? 'Yükleniyor...' : 'Doğrulama Linki'}
+                      </button>
+                      <button
+                        onClick={() => downloadReceiptPdf(don.id, don.receipt_number).catch(() => alert('PDF indirilemedi.'))}
+                        className="ml-3 text-primary-600 hover:text-primary-700 font-bold"
+                      >
+                        PDF
                       </button>
                     </td>
                   </tr>

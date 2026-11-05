@@ -1,272 +1,442 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import { Card, Button } from '@e-infak/ui'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Card } from '@e-infak/ui'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 
-interface Donor {
+interface DonorRow {
   id: string
+  donor_type: 'individual' | 'corporate'
   first_name: string
-  last_name: string
-  email: string
-  phone: string
-  created_at: string
+  last_name: string | null
+  company_name: string | null
+  full_name: string
+  email: string | null
+  phone: string | null
+  city: string | null
+  country: string | null
+  total_donations: number
+  total_donated_cents: number
+  last_donation_at: string | null
+  assigned_user_id: string | null
+  assigned_user_name: string | null
+  allow_sms: boolean
+  allow_email: boolean
+  tags: string[]
 }
 
-interface Note {
-  id: string
-  content: string
-  created_at: string
-  author_email: string
+interface DonorCard extends DonorRow {
+  address: string | null
+  tax_number: string | null
+  tc_no_masked: string | null
+  donations: {
+    id: string; receipt_number: string; campaign_title: string | null; amount_cents: number; currency: string
+    status: string; payment_method_label: string; paid_at: string; on_behalf_of: string | null; is_manual: boolean
+  }[]
+  notes: { id: string; content: string; created_at: string; author: string | null }[]
+  yearly: { year: number; count: number; totals: Record<string, number> }[]
 }
 
-interface Donation {
-  id: string
-  amount_cents: number
-  payment_method: string
-  created_at: string
-  campaign_title?: string
+interface Staff { id: string; first_name: string; last_name: string; is_active: boolean }
+
+const PAGE_SIZE = 50
+
+export default function DonorsPageWrapper() {
+  return (
+    <Suspense fallback={<p className="py-12 text-center text-sm text-gray-500">Yükleniyor...</p>}>
+      <DonorsPage />
+    </Suspense>
+  )
 }
 
-export default function AdminDonorsPage() {
-  const [donors, setDonors] = useState<Donor[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedDonor, setSelectedDonor] = useState<Donor | null>(null)
-  
-  // Drawer details
-  const [notes, setNotes] = useState<Note[]>([])
-  const [donorDonations, setDonorDonations] = useState<Donation[]>([])
-  const [newNoteContent, setNewNoteContent] = useState('')
-  
-  const [loadingNotes, setLoadingNotes] = useState(false)
-  const [submittingNote, setSubmittingNote] = useState(false)
+function DonorsPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const selectedId = searchParams.get('donor')
+  const { data: access } = useAdminAccess()
+  const canManage = hasPermission(access, 'donor_manage')
+  const canIssue = hasPermission(access, 'finance_manage')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const [filters, setFilters] = useState({ q: '', assigned: '', region: '', donor_type: '', sort: 'recent' })
+  const [page, setPage] = useState(1)
+  const [list, setList] = useState<{ total: number; items: DonorRow[] }>({ total: 0, items: [] })
+  const [staff, setStaff] = useState<Staff[]>([])
+  const [showCreate, setShowCreate] = useState(false)
+  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
-
-  const loadDonors = async () => {
+  const load = async () => {
     try {
-      const headers = getAuthHeaders()
-      const res = await axios.get(`${API_BASE}/api/v1/admin-features/donors`, { headers })
-      setDonors(res.data)
+      const res = await adminGet<{ total: number; items: DonorRow[] }>('/donors', {
+        q: filters.q || undefined, assigned: filters.assigned || undefined, region: filters.region || undefined,
+        donor_type: filters.donor_type || undefined, sort: filters.sort, page, page_size: PAGE_SIZE,
+      })
+      setList(res.data)
     } catch (err) {
-      console.error('Failed to load donors:', err)
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Bağışçılar yüklenemedi') })
     }
   }
 
   useEffect(() => {
-    loadDonors()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const t = setTimeout(load, 250)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, page])
+
+  useEffect(() => {
+    adminGet<Staff[]>('/users').then((res) => setStaff(res.data.filter((s) => s.is_active))).catch(() => {})
   }, [])
 
-  const handleSelectDonor = async (donor: Donor) => {
-    setSelectedDonor(donor)
-    setNotes([])
-    setDonorDonations([])
-    setNewNoteContent('')
-    setLoadingNotes(true)
-    
-    try {
-      const headers = getAuthHeaders()
-      // Fetch notes
-      const notesRes = await axios.get(`${API_BASE}/api/v1/admin-features/donors/${donor.id}/notes`, { headers })
-      setNotes(notesRes.data)
-      
-      // Fetch and scope the tenant donation list to this donor.
-      const donationsRes = await axios.get(`${API_BASE}/api/v1/donations`, { headers })
-      const filtered = donationsRes.data.filter((d: any) => d.donor_id === donor.id || d.donor?.email === donor.email)
-      setDonorDonations(filtered)
-    } catch (err) {
-      console.error('Failed to load donor details:', err)
-    } finally {
-      setLoadingNotes(false)
-    }
-  }
-
-  const handleAddNote = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedDonor || !newNoteContent.trim()) return
-
-    setSubmittingNote(true)
-    try {
-      const headers = getAuthHeaders()
-      const res = await axios.post(`${API_BASE}/api/v1/admin-features/donors/${selectedDonor.id}/notes`, {
-        content: newNoteContent
-      }, { headers })
-      
-      setNotes(prev => [res.data, ...prev])
-      setNewNoteContent('')
-    } catch (err) {
-      console.error('Failed to add note:', err)
-      alert('Not eklenemedi.')
-    } finally {
-      setSubmittingNote(false)
-    }
-  }
-
-  const filteredDonors = donors.filter(d => {
-    const term = searchQuery.toLowerCase()
-    const fullName = `${d.first_name} ${d.last_name || ''}`.toLowerCase()
-    return fullName.includes(term) || d.email.toLowerCase().includes(term) || d.phone.includes(term)
-  })
+  const select = (id: string | null) => router.replace(id ? `/admin/bagiscilar?donor=${id}` : '/admin/bagiscilar', { scroll: false })
+  const setFilter = (key: keyof typeof filters, value: string) => { setPage(1); setFilters((f) => ({ ...f, [key]: value })) }
+  const pages = Math.max(1, Math.ceil(list.total / PAGE_SIZE))
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Bağışçı CRM Yönetimi</h1>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Bağışçılar</h1>
+          <p className="mt-1 text-sm text-gray-500">{list.total.toLocaleString('tr-TR')} kayıt</p>
+        </div>
+        {canManage && <button onClick={() => setShowCreate((v) => !v)} className={primaryButton}>{showCreate ? 'Vazgeç' : '+ Yeni Bağışçı'}</button>}
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-8 items-start">
-        {/* Left side: Donors List */}
-        <div className={`${selectedDonor ? 'lg:col-span-6' : 'lg:col-span-12'} space-y-6 transition-all duration-300`}>
-          <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <input
-                type="text"
-                placeholder="İsim, e-posta veya telefon ile ara..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
-              />
-            </div>
+      <Notice message={message} />
 
-            {filteredDonors.length === 0 ? (
-              <p className="text-xs text-gray-400 py-6 text-center">Bağışçı bulunamadı.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-gray-600">
-                  <thead>
-                    <tr className="border-b text-gray-500 uppercase tracking-wider text-[10px] font-bold">
-                      <th className="pb-3">Ad Soyad</th>
-                      <th className="pb-3">İletişim</th>
-                      <th className="pb-3 text-right">İşlem</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredDonors.map((d) => (
-                      <tr 
-                        key={d.id} 
-                        onClick={() => handleSelectDonor(d)}
-                        className={`hover:bg-gray-50/80 cursor-pointer transition-colors ${selectedDonor?.id === d.id ? 'bg-primary-50/50' : ''}`}
-                      >
-                        <td className="py-3 font-semibold text-gray-900">{d.first_name} {d.last_name}</td>
-                        <td className="py-3">
-                          <div className="font-mono text-[11px]">{d.phone}</div>
-                          <div className="text-gray-400 text-[10px]">{d.email}</div>
-                        </td>
-                        <td className="py-3 text-right">
-                          <Button size="sm" variant="ghost" className="text-primary-600 hover:text-primary-700 font-bold">
-                            Detay ➔
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+      {showCreate && (
+        <Card className="border border-primary-100 p-6 shadow-sm">
+          <DonorForm staff={staff} onSaved={(d) => { setShowCreate(false); load(); select(d.id) }} />
+        </Card>
+      )}
+
+      <Card className="border border-gray-100 p-4 shadow-sm">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="lg:col-span-2">
+            <input className={inputClass} placeholder="Ad, telefon, e-posta ara" value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
+          </div>
+          <select className={inputClass} value={filters.assigned} onChange={(e) => setFilter('assigned', e.target.value)}>
+            <option value="">Tüm temsilciler</option>
+            <option value="me">Bana atananlar</option>
+            <option value="none">Temsilcisi olmayanlar</option>
+            {staff.map((s) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+          </select>
+          <select className={inputClass} value={filters.region} onChange={(e) => setFilter('region', e.target.value)}>
+            <option value="">Yurt içi + yurt dışı</option>
+            <option value="yurtici">Yurt içi</option>
+            <option value="yurtdisi">Yurt dışı</option>
+          </select>
+          <div className="flex gap-2">
+            <select className={inputClass} value={filters.donor_type} onChange={(e) => setFilter('donor_type', e.target.value)}>
+              <option value="">Tüm türler</option><option value="individual">Bireysel</option><option value="corporate">Kurumsal</option>
+            </select>
+            <select className={inputClass} value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
+              <option value="recent">Son bağış</option><option value="total">Toplam bağış</option><option value="name">Ad</option>
+            </select>
+          </div>
         </div>
+      </Card>
 
-        {/* Right side: Selected Donor Details Drawer */}
-        {selectedDonor && (
-          <div className="lg:col-span-6 space-y-6 animate-fade-in">
-            <Card className="p-6 border border-gray-100 shadow-md space-y-6 relative">
-              <button 
-                onClick={() => setSelectedDonor(null)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-sm font-bold"
-              >
-                ✕ Kapat
-              </button>
-
-              <div>
-                <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-2 py-0.5 rounded uppercase tracking-wider">Bağışçı CRM Profili</span>
-                <h2 className="text-2xl font-bold text-gray-900 mt-2">{selectedDonor.first_name} {selectedDonor.last_name}</h2>
-                <div className="mt-3 grid grid-cols-2 gap-4 text-xs text-gray-600 border-t pt-3">
-                  <div>
-                    <span className="font-bold text-gray-400 block uppercase text-[10px]">E-Posta</span>
-                    <span>{selectedDonor.email}</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-gray-400 block uppercase text-[10px]">Telefon</span>
-                    <span>{selectedDonor.phone}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Donations History */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-gray-900 border-b pb-1.5">Bağış Geçmişi</h3>
-                {donorDonations.length === 0 ? (
-                  <p className="text-xs text-gray-400">Bu bağışçıya ait onaylanmış bağış bulunmamaktadır.</p>
-                ) : (
-                  <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
-                    {donorDonations.map((don) => (
-                      <div key={don.id} className="flex justify-between items-center text-xs p-2.5 bg-gray-50 rounded-lg border border-gray-100">
-                        <div>
-                          <div className="font-bold text-gray-900">{don.campaign_title || 'Genel Bağış'}</div>
-                          <div className="text-[10px] text-gray-400">{new Date(don.created_at).toLocaleDateString('tr-TR')}</div>
-                        </div>
-                        <div className="font-bold text-emerald-700">{(don.amount_cents / 100).toLocaleString('tr-TR')} ₺</div>
+      <div className="grid items-start gap-6 xl:grid-cols-12">
+        <Card className={`border border-gray-100 p-2 shadow-sm ${selectedId ? 'xl:col-span-5' : 'xl:col-span-12'}`}>
+          {list.items.length === 0 ? (
+            <p className="py-10 text-center text-xs text-gray-400">Bağışçı bulunamadı.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {list.items.map((d) => (
+                <li key={d.id}>
+                  <button onClick={() => select(d.id)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-gray-50 ${selectedId === d.id ? 'bg-primary-50' : ''}`}>
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-800">
+                      {d.full_name?.[0]?.toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-semibold text-gray-900">{d.full_name}</div>
+                      <div className="truncate text-xs text-gray-500">
+                        {[d.phone, d.city, d.country && d.country !== 'Türkiye' ? d.country : null].filter(Boolean).join(' · ') || '—'}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                    </div>
+                    <div className="text-right text-xs">
+                      <div className="font-bold text-gray-900">{formatMoney(d.total_donated_cents)}</div>
+                      <div className="text-gray-400">{d.total_donations} bağış{d.assigned_user_name ? ` · ${d.assigned_user_name}` : ''}</div>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {pages > 1 && (
+            <div className="flex items-center justify-end gap-2 p-2 text-sm">
+              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className={ghostButton}>←</button>
+              <span className="text-gray-500">{page} / {pages}</span>
+              <button disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className={ghostButton}>→</button>
+            </div>
+          )}
+        </Card>
 
-              {/* Administrative Notes */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-gray-900 border-b pb-1.5">Takip Notları (CRM)</h3>
-                
-                {/* Add Note Form */}
-                <form onSubmit={handleAddNote} className="space-y-2">
-                  <textarea
-                    placeholder="Bağışçı hakkında not ekleyin... (Örn: Kurumsal temsilci, Kurban dönemi aranacak)"
-                    value={newNoteContent}
-                    onChange={(e) => setNewNoteContent(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 p-2.5 text-xs outline-none focus:border-primary-500 min-h-[60px]"
-                    required
-                  />
-                  <div className="flex justify-end">
-                    <Button 
-                      type="submit" 
-                      disabled={submittingNote}
-                      className="bg-primary-600 text-white font-bold py-1.5 px-4 rounded-lg text-xs"
-                    >
-                      {submittingNote ? 'Ekleniyor...' : 'Not Ekle'}
-                    </Button>
-                  </div>
-                </form>
-
-                {/* Notes Feed */}
-                {loadingNotes ? (
-                  <p className="text-xs text-gray-400 text-center py-2 animate-pulse">Notlar yükleniyor...</p>
-                ) : notes.length === 0 ? (
-                  <p className="text-xs text-gray-400 py-2">Kayıtlı not bulunmamaktadır.</p>
-                ) : (
-                  <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                    {notes.map(note => (
-                      <div key={note.id} className="p-3 rounded-xl bg-amber-50/50 border border-amber-100 space-y-1.5">
-                        <p className="text-xs text-gray-800 leading-relaxed font-medium">{note.content}</p>
-                        <div className="flex justify-between items-center text-[10px] text-gray-400 font-semibold">
-                          <span>👤 {note.author_email}</span>
-                          <span>{new Date(note.created_at).toLocaleString('tr-TR')}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Card>
+        {selectedId && (
+          <div className="xl:col-span-7">
+            <DonorCardPanel
+              donorId={selectedId}
+              staff={staff}
+              canManage={canManage}
+              canIssue={canIssue}
+              onClose={() => select(null)}
+              onChanged={load}
+            />
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+function DonorForm({ donor, staff, onSaved }: { donor?: DonorCard; staff: Staff[]; onSaved: (d: DonorRow) => void }) {
+  const [form, setForm] = useState({
+    donor_type: donor?.donor_type || 'individual',
+    first_name: donor?.first_name || '',
+    last_name: donor?.last_name || '',
+    company_name: donor?.company_name || '',
+    phone: donor?.phone || '',
+    email: donor?.email || '',
+    city: donor?.city || '',
+    country: donor?.country || 'Türkiye',
+    address: donor?.address || '',
+    tax_number: donor?.tax_number || '',
+    tc_no: '',
+    tags: (donor?.tags || []).join(', '),
+    assigned_user_id: donor?.assigned_user_id || '',
+  })
+  const [error, setError] = useState('')
+  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }))
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    const body = {
+      donor_type: form.donor_type,
+      first_name: form.first_name,
+      last_name: form.last_name || null,
+      company_name: form.company_name || null,
+      phone: form.phone || null,
+      email: form.email || null,
+      city: form.city || null,
+      country: form.country || null,
+      address: form.address || null,
+      tax_number: form.tax_number || null,
+      tc_no: form.tc_no || null,
+      tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
+      ...(donor ? (form.assigned_user_id ? { assigned_user_id: form.assigned_user_id } : { clear_assignment: true }) : {}),
+    }
+    try {
+      const res = donor
+        ? await adminSend<DonorRow>('put', `/donors/${donor.id}`, body)
+        : await adminSend<DonorRow>('post', '/donors', body)
+      onSaved(res.data)
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Kaydedilemedi'))
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Label label="Tür">
+        <select className={inputClass} value={form.donor_type} onChange={(e) => set('donor_type', e.target.value)}>
+          <option value="individual">Bireysel</option><option value="corporate">Kurumsal</option>
+        </select>
+      </Label>
+      <TextInput label="Ad" required value={form.first_name} onChange={(v) => set('first_name', v)} />
+      <TextInput label="Soyad" value={form.last_name} onChange={(v) => set('last_name', v)} />
+      {form.donor_type === 'corporate'
+        ? <TextInput label="Kurum adı" required value={form.company_name} onChange={(v) => set('company_name', v)} />
+        : <TextInput label="TC Kimlik No" hint={donor?.tc_no_masked ? `Kayıtlı: ${donor.tc_no_masked}` : undefined} inputMode="numeric" maxLength={11} value={form.tc_no} onChange={(v) => set('tc_no', v)} />}
+      <TextInput label="Telefon" value={form.phone} onChange={(v) => set('phone', v)} />
+      <TextInput label="E-posta" type="email" value={form.email} onChange={(v) => set('email', v)} />
+      <TextInput label="Şehir" value={form.city} onChange={(v) => set('city', v)} />
+      <TextInput label="Ülke" value={form.country} onChange={(v) => set('country', v)} />
+      <div className="sm:col-span-2"><TextInput label="Adres" value={form.address} onChange={(v) => set('address', v)} /></div>
+      <TextInput label="Vergi No" value={form.tax_number} onChange={(v) => set('tax_number', v)} />
+      <TextInput label="Etiketler (virgülle)" placeholder="vip, kurban" value={form.tags} onChange={(v) => set('tags', v)} />
+      {donor && (
+        <Label label="Temsilci (sorumlu personel)">
+          <select className={inputClass} value={form.assigned_user_id} onChange={(e) => set('assigned_user_id', e.target.value)}>
+            <option value="">— Atanmamış</option>
+            {staff.map((s) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+          </select>
+        </Label>
+      )}
+      <div className="flex items-end justify-end sm:col-span-2 lg:col-span-4">
+        {error && <span className="mr-3 text-sm font-semibold text-red-600">{error}</span>}
+        <button type="submit" className={primaryButton}>{donor ? 'Kaydet' : 'Bağışçıyı Ekle'}</button>
+      </div>
+    </form>
+  )
+}
+
+function DonorCardPanel({
+  donorId, staff, canManage, canIssue, onClose, onChanged,
+}: {
+  donorId: string; staff: Staff[]; canManage: boolean; canIssue: boolean; onClose: () => void; onChanged: () => void
+}) {
+  const [card, setCard] = useState<DonorCard | null>(null)
+  const [tab, setTab] = useState<'donations' | 'notes' | 'edit' | 'receipt'>('donations')
+  const [note, setNote] = useState('')
+  const [sms, setSms] = useState('')
+  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
+  const load = async () => {
+    try {
+      setCard((await adminGet<DonorCard>(`/donors/${donorId}`)).data)
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Bağışçı yüklenemedi') })
+    }
+  }
+  useEffect(() => { setCard(null); setTab('donations'); setMessage(null); load() }, [donorId])
+
+  if (!card) return <Card className="border border-gray-100 p-6 shadow-sm"><p className="text-sm text-gray-500 animate-pulse">Yükleniyor...</p></Card>
+
+  const addNote = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await adminSend('post', `/donors/${card.id}/notes`, { content: note })
+      setNote('')
+      await load()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const sendSms = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await adminSend('post', `/donors/${card.id}/sms`, { message: sms })
+      setSms('')
+      setMessage({ type: 'ok', text: 'SMS gönderim kuyruğuna alındı' })
+      await load()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  return (
+    <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">{card.full_name}</h2>
+          <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-gray-600">
+            {card.phone && <a href={`tel:${card.phone}`} className="text-primary-700">{card.phone}</a>}
+            {card.email && <a href={`mailto:${card.email}`} className="text-primary-700">{card.email}</a>}
+            <span>{[card.city, card.country].filter(Boolean).join(', ')}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
+            <span className="rounded border px-1.5 py-0.5">{card.donor_type === 'corporate' ? 'Kurumsal' : 'Bireysel'}</span>
+            <span className={`rounded border px-1.5 py-0.5 ${card.allow_sms ? 'border-green-200 text-green-700' : 'text-gray-400'}`}>SMS izni {card.allow_sms ? 'var' : 'yok'}</span>
+            <span className={`rounded border px-1.5 py-0.5 ${card.allow_email ? 'border-green-200 text-green-700' : 'text-gray-400'}`}>E-posta izni {card.allow_email ? 'var' : 'yok'}</span>
+            <span className="rounded border px-1.5 py-0.5">Temsilci: {card.assigned_user_name || '—'}</span>
+            {card.tags.map((t) => <span key={t} className="rounded border border-primary-200 bg-primary-50 px-1.5 py-0.5 text-primary-800">{t}</span>)}
+          </div>
+        </div>
+        <button onClick={onClose} className="text-xl leading-none text-gray-400 hover:text-gray-700" aria-label="Kapat">✕</button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Toplam</div><div className="text-lg font-black">{formatMoney(card.total_donated_cents)}</div></div>
+        <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Bağış sayısı</div><div className="text-lg font-black">{card.total_donations}</div></div>
+        <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Son bağış</div><div className="text-lg font-black">{card.last_donation_at ? new Date(card.last_donation_at).toLocaleDateString('tr-TR') : '—'}</div></div>
+      </div>
+
+      <Notice message={message} />
+
+      <div className="flex flex-wrap gap-1 border-b text-sm font-semibold">
+        {([
+          ['donations', `Bağışlar (${card.donations.length})`],
+          ['notes', `Notlar & SMS (${card.notes.length})`],
+          ...(canManage ? [['edit', 'Bilgileri Düzenle']] : []),
+          ...(canIssue ? [['receipt', 'Makbuz Kes']] : []),
+        ] as [typeof tab, string][]).map(([k, l]) => (
+          <button key={k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}>{l}</button>
+        ))}
+      </div>
+
+      {tab === 'donations' && (
+        <div className="space-y-4">
+          {card.yearly.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {card.yearly.map((y) => (
+                <div key={y.year} className="rounded-lg border px-3 py-1.5 text-xs">
+                  <strong>{y.year}</strong> · {y.count} bağış · {Object.entries(y.totals).map(([c, v]) => formatMoney(v, c)).join(' + ')}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="max-h-[480px] overflow-y-auto">
+            <table className="w-full text-left text-xs">
+              <tbody className="divide-y divide-gray-100">
+                {card.donations.map((d) => (
+                  <tr key={d.id} className={d.status !== 'confirmed' ? 'opacity-50' : ''}>
+                    <td className="py-2">{new Date(d.paid_at).toLocaleDateString('tr-TR')}</td>
+                    <td className="py-2">
+                      <div className="font-semibold">{d.campaign_title}</div>
+                      <div className="text-[10px] text-gray-400">{d.payment_method_label}{d.is_manual ? ' · elle' : ''}{d.on_behalf_of ? ` · Adına: ${d.on_behalf_of}` : ''}</div>
+                    </td>
+                    <td className="py-2 text-right font-bold tabular-nums">{formatMoney(d.amount_cents, d.currency)}</td>
+                    <td className="py-2 text-right">
+                      <button onClick={() => downloadReceiptPdf(d.id, d.receipt_number).catch(() => setMessage({ type: 'error', text: 'PDF indirilemedi' }))} className="font-bold text-primary-700">PDF</button>
+                    </td>
+                  </tr>
+                ))}
+                {card.donations.length === 0 && <tr><td className="py-6 text-center text-gray-400">Henüz bağış yok.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {tab === 'notes' && (
+        <div className="space-y-4">
+          {canManage && (
+            <form onSubmit={addNote} className="flex gap-2">
+              <input required className={inputClass} placeholder="Görüşme notu ekle..." value={note} onChange={(e) => setNote(e.target.value)} />
+              <button type="submit" className={primaryButton}>Ekle</button>
+            </form>
+          )}
+          {canManage && card.phone && (
+            <form onSubmit={sendSms} className="space-y-2 rounded-lg border p-3">
+              <div className="flex items-center justify-between text-xs font-bold text-gray-600">
+                <span>Bağışçıya SMS</span><span className="text-gray-400">{sms.length}/612</span>
+              </div>
+              {card.allow_sms ? (
+                <>
+                  <textarea required maxLength={612} rows={2} className={inputClass} value={sms} onChange={(e) => setSms(e.target.value)} />
+                  <button type="submit" className={primaryButton}>SMS Gönder</button>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500">Bu bağışçının SMS izni (İYS) yok; SMS gönderilemez.</p>
+              )}
+            </form>
+          )}
+          <ul className="space-y-2">
+            {card.notes.map((n) => (
+              <li key={n.id} className="rounded-lg bg-gray-50 p-3 text-sm">
+                <div className="whitespace-pre-line text-gray-800">{n.content}</div>
+                <div className="mt-1 text-[10px] text-gray-400">{n.author || 'Sistem'} · {new Date(n.created_at).toLocaleString('tr-TR')}</div>
+              </li>
+            ))}
+            {card.notes.length === 0 && <li className="py-4 text-center text-xs text-gray-400">Not yok.</li>}
+          </ul>
+        </div>
+      )}
+
+      {tab === 'edit' && (
+        <DonorForm donor={card} staff={staff} onSaved={() => { setMessage({ type: 'ok', text: 'Bağışçı güncellendi' }); load(); onChanged() }} />
+      )}
+
+      {tab === 'receipt' && (
+        <ManualReceiptForm
+          presetDonor={{ id: card.id, full_name: card.full_name, phone: card.phone, email: card.email }}
+          onDone={(r) => { setMessage({ type: 'ok', text: `${r.receipt_number} numaralı makbuz kesildi` }); setTab('donations'); load(); onChanged() }}
+        />
+      )}
+    </Card>
   )
 }

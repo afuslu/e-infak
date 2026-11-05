@@ -13,9 +13,9 @@ export class ApiClient {
     let { baseURL, version = 'v1' } = config
 
     if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      if (!baseURL || baseURL.includes('localhost') || baseURL.includes('127.0.0.1')) {
-        baseURL = window.location.origin
-      }
+      // Production browser traffic is always same-origin. The Next gateway
+      // derives and signs tenant context before forwarding to the API.
+      baseURL = '/api/backend'
     }
 
     this.client = axios.create({

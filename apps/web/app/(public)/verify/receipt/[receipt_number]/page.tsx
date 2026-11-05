@@ -77,12 +77,24 @@ export default function PublicVerifyReceiptPage() {
           ) : data ? (
             <div className="space-y-6 animate-fade-in">
               {/* Checkmark Status */}
-              <div className="text-center space-y-2 py-2">
-                <div className="mx-auto h-16 w-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-3xl font-bold">
-                  ✓
+              {data.status === 'valid' ? (
+                <div className="text-center space-y-2 py-2">
+                  <div className="mx-auto h-16 w-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-3xl font-bold">
+                    ✓
+                  </div>
+                  <h3 className="text-emerald-800 font-bold text-sm uppercase tracking-wide">✓ Resmi Olarak Doğrulandı</h3>
                 </div>
-                <h3 className="text-emerald-800 font-bold text-sm uppercase tracking-wide">✓ Resmi Olarak Doğrulandı</h3>
-              </div>
+              ) : (
+                <div className="text-center space-y-2 py-2">
+                  <div className="mx-auto h-16 w-16 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center text-3xl font-bold">
+                    !
+                  </div>
+                  <h3 className="text-amber-800 font-bold text-sm uppercase tracking-wide">
+                    {data.status === 'cancelled' ? 'Bu makbuz iptal edilmiştir' : 'Bu bağış iade edilmiştir'}
+                  </h3>
+                  <p className="text-xs text-gray-500">Makbuz kurum kayıtlarında mevcuttur ancak artık geçerli değildir.</p>
+                </div>
+              )}
 
               {/* Data Table */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3 text-xs leading-relaxed text-gray-600">
@@ -107,6 +119,16 @@ export default function PublicVerifyReceiptPage() {
                   <span className="font-black text-emerald-700 text-lg">{data.amount_lira.toLocaleString('tr-TR')} ₺</span>
                 </div>
               </div>
+
+              {/* PDF İndir */}
+              <a
+                href={`${API_BASE}/api/v1/public/receipts/${receiptNumber}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full rounded-xl bg-[#1B5E20] hover:bg-[#154a19] text-white text-sm font-bold py-3 transition-colors"
+              >
+                <span>⬇</span> Resmi Makbuzu PDF İndir
+              </a>
 
               {/* Legal Note */}
               <p className="text-[10px] text-gray-400 text-center leading-relaxed italic">

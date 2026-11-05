@@ -16,6 +16,31 @@ interface CampaignProgress {
   target_lira: number
 }
 
+interface Kpis {
+  currency: string
+  today_cents: number
+  yesterday_cents: number
+  month_cents: number
+  last_month_to_date_cents: number
+  donor_count: number
+  new_donors_this_month: number
+  active_campaigns: number
+}
+
+const money = (cents: number) =>
+  (cents / 100).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 0 })
+
+function Change({ current, previous, label }: { current: number; previous: number; label: string }) {
+  if (!previous) return <div className="text-xs font-semibold text-gray-400">{label}: veri yok</div>
+  const pct = ((current - previous) / previous) * 100
+  const up = pct >= 0
+  return (
+    <div className={`text-xs font-semibold ${up ? 'text-green-600' : 'text-red-600'}`}>
+      {up ? '↑' : '↓'} %{Math.abs(pct).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} {label}
+    </div>
+  )
+}
+
 interface PaymentMethod {
   method: string
   count: number
@@ -26,6 +51,7 @@ export default function AdminDashboardPage() {
   const [trends, setTrends] = useState<MonthlyTrend[]>([])
   const [campaigns, setCampaigns] = useState<CampaignProgress[]>([])
   const [payments, setPayments] = useState<PaymentMethod[]>([])
+  const [kpis, setKpis] = useState<Kpis | null>(null)
   const [loading, setLoading] = useState(false)
 
   const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
@@ -45,6 +71,7 @@ export default function AdminDashboardPage() {
       setTrends(res.data.monthly_donations)
       setCampaigns(res.data.campaigns_progress)
       setPayments(res.data.payment_methods)
+      setKpis(res.data.kpis)
     } catch (err) {
       console.error('Failed to load analytics:', err)
     } finally {
@@ -58,7 +85,8 @@ export default function AdminDashboardPage() {
   }, [])
 
   // Find max monthly trend value to scale CSS bars dynamically
-  const maxTrend = trends.length > 0 ? Math.max(...trends.map(t => t.total_lira)) : 100000
+  const maxTrend = Math.max(1, ...trends.map(t => t.total_lira))
+  const paymentTotal = payments.reduce((sum, p) => sum + p.total_lira, 0)
 
   return (
     <div className="space-y-8">
@@ -76,26 +104,26 @@ export default function AdminDashboardPage() {
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-6 border border-gray-100 shadow-sm">
           <div className="mb-2 text-sm text-gray-600 font-bold uppercase tracking-wider text-[10px]">Bugün Toplanan</div>
-          <div className="mb-1 text-3xl font-black text-gray-950">15,250 ₺</div>
-          <div className="text-xs text-green-600 font-semibold">↑ 12.5% dünden</div>
+          <div className="mb-1 text-3xl font-black text-gray-950">{kpis ? money(kpis.today_cents) : '—'}</div>
+          {kpis && <Change current={kpis.today_cents} previous={kpis.yesterday_cents} label="dünden" />}
         </Card>
 
         <Card className="p-6 border border-gray-100 shadow-sm">
           <div className="mb-2 text-sm text-gray-600 font-bold uppercase tracking-wider text-[10px]">Bu Ay Toplanan</div>
-          <div className="mb-1 text-3xl font-black text-primary-600">425,890 ₺</div>
-          <div className="text-xs text-green-600 font-semibold">↑ 8.2% geçen aydan</div>
+          <div className="mb-1 text-3xl font-black text-primary-600">{kpis ? money(kpis.month_cents) : '—'}</div>
+          {kpis && <Change current={kpis.month_cents} previous={kpis.last_month_to_date_cents} label="geçen ayın aynı dönemine göre" />}
         </Card>
 
         <Card className="p-6 border border-gray-100 shadow-sm">
-          <div className="mb-2 text-sm text-gray-600 font-bold uppercase tracking-wider text-[10px]">Toplam Bağışçı</div>
-          <div className="mb-1 text-3xl font-black text-gray-950">1,247</div>
-          <div className="text-xs text-blue-600 font-semibold">↑ 23 yeni bağışçı</div>
+          <div className="mb-2 text-sm text-gray-600 font-bold uppercase tracking-wider text-[10px]">Bağış Yapan Bağışçı</div>
+          <div className="mb-1 text-3xl font-black text-gray-950">{kpis ? kpis.donor_count.toLocaleString('tr-TR') : '—'}</div>
+          {kpis && <div className="text-xs text-blue-600 font-semibold">Bu ay {kpis.new_donors_this_month} yeni bağışçı</div>}
         </Card>
 
         <Card className="p-6 border border-gray-100 shadow-sm">
           <div className="mb-2 text-sm text-gray-600 font-bold uppercase tracking-wider text-[10px]">Aktif Kampanyalar</div>
-          <div className="mb-1 text-3xl font-black text-gray-950">{campaigns.length}</div>
-          <div className="text-xs text-gray-400 font-semibold">Tümü yayında</div>
+          <div className="mb-1 text-3xl font-black text-gray-950">{kpis ? kpis.active_campaigns : '—'}</div>
+          <div className="text-xs text-gray-400 font-semibold">Toplam {campaigns.length} kampanya</div>
         </Card>
       </div>
 
@@ -138,7 +166,8 @@ export default function AdminDashboardPage() {
           <div className="lg:col-span-4 space-y-6">
             {/* Payment breakdowns */}
             <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-[11px] text-gray-400">Ödeme Kanalları</h2>
+              <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-[11px] text-gray-400">Ödeme Kanalları (Bu Yıl)</h2>
+              {payments.length === 0 && <p className="text-xs text-gray-400">Bu yıl henüz onaylı bağış yok.</p>}
               <div className="space-y-4">
                 {payments.map((p, idx) => (
                   <div key={idx} className="space-y-2">
@@ -149,7 +178,7 @@ export default function AdminDashboardPage() {
                     {/* Progress Bar representation */}
                     <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                       <div 
-                        style={{ width: `${idx === 0 ? '67%' : '33%'}` }}
+                        style={{ width: `${paymentTotal ? (p.total_lira / paymentTotal) * 100 : 0}%` }}
                         className={`h-full rounded-full ${idx === 0 ? 'bg-indigo-600' : 'bg-teal-600'}`}
                       />
                     </div>

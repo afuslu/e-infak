@@ -1,289 +1,209 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import { Card, Button } from '@e-infak/ui'
+import { useEffect, useState } from 'react'
+import { Card } from '@e-infak/ui'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
 
-interface WaterWell {
+interface Well {
   id: string
   name: string
   location_name: string
-  latitude: number
-  longitude: number
-  status: string
-  donor_name?: string
-  donor_id?: string
+  country: string | null
+  latitude: number | null
+  longitude: number | null
+  status: 'planned' | 'funding' | 'drilling' | 'completed'
+  description: string | null
+  funding_model: 'standard' | 'fonlama' | 'hisseli'
+  target_cents: number
+  collected_cents: number
+  progress_pct: number | null
+  share_count: number | null
+  share_price_cents: number | null
+  shares_sold: number
+  shares_left: number | null
+  active_pledges: number
+  donor_id: string | null
+  gallery_urls: string[]
+  donation_campaign_id: string | null
+  donation_campaign_slug: string | null
 }
 
-interface Donor {
-  id: string
-  first_name: string
-  last_name: string
-  email: string
+const STATUS: Record<Well['status'], string> = { planned: 'Planlandı', funding: 'Fon toplanıyor', drilling: 'Sondaj / yapım', completed: 'Tamamlandı' }
+const MODELS: Record<Well['funding_model'], string> = { standard: 'Standart bağış', fonlama: 'Fonlama (hedefli)', hisseli: 'Hisseli' }
+
+const empty = {
+  name: '', location_name: '', country: '', latitude: '', longitude: '', status: 'funding' as Well['status'], description: '',
+  funding_model: 'fonlama' as Well['funding_model'], target: '', share_count: '', share_price: '', gallery: '', create_donation_campaign: true,
 }
 
-export default function AdminWellsPage() {
-  const [wells, setWells] = useState<WaterWell[]>([])
-  const [donors, setDonors] = useState<Donor[]>([])
-  const [selectedWell, setSelectedWell] = useState<WaterWell | null>(null)
-  
-  // Create well form state
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [name, setName] = useState('')
-  const [locationName, setLocationName] = useState('')
-  const [latitude, setLatitude] = useState('12.113')
-  const [longitude, setLongitude] = useState('15.052')
-  const [status, setStatus] = useState('completed')
-  const [donorId, setDonorId] = useState('')
+export default function WellsPage() {
+  const { data: access } = useAdminAccess()
+  const canEdit = hasPermission(access, 'operations_manage')
+  const [wells, setWells] = useState<Well[]>([])
+  const [statusFilter, setStatusFilter] = useState('')
+  const [editing, setEditing] = useState<Well | null>(null)
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState(empty)
+  const [owner, setOwner] = useState<PickedDonor | null>(null)
+  const [shares, setShares] = useState<{ wellId: string; rows: { id: string; share_count: number; donor_name: string; on_behalf_of: string | null; receipt_number: string | null }[] } | null>(null)
+  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [successMsg, setSuccessMsg] = useState('')
-
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
-
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
-
-  const loadData = async () => {
-    setLoading(true)
+  const load = async () => {
     try {
-      const headers = getAuthHeaders()
-      const [wellsRes, donorsRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/v1/admin-features/water-wells`, { headers }),
-        axios.get(`${API_BASE}/api/v1/admin-features/donors`, { headers })
-      ])
-      
-      setWells(wellsRes.data)
-      setDonors(donorsRes.data)
+      setWells((await adminGet<Well[]>('/water-wells', { status: statusFilter || undefined })).data)
     } catch (err) {
-      console.error('Failed to load water wells data:', err)
-    } finally {
-      setLoading(false)
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Kuyular yüklenemedi') })
     }
   }
+  useEffect(() => { load() }, [statusFilter])
 
-  useEffect(() => {
-    loadData()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const open = (w: Well | null) => {
+    setEditing(w)
+    setShowForm(true)
+    setOwner(null)
+    setForm(w ? {
+      name: w.name, location_name: w.location_name, country: w.country || '',
+      latitude: w.latitude?.toString() || '', longitude: w.longitude?.toString() || '', status: w.status,
+      description: w.description || '', funding_model: w.funding_model, target: w.target_cents ? String(w.target_cents / 100) : '',
+      share_count: w.share_count?.toString() || '', share_price: w.share_price_cents ? String(w.share_price_cents / 100) : '',
+      gallery: w.gallery_urls.join('\n'), create_donation_campaign: !w.donation_campaign_id,
+    } : empty)
+  }
 
-  const handleCreateWell = async (e: React.FormEvent) => {
+  const money = (v: string) => (v ? Math.round(Number(v.replace(',', '.')) * 100) : 0)
+
+  const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
-    setSuccessMsg('')
+    const body = {
+      name: form.name, location_name: form.location_name, country: form.country || null,
+      latitude: form.latitude ? Number(form.latitude) : null, longitude: form.longitude ? Number(form.longitude) : null,
+      status: form.status, description: form.description || null, funding_model: form.funding_model,
+      target_cents: money(form.target), share_count: form.share_count ? Number(form.share_count) : null,
+      share_price_cents: form.share_price ? money(form.share_price) : null,
+      gallery_urls: form.gallery.split('\n').map((s) => s.trim()).filter(Boolean),
+      donor_id: owner?.id || editing?.donor_id || null, create_donation_campaign: form.create_donation_campaign,
+    }
     try {
-      const headers = getAuthHeaders()
-      const res = await axios.post(`${API_BASE}/api/v1/admin-features/water-wells`, {
-        name,
-        location_name: locationName,
-        latitude: Number(latitude),
-        longitude: Number(longitude),
-        status,
-        donor_id: donorId || null
-      }, { headers })
-      
-      setWells(prev => [...prev, res.data])
-      setShowAddForm(false)
-      setName('')
-      setLocationName('')
-      setDonorId('')
-      setSuccessMsg('Yeni su kuyusu kaydı başarıyla oluşturuldu!')
+      if (editing) await adminSend('put', `/water-wells/${editing.id}`, body)
+      else await adminSend('post', '/water-wells', body)
+      setShowForm(false)
+      setMessage({ type: 'ok', text: 'Kuyu kaydedildi' })
+      await load()
     } catch (err) {
-      console.error(err)
-      alert('Kayıt oluşturulamadı.')
-    } finally {
-      setSaving(false)
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
     }
   }
 
-  const getDonorDisplay = (well: WaterWell) => {
-    if (!well.donor_id) return 'Genel Fon'
-    const match = donors.find(d => d.id === well.donor_id)
-    return match ? `${match.first_name} ${match.last_name || ''}` : 'Anonim Bağışçı'
+  const showShares = async (w: Well) => {
+    try {
+      setShares({ wellId: w.id, rows: (await adminGet<any[]>(`/water-wells/${w.id}/shares`)).data })
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
   }
+
+  const set = <K extends keyof typeof empty>(k: K, v: (typeof empty)[K]) => setForm((f) => ({ ...f, [k]: v }))
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Su Kuyusu Haritası & Takip Paneli</h1>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs uppercase"
-        >
-          {showAddForm ? '✕ İptal Et' : '➕ Yeni Kasa Kuyu Ekle'}
-        </button>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Su Kuyusu Yönetimi</h1>
+          <p className="mt-1 text-sm text-gray-500">Kuyuya bağlı bağış kalemine gelen bağışlar fonlamayı ve hisseleri otomatik günceller. Taksitli kuyu taahhütleri Sponsorluk ekranından açılır.</p>
+        </div>
+        <div className="flex gap-2">
+          <select className={`${inputClass} w-44`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="">Tüm durumlar</option>{Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          {canEdit && <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : open(null))}>{showForm ? 'Vazgeç' : '+ Yeni Kuyu'}</button>}
+        </div>
       </div>
 
-      {successMsg && (
-        <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
-          ✨ {successMsg}
-        </div>
-      )}
+      <Notice message={message} />
 
-      {/* Add Water Well Form */}
-      {showAddForm && (
-        <Card className="p-6 border border-gray-100 shadow-sm space-y-4 max-w-2xl animate-fade-in">
-          <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-gray-400">Yeni Su Kuyusu Bilgileri</h2>
-          <form onSubmit={handleCreateWell} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Kuyu Adı *</label>
-                <input
-                  type="text"
-                  placeholder="Örn: Hz. Ömer Hayrat Kuyusu"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 p-2.5 text-xs outline-none focus:border-primary-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Konum / Ülke *</label>
-                <input
-                  type="text"
-                  placeholder="Örn: Çad, N'Djamena"
-                  value={locationName}
-                  onChange={(e) => setLocationName(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 p-2.5 text-xs outline-none focus:border-primary-500"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Enlem (Latitude) *</label>
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={latitude}
-                  onChange={(e) => setLatitude(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 p-2.5 text-xs outline-none focus:border-primary-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Boylam (Longitude) *</label>
-                <input
-                  type="number"
-                  step="0.000001"
-                  value={longitude}
-                  onChange={(e) => setLongitude(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 p-2.5 text-xs outline-none focus:border-primary-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Durum</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 p-2.5 text-xs outline-none bg-white focus:border-primary-500"
-                >
-                  <option value="completed">Tamamlandı (completed)</option>
-                  <option value="drilling">Sondaj Aşamasında (drilling)</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Fonlayan Bağışçı (Sponsor)</label>
-              <select
-                value={donorId}
-                onChange={(e) => setDonorId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 p-2 text-xs bg-white outline-none focus:border-primary-500"
-              >
-                <option value="">Genel Fonlama (Su Kampanyası)</option>
-                {donors.map(d => (
-                  <option key={d.id} value={d.id}>{d.first_name} {d.last_name || ''} ({d.email})</option>
-                ))}
+      {showForm && (
+        <Card className="border border-primary-100 p-6 shadow-sm">
+          <form onSubmit={save} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="sm:col-span-2"><TextInput label="Kuyu adı" required value={form.name} onChange={(v) => set('name', v)} placeholder="Hz. Ömer Su Kuyusu" /></div>
+            <TextInput label="Ülke" value={form.country} onChange={(v) => set('country', v)} placeholder="Nijer" />
+            <TextInput label="Konum" required value={form.location_name} onChange={(v) => set('location_name', v)} placeholder="Niamey, Tillabéri" />
+            <Label label="Fonlama modeli">
+              <select className={inputClass} value={form.funding_model} onChange={(e) => set('funding_model', e.target.value as Well['funding_model'])}>
+                {Object.entries(MODELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <Button type="submit" disabled={saving} className="bg-primary-600 text-white font-bold py-2 px-5 text-xs rounded-lg uppercase">
-                {saving ? 'Kaydediliyor...' : 'Kuyu Kaydet'}
-              </Button>
-            </div>
+            </Label>
+            {form.funding_model === 'hisseli' ? (
+              <>
+                <TextInput label="Hisse sayısı" required type="number" min={1} value={form.share_count} onChange={(v) => set('share_count', v)} />
+                <TextInput label="Hisse bedeli (₺)" required inputMode="decimal" value={form.share_price} onChange={(v) => set('share_price', v)} />
+              </>
+            ) : (
+              <TextInput label="Hedef tutar (₺)" required={form.funding_model === 'fonlama'} inputMode="decimal" value={form.target} onChange={(v) => set('target', v)} />
+            )}
+            <Label label="Durum">
+              <select className={inputClass} value={form.status} onChange={(e) => set('status', e.target.value as Well['status'])}>
+                {Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </Label>
+            <TextInput label="Enlem" inputMode="decimal" value={form.latitude} onChange={(v) => set('latitude', v)} />
+            <TextInput label="Boylam" inputMode="decimal" value={form.longitude} onChange={(v) => set('longitude', v)} />
+            <div className="sm:col-span-2"><DonorPicker value={owner} onChange={setOwner} label="Tek bağışçılı kuyu sahibi (isteğe bağlı)" /></div>
+            <div className="sm:col-span-2"><TextArea label="Açıklama" rows={3} value={form.description} onChange={(v) => set('description', v)} /></div>
+            <div className="sm:col-span-2"><TextArea label="Fotoğraflar (her satıra bir adres)" rows={3} value={form.gallery} onChange={(v) => set('gallery', v)} /></div>
+            {(!editing || !editing.donation_campaign_id) && (
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 sm:col-span-2 lg:col-span-4">
+                <input type="checkbox" checked={form.create_donation_campaign} onChange={(e) => set('create_donation_campaign', e.target.checked)} />
+                Web sitesinde bu kuyu için bağış kalemi oluştur
+              </label>
+            )}
+            <div className="flex justify-end sm:col-span-2 lg:col-span-4"><button type="submit" className={primaryButton}>{editing ? 'Kaydet' : 'Oluştur'}</button></div>
           </form>
         </Card>
       )}
 
-      {loading ? (
-        <p className="text-sm text-gray-500 animate-pulse py-6 text-center">Su kuyusu kayıtları yükleniyor...</p>
-      ) : (
-        <div className="grid lg:grid-cols-12 gap-8 items-start">
-          {/* Left: Wells list */}
-          <div className={`${selectedWell ? 'lg:col-span-6' : 'lg:col-span-12'} space-y-4 transition-all duration-300`}>
-            <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-lg font-bold text-gray-900 border-b pb-2">Kuyular</h2>
-              <div className="space-y-3">
-                {wells.map(w => (
-                  <div
-                    key={w.id}
-                    onClick={() => setSelectedWell(w)}
-                    className={`flex justify-between items-center p-4 bg-gray-50 rounded-2xl border transition-all cursor-pointer ${selectedWell?.id === w.id ? 'border-primary-600 bg-primary-50/20' : 'border-gray-100 hover:bg-gray-100/50'}`}
-                  >
-                    <div>
-                      <div className="font-bold text-gray-900 text-sm">⛲ {w.name}</div>
-                      <div className="text-[10px] text-gray-400 font-bold uppercase mt-1">Konum: {w.location_name} | Sponsor: {getDonorDisplay(w)}</div>
-                    </div>
-                    <div className="text-right">
-                      <span className={`inline-block font-bold px-2 py-0.5 rounded text-[10px] ${w.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                        {w.status === 'completed' ? 'Aktif/Açıldı' : 'Sondajda'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {wells.map((w) => (
+          <Card key={w.id} className="space-y-3 border border-gray-100 p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="font-bold text-gray-900">{w.name}</div>
+                <div className="text-xs text-gray-500">{[w.location_name, w.country].filter(Boolean).join(', ')}</div>
               </div>
-            </Card>
-          </div>
-
-          {/* Right: Selected Well Detail Map Simulation */}
-          {selectedWell && (
-            <div className="lg:col-span-6 space-y-6 animate-fade-in">
-              <Card className="p-6 border border-gray-100 shadow-md space-y-6 relative">
-                <button 
-                  onClick={() => setSelectedWell(null)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-sm font-bold"
-                >
-                  ✕ Kapat
-                </button>
-
-                <div>
-                  <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-2 py-0.5 rounded uppercase tracking-wider">Su Kuyusu Detayı & GPS</span>
-                  <h2 className="text-xl font-bold text-gray-900 mt-2">⛲ {selectedWell.name}</h2>
-                </div>
-
-                {/* Simulated Interactive Map */}
-                <div className="h-48 w-full bg-slate-100 rounded-2xl relative overflow-hidden border border-gray-200 flex flex-col justify-center items-center text-center p-4">
-                  <div className="text-4xl">📍</div>
-                  <div className="mt-2 text-xs font-bold text-gray-800">{selectedWell.location_name}</div>
-                  <div className="text-[10px] font-mono text-gray-400 mt-1">
-                    Enlem: {selectedWell.latitude} | Boylam: {selectedWell.longitude}
-                  </div>
-                </div>
-
-                <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs space-y-3 leading-relaxed text-gray-600">
-                  <div className="flex justify-between border-b pb-2">
-                    <span className="font-bold text-gray-400 uppercase text-[10px]">Kuyu Durumu</span>
-                    <span className="font-bold text-gray-900">{selectedWell.status === 'completed' ? 'Tamamlandı / Canlı Su Akıyor' : 'Çalışma Devam Ediyor'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-bold text-gray-400 uppercase text-[10px]">Sponsor Bağışçı</span>
-                    <span className="font-bold text-gray-900">{getDonorDisplay(selectedWell)}</span>
-                  </div>
-                </div>
-              </Card>
+              <span className="rounded border px-2 py-0.5 text-[10px] font-bold">{STATUS[w.status]}</span>
             </div>
-          )}
-        </div>
-      )}
+            <div className="text-xs text-gray-500">{MODELS[w.funding_model]}{w.active_pledges ? ` · ${w.active_pledges} taksitli taahhüt` : ''}</div>
+            {w.target_cents > 0 && (
+              <div>
+                <div className="flex justify-between text-xs font-semibold">
+                  <span>{formatMoney(w.collected_cents)}</span><span className="text-gray-500">{formatMoney(w.target_cents)}</span>
+                </div>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
+                  <div className="h-full rounded-full bg-sky-600" style={{ width: `${w.progress_pct || 0}%` }} />
+                </div>
+              </div>
+            )}
+            {w.funding_model === 'hisseli' && (
+              <div className="text-sm"><strong>{w.shares_sold}</strong> / {w.share_count} hisse satıldı · {formatMoney(w.share_price_cents || 0)} / hisse</div>
+            )}
+            <div className="flex flex-wrap gap-2 border-t pt-3">
+              {canEdit && <button className={ghostButton} onClick={() => open(w)}>Düzenle</button>}
+              {w.funding_model === 'hisseli' && <button className={ghostButton} onClick={() => showShares(w)}>Hissedarlar</button>}
+              {w.donation_campaign_slug && <a className={ghostButton} href={`/kampanyalar/${w.donation_campaign_slug}`} target="_blank" rel="noreferrer">Bağış sayfası ↗</a>}
+            </div>
+            {shares?.wellId === w.id && (
+              <ul className="space-y-1 rounded-lg bg-gray-50 p-3 text-xs">
+                {shares.rows.map((s) => (
+                  <li key={s.id} className="flex justify-between"><span>{s.on_behalf_of || s.donor_name}</span><span>{s.share_count} hisse</span></li>
+                ))}
+                {shares.rows.length === 0 && <li className="text-gray-400">Henüz hisse yok.</li>}
+              </ul>
+            )}
+          </Card>
+        ))}
+        {wells.length === 0 && <p className="py-10 text-center text-xs text-gray-400 md:col-span-2 xl:col-span-3">Kuyu kaydı yok.</p>}
+      </div>
     </div>
   )
 }

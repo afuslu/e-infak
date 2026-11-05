@@ -11,8 +11,18 @@ from app.core.config import settings
 from app.core.db import Base
 
 # Import all models here
-from app.models.organization import Organization
+from app.models.organization import Organization, OrganizationDomain
 from app.models.user import User
+from app.models.staff import Department, StaffRole
+from app.models.cms import SitePage, MenuItem, GalleryItem, VolunteerApplication
+from app.models.sponsorship import Beneficiary, Pledge, PledgeInstallment, WellShare
+from app.models.fx import FxRate
+from app.models.credentials import TenantCredential
+from app.models.field_ops import (
+    Region, MoneyBox, MoneyBoxCollection, AidPackage, AidRecipient, AidDistribution, TaskTemplate, Task,
+)
+from app.models.content_post import ContentPost
+from app.models.organization_settings import OrganizationSettings
 from app.models.campaign import Campaign
 from app.models.donation import Donation, Donor
 from app.models.kurban import KurbanCampaign, KurbanAnimal, KurbanShare

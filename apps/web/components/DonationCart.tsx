@@ -1,7 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useCreateCheckout, type CheckoutSessionResponse } from '@e-infak/api-client'
+import { useEffect, useMemo, useState } from 'react'
+import { useCreateCheckout, useOrgSettings, type CheckoutSessionResponse } from '@e-infak/api-client'
+import { trackConversion } from '../lib/analytics'
+
+const CURRENCY_SYMBOL: Record<'TRY' | 'EUR' | 'USD', string> = { TRY: '₺', EUR: '€', USD: '$' }
 
 export interface CartItem {
   campaignId: string
@@ -23,8 +26,20 @@ export function DonationCart() {
   const [phone, setPhone] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'bank_transfer'>('credit_card')
   const [locale, setLocale] = useState<'tr' | 'en' | 'ar'>('tr')
-  const [currency] = useState<'TRY' | 'EUR' | 'USD'>('TRY')
+  const [currency, setCurrency] = useState<'TRY' | 'EUR' | 'USD'>('TRY')
+  const { data: orgSettings } = useOrgSettings()
+  const enabledCurrencies = useMemo(() => {
+    return (orgSettings?.enabled_payment_currencies?.length
+      ? orgSettings.enabled_payment_currencies
+      : ['TRY']) as Array<'TRY' | 'EUR' | 'USD'>
+  }, [orgSettings?.enabled_payment_currencies])
+  useEffect(() => {
+    if (!enabledCurrencies.includes(currency)) setCurrency(enabledCurrencies[0])
+  }, [enabledCurrencies, currency])
+  const currencySymbol = CURRENCY_SYMBOL[currency]
   const [kvkk, setKvkk] = useState(false)
+  const [isGift, setIsGift] = useState(false)
+  const [onBehalfOf, setOnBehalfOf] = useState('')
   const [allowEmail, setAllowEmail] = useState(false)
   const [allowSms, setAllowSms] = useState(false)
   const [error, setError] = useState('')
@@ -53,6 +68,7 @@ export function DonationCart() {
         localStorage.setItem('einfak_cart', JSON.stringify(next))
         return next
       })
+      trackConversion('add_to_cart', { campaign_id: item.campaignId })
       setOpen(true)
     }
     window.addEventListener('add-to-donation-cart', add)
@@ -74,13 +90,19 @@ export function DonationCart() {
       setError('KVKK aydınlatma metni onayı zorunludur.')
       return
     }
+    if (isGift && !onBehalfOf.trim()) {
+      setError('Kimin adına bağış yaptığınızı yazın.')
+      return
+    }
     setError('')
     try {
+      trackConversion('checkout_started', { item_count: cart.length, payment_method: paymentMethod, currency })
       const result = await checkout.mutateAsync({
         items: cart.map((item) => ({
           campaign_id: item.campaignId,
           quantity: item.quantity || 1,
           unit_amount_cents: Math.round(item.amount * 100),
+          on_behalf_of: isGift && onBehalfOf.trim() ? onBehalfOf.trim() : undefined,
           metadata: item.metadata,
         })),
         donor: {
@@ -100,13 +122,16 @@ export function DonationCart() {
         kvkk_accepted: kvkk,
       })
       if (result.redirect_url) {
+        trackConversion('payment_redirected', { payment_method: paymentMethod, currency })
         window.location.assign(result.redirect_url)
         return
       }
+      trackConversion('payment_redirected', { payment_method: paymentMethod, currency })
       setTransfer(result)
       setStep('transfer')
       persist([])
     } catch (err: any) {
+      trackConversion('payment_failed', { payment_method: paymentMethod, currency })
       setError(err?.response?.data?.detail || 'Ödeme başlatılamadı. Lütfen tekrar deneyin.')
     }
   }
@@ -152,7 +177,7 @@ export function DonationCart() {
                 ))}
                 {!!cart.length && (
                   <>
-                    <div className="flex justify-between border-t pt-4"><span>Toplam</span><b className="text-xl">{total.toLocaleString('tr-TR')} ₺</b></div>
+                    <div className="flex justify-between border-t pt-4"><span>Toplam</span><b className="text-xl">{total.toLocaleString('tr-TR')} {currencySymbol}</b></div>
                     <button type="button" onClick={() => setStep('donor')} className="w-full rounded-xl bg-primary-600 py-3 font-black text-white">Bağışı Tamamla</button>
                     <button type="button" onClick={() => persist([])} className="w-full text-xs font-bold text-slate-400">Sepeti temizle</button>
                   </>
@@ -162,11 +187,20 @@ export function DonationCart() {
 
             {step === 'donor' && (
               <div className="space-y-3">
-                <label className="block text-xs font-bold text-slate-600">Dil
-                  <select value={locale} onChange={(e) => setLocale(e.target.value as 'tr' | 'en' | 'ar')} className="mt-1 w-full rounded-xl border p-3">
-                    <option value="tr">Türkçe</option><option value="en">English</option><option value="ar">العربية</option>
-                  </select>
-                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-xs font-bold text-slate-600">Dil
+                    <select value={locale} onChange={(e) => setLocale(e.target.value as 'tr' | 'en' | 'ar')} className="mt-1 w-full rounded-xl border p-3">
+                      <option value="tr">Türkçe</option><option value="en">English</option><option value="ar">العربية</option>
+                    </select>
+                  </label>
+                  <label className="block text-xs font-bold text-slate-600">Para birimi
+                    <select value={currency} onChange={(e) => setCurrency(e.target.value as 'TRY' | 'EUR' | 'USD')} disabled={enabledCurrencies.length < 2} className="mt-1 w-full rounded-xl border p-3 disabled:bg-slate-50 disabled:text-slate-500">
+                      {enabledCurrencies.map((code) => (
+                        <option key={code} value={code}>{code} {CURRENCY_SYMBOL[code]}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <input aria-label="Ad" placeholder="Ad *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="rounded-xl border p-3" />
                   <input aria-label="Soyad" placeholder="Soyad *" value={lastName} onChange={(e) => setLastName(e.target.value)} className="rounded-xl border p-3" />
@@ -174,13 +208,18 @@ export function DonationCart() {
                 <input aria-label="E-posta" type="email" placeholder="E-posta *" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border p-3" />
                 <input aria-label="Telefon" type="tel" placeholder="Telefon *" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border p-3" />
                 <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setPaymentMethod('credit_card')} className={`rounded-xl border p-3 text-xs font-bold ${paymentMethod === 'credit_card' ? 'border-primary-600 bg-primary-50' : ''}`}>Kart / Ziraat Pay</button>
+                  <button type="button" onClick={() => setPaymentMethod('credit_card')} className={`rounded-xl border p-3 text-xs font-bold ${paymentMethod === 'credit_card' ? 'border-primary-600 bg-primary-50' : ''}`}>Kredi / Banka Kartı</button>
                   <button type="button" onClick={() => setPaymentMethod('bank_transfer')} className={`rounded-xl border p-3 text-xs font-bold ${paymentMethod === 'bank_transfer' ? 'border-primary-600 bg-primary-50' : ''}`}>Havale / EFT</button>
                 </div>
+                <label className="flex gap-2 text-xs font-semibold"><input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} /> Başkası adına bağış yapıyorum</label>
+                {isGift && (
+                  <input aria-label="Kimin adına" placeholder="Kimin adına? (makbuzda yazar)" maxLength={200} value={onBehalfOf}
+                    onChange={(e) => setOnBehalfOf(e.target.value)} className="w-full rounded-xl border p-3" />
+                )}
                 <label className="flex gap-2 text-xs"><input type="checkbox" checked={allowEmail} onChange={(e) => setAllowEmail(e.target.checked)} /> E-posta izni</label>
                 <label className="flex gap-2 text-xs"><input type="checkbox" checked={allowSms} onChange={(e) => setAllowSms(e.target.checked)} /> SMS izni</label>
                 <label className="flex gap-2 rounded-xl bg-slate-50 p-3 text-xs font-semibold"><input type="checkbox" checked={kvkk} onChange={(e) => setKvkk(e.target.checked)} /> KVKK aydınlatma metnini okudum. *</label>
-                <p className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">Kart bilgileriniz yalnızca Ziraat Pay’in güvenli sayfasında girilir.</p>
+                <p className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">Kart bilgileriniz yalnızca bankanın veya ödeme kuruluşunun güvenli sayfasında girilir.</p>
                 <div className="flex gap-3 pt-3">
                   <button type="button" onClick={() => setStep('cart')} className="flex-1 rounded-xl border py-3 font-bold">Geri</button>
                   <button type="button" onClick={submit} disabled={checkout.isPending} className="flex-1 rounded-xl bg-primary-600 py-3 font-black text-white disabled:opacity-60">{checkout.isPending ? 'Hazırlanıyor…' : 'Devam Et'}</button>

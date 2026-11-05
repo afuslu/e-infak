@@ -1,67 +1,51 @@
-import { headers } from 'next/headers'
-import { HicretHome } from '../../components/HicretHome'
-import { KardeslikHome } from '../../components/KardeslikHome'
-import { EInfakPortal } from '../../components/EInfakPortal'
 import type { Campaign } from '@e-infak/api-client'
+import { EInfakPortal } from '../../components/EInfakPortal'
+import { HomeTemplate } from '../../components/templates/HomeTemplate'
+import type { CategoryDto, NewsPostDto } from '../../components/sections/HomeSections'
+import { currentLocale, currentOrgSlug, getPublic, getSite, withLang } from '../../lib/public-content'
+import { tenantHeaders } from '../../lib/server-api'
 
 export const dynamic = 'force-dynamic'
 
-const API_URL = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020'
+const API_URL = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020').replace(/\/$/, '')
 
-async function getCampaigns(orgSlug: string): Promise<Campaign[]> {
+async function getCampaigns(orgSlug: string, locale: string): Promise<Campaign[]> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/campaigns?status=active`, {
-      headers: {
-        'x-organization-slug': orgSlug,
-      },
-      next: { revalidate: 10 }, // 10 seconds cache revalidation
+    const res = await fetch(`${API_URL}/api/v1/${withLang('campaigns?status=active', locale)}`, {
+      headers: tenantHeaders(orgSlug),
+      next: { revalidate: 10 },
     })
-
-    if (!res.ok) {
-      console.error(`Failed to fetch campaigns: ${res.statusText}`)
-      return []
-    }
-
-    const data = await res.json()
-    return data.items || []
-  } catch (e) {
-    console.error('Error fetching campaigns from backend API:', e)
+    return res.ok ? (await res.json()).items || [] : []
+  } catch {
     return []
   }
 }
 
-async function getPublic<T>(path: string, orgSlug: string, fallback: T): Promise<T> {
-  try {
-    const res = await fetch(`${API_URL}/api/v1/public/${path}`, {
-      headers: { 'x-organization-slug': orgSlug },
-      next: { revalidate: 30 },
-    })
-    if (!res.ok) return fallback
-    return await res.json()
-  } catch (e) {
-    console.error(`Error fetching public/${path} from backend API:`, e)
-    return fallback
-  }
-}
-
 export default async function HomePage() {
-  const headersList = await headers()
-  const orgSlug = headersList.get('x-organization-slug') || ''
+  const site = await getSite()
+  if (!site) return <EInfakPortal />
 
-  if (!orgSlug) {
-    return <EInfakPortal />
-  }
-
-  const [campaigns, newsPosts, categories] = await Promise.all([
-    getCampaigns(orgSlug),
-    getPublic('content-posts', orgSlug, [] as any[]),
-    getPublic('donation-categories', orgSlug, [] as any[]),
+  const orgSlug = await currentOrgSlug()
+  const locale = await currentLocale()
+  const [campaigns, news, categories] = await Promise.all([
+    getCampaigns(orgSlug, locale),
+    getPublic<NewsPostDto[]>('content-posts?limit=6', []),
+    getPublic<CategoryDto[]>('donation-categories', []),
   ])
 
-  if (orgSlug === 'kardeslik-payi') {
-    return <KardeslikHome campaigns={campaigns} newsPosts={newsPosts} categories={categories} />
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'NGO',
+    name: site.name,
+    url: site.url,
+    logo: site.logo_url ? new URL(site.logo_url, site.url).toString() : undefined,
+    potentialAction: { '@type': 'DonateAction', target: `${site.url}/kampanyalar` },
   }
 
-  // Default to Hicret Derneği layout
-  return <HicretHome campaigns={campaigns} newsPosts={newsPosts} />
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
+      <HomeTemplate data={{ site, locale, campaigns, news, categories }} />
+    </>
+  )
 }

@@ -1,211 +1,238 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import { Card, Button } from '@e-infak/ui'
+import { useEffect, useState } from 'react'
+import { Card } from '@e-infak/ui'
+import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
+import {
+  BODY_HINT, Label, Notice, StatusPill, TextArea, TextInput, ghostButton, inputClass, primaryButton,
+} from '../../../../components/admin/FormKit'
+import { ImageField } from '../../../../components/admin/ImageField'
+import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
 
-interface ContentPost {
+interface Post {
   id: string
+  kind: 'haber' | 'blog' | 'faaliyet'
+  slug: string | null
   title: string
+  summary: string | null
+  body: string | null
   image_url: string | null
+  gallery_urls: string[]
+  video_url: string | null
+  published_at: string | null
   display_order: number
   is_active: boolean
-  published_at: string
+  seo_title: string | null
+  seo_description: string | null
+  translations?: Translations
 }
 
-const EMPTY_FORM = { title: '', image_url: '', display_order: 0, is_active: true }
+const POST_I18N_FIELDS = [
+  { key: 'title', label: 'Başlık' }, { key: 'summary', label: 'Kısa özet' }, { key: 'body', label: 'İçerik', long: true },
+  { key: 'seo_title', label: 'SEO başlığı' }, { key: 'seo_description', label: 'SEO açıklaması' },
+]
 
-export default function AdminContentPostsPage() {
-  const [posts, setPosts] = useState<ContentPost[]>([])
+const KIND_LABELS: Record<Post['kind'], string> = { haber: 'Haber', blog: 'Blog', faaliyet: 'Faaliyet' }
+
+const emptyForm = {
+  kind: 'haber' as Post['kind'],
+  title: '',
+  slug: '',
+  summary: '',
+  body: '',
+  image_url: '',
+  gallery: '',
+  video_url: '',
+  published_at: '',
+  display_order: 0,
+  is_active: true,
+  seo_title: '',
+  seo_description: '',
+  translations: {} as Translations,
+}
+
+export default function AdminContentPage() {
+  const [posts, setPosts] = useState<Post[]>([])
+  const [filter, setFilter] = useState<'' | Post['kind']>('')
+  const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [loading, setLoading] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
-
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
-
-  const loadPosts = async () => {
-    setLoading(true)
+  const load = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/api/v1/admin-features/content-posts`, { headers: getAuthHeaders() })
-      setPosts(res.data)
+      setPosts((await adminGet<Post[]>('/content-posts')).data)
     } catch (err) {
-      console.error('Failed to load content posts:', err)
-    } finally {
-      setLoading(false)
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'İçerikler yüklenemedi') })
     }
   }
 
-  useEffect(() => {
-    loadPosts()
-  // Initial tenant-scoped load; subsequent refreshes are user-triggered.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  useEffect(() => { load() }, [])
 
-  const startEdit = (p: ContentPost) => {
-    setEditingId(p.id)
-    setForm({ title: p.title, image_url: p.image_url || '', display_order: p.display_order, is_active: p.is_active })
+  const set = <K extends keyof typeof emptyForm>(key: K, value: (typeof emptyForm)[K]) => setForm((f) => ({ ...f, [key]: value }))
+
+  const startEdit = (post: Post | null) => {
+    setEditingId(post?.id || null)
+    setShowForm(true)
+    setForm(post ? {
+      kind: post.kind,
+      title: post.title,
+      slug: post.slug || '',
+      summary: post.summary || '',
+      body: post.body || '',
+      image_url: post.image_url || '',
+      gallery: (post.gallery_urls || []).join('\n'),
+      video_url: post.video_url || '',
+      published_at: post.published_at ? post.published_at.slice(0, 10) : '',
+      display_order: post.display_order,
+      is_active: post.is_active,
+      seo_title: post.seo_title || '',
+      seo_description: post.seo_description || '',
+      translations: post.translations || {},
+    } : emptyForm)
   }
 
-  const cancelEdit = () => {
-    setEditingId(null)
-    setForm(EMPTY_FORM)
-  }
-
-  const handleSave = async (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.title.trim()) return
-
     setSaving(true)
+    setMessage(null)
+    const body = {
+      kind: form.kind,
+      title: form.title,
+      slug: form.slug || null,
+      summary: form.summary || null,
+      body: form.body || null,
+      image_url: form.image_url || null,
+      gallery_urls: form.gallery.split('\n').map((s) => s.trim()).filter(Boolean),
+      video_url: form.video_url || null,
+      published_at: form.published_at ? `${form.published_at}T09:00:00+03:00` : null,
+      display_order: Number(form.display_order) || 0,
+      is_active: form.is_active,
+      seo_title: form.seo_title || null,
+      seo_description: form.seo_description || null,
+      translations: form.translations,
+    }
     try {
-      const headers = getAuthHeaders()
-      if (editingId) {
-        const res = await axios.put(`${API_BASE}/api/v1/admin-features/content-posts/${editingId}`, form, { headers })
-        setPosts((prev) => prev.map((p) => (p.id === editingId ? res.data : p)))
-      } else {
-        const res = await axios.post(`${API_BASE}/api/v1/admin-features/content-posts`, form, { headers })
-        setPosts((prev) => [...prev, res.data])
-      }
-      cancelEdit()
+      if (editingId) await adminSend('put', `/content-posts/${editingId}`, body)
+      else await adminSend('post', '/content-posts', body)
+      setMessage({ type: 'ok', text: editingId ? 'İçerik güncellendi' : 'İçerik yayınlandı' })
+      setShowForm(false)
+      setEditingId(null)
+      await load()
     } catch (err) {
-      console.error('Failed to save content post:', err)
-      alert('Kaydedilemedi.')
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
     } finally {
       setSaving(false)
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Bu içeriği silmek istediğinize emin misiniz?')) return
+  const remove = async (post: Post) => {
+    if (!window.confirm(`"${post.title}" silinsin mi?`)) return
     try {
-      await axios.delete(`${API_BASE}/api/v1/admin-features/content-posts/${id}`, { headers: getAuthHeaders() })
-      setPosts((prev) => prev.filter((p) => p.id !== id))
-      if (editingId === id) cancelEdit()
+      await adminSend('delete', `/content-posts/${post.id}`)
+      await load()
     } catch (err) {
-      console.error('Failed to delete content post:', err)
-      alert('Silinemedi.')
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
     }
   }
 
+  const visible = filter ? posts.filter((p) => p.kind === filter) : posts
+
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">İçerikler</h1>
-        <button
-          onClick={loadPosts}
-          className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
-        >
-          🔄 Yenile
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Haber, Blog & Faaliyetler</h1>
+          <p className="mt-1 text-sm text-gray-500">Yayındaki içerikler sitede /haberler adresinde ve ana sayfada listelenir.</p>
+        </div>
+        <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : startEdit(null))}>
+          {showForm ? 'Vazgeç' : '+ Yeni İçerik'}
         </button>
       </div>
-      <p className="text-sm text-gray-500 -mt-6">
-        Ana sayfadaki &quot;Sahadan haberler / Faaliyetler&quot; bölümünde görünen içerikler.
-      </p>
 
-      <div className="grid lg:grid-cols-12 gap-8 items-start">
-        <div className="lg:col-span-7 space-y-3">
-          {loading ? (
-            <p className="text-sm text-gray-500 animate-pulse py-6 text-center">Yükleniyor...</p>
-          ) : posts.length === 0 ? (
-            <Card className="p-8 border border-gray-100 shadow-sm text-center text-sm text-gray-400">
-              Henüz içerik eklenmedi.
-            </Card>
-          ) : (
-            posts.map((p) => (
-              <Card key={p.id} className="p-4 border border-gray-100 shadow-sm flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="font-bold text-sm text-gray-900 flex items-center gap-2">
-                    {p.title}
-                    {!p.is_active && <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Pasif</span>}
-                  </div>
-                  <div className="text-xs text-gray-400">{new Date(p.published_at).toLocaleDateString('tr-TR')}</div>
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button onClick={() => startEdit(p)} className="text-xs font-bold text-primary-600 hover:text-primary-700 px-2 py-1">
-                    Düzenle
-                  </button>
-                  <button onClick={() => handleDelete(p.id)} className="text-xs font-bold text-red-500 hover:text-red-700 px-2 py-1">
-                    Sil
-                  </button>
-                </div>
-              </Card>
-            ))
-          )}
-        </div>
+      <Notice message={message} />
 
-        <div className="lg:col-span-5">
-          <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-            <h2 className="text-lg font-bold text-gray-900 border-b pb-2">
-              {editingId ? 'İçeriği Düzenle' : 'Yeni İçerik'}
-            </h2>
-            <form onSubmit={handleSave} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Başlık *</label>
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
-                  required
-                />
+      {showForm && (
+        <Card className="border border-gray-100 p-6 shadow-sm">
+          <form onSubmit={save} className="grid gap-4 lg:grid-cols-3">
+            <div className="space-y-4 lg:col-span-2">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Label label="Tür">
+                  <select className={inputClass} value={form.kind} onChange={(e) => set('kind', e.target.value as Post['kind'])}>
+                    {Object.entries(KIND_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                </Label>
+                <div className="sm:col-span-2">
+                  <TextInput label="Başlık" required minLength={2} value={form.title} onChange={(v) => set('title', v)} />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Görsel URL</label>
-                <input
-                  type="text"
-                  placeholder="/images/hicret/h-news1.png"
-                  value={form.image_url}
-                  onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
-                />
-              </div>
+              <TextArea label="Kısa özet (liste ve paylaşımlarda görünür)" rows={2} maxLength={500} value={form.summary} onChange={(v) => set('summary', v)} />
+              <TextArea label="İçerik" rows={14} hint={BODY_HINT} value={form.body} onChange={(v) => set('body', v)} />
+            </div>
+            <div className="space-y-4">
+              <ImageField label="Kapak görseli" value={form.image_url} onChange={(v) => set('image_url', v)} />
+              <TextArea label="Foto galerisi (her satıra bir görsel adresi)" rows={4} value={form.gallery} onChange={(v) => set('gallery', v)} />
+              <TextInput label="Video (YouTube / Vimeo bağlantısı)" placeholder="https://youtu.be/..." value={form.video_url} onChange={(v) => set('video_url', v)} />
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Sıra</label>
-                  <input
-                    type="number"
-                    value={form.display_order}
-                    onChange={(e) => setForm({ ...form, display_order: Number(e.target.value) })}
-                    className="w-full rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
-                  />
-                </div>
-                <div className="flex items-end pb-2.5">
-                  <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.is_active}
-                      onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                      className="h-4 w-4 text-primary-600 border-gray-300 rounded"
-                    />
-                    Yayında
-                  </label>
-                </div>
+                <TextInput label="Yayın tarihi" type="date" value={form.published_at} onChange={(v) => set('published_at', v)} />
+                <TextInput label="Sıra" type="number" value={form.display_order} onChange={(v) => set('display_order', Number(v))} />
               </div>
-              <div className="flex gap-2 pt-2">
-                {editingId && (
-                  <Button type="button" onClick={cancelEdit} className="flex-1 border text-gray-600 font-bold py-2.5 text-xs uppercase">
-                    Vazgeç
-                  </Button>
-                )}
-                <Button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 text-xs uppercase"
-                >
-                  {saving ? 'Kaydediliyor...' : editingId ? 'Güncelle' : 'Ekle'}
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </div>
+              <details className="rounded-lg border border-gray-200 p-3">
+                <summary className="cursor-pointer text-xs font-bold text-gray-600">Adres & SEO</summary>
+                <div className="mt-3 space-y-3">
+                  <TextInput label="Adres (slug)" hint="Boş bırakılırsa başlıktan üretilir" placeholder="kis-yardimi" value={form.slug} onChange={(v) => set('slug', v)} />
+                  <TextInput label="SEO başlığı" maxLength={160} value={form.seo_title} onChange={(v) => set('seo_title', v)} />
+                  <TextArea label="SEO açıklaması" rows={3} maxLength={320} value={form.seo_description} onChange={(v) => set('seo_description', v)} />
+                </div>
+              </details>
+              <TranslationEditor fields={POST_I18N_FIELDS} value={form.translations} onChange={(v) => set('translations', v)} />
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <input type="checkbox" checked={form.is_active} onChange={(e) => set('is_active', e.target.checked)} /> Yayında
+              </label>
+              <button type="submit" disabled={saving} className={`${primaryButton} w-full`}>
+                {saving ? 'Kaydediliyor...' : editingId ? 'Güncelle' : 'Kaydet'}
+              </button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      <div className="flex gap-2">
+        {([['', 'Tümü'], ['haber', 'Haber'], ['blog', 'Blog'], ['faaliyet', 'Faaliyet']] as const).map(([k, l]) => (
+          <button key={k} onClick={() => setFilter(k)} className={`rounded-full border px-3 py-1 text-xs font-semibold ${filter === k ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white text-gray-700'}`}>
+            {l}
+          </button>
+        ))}
       </div>
+
+      <Card className="border border-gray-100 p-6 shadow-sm">
+        {visible.length === 0 ? (
+          <p className="py-6 text-center text-xs text-gray-400">Henüz içerik yok.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {visible.map((post) => (
+              <li key={post.id} className="flex items-center gap-4 py-3">
+                {post.image_url
+                  ? <img src={post.image_url} alt="" className="h-12 w-16 flex-shrink-0 rounded object-cover" />
+                  : <div className="h-12 w-16 flex-shrink-0 rounded bg-gray-100" />}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold text-gray-900">{post.title}</div>
+                  <div className="text-xs text-gray-500">
+                    {KIND_LABELS[post.kind]} · /haberler/{post.slug}
+                    {post.published_at && ` · ${new Date(post.published_at).toLocaleDateString('tr-TR')}`}
+                  </div>
+                </div>
+                <StatusPill active={post.is_active} />
+                <div className="flex gap-2">
+                  <button onClick={() => startEdit(post)} className={ghostButton}>Düzenle</button>
+                  <button onClick={() => remove(post)} className={`${ghostButton} text-red-600`}>Sil</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   )
 }

@@ -31,6 +31,10 @@ class User(Base):
     phone = Column(String(20))
     
     role = Column(Enum(UserRole), nullable=False, default=UserRole.READONLY)
+    # Optional organization-defined unit and role. When staff_role_id is set its
+    # permission list replaces the built-in matrix of `role`.
+    department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id", ondelete="SET NULL"), index=True)
+    staff_role_id = Column(UUID(as_uuid=True), ForeignKey("staff_roles.id", ondelete="SET NULL"), index=True)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     
@@ -40,6 +44,8 @@ class User(Base):
     
     # Relationships
     organization = relationship("Organization", backref="users")
+    department = relationship("Department")
+    staff_role = relationship("StaffRole")
     
     @property
     def full_name(self):

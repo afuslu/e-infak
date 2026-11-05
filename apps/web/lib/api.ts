@@ -1,16 +1,21 @@
 import { createApiClient } from '@e-infak/api-client'
 import axios from 'axios'
 import { getOrgSlugFromCookie } from './theme'
-
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
-// Every browser request gets its tenant from the hostname-derived cookie. This
-// deliberately replaces any stale page-level header so one tenant cannot leak
-// into another after navigating between domains.
+// In production requests use the same-origin gateway. It derives tenant from
+// the Host header, so a browser-controlled cookie/header cannot switch tenant.
 axios.interceptors.request.use((config) => {
-  const organizationSlug = getOrgSlugFromCookie()
-  if (organizationSlug) {
-    config.headers.set('x-organization-slug', organizationSlug)
+  // The admin panel always works on the default-language records.
+  if (typeof document !== 'undefined' && !window.location.pathname.startsWith('/admin')) {
+    const lang = document.cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith('lang='))?.slice(5)
+    if (lang && /^[a-z]{2}$/.test(lang)) config.headers.set('x-locale', lang)
+  }
+  const isLocal = typeof window !== 'undefined'
+    && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  if (isLocal) {
+    const orgSlug = getOrgSlugFromCookie()
+    if (orgSlug) config.headers.set('x-organization-slug', orgSlug)
   } else {
     config.headers.delete('x-organization-slug')
   }

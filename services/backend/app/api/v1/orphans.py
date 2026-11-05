@@ -9,17 +9,22 @@ from app.schemas.orphan import (
     OrphanCreate, OrphanResponse,
     OrphanSponsorshipCreate, OrphanSponsorshipResponse
 )
-from app.api.deps import require_role
+from app.api.deps import Permission, require_feature, require_permission
+from app.core.plans import Feature
 from app.models.user import User, UserRole
 
-router = APIRouter(prefix="/orphans", tags=["orphans"])
+router = APIRouter(
+    prefix="/orphans",
+    tags=["orphans"],
+    dependencies=[Depends(require_feature(Feature.SPONSORSHIP))],
+)
 
 @router.post("", response_model=OrphanResponse, status_code=201)
 async def create_orphan(
     request: Request,
     orphan_in: OrphanCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.OPERASYON)),
+    current_user: User = Depends(require_permission(Permission.OPERATIONS_MANAGE)),
 ):
     organization_id = request.state.organization_id
     orphan = Orphan(
@@ -57,7 +62,7 @@ async def sponsor_orphan(
     orphan_id: UUID,
     sponsorship_in: OrphanSponsorshipCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.OPERASYON)),
+    current_user: User = Depends(require_permission(Permission.OPERATIONS_MANAGE)),
 ):
     organization_id = request.state.organization_id
     # Fetch orphan

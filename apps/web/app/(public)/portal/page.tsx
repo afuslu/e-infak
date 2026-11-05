@@ -20,11 +20,46 @@ interface Donation {
 interface KurbanShare {
   id: string
   donor_name: string
-  share_number: number
+  on_behalf_of?: string | null
+  kurban_type?: string
+  campaign_title?: string | null
+  country?: string | null
+  share_number: number | null
   status: 'waiting' | 'slaughtered'
   animal_number: string
-  animal_type: string
+  animal_type: string | null
   video_url?: string
+}
+
+interface PledgeInstallment { id: string; seq: number; due_date: string; amount_cents: number; status: 'pending' | 'overdue' | 'paid' }
+
+interface MyPledge {
+  id: string
+  kind_label: string
+  title: string | null
+  status: string
+  beneficiary: { first_name: string; kind: string; country: string | null; city: string | null; photo_url: string | null; school: string | null } | null
+  installment_amount_cents: number
+  currency: string
+  paid_count: number
+  installment_count: number
+  next_installment: PledgeInstallment | null
+  installments: PledgeInstallment[]
+}
+
+interface MyWell {
+  id: string
+  name: string
+  location_name: string
+  country: string | null
+  status: string
+  funding_model: string
+  target_cents: number
+  collected_cents: number
+  my_shares: number
+  is_owner: boolean
+  has_pledge: boolean
+  gallery_urls: string[]
 }
 
 interface Subscription {
@@ -68,6 +103,8 @@ interface StudentProgress {
 
 export default function PortalPage() {
   const tenantHeaders = () => {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (!isLocal) return {}
     const slug = document.cookie.split(';').map((value) => value.trim())
       .find((value) => value.startsWith('org-slug='))?.split('=')[1]
     return { 'x-organization-slug': slug || '' }
@@ -84,6 +121,9 @@ export default function PortalPage() {
   // Loaded dashboard data
   const [donations, setDonations] = useState<Donation[]>([])
   const [shares, setShares] = useState<KurbanShare[]>([])
+  const [pledges, setPledges] = useState<MyPledge[]>([])
+  const [myWells, setMyWells] = useState<MyWell[]>([])
+  const [payingId, setPayingId] = useState<string | null>(null)
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>([])
   const [projects, setProjects] = useState<DonorProjects>({ water_wells: [], orphan_sponsorships: [], student_sponsorships: [] })
@@ -95,7 +135,12 @@ export default function PortalPage() {
   const [loading, setLoading] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const isLocal = typeof window !== 'undefined'
+    && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  const browserOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+  const API_BASE = isLocal
+    ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020')
+    : `${browserOrigin}/api/backend`
 
   // Clear states on tab change
   const handleTabChange = (tab: 'donor' | 'parent') => {
@@ -183,8 +228,36 @@ export default function PortalPage() {
       setSubscriptions(subsRes.data)
       setPaymentOrders(ordersRes.data)
       setProjects(projectsRes.data)
+      // Newer modules: a failure here must not hide the rest of the dashboard.
+      const [pledgesRes, wellsRes] = await Promise.allSettled([
+        axios.get(`${API_BASE}/api/v1/portal/me/pledges`, { headers: authHeaders }),
+        axios.get(`${API_BASE}/api/v1/portal/me/water-wells`, { headers: authHeaders }),
+      ])
+      if (pledgesRes.status === 'fulfilled') setPledges(pledgesRes.value.data)
+      if (wellsRes.status === 'fulfilled') setMyWells(wellsRes.value.data)
     } catch (err) {
       console.error('Failed to load donor dashboard data:', err)
+    }
+  }
+
+  const payInstallment = async (installmentId: string, method: 'credit_card' | 'bank_transfer') => {
+    if (!token) return
+    if (!window.confirm('Ödeme sayfasına yönlendirileceksiniz. KVKK aydınlatma metnini okuduğunuzu onaylıyor musunuz?')) return
+    setPayingId(installmentId)
+    setErrorMsg('')
+    try {
+      const res = await axios.post(`${API_BASE}/api/v1/portal/me/installments/${installmentId}/pay`,
+        { payment_method: method, kvkk_accepted: true },
+        { headers: { Authorization: `Bearer ${token}`, ...tenantHeaders() } })
+      if (res.data.redirect_url) {
+        window.location.assign(res.data.redirect_url)
+        return
+      }
+      setSuccessMsg(`Havale bilgileri: ${res.data.bank_name || ''} ${res.data.iban || ''} — Açıklamaya mutlaka "${res.data.transfer_reference}" yazınız.`)
+    } catch (err: any) {
+      setErrorMsg(err?.response?.data?.detail || 'Ödeme başlatılamadı.')
+    } finally {
+      setPayingId(null)
     }
   }
 
@@ -499,8 +572,9 @@ export default function PortalPage() {
                     <div key={s.id} className="border border-slate-100 rounded-2xl p-4 bg-slate-50 space-y-3">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="font-bold text-sm text-slate-800">{s.animal_type === 'cow' ? 'Büyükbaş' : 'Küçükbaş'} Kurban Hissesi</h4>
-                          <span className="text-[10px] text-slate-400">Künye No: {s.animal_number} (Hisse No: {s.share_number})</span>
+                          <h4 className="font-bold text-sm text-slate-800">{s.campaign_title || (s.animal_type === 'cow' ? 'Büyükbaş Kurban Hissesi' : 'Kurban Hissesi')}</h4>
+                          <span className="block text-xs text-slate-600">{s.on_behalf_of || s.donor_name} adına · {s.kurban_type || 'Kurban'}{s.country ? ` · ${s.country}` : ''}</span>
+                          <span className="text-[10px] text-slate-400">Künye No: {s.animal_number}{s.share_number ? ` (Hisse No: ${s.share_number})` : ''}</span>
                         </div>
                         <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${s.status === 'slaughtered' ? 'bg-green-600 text-white animate-pulse' : 'bg-amber-100 text-amber-800'}`}>
                           {s.status === 'slaughtered' ? 'Kesildi 🎬' : 'Bekliyor'}
@@ -508,12 +582,10 @@ export default function PortalPage() {
                       </div>
 
                       {s.status === 'slaughtered' && s.video_url ? (
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold text-slate-600">Kesim Videosu:</p>
-                          <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-black border">
-                            <video src={s.video_url} controls className="h-full w-full object-cover" />
-                          </div>
-                        </div>
+                        <a href={s.video_url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 p-4 text-sm font-bold text-white hover:bg-slate-800">
+                          🎬 Kesim videosunu izle
+                        </a>
                       ) : (
                         <div className="border border-dashed rounded-xl p-6 text-center text-xs text-slate-400">
                           ℹ️ Kurbanınız kesildiğinde adınıza özel kesim videosu buraya eklenecektir.
@@ -524,6 +596,75 @@ export default function PortalPage() {
                 </div>
               )}
             </div>
+
+            {/* Sponsorships / pledges with installments */}
+            {pledges.length > 0 && (
+              <div className="bg-white border rounded-3xl p-6 shadow-sm space-y-4">
+                <h3 className="font-heading text-lg font-black text-slate-800">Sponsorluklarım & Taksitlerim</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {pledges.map((p) => (
+                    <div key={p.id} className="border border-slate-100 rounded-2xl p-4 bg-slate-50 space-y-3">
+                      <div className="flex gap-3">
+                        {p.beneficiary?.photo_url && <img src={p.beneficiary.photo_url} alt="" className="h-14 w-14 rounded-xl object-cover" />}
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-sm text-slate-800">{p.beneficiary?.first_name || p.title}</h4>
+                          <span className="text-[11px] text-slate-500">
+                            {p.kind_label}{p.beneficiary?.school ? ` · ${p.beneficiary.school}` : ''}{p.beneficiary?.country ? ` · ${p.beneficiary.country}` : ''}
+                          </span>
+                          <div className="text-xs text-slate-600 mt-1">
+                            {(p.installment_amount_cents / 100).toLocaleString('tr-TR')} {p.currency} × {p.installment_count} · {p.paid_count} taksit ödendi
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {p.installments.map((i) => (
+                          <span key={i.id} title={new Date(i.due_date).toLocaleDateString('tr-TR')}
+                            className={`h-2.5 w-5 rounded-full ${i.status === 'paid' ? 'bg-green-500' : i.status === 'overdue' ? 'bg-red-500' : 'bg-slate-200'}`} />
+                        ))}
+                      </div>
+                      {p.status === 'active' && p.next_installment && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white p-3 text-xs">
+                          <span>
+                            {p.next_installment.status === 'overdue' ? '⚠️ Gecikmiş taksit' : 'Sıradaki taksit'}: <b>{new Date(p.next_installment.due_date).toLocaleDateString('tr-TR')}</b>
+                          </span>
+                          <span className="flex gap-2">
+                            <button disabled={payingId === p.next_installment.id} onClick={() => payInstallment(p.next_installment!.id, 'credit_card')}
+                              className="rounded-lg bg-slate-900 px-3 py-1.5 font-bold text-white disabled:opacity-50">Kartla öde</button>
+                            <button disabled={payingId === p.next_installment.id} onClick={() => payInstallment(p.next_installment!.id, 'bank_transfer')}
+                              className="rounded-lg border px-3 py-1.5 font-bold">Havale</button>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Water wells the donor funded */}
+            {myWells.length > 0 && (
+              <div className="bg-white border rounded-3xl p-6 shadow-sm space-y-4">
+                <h3 className="font-heading text-lg font-black text-slate-800">Su Kuyularım</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {myWells.map((w) => (
+                    <div key={w.id} className="border border-slate-100 rounded-2xl p-4 bg-slate-50 space-y-2">
+                      {w.gallery_urls[0] && <img src={w.gallery_urls[0]} alt="" className="h-36 w-full rounded-xl object-cover" />}
+                      <h4 className="font-bold text-sm text-slate-800">{w.name}</h4>
+                      <div className="text-xs text-slate-500">{[w.location_name, w.country].filter(Boolean).join(', ')}</div>
+                      <div className="text-xs font-semibold text-slate-700">
+                        {w.is_owner ? 'Kuyu sahibi' : w.my_shares ? `${w.my_shares} hisse` : 'Taksitli katkı'} ·{' '}
+                        {{ planned: 'Planlandı', funding: 'Fon toplanıyor', drilling: 'Yapımda', completed: 'Tamamlandı ✓' }[w.status] || w.status}
+                      </div>
+                      {w.target_cents > 0 && (
+                        <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+                          <div className="h-full bg-sky-600" style={{ width: `${Math.min(100, (w.collected_cents / w.target_cents) * 100)}%` }} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Monthly Subscriptions list */}
             <div className="bg-white border rounded-3xl p-6 shadow-sm space-y-4">

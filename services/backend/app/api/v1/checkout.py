@@ -1,16 +1,21 @@
 import json
 import secrets
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import require_role
+from app.api.deps import Permission, require_permission
+from app.services.donation_hooks import on_donation_cancelled, on_donation_confirmed
+from app.services.fx import add_to_campaign, remove_from_campaign
+from app.payments import PROVIDERS, build_provider, provider_for, provider_key_for
+from app.payments.base import CheckoutContext, CheckoutLine, PaymentProviderError, PaymentResult
+from app.services.tenant_credentials import get_credentials
+from app.models.kurban import KurbanShare, KurbanStatus
 from app.core.config import settings
 from app.core.db import get_db
 from app.models.campaign import Campaign, CampaignStatus
@@ -24,9 +29,53 @@ from app.schemas.checkout import (
     CheckoutStatusItem,
     CheckoutStatusResponse,
 )
-from app.utils.ziraatpay import ZiraatPayClient, ZiraatPayError
+from app.utils.ziraatpay import ZiraatPayClient
+from app.core.rate_limit import rate_limit
 
 router = APIRouter(tags=["checkout"])
+
+ORDER_LOAD_OPTIONS = (
+    selectinload(PaymentOrder.items).selectinload(PaymentOrderItem.campaign),
+    selectinload(PaymentOrder.attempts),
+    selectinload(PaymentOrder.donor),
+    selectinload(PaymentOrder.organization),
+)
+
+
+def _callback_base(request: Request) -> str:
+    return settings.PAYMENT_CALLBACK_BASE_URL.rstrip("/") or str(request.base_url).rstrip("/")
+
+
+async def _web_base(db: AsyncSession, organization) -> str:
+    if settings.ENVIRONMENT != "production":
+        return settings.PUBLIC_WEB_URL.rstrip("/")
+    from app.api.v1.site import site_url
+    return await site_url(db, organization)
+
+
+async def attempt_provider(db: AsyncSession, order: PaymentOrder, attempt: PaymentAttempt):
+    """The provider an attempt was started with (not necessarily the organisation's current choice)."""
+    key = attempt.provider if attempt.provider in PROVIDERS else provider_key_for(order.organization)
+    credentials = await get_credentials(db, order.organization_id, key)
+    return build_provider(key, credentials, tenant_slug=order.organization.slug)
+
+
+def apply_result(attempt: PaymentAttempt, result: PaymentResult) -> None:
+    attempt.safe_response = result.safe_response
+    attempt.response_code = (result.code or ("00" if result.approved else None) or "")[:16] or None
+    attempt.response_message = (result.message or "")[:500] or None
+    attempt.pg_tran_id = (result.provider_transaction_id or "")[:64] or attempt.pg_tran_id
+    attempt.card_last_4 = result.card_last_4 or attempt.card_last_4
+    attempt.card_brand = (result.card_brand or "")[:32] or attempt.card_brand
+    attempt.completed_at = datetime.now(timezone.utc)
+
+
+def result_matches_order(order: PaymentOrder, result: PaymentResult) -> bool:
+    if result.amount_cents is not None and result.amount_cents != order.total_cents:
+        return False
+    if result.currency and result.currency != order.currency:
+        return False
+    return True
 
 
 def _receipt_number(org_id: UUID) -> str:
@@ -72,6 +121,7 @@ async def _finalize_paid_order(
     order: PaymentOrder,
     attempt: PaymentAttempt,
     commit: bool = True,
+    issued_by_id: UUID | None = None,
 ) -> list[str]:
     if order.status == PaymentOrderStatus.PAID:
         result = await db.execute(
@@ -92,6 +142,8 @@ async def _finalize_paid_order(
         if existing.scalar_one_or_none():
             continue
         donation = Donation(
+            # Assigned here (not at flush) because the outbox events below reference it.
+            id=uuid4(),
             organization_id=order.organization_id,
             campaign_id=item.campaign_id,
             donor_id=order.donor_id,
@@ -107,9 +159,11 @@ async def _finalize_paid_order(
             card_brand=attempt.card_brand,
             paid_at=now,
             donor_message=item.donor_message,
+            on_behalf_of=(item.metadata_json or {}).get("on_behalf_of"),
             is_anonymous=order.donor.is_anonymous,
             idempotency_key=f"{order.idempotency_key}:{item.id}",
             payment_order_item_id=item.id,
+            issued_by_id=issued_by_id,
         )
         db.add(donation)
         db.add(
@@ -134,8 +188,11 @@ async def _finalize_paid_order(
                 payload={"donation_id": str(donation.id), "order_id": str(order.id)},
             )
         )
-        item.campaign.collected_cents += item.total_amount_cents
         await db.flush()
+        await add_to_campaign(db, donation, item.campaign)
+        await on_donation_confirmed(
+            db, donation, order.donor, quantity=item.quantity, metadata=item.metadata_json or {},
+        )
         donation_ids.append(str(donation.id))
 
     donor = order.donor
@@ -166,6 +223,7 @@ async def create_checkout_session(
     request: Request,
     payload: CheckoutSessionCreate,
     db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("checkout", limit=10, window_seconds=300)),
 ):
     org_id = UUID(request.state.organization_id)
     organization = request.state.organization
@@ -175,6 +233,10 @@ async def create_checkout_session(
             status_code=400,
             detail=f"{payload.currency} tahsilatı bu kurumun banka hesabında etkin değil",
         )
+    if payload.payment_method == "credit_card":
+        provider_class = PROVIDERS[provider_key_for(organization)]
+        if payload.currency not in provider_class.currencies:
+            raise HTTPException(status_code=400, detail=f"{payload.currency} {provider_class.label} ile alınamıyor")
     existing = await db.execute(
         select(PaymentOrder).where(
             PaymentOrder.organization_id == org_id,
@@ -192,7 +254,7 @@ async def create_checkout_session(
         return CheckoutSessionResponse(
             checkout_id=previous.id,
             status=previous.status.value,
-            redirect_url=ZiraatPayClient(request.state.organization_slug).payment_url(attempt.session_token) if attempt and attempt.session_token else None,
+            redirect_url=_attempt_redirect(request, attempt),
             transfer_reference=previous.transfer_reference,
             bank_name=request.state.organization.bank_name,
             iban=request.state.organization.iban,
@@ -248,7 +310,7 @@ async def create_checkout_session(
                 ip_address=request.client.host if request.client else None,
             )
         )
-    merchant_payment_id = f"EINF-{str(org_id)[:6]}-{uuid4().hex[:20]}".upper()
+    merchant_payment_id = f"EINF{org_id.hex[:6]}{uuid4().hex[:20]}".upper()
     order = PaymentOrder(
         organization_id=org_id,
         donor_id=donor.id,
@@ -286,7 +348,7 @@ async def create_checkout_session(
                 unit_amount_cents=item.unit_amount_cents,
                 total_amount_cents=item.unit_amount_cents * item.quantity,
                 donor_message=item.donor_message,
-                metadata_json=item.metadata,
+                metadata_json={**item.metadata, **({"on_behalf_of": item.on_behalf_of} if item.on_behalf_of else {})},
             )
         )
 
@@ -302,105 +364,221 @@ async def create_checkout_session(
             account_holder=organization.account_holder,
         )
 
-    ziraat = ZiraatPayClient(request.state.organization_slug)
-    return_url = f"{str(request.base_url).rstrip('/')}/api/v1/payments/ziraatpay/return"
-    order_items = json.dumps(
-        [
-            {
-                "productCode": str(item.campaign_id),
-                "name": campaigns[item.campaign_id].title[:128],
-                "quantity": item.quantity,
-                "amount": f"{Decimal(item.unit_amount_cents) / 100:.2f}",
-            }
+    provider = await provider_for(db, organization)
+    callback_base = _callback_base(request)
+    ctx = CheckoutContext(
+        merchant_payment_id=merchant_payment_id,
+        total_cents=total_cents,
+        currency=payload.currency,
+        locale=payload.locale,
+        lines=[
+            CheckoutLine(name=campaigns[item.campaign_id].title, quantity=item.quantity,
+                         unit_cents=item.unit_amount_cents, product_code=str(item.campaign_id))
             for item in payload.items
         ],
-        ensure_ascii=False,
+        customer_id=str(donor.id),
+        customer_first_name=donor.first_name,
+        customer_last_name=donor.last_name or "",
+        customer_email=donor.email or "",
+        customer_phone=donor.phone or "",
+        customer_ip=request.client.host if request.client else "127.0.0.1",
+        user_agent=request.headers.get("user-agent", ""),
+        return_url=f"{callback_base}/api/v1/payments/{provider.key}/return",
+        notify_url=f"{callback_base}/api/v1/payments/{provider.key}/notify",
+        # Providers shown in a frame return the browser here; the finish page leaves the frame.
+        success_url=f"{callback_base}/api/v1/payments/finish/{order.id}/ok",
+        fail_url=f"{callback_base}/api/v1/payments/finish/{order.id}/fail",
     )
     try:
-        session = await ziraat.create_payment_session(
-            merchant_payment_id=merchant_payment_id,
-            amount=f"{Decimal(total_cents) / 100:.2f}",
-            currency=payload.currency,
-            customer_id=str(donor.id),
-            customer_name=donor.full_name,
-            customer_email=donor.email,
-            customer_phone=donor.phone,
-            customer_ip=request.client.host if request.client else "127.0.0.1",
-            user_agent=request.headers.get("user-agent", ""),
-            return_url=return_url,
-            order_items=order_items,
-        )
-    except ZiraatPayError as exc:
+        started = await provider.start(ctx)
+    except PaymentProviderError as exc:
         await db.rollback()
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    redirect_url = started.redirect_url or f"{callback_base}/api/v1/payments/launch/{started.session_token}"
+    launch = None
+    if not started.redirect_url:
+        launch = {"action": started.post_action, "fields": started.post_fields, "iframe": started.iframe_url}
     attempt = PaymentAttempt(
         order_id=order.id,
-        session_token=session["sessionToken"],
-        response_code=session.get("responseCode"),
-        response_message=session.get("responseMsg"),
-        safe_response={"responseCode": session.get("responseCode"), "responseMsg": session.get("responseMsg")},
+        provider=provider.key,
+        session_token=started.session_token,
+        response_code=started.safe_response.get("responseCode"),
+        response_message=started.safe_response.get("responseMsg"),
+        safe_response={**started.safe_response, "redirect_url": redirect_url, **({"launch": launch} if launch else {})},
     )
     db.add(attempt)
     await db.commit()
     return CheckoutSessionResponse(
         checkout_id=order.id,
         status=order.status.value,
-        redirect_url=ziraat.payment_url(session["sessionToken"]),
-        expires_at=session.get("expiryDate"),
+        redirect_url=redirect_url,
+        expires_at=started.expires_at,
     )
 
 
-@router.post("/payments/ziraatpay/return")
-async def ziraatpay_return(request: Request, db: AsyncSession = Depends(get_db)):
-    data = dict(await request.form())
-    merchant_payment_id = data.get("merchantPaymentId")
-    if not merchant_payment_id:
-        raise HTTPException(status_code=400, detail="merchantPaymentId eksik")
-    result = await db.execute(
-        select(PaymentOrder)
-        .options(
-            selectinload(PaymentOrder.items).selectinload(PaymentOrderItem.campaign),
-            selectinload(PaymentOrder.attempts),
-            selectinload(PaymentOrder.donor),
-            selectinload(PaymentOrder.organization),
+def _attempt_redirect(request: Request, attempt: PaymentAttempt | None) -> str | None:
+    if not attempt or not attempt.session_token:
+        return None
+    stored = (attempt.safe_response or {}).get("redirect_url")
+    if stored:
+        return stored
+    if attempt.provider == "ziraatpay":  # attempts created before providers were pluggable
+        return ZiraatPayClient(request.state.organization_slug).payment_url(attempt.session_token)
+    return None
+
+
+LAUNCH_PAGE = """<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Güvenli ödeme</title><style>body{{margin:0;font-family:system-ui,sans-serif;background:#f6f7f9;color:#222}}
+main{{max-width:760px;margin:0 auto;padding:16px}}p{{text-align:center}}iframe{{width:100%;min-height:640px;border:0;background:#fff;border-radius:12px}}
+button{{display:block;margin:12px auto;padding:10px 18px;border:0;border-radius:8px;background:#0e7a5f;color:#fff;font-weight:600}}</style>
+</head><body><main>{body}</main>{script}</body></html>"""
+
+
+@router.get("/payments/launch/{session_token}", response_class=HTMLResponse)
+async def launch_payment(session_token: str, db: AsyncSession = Depends(get_db)):
+    """Hands the browser to providers that need a posted form or an embedded page."""
+    import html as html_lib
+
+    attempt = (await db.execute(
+        select(PaymentAttempt).where(PaymentAttempt.session_token == session_token)
+    )).scalar_one_or_none()
+    launch = (attempt.safe_response or {}).get("launch") if attempt else None
+    if not attempt or not launch or attempt.completed_at:
+        raise HTTPException(status_code=404, detail="Ödeme oturumu bulunamadı veya tamamlandı")
+    order = await _load_order(db, attempt.order_id)
+    if not order or order.status != PaymentOrderStatus.PENDING:
+        raise HTTPException(status_code=404, detail="Ödeme oturumu bulunamadı veya tamamlandı")
+    provider_class = PROVIDERS.get(attempt.provider)
+    nonce = secrets.token_urlsafe(16)
+    csp = ["default-src 'none'", "style-src 'unsafe-inline'", f"script-src 'nonce-{nonce}'", "base-uri 'none'",
+           "frame-ancestors 'none'"]
+    if launch.get("iframe"):
+        frame_hosts = " ".join(["'self'", *(getattr(provider_class, "frame_hosts", ()) or ())])
+        body = f'<iframe src="{html_lib.escape(launch["iframe"])}" title="Ödeme"></iframe>'
+        script = ""
+        csp += [f"frame-src {frame_hosts}", "form-action 'none'"]
+    else:
+        action = launch.get("action") or ""
+        inputs = "".join(
+            f'<input type="hidden" name="{html_lib.escape(str(k))}" value="{html_lib.escape(str(v))}">'
+            for k, v in (launch.get("fields") or {}).items()
         )
-        .where(PaymentOrder.merchant_payment_id == merchant_payment_id)
+        body = (f'<form id="pay" method="post" action="{html_lib.escape(action)}">{inputs}'
+                '<p>Bankanın güvenli ödeme sayfasına yönlendiriliyorsunuz…</p>'
+                '<noscript><button type="submit">Devam et</button></noscript></form>')
+        script = f'<script nonce="{nonce}">document.getElementById("pay").submit()</script>'
+        from urllib.parse import urlsplit
+        target = urlsplit(action)
+        csp.append(f"form-action {target.scheme}://{target.netloc}")
+    return HTMLResponse(
+        LAUNCH_PAGE.format(body=body, script=script),
+        headers={"Content-Security-Policy": "; ".join(csp), "Cache-Control": "no-store",
+                 "Referrer-Policy": "no-referrer"},
     )
-    order = result.scalar_one_or_none()
+
+
+@router.get("/payments/finish/{checkout_id}/{outcome}", response_class=HTMLResponse)
+async def finish_payment(checkout_id: UUID, outcome: str, db: AsyncSession = Depends(get_db)):
+    """Provider's browser return for framed payment pages: open the result page in the top window.
+
+    The outcome only picks the page; the page itself shows the verified status.
+    """
+    import html as html_lib
+
+    order = await _load_order(db, checkout_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Ödeme bulunamadı")
+    web_base = await _web_base(db, order.organization)
+    target = f"{web_base}/bagis/{'basarili' if outcome == 'ok' else 'hata'}?checkout={order.id}"
+    nonce = secrets.token_urlsafe(16)
+    body = (f'<p><a href="{html_lib.escape(target)}" target="_top">Devam et</a></p>'
+            f'<script nonce="{nonce}">window.top.location.href = {json.dumps(target)}</script>')
+    return HTMLResponse(
+        LAUNCH_PAGE.format(body=body, script=""),
+        headers={"Content-Security-Policy": f"default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-{nonce}'; "
+                                            "frame-ancestors 'self'; base-uri 'none'; form-action 'none'",
+                 "X-Frame-Options": "SAMEORIGIN", "Cache-Control": "no-store"},
+    )
+
+
+async def _order_for_callback(db: AsyncSession, provider_key: str, data: dict) -> tuple[PaymentOrder, PaymentAttempt]:
+    provider_class = PROVIDERS.get(provider_key)
+    if not provider_class:
+        raise HTTPException(status_code=404, detail="Bilinmeyen ödeme sağlayıcısı")
+    merchant_payment_id, token = provider_class.callback_reference(data)
+    query = select(PaymentOrder).options(*ORDER_LOAD_OPTIONS)
+    if merchant_payment_id:
+        query = query.where(PaymentOrder.merchant_payment_id == str(merchant_payment_id)[:128])
+    elif token:
+        query = query.join(PaymentAttempt, PaymentAttempt.order_id == PaymentOrder.id).where(
+            PaymentAttempt.session_token == str(token)[:64], PaymentAttempt.provider == provider_key,
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Ödeme referansı eksik")
+    order = (await db.execute(query)).scalars().first()
     if not order:
         raise HTTPException(status_code=404, detail="Ödeme siparişi bulunamadı")
-
-    ziraat = ZiraatPayClient(order.organization.slug)
-    attempt = next((a for a in order.attempts if a.session_token == data.get("sessionToken")), None)
-    if not attempt or not ziraat.verify_callback(data):
-        raise HTTPException(status_code=400, detail="Geçersiz ödeme imzası")
-
-    attempt.safe_response = ziraat.safe_callback(data)
-    attempt.response_code = data.get("responseCode")
-    attempt.response_message = data.get("responseMsg")
-    attempt.pg_tran_id = data.get("pgTranId")
-    attempt.card_last_4 = data.get("panLast4")
-    attempt.card_brand = data.get("paymentSystemType")
-    attempt.completed_at = datetime.now(timezone.utc)
-
-    if data.get("responseCode") == "00":
-        donation_ids = await _finalize_paid_order(db, order, attempt)
-        web_base = settings.PUBLIC_WEB_URL.rstrip("/") if settings.ENVIRONMENT != "production" else f"https://{order.organization.primary_domain}"
-        return RedirectResponse(
-            f"{web_base}/bagis/basarili?checkout={order.id}",
-            status_code=303,
-        )
-
-    order.status = PaymentOrderStatus.FAILED
-    order.failure_code = data.get("responseCode")
-    order.failure_message = data.get("responseMsg") or "Ödeme banka tarafından onaylanmadı"
-    await db.commit()
-    web_base = settings.PUBLIC_WEB_URL.rstrip("/") if settings.ENVIRONMENT != "production" else f"https://{order.organization.primary_domain}"
-    return RedirectResponse(
-        f"{web_base}/bagis/hata?checkout={order.id}",
-        status_code=303,
+    attempts = [a for a in order.attempts if a.provider == provider_key]
+    attempt = next((a for a in attempts if token and a.session_token == token), None) or (
+        max(attempts, key=lambda a: a.created_at) if attempts else None
     )
+    if not attempt:
+        raise HTTPException(status_code=400, detail="Ödeme denemesi bulunamadı")
+    return order, attempt
+
+
+async def _settle(db: AsyncSession, provider_key: str, data: dict) -> tuple[PaymentOrder, bool]:
+    """Verify a provider callback and record its outcome. Returns (order, paid)."""
+    order, attempt = await _order_for_callback(db, provider_key, data)
+    provider = await attempt_provider(db, order, attempt)
+    try:
+        result = await provider.parse_callback(data, attempt.session_token if provider_key != "nestpay" else None)
+    except PaymentProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result.merchant_payment_id and result.merchant_payment_id != order.merchant_payment_id:
+        raise HTTPException(status_code=400, detail="Ödeme siparişi eşleşmiyor")
+    if order.status == PaymentOrderStatus.PAID:
+        return order, True
+    if order.status not in (PaymentOrderStatus.PENDING, PaymentOrderStatus.REVIEW, PaymentOrderStatus.FAILED):
+        return order, False
+    apply_result(attempt, result)
+    if result.approved and result_matches_order(order, result):
+        await _finalize_paid_order(db, order, attempt)
+        return order, True
+    if result.approved:
+        order.status = PaymentOrderStatus.REVIEW
+        order.failure_message = "Ödeme onaylandı ancak tutar/para birimi siparişle eşleşmiyor; manuel inceleme gerekli"
+        order.query_next_at = None
+    elif order.status != PaymentOrderStatus.FAILED:
+        order.status = PaymentOrderStatus.FAILED
+        order.failure_code = (result.code or "")[:64] or None
+        order.failure_message = result.message or "Ödeme banka tarafından onaylanmadı"
+    await db.commit()
+    return order, False
+
+
+@router.api_route("/payments/{provider_key}/return", methods=["GET", "POST"])
+async def payment_return(provider_key: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Browser return from the provider's payment page."""
+    data = dict(await request.form()) if request.method == "POST" else dict(request.query_params)
+    order, paid = await _settle(db, provider_key, data)
+    web_base = await _web_base(db, order.organization)
+    page = "basarili" if paid else "hata"
+    return RedirectResponse(f"{web_base}/bagis/{page}?checkout={order.id}", status_code=303)
+
+
+@router.post("/payments/{provider_key}/notify")
+async def payment_notify(provider_key: str, request: Request, db: AsyncSession = Depends(get_db)):
+    """Server-to-server payment notification (PayTR)."""
+    provider_class = PROVIDERS.get(provider_key)
+    if not provider_class or not provider_class.uses_notification:
+        raise HTTPException(status_code=404, detail="Bu sağlayıcı bildirim kullanmıyor")
+    data = dict(await request.form())
+    order, paid = await _settle(db, provider_key, data)
+    reply = provider_class.notification_reply(paid)
+    return Response(content=reply.body, media_type=reply.media_type)
 
 
 @router.get("/checkout/{checkout_id}/status", response_model=CheckoutStatusResponse)
@@ -445,25 +623,40 @@ async def refund_payment(
     checkout_id: UUID,
     amount_cents: int | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.MUHASEBE)),
+    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
 ):
     order = await _load_order(db, checkout_id)
     if not order or str(order.organization_id) != request.state.organization_id:
         raise HTTPException(status_code=404, detail="Ödeme bulunamadı")
     if order.status not in (PaymentOrderStatus.PAID, PaymentOrderStatus.PARTIALLY_REFUNDED):
         raise HTTPException(status_code=409, detail="Yalnızca tamamlanan ödeme iade edilebilir")
-    attempt = next((item for item in order.attempts if item.pg_tran_id), None)
+    attempt = next((item for item in order.attempts if item.pg_tran_id and item.provider != "bank_transfer"), None)
     if not attempt:
         raise HTTPException(status_code=409, detail="Banka işlem numarası bulunamadı")
     remaining_cents = order.total_cents - order.refunded_cents
     cents = amount_cents or remaining_cents
     if cents <= 0 or cents > remaining_cents:
         raise HTTPException(status_code=400, detail="Geçersiz iade tutarı")
-    response = await ZiraatPayClient(order.organization.slug).refund(
-        attempt.pg_tran_id,
-        f"{Decimal(cents) / 100:.2f}",
-        order.currency,
-    )
+    # Check before calling the bank: a refund cannot be undone, a slaughtered kurban neither.
+    slaughtered = (await db.execute(
+        select(KurbanShare.id).join(Donation, Donation.id == KurbanShare.donation_id).where(
+            Donation.payment_order_item_id.in_([item.id for item in order.items]),
+            KurbanShare.status == KurbanStatus.SLAUGHTERED,
+        )
+    )).first()
+    if slaughtered:
+        raise HTTPException(status_code=409, detail="Bu ödemeye ait kurban kesilmiş; iade yapılamaz")
+    provider = await attempt_provider(db, order, attempt)
+    try:
+        outcome = await provider.refund(
+            merchant_payment_id=order.merchant_payment_id,
+            provider_transaction_id=attempt.pg_tran_id,
+            amount_cents=cents,
+            currency=order.currency,
+            customer_ip=request.client.host if request.client else "127.0.0.1",
+        )
+    except PaymentProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     refund = PaymentRefund(
         organization_id=order.organization_id,
         payment_order_id=order.id,
@@ -472,13 +665,13 @@ async def refund_payment(
         requested_by_id=current_user.id,
     )
     db.add(refund)
-    if response.get("responseCode") != "00":
+    if not outcome.ok:
         refund.status = "failed"
-        refund.failure_message = response.get("responseMsg")
+        refund.failure_message = outcome.message
         await db.commit()
-        raise HTTPException(status_code=502, detail=response.get("responseMsg") or "Banka iadeyi reddetti")
+        raise HTTPException(status_code=502, detail=outcome.message or "Banka iadeyi reddetti")
     refund.status = "completed"
-    refund.provider_transaction_id = response.get("pgTranId")
+    refund.provider_transaction_id = outcome.provider_transaction_id
     refund.completed_at = datetime.now(timezone.utc)
     order.refunded_cents += cents
     if order.refunded_cents == order.total_cents:
@@ -489,6 +682,10 @@ async def refund_payment(
         for donation in donation_result.scalars().all():
             donation.status = DonationStatus.REFUNDED
             donation.refunded_at = datetime.now(timezone.utc)
+            await on_donation_cancelled(db, donation)
+            refunded_campaign = await db.get(Campaign, donation.campaign_id)
+            if refunded_campaign:
+                remove_from_campaign(donation, refunded_campaign)
     else:
         order.status = PaymentOrderStatus.PARTIALLY_REFUNDED
     db.add(
@@ -501,7 +698,7 @@ async def refund_payment(
         )
     )
     await db.commit()
-    return {"status": "refunded", "amount_cents": cents, "pg_tran_id": response.get("pgTranId")}
+    return {"status": "refunded", "amount_cents": cents, "pg_tran_id": outcome.provider_transaction_id}
 
 
 @router.post("/admin/payments/{checkout_id}/reconcile")
@@ -509,34 +706,27 @@ async def reconcile_payment(
     request: Request,
     checkout_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.MUHASEBE)),
+    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
 ):
     order = await _load_order(db, checkout_id)
     if not order or str(order.organization_id) != request.state.organization_id:
         raise HTTPException(status_code=404, detail="Ödeme bulunamadı")
     if order.status == PaymentOrderStatus.PAID:
         return {"status": "paid", "message": "Ödeme daha önce doğrulandı"}
-    response = await ZiraatPayClient(order.organization.slug).query_transaction(order.merchant_payment_id)
-    transactions = response.get("transactionList") or []
-    approved = next(
-        (
-            tx for tx in transactions
-            if tx.get("transactionStatus") == "AP"
-            and round(float(tx.get("amount", 0)) * 100) == order.total_cents
-            and tx.get("currency") == order.currency
-        ),
-        None,
-    )
-    if not approved:
-        return {"status": order.status.value, "message": "Bankada onaylı ve tutarı eşleşen işlem bulunamadı"}
-    attempt = next((item for item in order.attempts if item.session_token), None)
+    attempt = next((item for item in sorted(order.attempts, key=lambda a: a.created_at, reverse=True)
+                    if item.session_token), None)
     if not attempt:
         raise HTTPException(status_code=409, detail="Ödeme denemesi bulunamadı")
-    attempt.pg_tran_id = approved.get("pgTranId")
-    attempt.response_code = approved.get("pgTranReturnCode")
-    attempt.card_last_4 = approved.get("panLast4")
-    attempt.card_brand = approved.get("paymentSystemType")
-    attempt.safe_response = ZiraatPayClient(order.organization.slug).safe_callback(approved)
+    provider = await attempt_provider(db, order, attempt)
+    try:
+        result = await provider.query(order.merchant_payment_id, order.total_cents, order.currency)
+    except PaymentProviderError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if result is None:
+        return {"status": order.status.value, "message": f"{provider.label} ödeme sorgulamayı desteklemiyor"}
+    if not result.approved or not result_matches_order(order, result):
+        return {"status": order.status.value, "message": "Bankada onaylı ve tutarı eşleşen işlem bulunamadı"}
+    apply_result(attempt, result)
     donation_ids = await _finalize_paid_order(db, order, attempt)
     return {"status": "paid", "donation_count": len(donation_ids)}
 
@@ -547,7 +737,7 @@ async def confirm_bank_transfer(
     checkout_id: UUID,
     bank_transaction_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.STK_ADMIN, UserRole.MUHASEBE)),
+    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
 ):
     order = await _load_order(db, checkout_id)
     if not order or str(order.organization_id) != request.state.organization_id:
@@ -566,5 +756,5 @@ async def confirm_bank_transfer(
     )
     db.add(attempt)
     await db.flush()
-    donation_ids = await _finalize_paid_order(db, order, attempt)
+    donation_ids = await _finalize_paid_order(db, order, attempt, issued_by_id=current_user.id)
     return {"status": "paid", "donation_count": len(donation_ids)}

@@ -3,9 +3,17 @@
 import { useState } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { useQuery } from '@tanstack/react-query'
+import { adminGet } from '../../../../lib/admin-access'
 
 export default function AdminBroadcastPage() {
   const [filterType, setFilterType] = useState('all')
+  const { data: site } = useQuery({
+    queryKey: ['admin-site-appearance-name'],
+    queryFn: async () => (await adminGet<{ name: string; url: string }>('/site-appearance')).data,
+  })
+  const orgName = site?.name || 'Kurumumuz'
+  const siteUrl = (site?.url || '').replace('https://', '')
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
@@ -117,19 +125,19 @@ export default function AdminBroadcastPage() {
             <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-gray-400 font-bold">Hızlı Şablonlar</h2>
             <div className="space-y-3">
               <button
-                onClick={() => selectTemplate("Hicret Derneği: Eskişehir medresemiz için zekat ve eğitim bursu bağış kabullerimiz başlamıştır. Detaylı bilgi için portalımızı ziyaret edin: e-infak.org")}
+                onClick={() => selectTemplate(`${orgName}: Zekat ve eğitim bursu bağış kabullerimiz başlamıştır. Detaylı bilgi: ${siteUrl}`)}
                 className="w-full text-left p-3 bg-slate-50 border rounded-xl text-xs font-semibold text-gray-700 hover:bg-slate-100 transition-colors"
               >
                 🎓 Zekat & Eğitim Bursu Çağrısı
               </button>
               <button
-                onClick={() => selectTemplate("Hicret Derneği: Kurban ibadetinizi hisse vekaletiyle medreselerimizdeki talebelerimize ulaştırıyoruz. Hisse bedeli: 11.500 TL. e-infak.org/bagis/kurban")}
+                onClick={() => selectTemplate(`${orgName}: Kurban vekaletlerinizi kabul ediyoruz. Hisse bilgisi ve bağış için: ${siteUrl}/kampanyalar`)}
                 className="w-full text-left p-3 bg-slate-50 border rounded-xl text-xs font-semibold text-gray-700 hover:bg-slate-100 transition-colors"
               >
                 🐏 Kurban Vekaleti Çağrısı
               </button>
               <button
-                onClick={() => selectTemplate("Hicret Derneği: Afrika Çad su kuyusu projemizin yapımı tamamlanmıştır. Destek veren tüm bağışçılarımıza teşekkür ederiz. Detaylı koordinat ve video portaldadır.")}
+                onClick={() => selectTemplate(`${orgName}: Su kuyusu projemiz tamamlanmıştır. Destek veren tüm bağışçılarımıza teşekkür ederiz. Fotoğraf ve videolar bağışçı panelinde: ${siteUrl}/portal`)}
                 className="w-full text-left p-3 bg-slate-50 border rounded-xl text-xs font-semibold text-gray-700 hover:bg-slate-100 transition-colors"
               >
                 ⛲ Su Kuyusu Tamamlandı Teşekkürü

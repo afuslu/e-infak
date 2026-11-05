@@ -26,6 +26,7 @@ def upgrade() -> None:
         "CANCELLED",
         "REFUNDED",
         name="paymentorderstatus",
+        create_type=False,  # created just below; create_table must not create it again
     )
     status_enum.create(op.get_bind(), checkfirst=True)
 

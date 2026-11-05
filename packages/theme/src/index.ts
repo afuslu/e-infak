@@ -1,45 +1,53 @@
 export * from './types'
-export * from './hicret'
-export * from './kardeslik'
 
-import { ThemeConfig } from './types'
-import { hicretTheme } from './hicret'
-import { kardeslikTheme } from './kardeslik'
+import type { ColorPalette } from './types'
 
-export const themes: Record<string, ThemeConfig> = {
-  'hicret-dernegi': hicretTheme,
-  'kardeslik-payi': kardeslikTheme,
+/** Shades of a palette, from lightest to darkest. 600 is the brand colour itself. */
+export const SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const
+
+// How much white (positive) or black (negative) is mixed into the brand colour per shade.
+const MIX: Record<(typeof SHADES)[number], number> = {
+  50: 0.94, 100: 0.86, 200: 0.72, 300: 0.55, 400: 0.33, 500: 0.14,
+  600: 0, 700: -0.18, 800: -0.35, 900: -0.5, 950: -0.66,
 }
 
-export function getTheme(slug: string): ThemeConfig | null {
-  return themes[slug] || null
+export const DEFAULT_PRIMARY = '#0E7A5F'
+export const DEFAULT_ACCENT = '#2FA884'
+
+export function normalizeHex(value: string | null | undefined, fallback: string): string {
+  const text = (value || '').trim()
+  if (/^#[0-9a-fA-F]{6}$/.test(text)) return text.toUpperCase()
+  if (/^#[0-9a-fA-F]{3}$/.test(text)) return `#${text.slice(1).split('').map((c) => c + c).join('')}`.toUpperCase()
+  return fallback
 }
 
-export function getCSSVariables(theme: ThemeConfig): Record<string, string> {
-  return {
-    '--color-primary-50': theme.primaryColor[50],
-    '--color-primary-100': theme.primaryColor[100],
-    '--color-primary-200': theme.primaryColor[200],
-    '--color-primary-300': theme.primaryColor[300],
-    '--color-primary-400': theme.primaryColor[400],
-    '--color-primary-500': theme.primaryColor[500],
-    '--color-primary-600': theme.primaryColor[600],
-    '--color-primary-700': theme.primaryColor[700],
-    '--color-primary-800': theme.primaryColor[800],
-    '--color-primary-900': theme.primaryColor[900],
-    '--color-primary-950': theme.primaryColor[950],
-    '--color-accent-50': theme.accentColor[50],
-    '--color-accent-100': theme.accentColor[100],
-    '--color-accent-200': theme.accentColor[200],
-    '--color-accent-300': theme.accentColor[300],
-    '--color-accent-400': theme.accentColor[400],
-    '--color-accent-500': theme.accentColor[500],
-    '--color-accent-600': theme.accentColor[600],
-    '--color-accent-700': theme.accentColor[700],
-    '--color-accent-800': theme.accentColor[800],
-    '--color-accent-900': theme.accentColor[900],
-    '--color-accent-950': theme.accentColor[950],
-    '--font-primary': theme.fonts.primary,
-    '--font-heading': theme.fonts.heading,
+function mix(hex: string, amount: number): string {
+  const n = parseInt(hex.slice(1), 16)
+  const channels = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  const target = amount >= 0 ? 255 : 0
+  const weight = Math.abs(amount)
+  return `#${channels
+    .map((c) => Math.round(c + (target - c) * weight).toString(16).padStart(2, '0'))
+    .join('')}`.toUpperCase()
+}
+
+/** A full 50-950 palette derived from one brand colour. */
+export function buildPalette(hex: string): ColorPalette {
+  const base = normalizeHex(hex, DEFAULT_PRIMARY)
+  return Object.fromEntries(SHADES.map((shade) => [shade, mix(base, MIX[shade])])) as unknown as ColorPalette
+}
+
+/**
+ * CSS custom properties consumed by the Tailwind theme in apps/web/app/globals.css
+ * (`primary-*` and `accent-*` utilities read `--brand-primary-*` / `--brand-accent-*`).
+ */
+export function brandCssVariables(primary?: string | null, accent?: string | null): Record<string, string> {
+  const vars: Record<string, string> = {}
+  const primaryPalette = buildPalette(normalizeHex(primary, DEFAULT_PRIMARY))
+  const accentPalette = buildPalette(normalizeHex(accent, DEFAULT_ACCENT))
+  for (const shade of SHADES) {
+    vars[`--brand-primary-${shade}`] = primaryPalette[shade]
+    vars[`--brand-accent-${shade}`] = accentPalette[shade]
   }
+  return vars
 }

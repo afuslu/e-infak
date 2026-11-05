@@ -55,6 +55,27 @@ class Settings(BaseSettings):
     ZIRAATPAY_TENANT_CREDENTIALS: str = ""
     PAYMENTS_LIVE_ENABLED: bool = False
     PUBLIC_WEB_URL: str = "http://localhost:3000"
+    # Public, stable endpoint used by the payment provider. This must point to
+    # the API gateway, not to an arbitrary inbound request host.
+    PAYMENT_CALLBACK_BASE_URL: str = ""
+
+    # Multi-tenant hosting
+    PLATFORM_BASE_DOMAIN: str = "e-infak.org"  # organisations get <subdomain>.<this>
+    PLATFORM_CNAME_TARGET: str = "cname.e-infak.org"  # shown to organisations for custom domains
+    PLATFORM_PUBLIC_IP: str = ""  # optional A-record target shown to organisations
+    DEV_DEFAULT_ORG_SLUG: str = "hicret-dernegi"  # localhost fallback outside production
+    MEDIA_ROOT: str = "./media"  # uploaded logos and images
+    CREDENTIALS_ENCRYPTION_KEY: str = ""  # Fernet key(s), comma separated, newest first
+
+    # Tenant headers are accepted only from the trusted web gateway in
+    # production. The gateway signs the slug and timestamp with this secret.
+    TENANT_PROXY_SECRET: str = ""
+    TENANT_SIGNATURE_MAX_AGE_SECONDS: int = 60
+
+    # Redis-backed abuse protection. A temporary Redis outage is logged and
+    # does not make the public donation flow unavailable.
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_DEFAULT_WINDOW_SECONDS: int = 60
 
     # SMS
     NETGSM_USERNAME: str = ""
@@ -79,14 +100,21 @@ class Settings(BaseSettings):
         if self.PAYMENTS_LIVE_ENABLED:
             if "test." in self.ZIRAATPAY_API_URL or "test." in self.ZIRAATPAY_HPP_URL:
                 raise ValueError("Live payments cannot use Ziraat Pay test URLs")
-            try:
-                tenant_credentials = json.loads(self.ZIRAATPAY_TENANT_CREDENTIALS)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("Live payments require tenant-specific Ziraat credentials") from exc
-            required = {"merchant", "merchant_user", "merchant_password", "secret_key"}
-            for tenant in ("hicret-dernegi", "kardeslik-payi"):
-                if not required.issubset(tenant_credentials.get(tenant, {})):
-                    raise ValueError(f"Missing Ziraat credentials for {tenant}")
+            if not self.PAYMENT_CALLBACK_BASE_URL.startswith("https://"):
+                raise ValueError("Live payments require an HTTPS PAYMENT_CALLBACK_BASE_URL")
+            # Merchant credentials live per organisation in the database (encrypted);
+            # the legacy JSON env map is optional but must be well-formed when present.
+            if self.ZIRAATPAY_TENANT_CREDENTIALS:
+                try:
+                    legacy = json.loads(self.ZIRAATPAY_TENANT_CREDENTIALS)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("ZIRAATPAY_TENANT_CREDENTIALS must be valid JSON") from exc
+                if not isinstance(legacy, dict):
+                    raise ValueError("ZIRAATPAY_TENANT_CREDENTIALS must be a JSON object keyed by organisation slug")
+        if self.ENVIRONMENT == "production" and not self.CREDENTIALS_ENCRYPTION_KEY:
+            raise ValueError("Production requires CREDENTIALS_ENCRYPTION_KEY for organisation credentials")
+        if self.ENVIRONMENT == "production" and len(self.TENANT_PROXY_SECRET) < 32:
+            raise ValueError("Production requires a strong TENANT_PROXY_SECRET")
         return self
 
     class Config:

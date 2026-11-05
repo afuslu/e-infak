@@ -12,6 +12,7 @@ import redis
 
 from app.core.db import get_db
 from app.core.config import settings
+from app.core.rate_limit import rate_limit
 from app.core.security import create_access_token, create_refresh_token, decode_token
 from app.models.student import Student
 from app.models.student_progress import StudentProgress
@@ -67,7 +68,11 @@ async def get_current_parent_phone(
     return parent_phone
 
 @router.post("/send-otp")
-async def send_parent_otp(request: Request, payload: ParentOTPRequest):
+async def send_parent_otp(
+    request: Request,
+    payload: ParentOTPRequest,
+    _: None = Depends(rate_limit("parent-otp-send", limit=5, window_seconds=300)),
+):
     phone = payload.phone.strip()
     if not phone:
         raise HTTPException(status_code=400, detail="Telefon numarası gereklidir.")
@@ -99,8 +104,10 @@ async def send_parent_otp(request: Request, payload: ParentOTPRequest):
             raise HTTPException(status_code=429, detail="Yeni kod istemeden önce 60 saniye bekleyin.")
         _parent_otp_fallback_store[otp_key] = (code, datetime.now(timezone.utc) + timedelta(minutes=3), 0)
         
-    sms_message = f"Hicret Medresesi Veli Bilgi Sistemi giris kodunuz: {code}. Bu kod 3 dakika gecerlidir."
-    await send_sms(phone, sms_message)
+    org_name = getattr(getattr(request.state, "organization", None), "name", "") or "Veli Bilgi Sistemi"
+    org_name = org_name.translate(str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU"))
+    sms_message = f"{org_name} veli bilgi sistemi giris kodunuz: {code}. Bu kod 3 dakika gecerlidir."
+    await send_sms(phone, sms_message, getattr(request.state, "organization_id", None))
     
     return {"status": "success", "message": "OTP kodu veli telefonuna gönderildi."}
 
@@ -108,7 +115,8 @@ async def send_parent_otp(request: Request, payload: ParentOTPRequest):
 async def verify_parent_otp(
     request: Request,
     payload: ParentOTPVerifyRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("parent-otp-verify", limit=10, window_seconds=300)),
 ):
     phone = payload.phone.strip()
     code = payload.code.strip()

@@ -1,10 +1,52 @@
 @import "tailwindcss";
 
+/*
+ * Brand colours come from the organisation (CSS variables --brand-primary-* and
+ * --brand-accent-*, rendered on the server in app/layout.tsx and overridden by the
+ * admin layout). `inline` makes the utilities read the variables where they are
+ * used, so a variable set on <body> or a wrapper element applies to its subtree.
+ */
+@theme inline {
+  --color-primary-50: var(--brand-primary-50, #E6F5EE);
+  --color-primary-100: var(--brand-primary-100, #C9EBDD);
+  --color-primary-200: var(--brand-primary-200, #9DDCC3);
+  --color-primary-300: var(--brand-primary-300, #6BC9A5);
+  --color-primary-400: var(--brand-primary-400, #3DAE87);
+  --color-primary-500: var(--brand-primary-500, #2FA884);
+  --color-primary-600: var(--brand-primary-600, #0E7A5F);
+  --color-primary-700: var(--brand-primary-700, #0A5C47);
+  --color-primary-800: var(--brand-primary-800, #0A4436);
+  --color-primary-900: var(--brand-primary-900, #073327);
+  --color-primary-950: var(--brand-primary-950, #041D16);
+
+  --color-accent-50: var(--brand-accent-50, #EAF7F2);
+  --color-accent-100: var(--brand-accent-100, #D1EEE3);
+  --color-accent-200: var(--brand-accent-200, #A9DFCB);
+  --color-accent-300: var(--brand-accent-300, #7FCFB1);
+  --color-accent-400: var(--brand-accent-400, #57BE98);
+  --color-accent-500: var(--brand-accent-500, #3CB18B);
+  --color-accent-600: var(--brand-accent-600, #2FA884);
+  --color-accent-700: var(--brand-accent-700, #268A6C);
+  --color-accent-800: var(--brand-accent-800, #1F6D56);
+  --color-accent-900: var(--brand-accent-900, #185442);
+  --color-accent-950: var(--brand-accent-950, #10392D);
+
+  --font-sans: var(--font-primary-family), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-heading-family), Georgia, serif;
+
+  --animate-fade-in: fade-in 0.25s ease-out both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
 @layer base {
   * {
-    border-color: theme('colors.gray.200');
+    border-color: var(--color-gray-200);
   }
-  
+
   body {
     @apply bg-white text-gray-900 antialiased;
   }

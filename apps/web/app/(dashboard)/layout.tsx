@@ -1,30 +1,85 @@
 'use client'
 
 import { useCurrentUser, useLogout } from '@e-infak/api-client'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@e-infak/ui'
+import { hasFeature, hasPermission, useAdminAccess } from '../../lib/admin-access'
+
+interface NavItem {
+  href: string
+  label: string
+  icon: string
+  feature?: string
+  permission?: string
+}
+
+// `feature`: package module (app/core/plans.py); `permission`: staff permission (app/api/deps.py).
+const NAV_ITEMS: NavItem[] = [
+  { href: '/admin', label: 'Dashboard', icon: '📊' },
+  { href: '/admin/raporlar', label: 'Raporlar', icon: '📈', feature: 'reports_basic', permission: 'report_read' },
+  { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: '📢' },
+  { href: '/admin/bagislar', label: 'Bağışlar', icon: '💰' },
+  { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: '🧾', feature: 'receipts' },
+  { href: '/admin/bagiscilar', label: 'Bağışçılar (CRM)', icon: '👥', feature: 'donor_crm' },
+  { href: '/admin/bagis-kalemleri', label: 'Bağış Kalemleri', icon: '🗂️' },
+  { href: '/admin/icerikler', label: 'Haber & Blog', icon: '📰', feature: 'website' },
+  { href: '/admin/sayfalar', label: 'Sayfalar', icon: '📄', feature: 'website' },
+  { href: '/admin/menu', label: 'Menü', icon: '🧭', feature: 'website' },
+  { href: '/admin/galeri', label: 'Foto & Video Galeri', icon: '🎞️', feature: 'website' },
+  { href: '/admin/gonulluler', label: 'Gönüllü Başvuruları', icon: '🙋', feature: 'website' },
+  { href: '/admin/finance', label: 'Kasa & Giderler', icon: '💼' },
+  { href: '/admin/reconciliation', label: 'Banka Mutabakatı', icon: '🏛️', feature: 'bank_transactions' },
+  { href: '/admin/sms', label: 'SMS Şablonları', icon: '✉️', feature: 'sms' },
+  { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: '💬', feature: 'sms' },
+  { href: '/admin/kurban', label: 'Kurban Organizasyonu', icon: '🐏', feature: 'kurban' },
+  { href: '/admin/sponsorluk', label: 'Sponsorluk & Burs', icon: '🤲', feature: 'sponsorship' },
+  { href: '/admin/students', label: 'Hafızlık Öğrencileri', icon: '🎓', feature: 'education' },
+  { href: '/admin/wells', label: 'Su Kuyuları', icon: '📍', feature: 'water_well' },
+  { href: '/admin/kumbara', label: 'Kumbaralar', icon: '🫙', feature: 'money_box' },
+  { href: '/admin/kumanya', label: 'Kumanya Dağıtım', icon: '📦', feature: 'food_aid' },
+  { href: '/admin/gorevler', label: 'Görevler & Takvim', icon: '🗓️', feature: 'tasks' },
+  { href: '/admin/banners', label: "Slider / Duyuru Banner'ları", icon: '🖼️', feature: 'website' },
+  { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: '💳', feature: 'recurring' },
+  { href: '/admin/zakat', label: 'Zekât Ayarları', icon: '🪙' },
+  { href: '/admin/gorunum', label: 'Görünüm & Tema', icon: '🎨', permission: 'settings_manage' },
+  { href: '/admin/site-ayarlari', label: 'Site Ayarları', icon: '⚙️', permission: 'settings_manage' },
+  { href: '/admin/odeme-sms', label: 'Ödeme & SMS Hesapları', icon: '🔐', permission: 'settings_manage' },
+  { href: '/admin/integrations', label: 'Ayarlar / POS / API', icon: '🔌', permission: 'settings_manage' },
+  { href: '/admin/ai', label: 'AI Tahmin Motoru', icon: '🧠' },
+  { href: '/admin/users', label: 'Personel & Yetkiler', icon: '🛡️', feature: 'roles' },
+  { href: '/admin/paket', label: 'Paket & Kullanım', icon: '📦' },
+]
+
+function navItemFor(pathname: string | null) {
+  if (!pathname) return undefined
+  return NAV_ITEMS
+    .filter((item) => item.href !== '/admin' && (pathname === item.href || pathname.startsWith(`${item.href}/`)))
+    .sort((a, b) => b.href.length - a.href.length)[0]
+}
 
 // Admin panel'in kendi sabit markası (E-İnfak yeşili) — mevcut kiracının
-// (Hicret/Kardeşlik) renklerinden bağımsız; `primary-*` sınıflarını burada geçersiz kılar.
+// renklerinden bağımsız; `primary-*` sınıflarını burada geçersiz kılar.
 const ADMIN_PRIMARY_VARS = {
-  '--color-primary-50': '#E6F5EE',
-  '--color-primary-100': '#C9EBDD',
-  '--color-primary-200': '#9DDCC3',
-  '--color-primary-300': '#6BC9A5',
-  '--color-primary-400': '#3DAE87',
-  '--color-primary-500': '#2FA884',
-  '--color-primary-600': '#0E7A5F',
-  '--color-primary-700': '#0A5C47',
-  '--color-primary-800': '#0A4436',
-  '--color-primary-900': '#073327',
-  '--color-primary-950': '#041D16',
+  '--brand-primary-50': '#E6F5EE',
+  '--brand-primary-100': '#C9EBDD',
+  '--brand-primary-200': '#9DDCC3',
+  '--brand-primary-300': '#6BC9A5',
+  '--brand-primary-400': '#3DAE87',
+  '--brand-primary-500': '#2FA884',
+  '--brand-primary-600': '#0E7A5F',
+  '--brand-primary-700': '#0A5C47',
+  '--brand-primary-800': '#0A4436',
+  '--brand-primary-900': '#073327',
+  '--brand-primary-950': '#041D16',
 } as React.CSSProperties
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const { data: user, isLoading } = useCurrentUser()
+  const { data: access } = useAdminAccess()
   const logout = useLogout()
 
   useEffect(() => {
@@ -49,33 +104,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const handleLogout = async () => {
-    await logout.mutateAsync()
-    router.push('/')
+    try {
+      await logout.mutateAsync()
+    } catch {
+      // Ignore logout errors
+    } finally {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+      }
+      router.push('/giris')
+    }
   }
 
-  const navItems = [
-    { href: '/admin', label: 'Dashboard', icon: '📊' },
-    { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: '📢' },
-    { href: '/admin/bagislar', label: 'Bağışlar', icon: '💰' },
-    { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: '🧾' },
-    { href: '/admin/bagiscilar', label: 'Bağışçılar (CRM)', icon: '👥' },
-    { href: '/admin/bagis-kalemleri', label: 'Bağış Kalemleri', icon: '🗂️' },
-    { href: '/admin/icerikler', label: 'İçerikler', icon: '📰' },
-    { href: '/admin/finance', label: 'Kasa & Raporlar', icon: '💼' },
-    { href: '/admin/sms', label: 'SMS Şablonları', icon: '✉️' },
-    { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: '💬' },
-    { href: '/admin/kurban', label: 'Kurban Takip', icon: '🐏' },
-    { href: '/admin/students', label: 'Öğrenci Sponsorluk', icon: '🎓' },
-    { href: '/admin/wells', label: 'Su Kuyusu Takibi', icon: '📍' },
-    { href: '/admin/banners', label: "Slider / Duyuru Banner'ları", icon: '🖼️' },
-    { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: '💳' },
-    { href: '/admin/zakat', label: 'Zekât Ayarları', icon: '🪙' },
-    { href: '/admin/site-ayarlari', label: 'Site Ayarları (Görünüm)', icon: '🎨' },
-    { href: '/admin/integrations', label: 'Ayarlar / POS / API', icon: '🔌' },
-    { href: '/admin/ai', label: 'AI Tahmin Motoru', icon: '🧠' },
-    { href: '/admin/users', label: 'Personel Yetkileri', icon: '👥' },
-    { href: '/admin/logs', label: 'Güvenlik Günlüğü', icon: '📜' },
-  ]
+  const navItems = NAV_ITEMS.filter((item) => hasFeature(access, item.feature) && hasPermission(access, item.permission))
+  const currentItem = navItemFor(pathname)
+  const blockedFeature = currentItem && !hasFeature(access, currentItem.feature) ? currentItem : undefined
 
   return (
     <div className="flex min-h-screen bg-[#EEF1F4]" style={ADMIN_PRIMARY_VARS}>
@@ -104,7 +148,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ))}
         </nav>
         <div className="px-4 py-4 border-t border-white/[0.08] text-[11px] text-[#5F7488]">
-          E-İnfak v1.0 · admin@e-infak.org
+          {access ? (
+            <Link href="/admin/paket" className="block hover:text-white">
+              {access.plan_label} paket · {access.usage.users}/{access.limits.users} kullanıcı
+            </Link>
+          ) : (
+            'E-İnfak · admin@e-infak.org'
+          )}
         </div>
       </aside>
 
@@ -134,7 +184,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-6 overflow-auto min-w-0">{children}</main>
+        <main className="flex-1 p-6 overflow-auto min-w-0">
+          {blockedFeature ? (
+            <div className="mx-auto mt-16 max-w-lg rounded-2xl border border-[#E2E8EE] bg-white p-8 text-center shadow-sm">
+              <div className="mb-3 text-4xl">{blockedFeature.icon}</div>
+              <h1 className="mb-2 text-xl font-bold text-[#1D2733]">{blockedFeature.label} paketinizde yok</h1>
+              <p className="mb-6 text-sm text-[#5F7488]">
+                Kurumunuz şu anda <strong>{access?.plan_label}</strong> paketini kullanıyor. Bu modülü kullanmak için
+                paketinizi yükseltebilir veya ek modül olarak açtırabilirsiniz.
+              </p>
+              <Link href="/admin/paket" className="inline-block rounded-lg bg-[#0E7A5F] px-4 py-2 text-sm font-semibold text-white">
+                Paketleri karşılaştır
+              </Link>
+            </div>
+          ) : (
+            children
+          )}
+        </main>
       </div>
     </div>
   )

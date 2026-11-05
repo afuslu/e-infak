@@ -2,8 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { useEffect, useState } from 'react'
-import { applyTheme, loadTheme, getOrgSlugFromCookie } from '../lib/theme'
+import { useState } from 'react'
 import '../lib/api'
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -18,13 +17,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   )
-
-  useEffect(() => {
-    const orgSlug = getOrgSlugFromCookie()
-    if (!orgSlug) return
-    const theme = loadTheme(orgSlug)
-    if (theme) applyTheme(theme)
-  }, [])
 
   return (
     <QueryClientProvider client={queryClient}>

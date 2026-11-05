@@ -2,12 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.middleware.tenant import TenantMiddleware
-from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation
+from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts
 from app.core.db import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.audit_log import AuditLog
 from app.models.user import UserRole
+from app.core.observability import configure_observability
 from uuid import UUID
+
+configure_observability()
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -58,15 +61,16 @@ async def security_headers(request, call_next):
             ))
             await audit_session.commit()
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Payment hand-off pages set their own, narrower policy (provider form / frame hosts).
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers["Content-Security-Policy"] = (
+    response.headers.setdefault("Content-Security-Policy", (
         "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; "
         "script-src 'self' 'unsafe-inline'; connect-src 'self' https://vpos.ziraatpay.com.tr "
         "https://test.ziraatpay.com.tr; frame-ancestors 'none'; base-uri 'self'; form-action 'self' "
         "https://vpos.ziraatpay.com.tr https://test.ziraatpay.com.tr"
-    )
+    ))
     if settings.ENVIRONMENT == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
@@ -80,6 +84,17 @@ app.include_router(orphans.router, prefix="/api/v1")
 app.include_router(donor_portal.router, prefix="/api/v1")
 app.include_router(parent_portal.router, prefix="/api/v1")
 app.include_router(finance.router, prefix="/api/v1")
+app.include_router(site.public_router, prefix="/api/v1")
+app.include_router(site.admin_router, prefix="/api/v1")
+app.include_router(provider_accounts.router, prefix="/api/v1")
+app.include_router(staff.router, prefix="/api/v1")
+app.include_router(cms.admin_router, prefix="/api/v1")
+app.include_router(cms.public_router, prefix="/api/v1")
+app.include_router(crm.router, prefix="/api/v1")
+app.include_router(sponsorship.router, prefix="/api/v1")
+app.include_router(sponsorship.public_router, prefix="/api/v1")
+app.include_router(field_ops.router, prefix="/api/v1")
+app.include_router(reports.router, prefix="/api/v1")
 app.include_router(admin_features.router, prefix="/api/v1")
 app.include_router(public_forms.router, prefix="/api/v1")
 app.include_router(checkout.router, prefix="/api/v1")

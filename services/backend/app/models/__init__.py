@@ -1,5 +1,13 @@
-from app.models.organization import Organization
+from app.models.organization import Organization, OrganizationDomain
 from app.models.user import User
+from app.models.staff import Department, StaffRole
+from app.models.cms import SitePage, MenuItem, GalleryItem, VolunteerApplication
+from app.models.sponsorship import Beneficiary, Pledge, PledgeInstallment, WellShare
+from app.models.fx import FxRate
+from app.models.credentials import TenantCredential
+from app.models.field_ops import (
+    Region, MoneyBox, MoneyBoxCollection, AidPackage, AidRecipient, AidDistribution, TaskTemplate, Task,
+)
 from app.models.campaign import Campaign, CampaignStatus, CampaignCategory
 from app.models.donation import Donor, Donation, DonationStatus, PaymentMethod
 from app.models.kurban import KurbanCampaign, KurbanAnimal, KurbanShare

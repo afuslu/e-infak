@@ -5,58 +5,32 @@ import Link from 'next/link'
 import { useSendContactMessage, useOrgSettings } from '@e-infak/api-client'
 
 interface ContactPageClientProps {
-  orgSlug: string
+  orgName: string
 }
 
-const brand = {
-  'hicret-dernegi': {
-    name: 'Hicret Derneği',
-    primary: '#1E7A34',
-    hover: '#166028',
-    border: '#E4E9E2',
-    bg: '#F0F6EE',
-    bgBorder: '#CBDFC9',
-    text: '#6B7A70',
-    heading: '#1C2420',
-    address: '',
-    phone: '',
-    email: '',
-    bank1: '',
-    bank1Iban: '',
-    bank2: '',
-    bank2Iban: '',
-  },
-  'kardeslik-payi': {
-    name: 'Kardeşlik Payı',
-    primary: '#C2181B',
-    hover: '#961114',
-    border: '#EDE3E0',
-    bg: '#FBEDEB',
-    bgBorder: '#EFCDC9',
-    text: '#82706D',
-    heading: '#241C1B',
-    address: '',
-    phone: '',
-    email: '',
-    bank1: '',
-    bank1Iban: '',
-    bank2: '',
-    bank2Iban: '',
-  },
-} as const
+// Colours follow the organisation theme (CSS variables set by the root layout).
+const base = {
+  primary: 'var(--brand-primary-600)',
+  hover: 'var(--brand-primary-700)',
+  border: '#E5E7EB',
+  bg: 'var(--brand-primary-50)',
+  bgBorder: 'var(--brand-primary-200)',
+  text: '#6B7280',
+  heading: '#111827',
+}
 
-export function ContactPageClient({ orgSlug }: ContactPageClientProps) {
-  const base = orgSlug === 'kardeslik-payi' ? brand['kardeslik-payi'] : brand['hicret-dernegi']
+export function ContactPageClient({ orgName }: ContactPageClientProps) {
   const { data: settings } = useOrgSettings()
   const c = {
     ...base,
-    address: settings?.contact_address || base.address,
-    phone: settings?.contact_phone || base.phone,
-    email: settings?.contact_email || base.email,
-    bank1: settings?.bank1_name || base.bank1,
-    bank1Iban: settings?.bank1_iban || base.bank1Iban,
-    bank2: settings?.bank2_name || base.bank2,
-    bank2Iban: settings?.bank2_iban || base.bank2Iban,
+    name: orgName,
+    address: settings?.contact_address || '',
+    phone: settings?.contact_phone || '',
+    email: settings?.contact_email || '',
+    bank1: settings?.bank1_name || '',
+    bank1Iban: settings?.bank1_iban || '',
+    bank2: settings?.bank2_name || '',
+    bank2Iban: settings?.bank2_iban || '',
   }
   const sendContact = useSendContactMessage()
 

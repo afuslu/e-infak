@@ -3,6 +3,50 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { apiErrorMessage, v1Send } from '../../../../lib/admin-access'
+import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
+
+const CURRENCY_SYMBOL: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€' }
+
+/** Target amount and currency in which the campaign's progress is tracked. */
+function CampaignTargetForm({ campaign, onSaved }: { campaign: Campaign; onSaved: (c: Campaign) => void }) {
+  const [currency, setCurrency] = useState(campaign.currency || 'TRY')
+  const [target, setTarget] = useState(String((campaign.target_cents || 0) / 100))
+  const [translations, setTranslations] = useState<Translations>(campaign.translations || {})
+  const [msg, setMsg] = useState('')
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setMsg('')
+    try {
+      const res = await v1Send<Campaign>('patch', `/campaigns/${campaign.id}`, {
+        currency, target_cents: Math.round(Number(target.replace(',', '.')) * 100), translations,
+      })
+      onSaved(res.data)
+      setMsg('Kaydedildi')
+    } catch (err) {
+      setMsg(apiErrorMessage(err, 'Kaydedilemedi'))
+    }
+  }
+  return (
+    <form onSubmit={save} className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
+      <label className="text-xs font-bold text-gray-500">Hedef
+        <input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} className="mt-1 block w-36 rounded-lg border p-2 text-sm" />
+      </label>
+      <label className="text-xs font-bold text-gray-500">Para birimi
+        <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="mt-1 block rounded-lg border bg-white p-2 text-sm">
+          <option value="TRY">TL</option><option value="USD">USD</option><option value="EUR">EUR</option>
+        </select>
+      </label>
+      <button type="submit" className="rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white">Kaydet</button>
+      {msg && <span className="text-xs text-gray-500">{msg}</span>}
+      <p className="w-full text-[11px] text-gray-400">Farklı para birimindeki bağışlar güncel TCMB kuruyla bu birime çevrilerek ilerlemeye eklenir.</p>
+      <div className="w-full">
+        <TranslationEditor value={translations} onChange={setTranslations}
+          fields={[{ key: 'title', label: 'Kampanya adı' }, { key: 'summary', label: 'Özet' }, { key: 'story', label: 'Hikaye', long: true }]} />
+      </div>
+    </form>
+  )
+}
 
 interface Campaign {
   id: string
@@ -11,7 +55,9 @@ interface Campaign {
   target_cents: number
   collected_cents: number
   status: string
+  currency?: string
   gallery_urls?: string[]
+  translations?: Record<string, Record<string, string>>
 }
 
 export default function AdminCampaignsPage() {
@@ -124,7 +170,7 @@ export default function AdminCampaignsPage() {
                     </div>
                     <div className="text-right">
                       <div className="font-mono text-xs font-bold text-slate-800">
-                        {((c.collected_cents || 0) / 100).toLocaleString('tr-TR')} ₺ / {(c.target_cents / 100).toLocaleString('tr-TR')} ₺
+                        {((c.collected_cents || 0) / 100).toLocaleString('tr-TR')} {CURRENCY_SYMBOL[c.currency || 'TRY']} / {(c.target_cents / 100).toLocaleString('tr-TR')} {CURRENCY_SYMBOL[c.currency || 'TRY']}
                       </div>
                       <Button size="sm" variant="ghost" className="text-primary-600 font-bold text-[11px] mt-1">
                         Galeri Düzenle ➔
@@ -151,6 +197,12 @@ export default function AdminCampaignsPage() {
                   <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-2 py-0.5 rounded uppercase tracking-wider">Kampanya Görsel Galerisi</span>
                   <h2 className="text-xl font-bold text-gray-900 mt-2">{selectedCampaign.title}</h2>
                 </div>
+
+                <CampaignTargetForm
+                  key={selectedCampaign.id}
+                  campaign={selectedCampaign}
+                  onSaved={(updated) => setCampaigns((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)))}
+                />
 
                 <form onSubmit={handleSaveGallery} className="space-y-4">
                   {/* Add URL Field */}

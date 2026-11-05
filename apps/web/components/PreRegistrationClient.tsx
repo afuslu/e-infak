@@ -11,13 +11,13 @@ const PROGRAMS = [
   { value: 'arapca', label: 'Arapça Dil Eğitimi' },
 ]
 
-const PRIMARY = '#1E7A34'
-const HOVER = '#166028'
-const BORDER = '#E4E9E2'
-const BG = '#F0F6EE'
-const TEXT = '#6B7A70'
-const LABEL = '#3A4540'
-const HEADING = '#1C2420'
+const PRIMARY = 'var(--brand-primary-600)'
+const HOVER = 'var(--brand-primary-700)'
+const BORDER = '#E5E7EB'
+const BG = 'var(--brand-primary-50)'
+const TEXT = '#6B7280'
+const LABEL = '#374151'
+const HEADING = '#111827'
 
 export function PreRegistrationClient() {
   const sendPreRegistration = useSendPreRegistration()

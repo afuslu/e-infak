@@ -42,6 +42,7 @@ class Campaign(Base):
     
     # Financial
     target_cents = Column(Integer, nullable=False)  # Hedef tutar (kuruş cinsinden)
+    currency = Column(String(3), nullable=False, default="TRY", server_default="TRY")  # hedef/toplanan para birimi
     collected_cents = Column(Integer, default=0)     # Toplanan tutar (kuruş cinsinden)
     
     # Media

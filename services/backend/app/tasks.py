@@ -20,8 +20,11 @@ celery_app = Celery(
 )
 
 @celery_app.task(name="app.tasks.send_email_task")
-def send_email_task(to_email: str, subject: str, content: str):
-    """Send an email. Production never reports success without a provider."""
+def send_email_task(to_email: str, subject: str, content: str, attachment: dict | None = None):
+    """Send an email. Production never reports success without a provider.
+
+    attachment: {"filename": str, "content_b64": str, "type": str} (isteğe bağlı PDF eki)
+    """
     if settings.SENDGRID_API_KEY:
         try:
             sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
@@ -31,6 +34,16 @@ def send_email_task(to_email: str, subject: str, content: str):
                 subject=subject,
                 html_content=content
             )
+            if attachment and attachment.get("content_b64"):
+                from sendgrid.helpers.mail import (
+                    Attachment, FileContent, FileName, FileType, Disposition,
+                )
+                message.attachment = Attachment(
+                    FileContent(attachment["content_b64"]),
+                    FileName(attachment.get("filename", "makbuz.pdf")),
+                    FileType(attachment.get("type", "application/pdf")),
+                    Disposition("attachment"),
+                )
             sg.send(message)
             print(f"Email sent successfully to {to_email}")
         except Exception as e:
@@ -40,28 +53,29 @@ def send_email_task(to_email: str, subject: str, content: str):
         raise RuntimeError("SENDGRID_API_KEY yapılandırılmadı")
     return True
 
-@celery_app.task(name="app.tasks.send_sms_task")
-def send_sms_task(phone: str, message: str):
-    """Send an SMS. Production never reports success without a provider."""
-    if settings.NETGSM_USERNAME and settings.NETGSM_PASSWORD:
-        try:
-            url = "https://api.netgsm.com.tr/sms/send/get/"
-            params = {
-                "usercode": settings.NETGSM_USERNAME,
-                "password": settings.NETGSM_PASSWORD,
-                "gsmno": phone,
-                "message": message,
-                "msgheader": settings.NETGSM_SENDER,
-                "dil": "TR"
-            }
-            res = requests.get(url, params=params, timeout=10)
-            print(f"Netgsm response: {res.text}")
-        except Exception as e:
-            print(f"Netgsm sending error: {e}")
-            raise
-    else:
-        raise RuntimeError("Netgsm bilgileri yapılandırılmadı")
+def deliver_sms(phone: str, message: str, account: dict) -> bool:
+    """Send one SMS with the organisation's provider account. Never reports success without a provider."""
+    from app.sms import deliver
+    if account.get("disabled"):
+        raise RuntimeError("Kurumun SMS hesabı yapılandırılmadı")
+    result = deliver(phone, message, account)
+    print(f"SMS sent via {result.provider}: {result.reference}")
     return True
+
+
+async def _sms_account(organization_id):
+    from app.services.tenant_credentials import sms_account
+    async with AsyncSessionLocal() as session:
+        return await sms_account(session, organization_id)
+
+
+@celery_app.task(name="app.tasks.send_sms_task")
+def send_sms_task(phone: str, message: str, organization_id: str | None = None):
+    """Queue-friendly SMS. With `organization_id` the organisation's own SMS account is used."""
+    from app.services.tenant_credentials import platform_sms
+    account = asyncio.run(_sms_account(organization_id)) if organization_id else platform_sms()
+    return deliver_sms(phone, message, account)
+
 
 async def _fetch_donation_and_send_receipt(donation_id: str):
     """Async helper to load donation data from database and compose receipt email"""
@@ -93,13 +107,21 @@ async def _fetch_donation_and_send_receipt(donation_id: str):
         
         donation, campaign, org, donor = row
         
-        # Compose receipt HTML
+        # Compose receipt HTML (donor-entered values are escaped)
+        from html import escape
+        donor_html = escape(f"{donor.first_name} {donor.last_name or ''}".strip())
+        campaign_html = escape(campaign.title or "")
+        on_behalf_html = (
+            f"<p>Bu bağış <b>{escape(donation.on_behalf_of)}</b> adına yapılmıştır.</p>"
+            if donation.on_behalf_of else ""
+        )
         subject = f"Bağış Makbuzu - {org.name}"
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
             <h2 style="color: #0d9488; text-align: center;">TEŞEKKÜR EDERİZ</h2>
-            <p>Sayın <b>{donor.first_name} {donor.last_name or ''}</b>,</p>
-            <p>{org.name} bünyesinde yürüttüğümüz <b>{campaign.title}</b> kampanyasına yaptığınız yardım başarıyla alınmıştır.</p>
+            <p>Sayın <b>{donor_html}</b>,</p>
+            <p>{escape(org.name)} bünyesinde yürüttüğümüz <b>{campaign_html}</b> kampanyasına yaptığınız yardım başarıyla alınmıştır.</p>
+            {on_behalf_html}
             
             <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
                 <tr style="background-color: #f9fafb;">
@@ -122,14 +144,50 @@ async def _fetch_donation_and_send_receipt(donation_id: str):
         </div>
         """
         
+        # Resmi PDF makbuzu üret (mümkünse) ve e-posta ekine bağla
+        attachment = None
+        try:
+            import base64
+            from app.utils.receipt_pdf import build_receipt_pdf
+
+            verify_base = (
+                f"https://{org.primary_domain}"
+                if settings.ENVIRONMENT == "production" and getattr(org, "primary_domain", None)
+                else settings.PUBLIC_WEB_URL
+            )
+            pdf_bytes = build_receipt_pdf(
+                organization=org,
+                campaign=campaign,
+                donor_name=donor.full_name if not donation.is_anonymous else "Anonim Bağışçı",
+                receipt_number=donation.receipt_number,
+                amount_cents=donation.amount_cents,
+                currency=donation.currency or "TRY",
+                payment_method=donation.payment_method.value if hasattr(donation.payment_method, "value") else str(donation.payment_method),
+                paid_at=donation.paid_at or donation.created_at,
+                status=getattr(donation.status, "value", donation.status) if getattr(donation.status, "value", donation.status) in {"refunded", "cancelled"} else "valid",
+                verify_base_url=verify_base,
+                on_behalf_of=donation.on_behalf_of,
+            )
+            attachment = {
+                "filename": f"makbuz-{donation.receipt_number}.pdf",
+                "content_b64": base64.b64encode(pdf_bytes).decode("ascii"),
+                "type": "application/pdf",
+            }
+        except Exception as pdf_err:  # PDF üretimi makbuz e-postasını engellemez
+            print(f"Receipt PDF generation failed for {donation.receipt_number}: {pdf_err}")
+
         # Trigger sending
         if donor.email:
-            send_email_task(donor.email, subject, html_content)
-        
+            send_email_task(donor.email, subject, html_content, attachment)
+
         # Trigger SMS notification as well
         if donor.phone:
             sms_msg = f"Sayin {donor.first_name} {donor.last_name or ''}, {campaign.title} bagisiniz alinmistir. Makbuz No: #{donation.receipt_number}. Tesekkur ederiz."
-            send_sms_task(donor.phone, sms_msg)
+            from app.services.tenant_credentials import sms_account
+            try:
+                deliver_sms(donor.phone, sms_msg, await sms_account(session, donation.organization_id))
+            except Exception as sms_err:
+                print(f"Receipt SMS failed for {donation.receipt_number}: {sms_err}")
         
         return True
 
@@ -153,10 +211,8 @@ def process_subscriptions_task():
 
 async def _reconcile_pending_ziraat_payments():
     """Recover browser callbacks that never reached us by querying the bank."""
-    from decimal import Decimal, InvalidOperation
-    from app.api.v1.checkout import _finalize_paid_order, _load_order
+    from app.api.v1.checkout import _finalize_paid_order, _load_order, apply_result, attempt_provider, result_matches_order
     from app.models.payment import PaymentOrder, PaymentOrderStatus
-    from app.utils.ziraatpay import ZiraatPayClient
 
     now = datetime.now(timezone.utc)
     async with AsyncSessionLocal() as session:
@@ -189,38 +245,16 @@ async def _reconcile_pending_ziraat_payments():
                 continue
             order.query_attempts += 1
             try:
-                response = await ZiraatPayClient(order.organization.slug).query_transaction(
-                    order.merchant_payment_id
-                )
-                transactions = response.get("transactionList") or []
-                approved = None
-                for transaction in transactions:
-                    try:
-                        amount_cents = int(
-                            (Decimal(str(transaction.get("amount", "0"))) * 100)
-                            .quantize(Decimal("1"))
-                        )
-                    except (InvalidOperation, ValueError):
-                        continue
-                    if (
-                        transaction.get("transactionStatus") == "AP"
-                        and amount_cents == order.total_cents
-                        and transaction.get("currency") == order.currency
-                    ):
-                        approved = transaction
-                        break
-                if approved:
-                    attempt = next((item for item in order.attempts if item.session_token), None)
-                    if attempt:
-                        attempt.pg_tran_id = approved.get("pgTranId")
-                        attempt.response_code = approved.get("pgTranReturnCode") or "00"
-                        attempt.response_message = approved.get("responseMsg")
-                        attempt.card_last_4 = approved.get("panLast4")
-                        attempt.card_brand = approved.get("paymentSystemType")
-                        attempt.safe_response = ZiraatPayClient(order.organization.slug).safe_callback(approved)
-                        attempt.completed_at = now
-                        await _finalize_paid_order(session, order, attempt, commit=False)
-                        paid += 1
+                attempt = next((item for item in sorted(order.attempts, key=lambda a: a.created_at, reverse=True)
+                                if item.session_token), None)
+                result = None
+                if attempt:
+                    provider = await attempt_provider(session, order, attempt)
+                    result = await provider.query(order.merchant_payment_id, order.total_cents, order.currency)
+                if result is not None and result.approved and result_matches_order(order, result):
+                    apply_result(attempt, result)
+                    await _finalize_paid_order(session, order, attempt, commit=False)
+                    paid += 1
                 elif order.query_attempts >= 8:
                     order.status = PaymentOrderStatus.REVIEW
                     order.failure_message = "Banka sonucu otomatik doğrulanamadı; manuel inceleme gerekli"
@@ -333,6 +367,103 @@ async def _process_outbox():
     return {"processed": processed, "total": len(events)}
 
 
+@celery_app.task(name="app.tasks.notify_kurban_slaughter_task")
+def notify_kurban_slaughter_task(animal_id: str, video_url: str):
+    """Notify all shareholders via SMS and Email when their kurban animal is slaughtered."""
+    from app.models.kurban import KurbanShare
+    from app.models.donation import Donor
+    import uuid
+
+    async def _notify():
+        async with AsyncSessionLocal() as session:
+            try:
+                anim_uuid = uuid.UUID(animal_id) if isinstance(animal_id, str) else animal_id
+            except ValueError:
+                return False
+
+            res = await session.execute(
+                select(KurbanShare, Donor)
+                .outerjoin(Donor, KurbanShare.donor_id == Donor.id)
+                .where(KurbanShare.animal_id == anim_uuid)
+            )
+            rows = res.all()
+            for share, donor in rows:
+                phone = share.donor_phone or (donor.phone if donor else None)
+                email = donor.email if donor else None
+                donor_name = share.donor_name or (f"{donor.first_name} {donor.last_name or ''}" if donor else "Bağışçımız")
+
+                # Send SMS
+                if phone:
+                    from app.services.tenant_credentials import sms_account
+                    sms_msg = f"Sayin {donor_name}, kurbaniniz kesilmistir. Kesim videosunu izlemek icin: {video_url or 'Dernek paneli'}"
+                    try:
+                        deliver_sms(phone, sms_msg, await sms_account(session, share.organization_id))
+                    except Exception as e:
+                        print(f"Kurban SMS error: {e}")
+
+                # Send Email
+                if email and settings.SENDGRID_API_KEY:
+                    email_html = f"""
+                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
+                        <h2 style="color: #16a34a; text-align: center;">KURBANINIZ KESİLDİ</h2>
+                        <p>Sayın <b>{donor_name}</b>,</p>
+                        <p>Kurban vekâletiniz başarıyla yerine getirilmiş ve kurbanınız kesilmiştir. Allah kabul eylesin.</p>
+                        {f'<p style="text-align: center; margin: 25px 0;"><a href="{video_url}" style="background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">🎥 Kesim Videosunu İzle</a></p>' if video_url else ''}
+                    </div>
+                    """
+                    try:
+                        send_email_task(email, "Kurban Kesim Bilgilendirmesi", email_html)
+                    except Exception as e:
+                        print(f"Kurban Email error: {e}")
+            return True
+
+    return asyncio.run(_notify())
+
+
+@celery_app.task(name="app.tasks.sync_zakat_rates_task")
+def sync_zakat_rates_task():
+    """Sync TCMB gold & currency rates to ZakatSetting for all active organizations."""
+    from app.utils.tcmb import fetch_tcmb_rates
+    from app.models.zakat_setting import ZakatSetting
+
+    rates = fetch_tcmb_rates()
+    gold_price = rates.get("GOLD_GRAM", 3000.0)
+    nisap = rates.get("NISAP_LIRA", 255000.0)
+
+    async def _sync_fx(session):
+        """Store currency rates only from a successful fetch; conversion refuses stale rates."""
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        from sqlalchemy.dialects.postgresql import insert
+        from app.models.fx import FxRate
+        from app.utils.tcmb import fetch_tcmb_currency_rates
+
+        try:
+            fx = fetch_tcmb_currency_rates()
+        except Exception as exc:  # keep the previous rates; they expire after 7 days
+            print(f"TCMB currency sync failed: {exc}")
+            return
+        now = datetime.now(timezone.utc)
+        for code, rate in fx.items():
+            stmt = insert(FxRate).values(currency=code, rate_try=Decimal(str(rate)), fetched_at=now)
+            await session.execute(stmt.on_conflict_do_update(
+                index_elements=[FxRate.currency], set_={"rate_try": stmt.excluded.rate_try, "fetched_at": now},
+            ))
+
+    async def _sync():
+        async with AsyncSessionLocal() as session:
+            await _sync_fx(session)
+            res = await session.execute(select(ZakatSetting).where(ZakatSetting.is_auto_sync.is_(True)))
+            settings_list = res.scalars().all()
+            for st in settings_list:
+                st.gold_price_per_gram = gold_price
+                st.nisap_amount_lira = nisap
+            await session.commit()
+            return len(settings_list)
+
+    return asyncio.run(_sync())
+
+
 @celery_app.task(name="app.tasks.process_outbox_task")
 def process_outbox_task():
     return asyncio.run(_process_outbox())
@@ -346,5 +477,9 @@ celery_app.conf.beat_schedule = {
     "reconcile-ziraat-payments-every-minute": {
         "task": "app.tasks.reconcile_pending_ziraat_payments_task",
         "schedule": 60.0,
+    },
+    "sync-zakat-rates-hourly": {
+        "task": "app.tasks.sync_zakat_rates_task",
+        "schedule": 3600.0,
     },
 }

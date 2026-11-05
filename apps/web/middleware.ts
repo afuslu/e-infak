@@ -1,37 +1,64 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { devOrgSlug, isLocalHost, normalizeHost, resolveHostSlug } from './lib/tenant-host'
 
-export function middleware(request: NextRequest) {
-  const hostname = (request.headers.get('host') || '').split(':')[0].toLowerCase()
+function createNonce() {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...bytes))
+}
+
+export async function middleware(request: NextRequest) {
+  const hostname = normalizeHost(request.headers.get('host'))
   const url = new URL(request.url)
-  
-  // Production custom domains are authoritative; query/cookie tenant selection is
-  // allowed only on local development hosts.
-  let orgSlug = ''
-  if (hostname === 'hicretdernegi.org' || hostname === 'www.hicretdernegi.org') {
-    orgSlug = 'hicret-dernegi'
-  } else if (hostname === 'kardeslikpayi.org' || hostname === 'www.kardeslikpayi.org') {
-    orgSlug = 'kardeslik-payi'
-  } else if (hostname.endsWith('.e-infak.org')) {
-    const subdomain = hostname.split('.')[0]
-    if (subdomain && subdomain !== 'www') {
-      orgSlug = subdomain
-    }
-  } else if (hostname.startsWith('localhost') || hostname.startsWith('127.0.0.1')) {
-    orgSlug = url.searchParams.get('org')
-      || request.cookies.get('org-slug')?.value
-      || 'hicret-dernegi'
-  }
+
+  // Production hosts are resolved by the backend (subdomains and verified custom
+  // domains); query/cookie tenant selection is allowed only on local hosts.
+  // An empty slug renders the platform landing page.
+  const orgSlug = isLocalHost(hostname)
+    ? devOrgSlug(url.searchParams.get('org'), request.cookies.get('org-slug')?.value)
+    : await resolveHostSlug(hostname)
+
+  // Website language: ?lang=xx switches and is remembered in a cookie.
+  const requestedLang = (url.searchParams.get('lang') || '').toLowerCase()
+  const cookieLang = (request.cookies.get('lang')?.value || '').toLowerCase()
+  const locale = /^[a-z]{2}$/.test(requestedLang) ? requestedLang : /^[a-z]{2}$/.test(cookieLang) ? cookieLang : 'tr'
 
   // Set organization context in headers for backend requests
   const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-locale', locale)
+  const nonce = createNonce()
+  const contentSecurityPolicy = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "img-src 'self' data: https:",
+    "style-src 'self' 'unsafe-inline' https://*.tawk.to",
+    "font-src 'self' data: https://*.tawk.to",
+    "media-src 'self' https://*.tawk.to",
+    // CMS videos (YouTube privacy mode / Vimeo) and the Tawk.to chat widget
+    "frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://*.tawk.to",
+    // 'strict-dynamic' lets the nonce'd app bundle inject the Tawk.to loader
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    "connect-src 'self' https://vpos.ziraatpay.com.tr https://test.ziraatpay.com.tr https://*.tawk.to wss://*.tawk.to",
+    "form-action 'self' https://vpos.ziraatpay.com.tr https://test.ziraatpay.com.tr",
+  ].join('; ')
   requestHeaders.set('x-organization-slug', orgSlug)
+  // Next.js reads the nonce from the request headers while rendering and adds
+  // it to its own inline scripts.  User supplied scripts remain blocked.
+  requestHeaders.set('x-nonce', nonce)
+  requestHeaders.set('Content-Security-Policy', contentSecurityPolicy)
   
   const response = NextResponse.next({
     request: {
       headers: requestHeaders,
     },
   })
+
+  if (locale !== cookieLang) {
+    response.cookies.set('lang', locale, { httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 365 })
+  }
 
   // Set cookie for client-side access
   response.cookies.set('org-slug', orgSlug, {
@@ -40,6 +67,14 @@ export function middleware(request: NextRequest) {
     sameSite: 'lax',
     path: '/',
   })
+  response.headers.set('Content-Security-Policy', contentSecurityPolicy)
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
 
   return response
 }

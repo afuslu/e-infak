@@ -33,9 +33,17 @@ class ZiraatPayError(RuntimeError):
 
 
 class ZiraatPayClient:
-    def __init__(self, tenant_slug: str | None = None) -> None:
+    def __init__(self, tenant_slug: str | None = None, credentials: dict | None = None) -> None:
+        """`credentials` come from the organisation's encrypted settings (services.tenant_credentials);
+        without them the legacy ZIRAATPAY_TENANT_CREDENTIALS / ZIRAATPAY_* env settings are used."""
         self.api_url = settings.ZIRAATPAY_API_URL.rstrip("/")
         self.hpp_url = settings.ZIRAATPAY_HPP_URL.rstrip("/")
+        if credentials:
+            self.merchant = credentials.get("merchant", "")
+            self.merchant_user = credentials.get("merchant_user", "")
+            self.merchant_password = credentials.get("merchant_password", "")
+            self.secret_key = credentials.get("secret_key", "")
+            return
         credentials = {}
         if settings.ZIRAATPAY_TENANT_CREDENTIALS and tenant_slug:
             try:

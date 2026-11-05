@@ -48,6 +48,9 @@ class Donor(Base):
     allow_sms = Column(Boolean, default=False)
     is_anonymous = Column(Boolean, default=False)
     
+    # Staff member (representative) responsible for this donor
+    assigned_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
+
     # Tags and Notes
     tags = Column(JSONB, default=list)
     notes = Column(Text)
@@ -115,11 +118,13 @@ class Donation(Base):
     refunded_at = Column(DateTime(timezone=True))
     
     # Receipt
+    issued_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)  # staff who confirmed/issued; NULL = online
     receipt_pdf_url = Column(String(500))
     receipt_sent_at = Column(DateTime(timezone=True))
     
     # Message
     donor_message = Column(Text)
+    on_behalf_of = Column(String(200))  # "X adına" bağış
     is_anonymous = Column(Boolean, default=False)
     
     # Idempotency

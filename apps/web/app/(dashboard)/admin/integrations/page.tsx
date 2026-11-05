@@ -272,7 +272,7 @@ export default function AdminIntegrationsPage() {
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Secret Store Referansı *</label>
                   <input
                     type="text"
-                    placeholder="Örn: env:EINFAK_WEBHOOK_HICRET"
+                    placeholder="Örn: env:EINFAK_WEBHOOK_KURUM"
                     value={secretRef}
                     onChange={(e) => setSecretRef(e.target.value)}
                     className="w-full rounded-lg border border-gray-300 p-2.5 text-xs outline-none focus:border-primary-500"

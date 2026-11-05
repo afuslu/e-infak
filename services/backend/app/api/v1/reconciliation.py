@@ -10,14 +10,18 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import Permission, require_permission
+from app.api.deps import Permission, require_feature, require_permission
+from app.core.plans import Feature
 from app.api.v1.checkout import _finalize_paid_order, _load_order
 from app.core.db import get_db
 from app.models.automation import BankStatementImport, BankTransaction, ReconciliationStatus
 from app.models.payment import PaymentAttempt, PaymentOrder, PaymentOrderStatus
 from app.models.user import User
 
-router = APIRouter(tags=["reconciliation"])
+router = APIRouter(
+    tags=["reconciliation"],
+    dependencies=[Depends(require_feature(Feature.BANK_TRANSACTIONS))],
+)
 
 
 def _amount_to_cents(value) -> int:
@@ -107,7 +111,7 @@ async def _auto_match(db: AsyncSession, transaction: BankTransaction, user_id: U
     transaction.matched_by_id = user_id
     transaction.matched_at = datetime.now(timezone.utc)
     await db.flush()
-    await _finalize_paid_order(db, order, attempt, commit=False)
+    await _finalize_paid_order(db, order, attempt, commit=False, issued_by_id=user_id)
 
 
 @router.post("/admin/bank-statements/import")
@@ -212,5 +216,5 @@ async def resolve_reconciliation(
     transaction.matched_by_id = current_user.id
     transaction.matched_at = datetime.now(timezone.utc)
     await db.flush()
-    donation_ids = await _finalize_paid_order(db, order, attempt)
+    donation_ids = await _finalize_paid_order(db, order, attempt, issued_by_id=current_user.id)
     return {"status": "matched", "donation_count": len(donation_ids)}

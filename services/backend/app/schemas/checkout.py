@@ -1,7 +1,7 @@
 from typing import Any, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
 class CheckoutDonor(BaseModel):
@@ -19,7 +19,17 @@ class CheckoutItem(BaseModel):
     quantity: int = Field(default=1, ge=1, le=100)
     unit_amount_cents: int = Field(gt=0)
     donor_message: Optional[str] = Field(default=None, max_length=1000)
+    # "X adına" bağış: makbuzda ve bağış kaydında görünür
+    on_behalf_of: Optional[str] = Field(default=None, max_length=200)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("on_behalf_of", mode="before")
+    @classmethod
+    def clean_on_behalf(cls, value):
+        if value is None or not str(value).strip():
+            return None
+        from app.utils.content import sanitize_public_text
+        return (sanitize_public_text(str(value)) or "").replace("\n", " ")[:200] or None
 
 
 class CheckoutSessionCreate(BaseModel):

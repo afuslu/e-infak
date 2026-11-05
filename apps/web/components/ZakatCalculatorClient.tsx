@@ -4,43 +4,23 @@ import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useZakatInfo } from '@e-infak/api-client'
 
-interface ZakatCalculatorClientProps {
-  orgSlug: string
+// Colours follow the organisation theme (CSS variables set by the root layout).
+const c = {
+  primary: 'var(--brand-primary-600)',
+  hover: 'var(--brand-primary-700)',
+  accent: 'var(--brand-accent-500)',
+  accentHover: 'var(--brand-accent-600)',
+  accentDark: '#FFFFFF',
+  border: '#E5E7EB',
+  text: '#6B7280',
+  label: '#374151',
+  heading: '#111827',
+  dark: 'var(--brand-primary-900)',
+  darkMuted: 'var(--brand-primary-100)',
+  resultColor: 'var(--brand-accent-200)',
 }
 
-const brand = {
-  'hicret-dernegi': {
-    primary: '#1E7A34',
-    hover: '#166028',
-    accent: '#6CB33F',
-    accentHover: '#7DC44F',
-    accentDark: '#0E2A14',
-    border: '#E4E9E2',
-    text: '#6B7A70',
-    label: '#3A4540',
-    heading: '#1C2420',
-    dark: '#123D1D',
-    darkMuted: '#B9CDBB',
-    resultColor: '#A8D48A',
-  },
-  'kardeslik-payi': {
-    primary: '#C2181B',
-    hover: '#961114',
-    accent: '#E2423C',
-    accentHover: '#EE5A52',
-    accentDark: '#FFFFFF',
-    border: '#EDE3E0',
-    text: '#82706D',
-    label: '#453735',
-    heading: '#241C1B',
-    dark: '#4A0D0F',
-    darkMuted: '#E0C3BE',
-    resultColor: '#F2A7A0',
-  },
-} as const
-
-export function ZakatCalculatorClient({ orgSlug }: ZakatCalculatorClientProps) {
-  const c = orgSlug === 'kardeslik-payi' ? brand['kardeslik-payi'] : brand['hicret-dernegi']
+export function ZakatCalculatorClient() {
   const { data: zakatInfo } = useZakatInfo()
   const goldPrice = zakatInfo?.gold_price_per_gram ?? 3000
   const nisap = zakatInfo?.nisap_amount_lira ?? 85 * goldPrice
