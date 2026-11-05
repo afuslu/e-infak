@@ -60,6 +60,8 @@ export interface PublicPage {
   slug: string
   title: string
   body: string
+  blocks?: import('./blocks').Block[] | null
+  preview?: boolean
   cover_image_url: string | null
   seo_title: string | null
   seo_description: string | null

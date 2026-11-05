@@ -19,10 +19,33 @@ class SitePage(Base):
     seo_description = Column(String(320))
     is_published = Column(Boolean, nullable=False, default=False)
     translations = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    # Site builder: "home" (one per organisation) or "page". `blocks` is what visitors
+    # see; `draft_blocks` is the editor's working copy until it is published.
+    kind = Column(String(16), nullable=False, default="page", server_default="page")
+    blocks = Column(JSONB)
+    draft_blocks = Column(JSONB)
+    version = Column(Integer, nullable=False, default=0, server_default="0")
+    draft_updated_at = Column(DateTime(timezone=True))
+    draft_updated_by = Column(String(255))
+    published_at = Column(DateTime(timezone=True))
+    published_by = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     __table_args__ = (UniqueConstraint("organization_id", "slug", name="uq_site_page_org_slug"),)
+
+
+class SitePageRevision(Base):
+    """A published version of a page (the last 50 are kept) for restoring."""
+    __tablename__ = "site_page_revisions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    page_id = Column(UUID(as_uuid=True), ForeignKey("site_pages.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    blocks = Column(JSONB, nullable=False)
+    note = Column(String(200))
+    created_by = Column(String(255))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
 
 class MenuItem(Base):
