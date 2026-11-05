@@ -1,0 +1,83 @@
+# E-İnfak production stack. Separate from E-Medrese: own project name, network,
+# database and Redis; only loopback ports are published.
+# Driven by deploy/docker/dagit.sh (TAG = release tag, env from /opt/e_infak/.env).
+name: einfak
+
+x-backend: &backend
+  image: einfak-backend:${TAG:?TAG gerekli}
+  restart: unless-stopped
+  env_file: ${EINFAK_ENV_FILE:-/opt/e_infak/.env}
+  environment:
+    DATABASE_URL: postgresql+asyncpg://einfak:${POSTGRES_PASSWORD}@db:5432/einfak
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/0
+    CELERY_RESULT_BACKEND: redis://redis:6379/0
+    MEDIA_ROOT: /data/media
+  volumes:
+    - media:/data/media
+  depends_on:
+    db: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: einfak
+      POSTGRES_DB: einfak
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U einfak -d einfak"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    <<: *backend
+    ports:
+      - "127.0.0.1:8092:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    <<: *backend
+    command: ["celery", "-A", "app.tasks", "worker", "--loglevel=info", "--concurrency=2"]
+
+  beat:
+    <<: *backend
+    command: ["celery", "-A", "app.tasks", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
+
+  web:
+    image: einfak-web:${TAG:?TAG gerekli}
+    restart: unless-stopped
+    environment:
+      INTERNAL_API_URL: http://backend:8000
+      TENANT_PROXY_SECRET: ${TENANT_PROXY_SECRET}
+      PLATFORM_BASE_DOMAIN: e-infak.org
+    ports:
+      - "127.0.0.1:3092:3000"
+    depends_on:
+      backend: { condition: service_healthy }
+
+volumes:
+  db:
+  redis:
+  media:
