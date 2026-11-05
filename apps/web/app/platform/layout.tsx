@@ -42,7 +42,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
               </Link>
             ))}
           </nav>
-          <span className="text-xs text-slate-400">{me.email}</span>
+          <Link href="/platform/sifre" className="text-xs text-slate-400 hover:text-white">{me.email}</Link>
           <button type="button" className="rounded-md border border-white/20 px-3 py-1 text-xs hover:bg-white/10"
             onClick={() => { setPlatformToken(null); router.replace('/platform/giris') }}>
             Çıkış
