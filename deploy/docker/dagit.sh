@@ -16,6 +16,9 @@ SAKLANACAK_YEDEK="${SAKLANACAK_YEDEK:-14}"
 log() { printf '[%s] %s\n' "$(date '+%H:%M:%S')" "$*"; }
 ol() { echo "HATA: $*" >&2; exit 1; }
 
+# Uygulama kapları değişmeden önceki her hata: canlı sürüm olduğu gibi kalır.
+trap 'echo "HATA: dağıtım ${LINENO}. satırda durdu; canlı sürüm değişmedi." >&2' ERR
+
 SHA="${1:-}"
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || ol "Kullanım: $0 <40-karakter-commit-sha>"
 [[ -f "$ENV_DOSYASI" ]] || ol "$ENV_DOSYASI yok; önce ilk-kurulum.sh"
