@@ -1,111 +1,91 @@
-# E-İnfak'ı sunucuya kurma rehberi
+# E-İnfak sunucu rehberi
 
-Sunucu: `89.252.152.183` (aynı sunucuda mostilac.com da çalışıyor; bu kurulum ona dokunmaz).
-Alan adları (`hicretdernegi.org`, `kardeslikpayi.org`, `e-infak.org` ve `www` sürümleri) zaten bu sunucuyu gösteriyor.
+E-İnfak, E-Medrese ile aynı sunucuda (`31.97.159.228`, `emedrese-prod`) **Docker** ile, ondan tamamen ayrı çalışır:
 
-Toplam süre: yaklaşık 30–45 dakika. Komutları sırayla kopyalayıp yapıştırın.
+| | E-Medrese | E-İnfak |
+|---|---|---|
+| Klasör | `/opt/e_medrese` | `/opt/e_infak` |
+| Docker projesi | `emedrese` | `einfak` |
+| Veritabanı / Redis | kendi kapları | ayrı kendi kapları |
+| İç portlar | 8081 | site 3092, API 8092 |
+| nginx dosyası | `e-medrese.org` | `e-infak.conf` |
 
----
+## Klasör düzeni (`/opt/e_infak`)
 
-## 1. Kodu GitHub'a gönderin (kendi bilgisayarınızda)
+- `.env` — gizli ayarlar (veritabanı şifresi, anahtarlar). Kimseyle paylaşmayın.
+- `kaynak.git` — kod deposu; Mac'ten `git push sunucu main` ile gelir.
+- `dagit.sh` — yayın betiği.
+- `releases/` — son 3 sürümün kodu.
+- `backups/` — her yayından önce alınan veritabanı yedekleri (son 14).
+- `dagitim-gunlukleri/` — yayın kayıtları.
+- `yonetici-sifreleri.txt` — ilk kurulumda üretilen yönetici şifreleri (okuyup not edin, sonra silin).
 
-Proje klasöründe terminal açın:
+## Yeni sürüm yayınlama
 
-```bash
-cd ~/Desktop/Projelerim/e-infak
-git push origin main
-```
-
-GitHub kullanıcı adı ve şifre (token) sorarsa girin. GitHub Desktop kullanıyorsanız "Push origin" düğmesine basmanız yeterli.
-
-## 2. Sunucuya bağlanın
-
-```bash
-ssh root@89.252.152.183
-```
-
-Bundan sonraki bütün komutlar **sunucuda** çalışır.
-
-## 3. Kurulum betiğini çalıştırın (tek seferlik)
+Mac'te:
 
 ```bash
-curl -fsSLo /root/einfak-setup.sh https://raw.githubusercontent.com/afuslu/e-infak/main/deploy/server-setup.sh
-sudo bash /root/einfak-setup.sh
+cd ~/Desktop/Projelerim/e-infak && git push sunucu main && git push origin main
 ```
 
-Betik şunları yapar:
-- Gerekli programları kurar (Python, Node.js, PostgreSQL, Redis, nginx, SSL aracı).
-- Kodu `/var/www/e-infak` klasörüne indirir.
-- Veritabanını oluşturur.
-- Bütün şifreleri kendisi üretir ve ekrana yazmadan ayar dosyalarına koyar.
-- nginx'e yalnızca e-infak alan adları için yeni bir ayar ekler.
-- SSL sertifikası alır. Bu adımda sizden **bir e-posta adresi** ister; sertifika süresi dolmadan uyarı göndermek için kullanılır.
-
-Betik bir port başka bir program tarafından kullanılıyorsa hiçbir şeye dokunmadan durur. Bu durumda bana haber verin.
-
-## 4. İlk yayın
+Sonra yayın (commit numarasını yeni commit ile değiştirin; `git rev-parse HEAD` verir):
 
 ```bash
-cd /var/www/e-infak
-sudo env "PATH=$PATH" bash deploy.sh
+ssh -t afuslu@31.97.159.228 "/opt/e_infak/dagit.sh $(git rev-parse HEAD)"
 ```
 
-Derleme 5–10 dakika sürer. Sonunda betik **"CANLIYA aktarmak istiyor musunuz? [E/h]"** diye sorar; `E` yazıp Enter'a basın.
+Betik sırasıyla:
+1. Kodu çıkarır ve imajları derler. Bu adımda hata olursa canlı site değişmez.
+2. Veritabanı yedeği alır.
+3. Migration'ları uygular.
+4. Yeni kapları başlatır ve sağlık kontrolü yapar. Kontrol başarısızsa önceki sürüme döner.
 
-## 5. Kurumları oluşturun (tek seferlik)
+## Yalnızca sunucu sahibinin yapabileceği işler
+
+**1. DNS (alan adı paneli):** Şu kayıtların A kaydı `31.97.159.228` olmalı:
+`hicretdernegi.org`, `www.hicretdernegi.org`, `kardeslikpayi.org`, `www.kardeslikpayi.org`, `e-infak.org`, `www.e-infak.org`.
+
+**2. nginx + SSL (sudo şifresi ister; DNS değiştikten sonra bir kez):**
 
 ```bash
-cd /var/www/e-infak/backend-active && venv/bin/python -m app.cli bootstrap-sites
+ssh -t afuslu@31.97.159.228 "sudo bash /opt/e_infak/releases/\$(cat /opt/e_infak/runtime/aktif-surum)/deploy/docker/nginx-kur.sh"
 ```
 
-Bu komut Hicret Derneği ve Kardeşlik Payı'nı kendi tasarımlarıyla oluşturur. Ekrana her kurum için bir **yönetici e-postası ve geçici şifre** yazar. **Bu şifreleri hemen bir yere not edin**; tekrar gösterilmez. İlk girişte değiştirin.
+Betik yalnızca e-infak alan adları için yeni bir nginx dosyası ekler; E-Medrese'ye dokunmaz. Ayar testi başarısız olursa kendi dosyasını geri çeker. SSL sertifikasını yalnızca DNS'i bu sunucuyu gösteren alan adları için alır; certbot e-posta adresinizi ve Let's Encrypt koşullarını sorar. DNS'i sonradan değişen alan adları için betiği tekrar çalıştırın.
 
-## 6. Arka plan işlerini başlatın (tek seferlik)
+## Yönetici girişi
 
-Makbuz e-postaları, SMS'ler ve ödeme kontrolleri bu süreçlerle çalışır:
+- Hicret: https://hicretdernegi.org/giris
+- Kardeşlik: https://kardeslikpayi.org/giris
+
+İlk şifreler sunucuda:
 
 ```bash
-EINFAK_ROOT=/var/www/e-infak pm2 start /var/www/e-infak/deploy/pm2/ecosystem.config.cjs --only einfak-celery-worker
-EINFAK_ROOT=/var/www/e-infak pm2 start /var/www/e-infak/deploy/pm2/ecosystem.config.cjs --only einfak-celery-beat
-pm2 save
+ssh afuslu@31.97.159.228 cat /opt/e_infak/yonetici-sifreleri.txt
 ```
 
-## 7. Kontrol
-
-Tarayıcıda açın:
-- https://hicretdernegi.org — yeşil Hicret sitesi
-- https://kardeslikpayi.org — kırmızı Kardeşlik sitesi
-- https://e-infak.org — iki kurumu listeleyen tanıtım sayfası
-- https://hicretdernegi.org/login — 5. adımdaki yönetici bilgileriyle giriş
-
-## 8. Çok önemli: şifreleme anahtarının yedeği
-
-Kurumların panele gireceği ödeme ve SMS şifreleri bir anahtarla şifrelenir. Sunucu bozulur ve bu anahtar kaybolursa, o şifreler bir daha okunamaz. Anahtarı görmek için:
+İlk girişte şifreleri değiştirin, sonra dosyayı silin:
 
 ```bash
-grep CREDENTIALS_ENCRYPTION_KEY /var/www/e-infak/services/backend/.env
+ssh afuslu@31.97.159.228 rm /opt/e_infak/yonetici-sifreleri.txt
 ```
 
-Çıkan satırı güvenli bir yerde saklayın (şifre yöneticisi gibi). Kimseyle paylaşmayın.
+## Şifreleme anahtarının yedeği (önemli)
 
----
-
-## Sonraki güncellemeler
-
-Kodda değişiklik yaptığınızda:
-1. Kendi bilgisayarınızda `git push origin main`.
-2. Sunucuda:
+Kurumların panele girdiği ödeme/SMS şifreleri `CREDENTIALS_ENCRYPTION_KEY` ile şifrelenir. Anahtar kaybolursa o şifreler okunamaz. Anahtarı bir kez şifre yöneticinize kaydedin:
 
 ```bash
-cd /var/www/e-infak && sudo env "PATH=$PATH" bash deploy.sh
+ssh afuslu@31.97.159.228 grep CREDENTIALS_ENCRYPTION_KEY /opt/e_infak/.env
 ```
-
-Yeni sürüm önce gizli bir test slotunda açılır. Siz onaylamadan canlı site değişmez; bir sorun olursa betik eski sürüme kendiliğinden döner. Her yayından önce veritabanının yedeği alınır (`/var/www/e-infak/backups`).
 
 ## Sorun olursa
 
-| Belirti | Bakılacak yer |
-|---|---|
-| Site açılmıyor (502) | `pm2 status` ve `pm2 logs --lines 50` |
-| Yayın yarıda kaldı | `/var/www/e-infak/deploy-logs/` içindeki son dosya |
-| nginx hatası | `nginx -t` |
+```bash
+ssh afuslu@31.97.159.228 'docker ps --filter label=com.docker.compose.project=einfak'
+```
+
+```bash
+ssh afuslu@31.97.159.228 'docker logs --tail 50 einfak-backend-1'
+```
+
+Son yayın kaydı: `/opt/e_infak/dagitim-gunlukleri/` içindeki en yeni dosya.
