@@ -30,6 +30,10 @@ const BASE_CSS = `
 .b-block>.b-overlay{position:absolute;inset:0;pointer-events:none}
 .b-block>.b-overlay+.b-inner{position:relative}
 .b-pad{padding-block:24px}
+/* Full-width blocks fill a taller box (Stil › en az yükseklik) instead of leaving a gap under them. */
+.b-fill{display:flex;flex-direction:column}
+.b-fill>.b-inner{flex:1 1 auto;display:flex;flex-direction:column}
+.b-fill>.b-inner>*{flex:1 1 auto}
 .b-anim{animation-fill-mode:both;animation-timing-function:cubic-bezier(.2,.7,.2,1)}
 .b-anim:not(.is-in){opacity:0}
 .b-anim.is-in.b-anim-fade{animation-name:bfade}
@@ -286,17 +290,17 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         )
       }
       if (o.layout === 'color') {
-        return <div className="bg-primary-700"><div className={`${container} py-12`}>{text(true)}</div></div>
+        return <div className="flex flex-col justify-center bg-primary-700"><div className={`${container} w-full py-12`}>{text(true)}</div></div>
       }
       return (
-        <div className="relative overflow-hidden bg-primary-950">
+        <div className="relative flex flex-col justify-center overflow-hidden bg-primary-950">
           {o.image_url && (
             <picture>
               {o.mobile_image_url && <source media="(max-width: 639px)" srcSet={o.mobile_image_url} />}
               <img src={o.image_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" loading="lazy" />
             </picture>
           )}
-          <div className={`relative ${container} py-16 md:py-20`}>{text(true)}</div>
+          <div className={`relative ${container} w-full py-16 md:py-20`}>{text(true)}</div>
         </div>
       )
     }
@@ -445,7 +449,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const mobile = o.mobile || 'drawer'
       return (
         <div className={`${depth === 0 ? container : ''} flex items-center`}>
-          <nav className={`${mobile === 'inline' ? 'flex' : 'hidden lg:flex'} flex-wrap items-center gap-x-6 gap-y-1 text-[15px] font-semibold`}>
+          <nav className={`${mobile === 'inline' ? 'flex' : 'hidden lg:flex'} flex-1 flex-wrap items-center gap-x-6 gap-y-1 text-[15px] font-semibold ${JUSTIFY[o.align] || ''}`}>
             {items.map((item, i) => item.children?.length
               ? <Dropdown key={i} item={item} />
               : <Anchor key={i} link={item} className="py-2 transition-opacity hover:opacity-70" />)}
@@ -560,7 +564,7 @@ export function renderBlock(block: Block, opts: RenderOptions, depth = 0): React
     : ''
   let node: ReactNode = (
     <div key={block.id} id={advanced.anchor || undefined} aria-label={advanced.aria_label || undefined}
-      className={`b-block b-${block.id}${padded ? ' b-pad' : ''}${tone ? ` ${tone}` : ''}${row}${advanced.css_class ? ` ${advanced.css_class}` : ''}`}>
+      className={`b-block b-${block.id}${padded ? ' b-pad' : ''}${FULL_BLEED.has(block.type) && block.type !== 'header_row' ? ' b-fill' : ''}${tone ? ` ${tone}` : ''}${row}${advanced.css_class ? ` ${advanced.css_class}` : ''}`}>
       {hasOverlay && <div className="b-overlay" aria-hidden />}
       <div className="b-inner">{content(block, o, opts, depth)}</div>
     </div>

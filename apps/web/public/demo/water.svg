@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6C27A"/><stop offset=".55" stop-color="#F3A65A"/><stop offset="1" stop-color="#E07A3F"/></linearGradient>
+    <linearGradient id="dune" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C8743A"/><stop offset="1" stop-color="#8A4724"/></linearGradient>
+    <linearGradient id="drop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7DD3FC"/><stop offset="1" stop-color="#0284C7"/></linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#sky)"/>
+  <circle cx="1380" cy="210" r="110" fill="#FFF3D6" opacity=".9"/>
+  <path d="M0 620 C260 540 460 560 720 610 S1240 690 1600 590 V900 H0Z" fill="#D88B4B"/>
+  <path d="M0 700 C300 640 620 690 900 720 S1380 760 1600 700 V900 H0Z" fill="url(#dune)"/>
+  <g transform="translate(1000 470)">
+    <rect x="0" y="120" width="300" height="150" rx="10" fill="#6B3A1F"/>
+    <path d="M0 150 H300 M0 195 H300 M0 240 H300 M75 120 V270 M150 120 V270 M225 120 V270" stroke="#4A2614" stroke-width="6"/>
+    <rect x="-20" y="105" width="340" height="28" rx="8" fill="#8A4A26"/>
+    <rect x="20" y="-90" width="16" height="200" fill="#4A2614"/><rect x="264" y="-90" width="16" height="200" fill="#4A2614"/>
+    <path d="M8 -100 L150 -170 L292 -100Z" fill="#7A3F1E"/>
+    <rect x="28" y="-60" width="244" height="10" fill="#4A2614"/>
+    <path d="M150 -50 V40" stroke="#4A2614" stroke-width="4"/>
+    <rect x="128" y="40" width="44" height="40" rx="6" fill="#9A5A2E"/>
+  </g>
+  <path d="M1420 440 C1420 440 1350 540 1350 590 A70 70 0 0 0 1490 590 C1490 540 1420 440 1420 440Z" fill="url(#drop)"/>
+  <ellipse cx="1400" cy="580" rx="16" ry="26" fill="#fff" opacity=".45"/>
+</svg>

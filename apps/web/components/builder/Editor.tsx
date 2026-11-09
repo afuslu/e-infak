@@ -9,6 +9,7 @@ import { checklist, countBlocks, duplicateBlock, findBlock, insertBlock, locate,
 import type { HomeData } from '../sections/HomeSections'
 import type { SiteData } from '../../lib/public-content'
 import { Fields } from './FieldInput'
+import { type DemoOptions, type Library, type LibraryDemo, LibraryPanel, type SavedBlock } from './LibraryPanel'
 
 interface PageSummary { id: string; kind: 'home' | 'page' | 'header' | 'footer'; slug: string | null; title: string; is_published: boolean; uses_blocks: boolean; has_draft: boolean; published_at: string | null; draft_updated_at: string | null }
 interface Revision { id: string; created_at: string; created_by: string | null; blocks: number }
@@ -70,7 +71,9 @@ export function SiteBuilderEditor() {
   const [data, setData] = useState<HomeData | null>(null)
   const [device, setDevice] = useState<Device>('desktop')
   const [lang, setLang] = useState('tr')
-  const [leftTab, setLeftTab] = useState<'pages' | 'blocks' | 'tree'>('blocks')
+  const [leftTab, setLeftTab] = useState<'pages' | 'blocks' | 'library' | 'tree'>('blocks')
+  const [library, setLibrary] = useState<Library | null>(null)
+  const [saved, setSaved] = useState<SavedBlock[]>([])
   const [rightTab, setRightTab] = useState<'content' | 'style' | 'advanced'>('content')
   const [search, setSearch] = useState('')
   const [insertTarget, setInsertTarget] = useState<string | null>(null)
@@ -96,10 +99,10 @@ export function SiteBuilderEditor() {
   const selectedSpec = selected && catalog ? catalog.blocks[selected.type] : null
 
   // --- Loading -------------------------------------------------------------------
-  useEffect(() => {
-    adminGet<BuilderCatalog>('/site-builder/catalog').then((r) => setCatalog(r.data)).catch((e) => setMessage({ type: 'error', text: apiErrorMessage(e) }))
+  const loadSaved = useCallback(() => adminGet<SavedBlock[]>('/site-builder/saved-blocks').then((r) => setSaved(r.data)).catch(() => undefined), [])
+  const loadData = useCallback(() => {
     const api = `${adminApiBase()}/api/v1`
-    Promise.all([
+    return Promise.all([
       fetch(`${api}/public/site`).then((r) => r.json()) as Promise<SiteData>,
       fetch(`${api}/campaigns?status=active`).then((r) => (r.ok ? r.json() : { items: [] })).then((d) => (d.items || []) as Campaign[]),
       fetch(`${api}/public/content-posts?limit=12`).then((r) => (r.ok ? r.json() : [])),
@@ -108,6 +111,12 @@ export function SiteBuilderEditor() {
     ]).then(([site, campaigns, news, categories, menu]) => setData({ site, locale: 'tr', campaigns, news, categories, menu }))
       .catch(() => setMessage({ type: 'error', text: 'Site verileri yüklenemedi' }))
   }, [])
+  useEffect(() => {
+    adminGet<BuilderCatalog>('/site-builder/catalog').then((r) => setCatalog(r.data)).catch((e) => setMessage({ type: 'error', text: apiErrorMessage(e) }))
+    adminGet<Library>('/site-builder/library').then((r) => setLibrary(r.data)).catch(() => undefined)
+    loadSaved()
+    loadData()
+  }, [loadData, loadSaved])
 
   const loadPages = useCallback(() => adminGet<PageSummary[]>('/site-builder/pages').then((r) => setPages(r.data)), [])
   useEffect(() => { loadPages().catch(() => undefined) }, [loadPages])
@@ -156,9 +165,23 @@ export function SiteBuilderEditor() {
   // --- Editing ---------------------------------------------------------------------
   const commit = (blocks: Block[], select?: string | null) => dispatch({ type: 'commit', blocks, select })
 
+  /** Whether a block type may go on the page being edited (same rule as the backend). */
+  const fitsPage = (type: string) => {
+    if (!catalog) return false
+    const kind = page?.kind || 'home'
+    if (kind === 'header') return type === 'header_row' || catalog.header_slot_children.includes(type)
+    return (catalog.blocks[type]?.zones || catalog.content_zones).includes(kind)
+  }
+
   const addBlock = (type: string) => {
     if (!catalog) return
-    const block = newBlock(type, catalog.blocks[type])
+    placeBlock(newBlock(type, catalog.blocks[type]))
+  }
+
+  /** Puts a new block where the user expects it: into the chosen slot/container, after the selection, or at the end. */
+  const placeBlock = (block: Block) => {
+    if (!catalog) return
+    const type = block.type
     let blocks: Block[]
     if (page?.kind === 'header') {
       // A header is rows of three slots: rows go to the top level, everything else into a slot.
@@ -198,6 +221,65 @@ export function SiteBuilderEditor() {
     commit(blocks, block.id)
     setRightTab('content')
     setTimeout(() => frame.current?.contentWindow?.postMessage({ source: 'einfak-builder', type: 'scroll-to', id: block.id }, window.location.origin), 150)
+  }
+
+  const insertSection = (section: Block[]) => {
+    const copies = section.map(cloneBlock)
+    const sel = state.selectedId
+    const rootIndex = sel ? state.blocks.findIndex((r) => r.id === sel || !!findBlock(r.children || [], sel)) : -1
+    let blocks = state.blocks
+    copies.forEach((b, i) => { blocks = insertBlock(blocks, null, (rootIndex >= 0 ? rootIndex + 1 : blocks.length) + (rootIndex >= 0 ? i : 0), b) })
+    commit(blocks, copies[0]?.id ?? null)
+    setTimeout(() => frame.current?.contentWindow?.postMessage({ source: 'einfak-builder', type: 'scroll-to', id: copies[0]?.id }, window.location.origin), 150)
+  }
+
+  const replacePage = (section: Block[], label: string) => {
+    if (state.blocks.length && !window.confirm(`Bu sayfanın içeriği “${label}” ile değiştirilsin mi? Ctrl+Z ile geri alabilirsiniz.`)) return
+    commit(section.map(cloneBlock), null)
+  }
+
+  const insertSaved = (item: SavedBlock) => {
+    if (!item.block || !fitsPage(item.block.type)) {
+      setMessage({ type: 'error', text: `“${item.name}” bu sayfa türünde kullanılamaz.` })
+      return
+    }
+    placeBlock(cloneBlock(item.block))
+  }
+
+  const saveSelectedBlock = async () => {
+    const sel = stateRef.current.selectedId && findBlock(stateRef.current.blocks, stateRef.current.selectedId)
+    if (!sel || FIXED_CHILD.has(sel.type)) return
+    const name = window.prompt('Kayıtlı blok adı (ör. Ramazan çağrı bandı):', catalog?.blocks[sel.type]?.label || '')
+    if (!name?.trim()) return
+    try {
+      await adminSend('post', '/site-builder/saved-blocks', { name: name.trim(), block: sel, zone: page?.kind || 'page' })
+      await loadSaved()
+      setMessage({ type: 'ok', text: 'Blok kaydedildi; Şablonlar › Kayıtlılarım altından her sayfada kullanabilirsiniz.' })
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Blok kaydedilemedi') })
+    }
+  }
+
+  const deleteSaved = async (item: SavedBlock) => {
+    if (!window.confirm(`“${item.name}” kayıtlı bloklardan silinsin mi? Sayfalarda kullanılan kopyalar etkilenmez.`)) return
+    try {
+      await adminSend('delete', `/site-builder/saved-blocks/${item.id}`)
+      await loadSaved()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const applyDemo = async (demo: LibraryDemo, options: DemoOptions) => {
+    if (state.dirty && !(await save())) return
+    try {
+      const res = await adminSend<{ created_pages: { title: string }[]; skipped_pages: string[]; published: boolean }>('post', `/site-builder/demos/${demo.key}/apply`, options)
+      await Promise.all([loadPages(), loadPage(pageId), loadData()])
+      const created = res.data.created_pages.map((p) => p.title).join(', ')
+      setMessage({ type: 'ok', text: `“${demo.label}” kuruldu${res.data.published ? ' ve yayınlandı' : ' (taslak; kontrol edip Yayınla’ya basın)'}.${created ? ` Eklenen sayfalar: ${created}.` : ''}${res.data.skipped_pages.length ? ` Atlanan: ${res.data.skipped_pages.join(', ')}.` : ''}` })
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Demo kurulamadı') })
+    }
   }
 
   const blockAction = useCallback((id: string, action: string) => {
@@ -488,6 +570,7 @@ export function SiteBuilderEditor() {
           <div className="flex border-b">
             <button type="button" className={tabBtn(leftTab === 'pages')} onClick={() => setLeftTab('pages')}>Sayfalar</button>
             <button type="button" className={tabBtn(leftTab === 'blocks')} onClick={() => setLeftTab('blocks')}>Bloklar</button>
+            <button type="button" className={tabBtn(leftTab === 'library')} onClick={() => setLeftTab('library')}>Şablonlar</button>
             <button type="button" className={tabBtn(leftTab === 'tree')} onClick={() => setLeftTab('tree')}>Yapı ({countBlocks(state.blocks)})</button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
@@ -505,6 +588,10 @@ export function SiteBuilderEditor() {
                 <button type="button" onClick={createPage} className="mt-2 w-full rounded-md border border-dashed py-2 text-[12px] font-semibold text-blue-600 hover:bg-blue-50">+ Yeni sayfa</button>
                 <p className="pt-2 text-[11px] text-gray-400">Sayfa adresi, SEO başlığı ve menü bağlantıları <Link href="/admin/sayfalar" className="underline">Sayfalar</Link> ve <Link href="/admin/menu" className="underline">Menü</Link> ekranlarından düzenlenir.</p>
               </div>
+            )}
+            {leftTab === 'library' && (
+              <LibraryPanel library={library} catalog={catalog} kind={page?.kind || 'home'} saved={saved}
+                onInsert={insertSection} onReplace={replacePage} onInsertSaved={insertSaved} onDeleteSaved={deleteSaved} onApplyDemo={applyDemo} />
             )}
             {leftTab === 'blocks' && (
               <div className="space-y-3">
@@ -569,6 +656,7 @@ export function SiteBuilderEditor() {
                   <>
                     <button type="button" title="Çoğalt" className="text-gray-500 hover:text-gray-900" onClick={() => blockAction(selected.id, 'duplicate')}>⧉</button>
                     <button type="button" title="Kopyala" className="text-gray-500 hover:text-gray-900" onClick={copySelected}>📋</button>
+                    <button type="button" title="Kayıtlı bloklara ekle" className="text-gray-500 hover:text-gray-900" onClick={saveSelectedBlock}>💾</button>
                     <button type="button" title="Sil" className="text-red-500 hover:text-red-700" onClick={() => blockAction(selected.id, 'delete')}>🗑</button>
                   </>
                 )}

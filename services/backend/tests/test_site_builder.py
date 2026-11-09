@@ -219,3 +219,66 @@ async def test_header_footer_publish_and_fallback(db_session, http):
     assert reverted["is_published"] is False and reverted["has_draft"] is True
     assert (await http.get("/api/v1/public/site-chrome", headers={"Host": host})).json()["header"] is None
     assert (await http.post(f"{base}/pages/home/unpublish", headers=auth)).status_code == 422
+
+
+def test_library_content_is_valid():
+    from app.services.templates import DEMOS, PAGE_TEMPLATES, SECTIONS, fresh_ids
+    zone = {"content": "page", "header": "header", "footer": "footer"}
+    for section in SECTIONS:
+        validate_blocks(fresh_ids(section["blocks"]), zone[section["kind"]])
+    for page in PAGE_TEMPLATES:
+        validate_blocks(fresh_ids(page["blocks"]), "page")
+    for demo in DEMOS:
+        for kind in ("home", "header", "footer"):
+            validate_blocks(fresh_ids(demo[kind]), kind)
+    # Inserting the same section twice never clashes
+    twice = fresh_ids(SECTIONS[0]["blocks"]) + fresh_ids(SECTIONS[0]["blocks"])
+    validate_blocks(twice, "page")
+
+
+async def test_demo_apply_and_saved_blocks(db_session, http):
+    org, auth, host = await _org_with_admin(db_session)
+    other, other_auth, _ = await _org_with_admin(db_session)
+    base = "/api/v1/admin-features/site-builder"
+    lib = (await http.get(f"{base}/library", headers=auth)).json()
+    assert len(lib["sections"]) >= 30 and len(lib["demos"]) >= 5
+
+    # An existing page keeps its address: the demo's page with the same slug is skipped
+    await http.post(f"{base}/pages", json={"title": "Bize ulaşın", "slug": "bize-ulasin"}, headers=auth)
+    applied = await http.post(f"{base}/demos/su-ve-yardim/apply", headers=auth,
+                              json={"apply_theme": True, "include_pages": True, "publish": False})
+    assert applied.status_code == 200, applied.text
+    body = applied.json()
+    assert {p["slug"] for p in body["created_pages"]} == {"hakkimizda-sayfasi", "kampanya"}
+    assert body["skipped_pages"] == ["İletişim"]
+    # Drafts only: visitors still see the old site
+    assert (await http.get("/api/v1/public/home", headers={"Host": host})).json()["blocks"] is None
+    assert (await http.get("/api/v1/public/site-chrome", headers={"Host": host})).json()["header"] is None
+    site = (await http.get("/api/v1/public/site", headers={"Host": host})).json()
+    assert site["primary_color"] == "#0F766E" and site["design"]["heading_case"] == "uppercase"
+    # Publishing in one go
+    live = await http.post(f"{base}/demos/cami-vakif/apply", headers=auth, json={"include_pages": False, "publish": True})
+    assert live.json()["created_pages"] == []
+    assert (await http.get("/api/v1/public/home", headers={"Host": host})).json()["blocks"][0]["type"] == "banner"
+    chrome = (await http.get("/api/v1/public/site-chrome", headers={"Host": host})).json()
+    assert len(chrome["header"]) == 3 and chrome["footer"]
+    assert (await http.post(f"{base}/demos/yok/apply", headers=auth, json={})).status_code == 404
+
+    # Saved blocks: validated, per organisation, hidden from page lists
+    block = {"id": "x-12345", "type": "heading", "props": {"text": "Kayıtlı <b>başlık</b>"}}
+    saved = await http.post(f"{base}/saved-blocks", headers=auth, json={"name": "Başlığım", "block": block})
+    assert saved.status_code == 201
+    item = saved.json()
+    assert item["block"]["props"]["text"] == "Kayıtlı başlık" and item["block"]["id"] != "x-12345"
+    element = await http.post(f"{base}/saved-blocks", headers=auth,
+                              json={"name": "Bağış butonu", "zone": "header", "block": {"id": "d-12345", "type": "donate_button", "props": {}}})
+    assert element.status_code == 201
+    bad = await http.post(f"{base}/saved-blocks", headers=auth, json={"name": "x", "block": {"id": "x-1234", "type": "header_row"}})
+    assert bad.status_code == 422
+    assert len((await http.get(f"{base}/saved-blocks", headers=auth)).json()) == 2
+    assert (await http.get(f"{base}/saved-blocks", headers=other_auth)).json() == []
+    assert (await http.delete(f"{base}/saved-blocks/{item['id']}", headers=other_auth)).status_code == 404
+    kinds = {p["kind"] for p in (await http.get(f"{base}/pages", headers=auth)).json()}
+    assert "saved" not in kinds
+    assert (await http.get(f"{base}/pages/{item['id']}", headers=auth)).status_code == 404
+    assert (await http.delete(f"{base}/saved-blocks/{item['id']}", headers=auth)).status_code == 204

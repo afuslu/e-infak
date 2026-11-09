@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <pattern id="p" width="120" height="120" patternUnits="userSpaceOnUse">
+      <rect width="120" height="120" fill="#0B3B2E"/>
+      <path d="M60 10 L74 46 L110 60 L74 74 L60 110 L46 74 L10 60 L46 46Z" fill="none" stroke="#1F6B55" stroke-width="3"/>
+      <rect x="35" y="35" width="50" height="50" transform="rotate(45 60 60)" fill="none" stroke="#14513F" stroke-width="3"/>
+      <circle cx="60" cy="60" r="7" fill="#C9A227" opacity=".7"/>
+    </pattern>
+    <radialGradient id="v" cx=".5" cy=".5" r=".75"><stop offset=".4" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#p)"/><rect width="1600" height="900" fill="url(#v)"/>
+</svg>

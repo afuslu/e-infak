@@ -1,0 +1,162 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import type { Block, BuilderCatalog } from '../../lib/blocks'
+
+export interface LibrarySection { key: string; label: string; group: string; description: string; kind: 'content' | 'header' | 'footer'; blocks: Block[] }
+export interface LibraryPage { key: string; label: string; slug: string; description: string; blocks: Block[] }
+export interface LibraryDemo { key: string; label: string; description: string; image: string; kit: string; pages: string[] }
+export interface Library { sections: LibrarySection[]; pages: LibraryPage[]; demos: LibraryDemo[] }
+export interface SavedBlock { id: string; name: string; zone: string; block: Block; created_by: string | null; created_at: string | null }
+export interface DemoOptions { apply_theme: boolean; include_pages: boolean; publish: boolean }
+
+type Tab = 'sections' | 'pages' | 'saved' | 'demos'
+
+const subTab = (active: boolean) => `rounded-md px-2 py-1 text-[11px] font-semibold ${active ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`
+
+/** Icons of the blocks a section is made of: a quick idea of its layout without rendering it. */
+function Outline({ blocks, catalog }: { blocks: Block[]; catalog: BuilderCatalog }) {
+  const flat = blocks.flatMap((b) => (b.type === 'section' || b.type === 'header_row' ? (b.children || []).flatMap((c) => (c.type === 'header_slot' || c.type === 'column' ? c.children || [] : [c])) : [b]))
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1">
+      {flat.slice(0, 8).map((b, i) => (
+        <span key={i} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">{catalog.blocks[b.type]?.icon} {catalog.blocks[b.type]?.label || b.type}</span>
+      ))}
+    </div>
+  )
+}
+
+export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplace, onInsertSaved, onDeleteSaved, onApplyDemo }: {
+  library: Library | null
+  catalog: BuilderCatalog
+  kind: string
+  saved: SavedBlock[]
+  onInsert: (blocks: Block[]) => void
+  onReplace: (blocks: Block[], label: string) => void
+  onInsertSaved: (saved: SavedBlock) => void
+  onDeleteSaved: (saved: SavedBlock) => void
+  onApplyDemo: (demo: LibraryDemo, options: DemoOptions) => Promise<void>
+}) {
+  const [tab, setTab] = useState<Tab>('sections')
+  const [demo, setDemo] = useState<LibraryDemo | null>(null)
+  const [options, setOptions] = useState<DemoOptions>({ apply_theme: true, include_pages: true, publish: false })
+  const [busy, setBusy] = useState(false)
+  const chrome = kind === 'header' || kind === 'footer'
+
+  const groups = useMemo(() => {
+    const out: Record<string, LibrarySection[]> = {}
+    for (const s of library?.sections || []) {
+      if (chrome ? s.kind !== kind : s.kind !== 'content') continue
+      ;(out[s.group] ||= []).push(s)
+    }
+    return Object.entries(out)
+  }, [library, kind, chrome])
+
+  if (!library) return <p className="text-[12px] text-gray-400">Şablonlar yükleniyor…</p>
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-1">
+        <button type="button" className={subTab(tab === 'sections')} onClick={() => setTab('sections')}>{chrome ? 'Hazır düzenler' : 'Bölümler'}</button>
+        {!chrome && <button type="button" className={subTab(tab === 'pages')} onClick={() => setTab('pages')}>Sayfa şablonları</button>}
+        <button type="button" className={subTab(tab === 'saved')} onClick={() => setTab('saved')}>Kayıtlılarım ({saved.length})</button>
+        <button type="button" className={subTab(tab === 'demos')} onClick={() => setTab('demos')}>Demolar</button>
+      </div>
+
+      {tab === 'sections' && (
+        <>
+          <p className="text-[11px] text-gray-400">
+            {chrome ? 'Seçtiğiniz düzen mevcut olanın yerine geçer (yayınlayana kadar taslaktır).' : 'Bölüm, seçili bloğun altına; seçim yoksa sayfanın sonuna eklenir.'}
+          </p>
+          {groups.map(([group, items]) => (
+            <div key={group}>
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">{group}</div>
+              <div className="space-y-1.5">
+                {items.map((s) => (
+                  <button key={s.key} type="button" onClick={() => (chrome ? onReplace(s.blocks, s.label) : onInsert(s.blocks))}
+                    className="block w-full rounded-lg border bg-white p-2.5 text-start hover:border-blue-500 hover:bg-blue-50">
+                    <span className="block text-[12px] font-bold text-gray-800">{s.label}</span>
+                    <span className="block text-[11px] text-gray-500">{s.description}</span>
+                    <Outline blocks={s.blocks} catalog={catalog} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {tab === 'pages' && (
+        <>
+          <p className="text-[11px] text-gray-400">Şablon bu sayfanın içeriğinin yerine geçer. Geri almak için Ctrl+Z.</p>
+          {library.pages.map((p) => (
+            <button key={p.key} type="button" onClick={() => onReplace(p.blocks, p.label)}
+              className="block w-full rounded-lg border bg-white p-2.5 text-start hover:border-blue-500 hover:bg-blue-50">
+              <span className="block text-[12px] font-bold text-gray-800">📄 {p.label}</span>
+              <span className="block text-[11px] text-gray-500">{p.description}</span>
+              <Outline blocks={p.blocks} catalog={catalog} />
+            </button>
+          ))}
+        </>
+      )}
+
+      {tab === 'saved' && (
+        <>
+          <p className="text-[11px] text-gray-400">Bir bloğu kaydetmek için seçip sağ paneldeki 💾 düğmesine basın. Kayıtlı bloklar tüm sayfalarda kullanılabilir.</p>
+          {saved.length === 0 && <p className="rounded-md border border-dashed p-4 text-center text-[12px] text-gray-400">Henüz kayıtlı blok yok.</p>}
+          {saved.map((s) => (
+            <div key={s.id} className="flex items-start gap-2 rounded-lg border bg-white p-2.5">
+              <button type="button" className="min-w-0 flex-1 text-start" onClick={() => onInsertSaved(s)}>
+                <span className="block truncate text-[12px] font-bold text-gray-800">{catalog.blocks[s.block?.type]?.icon} {s.name}</span>
+                <span className="block text-[11px] text-gray-400">{catalog.blocks[s.block?.type]?.label} · {s.created_by || ''}</span>
+              </button>
+              <button type="button" title="Sil" className="text-[12px] text-red-500 hover:text-red-700" onClick={() => onDeleteSaved(s)}>✕</button>
+            </div>
+          ))}
+        </>
+      )}
+
+      {tab === 'demos' && (
+        <>
+          <p className="text-[11px] text-gray-400">Demo; ana sayfayı, header'ı, footer'ı ve isterseniz renk-yazı tipi temasını tek seferde kurar. Mevcut sayfalarınız silinmez.</p>
+          {library.demos.map((d) => (
+            <button key={d.key} type="button" onClick={() => setDemo(d)}
+              className="block w-full overflow-hidden rounded-lg border bg-white text-start hover:border-blue-500">
+              <img src={d.image} alt="" className="h-24 w-full object-cover" />
+              <span className="block px-2.5 pt-2 text-[12px] font-bold text-gray-800">{d.label}</span>
+              <span className="block px-2.5 pb-2.5 text-[11px] text-gray-500">{d.description}</span>
+            </button>
+          ))}
+        </>
+      )}
+
+      {demo && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => !busy && setDemo(null)}>
+          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <img src={demo.image} alt="" className="h-36 w-full object-cover" />
+            <div className="space-y-3 p-5">
+              <h3 className="text-lg font-bold">“{demo.label}” demosunu kur</h3>
+              <p className="text-[13px] text-gray-600">{demo.description}</p>
+              <ul className="list-disc ps-5 text-[12px] text-gray-600">
+                <li>Ana sayfa, header ve footer bu demoyla değiştirilir (önceki yayınlar Sürümler'de kalır).</li>
+                {options.include_pages && <li>Eklenecek sayfalar: {demo.pages.join(', ')} (adresi dolu olan atlanır).</li>}
+              </ul>
+              {([['apply_theme', 'Renkleri ve yazı tiplerini de uygula'], ['include_pages', 'Örnek sayfaları ekle'], ['publish', 'Hemen yayınla (işaretsizse taslak olarak kalır)']] as const).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2 text-[13px] font-semibold text-gray-700">
+                  <input type="checkbox" checked={options[key]} onChange={(e) => setOptions({ ...options, [key]: e.target.checked })} />{label}
+                </label>
+              ))}
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" disabled={busy} className="rounded-md border px-3 py-1.5 text-[13px] font-semibold" onClick={() => setDemo(null)}>Vazgeç</button>
+                <button type="button" disabled={busy} className="rounded-md bg-blue-600 px-3 py-1.5 text-[13px] font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+                  onClick={async () => { setBusy(true); try { await onApplyDemo(demo, options); setDemo(null) } finally { setBusy(false) } }}>
+                  {busy ? 'Kuruluyor…' : 'Demoyu kur'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
