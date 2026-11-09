@@ -78,7 +78,7 @@ export async function EInfakPortal() {
                   className="group flex items-center gap-4 rounded-2xl border border-slate-900 bg-slate-900/30 p-5 transition-all hover:-translate-y-0.5 hover:border-slate-700">
                   {org.logo_url
                     ? <img src={org.logo_url.startsWith('/') ? `${org.url}${org.logo_url}` : org.logo_url} alt="" className="h-14 w-14 rounded-full bg-white object-cover" />
-                    : <div className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-bold text-white" style={{ background: org.primary_color || '#0E7A5F' }}>{org.name[0]}</div>}
+                    : <div className="flex h-14 w-14 items-center justify-center rounded-full text-xl font-bold text-white" style={{ background: org.primary_color || '#059669' }}>{org.name[0]}</div>}
                   <div className="min-w-0">
                     <div className="truncate font-bold text-white">{org.name}</div>
                     {org.tagline && <div className="truncate text-sm text-slate-400">{org.tagline}</div>}

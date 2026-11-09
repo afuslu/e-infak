@@ -194,7 +194,7 @@ class OrganizationCreate(BaseModel):
     city: Optional[str] = Field(default=None, max_length=100)
     plan: Plan = Plan.BASLANGIC
     template: str = "sade"
-    primary_color: str = Field(default="#0E7A5F", pattern=r"^#[0-9A-Fa-f]{6}$")
+    primary_color: str = Field(default="#059669", pattern=r"^#[0-9A-Fa-f]{6}$")
     accent_color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     admin_email: EmailStr
     admin_first_name: str = Field(min_length=1, max_length=100)
