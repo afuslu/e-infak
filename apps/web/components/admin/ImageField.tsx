@@ -39,19 +39,21 @@ export function ImageField({ label, value, onChange, hint, preview = 'wide' }: {
   return (
     <div className="text-xs font-bold text-gray-600">
       <span className="mb-1 block">{label}</span>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {value && (
           <img src={value} alt="" className={`flex-shrink-0 rounded border bg-gray-50 object-cover ${preview === 'square' ? 'h-10 w-10' : 'h-10 w-16'}`} />
         )}
-        <input className={inputClass} placeholder="https://… veya yükleyin" value={value || ''} onChange={(e) => onChange(e.target.value)} />
-        <button type="button" onClick={() => setPicking(true)}
-          className="whitespace-nowrap rounded-lg border bg-white px-3 text-xs font-bold text-gray-700 hover:border-primary-600">
-          Kütüphaneden seç
-        </button>
-        <button type="button" disabled={busy} onClick={() => fileRef.current?.click()}
-          className="whitespace-nowrap rounded-lg border bg-white px-3 text-xs font-bold text-gray-700 hover:border-primary-600 disabled:opacity-50">
-          {busy ? 'Yükleniyor…' : 'Yükle'}
-        </button>
+        <input className={`${inputClass} min-w-[10rem] flex-1`} placeholder="https://… veya yükleyin" value={value || ''} onChange={(e) => onChange(e.target.value)} />
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setPicking(true)}
+            className="whitespace-nowrap rounded-lg border bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:border-primary-600">
+            Kütüphaneden seç
+          </button>
+          <button type="button" disabled={busy} onClick={() => fileRef.current?.click()}
+            className="whitespace-nowrap rounded-lg border bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:border-primary-600 disabled:opacity-50">
+            {busy ? 'Yükleniyor…' : 'Yükle'}
+          </button>
+        </div>
         <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon" className="hidden"
           onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
       </div>

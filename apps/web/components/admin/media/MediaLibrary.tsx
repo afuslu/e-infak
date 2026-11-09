@@ -183,9 +183,9 @@ export function MediaLibrary({ selectedId, onSelect, onOpen, reloadKey = 0, comp
 
       <div className="min-w-0 flex-1 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <input className={`${inputClass} max-w-xs`} placeholder="Ad, alt metin veya etiket ara…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className={`${inputClass} sm:max-w-xs`} placeholder="Ad, alt metin veya etiket ara…" value={search} onChange={(e) => setSearch(e.target.value)} />
           {tags.length > 0 && (
-            <select className={`${inputClass} w-auto`} value={tag} onChange={(e) => setTag(e.target.value)}>
+            <select className="rounded-lg border border-gray-300 bg-white p-2.5 text-sm outline-none focus:border-primary-600" value={tag} onChange={(e) => setTag(e.target.value)}>
               <option value="">Tüm etiketler</option>
               {tags.map((t) => <option key={t} value={t}>#{t}</option>)}
             </select>
@@ -237,7 +237,7 @@ export function MediaLibrary({ selectedId, onSelect, onOpen, reloadKey = 0, comp
           {items.length === 0 && !loading ? (
             <p className="py-10 text-center text-sm text-gray-400">Bu görünümde görsel yok.</p>
           ) : (
-            <div className={`grid gap-3 ${compact ? 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'}`}>
+            <div className={`grid gap-3 ${compact ? 'grid-cols-[repeat(auto-fill,minmax(120px,1fr))]' : 'grid-cols-[repeat(auto-fill,minmax(150px,1fr))]'}`}>
               {items.map((asset) => (
                 <button
                   key={asset.id}

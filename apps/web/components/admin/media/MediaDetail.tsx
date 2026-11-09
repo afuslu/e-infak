@@ -23,14 +23,17 @@ export function MediaDetail({ asset, folders, onChanged, onDeleted, onClose }: {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
+  // A saved version of the same image only refreshes the form; another image resets the panel.
   useEffect(() => {
     setForm(asset)
     setTagText(asset.tags.join(', '))
+  }, [asset])
+  useEffect(() => {
     setCropping(false)
     setMessage(null)
     setRefs(null)
     mediaApi.references(asset.id).then((r) => setRefs(r.data)).catch(() => setRefs([]))
-  }, [asset])
+  }, [asset.id])
 
   const absoluteUrl = typeof window !== 'undefined' ? `${window.location.origin}${asset.url}` : asset.url
   const canCrop = asset.mime !== 'image/gif' && asset.mime !== 'image/x-icon'
