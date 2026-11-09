@@ -26,8 +26,9 @@ from app.models.organization import Organization, OrganizationDomain
 from app.models.platform import PlatformAuditLog, PlatformUser
 from app.models.user import User, UserRole
 from app.payments import PROVIDERS as PAYMENT_PROVIDERS, build_provider
+from app.services import domains
 from app.services.site import DEFAULT_SECTIONS, TEMPLATES
-from app.services.tenancy import RESERVED_SUBDOMAINS, forget_host, normalize_host, twin, valid_subdomain
+from app.services.tenancy import RESERVED_SUBDOMAINS, forget_host, twin, valid_subdomain
 from app.services.tenant_credentials import CredentialsUnavailable, get_credentials, save_credentials
 from app.sms import PROVIDERS as SMS_PROVIDERS
 
@@ -137,7 +138,7 @@ async def _org_or_404(db: AsyncSession, org_id: UUID) -> Organization:
 
 
 async def _org_out(db: AsyncSession, org: Organization, stats: Optional[dict] = None) -> dict:
-    domains = (await db.execute(
+    domain_rows = (await db.execute(
         select(OrganizationDomain).where(OrganizationDomain.organization_id == org.id).order_by(OrganizationDomain.domain)
     )).scalars().all()
     return {
@@ -158,8 +159,7 @@ async def _org_out(db: AsyncSession, org: Organization, stats: Optional[dict] = 
         "payment_provider": (org.settings or {}).get("payment_provider") or "ziraatpay",
         "sms_provider": (org.settings or {}).get("sms_provider") or "netgsm",
         "sms_platform_fallback": (org.settings or {}).get("sms_platform_fallback") is not False,
-        "domains": [{"id": str(d.id), "domain": d.domain, "status": d.status, "is_primary": d.is_primary,
-                     "verification_token": d.verification_token} for d in domains],
+        "domains": [domains.domain_out(d) for d in domain_rows],
         "created_at": org.created_at.isoformat() if org.created_at else None,
         **(stats or {}),
     }
@@ -240,6 +240,7 @@ async def create_organization(payload: OrganizationCreate, request: Request, db:
            admin_email=str(payload.admin_email))
     await db.commit()
     await forget_host(f"{subdomain}.{settings.PLATFORM_BASE_DOMAIN}")
+    domains.warm_certificates_soon([f"{subdomain}.{settings.PLATFORM_BASE_DOMAIN}"])
     return {
         "organization": await _org_out(db, org, {"user_count": 1, "donation_count": 0, "last_donation_at": None}),
         "admin": {"email": str(payload.admin_email), "temporary_password": password,
@@ -325,8 +326,8 @@ async def update_organization(org_id: UUID, payload: OrganizationUpdate, request
                     details={"changes": changes, "by": operator.email}))
     await db.commit()
     # Suspension takes effect immediately on every host of the organisation.
-    domains = (await db.execute(select(OrganizationDomain.domain).where(OrganizationDomain.organization_id == org.id))).scalars().all()
-    hosts = [f"{org.subdomain}.{settings.PLATFORM_BASE_DOMAIN}"] + [h for d in domains for h in (d, twin(d))]
+    names = (await db.execute(select(OrganizationDomain.domain).where(OrganizationDomain.organization_id == org.id))).scalars().all()
+    hosts = [f"{org.subdomain}.{settings.PLATFORM_BASE_DOMAIN}"] + [h for d in names for h in (d, twin(d))]
     await forget_host(*hosts)
     return await _org_out(db, org)
 
@@ -342,47 +343,54 @@ class DomainIn(BaseModel):
 async def add_domain(org_id: UUID, payload: DomainIn, request: Request, db: AsyncSession = Depends(get_db),
                      operator: PlatformUser = Depends(get_platform_user)):
     org = await _org_or_404(db, org_id)
-    domain = normalize_host(payload.domain)
-    if domain and domain.startswith("www."):
-        domain = domain[4:]
-    base = settings.PLATFORM_BASE_DOMAIN
-    if not domain or "." not in domain or domain == base or domain.endswith("." + base):
-        raise HTTPException(status_code=422, detail="Geçerli bir alan adı girin (ör. kurumadi.org)")
-    if (await db.execute(select(OrganizationDomain.id).where(OrganizationDomain.domain == domain))).first():
-        raise HTTPException(status_code=409, detail="Bu alan adı başka bir kayıtta var")
-    row = OrganizationDomain(organization_id=org.id, domain=domain, status="pending",
-                             verification_token=secrets.token_hex(16), is_primary=False)
-    db.add(row)
-    _audit(db, request, operator, "alan_adi_ekle", org.id, domain=domain)
+    try:
+        row = await domains.add_domain(db, org.id, payload.domain)
+    except domains.DomainError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+    _audit(db, request, operator, "alan_adi_ekle", org.id, domain=row.domain)
     await db.commit()
-    return {"id": str(row.id), "domain": domain, "status": row.status, "verification_token": row.verification_token}
+    return domains.domain_out(row)
+
+
+async def _domain_or_404(db: AsyncSession, org_id: UUID, domain_id: UUID) -> OrganizationDomain:
+    row = await db.get(OrganizationDomain, domain_id)
+    if not row or row.organization_id != org_id:
+        raise HTTPException(status_code=404, detail="Alan adı bulunamadı")
+    return row
+
+
+@router.post("/organizations/{org_id}/domains/{domain_id}/verify")
+async def verify_domain(org_id: UUID, domain_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
+                        operator: PlatformUser = Depends(get_platform_user)):
+    """Check the DNS records now; a pending domain goes live when they are right."""
+    row = await _domain_or_404(db, org_id, domain_id)
+    was_active = row.status == "active"
+    result = await domains.verify(db, row)
+    if result.ok and not was_active:
+        _audit(db, request, operator, "alan_adi_dogrulandi", org_id, domain=row.domain)
+        await db.commit()
+        domains.warm_certificates_soon([row.domain, f"www.{row.domain}"])
+    return domains.domain_out(row)
 
 
 @router.post("/organizations/{org_id}/domains/{domain_id}/activate")
 async def activate_domain(org_id: UUID, domain_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
                           operator: PlatformUser = Depends(get_platform_user)):
-    """Operator confirms the domain points here; it then serves the organisation's site
-    and becomes eligible for a certificate."""
-    row = await db.get(OrganizationDomain, domain_id)
-    if not row or row.organization_id != org_id:
-        raise HTTPException(status_code=404, detail="Alan adı bulunamadı")
-    others = (await db.execute(select(OrganizationDomain).where(
-        OrganizationDomain.organization_id == org_id, OrganizationDomain.id != row.id))).scalars().all()
-    for other in others:
-        other.is_primary = False
-    row.status, row.is_primary, row.verified_at = "active", True, datetime.now(timezone.utc)
+    """Operator confirms the domain points here without the TXT record; it then serves
+    the organisation's site and becomes eligible for a certificate."""
+    row = await _domain_or_404(db, org_id, domain_id)
+    await domains.activate(db, row)
     _audit(db, request, operator, "alan_adi_aktif", org_id, domain=row.domain)
     await db.commit()
     await forget_host(row.domain, twin(row.domain))
-    return {"id": str(row.id), "domain": row.domain, "status": row.status}
+    domains.warm_certificates_soon([row.domain, f"www.{row.domain}"])
+    return domains.domain_out(row)
 
 
 @router.delete("/organizations/{org_id}/domains/{domain_id}")
 async def remove_domain(org_id: UUID, domain_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
                         operator: PlatformUser = Depends(get_platform_user)):
-    row = await db.get(OrganizationDomain, domain_id)
-    if not row or row.organization_id != org_id:
-        raise HTTPException(status_code=404, detail="Alan adı bulunamadı")
+    row = await _domain_or_404(db, org_id, domain_id)
     domain = row.domain
     await db.delete(row)
     _audit(db, request, operator, "alan_adi_sil", org_id, domain=domain)

@@ -62,7 +62,10 @@ class Settings(BaseSettings):
     # Multi-tenant hosting
     PLATFORM_BASE_DOMAIN: str = "e-infak.org"  # organisations get <subdomain>.<this>
     PLATFORM_CNAME_TARGET: str = "cname.e-infak.org"  # shown to organisations for custom domains
-    PLATFORM_PUBLIC_IP: str = ""  # optional A-record target shown to organisations
+    PLATFORM_PUBLIC_IP: str = ""  # A-record target; custom domains verify against it
+    # Caddy certificate service (deploy/docker/Caddyfile); empty disables certificate warm-up
+    CERT_SERVICE_HOST: str = ""
+    CERT_SERVICE_PORT: int = 8443
     DEV_DEFAULT_ORG_SLUG: str = "hicret-dernegi"  # localhost fallback outside production
     MEDIA_ROOT: str = "./media"  # uploaded logos and images
     CREDENTIALS_ENCRYPTION_KEY: str = ""  # Fernet key(s), comma separated, newest first

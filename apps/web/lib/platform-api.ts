@@ -35,7 +35,11 @@ export async function platformCall<T>(method: 'get' | 'post' | 'patch' | 'put' |
   }
 }
 
-export interface PlatformDomain { id: string; domain: string; status: string; is_primary: boolean; verification_token: string }
+export interface PlatformDomain {
+  id: string; domain: string; status: string; is_primary: boolean; verification_token: string
+  last_checked_at: string | null; last_check_error: string | null
+  dns_records: { type: string; name: string; host: string; value: string }[]
+}
 export interface PlatformOrg {
   id: string; slug: string; name: string; legal_name: string; email: string
   plan: string; plan_label: string; enabled_addons: string[]; extra_user_seats: number; user_limit: number
