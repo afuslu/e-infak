@@ -7,29 +7,29 @@
  * used, so a variable set on <body> or a wrapper element applies to its subtree.
  */
 @theme inline {
-  --color-primary-50: var(--brand-primary-50, #E6F5EE);
-  --color-primary-100: var(--brand-primary-100, #C9EBDD);
-  --color-primary-200: var(--brand-primary-200, #9DDCC3);
-  --color-primary-300: var(--brand-primary-300, #6BC9A5);
-  --color-primary-400: var(--brand-primary-400, #3DAE87);
-  --color-primary-500: var(--brand-primary-500, #2FA884);
-  --color-primary-600: var(--brand-primary-600, #0E7A5F);
-  --color-primary-700: var(--brand-primary-700, #0A5C47);
-  --color-primary-800: var(--brand-primary-800, #0A4436);
-  --color-primary-900: var(--brand-primary-900, #073327);
-  --color-primary-950: var(--brand-primary-950, #041D16);
+  --color-primary-50: var(--brand-primary-50, #ECFDF5);
+  --color-primary-100: var(--brand-primary-100, #D1FAE5);
+  --color-primary-200: var(--brand-primary-200, #A7F3D0);
+  --color-primary-300: var(--brand-primary-300, #6EE7B7);
+  --color-primary-400: var(--brand-primary-400, #34D399);
+  --color-primary-500: var(--brand-primary-500, #10B981);
+  --color-primary-600: var(--brand-primary-600, #059669);
+  --color-primary-700: var(--brand-primary-700, #047857);
+  --color-primary-800: var(--brand-primary-800, #065F46);
+  --color-primary-900: var(--brand-primary-900, #064E3B);
+  --color-primary-950: var(--brand-primary-950, #022C22);
 
-  --color-accent-50: var(--brand-accent-50, #EAF7F2);
-  --color-accent-100: var(--brand-accent-100, #D1EEE3);
-  --color-accent-200: var(--brand-accent-200, #A9DFCB);
-  --color-accent-300: var(--brand-accent-300, #7FCFB1);
-  --color-accent-400: var(--brand-accent-400, #57BE98);
-  --color-accent-500: var(--brand-accent-500, #3CB18B);
-  --color-accent-600: var(--brand-accent-600, #2FA884);
-  --color-accent-700: var(--brand-accent-700, #268A6C);
-  --color-accent-800: var(--brand-accent-800, #1F6D56);
-  --color-accent-900: var(--brand-accent-900, #185442);
-  --color-accent-950: var(--brand-accent-950, #10392D);
+  --color-accent-50: var(--brand-accent-50, #F0FDFA);
+  --color-accent-100: var(--brand-accent-100, #CCFBF1);
+  --color-accent-200: var(--brand-accent-200, #99F6E4);
+  --color-accent-300: var(--brand-accent-300, #5EEAD4);
+  --color-accent-400: var(--brand-accent-400, #2DD4BF);
+  --color-accent-500: var(--brand-accent-500, #14B8A6);
+  --color-accent-600: var(--brand-accent-600, #0D9488);
+  --color-accent-700: var(--brand-accent-700, #0F766E);
+  --color-accent-800: var(--brand-accent-800, #115E59);
+  --color-accent-900: var(--brand-accent-900, #134E4A);
+  --color-accent-950: var(--brand-accent-950, #042F2E);
 
   --font-sans: var(--font-primary-family), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-heading-family), Georgia, serif;
@@ -84,4 +84,82 @@
 @media (prefers-reduced-motion: reduce) {
   .slider-kenburns, .marquee-track { animation: none; }
   .slider-progress { animation: none; width: 100%; }
+}
+
+
+/* ----- Yönetim paneli koyu teması (E-Medrese ile aynı slate + zümrüt tonları) -----
+ * Panel çoğunlukla Tailwind gri skalasını kullanır; skala burada tersine çevrilir, beyaz
+ * yüzeyler koyu yüzeye döner. Açık durum renkleri (bg-red-50 vb.) yarı saydam olur. */
+.admin-dark {
+  color-scheme: dark;
+  --admin-surface: #1E293B;
+  --color-gray-50: #172033; --color-gray-100: #0F172A; --color-gray-200: #334155; --color-gray-300: #475569;
+  --color-gray-400: #64748B; --color-gray-500: #94A3B8; --color-gray-600: #A8B5C7; --color-gray-700: #CBD5E1;
+  --color-gray-800: #E2E8F0; --color-gray-900: #F1F5F9; --color-gray-950: #F8FAFC;
+  --color-slate-50: #172033; --color-slate-100: #0F172A; --color-slate-200: #334155; --color-slate-300: #475569;
+  --color-slate-400: #64748B; --color-slate-500: #94A3B8; --color-slate-600: #A8B5C7; --color-slate-700: #CBD5E1;
+  --color-slate-800: #E2E8F0; --color-slate-900: #F1F5F9; --color-slate-950: #F8FAFC;
+  --brand-primary-50: rgba(52, 211, 153, .12);
+  --brand-primary-100: rgba(52, 211, 153, .2);
+  --brand-primary-200: rgba(52, 211, 153, .35);
+  color: #F1F5F9;
+}
+@layer utilities {
+  :where(.admin-dark) .bg-white { background-color: var(--admin-surface); }
+  :where(.admin-dark) .bg-white\/50 { background-color: rgba(30, 41, 59, .5); }
+  :where(.admin-dark) .bg-gray-900, :where(.admin-dark) .bg-slate-900, :where(.admin-dark) .bg-gray-800 { background-color: #020617; }
+  :where(.admin-dark) .text-primary-600, :where(.admin-dark) .text-primary-700, :where(.admin-dark) .text-primary-800 { color: #34D399; }
+  :where(.admin-dark) input:not([type=checkbox]):not([type=radio]):not([type=color]), :where(.admin-dark) select, :where(.admin-dark) textarea {
+    background-color: #0F172A; color: #F1F5F9;
+  }
+  :where(.admin-dark) input::placeholder, :where(.admin-dark) textarea::placeholder { color: #64748B; }
+  :where(.admin-dark) .shadow-sm, :where(.admin-dark) .shadow, :where(.admin-dark) .shadow-md, :where(.admin-dark) .shadow-lg { box-shadow: 0 1px 3px rgb(0 0 0 / .4); }
+  :where(.admin-dark) .bg-red-50{background-color:rgba(239,68,68,.12)}
+  :where(.admin-dark) .bg-red-100{background-color:rgba(239,68,68,.2)}
+  :where(.admin-dark) .border-red-100,:where(.admin-dark) .border-red-200,:where(.admin-dark) .border-red-300{border-color:rgba(239,68,68,.35)}
+  :where(.admin-dark) .text-red-600,:where(.admin-dark) .text-red-700,:where(.admin-dark) .text-red-800,:where(.admin-dark) .text-red-900{color:#FCA5A5}
+  :where(.admin-dark) .bg-green-50{background-color:rgba(34,197,94,.12)}
+  :where(.admin-dark) .bg-green-100{background-color:rgba(34,197,94,.2)}
+  :where(.admin-dark) .border-green-100,:where(.admin-dark) .border-green-200,:where(.admin-dark) .border-green-300{border-color:rgba(34,197,94,.35)}
+  :where(.admin-dark) .text-green-600,:where(.admin-dark) .text-green-700,:where(.admin-dark) .text-green-800,:where(.admin-dark) .text-green-900{color:#86EFAC}
+  :where(.admin-dark) .bg-emerald-50{background-color:rgba(16,185,129,.12)}
+  :where(.admin-dark) .bg-emerald-100{background-color:rgba(16,185,129,.2)}
+  :where(.admin-dark) .border-emerald-100,:where(.admin-dark) .border-emerald-200,:where(.admin-dark) .border-emerald-300{border-color:rgba(16,185,129,.35)}
+  :where(.admin-dark) .text-emerald-600,:where(.admin-dark) .text-emerald-700,:where(.admin-dark) .text-emerald-800,:where(.admin-dark) .text-emerald-900{color:#6EE7B7}
+  :where(.admin-dark) .bg-amber-50{background-color:rgba(245,158,11,.12)}
+  :where(.admin-dark) .bg-amber-100{background-color:rgba(245,158,11,.2)}
+  :where(.admin-dark) .border-amber-100,:where(.admin-dark) .border-amber-200,:where(.admin-dark) .border-amber-300{border-color:rgba(245,158,11,.35)}
+  :where(.admin-dark) .text-amber-600,:where(.admin-dark) .text-amber-700,:where(.admin-dark) .text-amber-800,:where(.admin-dark) .text-amber-900{color:#FCD34D}
+  :where(.admin-dark) .bg-yellow-50{background-color:rgba(234,179,8,.12)}
+  :where(.admin-dark) .bg-yellow-100{background-color:rgba(234,179,8,.2)}
+  :where(.admin-dark) .border-yellow-100,:where(.admin-dark) .border-yellow-200,:where(.admin-dark) .border-yellow-300{border-color:rgba(234,179,8,.35)}
+  :where(.admin-dark) .text-yellow-600,:where(.admin-dark) .text-yellow-700,:where(.admin-dark) .text-yellow-800,:where(.admin-dark) .text-yellow-900{color:#FDE047}
+  :where(.admin-dark) .bg-orange-50{background-color:rgba(249,115,22,.12)}
+  :where(.admin-dark) .bg-orange-100{background-color:rgba(249,115,22,.2)}
+  :where(.admin-dark) .border-orange-100,:where(.admin-dark) .border-orange-200,:where(.admin-dark) .border-orange-300{border-color:rgba(249,115,22,.35)}
+  :where(.admin-dark) .text-orange-600,:where(.admin-dark) .text-orange-700,:where(.admin-dark) .text-orange-800,:where(.admin-dark) .text-orange-900{color:#FDBA74}
+  :where(.admin-dark) .bg-blue-50{background-color:rgba(59,130,246,.12)}
+  :where(.admin-dark) .bg-blue-100{background-color:rgba(59,130,246,.2)}
+  :where(.admin-dark) .border-blue-100,:where(.admin-dark) .border-blue-200,:where(.admin-dark) .border-blue-300{border-color:rgba(59,130,246,.35)}
+  :where(.admin-dark) .text-blue-600,:where(.admin-dark) .text-blue-700,:where(.admin-dark) .text-blue-800,:where(.admin-dark) .text-blue-900{color:#93C5FD}
+  :where(.admin-dark) .bg-sky-50{background-color:rgba(14,165,233,.12)}
+  :where(.admin-dark) .bg-sky-100{background-color:rgba(14,165,233,.2)}
+  :where(.admin-dark) .border-sky-100,:where(.admin-dark) .border-sky-200,:where(.admin-dark) .border-sky-300{border-color:rgba(14,165,233,.35)}
+  :where(.admin-dark) .text-sky-600,:where(.admin-dark) .text-sky-700,:where(.admin-dark) .text-sky-800,:where(.admin-dark) .text-sky-900{color:#7DD3FC}
+  :where(.admin-dark) .bg-indigo-50{background-color:rgba(99,102,241,.12)}
+  :where(.admin-dark) .bg-indigo-100{background-color:rgba(99,102,241,.2)}
+  :where(.admin-dark) .border-indigo-100,:where(.admin-dark) .border-indigo-200,:where(.admin-dark) .border-indigo-300{border-color:rgba(99,102,241,.35)}
+  :where(.admin-dark) .text-indigo-600,:where(.admin-dark) .text-indigo-700,:where(.admin-dark) .text-indigo-800,:where(.admin-dark) .text-indigo-900{color:#A5B4FC}
+  :where(.admin-dark) .bg-purple-50{background-color:rgba(168,85,247,.12)}
+  :where(.admin-dark) .bg-purple-100{background-color:rgba(168,85,247,.2)}
+  :where(.admin-dark) .border-purple-100,:where(.admin-dark) .border-purple-200,:where(.admin-dark) .border-purple-300{border-color:rgba(168,85,247,.35)}
+  :where(.admin-dark) .text-purple-600,:where(.admin-dark) .text-purple-700,:where(.admin-dark) .text-purple-800,:where(.admin-dark) .text-purple-900{color:#D8B4FE}
+  :where(.admin-dark) .bg-teal-50{background-color:rgba(20,184,166,.12)}
+  :where(.admin-dark) .bg-teal-100{background-color:rgba(20,184,166,.2)}
+  :where(.admin-dark) .border-teal-100,:where(.admin-dark) .border-teal-200,:where(.admin-dark) .border-teal-300{border-color:rgba(20,184,166,.35)}
+  :where(.admin-dark) .text-teal-600,:where(.admin-dark) .text-teal-700,:where(.admin-dark) .text-teal-800,:where(.admin-dark) .text-teal-900{color:#5EEAD4}
+  :where(.admin-dark) .bg-rose-50{background-color:rgba(244,63,94,.12)}
+  :where(.admin-dark) .bg-rose-100{background-color:rgba(244,63,94,.2)}
+  :where(.admin-dark) .border-rose-100,:where(.admin-dark) .border-rose-200,:where(.admin-dark) .border-rose-300{border-color:rgba(244,63,94,.35)}
+  :where(.admin-dark) .text-rose-600,:where(.admin-dark) .text-rose-700,:where(.admin-dark) .text-rose-800,:where(.admin-dark) .text-rose-900{color:#FDA4AF}
 }

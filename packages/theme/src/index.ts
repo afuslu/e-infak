@@ -11,8 +11,9 @@ const MIX: Record<(typeof SHADES)[number], number> = {
   600: 0, 700: -0.18, 800: -0.35, 900: -0.5, 950: -0.66,
 }
 
-export const DEFAULT_PRIMARY = '#0E7A5F'
-export const DEFAULT_ACCENT = '#2FA884'
+// Platform default: E-Medrese's emerald (Tailwind emerald-600) with a teal accent
+export const DEFAULT_PRIMARY = '#059669'
+export const DEFAULT_ACCENT = '#0D9488'
 
 export function normalizeHex(value: string | null | undefined, fallback: string): string {
   const text = (value || '').trim()

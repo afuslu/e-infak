@@ -145,8 +145,8 @@ class SiteAppearance(BaseModel):
     """What an organisation admin may change about its website."""
     template: Literal["klasik", "kategori", "sade"] = "klasik"
     tagline: Optional[str] = None
-    primary_color: str = "#0E7A5F"
-    accent_color: str = "#2FA884"
+    primary_color: str = "#059669"
+    accent_color: str = "#0D9488"
     logo_url: Optional[str] = None
     logo_dark_url: Optional[str] = None
     favicon_url: Optional[str] = None
@@ -232,8 +232,8 @@ def appearance_of(org) -> dict:
     return {
         "template": template,
         "tagline": org.tagline,
-        "primary_color": org.theme_primary_color or "#0E7A5F",
-        "accent_color": org.theme_accent_color or "#2FA884",
+        "primary_color": org.theme_primary_color or "#059669",
+        "accent_color": org.theme_accent_color or "#0D9488",
         "logo_url": org.logo_url,
         "logo_dark_url": org.logo_dark_url,
         "favicon_url": org.favicon_url,
