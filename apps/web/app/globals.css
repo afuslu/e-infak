@@ -163,3 +163,21 @@
   :where(.admin-dark) .border-rose-100,:where(.admin-dark) .border-rose-200,:where(.admin-dark) .border-rose-300{border-color:rgba(244,63,94,.35)}
   :where(.admin-dark) .text-rose-600,:where(.admin-dark) .text-rose-700,:where(.admin-dark) .text-rose-800,:where(.admin-dark) .text-rose-900{color:#FDA4AF}
 }
+
+/* Panel içindeki site önizlemeleri koyu temada da sitenin kendi (açık) görünümünde kalır. */
+.admin-dark .admin-light {
+  color-scheme: light;
+  color: #111827;
+  --color-gray-50: #F9FAFB; --color-gray-100: #F3F4F6; --color-gray-200: #E5E7EB; --color-gray-300: #D1D5DB;
+  --color-gray-400: #9CA3AF; --color-gray-500: #6B7280; --color-gray-600: #4B5563; --color-gray-700: #374151;
+  --color-gray-800: #1F2937; --color-gray-900: #111827; --color-gray-950: #030712;
+  --color-slate-50: #F8FAFC; --color-slate-100: #F1F5F9; --color-slate-200: #E2E8F0; --color-slate-300: #CBD5E1;
+  --color-slate-400: #94A3B8; --color-slate-500: #64748B; --color-slate-600: #475569; --color-slate-700: #334155;
+  --color-slate-800: #1E293B; --color-slate-900: #0F172A; --color-slate-950: #020617;
+}
+@layer utilities {
+  :where(.admin-dark) .admin-light .bg-white { background-color: #FFFFFF; }
+  :where(.admin-dark) .admin-light .text-primary-600 { color: var(--brand-primary-600); }
+  :where(.admin-dark) .admin-light .text-primary-700 { color: var(--brand-primary-700); }
+  :where(.admin-dark) .admin-light .text-primary-800 { color: var(--brand-primary-800); }
+}

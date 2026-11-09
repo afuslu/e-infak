@@ -167,7 +167,7 @@ export default function AppearancePage() {
             <div className="grid gap-3 sm:grid-cols-3" style={previewStyle}>
               {loaded.templates.map((t) => (
                 <button key={t.key} type="button" onClick={() => chooseTemplate(t.key)}
-                  className={`space-y-2 rounded-xl border-2 p-3 text-left ${form.template === t.key ? 'border-primary-600 bg-primary-50' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
+                  className={`space-y-2 rounded-xl border-2 p-3 text-left ${form.template === t.key ? 'border-primary-600 bg-primary-600/10' : 'border-gray-200 bg-white hover:border-gray-300'}`}>
                   <TemplateThumb template={t.key} />
                   <div className="text-sm font-bold text-gray-900">{t.label.split(' — ')[0]}</div>
                   <div className="text-xs text-gray-500">{t.label.split(' — ')[1]}</div>
@@ -295,7 +295,7 @@ export default function AppearancePage() {
         <div className="xl:sticky xl:top-6 xl:col-span-4">
           <Card className="overflow-hidden border border-gray-100 shadow-sm">
             <div className="border-b bg-gray-50 px-4 py-2 text-xs font-bold text-gray-500">Önizleme</div>
-            <div style={previewStyle} className="text-[11px]">
+            <div style={previewStyle} className="admin-light text-[11px]">
               <div className="flex items-center gap-2 border-b bg-white px-3 py-2">
                 {form.logo_url ? <img src={form.logo_url} alt="" className="h-7 w-7 rounded-full object-cover" /> : <div className="h-7 w-7 rounded-full bg-primary-600" />}
                 <div className="leading-tight">
