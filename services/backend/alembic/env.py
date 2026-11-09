@@ -14,7 +14,7 @@ from app.core.db import Base
 from app.models.organization import Organization, OrganizationDomain
 from app.models.user import User
 from app.models.staff import Department, StaffRole
-from app.models.cms import SitePage, MenuItem, GalleryItem, VolunteerApplication
+from app.models.cms import SitePage, SitePageRevision, MenuItem, GalleryItem, VolunteerApplication
 from app.models.sponsorship import Beneficiary, Pledge, PledgeInstallment, WellShare
 from app.models.fx import FxRate
 from app.models.credentials import TenantCredential

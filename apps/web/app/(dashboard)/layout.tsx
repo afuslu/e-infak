@@ -43,6 +43,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/admin/banners', label: "Slider / Duyuru Banner'ları", icon: '🖼️', feature: 'website' },
   { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: '💳', feature: 'recurring' },
   { href: '/admin/zakat', label: 'Zekât Ayarları', icon: '🪙' },
+  { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: '🧩', permission: 'content_manage' },
   { href: '/admin/gorunum', label: 'Görünüm & Tema', icon: '🎨', permission: 'settings_manage' },
   { href: '/admin/medya', label: 'Medya Kütüphanesi', icon: '🖼️', permission: 'content_manage' },
   { href: '/admin/site-ayarlari', label: 'Site Ayarları', icon: '⚙️', permission: 'settings_manage' },

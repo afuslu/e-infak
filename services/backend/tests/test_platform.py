@@ -13,8 +13,11 @@ from app.models.user import User, UserRole
 
 
 @pytest.fixture
-async def http(db_session):
+async def http(db_session, monkeypatch):
+    from app.core.config import settings
     from app.core.db import engine
+    # The login rate limit lives in Redis and would carry over between test runs.
+    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
     from app.main import app
     await engine.dispose()  # pooled connections belong to an earlier test's event loop
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://e-infak.org") as client:

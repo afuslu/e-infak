@@ -1,23 +1,32 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { BlockRenderer } from '../../../../components/blocks/BlockRenderer'
 import { RichText } from '../../../../components/site/RichText'
-import { currentLocale, getPublic, type PublicPage } from '../../../../lib/public-content'
+import { loadHomeData } from '../../../../lib/home-data'
+import { currentLocale, getPublic, getSite, type PublicPage } from '../../../../lib/public-content'
 import { translator } from '../../../../lib/i18n'
 
 export const dynamic = 'force-dynamic'
 
-async function loadPage(slug: string) {
-  return getPublic<PublicPage | null>(`pages/${encodeURIComponent(slug)}`, null)
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ onizleme?: string }> }
+
+const previewToken = (value?: string) => (value && /^\d+\.[a-f0-9]{40}$/.test(value) ? value : null)
+
+async function loadPage(slug: string, token: string | null) {
+  const path = `pages/${encodeURIComponent(slug)}${token ? `?onizleme=${token}` : ''}`
+  return getPublic<PublicPage | null>(path, null, token ? 0 : 5)
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { slug } = await params
-  const page = await loadPage(slug)
+  const token = previewToken((await searchParams).onizleme)
+  const page = await loadPage(slug, token)
   if (!page) return { title: translator(await currentLocale())('notFound') }
   return {
     title: page.seo_title || page.title,
     description: page.seo_description || undefined,
     alternates: { canonical: `/sayfa/${page.slug}` },
+    robots: page.preview ? { index: false, follow: false } : undefined,
     openGraph: {
       title: page.seo_title || page.title,
       description: page.seo_description || undefined,
@@ -26,10 +35,26 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 }
 
-export default async function CmsPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function CmsPage({ params, searchParams }: Props) {
   const { slug } = await params
-  const page = await loadPage(slug)
+  const token = previewToken((await searchParams).onizleme)
+  const page = await loadPage(slug, token)
   if (!page) notFound()
+
+  if (page.blocks) {
+    const site = await getSite()
+    if (!site) notFound()
+    return (
+      <>
+        {page.preview && (
+          <div className="sticky top-0 z-50 bg-amber-400 px-4 py-2 text-center text-sm font-bold text-amber-950">
+            Önizleme — bu sürüm henüz yayınlanmadı; yalnızca bu bağlantıya sahip olanlar görür.
+          </div>
+        )}
+        <BlockRenderer blocks={page.blocks} data={await loadHomeData(site)} />
+      </>
+    )
+  }
 
   return (
     <>

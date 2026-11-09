@@ -337,7 +337,9 @@ def _usage_sources():
     from app.models.sponsorship import Beneficiary
 
     return [
-        (SitePage, "Sayfa", "title", "/admin/sayfalar", ("cover_image_url", "body", "translations")),
+        (SitePage, "Sayfa", "title", "/admin/site-yapici", (
+            "cover_image_url", "body", "translations", "blocks", "draft_blocks",
+        )),
         (ContentPost, "Haber & Blog", "title", "/admin/icerikler", ("image_url", "gallery_urls", "body", "translations")),
         (GalleryItem, "Galeri", "title", "/admin/galeri", ("image_url",)),
         (Campaign, "Kampanya", "title", "/admin/kampanyalar", ("cover_image_url", "gallery_urls", "description")),

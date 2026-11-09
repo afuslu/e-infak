@@ -186,6 +186,16 @@ async def test_where_used_blocks_delete(db_session, http, tmp_path):
     fields = {(r["type"], r["field"]) for r in refs}
     assert ("organization", "logo_url") in fields and ("organization", "site") in fields
     assert ("site_pages", "body") in fields
+
+    # Images placed with the site builder (draft or published blocks) count too
+    spare_url = spare["variants"][-1]["url"]
+    db_session.add(SitePage(organization_id=org.id, slug="anasayfa-x", title="Ana sayfa", body="", kind="page",
+                            draft_blocks=[{"id": "b-img", "type": "image", "props": {"image_url": spare_url}}]))
+    await db_session.commit()
+    block_refs = (await http.get(f"/api/v1/admin-features/media/{spare['id']}/usage", headers=headers)).json()
+    assert [(r["type"], r["field"]) for r in block_refs] == [("site_pages", "draft_blocks")]
+    await db_session.execute(SitePage.__table__.delete().where(SitePage.slug == "anasayfa-x"))
+    await db_session.commit()
     assert (await http.get(f"/api/v1/admin-features/media/{spare['id']}/usage", headers=headers)).json() == []
 
     unused = (await http.get("/api/v1/admin-features/media", params={"unused": "true"}, headers=headers)).json()

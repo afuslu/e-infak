@@ -337,7 +337,7 @@ async def _apply_page(db: AsyncSession, page: SitePage, payload: PageIn, org_id:
 @admin_router.get("/pages")
 async def admin_list_pages(request: Request, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     rows = (await db.execute(
-        select(SitePage).where(SitePage.organization_id == _org_id(request)).order_by(SitePage.title)
+        select(SitePage).where(SitePage.organization_id == _org_id(request), SitePage.kind == "page").order_by(SitePage.title)
     )).scalars().all()
     return [_page_out(p) for p in rows]
 
@@ -731,7 +731,8 @@ async def public_get_post(request: Request, slug: str, db: AsyncSession = Depend
 async def public_list_pages(request: Request, db: AsyncSession = Depends(get_db)):
     rows = (await db.execute(
         select(SitePage).where(
-            SitePage.organization_id == request.state.organization_id, SitePage.is_published.is_(True)
+            SitePage.organization_id == request.state.organization_id, SitePage.is_published.is_(True),
+            SitePage.kind == "page",
         ).order_by(SitePage.title)
     )).scalars().all()
     lang = request_language(request)
@@ -742,17 +743,20 @@ async def public_list_pages(request: Request, db: AsyncSession = Depends(get_db)
 
 
 @public_router.get("/pages/{slug}")
-async def public_get_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+async def public_get_page(request: Request, slug: str, db: AsyncSession = Depends(get_db), onizleme: str | None = None):
+    from app.api.v1.site_builder import public_page_blocks
+
     page = (await db.execute(
         select(SitePage).where(
             SitePage.organization_id == request.state.organization_id,
             SitePage.slug == slug,
-            SitePage.is_published.is_(True),
+            SitePage.kind == "page",
         )
     )).scalar_one_or_none()
-    if not page:
+    blocks, preview = (await public_page_blocks(page, onizleme, db)) if page else (None, False)
+    if not page or (not page.is_published and not preview):
         raise HTTPException(status_code=404, detail="Sayfa bulunamadı")
-    return _page_out(page, lang=request_language(request), public=True)
+    return {**_page_out(page, lang=request_language(request), public=True), "blocks": blocks, "preview": preview}
 
 
 @public_router.get("/menu")

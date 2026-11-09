@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.middleware.tenant import TenantMiddleware
-from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, media
+from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, site_builder, media
 from app.core.db import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.audit_log import AuditLog
@@ -89,6 +89,8 @@ app.include_router(site.admin_router, prefix="/api/v1")
 app.include_router(media.router, prefix="/api/v1")
 app.include_router(provider_accounts.router, prefix="/api/v1")
 app.include_router(platform.router, prefix="/api/v1")
+app.include_router(site_builder.admin_router, prefix="/api/v1")
+app.include_router(site_builder.public_router, prefix="/api/v1")
 app.include_router(staff.router, prefix="/api/v1")
 app.include_router(cms.admin_router, prefix="/api/v1")
 app.include_router(cms.public_router, prefix="/api/v1")

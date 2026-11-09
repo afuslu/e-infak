@@ -1,17 +1,14 @@
 """Media library: folders and image assets with generated variants.
 
 Revision ID: m3d1a0000001
-Revises: a8b9c0d1e2f3
+Revises: b9c0d1e2f3a4
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "m3d1a0000001"
-# NOTE: the site builder migration (b9c0d1e2f3a4) is written in parallel on another branch with the
-# same parent. When both are merged, point this at "b9c0d1e2f3a4" so there is a single head; the tables
-# are independent, so the order does not matter.
-down_revision = "a8b9c0d1e2f3"
+down_revision = "b9c0d1e2f3a4"
 branch_labels = None
 depends_on = None
 

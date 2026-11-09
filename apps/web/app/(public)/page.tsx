@@ -1,36 +1,29 @@
-import type { Campaign } from '@e-infak/api-client'
+import type { Metadata } from 'next'
 import { EInfakPortal } from '../../components/EInfakPortal'
+import { BlockRenderer } from '../../components/blocks/BlockRenderer'
 import { HomeTemplate } from '../../components/templates/HomeTemplate'
-import type { CategoryDto, NewsPostDto } from '../../components/sections/HomeSections'
-import { currentLocale, currentOrgSlug, getPublic, getSite, withLang } from '../../lib/public-content'
-import { tenantHeaders } from '../../lib/server-api'
+import type { Block } from '../../lib/blocks'
+import { loadHomeData } from '../../lib/home-data'
+import { getPublic, getSite } from '../../lib/public-content'
 
 export const dynamic = 'force-dynamic'
 
-const API_URL = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020').replace(/\/$/, '')
+type Props = { searchParams: Promise<{ onizleme?: string }> }
 
-async function getCampaigns(orgSlug: string, locale: string): Promise<Campaign[]> {
-  try {
-    const res = await fetch(`${API_URL}/api/v1/${withLang('campaigns?status=active', locale)}`, {
-      headers: tenantHeaders(orgSlug),
-      next: { revalidate: 10 },
-    })
-    return res.ok ? (await res.json()).items || [] : []
-  } catch {
-    return []
-  }
+const previewToken = (value?: string) => (value && /^\d+\.[a-f0-9]{40}$/.test(value) ? value : null)
+
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  return previewToken((await searchParams).onizleme) ? { robots: { index: false, follow: false } } : {}
 }
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: Props) {
   const site = await getSite()
   if (!site) return <EInfakPortal />
 
-  const orgSlug = await currentOrgSlug()
-  const locale = await currentLocale()
-  const [campaigns, news, categories] = await Promise.all([
-    getCampaigns(orgSlug, locale),
-    getPublic<NewsPostDto[]>('content-posts?limit=6', []),
-    getPublic<CategoryDto[]>('donation-categories', []),
+  const token = previewToken((await searchParams).onizleme)
+  const [data, home] = await Promise.all([
+    loadHomeData(site),
+    getPublic<{ blocks: Block[] | null; preview: boolean }>(token ? `home?onizleme=${token}` : 'home', { blocks: null, preview: false }, token ? 0 : 5),
   ])
 
   const structuredData = {
@@ -45,7 +38,16 @@ export default async function HomePage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
-      <HomeTemplate data={{ site, locale, campaigns, news, categories }} />
+      {home.preview && <PreviewBar />}
+      {home.blocks ? <BlockRenderer blocks={home.blocks} data={data} /> : <HomeTemplate data={data} />}
     </>
+  )
+}
+
+function PreviewBar() {
+  return (
+    <div className="sticky top-0 z-50 bg-amber-400 px-4 py-2 text-center text-sm font-bold text-amber-950">
+      Önizleme — bu sayfa henüz yayınlanmadı; yalnızca bu bağlantıya sahip olanlar görür.
+    </div>
   )
 }
