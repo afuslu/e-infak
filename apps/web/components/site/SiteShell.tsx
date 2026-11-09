@@ -6,6 +6,7 @@ import {
 } from '../../lib/public-content'
 import { translator } from '../../lib/i18n'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { siteDesignStyle } from '../../lib/site-design'
 
 const SOCIAL_LABELS: Record<string, string> = {
   facebook: 'Facebook', instagram: 'Instagram', x: 'X', youtube: 'YouTube', linkedin: 'LinkedIn', telegram: 'Telegram',
@@ -50,10 +51,10 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
   const social = Object.entries(site.social_links || {})
 
   return (
-    <div className="flex min-h-screen flex-col bg-stone-50 text-gray-900">
+    <div className="site-design flex min-h-screen flex-col font-sans" style={siteDesignStyle(site.design)}>
       {(site.contact.phone || site.contact.email) && (
         <div className="hidden bg-primary-900 py-2 text-[13px] text-primary-100 sm:block">
-          <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 px-6">
+          <div className="mx-auto flex max-w-[var(--site-container)] items-center justify-between gap-4 px-6">
             <div className="flex flex-wrap gap-5">
               {site.contact.phone && <a href={`tel:${site.contact.phone}`} className="hover:text-white">{site.contact.phone}</a>}
               {site.contact.email && <a href={`mailto:${site.contact.email}`} className="hover:text-white">{site.contact.email}</a>}
@@ -68,7 +69,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
       )}
 
       <header className="sticky top-0 z-40 border-b border-black/5 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-[76px] max-w-[1200px] items-center justify-between gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex h-[76px] max-w-[var(--site-container)] items-center justify-between gap-4 px-4 sm:px-6">
           <Brand site={site} />
           <details className="relative lg:hidden">
             <summary className="cursor-pointer list-none rounded-lg border px-3 py-2 text-sm font-semibold">{t('nav.menu')} ☰</summary>
@@ -93,7 +94,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
       <main className="flex-1">{children}</main>
 
       <footer className="mt-16 bg-primary-950 text-primary-100/80">
-        <div className="mx-auto grid max-w-[1200px] gap-10 px-6 pb-8 pt-14 md:grid-cols-[1.4fr_1fr_1.2fr]">
+        <div className="mx-auto grid max-w-[var(--site-container)] gap-10 px-6 pb-8 pt-14 md:grid-cols-[1.4fr_1fr_1.2fr]">
           <div>
             <Brand site={site} inverted />
             {site.footer_text && <p className="mt-4 text-sm leading-relaxed">{site.footer_text}</p>}

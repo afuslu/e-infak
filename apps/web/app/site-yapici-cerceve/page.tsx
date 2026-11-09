@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { BlockStyles, renderBlock, type RenderOptions } from '../../components/blocks/BlockRenderer'
 import type { HomeData } from '../../components/sections/HomeSections'
 import type { Block, BlockSpec } from '../../lib/blocks'
+import { siteDesignStyle } from '../../lib/site-design'
 
 interface RenderMessage {
   source: 'einfak-builder'
@@ -144,7 +145,7 @@ export default function BuilderCanvas() {
   }
 
   return (
-    <div onMouseLeave={() => setHovered(null)} className="min-h-screen bg-white pb-24">
+    <div onMouseLeave={() => setHovered(null)} className="site-design min-h-screen pb-24 font-sans" style={siteDesignStyle(state.data.site?.design)}>
       {state.blocks.length === 0 && (
         <div className="m-10 rounded-2xl border-2 border-dashed p-16 text-center text-gray-400">Sayfa boş. Soldaki “Bloklar” sekmesinden blok ekleyin.</div>
       )}

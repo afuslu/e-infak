@@ -7,6 +7,7 @@ import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-acce
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ImageField } from '../../../../components/admin/ImageField'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
+import { DEFAULT_DESIGN, siteDesignStyle, type SiteDesign } from '../../../../lib/site-design'
 
 interface Appearance {
   template: 'klasik' | 'kategori' | 'sade'
@@ -17,6 +18,7 @@ interface Appearance {
   logo_dark_url: string | null
   favicon_url: string | null
   hero: { badge?: string; title?: string; subtitle?: string; image_url?: string; cta_label?: string; cta_url?: string }
+  design: SiteDesign
   home_sections: string[]
   cta_band: { title?: string; text?: string; button_label?: string; button_url?: string }
   footer_text: string | null
@@ -30,7 +32,13 @@ interface Loaded extends Appearance {
   url: string
   templates: { key: Appearance['template']; label: string; default_sections: string[] }[]
   sections: { key: string; label: string }[]
+  fonts: { key: string; label: string }[]
+  theme_kits: { key: string; label: string; primary_color: string; accent_color: string; design: SiteDesign }[]
 }
+
+const RADIUS_OPTIONS = [['none', 'Köşeli'], ['small', 'Hafif'], ['medium', 'Orta'], ['large', 'Yuvarlak'], ['pill', 'Çok yuvarlak']]
+const CONTAINER_OPTIONS = [['narrow', 'Dar (1080 px)'], ['normal', 'Normal (1200 px)'], ['wide', 'Geniş (1320 px)'], ['full', 'Çok geniş (1440 px)']]
+const WEIGHT_OPTIONS = [['500', 'Orta'], ['600', 'Yarı kalın'], ['700', 'Kalın'], ['800', 'Ekstra kalın'], ['900', 'Siyah']]
 
 const SOCIAL = [['facebook', 'Facebook'], ['instagram', 'Instagram'], ['x', 'X (Twitter)'], ['youtube', 'YouTube'], ['linkedin', 'LinkedIn'], ['telegram', 'Telegram']]
 const I18N_FIELDS = [
@@ -79,6 +87,10 @@ export default function AppearancePage() {
     () => (form ? (brandCssVariables(form.primary_color, form.accent_color) as React.CSSProperties) : undefined),
     [form?.primary_color, form?.accent_color],
   )
+  const designStyle = useMemo(
+    () => ({ ...previewStyle, ...siteDesignStyle(form?.design) }),
+    [previewStyle, form?.design],
+  )
 
   if (!form || !loaded) {
     return <div className="space-y-4"><h1 className="text-3xl font-bold">Görünüm & Tema</h1><Notice message={message} /></div>
@@ -86,6 +98,11 @@ export default function AppearancePage() {
 
   const set = <K extends keyof Appearance>(key: K, value: Appearance[K]) => setForm((f) => (f ? { ...f, [key]: value } : f))
   const setHero = (key: keyof Appearance['hero'], value: string) => set('hero', { ...form.hero, [key]: value })
+  const design = form.design || DEFAULT_DESIGN
+  const setDesign = <K extends keyof SiteDesign>(key: K, value: SiteDesign[K]) => set('design', { ...design, [key]: value })
+  const applyKit = (kit: Loaded['theme_kits'][number]) =>
+    setForm((f) => (f ? { ...f, primary_color: kit.primary_color, accent_color: kit.accent_color, design: { ...kit.design } } : f))
+  const fontLabel = (key: string) => loaded.fonts.find((f) => f.key === key)?.label || key
   const setCta = (key: keyof Appearance['cta_band'], value: string) => set('cta_band', { ...form.cta_band, [key]: value })
 
   const enabled = form.home_sections
@@ -186,6 +203,72 @@ export default function AppearancePage() {
             </div>
           </Card>
 
+          <Card className="space-y-5 border border-gray-100 p-6 shadow-sm">
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Tasarım sistemi</h2>
+              <p className="text-xs text-gray-500">Bir tema kiti seçin veya yazı tipi, köşe ve genişlik ayarlarını tek tek değiştirin. Tüm sayfalara ve site yapıcı bloklarına uygulanır.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {loaded.theme_kits.map((kit) => {
+                const active = form.primary_color === kit.primary_color && form.accent_color === kit.accent_color
+                  && JSON.stringify(design) === JSON.stringify({ ...DEFAULT_DESIGN, ...kit.design })
+                return (
+                  <button key={kit.key} type="button" onClick={() => applyKit(kit)}
+                    style={{ ...(brandCssVariables(kit.primary_color, kit.accent_color) as React.CSSProperties), ...siteDesignStyle(kit.design) }}
+                    className={`site-design rounded-xl border-2 p-3 text-left ${active ? 'border-primary-600 ring-2 ring-primary-100' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <div className="flex gap-1">
+                      <span className="h-5 w-5 rounded-full" style={{ background: kit.primary_color }} />
+                      <span className="h-5 w-5 rounded-full" style={{ background: kit.accent_color }} />
+                      <span className="h-5 w-5 rounded-full border" style={{ background: kit.design.page_color }} />
+                    </div>
+                    <h3 className="mt-2 font-heading text-base">{kit.label}</h3>
+                    <p className="text-[11px] opacity-70">{fontLabel(kit.design.heading_font)} / {fontLabel(kit.design.body_font)}</p>
+                    <span className="mt-2 inline-block rounded-lg bg-primary-600 px-2.5 py-1 text-[11px] font-bold text-white">Bağış Yap</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {([['heading_font', 'Başlık yazı tipi'], ['body_font', 'Metin yazı tipi']] as const).map(([key, label]) => (
+                <Label key={key} label={label}>
+                  <select className={inputClass} value={design[key]} onChange={(e) => setDesign(key, e.target.value)}
+                    style={{ fontFamily: `var(--ff-${design[key]})` }}>
+                    {loaded.fonts.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+                  </select>
+                </Label>
+              ))}
+              <Label label="Başlık kalınlığı">
+                <select className={inputClass} value={design.heading_weight} onChange={(e) => setDesign('heading_weight', e.target.value)}>
+                  {WEIGHT_OPTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </Label>
+              <Label label="Başlık harfleri">
+                <select className={inputClass} value={design.heading_case} onChange={(e) => setDesign('heading_case', e.target.value as SiteDesign['heading_case'])}>
+                  <option value="normal">Normal</option>
+                  <option value="uppercase">TÜMÜ BÜYÜK</option>
+                </select>
+              </Label>
+              <Label label="Köşe yuvarlaklığı (buton, kart)">
+                <select className={inputClass} value={design.radius} onChange={(e) => setDesign('radius', e.target.value as SiteDesign['radius'])}>
+                  {RADIUS_OPTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </Label>
+              <Label label="İçerik genişliği">
+                <select className={inputClass} value={design.container} onChange={(e) => setDesign('container', e.target.value as SiteDesign['container'])}>
+                  {CONTAINER_OPTIONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </Label>
+              {([['page_color', 'Sayfa zemini'], ['text_color', 'Metin rengi']] as const).map(([key, label]) => (
+                <Label key={key} label={label}>
+                  <span className="flex gap-2">
+                    <input type="color" value={design[key]} onChange={(e) => setDesign(key, e.target.value.toUpperCase())} className="h-10 w-14 rounded border" aria-label={label} />
+                    <input className={inputClass} value={design[key]} onChange={(e) => setDesign(key, e.target.value)} />
+                  </span>
+                </Label>
+              ))}
+            </div>
+          </Card>
+
           <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
             <h2 className="text-sm font-bold text-gray-900">Kapak (ana sayfanın üst bölümü)</h2>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -260,7 +343,7 @@ export default function AppearancePage() {
         <div className="xl:sticky xl:top-6 xl:col-span-4">
           <Card className="overflow-hidden border border-gray-100 shadow-sm">
             <div className="border-b bg-gray-50 px-4 py-2 text-xs font-bold text-gray-500">Önizleme</div>
-            <div style={previewStyle} className="text-[11px]">
+            <div style={designStyle} className="site-design font-sans text-[11px]">
               <div className="flex items-center gap-2 border-b bg-white px-3 py-2">
                 {form.logo_url ? <img src={form.logo_url} alt="" className="h-7 w-7 rounded-full object-cover" /> : <div className="h-7 w-7 rounded-full bg-primary-600" />}
                 <div className="leading-tight">

@@ -19,7 +19,7 @@ from app.models.audit_log import AuditLog
 from app.models.organization import Organization, OrganizationDomain
 from app.models.organization_settings import OrganizationSettings
 from app.models.user import User
-from app.services.site import DEFAULT_SECTIONS, SECTION_LABELS, TEMPLATES, SiteAppearance, appearance_of, apply_appearance, public_site
+from app.services.site import DEFAULT_SECTIONS, FONTS, SECTION_LABELS, TEMPLATES, THEME_KITS, SiteAppearance, appearance_of, apply_appearance, public_site
 from app.services.tenancy import resolve_org_slug, tls_allowed
 from app.utils.i18n import request_language
 
@@ -130,6 +130,8 @@ async def get_site_appearance(request: Request, db: AsyncSession = Depends(get_d
         "url": await site_url(db, org),
         "templates": [{"key": k, "label": v, "default_sections": DEFAULT_SECTIONS[k]} for k, v in TEMPLATES.items()],
         "sections": [{"key": k, "label": v} for k, v in SECTION_LABELS.items()],
+        "fonts": [{"key": k, "label": v} for k, v in FONTS.items()],
+        "theme_kits": THEME_KITS,
     }
 
 

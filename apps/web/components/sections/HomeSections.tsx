@@ -19,7 +19,7 @@ type T = ReturnType<typeof translator>
 /** Optional site-builder settings of a section; empty = today's look. */
 export type Overrides = Record<string, any>
 const CURRENCY: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€' }
-const container = 'mx-auto max-w-[1200px] px-6'
+const container = 'mx-auto max-w-[var(--site-container)] px-6'
 
 function Kicker({ children }: { children: React.ReactNode }) {
   return <div className="mb-2 text-[13px] font-bold tracking-[2px] text-primary-600">{children}</div>

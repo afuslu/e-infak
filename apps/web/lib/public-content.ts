@@ -1,4 +1,5 @@
 import 'server-only'
+import type { SiteDesign } from './site-design'
 import { cache } from 'react'
 import { headers } from 'next/headers'
 import { tenantHeaders } from './server-api'
@@ -99,6 +100,7 @@ export interface SiteData {
   seo: { title: string | null; description: string | null; keywords: string | null }
   contact: { phone: string | null; email: string | null; address: string | null }
   features: string[]
+  design?: SiteDesign
 }
 
 /** The current organisation's website data; null on the platform domain. Cached per request. */

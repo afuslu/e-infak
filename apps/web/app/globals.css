@@ -37,6 +37,23 @@
   --animate-fade-in: fade-in 0.25s ease-out both;
 }
 
+/* Defaults of the site design tokens; organisation choices override them on .site-design. */
+:root {
+  --font-primary-family: var(--ff-public-sans);
+  --font-heading-family: var(--ff-lora);
+  --site-container: 1200px;
+}
+
+.site-design {
+  background-color: var(--site-page);
+  color: var(--site-text);
+}
+
+.site-design :is(h1, h2, h3) {
+  font-weight: var(--site-heading-weight);
+  text-transform: var(--site-heading-case);
+}
+
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: none; }

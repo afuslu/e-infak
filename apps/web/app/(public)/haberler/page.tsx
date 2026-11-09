@@ -25,7 +25,7 @@ export default async function NewsListPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <section className="mx-auto max-w-[1200px] px-4 py-12 sm:px-6">
+      <section className="mx-auto max-w-[var(--site-container)] px-4 py-12 sm:px-6">
         <h1 className="text-4xl font-extrabold">{kind ? t(kindKey(kind)) : t('news.title')}</h1>
         <nav className="mt-6 flex flex-wrap gap-2">
           {[['', t('news.all')], ...KINDS.map((k) => [k, t(kindKey(k))])].map(([k, l]) => (

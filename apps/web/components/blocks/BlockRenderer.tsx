@@ -20,7 +20,7 @@ export interface RenderOptions {
   renderChildren?: (parent: Block, children: Block[], depth: number) => ReactNode
 }
 
-const container = 'mx-auto max-w-[1200px] px-6'
+const container = 'mx-auto max-w-[var(--site-container)] px-6'
 const CURRENCY: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€' }
 
 const BASE_CSS = `

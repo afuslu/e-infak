@@ -45,6 +45,36 @@ SITE_I18N = (
 
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
+# Fonts self-hosted by the web app (next/font); keys must match apps/web/lib/site-fonts.ts.
+FONTS = {
+    "public-sans": "Public Sans", "inter": "Inter", "poppins": "Poppins", "montserrat": "Montserrat",
+    "nunito": "Nunito", "open-sans": "Open Sans", "lora": "Lora", "merriweather": "Merriweather",
+    "playfair": "Playfair Display", "roboto-slab": "Roboto Slab", "cairo": "Cairo", "amiri": "Amiri",
+}
+RADII = ("none", "small", "medium", "large", "pill")
+CONTAINERS = {"narrow": 1080, "normal": 1200, "wide": 1320, "full": 1440}
+DEFAULT_DESIGN = {
+    "body_font": "public-sans", "heading_font": "lora", "radius": "medium", "container": "normal",
+    "page_color": "#FAFAF9", "text_color": "#111827", "heading_weight": "700", "heading_case": "normal",
+}
+
+# Ready-made looks: colours + design tokens applied together from the admin page.
+THEME_KITS = [
+    {"key": "klasik-yesil", "label": "Klasik Yeşil", "primary_color": "#0E7A5F", "accent_color": "#2FA884", "design": DEFAULT_DESIGN},
+    {"key": "modern-lacivert", "label": "Modern Lacivert", "primary_color": "#1E3A8A", "accent_color": "#F59E0B",
+     "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "poppins", "radius": "large", "page_color": "#F8FAFC", "text_color": "#0F172A", "heading_weight": "800"}},
+    {"key": "sicak-toprak", "label": "Sıcak Toprak", "primary_color": "#9A3412", "accent_color": "#D97706",
+     "design": {**DEFAULT_DESIGN, "body_font": "nunito", "heading_font": "merriweather", "radius": "small", "page_color": "#FFFBF5", "text_color": "#292524"}},
+    {"key": "zarif-bordo", "label": "Zarif Bordo", "primary_color": "#7F1D1D", "accent_color": "#B45309",
+     "design": {**DEFAULT_DESIGN, "body_font": "open-sans", "heading_font": "playfair", "radius": "none", "container": "wide", "page_color": "#FFFFFF", "text_color": "#1C1917"}},
+    {"key": "ferah-turkuaz", "label": "Ferah Turkuaz", "primary_color": "#0F766E", "accent_color": "#0EA5E9",
+     "design": {**DEFAULT_DESIGN, "body_font": "montserrat", "heading_font": "montserrat", "radius": "pill", "page_color": "#F0FDFA", "text_color": "#134E4A", "heading_weight": "800", "heading_case": "uppercase"}},
+    {"key": "gece-mavisi", "label": "Gece Mavisi", "primary_color": "#312E81", "accent_color": "#10B981",
+     "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "roboto-slab", "radius": "medium", "container": "wide", "page_color": "#F5F5F4", "text_color": "#1E1B4B"}},
+    {"key": "arabi-altin", "label": "Arabî Altın", "primary_color": "#14532D", "accent_color": "#CA8A04",
+     "design": {**DEFAULT_DESIGN, "body_font": "cairo", "heading_font": "amiri", "radius": "medium", "page_color": "#FEFCE8", "text_color": "#1A2E05"}},
+]
+
 
 def _clean(value: Any, limit: int) -> Optional[str]:
     if value is None or not str(value).strip():
@@ -108,6 +138,42 @@ class CtaBand(BaseModel):
         return validate_link(v) if v and str(v).strip() else None
 
 
+class Design(BaseModel):
+    """Site-wide design tokens, rendered as CSS variables on every public page."""
+    body_font: str = DEFAULT_DESIGN["body_font"]
+    heading_font: str = DEFAULT_DESIGN["heading_font"]
+    radius: Literal["none", "small", "medium", "large", "pill"] = "medium"
+    container: Literal["narrow", "normal", "wide", "full"] = "normal"
+    page_color: str = DEFAULT_DESIGN["page_color"]
+    text_color: str = DEFAULT_DESIGN["text_color"]
+    heading_weight: Literal["500", "600", "700", "800", "900"] = "700"
+    heading_case: Literal["normal", "uppercase"] = "normal"
+
+    @field_validator("body_font", "heading_font", mode="before")
+    @classmethod
+    def font(cls, v):
+        if v not in FONTS:
+            raise ValueError("Geçersiz yazı tipi")
+        return v
+
+    @field_validator("page_color", "text_color", mode="before")
+    @classmethod
+    def color(cls, v):
+        text = str(v or "").strip()
+        if not _HEX.fullmatch(text):
+            raise ValueError("Renk #RRGGBB biçiminde olmalıdır")
+        return text.upper()
+
+
+def design_of(site: dict) -> dict:
+    """Stored design merged over the defaults; invalid leftovers fall back to defaults."""
+    stored = site.get("design") if isinstance(site.get("design"), dict) else {}
+    try:
+        return Design(**{**DEFAULT_DESIGN, **stored}).model_dump()
+    except ValueError:
+        return Design(**DEFAULT_DESIGN).model_dump()
+
+
 class SiteAppearance(BaseModel):
     """What an organisation admin may change about its website."""
     template: Literal["klasik", "kategori", "sade"] = "klasik"
@@ -118,6 +184,7 @@ class SiteAppearance(BaseModel):
     logo_dark_url: Optional[str] = None
     favicon_url: Optional[str] = None
     hero: Hero = Field(default_factory=Hero)
+    design: Design = Field(default_factory=Design)
     home_sections: List[str] = Field(default_factory=list)
     cta_band: CtaBand = Field(default_factory=CtaBand)
     footer_text: Optional[str] = None
@@ -193,6 +260,7 @@ def appearance_of(org) -> dict:
         "logo_dark_url": org.logo_dark_url,
         "favicon_url": org.favicon_url,
         "hero": site.get("hero") or {},
+        "design": design_of(site),
         "home_sections": site.get("home_sections") or DEFAULT_SECTIONS[template],
         "cta_band": site.get("cta_band") or {},
         "footer_text": site.get("footer_text"),
@@ -212,6 +280,7 @@ def apply_appearance(org, payload: SiteAppearance) -> None:
     org.favicon_url = payload.favicon_url
     org.site = {
         "hero": payload.hero.model_dump(exclude_none=True),
+        "design": payload.design.model_dump(),
         "home_sections": payload.home_sections or DEFAULT_SECTIONS[payload.template],
         "cta_band": payload.cta_band.model_dump(exclude_none=True),
         "footer_text": payload.footer_text,
@@ -247,6 +316,7 @@ def public_site(org, settings_row, lang: Optional[str]) -> dict:
         "logo_url": data["logo_url"],
         "logo_dark_url": data["logo_dark_url"],
         "favicon_url": data["favicon_url"] or data["logo_url"],
+        "design": data["design"],
         "hero": {
             "badge": flat["hero_badge"], "title": flat["hero_title"], "subtitle": flat["hero_subtitle"],
             "image_url": data["hero"].get("image_url"), "cta_label": flat["hero_cta_label"],

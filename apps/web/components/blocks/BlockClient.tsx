@@ -85,7 +85,7 @@ export function Slider({ slides, height = 'md', autoplay = true, interval = 6, e
                 </picture>
               )}
               <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${(s.overlay ?? 45) / 100})` }} />
-              <div className={`relative mx-auto flex h-full max-w-[1200px] flex-col justify-center px-6 py-16 ${align} ${HEIGHTS[height] || HEIGHTS.md}`}>
+              <div className={`relative mx-auto flex h-full max-w-[var(--site-container)] flex-col justify-center px-6 py-16 ${align} ${HEIGHTS[height] || HEIGHTS.md}`}>
                 <div className="max-w-2xl">
                   {s.badge && <span className="mb-5 inline-block rounded-full border border-white/40 bg-white/10 px-4 py-1.5 text-[13px] font-bold tracking-[2px] text-white">{s.badge}</span>}
                   {s.title && <h2 className="mb-4 font-heading text-3xl font-bold leading-tight text-white md:text-5xl">{s.title}</h2>}
