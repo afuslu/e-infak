@@ -16,9 +16,10 @@ interface Appearance {
   logo_url: string | null
   logo_dark_url: string | null
   favicon_url: string | null
-  hero: { badge?: string; title?: string; subtitle?: string; image_url?: string; cta_label?: string; cta_url?: string }
+  hero: { badge?: string; title?: string; subtitle?: string; image_url?: string; cta_label?: string; cta_url?: string; slider?: boolean }
   home_sections: string[]
   cta_band: { title?: string; text?: string; button_label?: string; button_url?: string }
+  testimonials: { quote: string; name?: string; role?: string }[]
   footer_text: string | null
   social_links: Record<string, string>
   show_in_directory: boolean
@@ -46,7 +47,10 @@ function TemplateThumb({ template }: { template: Appearance['template'] }) {
     <div className="space-y-1 rounded-md border bg-white p-2">
       <div className="h-1.5 w-1/2 rounded bg-gray-200" />
       {template === 'klasik' && (
-        <div className="flex h-10 gap-1 rounded bg-primary-900 p-1"><div className="flex-1" /><div className="w-1/3 rounded bg-white" /></div>
+        <>
+          <div className="flex h-10 items-end justify-center gap-0.5 rounded bg-primary-900 p-1">{[0, 1, 2].map((i) => <div key={i} className={`h-1 rounded ${i ? 'w-1 bg-white/50' : 'w-3 bg-white'}`} />)}</div>
+          <div className="flex gap-1"><div className="h-3 flex-1 rounded bg-gray-100" /><div className="h-3 w-1/3 rounded bg-primary-100" /></div>
+        </>
       )}
       {template === 'kategori' && (
         <>
@@ -85,7 +89,10 @@ export default function AppearancePage() {
   }
 
   const set = <K extends keyof Appearance>(key: K, value: Appearance[K]) => setForm((f) => (f ? { ...f, [key]: value } : f))
-  const setHero = (key: keyof Appearance['hero'], value: string) => set('hero', { ...form.hero, [key]: value })
+  const setHero = (key: keyof Appearance['hero'], value: string | boolean) => set('hero', { ...form.hero, [key]: value })
+  const testimonials = form.testimonials || []
+  const setTestimonial = (i: number, key: 'quote' | 'name' | 'role', value: string) =>
+    set('testimonials', testimonials.map((item, n) => (n === i ? { ...item, [key]: value } : item)))
   const setCta = (key: keyof Appearance['cta_band'], value: string) => set('cta_band', { ...form.cta_band, [key]: value })
 
   const enabled = form.home_sections
@@ -127,6 +134,7 @@ export default function AppearancePage() {
         hero: clean(form.hero),
         cta_band: clean(form.cta_band),
         social_links: clean(form.social_links),
+        testimonials: testimonials.filter((item) => item.quote?.trim()).map((item) => clean(item)),
       })
       setForm(res.data)
       setMessage({ type: 'ok', text: 'Görünüm kaydedildi. Değişiklikler sitede en geç bir dakika içinde görünür.' })
@@ -196,6 +204,11 @@ export default function AppearancePage() {
               <TextInput label="Buton yazısı" maxLength={60} placeholder="Bağış Yap" value={form.hero.cta_label} onChange={(v) => setHero('cta_label', v)} />
               <TextInput label="Buton bağlantısı" placeholder="/kampanyalar (boşsa bağış formuna gider)" value={form.hero.cta_url} onChange={(v) => setHero('cta_url', v)} />
             </div>
+            <label className="flex items-start gap-2 text-sm font-semibold text-gray-700">
+              <input type="checkbox" className="mt-1" checked={form.hero.slider !== false} onChange={(e) => setHero('slider', e.target.checked)} />
+              <span>Kapağı slider yap: görseli olan aktif kampanyalar (önce öne çıkanlar, en fazla 4) kapaktan sonra slayt olarak döner
+                <span className="block text-xs font-normal text-gray-400">Kendi slaytlarınızı tasarlamak için Site Yapıcı&apos;daki Slider bloğunu kullanabilirsiniz.</span></span>
+            </label>
           </Card>
 
           <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
@@ -233,6 +246,28 @@ export default function AppearancePage() {
                 <div className="sm:col-span-2"><TextArea label="Metin" rows={2} maxLength={300} value={form.cta_band.text} onChange={(v) => setCta('text', v)} /></div>
                 <TextInput label="Buton bağlantısı" placeholder="/kampanyalar/askida" value={form.cta_band.button_url} onChange={(v) => setCta('button_url', v)} />
               </div>
+            </Card>
+          )}
+
+          {enabled.includes('testimonials') && (
+            <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
+              <div>
+                <h2 className="text-sm font-bold text-gray-900">Teşekkür / referans mesajları</h2>
+                <p className="text-xs text-gray-500">Bağışçılarınızdan veya yararlanıcılardan izin alarak paylaştığınız gerçek mesajlar. Boşsa bölüm görünmez.</p>
+              </div>
+              {testimonials.map((item, i) => (
+                <div key={i} className="space-y-3 rounded-xl border border-gray-200 p-4">
+                  <TextArea label={`${i + 1}. mesaj`} rows={2} maxLength={400} value={item.quote} onChange={(v) => setTestimonial(i, 'quote', v)} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <TextInput label="İsim" maxLength={80} value={item.name} onChange={(v) => setTestimonial(i, 'name', v)} />
+                    <TextInput label="Unvan / şehir" maxLength={80} value={item.role} onChange={(v) => setTestimonial(i, 'role', v)} />
+                  </div>
+                  <button type="button" onClick={() => set('testimonials', testimonials.filter((_, n) => n !== i))} className="text-xs font-bold text-red-600">Kaldır</button>
+                </div>
+              ))}
+              {testimonials.length < 12 && (
+                <button type="button" onClick={() => set('testimonials', [...testimonials, { quote: '' }])} className={ghostButton}>+ Mesaj ekle</button>
+              )}
             </Card>
           )}
 

@@ -51,3 +51,37 @@
     @apply bg-white text-gray-900 antialiased;
   }
 }
+
+/* ----- Public site: template looks and slider motion ----- */
+
+/* kategori: bold sans-serif headings; sade and klasik keep the serif */
+.tpl-kategori { --font-heading-family: var(--font-primary-family); }
+.tpl-kategori .font-heading { letter-spacing: -0.02em; font-weight: 800; }
+
+@keyframes slide-text {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slider-kenburns {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+@keyframes slider-progress {
+  from { width: 0; }
+  to { width: 100%; }
+}
+.slider-kenburns { animation: slider-kenburns 8s ease-out both; }
+.slider-progress { animation: slider-progress 6s linear both; }
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-track { animation: marquee 60s linear infinite; }
+.marquee-track:hover { animation-play-state: paused; }
+[dir="rtl"] .marquee-track { animation-direction: reverse; }
+
+@media (prefers-reduced-motion: reduce) {
+  .slider-kenburns, .marquee-track { animation: none; }
+  .slider-progress { animation: none; width: 100%; }
+}

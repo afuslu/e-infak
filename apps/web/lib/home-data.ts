@@ -1,7 +1,7 @@
 import 'server-only'
 import type { Campaign } from '@e-infak/api-client'
 import type { CategoryDto, HomeData, NewsPostDto } from '../components/sections/HomeSections'
-import { currentLocale, currentOrgSlug, getPublic, withLang, type SiteData } from './public-content'
+import { currentLocale, currentOrgSlug, getPublic, withLang, type PublicGalleryItem, type SiteData } from './public-content'
 import { tenantHeaders } from './server-api'
 
 const API_URL = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020').replace(/\/$/, '')
@@ -22,10 +22,11 @@ async function getCampaigns(orgSlug: string, locale: string): Promise<Campaign[]
 export async function loadHomeData(site: SiteData): Promise<HomeData> {
   const orgSlug = await currentOrgSlug()
   const locale = await currentLocale()
-  const [campaigns, news, categories] = await Promise.all([
+  const [campaigns, news, categories, gallery] = await Promise.all([
     getCampaigns(orgSlug, locale),
     getPublic<NewsPostDto[]>('content-posts?limit=12', []),
     getPublic<CategoryDto[]>('donation-categories', []),
+    getPublic<PublicGalleryItem[]>('gallery?kind=photo', [], 60),
   ])
-  return { site, locale, campaigns, news, categories }
+  return { site, locale, campaigns, news, categories, gallery: gallery.slice(0, 24) }
 }

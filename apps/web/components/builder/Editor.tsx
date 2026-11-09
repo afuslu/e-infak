@@ -90,7 +90,8 @@ export function SiteBuilderEditor() {
       fetch(`${api}/campaigns?status=active`).then((r) => (r.ok ? r.json() : { items: [] })).then((d) => (d.items || []) as Campaign[]),
       fetch(`${api}/public/content-posts?limit=12`).then((r) => (r.ok ? r.json() : [])),
       fetch(`${api}/public/donation-categories`).then((r) => (r.ok ? r.json() : [])),
-    ]).then(([site, campaigns, news, categories]) => setData({ site, locale: 'tr', campaigns, news, categories }))
+      fetch(`${api}/public/gallery?kind=photo`).then((r) => (r.ok ? r.json() : [])),
+    ]).then(([site, campaigns, news, categories, gallery]) => setData({ site, locale: 'tr', campaigns, news, categories, gallery: gallery.slice(0, 24) }))
       .catch(() => setMessage({ type: 'error', text: 'Site verileri yüklenemedi' }))
   }, [])
 

@@ -1,26 +1,18 @@
-import { translator } from '../../lib/i18n'
-import { QuickDonationForm } from '../QuickDonationForm'
-import { Hero, OrderedSections, type HomeData } from '../sections/HomeSections'
+import { Hero, OrderedSections, QuickDonateBand, type HomeData } from '../sections/HomeSections'
 
 /**
- * Home page templates. All three use the same sections; they differ in the hero
- * and in where the quick donation form sits.
- *  - klasik:   large hero with the quick donation form next to it
- *  - kategori: hero with calls to action, donation categories up front
- *  - sade:     light hero, campaign-first, donation form under the hero
+ * Home page templates. All three share the sections; each has its own cover slider
+ * and look (see the `tpl-*` rules in globals.css and the template switches in HomeSections):
+ *  - klasik:   full-width slider with slide tabs, quick donation band right under it
+ *  - kategori: centred fading slider, bold sans-serif headings, coloured bands
+ *  - sade:     light split slider (text beside the image), airy campaign-first layout
  */
 export function HomeTemplate({ data }: { data: HomeData }) {
   const template = data.site.template
-  const t = translator(data.locale)
   return (
     <>
       <Hero data={data} variant={template} />
-      {template !== 'klasik' && data.campaigns[0] && (
-        <section id="hizli-bagis" className="mx-auto -mb-6 max-w-xl px-6 pt-12">
-          <QuickDonationForm campaignId={data.campaigns[0].id} campaignTitle={data.campaigns[0].title} />
-        </section>
-      )}
-      {template !== 'klasik' && !data.campaigns[0] && <span id="hizli-bagis" aria-label={t('home.noCampaignForm')} />}
+      {template !== 'klasik' && <QuickDonateBand data={data} />}
       <OrderedSections data={data} />
     </>
   )

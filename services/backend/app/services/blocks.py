@@ -60,6 +60,7 @@ BLOCKS: dict[str, dict] = {
             "cta_label": F("text", "Buton yazısı", max=40, translatable=True),
             "cta_url": F("url", "Buton bağlantısı"),
             "show_form": F("bool", "Bağış formunu göster", default=True),
+            "slider": F("bool", "Kampanya slaytlarını ekle (görselli aktif kampanyalar)", default=True),
         },
     },
     "slider": {
@@ -122,6 +123,14 @@ BLOCKS: dict[str, dict] = {
         "label": "Bağış kategorileri", "group": "Bağış", "icon": "🗂️",
         "fields": {"kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=120, translatable=True)},
     },
+    "featured_campaign": {
+        "label": "Acil kampanya vitrini", "group": "Bağış", "icon": "🚨",
+        "fields": {
+            "kicker": F("text", "Üst başlık", max=60, translatable=True),
+            "campaign_id": F("campaign", "Kampanya", placeholder="Boşsa öne çıkan ilk kampanya"),
+            "button_label": F("text", "Buton yazısı", max=40, translatable=True),
+        },
+    },
     "zakat_band": {
         "label": "Zekat bandı", "group": "Bağış", "icon": "🌙",
         "fields": {"title": F("text", "Başlık", max=120, translatable=True), "text": F("textarea", "Metin", max=300, translatable=True), "button_label": F("text", "Buton yazısı", max=40, translatable=True)},
@@ -180,6 +189,29 @@ BLOCKS: dict[str, dict] = {
         "label": "İstatistikler", "group": "Güven & etki", "icon": "📊",
         "fields": {"mode": F("select", "Veri", choices={"auto": "Otomatik (kampanyalardan)", "manual": "Elle"}, default="auto"), "items": F("list", "Sayılar", max_items=6, item_label="label", show_if={"mode": "manual"}, fields={"value": F("text", "Değer", max=20), "label": F("text", "Açıklama", max=60, translatable=True)})},
     },
+    "steps": {
+        "label": "Nasıl bağış yapılır?", "group": "Güven & etki", "icon": "🪜",
+        "fields": {
+            "kicker": F("text", "Üst başlık", max=60, translatable=True),
+            "title": F("text", "Başlık", max=120, translatable=True),
+            "items": F("list", "Adımlar (boşsa hazır 4 adım)", max_items=6, item_label="title", fields={
+                "title": F("text", "Başlık", max=60, translatable=True),
+                "text": F("textarea", "Açıklama", max=200, translatable=True),
+            }),
+        },
+    },
+    "testimonials": {
+        "label": "Teşekkür mesajları", "group": "Güven & etki", "icon": "💬",
+        "fields": {
+            "kicker": F("text", "Üst başlık", max=60, translatable=True),
+            "title": F("text", "Başlık", max=120, translatable=True),
+            "items": F("list", "Mesajlar (boşsa Görünüm ayarlarındakiler)", max_items=12, item_label="name", fields={
+                "quote": F("textarea", "Mesaj", max=400, translatable=True),
+                "name": F("text", "İsim", max=80),
+                "role": F("text", "Unvan / şehir", max=80, translatable=True),
+            }),
+        },
+    },
     "faq": {
         "label": "Sık sorulan sorular", "group": "Etkileşim", "icon": "❓",
         "fields": {"title": F("text", "Başlık", max=120, translatable=True), "items": F("list", "Sorular", max_items=40, min_items=1, item_label="question", fields={"question": F("text", "Soru", max=200, translatable=True), "answer": F("richtext", "Cevap", max=3000, translatable=True)})},
@@ -187,6 +219,10 @@ BLOCKS: dict[str, dict] = {
     "news": {
         "label": "Haberler", "group": "Haber & iletişim", "icon": "🗞️",
         "fields": {"kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=120, translatable=True), "limit": F("number", "Adet", min=1, max=12, default=3)},
+    },
+    "gallery_strip": {
+        "label": "Galeri şeridi", "group": "Haber & iletişim", "icon": "📷",
+        "fields": {"kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=120, translatable=True), "limit": F("number", "Adet", min=3, max=24, default=10)},
     },
     "trust": {
         "label": "Güven bandı", "group": "Güven & etki", "icon": "🔒",
@@ -476,6 +512,12 @@ def validate_blocks(raw: Any) -> list[dict]:
     return [_block(item, 1, counter, seen, None) for item in raw]
 
 
+# Home section key (Görünüm page) -> block type
+SECTION_BLOCKS = {"stats": "stats", "categories": "categories", "campaigns": "campaigns", "zakat": "zakat_band",
+                  "cta": "cta_band", "news": "news", "trust": "trust", "featured": "featured_campaign",
+                  "steps": "steps", "gallery": "gallery_strip", "testimonials": "testimonials"}
+
+
 def default_home_blocks(template: str) -> list[dict]:
     """Home page exactly as the template draws it today (texts come from site settings)."""
     from app.services.site import DEFAULT_SECTIONS
@@ -485,21 +527,17 @@ def default_home_blocks(template: str) -> list[dict]:
     if variant != "klasik":
         blocks.append({"id": "home-form", "type": "quick_donation", "props": {},
                        "style": {"desktop": {"width": "narrow", "padding_top": 48}}})
-    mapping = {"stats": "stats", "categories": "categories", "campaigns": "campaigns", "zakat": "zakat_band",
-               "cta": "cta_band", "news": "news", "trust": "trust"}
-    return blocks + [{"id": f"home-{key}", "type": mapping[key], "props": {}} for key in DEFAULT_SECTIONS[variant]]
+    return blocks + [{"id": f"home-{key}", "type": SECTION_BLOCKS[key], "props": {}} for key in DEFAULT_SECTIONS[variant]]
 
 
 def home_blocks_for(org) -> list[dict]:
     """Default home blocks following the organisation's current section order."""
+    from app.services.site import home_sections_of
+
     blocks = default_home_blocks(org.template)
-    sections = (org.site or {}).get("home_sections")
-    if not sections:
-        return blocks
-    mapping = {"stats": "stats", "categories": "categories", "campaigns": "campaigns", "zakat": "zakat_band",
-               "cta": "cta_band", "news": "news", "trust": "trust"}
     head = [b for b in blocks if b["type"] in ("hero", "quick_donation")]
-    return head + [{"id": f"home-{key}", "type": mapping[key], "props": {}} for key in sections if key in mapping]
+    return head + [{"id": f"home-{key}", "type": SECTION_BLOCKS[key], "props": {}}
+                   for key in home_sections_of(org) if key in SECTION_BLOCKS]
 
 
 def page_blocks_from_body(title: str, body: Optional[str]) -> list[dict]:

@@ -88,7 +88,9 @@ async def test_appearance_roundtrip_and_public_site(db_session):
     await db_session.flush()
     tr = public_site(org, None, None)
     en = public_site(org, None, "en")
-    assert tr["template"] == "sade" and tr["sections"] == ["campaigns", "news", "trust"]
+    from app.services.site import DEFAULT_SECTIONS
+    assert tr["template"] == "sade" and tr["sections"] == DEFAULT_SECTIONS["sade"]
+    assert tr["hero"]["slider"] is True and tr["testimonials"] == []
     assert tr["hero"]["title"] == "Başlık" and en["hero"]["title"] == "Title" and en["lang"] == "en"
     assert tr["primary_color"] == "#112233" and tr["languages"] == ["tr"]
 
@@ -96,6 +98,28 @@ async def test_appearance_roundtrip_and_public_site(db_session):
     request.state.organization_id = str(org.id)
     data = await site_api.get_public_site(request, db_session)
     assert data["url"] == f"https://{org.subdomain}.e-infak.org"
+
+
+def test_untouched_legacy_sections_get_new_defaults():
+    from types import SimpleNamespace
+    from app.services.site import DEFAULT_SECTIONS, appearance_of
+
+    def org(sections, template="klasik", **hero):
+        return SimpleNamespace(site={"home_sections": sections, "hero": hero}, template=template, tagline=None,
+                               theme_primary_color=None, theme_accent_color=None, logo_url=None,
+                               logo_dark_url=None, favicon_url=None)
+
+    assert appearance_of(org(["stats", "campaigns", "zakat", "news", "trust"]))["home_sections"] == DEFAULT_SECTIONS["klasik"]
+    assert appearance_of(org(["news", "stats", "gone"]))["home_sections"] == ["news", "stats"]
+    assert appearance_of(org(None, "kategori"))["home_sections"] == DEFAULT_SECTIONS["kategori"]
+    assert appearance_of(org(None, slider=False))["hero"]["slider"] is False
+
+
+def test_testimonials_are_cleaned():
+    ok = SiteAppearance(testimonials=[{"quote": "<i>Allah razı olsun</i>", "name": "  Ayşe  "}])
+    assert ok.testimonials[0].quote == "Allah razı olsun" and ok.testimonials[0].name == "Ayşe"
+    with pytest.raises(ValidationError):
+        SiteAppearance(testimonials=[{"quote": "  "}])
 
 
 async def test_image_upload_accepts_real_images_only(tmp_path, monkeypatch):
