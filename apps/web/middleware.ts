@@ -43,8 +43,8 @@ export async function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://*.tawk.to",
     "font-src 'self' data: https://*.tawk.to",
     "media-src 'self' https://*.tawk.to",
-    // CMS videos (YouTube privacy mode / Vimeo) and the Tawk.to chat widget
-    "frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://*.tawk.to",
+    // Site builder canvas (same origin), CMS videos (YouTube privacy mode / Vimeo) and the Tawk.to chat widget
+    "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://*.tawk.to",
     // 'strict-dynamic' lets the nonce'd app bundle inject the Tawk.to loader
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "connect-src 'self' https://vpos.ziraatpay.com.tr https://test.ziraatpay.com.tr https://*.tawk.to wss://*.tawk.to",

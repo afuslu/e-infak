@@ -18,7 +18,10 @@ from app.models.audit_log import AuditLog
 from app.models.cms import SitePage, SitePageRevision
 from app.models.organization import Organization
 from app.models.user import User
-from app.services.blocks import BlockError, catalog, home_blocks_for, page_blocks_from_body, validate_blocks
+from app.services.blocks import (
+    BlockError, catalog, default_footer_blocks, default_header_blocks, home_blocks_for, page_blocks_from_body,
+    validate_blocks,
+)
 from app.utils.cms import slugify, validate_slug
 
 admin_router = APIRouter(
@@ -28,7 +31,9 @@ admin_router = APIRouter(
 )
 public_router = APIRouter(tags=["site-builder-public"])
 
-HOME_SLUG = "__home__"
+# One-per-organisation pages, addressed by kind instead of id.
+SPECIAL = {"home": ("__home__", "Ana sayfa"), "header": ("__header__", "Üst bölüm (header)"), "footer": ("__footer__", "Alt bölüm (footer)")}
+HOME_SLUG = SPECIAL["home"][0]
 KEEP_REVISIONS = 50
 PREVIEW_SECONDS = 2 * 3600
 
@@ -52,21 +57,27 @@ def _preview_ok(page_id: UUID, token: Optional[str]) -> bool:
         return False
 
 
-async def _home(db: AsyncSession, org_id: UUID) -> Optional[SitePage]:
+async def _special(db: AsyncSession, org_id: UUID, kind: str) -> Optional[SitePage]:
     return (await db.execute(
-        select(SitePage).where(SitePage.organization_id == org_id, SitePage.kind == "home")
+        select(SitePage).where(SitePage.organization_id == org_id, SitePage.kind == kind)
     )).scalar_one_or_none()
 
 
+async def _home(db: AsyncSession, org_id: UUID) -> Optional[SitePage]:
+    return await _special(db, org_id, "home")
+
+
 async def _page(db: AsyncSession, org_id: UUID, page_id: str, create_home: bool = False) -> SitePage:
-    if page_id == "home":
-        page = await _home(db, org_id)
+    if page_id in SPECIAL:
+        page = await _special(db, org_id, page_id)
         if page or not create_home:
             if not page:
-                raise HTTPException(status_code=404, detail="Ana sayfa henüz düzenlenmedi")
+                raise HTTPException(status_code=404, detail=f"{SPECIAL[page_id][1]} henüz düzenlenmedi")
             return page
-        page = SitePage(organization_id=org_id, kind="home", slug=HOME_SLUG, title="Ana sayfa", body="",
-                        is_published=True, translations={})
+        slug, title = SPECIAL[page_id]
+        # Header/footer stay unpublished (the fixed design is shown) until first published.
+        page = SitePage(organization_id=org_id, kind=page_id, slug=slug, title=title, body="",
+                        is_published=page_id == "home", translations={})
         db.add(page)
         await db.flush()
         return page
@@ -82,22 +93,32 @@ async def _page(db: AsyncSession, org_id: UUID, page_id: str, create_home: bool 
     return page
 
 
-def _working_blocks(page: Optional[SitePage], org: Organization) -> list[dict]:
+def _working_blocks(page: Optional[SitePage], org: Organization, kind: str = "home") -> list[dict]:
     """What the editor starts from: draft, else published, else today's rendering as blocks."""
     if page is not None and page.draft_blocks is not None:
         return page.draft_blocks
     if page is not None and page.blocks is not None:
         return page.blocks
-    if page is None or page.kind == "home":
+    kind = page.kind if page is not None else kind
+    if kind == "header":
+        return default_header_blocks()
+    if kind == "footer":
+        return default_footer_blocks()
+    if kind == "home":
         return home_blocks_for(org)
     return page_blocks_from_body(page.title, page.body)
 
 
+def _empty_summary(kind: str) -> dict:
+    return {"id": kind, "kind": kind, "slug": None, "title": SPECIAL[kind][1], "is_published": kind == "home",
+            "uses_blocks": False, "has_draft": False, "published_at": None, "draft_updated_at": None}
+
+
 def _summary(page: SitePage) -> dict:
     return {
-        "id": "home" if page.kind == "home" else str(page.id),
+        "id": page.kind if page.kind in SPECIAL else str(page.id),
         "kind": page.kind,
-        "slug": None if page.kind == "home" else page.slug,
+        "slug": None if page.kind in SPECIAL else page.slug,
         "title": page.title,
         "is_published": page.is_published,
         "uses_blocks": page.blocks is not None,
@@ -119,10 +140,11 @@ async def list_pages(request: Request, db: AsyncSession = Depends(get_db)):
         select(SitePage).where(SitePage.organization_id == org_id).order_by(SitePage.kind, SitePage.title)
     )).scalars().all()
     out = [_summary(p) for p in pages]
-    if not any(p.kind == "home" for p in pages):
-        out.insert(0, {"id": "home", "kind": "home", "slug": None, "title": "Ana sayfa", "is_published": True,
-                       "uses_blocks": False, "has_draft": False, "published_at": None, "draft_updated_at": None})
-    return sorted(out, key=lambda p: (p["kind"] != "home", p["title"].lower()))
+    for kind in SPECIAL:
+        if not any(p.kind == kind for p in pages):
+            out.append(_empty_summary(kind))
+    order = {"home": 0, "header": 1, "footer": 2}
+    return sorted(out, key=lambda p: (order.get(p["kind"], 3), p["title"].lower()))
 
 
 class NewPage(BaseModel):
@@ -157,15 +179,13 @@ async def create_page(payload: NewPage, request: Request, db: AsyncSession = Dep
 async def get_page(page_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     org_id = _org_id(request)
     org = await db.get(Organization, org_id)
-    if page_id == "home":
-        page = await _home(db, org_id)
+    if page_id in SPECIAL:
+        page = await _special(db, org_id, page_id)
     else:
         page = await _page(db, org_id, page_id)
     return {
-        **(_summary(page) if page else {"id": "home", "kind": "home", "title": "Ana sayfa", "slug": None,
-                                       "is_published": True, "uses_blocks": False, "has_draft": False,
-                                       "published_at": None, "draft_updated_at": None}),
-        "blocks": _working_blocks(page, org),
+        **(_summary(page) if page else _empty_summary(page_id)),
+        "blocks": _working_blocks(page, org, page_id),
         "version": page.version if page else 0,
         "draft_updated_by": page.draft_updated_by if page else None,
     }
@@ -181,11 +201,11 @@ async def save_draft(page_id: str, payload: DraftIn, request: Request, db: Async
                      current_user: User = Depends(get_current_user)):
     """Autosave. `version` must match: someone else's newer save is never overwritten."""
     org_id = _org_id(request)
+    page = await _page(db, org_id, page_id, create_home=True)
     try:
-        blocks = validate_blocks(payload.blocks)
+        blocks = validate_blocks(payload.blocks, page.kind)
     except BlockError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    page = await _page(db, org_id, page_id, create_home=True)
     if payload.version != page.version:
         raise HTTPException(status_code=409, detail={
             "message": f"Bu sayfa başka bir oturumda değiştirildi ({page.draft_updated_by or 'bilinmiyor'}). Sayfayı yenileyin.",
@@ -204,7 +224,10 @@ async def publish(page_id: str, request: Request, db: AsyncSession = Depends(get
     org_id = _org_id(request)
     org = await db.get(Organization, org_id)
     page = await _page(db, org_id, page_id, create_home=True)
-    blocks = validate_blocks(_working_blocks(page, org))
+    try:
+        blocks = validate_blocks(_working_blocks(page, org), page.kind)
+    except BlockError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     page.blocks, page.draft_blocks = blocks, None
     page.is_published = True
     page.version += 1
@@ -223,6 +246,24 @@ async def publish(page_id: str, request: Request, db: AsyncSession = Depends(get
     return {**_summary(page), "version": page.version}
 
 
+@admin_router.post("/pages/{page_id}/unpublish")
+async def unpublish_chrome(page_id: str, request: Request, db: AsyncSession = Depends(get_db),
+                           current_user: User = Depends(get_current_user)):
+    """Header/footer only: back to the built-in design. Revisions and the draft are kept."""
+    if page_id not in ("header", "footer"):
+        raise HTTPException(status_code=422, detail="Yalnızca header ve footer yayından kaldırılabilir")
+    org_id = _org_id(request)
+    page = await _page(db, org_id, page_id)
+    if page.draft_blocks is None and page.blocks is not None:
+        page.draft_blocks = page.blocks
+    page.blocks, page.is_published = None, False
+    page.version += 1
+    db.add(AuditLog(organization_id=org_id, user_id=current_user.id, action="sayfa_yayindan_kaldir",
+                    details={"page": page.slug}))
+    await db.commit()
+    return {**_summary(page), "version": page.version}
+
+
 @admin_router.post("/pages/{page_id}/discard")
 async def discard_draft(page_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     org_id = _org_id(request)
@@ -236,7 +277,7 @@ async def discard_draft(page_id: str, request: Request, db: AsyncSession = Depen
 @admin_router.get("/pages/{page_id}/revisions")
 async def revisions(page_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     org_id = _org_id(request)
-    if page_id == "home" and not await _home(db, org_id):
+    if page_id in SPECIAL and not await _special(db, org_id, page_id):
         return []
     page = await _page(db, org_id, page_id)
     rows = (await db.execute(
@@ -257,7 +298,7 @@ async def restore_revision(page_id: str, revision_id: UUID, request: Request, db
     ))).scalar_one_or_none()
     if not revision:
         raise HTTPException(status_code=404, detail="Sürüm bulunamadı")
-    page.draft_blocks = validate_blocks(revision.blocks)
+    page.draft_blocks = validate_blocks(revision.blocks, page.kind)
     page.version += 1
     page.draft_updated_at, page.draft_updated_by = datetime.now(timezone.utc), current_user.email
     await db.commit()
@@ -267,6 +308,8 @@ async def restore_revision(page_id: str, revision_id: UUID, request: Request, db
 @admin_router.post("/pages/{page_id}/preview-link")
 async def preview_link(page_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     org_id = _org_id(request)
+    if page_id in ("header", "footer"):
+        raise HTTPException(status_code=422, detail="Header ve footer'ın taslağı editördeki önizlemede görünür; yayınlayınca tüm sayfalara uygulanır.")
     page = await _page(db, org_id, page_id, create_home=True)
     await db.commit()
     token = _preview_token(page.id, int(time.time()) + PREVIEW_SECONDS)
@@ -307,6 +350,19 @@ async def public_home(request: Request, onizleme: Optional[str] = None, db: Asyn
         org = await db.get(Organization, page.organization_id)
         return {"blocks": _working_blocks(page, org), "preview": True}
     return {"blocks": _visible_now(page.blocks) if page.blocks is not None else None, "preview": False}
+
+
+@public_router.get("/public/site-chrome")
+async def public_site_chrome(request: Request, db: AsyncSession = Depends(get_db)):
+    """Published header and footer blocks; null = the built-in design."""
+    rows = (await db.execute(select(SitePage).where(
+        SitePage.organization_id == _org_id(request), SitePage.kind.in_(("header", "footer")),
+        SitePage.is_published.is_(True), SitePage.blocks.is_not(None),
+    ))).scalars().all()
+    out: dict[str, Any] = {"header": None, "footer": None}
+    for page in rows:
+        out[page.kind] = _visible_now(page.blocks)
+    return out
 
 
 async def public_page_blocks(page: SitePage, token: Optional[str], db: AsyncSession) -> tuple[Optional[list], bool]:

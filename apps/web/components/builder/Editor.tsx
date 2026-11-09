@@ -4,13 +4,13 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { Campaign } from '@e-infak/api-client'
 import { adminApiBase, adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
-import { type Block, type BuilderCatalog, type Device, cloneBlock, newBlock } from '../../lib/blocks'
+import { type Block, type BuilderCatalog, type Device, FIXED_CHILD, FIXED_PARENT, cloneBlock, newBlock } from '../../lib/blocks'
 import { checklist, countBlocks, duplicateBlock, findBlock, insertBlock, locate, moveBlock, removeBlock, shiftBlock, updateBlock } from '../../lib/builder-tree'
 import type { HomeData } from '../sections/HomeSections'
 import type { SiteData } from '../../lib/public-content'
 import { Fields } from './FieldInput'
 
-interface PageSummary { id: string; kind: 'home' | 'page'; slug: string | null; title: string; is_published: boolean; uses_blocks: boolean; has_draft: boolean; published_at: string | null; draft_updated_at: string | null }
+interface PageSummary { id: string; kind: 'home' | 'page' | 'header' | 'footer'; slug: string | null; title: string; is_published: boolean; uses_blocks: boolean; has_draft: boolean; published_at: string | null; draft_updated_at: string | null }
 interface Revision { id: string; created_at: string; created_by: string | null; blocks: number }
 
 type State = { blocks: Block[]; past: Block[][]; future: Block[][]; selectedId: string | null; dirty: boolean }
@@ -47,9 +47,15 @@ function reducer(state: State, action: Action): State {
 }
 
 const DEVICE_WIDTH: Record<Device, string> = { desktop: '100%', tablet: '820px', mobile: '390px' }
+/** The desktop canvas is drawn at least this wide (and scaled down to fit), so desktop rules apply. */
+const DESKTOP_WIDTH = 1280
 const DEVICE_LABEL: Record<Device, string> = { desktop: '🖥 Bilgisayar', tablet: '📱 Tablet', mobile: '📱 Telefon' }
 const LANG_LABEL: Record<string, string> = { tr: 'Türkçe', en: 'English', ar: 'العربية', de: 'Deutsch', fr: 'Français', ru: 'Русский' }
 const CLIPBOARD_KEY = 'einfak-builder-clipboard'
+const KIND_ICON: Record<string, string> = { home: '🏠', header: '⬆️', footer: '⬇️', page: '📄' }
+const KIND_PATH: Record<string, string> = { home: '/', header: 'tüm sayfaların üstü', footer: 'tüm sayfaların altı' }
+/** Header and footer: shared by every page, the built-in design until first published. */
+const CHROME = new Set(['header', 'footer'])
 
 const tabBtn = (active: boolean) => `flex-1 border-b-2 px-2 py-2 text-[12px] font-semibold ${active ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`
 const smallBtn = 'rounded-md border bg-white px-2.5 py-1.5 text-[12px] font-semibold text-gray-700 hover:border-gray-400 disabled:opacity-40'
@@ -74,6 +80,14 @@ export function SiteBuilderEditor() {
   const [modal, setModal] = useState<'publish' | 'versions' | null>(null)
   const [revisions, setRevisions] = useState<Revision[]>([])
   const frame = useRef<HTMLIFrameElement>(null)
+  const [area, setArea] = useState({ w: 0, h: 0 })
+  const observer = useRef<ResizeObserver | null>(null)
+  const canvasArea = useCallback((el: HTMLDivElement | null) => {
+    observer.current?.disconnect()
+    if (!el) return
+    observer.current = new ResizeObserver(([entry]) => setArea({ w: entry.contentRect.width, h: entry.contentRect.height }))
+    observer.current.observe(el)
+  }, [])
   const frameReady = useRef(false)
   const stateRef = useRef(state)
   stateRef.current = state
@@ -90,7 +104,8 @@ export function SiteBuilderEditor() {
       fetch(`${api}/campaigns?status=active`).then((r) => (r.ok ? r.json() : { items: [] })).then((d) => (d.items || []) as Campaign[]),
       fetch(`${api}/public/content-posts?limit=12`).then((r) => (r.ok ? r.json() : [])),
       fetch(`${api}/public/donation-categories`).then((r) => (r.ok ? r.json() : [])),
-    ]).then(([site, campaigns, news, categories]) => setData({ site, locale: 'tr', campaigns, news, categories }))
+      fetch(`${api}/public/menu`).then((r) => (r.ok ? r.json() : { header: [], footer: [] })),
+    ]).then(([site, campaigns, news, categories, menu]) => setData({ site, locale: 'tr', campaigns, news, categories, menu }))
       .catch(() => setMessage({ type: 'error', text: 'Site verileri yüklenemedi' }))
   }, [])
 
@@ -145,13 +160,33 @@ export function SiteBuilderEditor() {
     if (!catalog) return
     const block = newBlock(type, catalog.blocks[type])
     let blocks: Block[]
-    if (insertTarget && findBlock(state.blocks, insertTarget)) {
+    if (page?.kind === 'header') {
+      // A header is rows of three slots: rows go to the top level, everything else into a slot.
+      const sel = state.selectedId ? findBlock(state.blocks, state.selectedId) : null
+      const rootIndex = state.selectedId ? state.blocks.findIndex((r) => r.id === state.selectedId || !!findBlock(r.children || [], state.selectedId!)) : -1
+      if (type === 'header_row') {
+        blocks = insertBlock(state.blocks, null, rootIndex >= 0 ? rootIndex + 1 : state.blocks.length, block)
+      } else {
+        const target = insertTarget ? findBlock(state.blocks, insertTarget) : null
+        const place = sel ? locate(state.blocks, sel.id) : null
+        const parent = place?.[0] ? findBlock(state.blocks, place[0]) : null
+        if (target?.type === 'header_slot') blocks = insertBlock(state.blocks, target.id, target.children?.length ?? 0, block)
+        else if (sel?.type === 'header_slot') blocks = insertBlock(state.blocks, sel.id, sel.children?.length ?? 0, block)
+        else if (sel?.type === 'header_row' && sel.children?.[2]) blocks = insertBlock(state.blocks, sel.children[2].id, sel.children[2].children?.length ?? 0, block)
+        else if (place && parent?.type === 'header_slot') blocks = insertBlock(state.blocks, parent.id, place[1] + 1, block)
+        else {
+          const slot = state.blocks[state.blocks.length - 1]?.children?.[2]
+          if (!slot) { setMessage({ type: 'error', text: 'Önce bir “Header satırı” ekleyin; öğeler satırların alanlarına yerleşir.' }); return }
+          blocks = insertBlock(state.blocks, slot.id, slot.children?.length ?? 0, block)
+        }
+      }
+    } else if (insertTarget && findBlock(state.blocks, insertTarget)) {
       const parent = findBlock(state.blocks, insertTarget)!
       blocks = insertBlock(state.blocks, insertTarget, parent.children?.length ?? 0, block)
     } else if (state.selectedId) {
       const place = locate(state.blocks, state.selectedId)
       const sel = findBlock(state.blocks, state.selectedId)
-      if (sel?.type === 'column' || (sel && catalog.blocks[sel.type]?.container && sel.type !== 'columns' && !sel.children?.length)) {
+      if (sel && FIXED_CHILD.has(sel.type) || (sel && catalog.blocks[sel.type]?.container && !FIXED_PARENT.has(sel.type) && !sel.children?.length)) {
         blocks = insertBlock(state.blocks, sel.id, sel.children?.length ?? 0, block)
       } else {
         blocks = place ? insertBlock(state.blocks, place[0], place[1] + 1, block) : [...state.blocks, block]
@@ -171,7 +206,7 @@ export function SiteBuilderEditor() {
     if (action === 'down') commit(shiftBlock(blocks, id, 1))
     if (action === 'delete') {
       const target = findBlock(blocks, id)
-      if (target?.type === 'column') return
+      if (target && FIXED_CHILD.has(target.type)) return
       commit(removeBlock(blocks, id), null)
     }
     if (action === 'duplicate') {
@@ -185,7 +220,7 @@ export function SiteBuilderEditor() {
 
   const copySelected = () => {
     const sel = stateRef.current.selectedId && findBlock(stateRef.current.blocks, stateRef.current.selectedId)
-    if (sel && sel.type !== 'column') {
+    if (sel && !FIXED_CHILD.has(sel.type)) {
       try { localStorage.setItem(CLIPBOARD_KEY, JSON.stringify(sel)) } catch { /* private mode */ }
       setMessage({ type: 'ok', text: 'Blok kopyalandı; başka bir sayfada da yapıştırabilirsiniz (Ctrl+V).' })
     }
@@ -313,6 +348,20 @@ export function SiteBuilderEditor() {
     }
   }
 
+  const unpublish = async () => {
+    if (!window.confirm('Sitede yerleşik tasarım gösterilsin mi? Düzenlemeleriniz taslak olarak saklanır; yeniden yayınlayabilirsiniz.')) return
+    if (state.dirty && !(await save())) return
+    try {
+      const res = await adminSend<PageSummary & { version: number }>('post', `/site-builder/pages/${pageId}/unpublish`)
+      setVersion(res.data.version)
+      setPage(res.data)
+      setMessage({ type: 'ok', text: 'Yerleşik tasarıma dönüldü.' })
+      loadPages()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
   const discard = async () => {
     if (!window.confirm('Yayınlanmamış değişiklikler silinsin mi? Sayfa yayındaki haline döner.')) return
     try {
@@ -339,13 +388,17 @@ export function SiteBuilderEditor() {
   const groups = useMemo(() => {
     if (!catalog) return []
     const out: Record<string, [string, typeof catalog.blocks[string]][]> = {}
+    const kind = page?.kind || 'home'
+    const fits = (key: string, spec: (typeof catalog.blocks)[string]) => kind === 'header'
+      ? key === 'header_row' || catalog.header_slot_children.includes(key)
+      : (spec.zones || catalog.content_zones).includes(kind)
     for (const [key, spec] of Object.entries(catalog.blocks)) {
-      if (spec.hidden) continue
+      if (spec.hidden || !fits(key, spec)) continue
       if (search && !`${spec.label} ${spec.group}`.toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr'))) continue
       ;(out[spec.group] ||= []).push([key, spec])
     }
     return Object.entries(out)
-  }, [catalog, search])
+  }, [catalog, search, page?.kind])
 
   // --- Tree ------------------------------------------------------------------------
   const dragTree = useRef<string | null>(null)
@@ -355,14 +408,14 @@ export function SiteBuilderEditor() {
         const spec = catalog?.blocks[b.type]
         return (
           <li key={b.id}>
-            <div draggable={b.type !== 'column'}
+            <div draggable={!FIXED_CHILD.has(b.type)}
               onDragStart={(e) => { dragTree.current = b.id; e.dataTransfer.setData('text/plain', b.id) }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault()
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                 const y = (e.clientY - rect.top) / rect.height
-                const inside = spec?.container && b.type !== 'columns' && y > 0.3 && y < 0.7
+                const inside = spec?.container && !FIXED_PARENT.has(b.type) && y > 0.3 && y < 0.7
                 if (dragTree.current) commit(moveBlock(state.blocks, dragTree.current, b.id, inside ? 'inside' : y < 0.5 ? 'before' : 'after'))
                 dragTree.current = null
               }}
@@ -384,6 +437,7 @@ export function SiteBuilderEditor() {
   }
 
   const translating = lang !== 'tr'
+  const scale = device === 'desktop' && area.w > 0 && area.w < DESKTOP_WIDTH ? area.w / DESKTOP_WIDTH : 1
   const styleValues = (selected?.style?.[device] || {}) as Record<string, any>
 
   return (
@@ -410,7 +464,8 @@ export function SiteBuilderEditor() {
           </select>
         )}
         <button type="button" className={smallBtn} onClick={showVersions}>Sürümler</button>
-        <button type="button" className={smallBtn} onClick={openPreview}>Önizle ↗</button>
+        {!CHROME.has(page?.kind || '') && <button type="button" className={smallBtn} onClick={openPreview}>Önizle ↗</button>}
+        {CHROME.has(page?.kind || '') && page?.is_published && <button type="button" className={smallBtn} onClick={unpublish}>Yerleşik tasarıma dön</button>}
         {page?.has_draft && <button type="button" className={smallBtn} onClick={discard}>Değişiklikleri at</button>}
         <button type="button" className="rounded-md bg-blue-600 px-3.5 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700" onClick={() => setModal('publish')}>Yayınla</button>
       </header>
@@ -441,9 +496,9 @@ export function SiteBuilderEditor() {
                 {pages.map((p) => (
                   <button key={p.id} type="button" onClick={() => switchPage(p.id)}
                     className={`block w-full rounded-md px-2 py-2 text-start text-[13px] ${p.id === pageId ? 'bg-blue-50 font-semibold text-blue-800' : 'hover:bg-gray-50'}`}>
-                    {p.kind === 'home' ? '🏠 ' : '📄 '}{p.title}
+                    {KIND_ICON[p.kind]} {p.title}
                     <span className="mt-0.5 block text-[11px] font-normal text-gray-400">
-                      {p.kind === 'home' ? '/' : `/sayfa/${p.slug}`} · {p.has_draft ? 'taslak var' : p.is_published ? 'yayında' : 'yayınlanmadı'}{p.kind === 'page' && !p.uses_blocks && !p.has_draft ? ' · klasik' : ''}
+                      {KIND_PATH[p.kind] ?? `/sayfa/${p.slug}`} · {p.has_draft ? 'taslak var' : p.is_published ? 'yayında' : CHROME.has(p.kind) ? 'yerleşik tasarım' : 'yayınlanmadı'}{p.kind === 'page' && !p.uses_blocks && !p.has_draft ? ' · klasik' : ''}
                     </span>
                   </button>
                 ))}
@@ -486,8 +541,9 @@ export function SiteBuilderEditor() {
 
         {/* Canvas */}
         <main className="min-w-0 flex-1 overflow-auto p-4" onClick={() => dispatch({ type: 'select', id: null })}>
-          <div className="mx-auto h-full overflow-hidden rounded-lg bg-white shadow-sm transition-[width] duration-300" style={{ width: DEVICE_WIDTH[device], maxWidth: '100%' }}>
+          <div ref={canvasArea} className="mx-auto h-full overflow-hidden rounded-lg bg-white shadow-sm transition-[width] duration-300" style={{ width: DEVICE_WIDTH[device], maxWidth: '100%' }}>
             <iframe ref={frame} src="/site-yapici-cerceve" title="Sayfa önizlemesi" className="h-full w-full border-0"
+              style={scale < 1 ? { width: DESKTOP_WIDTH, height: area.h / scale, transform: `scale(${scale})`, transformOrigin: '0 0' } : undefined}
               onLoad={() => { frameReady.current = false }} />
           </div>
         </main>
@@ -509,7 +565,7 @@ export function SiteBuilderEditor() {
               <div className="flex items-center gap-2 border-b px-3 py-2">
                 <span className="text-lg">{selectedSpec.icon}</span>
                 <span className="flex-1 truncate text-sm font-bold">{selectedSpec.label}</span>
-                {selected.type !== 'column' && (
+                {!FIXED_CHILD.has(selected.type) && (
                   <>
                     <button type="button" title="Çoğalt" className="text-gray-500 hover:text-gray-900" onClick={() => blockAction(selected.id, 'duplicate')}>⧉</button>
                     <button type="button" title="Kopyala" className="text-gray-500 hover:text-gray-900" onClick={copySelected}>📋</button>

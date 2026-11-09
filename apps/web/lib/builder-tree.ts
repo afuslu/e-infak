@@ -1,4 +1,4 @@
-import { type Block, cloneBlock } from './blocks'
+import { type Block, FIXED_CHILD, FIXED_PARENT, cloneBlock } from './blocks'
 
 /** Immutable helpers for the editor's block tree. */
 
@@ -54,7 +54,7 @@ export function moveBlock(blocks: Block[], id: string, targetId: string, positio
   const moving = findBlock(blocks, id)
   const target = findBlock(blocks, targetId)
   if (!moving || !target || contains(moving, targetId)) return blocks
-  if (moving.type === 'column' || (position === 'inside' && target.type === 'columns')) return blocks
+  if (FIXED_CHILD.has(moving.type) || (position === 'inside' && FIXED_PARENT.has(target.type))) return blocks
   const without = removeBlock(blocks, id)
   if (position === 'inside') return insertBlock(without, targetId, target.children?.length ?? 0, moving)
   const place = locate(without, targetId)
@@ -68,7 +68,7 @@ export function shiftBlock(blocks: Block[], id: string, delta: -1 | 1): Block[] 
   const [parentId, index] = place
   const siblings = parentId ? findBlock(blocks, parentId)?.children || [] : blocks
   const to = index + delta
-  if (to < 0 || to >= siblings.length || siblings[index].type === 'column') return blocks
+  if (to < 0 || to >= siblings.length || FIXED_CHILD.has(siblings[index].type)) return blocks
   const moving = siblings[index]
   return insertBlock(removeBlock(blocks, id), parentId, to, moving)
 }
@@ -76,7 +76,7 @@ export function shiftBlock(blocks: Block[], id: string, delta: -1 | 1): Block[] 
 export function duplicateBlock(blocks: Block[], id: string): [Block[], string | null] {
   const place = locate(blocks, id)
   const original = findBlock(blocks, id)
-  if (!place || !original || original.type === 'column') return [blocks, null]
+  if (!place || !original || FIXED_CHILD.has(original.type)) return [blocks, null]
   const copy = cloneBlock(original)
   return [insertBlock(blocks, place[0], place[1] + 1, copy), copy.id]
 }

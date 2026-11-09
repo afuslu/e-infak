@@ -39,8 +39,7 @@ export async function getPublic<T>(path: string, fallback: T, revalidate = 30): 
   }
 }
 
-export interface MenuLink { label: string; url: string; open_in_new_tab: boolean }
-export interface PublicMenu { header: MenuLink[]; footer: MenuLink[] }
+export { defaultFooterLinks, defaultHeaderLinks, type MenuLink, type PublicMenu } from './default-links'
 
 export interface PublicPost {
   id: string
@@ -108,18 +107,4 @@ export const getSite = cache(async (): Promise<SiteData | null> => {
   if (!(await currentOrgSlug())) return null
   return getPublic<SiteData | null>('site', null, 60)
 })
-
-export function defaultHeaderLinks(t: (key: MessageKey) => string): MenuLink[] {
-  return ([
-    ['nav.home', '/'], ['nav.projects', '/kampanyalar'], ['nav.news', '/haberler'],
-    ['nav.gallery', '/galeri'], ['nav.about', '/hakkimizda'], ['nav.contact', '/iletisim'],
-  ] as [MessageKey, string][]).map(([key, url]) => ({ label: t(key), url, open_in_new_tab: false }))
-}
-
-export function defaultFooterLinks(t: (key: MessageKey) => string): MenuLink[] {
-  return ([
-    ['nav.volunteer', '/gonullu'], ['nav.zakat', '/zekat-hesapla'], ['nav.kvkk', '/kvkk'],
-    ['nav.privacy', '/gizlilik'], ['nav.terms', '/bagis-kosullari'],
-  ] as [MessageKey, string][]).map(([key, url]) => ({ label: t(key), url, open_in_new_tab: false }))
-}
 

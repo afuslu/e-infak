@@ -6,7 +6,9 @@ import { translator } from '../../lib/i18n'
 import { QuickDonationForm } from '../QuickDonationForm'
 import { Campaigns, Categories, CtaBand, Hero, News, Stats, Trust, ZakatBand, type HomeData } from '../sections/HomeSections'
 import { BlockText } from './BlockText'
-import { Reveal, Slider, type SlideView } from './BlockClient'
+import { MobileMenu, type NavItemView, type NavLinkView, Reveal, Slider, StickyShrink, type SlideView } from './BlockClient'
+import { LanguageSwitcher } from '../site/LanguageSwitcher'
+import { defaultFooterLinks, defaultHeaderLinks } from '../../lib/default-links'
 
 /**
  * Draws a block tree. Shared by the public site and the editor preview; the editor
@@ -41,10 +43,110 @@ const BASE_CSS = `
 @keyframes bleft{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
 @keyframes bright{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:none}}
 @keyframes bzoom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+/* Blocks stacked in a column get a gap; a block's own margin (Stil) still wins. */
+.b-col>*+*{margin-top:16px}
+.hrow{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto);align-items:center;column-gap:24px;min-height:var(--hrow-h,76px);transition:min-height .2s}
+.hrow>*{min-width:0}
+.hslot{display:flex;align-items:center;gap:16px;min-width:0}
+.hrow>:nth-child(1) .hslot{justify-content:flex-start}
+.hrow>:nth-child(2) .hslot{justify-content:var(--hrow-center,center)}
+.hrow>:nth-child(3) .hslot{justify-content:flex-end}
+.hrow-sticky{position:sticky;top:0;z-index:40;transition:box-shadow .2s}
+.hrow-sticky.is-stuck{box-shadow:0 6px 20px -8px rgba(0,0,0,.18)}
+.hrow-sticky.is-shrink.is-stuck .hrow{min-height:calc(var(--hrow-h,76px)*.8)}
+.mega-col+.mega-col{border-inline-start:1px solid rgba(0,0,0,.06);padding-inline-start:20px}
 `
 
 /** Blocks whose own markup is full width with its own container and padding. */
-const FULL_BLEED = new Set(['hero', 'slider', 'stats', 'zakat_band', 'cta_band', 'trust', 'banner'])
+const FULL_BLEED = new Set(['hero', 'slider', 'stats', 'zakat_band', 'cta_band', 'trust', 'banner', 'header_row'])
+
+/** Theme-following backgrounds of sections and header rows (a Stil background overrides them). */
+const TONE: Record<string, string> = {
+  light: 'bg-white/95 text-gray-900 backdrop-blur',
+  soft: 'bg-primary-50 text-gray-900',
+  brand: 'bg-primary-700 text-white',
+  dark: 'bg-primary-950 text-primary-100',
+}
+const SOCIAL_LABELS: Record<string, [string, string]> = {
+  facebook: ['Facebook', 'f'], instagram: ['Instagram', 'IG'], x: ['X', 'X'], youtube: ['YouTube', '▶'], linkedin: ['LinkedIn', 'in'], telegram: ['Telegram', '✈'],
+}
+const BUTTON_VARIANT: Record<string, string> = {
+  primary: 'bg-primary-600 text-white hover:bg-primary-700',
+  accent: 'bg-accent-500 text-white hover:bg-accent-600',
+  outline: 'border-[1.5px] border-current hover:bg-black/5',
+  light: 'bg-white text-gray-900 hover:bg-gray-100',
+  link: 'px-0 underline underline-offset-4',
+}
+
+function Anchor({ link, className, children }: { link: NavLinkView; className: string; children?: ReactNode }) {
+  const body = children ?? link.label
+  if (!link.url) return <span className={className}>{body}</span>
+  if (link.url.startsWith('/') && !link.new_tab) return <Link href={link.url} className={className}>{body}</Link>
+  return <a href={link.url} className={className} target={link.new_tab ? '_blank' : undefined} rel="noopener noreferrer">{body}</a>
+}
+
+/** Links of a Menü block: its own items, or the Menü screen's header/footer links. */
+function navItems(o: Record<string, any>, data: HomeData, t: ReturnType<typeof translator>): NavItemView[] {
+  if (o.source === 'custom') {
+    return (o.items || []).filter((i: any) => i?.label).map((i: any) => ({
+      label: i.label, url: i.url, new_tab: i.new_tab, mega: i.mega,
+      children: (i.children || []).filter((c: any) => c?.label && c?.url),
+    }))
+  }
+  const footer = o.source === 'footer'
+  const links = (footer ? data.menu?.footer : data.menu?.header) || []
+  return (links.length ? links : footer ? defaultFooterLinks(t) : defaultHeaderLinks(t))
+    .map((l) => ({ label: l.label, url: l.url, new_tab: l.open_in_new_tab }))
+}
+
+function groupLinks(links: NavLinkView[]): [string, NavLinkView[]][] {
+  const groups: [string, NavLinkView[]][] = []
+  for (const link of links) {
+    const key = link.group || ''
+    const found = groups.find(([g]) => g === key)
+    if (found) found[1].push(link)
+    else groups.push([key, [link]])
+  }
+  return groups
+}
+
+function Dropdown({ item }: { item: NavItemView }) {
+  const children = item.children || []
+  return (
+    <div className="group relative">
+      {item.url ? (
+        <Anchor link={item} className="inline-flex items-center gap-1 py-2 transition-opacity hover:opacity-70">
+          {item.label}<span aria-hidden className="text-[10px] opacity-60 transition-transform group-hover:rotate-180">▾</span>
+        </Anchor>
+      ) : (
+        // No link of its own: a button, so keyboard focus opens the panel (focus-within)
+        <button type="button" aria-haspopup="true" className="inline-flex items-center gap-1 py-2 font-semibold transition-opacity hover:opacity-70">
+          {item.label}<span aria-hidden className="text-[10px] opacity-60 transition-transform group-hover:rotate-180">▾</span>
+        </button>
+      )}
+      <div className={`invisible absolute top-full z-50 pt-2 opacity-0 transition duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 ${item.mega ? 'left-1/2 w-[min(92vw,880px)] -translate-x-1/2' : 'start-0 min-w-56'}`}>
+        <div className="rounded-xl border border-black/5 bg-white p-3 text-start text-[14px] font-normal text-gray-800 shadow-xl">
+          {item.mega ? (
+            <div className="grid gap-5 p-2" style={{ gridTemplateColumns: `repeat(${Math.min(groupLinks(children).length, 4)}, minmax(0, 1fr))` }}>
+              {groupLinks(children).map(([group, links]) => (
+                <div key={group} className="mega-col min-w-0">
+                  {group && <div className="mb-2 text-[12px] font-bold uppercase tracking-wider text-primary-700">{group}</div>}
+                  <div className="flex flex-col gap-0.5">
+                    {links.map((l, i) => <Anchor key={i} link={l} className="rounded-md px-2 py-1.5 hover:bg-primary-50 hover:text-primary-800" />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {children.map((l, i) => <Anchor key={i} link={l} className="rounded-md px-3 py-2 hover:bg-primary-50 hover:text-primary-800" />)}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function money(c: Campaign, locale: string, cents: 'collected' | 'target') {
   const value = cents === 'collected' ? c.collected_lira : c.target_lira
@@ -289,6 +391,139 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       )
     case 'section':
       return <div className="b-section">{children(block.children)}</div>
+    case 'header_row':
+      return (
+        <div className={`${container} hrow`} style={{ ['--hrow-h' as string]: `${o.height ?? 76}px`, ['--hrow-center' as string]: o.center_align === 'left' ? 'flex-start' : o.center_align === 'right' ? 'flex-end' : 'center' }}>
+          {o.sticky && o.shrink !== false && !opts.editing && <StickyShrink />}
+          {children(block.children)}
+        </div>
+      )
+    case 'header_slot':
+      return <div className="hslot">{children(block.children)}</div>
+    case 'logo': {
+      const site = data.site
+      const size = o.size ?? 44
+      const src = (o.light && site.logo_dark_url) || site.logo_url
+      return (
+        <div className={depth === 0 ? container : ''}>
+          <Link href="/" className="inline-flex min-w-0 items-center gap-3">
+            {src && <img src={src} alt={o.show_name === false ? site.name : ''} style={{ width: size, height: size }} className="flex-shrink-0 rounded-full bg-white object-cover" />}
+            {o.show_name !== false && (
+              <span className="flex min-w-0 flex-col leading-tight">
+                <span className="truncate font-heading text-lg font-bold tracking-wide">{site.name}</span>
+                {o.show_tagline !== false && site.tagline && (
+                  <span className={`truncate text-[11px] font-semibold uppercase tracking-[2px] ${o.light ? 'opacity-70' : 'text-primary-600'}`}>{site.tagline}</span>
+                )}
+              </span>
+            )}
+          </Link>
+          {o.show_about && site.footer_text && <p className="mt-4 max-w-md text-sm leading-relaxed opacity-80">{site.footer_text}</p>}
+        </div>
+      )
+    }
+    case 'nav_menu': {
+      const items = navItems(o, data, t)
+      if (o.layout === 'vertical') {
+        return (
+          <nav className={depth === 0 ? container : ''}>
+            {o.title && <div className="mb-3 font-bold">{o.title}</div>}
+            <ul className="flex flex-col gap-2.5 text-sm">
+              {items.map((item, i) => (
+                <li key={i}>
+                  <Anchor link={item} className="opacity-85 transition-opacity hover:opacity-100 hover:underline" />
+                  {!!item.children?.length && (
+                    <ul className="ms-3 mt-2 flex flex-col gap-2 opacity-80">
+                      {item.children.map((c, j) => <li key={j}><Anchor link={c} className="hover:underline" /></li>)}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )
+      }
+      const mobile = o.mobile || 'drawer'
+      return (
+        <div className={`${depth === 0 ? container : ''} flex items-center`}>
+          <nav className={`${mobile === 'inline' ? 'flex' : 'hidden lg:flex'} flex-wrap items-center gap-x-6 gap-y-1 text-[15px] font-semibold`}>
+            {items.map((item, i) => item.children?.length
+              ? <Dropdown key={i} item={item} />
+              : <Anchor key={i} link={item} className="py-2 transition-opacity hover:opacity-70" />)}
+          </nav>
+          {mobile === 'drawer' && (
+            <div className="lg:hidden">
+              <MobileMenu items={items} label={t('nav.menu')} extra={<LanguageSwitcher />}
+                donate={o.drawer_donate !== false ? { label: t('nav.donate'), url: '/kampanyalar' } : null} />
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'donate_button': {
+      const size = { sm: 'px-4 py-2 text-sm', md: 'px-5 py-2.5', lg: 'px-7 py-3.5 text-lg' }[o.size as string] || 'px-5 py-2.5'
+      return (
+        <div className={depth === 0 ? container : ''}>
+          <Anchor link={{ label: o.label || t('nav.donate'), url: o.url || '/kampanyalar' }}
+            className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg font-bold transition-colors ${BUTTON_VARIANT[o.style] || BUTTON_VARIANT.primary} ${size}`}>
+            {o.heart && <span aria-hidden>♥</span>}{o.label || t('nav.donate')}
+          </Anchor>
+        </div>
+      )
+    }
+    case 'language_switcher':
+      if ((data.site.languages || []).length < 2) {
+        return opts.editing ? <span className="rounded border border-dashed px-2 py-1 text-xs opacity-60">🌐 Dil seçici (tek dil açık)</span> : null
+      }
+      return <div className={depth === 0 ? container : ''}><LanguageSwitcher /></div>
+    case 'social_icons': {
+      const links = Object.entries(data.site.social_links || {})
+      if (!links.length) return opts.editing ? <span className="text-xs opacity-60">Sosyal medya bağlantısı yok (Görünüm & Tema)</span> : null
+      const cls = {
+        round: 'flex h-9 w-9 items-center justify-center rounded-full bg-current/10 text-xs font-bold hover:bg-current/20',
+        text: 'text-sm hover:underline underline-offset-4',
+      }[o.style as string] || 'rounded-full border border-current/20 px-3 py-1 text-sm hover:bg-current/10'
+      return (
+        <div className={`${depth === 0 ? container : ''} flex flex-wrap gap-3 ${JUSTIFY[o.align] || ''}`}>
+          {links.map(([network, href]) => {
+            const [name, short] = SOCIAL_LABELS[network] || [network, network]
+            return <a key={network} href={href} target="_blank" rel="noopener noreferrer" aria-label={name} className={cls}>{o.style === 'round' ? short : name}</a>
+          })}
+        </div>
+      )
+    }
+    case 'contact_info': {
+      const c = data.site.contact
+      const rows = [
+        o.show_phone !== false && c.phone && <a key="p" href={`tel:${c.phone}`} className="hover:underline">{c.phone}</a>,
+        o.show_email !== false && c.email && <a key="e" href={`mailto:${c.email}`} className="hover:underline">{c.email}</a>,
+        o.show_address && c.address && <span key="a">{c.address}</span>,
+      ].filter(Boolean)
+      if (!rows.length) return opts.editing ? <span className="text-xs opacity-60">İletişim bilgisi yok (Site Ayarları)</span> : null
+      return (
+        <div className={depth === 0 ? container : ''}>
+          {o.title && <div className="mb-3 font-bold">{o.title}</div>}
+          <div className={o.layout === 'stacked' ? 'flex flex-col gap-2 text-sm' : 'flex flex-wrap items-center gap-x-5 gap-y-1'}>{rows}</div>
+        </div>
+      )
+    }
+    case 'account_links':
+      return (
+        <div className={`${depth === 0 ? container : ''} ${o.layout === 'stacked' ? 'flex flex-col gap-2' : 'flex flex-wrap items-center gap-4'} text-sm`}>
+          {o.show_portal !== false && <Link href="/portal" className="font-semibold hover:underline">{t('nav.donorLogin')}</Link>}
+          {o.show_verify !== false && <Link href="/verify" className="hover:underline">{t('nav.verifyReceipt')}</Link>}
+        </div>
+      )
+    case 'copyright': {
+      const year = String(new Date().getFullYear())
+      const text = o.text ? String(o.text).replace(/\{(yıl|year)\}/g, year) : `© ${year} ${data.site.name}`
+      return (
+        <div className={container}>
+          <div className="border-t pt-4 text-center text-xs opacity-70" style={{ borderColor: 'color-mix(in srgb, currentColor 15%, transparent)' }}>
+            {text}{o.show_powered !== false && ' · E-İnfak altyapısıyla'}
+          </div>
+        </div>
+      )
+    }
     case 'columns': {
       const ratio = o.ratio || '1-1'
       const cols = o.stack_on === 'never' ? RATIOS_ALWAYS[ratio] : o.stack_on === 'mobile' ? RATIOS_MOBILE_ONLY[ratio] : RATIOS[ratio]
@@ -299,7 +534,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       )
     }
     case 'column':
-      return <div className="min-w-0">{children(block.children)}</div>
+      return <div className="b-col min-w-0">{children(block.children)}</div>
     case 'spacer':
       return <div style={{ height: `${o.height ?? 48}px` }} aria-hidden />
     case 'divider':
@@ -319,9 +554,13 @@ export function renderBlock(block: Block, opts: RenderOptions, depth = 0): React
   const o = opts.data.locale !== 'tr' ? localizedProps(block, opts.data.locale) : block.props
   const hasOverlay = Object.values(block.style || {}).some((s) => s && s.overlay_color)
   const padded = !FULL_BLEED.has(block.type) && !['column', 'spacer', 'divider'].includes(block.type) && depth === 0
+  const tone = (block.type === 'section' || block.type === 'header_row') ? TONE[o.tone || (block.type === 'header_row' ? 'light' : '')] : ''
+  const row = block.type === 'header_row'
+    ? `${o.border !== false ? ' border-b border-black/5' : ''}${o.sticky && !opts.editing ? ` hrow-sticky${o.shrink !== false ? ' is-shrink' : ''}` : ''}`
+    : ''
   let node: ReactNode = (
     <div key={block.id} id={advanced.anchor || undefined} aria-label={advanced.aria_label || undefined}
-      className={`b-block b-${block.id}${padded ? ' b-pad' : ''}${advanced.css_class ? ` ${advanced.css_class}` : ''}`}>
+      className={`b-block b-${block.id}${padded ? ' b-pad' : ''}${tone ? ` ${tone}` : ''}${row}${advanced.css_class ? ` ${advanced.css_class}` : ''}`}>
       {hasOverlay && <div className="b-overlay" aria-hidden />}
       <div className="b-inner">{content(block, o, opts, depth)}</div>
     </div>

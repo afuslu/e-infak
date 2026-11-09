@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Campaign } from '@e-infak/api-client'
 import type { SiteData } from '../../lib/public-content'
+import type { PublicMenu } from '../../lib/default-links'
 import { translator } from '../../lib/i18n'
 import { QuickDonationForm } from '../QuickDonationForm'
 
@@ -13,6 +14,8 @@ export interface HomeData {
   campaigns: Campaign[]
   news: NewsPostDto[]
   categories: CategoryDto[]
+  /** Menü screen links; header/footer menu blocks fall back to the default links without it. */
+  menu?: PublicMenu
 }
 
 type T = ReturnType<typeof translator>

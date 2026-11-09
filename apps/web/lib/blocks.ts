@@ -46,6 +46,9 @@ export interface BlockSpec {
   icon: string
   container?: boolean
   child_type?: string
+  child_count?: number
+  parent?: string
+  zones?: string[]
   hidden?: boolean
   fields: Record<string, FieldSpec>
 }
@@ -56,7 +59,14 @@ export interface BuilderCatalog {
   advanced: Record<string, FieldSpec>
   devices: Device[]
   langs: string[]
+  content_zones: string[]
+  header_slot_children: string[]
 }
+
+/** Slots of a fixed layout (a column of Sütunlar, an area of a header row): never moved, deleted or copied alone. */
+export const FIXED_CHILD = new Set(['column', 'header_slot'])
+/** Containers made of such slots: blocks go into a slot, not straight into them. */
+export const FIXED_PARENT = new Set(['columns', 'header_row'])
 
 export const BREAKPOINTS: Record<Device, string | null> = {
   desktop: null,
@@ -196,8 +206,9 @@ export function newBlock(type: string, spec: BlockSpec): Block {
   if (spec.container) {
     block.children = []
     if (spec.child_type) {
-      const count = String(props.ratio || '1-1').split('-').length
-      block.children = Array.from({ length: count }, () => ({ id: newBlockId('column'), type: 'column', props: {}, style: {}, advanced: {}, children: [] }))
+      const childType = spec.child_type
+      const count = spec.child_count || String(props.ratio || '1-1').split('-').length
+      block.children = Array.from({ length: count }, () => ({ id: newBlockId(childType), type: childType, props: {}, style: {}, advanced: {}, children: [] }))
     }
   }
   return block

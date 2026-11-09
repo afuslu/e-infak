@@ -157,3 +157,65 @@ async def test_custom_pages_and_isolation(db_session, http):
     # Read-only staff cannot publish
     _, readonly_auth, _ = await _org_with_admin(db_session, role=UserRole.READONLY)
     assert (await http.post(f"{base}/pages/home/publish", headers=readonly_auth)).status_code == 403
+
+
+def test_header_and_footer_zones():
+    from app.services.blocks import default_footer_blocks, default_header_blocks
+    header = validate_blocks(default_header_blocks(), "header")
+    assert [len(row["children"]) for row in header] == [3, 3]
+    assert validate_blocks(default_footer_blocks(), "footer")[0]["props"]["tone"] == "dark"
+    row = {"id": "row-1", "type": "header_row", "props": {}, "children": [
+        {"id": "row-1-a", "type": "header_slot", "children": [{"id": "logo-1", "type": "logo", "props": {}}]},
+    ]}
+    # Missing slots are added, so a row always has left, centre and right
+    assert len(validate_blocks([row], "header")[0]["children"]) == 3
+    for bad, kind in (
+        ([{"id": "logo-1", "type": "logo", "props": {}}], "header"),  # items only inside a row
+        ([{**row, "children": [{"id": "row-1-a", "type": "header_slot", "children": [
+            {"id": "camp-1", "type": "campaigns", "props": {}}]}]}], "header"),  # content blocks stay out of headers
+        ([row], "page"),
+        ([{"id": "copy-1", "type": "copyright", "props": {}}], "home"),
+        ([{"id": "slot-1", "type": "header_slot", "children": []}], "header"),
+        ([], "sidebar"),
+    ):
+        with pytest.raises(BlockError):
+            validate_blocks(bad, kind)
+    # Mega menu items keep their grouped sub links; unsafe links are refused like everywhere else
+    item = {"label": "Bağış", "mega": True, "children": [{"label": "Kurban", "url": "/kampanyalar/kurban", "group": "Dönemsel", "x": 1}]}
+    menu = validate_blocks([{"id": "menu-1", "type": "nav_menu", "props": {"source": "custom", "items": [item]}}], "footer")
+    assert menu[0]["props"]["items"][0]["children"] == [{"label": "Kurban", "url": "/kampanyalar/kurban", "group": "Dönemsel"}]
+    item["children"].append({"label": "Kötü", "url": "javascript:alert(1)"})
+    with pytest.raises(BlockError):
+        validate_blocks([{"id": "menu-1", "type": "nav_menu", "props": {"source": "custom", "items": [item]}}], "footer")
+
+
+async def test_header_footer_publish_and_fallback(db_session, http):
+    org, auth, host = await _org_with_admin(db_session)
+    base = "/api/v1/admin-features/site-builder"
+    kinds = [p["kind"] for p in (await http.get(f"{base}/pages", headers=auth)).json()]
+    assert kinds[:3] == ["home", "header", "footer"]
+    # Untouched: the editor gets today's design as blocks, the site keeps the built-in one
+    header = (await http.get(f"{base}/pages/header", headers=auth)).json()
+    assert header["is_published"] is False and header["blocks"][1]["children"][0]["children"][0]["type"] == "logo"
+    assert (await http.get("/api/v1/public/site-chrome", headers={"Host": host})).json() == {"header": None, "footer": None}
+    # A header refuses content blocks at the top level
+    bad = await http.put(f"{base}/pages/header/draft", headers=auth,
+                         json={"version": 0, "blocks": [{"id": "head-1", "type": "heading", "props": {"text": "x"}}]})
+    assert bad.status_code == 422
+    blocks = header["blocks"][1:]
+    saved = await http.put(f"{base}/pages/header/draft", headers=auth, json={"version": 0, "blocks": blocks})
+    assert saved.status_code == 200
+    # Drafts stay private; preview links are for real pages only
+    assert (await http.get("/api/v1/public/site-chrome", headers={"Host": host})).json()["header"] is None
+    assert (await http.post(f"{base}/pages/header/preview-link", headers=auth)).status_code == 422
+    assert (await http.post(f"{base}/pages/header/publish", headers=auth)).status_code == 200
+    chrome = (await http.get("/api/v1/public/site-chrome", headers={"Host": host})).json()
+    assert [b["id"] for b in chrome["header"]] == ["hdr-main"] and chrome["footer"] is None
+    # Header/footer never appear as public pages
+    names = [p["slug"] for p in (await http.get("/api/v1/public/pages", headers={"Host": host})).json()]
+    assert "__header__" not in names
+    # Back to the built-in design; the work is kept as a draft
+    reverted = (await http.post(f"{base}/pages/header/unpublish", headers=auth)).json()
+    assert reverted["is_published"] is False and reverted["has_draft"] is True
+    assert (await http.get("/api/v1/public/site-chrome", headers={"Host": host})).json()["header"] is None
+    assert (await http.post(f"{base}/pages/home/unpublish", headers=auth)).status_code == 422

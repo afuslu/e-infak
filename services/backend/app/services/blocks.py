@@ -44,6 +44,15 @@ def F(kind: str, label: str, **opts) -> dict:
     return {"kind": kind, "label": label, **opts}
 
 
+# Page kinds a block may appear in. Header pages are rows of three slots; other
+# kinds take content blocks. Fixed children (column, header_slot) name their parent.
+PAGE_KINDS = ("home", "page", "header", "footer")
+CONTENT_ZONES = ("home", "page", "footer")
+SITE_ZONES = ("home", "page", "header", "footer")
+TONES = {"": "Yok", "light": "Beyaz", "soft": "Açık ana renk", "brand": "Ana renk", "dark": "Koyu"}
+# What a header slot may hold (besides the site elements below).
+SLOT_CONTENT = ("buttons", "heading", "richtext", "spacer", "divider")
+
 BUTTON_STYLES = {"primary": "Ana renk", "accent": "Vurgu rengi", "outline": "Çerçeveli", "light": "Açık", "link": "Bağlantı"}
 ALIGN = {"left": "Sola", "center": "Ortaya", "right": "Sağa"}
 
@@ -195,10 +204,11 @@ BLOCKS: dict[str, dict] = {
     # Layout
     "section": {
         "label": "Bölüm (kapsayıcı)", "group": "Düzen", "icon": "🧱", "container": True,
-        "fields": {},
+        "fields": {"tone": F("select", "Zemin", choices=TONES, default="", help="Tema renklerini izler; özel renk için Stil sekmesini kullanın")},
     },
     "columns": {
         "label": "Sütunlar", "group": "Düzen", "icon": "🏛️", "container": True, "child_type": "column",
+        "zones": SITE_ZONES,
         "fields": {
             "ratio": F("select", "Sütun oranları", choices={"1-1": "1/2 + 1/2", "1-2": "1/3 + 2/3", "2-1": "2/3 + 1/3", "1-1-1": "3 eşit", "1-1-1-1": "4 eşit", "1-2-1": "1/4 + 1/2 + 1/4"}, default="1-1"),
             "gap": F("number", "Aralık (px)", min=0, max=96, default=24),
@@ -207,7 +217,7 @@ BLOCKS: dict[str, dict] = {
         },
     },
     "column": {
-        "label": "Sütun", "group": "Düzen", "icon": "▥", "container": True, "hidden": True,
+        "label": "Sütun", "group": "Düzen", "icon": "▥", "container": True, "hidden": True, "parent": "columns",
         "fields": {},
     },
     "spacer": {
@@ -219,6 +229,110 @@ BLOCKS: dict[str, dict] = {
         "fields": {"line": F("select", "Çizgi", choices={"solid": "Düz", "dashed": "Kesikli", "dotted": "Noktalı"}, default="solid"), "color": F("color", "Renk"), "width": F("number", "Genişlik (%)", min=10, max=100, default=100)},
     },
 }
+
+
+# --- Header & footer ---------------------------------------------------------------
+
+MENU_LINK_FIELDS = {
+    "label": F("text", "Yazı", max=60),
+    "url": F("url", "Bağlantı"),
+    "group": F("text", "Sütun başlığı (mega menü)", max=40, help="Aynı başlığı taşıyan bağlantılar bir sütunda toplanır"),
+    "new_tab": F("bool", "Yeni sekmede aç"),
+}
+
+SITE_BLOCKS: dict[str, dict] = {
+    "header_row": {
+        "label": "Header satırı", "group": "Header", "icon": "▤", "container": True,
+        "child_type": "header_slot", "child_count": 3, "zones": ("header",),
+        "fields": {
+            "tone": F("select", "Zemin", choices={k: v for k, v in TONES.items() if k}, default="light"),
+            "height": F("number", "Yükseklik", min=32, max=160, default=76, unit="px"),
+            "sticky": F("bool", "Kaydırınca üstte sabit kalsın", default=False),
+            "shrink": F("bool", "Sabitken küçülsün ve gölge alsın", default=True, show_if={"sticky": True}),
+            "center_align": F("select", "Orta alan hizası", choices=ALIGN, default="center"),
+            "border": F("bool", "Alt çizgi", default=True),
+        },
+    },
+    "header_slot": {
+        "label": "Header alanı", "group": "Header", "icon": "▭", "container": True, "hidden": True,
+        "parent": "header_row", "zones": ("header",), "fields": {},
+    },
+    "logo": {
+        "label": "Logo ve kurum adı", "group": "Site öğeleri", "icon": "🔰", "zones": SITE_ZONES,
+        "fields": {
+            "size": F("number", "Logo boyutu", min=24, max=160, default=44, unit="px"),
+            "show_name": F("bool", "Kurum adını göster", default=True),
+            "show_tagline": F("bool", "Sloganı göster", default=True),
+            "light": F("bool", "Koyu zemin için açık renk logo/yazı", default=False),
+            "show_about": F("bool", "Altında kurum tanıtım metni (Görünüm › alt bilgi metni)", default=False),
+        },
+    },
+    "nav_menu": {
+        "label": "Menü", "group": "Site öğeleri", "icon": "☰", "zones": SITE_ZONES,
+        "fields": {
+            "title": F("text", "Başlık (dikey menüde)", max=60, translatable=True),
+            "source": F("select", "Bağlantılar", choices={"header": "Menü ekranı › üst menü", "footer": "Menü ekranı › alt menü", "custom": "Burada tanımla (alt menü ve mega menü)"}, default="header"),
+            "items": F("list", "Menü öğeleri", max_items=12, item_label="label", show_if={"source": "custom"}, fields={
+                "label": F("text", "Yazı", max=60, translatable=True),
+                "url": F("url", "Bağlantı", help="Alt bağlantısı olan öğede boş bırakılabilir"),
+                "new_tab": F("bool", "Yeni sekmede aç"),
+                "mega": F("bool", "Mega menü (alt bağlantıları sütunlara böl)"),
+                "children": F("list", "Alt bağlantılar", max_items=30, item_label="label", fields=MENU_LINK_FIELDS),
+            }),
+            "layout": F("select", "Yerleşim", choices={"horizontal": "Yatay", "vertical": "Dikey (alt bilgi)"}, default="horizontal"),
+            "mobile": F("select", "Tablet ve telefonda", choices={"drawer": "☰ açılır menüye dönüşsün", "inline": "Olduğu gibi görünsün", "hidden": "Gizlensin"}, default="drawer"),
+            "drawer_donate": F("bool", "Açılır menüde bağış butonu", default=True, show_if={"mobile": "drawer"}),
+        },
+    },
+    "donate_button": {
+        "label": "Bağış butonu", "group": "Site öğeleri", "icon": "💚", "zones": SITE_ZONES,
+        "fields": {
+            "label": F("text", "Yazı", max=40, translatable=True, placeholder="Bağış Yap"),
+            "url": F("url", "Bağlantı", placeholder="/kampanyalar"),
+            "style": F("select", "Görünüm", choices=BUTTON_STYLES, default="primary"),
+            "size": F("select", "Boyut", choices={"sm": "Küçük", "md": "Orta", "lg": "Büyük"}, default="md"),
+            "heart": F("bool", "♥ simgesi", default=False),
+        },
+    },
+    "language_switcher": {
+        "label": "Dil seçici", "group": "Site öğeleri", "icon": "🌐", "zones": SITE_ZONES,
+        "fields": {}, "help": "Site Ayarları'nda birden fazla dil açıksa görünür",
+    },
+    "social_icons": {
+        "label": "Sosyal medya", "group": "Site öğeleri", "icon": "📣", "zones": SITE_ZONES,
+        "fields": {
+            "style": F("select", "Görünüm", choices={"pill": "Kutucuk", "round": "Yuvarlak kısaltma", "text": "Yalnız yazı"}, default="pill"),
+            "align": F("select", "Hizalama", choices=ALIGN, default="left"),
+        },
+    },
+    "contact_info": {
+        "label": "İletişim bilgileri", "group": "Site öğeleri", "icon": "☎️", "zones": SITE_ZONES,
+        "fields": {
+            "title": F("text", "Başlık", max=60, translatable=True),
+            "show_phone": F("bool", "Telefon", default=True),
+            "show_email": F("bool", "E-posta", default=True),
+            "show_address": F("bool", "Adres", default=False),
+            "layout": F("select", "Yerleşim", choices={"inline": "Yan yana", "stacked": "Alt alta"}, default="inline"),
+        },
+    },
+    "account_links": {
+        "label": "Bağışçı girişi / makbuz", "group": "Site öğeleri", "icon": "👤", "zones": SITE_ZONES,
+        "fields": {
+            "show_portal": F("bool", "Bağışçı girişi", default=True),
+            "show_verify": F("bool", "Makbuz doğrula", default=True),
+            "layout": F("select", "Yerleşim", choices={"inline": "Yan yana", "stacked": "Alt alta"}, default="inline"),
+        },
+    },
+    "copyright": {
+        "label": "Telif satırı", "group": "Site öğeleri", "icon": "©️", "zones": ("footer",),
+        "fields": {
+            "text": F("text", "Metin", max=200, translatable=True, placeholder="Boşsa: © yıl Kurum adı"),
+            "show_powered": F("bool", "\"E-İnfak altyapısıyla\" yazısı", default=True),
+        },
+    },
+}
+BLOCKS.update(SITE_BLOCKS)
+HEADER_SLOT_CHILDREN = frozenset(SLOT_CONTENT) | frozenset(k for k, v in SITE_BLOCKS.items() if "header" in v["zones"] and not v.get("container"))
 
 
 # --- Style & advanced settings ---------------------------------------------------
@@ -295,6 +409,8 @@ def catalog() -> dict:
         "devices": list(DEVICES),
         "langs": list(LANGS),
         "limits": {"blocks": MAX_BLOCKS, "depth": MAX_DEPTH},
+        "content_zones": list(CONTENT_ZONES),
+        "header_slot_children": sorted(HEADER_SLOT_CHILDREN),
     }
 
 
@@ -424,7 +540,7 @@ def _style(raw: Any, where: str) -> dict:
     return out
 
 
-def _block(raw: Any, depth: int, counter: list[int], seen: set[str], parent_type: Optional[str]) -> dict:
+def _block(raw: Any, depth: int, counter: list[int], seen: set[str], parent_type: Optional[str], kind: str = "page") -> dict:
     if not isinstance(raw, dict):
         raise BlockError("Geçersiz blok")
     counter[0] += 1
@@ -434,8 +550,15 @@ def _block(raw: Any, depth: int, counter: list[int], seen: set[str], parent_type
     spec = BLOCKS.get(block_type)
     if not spec:
         raise BlockError(f"Bilinmeyen blok türü: {block_type}")
-    if block_type == "column" and parent_type != "columns":
-        raise BlockError("Sütun yalnızca Sütunlar bloğunun içinde olabilir")
+    if spec.get("parent") and parent_type != spec["parent"]:
+        raise BlockError(f"{spec['label']} yalnızca {BLOCKS[spec['parent']]['label']} bloğunun içinde olabilir")
+    if kind == "header":
+        if parent_type is None and block_type != "header_row":
+            raise BlockError("Header yalnızca Header satırlarından oluşur; öğeleri satırların alanlarına ekleyin")
+        if parent_type == "header_slot" and block_type not in HEADER_SLOT_CHILDREN:
+            raise BlockError(f"{spec['label']} header içinde kullanılamaz")
+    elif kind not in spec.get("zones", CONTENT_ZONES):
+        raise BlockError(f"{spec['label']} bu sayfada kullanılamaz")
     block_id = str(raw.get("id") or "")
     if not _ID.fullmatch(block_id) or block_id in seen:
         raise BlockError("Blok kimliği geçersiz veya tekrar ediyor")
@@ -458,22 +581,24 @@ def _block(raw: Any, depth: int, counter: list[int], seen: set[str], parent_type
         if not isinstance(children, list):
             raise BlockError("Geçersiz alt bloklar")
         if spec.get("child_type"):
-            expected = len((block["props"].get("ratio") or "1-1").split("-"))
+            expected = spec.get("child_count") or len((block["props"].get("ratio") or "1-1").split("-"))
             children = [c for c in children if isinstance(c, dict) and c.get("type") == spec["child_type"]]
             while len(children) < expected:
                 children.append({"id": f"{block_id[:30]}-c{len(children)}", "type": spec["child_type"], "children": []})
             children = children[:expected]
-        block["children"] = [_block(child, depth + 1, counter, seen, block_type) for child in children]
+        block["children"] = [_block(child, depth + 1, counter, seen, block_type, kind) for child in children]
     return block
 
 
-def validate_blocks(raw: Any) -> list[dict]:
+def validate_blocks(raw: Any, kind: str = "page") -> list[dict]:
+    if kind not in PAGE_KINDS:
+        raise BlockError("Bilinmeyen sayfa türü")
     if not isinstance(raw, list):
         raise BlockError("Sayfa içeriği bir blok listesi olmalı")
     if len(json.dumps(raw, ensure_ascii=False)) > MAX_TREE_BYTES:
         raise BlockError("Sayfa çok büyük; bazı blokları ayrı sayfalara taşıyın")
     counter, seen = [0], set()
-    return [_block(item, 1, counter, seen, None) for item in raw]
+    return [_block(item, 1, counter, seen, None, kind) for item in raw]
 
 
 def default_home_blocks(template: str) -> list[dict]:
@@ -510,3 +635,52 @@ def page_blocks_from_body(title: str, body: Optional[str]) -> list[dict]:
         blocks.append({"id": "page-body", "type": "richtext", "props": {"text": body},
                        "style": {"desktop": {"width": "narrow", "padding_bottom": 48}}})
     return blocks
+
+
+def _row(row_id: str, props: dict, slots: list[list[dict]], **extra) -> dict:
+    return {"id": row_id, "type": "header_row", "props": props, **extra, "children": [
+        {"id": f"{row_id}-{name}", "type": "header_slot", "children": items}
+        for name, items in zip(("left", "center", "right"), slots)
+    ]}
+
+
+def default_header_blocks() -> list[dict]:
+    """Today's fixed header as blocks: contact bar + logo, menu, language and donate button."""
+    tablet_down = {"hide_tablet": True, "hide_mobile": True}
+    return [
+        _row("hdr-top", {"tone": "dark", "height": 40, "border": False}, [
+            [{"id": "hdr-contact", "type": "contact_info", "props": {"layout": "inline"}}],
+            [],
+            [{"id": "hdr-account", "type": "account_links", "props": {"layout": "inline"}}],
+        ], style={"desktop": {"font_size": 13}}, advanced={"hide_mobile": True}),
+        _row("hdr-main", {"tone": "light", "height": 76, "sticky": True, "shrink": True, "center_align": "right"}, [
+            [{"id": "hdr-logo", "type": "logo", "props": {}}],
+            [{"id": "hdr-menu", "type": "nav_menu", "props": {"source": "header", "mobile": "drawer", "drawer_donate": True}}],
+            [{"id": "hdr-lang", "type": "language_switcher", "props": {}, "advanced": tablet_down},
+             {"id": "hdr-donate", "type": "donate_button", "props": {"style": "primary"}, "advanced": tablet_down}],
+        ]),
+    ]
+
+
+def default_footer_blocks() -> list[dict]:
+    """Today's fixed footer as blocks: about + social, footer menu, contact, copyright."""
+    return [{
+        "id": "ftr-main", "type": "section", "props": {"tone": "dark"},
+        "style": {"desktop": {"padding_top": 56, "padding_bottom": 16, "margin_top": 64}},
+        "children": [
+            {"id": "ftr-cols", "type": "columns", "props": {"ratio": "1-1-1", "gap": 40}, "children": [
+                {"id": "ftr-col1", "type": "column", "children": [
+                    {"id": "ftr-logo", "type": "logo", "props": {"light": True, "show_about": True}},
+                    {"id": "ftr-social", "type": "social_icons", "props": {"style": "pill"}},
+                ]},
+                {"id": "ftr-col2", "type": "column", "children": [
+                    {"id": "ftr-menu", "type": "nav_menu", "props": {"source": "footer", "layout": "vertical", "mobile": "inline"}},
+                ]},
+                {"id": "ftr-col3", "type": "column", "children": [
+                    {"id": "ftr-contact", "type": "contact_info", "props": {"layout": "stacked", "show_address": True}},
+                    {"id": "ftr-account", "type": "account_links", "props": {"layout": "inline"}},
+                ]},
+            ]},
+            {"id": "ftr-copy", "type": "copyright", "props": {"show_powered": True}, "style": {"desktop": {"margin_top": 40}}},
+        ],
+    }]

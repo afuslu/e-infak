@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { BlockStyles, renderBlock, type RenderOptions } from '../../components/blocks/BlockRenderer'
 import type { HomeData } from '../../components/sections/HomeSections'
-import type { Block, BlockSpec } from '../../lib/blocks'
+import { type Block, type BlockSpec, FIXED_CHILD, FIXED_PARENT } from '../../lib/blocks'
 import { siteDesignStyle } from '../../lib/site-design'
 
 interface RenderMessage {
@@ -73,7 +73,7 @@ export default function BuilderCanvas() {
     e.stopPropagation()
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const y = (e.clientY - rect.top) / rect.height
-    const position = container && block.type !== 'columns' && y > 0.25 && y < 0.75 ? 'inside' : y < 0.5 ? 'before' : 'after'
+    const position = container && !FIXED_PARENT.has(block.type) && y > 0.25 && y < 0.75 ? 'inside' : y < 0.5 ? 'before' : 'after'
     setDrop((d) => (d?.targetId === block.id && d.position === position ? d : { targetId: block.id, position }))
   }, [])
 
@@ -83,11 +83,11 @@ export default function BuilderCanvas() {
     const spec = state.specs[block.type]
     const selected = state.selectedId === block.id
     const isHover = hovered === block.id && !selected
-    const isColumn = block.type === 'column'
+    const isColumn = FIXED_CHILD.has(block.type)
     const dropHere = drop?.targetId === block.id ? drop.position : null
     return (
       <div key={block.id} data-block-id={block.id}
-        className={`relative ${isColumn ? 'min-h-[60px]' : ''}`}
+        className={`relative ${block.type === 'column' ? 'min-h-[60px]' : block.type === 'header_slot' ? 'min-h-[40px] min-w-[48px]' : ''}`}
         style={{ outline: selected ? '2px solid #2563eb' : isHover ? '1px dashed #60a5fa' : undefined, outlineOffset: -2 }}
         draggable={!isColumn}
         onDragStart={(e) => { e.stopPropagation(); dragId.current = block.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', block.id) }}
@@ -134,7 +134,13 @@ export default function BuilderCanvas() {
     renderChildren: (parent, children, depth) => (
       <>
         {children.map((child) => renderBlock(child, options, depth))}
-        {parent.type !== 'columns' && (
+        {parent.type === 'header_slot' && (
+          <button type="button" title="Bu alana öğe ekle" onClick={(e) => { e.stopPropagation(); post({ type: 'add-into', parentId: parent.id }) }}
+            className="flex h-8 w-8 flex-none items-center justify-center rounded-md border-2 border-dashed border-blue-300 text-sm font-bold text-blue-600 hover:bg-blue-50">
+            +
+          </button>
+        )}
+        {!FIXED_PARENT.has(parent.type) && parent.type !== 'header_slot' && (
           <button type="button" onClick={(e) => { e.stopPropagation(); post({ type: 'add-into', parentId: parent.id }) }}
             className="my-2 flex w-full items-center justify-center rounded-lg border-2 border-dashed border-blue-300 py-4 text-sm font-semibold text-blue-600 hover:bg-blue-50">
             + Buraya blok ekle
