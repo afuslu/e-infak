@@ -53,7 +53,7 @@ def test_columns_are_normalised_and_nesting_is_limited():
         node = child
     with pytest.raises(BlockError):
         validate_blocks([deep])
-    assert [b["type"] for b in validate_blocks(default_home_blocks("kategori"))][:3] == ["hero", "quick_donation", "stats"]
+    assert [b["type"] for b in validate_blocks(default_home_blocks("kategori"))][:3] == ["hero", "quick_donation", "categories"]
 
 
 @pytest.fixture

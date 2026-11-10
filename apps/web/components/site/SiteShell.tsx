@@ -70,7 +70,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
   }
 
   return (
-    <div className="site-design flex min-h-screen flex-col font-sans" style={siteDesignStyle(site.design)}>
+    <div className={`site-design tpl-${site.template} flex min-h-screen flex-col font-sans`} style={siteDesignStyle(site.design)}>
       {chrome.header && data ? (
         <header className="contents">
           <BlockStyles blocks={chrome.header} />
@@ -78,7 +78,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
         </header>
       ) : (
         <>
-          {(site.contact.phone || site.contact.email) && (
+          {(site.contact.phone || site.contact.email) && site.template !== 'sade' && (
             <div className="hidden bg-primary-900 py-2 text-[13px] text-primary-100 sm:block">
               <div className="mx-auto flex max-w-[var(--site-container)] items-center justify-between gap-4 px-6">
                 <div className="flex flex-wrap gap-5">
@@ -112,7 +112,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
                   <NavLink key={`${link.label}-${link.url}`} link={link} className="text-gray-700 hover:text-primary-600" />
                 ))}
                 <LanguageSwitcher />
-                <Link href="/kampanyalar" className="rounded-lg bg-primary-600 px-5 py-2.5 font-bold text-white hover:bg-primary-700">{t('nav.donate')}</Link>
+                <Link href="/kampanyalar" className={`px-5 py-2.5 font-bold text-white shadow-sm transition hover:-translate-y-0.5 ${site.template === 'kategori' ? 'rounded-full bg-accent-500 hover:bg-accent-600' : 'rounded-lg bg-primary-600 hover:bg-primary-700'}`}>♥ {t('nav.donate')}</Link>
               </nav>
             </div>
           </header>
@@ -127,40 +127,62 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
           {chrome.footer.map((b) => renderBlock(b, { data: data! }))}
         </footer>
       ) : (
-          <footer className="mt-16 bg-primary-950 text-primary-100/80">
-            <div className="mx-auto grid max-w-[var(--site-container)] gap-10 px-6 pb-8 pt-14 md:grid-cols-[1.4fr_1fr_1.2fr]">
+        <footer className="bg-primary-950 text-primary-100/80">
+          <div className="relative overflow-hidden border-b border-white/10">
+            <div className="pointer-events-none absolute -end-20 -top-24 h-72 w-72 rounded-full bg-accent-500/15 blur-3xl" aria-hidden />
+            <div className="relative mx-auto flex max-w-[var(--site-container)] flex-wrap items-center justify-between gap-6 px-6 py-10">
               <div>
-                <Brand site={site} inverted />
-                {site.footer_text && <p className="mt-4 text-sm leading-relaxed">{site.footer_text}</p>}
-                {social.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-3 text-sm">
-                    {social.map(([network, href]) => (
-                      <a key={network} href={href} target="_blank" rel="noopener noreferrer" className="rounded-full border border-white/20 px-3 py-1 hover:text-white">
-                        {SOCIAL_LABELS[network] || network}
-                      </a>
-                    ))}
-                  </div>
-                )}
+                <div className="font-heading text-2xl font-bold text-white md:text-3xl">{t('footer.ctaTitle')}</div>
+                <p className="mt-1 text-sm text-primary-100/70">{t('footer.ctaText')}</p>
               </div>
-              <nav className="flex flex-col gap-2.5 text-sm">
-                {footerLinks.map((link) => (
-                  <NavLink key={`${link.label}-${link.url}`} link={link} className="hover:text-white" />
-                ))}
-              </nav>
-              <div className="space-y-2 text-sm">
-                {site.contact.address && <p>{site.contact.address}</p>}
-                {site.contact.phone && <p><a href={`tel:${site.contact.phone}`} className="hover:text-white">{site.contact.phone}</a></p>}
-                {site.contact.email && <p><a href={`mailto:${site.contact.email}`} className="hover:text-white">{site.contact.email}</a></p>}
-                <p className="flex gap-4 pt-2">
-                  <Link href="/portal" className="hover:text-white">{t('nav.donorLogin')}</Link>
-                  <Link href="/verify" className="hover:text-white">{t('nav.verifyReceipt')}</Link>
-                </p>
-              </div>
+              <Link href="/kampanyalar" className="rounded-[10px] bg-accent-500 px-8 py-4 font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-accent-600">
+                {t('nav.donate')}
+              </Link>
             </div>
-            <div className="border-t border-white/10 py-4 text-center text-xs text-primary-100/60">
-              © {new Date().getFullYear()} {site.name} · E-İnfak altyapısıyla
+          </div>
+          <div className="mx-auto grid max-w-[var(--site-container)] gap-10 px-6 pb-10 pt-14 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
+            <div>
+              <Brand site={site} inverted />
+              {site.footer_text && <p className="mt-5 max-w-sm text-sm leading-relaxed">{site.footer_text}</p>}
+              {social.length > 0 && (
+                <div className="mt-5 flex flex-wrap gap-2 text-sm">
+                  {social.map(([network, href]) => (
+                    <a key={network} href={href} target="_blank" rel="noopener noreferrer"
+                      className="rounded-full border border-white/15 bg-white/5 px-3.5 py-1.5 transition hover:border-accent-400 hover:text-white">
+                      {SOCIAL_LABELS[network] || network}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
-          </footer>
+            <nav className="flex flex-col gap-2.5 text-sm" aria-label={t('footer.institutional')}>
+              <div className="mb-2 text-xs font-bold uppercase tracking-[2px] text-white">{t('footer.institutional')}</div>
+              {headerLinks.map((link) => (
+                <NavLink key={`${link.label}-${link.url}`} link={link} className="transition hover:text-white" />
+              ))}
+            </nav>
+            <nav className="flex flex-col gap-2.5 text-sm" aria-label={t('footer.quickLinks')}>
+              <div className="mb-2 text-xs font-bold uppercase tracking-[2px] text-white">{t('footer.quickLinks')}</div>
+              {footerLinks.map((link) => (
+                <NavLink key={`${link.label}-${link.url}`} link={link} className="transition hover:text-white" />
+              ))}
+              <Link href="/portal" className="transition hover:text-white">{t('nav.donorLogin')}</Link>
+              <Link href="/verify" className="transition hover:text-white">{t('nav.verifyReceipt')}</Link>
+            </nav>
+            <div className="space-y-3 text-sm">
+              <div className="mb-2 text-xs font-bold uppercase tracking-[2px] text-white">{t('footer.contact')}</div>
+              {site.contact.address && <p className="leading-relaxed">{site.contact.address}</p>}
+              {site.contact.phone && <p><a href={`tel:${site.contact.phone}`} className="font-semibold text-white hover:text-accent-300">{site.contact.phone}</a></p>}
+              {site.contact.email && <p><a href={`mailto:${site.contact.email}`} className="hover:text-white">{site.contact.email}</a></p>}
+            </div>
+          </div>
+          <div className="border-t border-white/10">
+            <div className="mx-auto flex max-w-[var(--site-container)] flex-wrap items-center justify-between gap-2 px-6 py-5 text-xs text-primary-100/60">
+              <span>© {new Date().getFullYear()} {site.name}</span>
+              <span>E-İnfak altyapısıyla</span>
+            </div>
+          </div>
+        </footer>
       )}
     </div>
   )

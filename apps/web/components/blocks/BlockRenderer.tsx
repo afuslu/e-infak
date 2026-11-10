@@ -4,7 +4,9 @@ import type { Campaign } from '@e-infak/api-client'
 import { type Block, compileCss, localizedProps } from '../../lib/blocks'
 import { translator } from '../../lib/i18n'
 import { QuickDonationForm } from '../QuickDonationForm'
-import { Campaigns, Categories, CtaBand, Hero, News, Stats, Trust, ZakatBand, type HomeData } from '../sections/HomeSections'
+import {
+  Campaigns, Categories, CtaBand, FeaturedCampaign, GalleryStrip, Hero, News, Stats, Steps, Testimonials, Trust, ZakatBand, type HomeData,
+} from '../sections/HomeSections'
 import { BlockText } from './BlockText'
 import { MobileMenu, type NavItemView, type NavLinkView, Reveal, Slider, StickyShrink, type SlideView } from './BlockClient'
 import { LanguageSwitcher } from '../site/LanguageSwitcher'
@@ -62,7 +64,10 @@ const BASE_CSS = `
 `
 
 /** Blocks whose own markup is full width with its own container and padding. */
-const FULL_BLEED = new Set(['hero', 'slider', 'stats', 'zakat_band', 'cta_band', 'trust', 'banner', 'header_row'])
+const FULL_BLEED = new Set([
+  'hero', 'slider', 'stats', 'zakat_band', 'cta_band', 'trust', 'banner', 'header_row',
+  'featured_campaign', 'steps', 'gallery_strip', 'testimonials', 'campaigns', 'news', 'categories',
+])
 
 /** Theme-following backgrounds of sections and header rows (a Stil background overrides them). */
 const TONE: Record<string, string> = {
@@ -255,7 +260,15 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     case 'categories':
       return <Categories data={data} t={t} o={o} />
     case 'zakat_band':
-      return <ZakatBand t={t} o={o} />
+      return <ZakatBand t={t} o={o} tpl={data.site.template} />
+    case 'featured_campaign':
+      return <FeaturedCampaign data={data} t={t} o={o} />
+    case 'steps':
+      return <Steps data={data} t={t} o={o} />
+    case 'gallery_strip':
+      return <GalleryStrip data={data} t={t} o={o} />
+    case 'testimonials':
+      return <Testimonials data={data} t={t} o={o} />
     case 'cta_band':
       return <CtaBand data={data} o={o} />
     case 'news':

@@ -97,8 +97,9 @@ export default function AdminCampaignsPage() {
     setLoading(true)
     try {
       const headers = getAuthHeaders()
-      const res = await axios.get(`${API_BASE}/api/v1/campaigns`, { headers })
-      setCampaigns(res.data)
+      // The endpoint is paginated ({ items, total }); 100 is its maximum page size.
+      const res = await axios.get(`${API_BASE}/api/v1/campaigns`, { headers, params: { page_size: 100 } })
+      setCampaigns(Array.isArray(res.data) ? res.data : res.data?.items || [])
     } catch (err) {
       console.error('Failed to load campaigns:', err)
     } finally {

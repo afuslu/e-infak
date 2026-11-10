@@ -108,7 +108,9 @@ export function SiteBuilderEditor() {
       fetch(`${api}/public/content-posts?limit=12`).then((r) => (r.ok ? r.json() : [])),
       fetch(`${api}/public/donation-categories`).then((r) => (r.ok ? r.json() : [])),
       fetch(`${api}/public/menu`).then((r) => (r.ok ? r.json() : { header: [], footer: [] })),
-    ]).then(([site, campaigns, news, categories, menu]) => setData({ site, locale: 'tr', campaigns, news, categories, menu }))
+      fetch(`${api}/public/gallery?kind=photo`).then((r) => (r.ok ? r.json() : [])),
+    ]).then(([site, campaigns, news, categories, menu, gallery]) =>
+      setData({ site, locale: 'tr', campaigns, news, categories, menu, gallery: gallery.slice(0, 24) }))
       .catch(() => setMessage({ type: 'error', text: 'Site verileri yüklenemedi' }))
   }, [])
   useEffect(() => {

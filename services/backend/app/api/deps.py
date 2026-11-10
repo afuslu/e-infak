@@ -187,7 +187,7 @@ async def require_admin_route_permission(
             required = Permission.FINANCE_MANAGE
         elif any(part in path for part in (
             "/campaigns", "/content-posts", "/banners", "/donation-categories", "/pages", "/menu", "/gallery",
-            "/site-builder",
+            "/media", "/uploads", "/site-builder",
         )):
             required = Permission.CONTENT_MANAGE
         elif any(part in path for part in ("/donors", "/sms", "/broadcast", "/volunteers", "/pledges", "/members")):

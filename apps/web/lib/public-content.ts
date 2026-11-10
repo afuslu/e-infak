@@ -90,9 +90,10 @@ export interface SiteData {
   logo_url: string | null
   logo_dark_url: string | null
   favicon_url: string | null
-  hero: { badge: string | null; title: string | null; subtitle: string | null; image_url: string | null; cta_label: string | null; cta_url: string | null }
+  hero: { badge: string | null; title: string | null; subtitle: string | null; image_url: string | null; cta_label: string | null; cta_url: string | null; slider?: boolean }
   sections: string[]
   cta_band: { title: string | null; text: string | null; button_label: string | null; button_url: string | null }
+  testimonials?: { quote: string; name?: string | null; role?: string | null }[]
   footer_text: string | null
   social_links: Record<string, string>
   languages: string[]

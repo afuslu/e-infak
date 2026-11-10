@@ -13,7 +13,7 @@ export default function NewOrganizationPage() {
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [form, setForm] = useState({
     name: '', legal_name: '', subdomain: '', email: '', phone: '', city: '', plan: 'baslangic', template: 'sade',
-    primary_color: '#0E7A5F', admin_email: '', admin_first_name: '', admin_last_name: '',
+    primary_color: '#059669', admin_email: '', admin_first_name: '', admin_last_name: '',
   })
   const [subdomainTouched, setSubdomainTouched] = useState(false)
   const [busy, setBusy] = useState(false)

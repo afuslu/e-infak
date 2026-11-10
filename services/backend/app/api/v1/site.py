@@ -1,8 +1,4 @@
 """Public website data, tenant resolution for the gateway, and site appearance management."""
-import io
-import os
-import re
-import secrets
 from pathlib import Path
 from uuid import UUID
 
@@ -32,10 +28,6 @@ admin_router = APIRouter(
     dependencies=[Depends(require_admin_route_permission), Depends(require_admin_route_feature)],
 )
 
-MAX_UPLOAD_BYTES = 5 * 1024 * 1024
-IMAGE_FORMATS = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp", "GIF": "gif", "ICO": "ico"}
-_MEDIA_NAME = re.compile(r"^[a-f0-9]{24}\.(png|jpg|webp|gif|ico)$")
-MEDIA_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "gif": "image/gif", "ico": "image/x-icon"}
 
 
 async def site_url(db: AsyncSession, org: Organization) -> str:
@@ -109,13 +101,15 @@ async def tls_allowed_check(
 
 @public_router.get("/media/{org_id}/{name}")
 async def get_media(org_id: UUID, name: str):
-    if not _MEDIA_NAME.fullmatch(name):
+    from app.services.media import MIME_TYPES, PUBLIC_NAME
+
+    if not PUBLIC_NAME.fullmatch(name):
         raise HTTPException(status_code=404, detail="Not found")
     path = Path(settings.MEDIA_ROOT) / str(org_id) / name
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(
-        path, media_type=MEDIA_TYPES[name.rsplit(".", 1)[1]],
+        path, media_type=MIME_TYPES[name.rsplit(".", 1)[1]],
         headers={"Cache-Control": "public, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff"},
     )
 
@@ -152,36 +146,21 @@ async def update_site_appearance(request: Request, payload: SiteAppearance, db: 
 async def upload_image(
     request: Request,
     file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     _: None = Depends(rate_limit("upload", limit=60, window_seconds=300)),
 ):
-    """Logo / görsel yükleme. Yalnız gerçek görseller (PNG, JPEG, WEBP, GIF, ICO) kabul edilir; SVG reddedilir."""
-    from PIL import Image, UnidentifiedImageError
+    """Logo / görsel yükleme. Yalnız gerçek görseller (PNG, JPEG, WEBP, GIF, ICO) kabul edilir; SVG reddedilir.
 
+    Yüklenen her görsel medya kütüphanesine de kaydedilir (WebP'ye çevrilir, boyutları üretilir).
+    """
+    from app.services.media import MAX_UPLOAD_BYTES, create_asset
+
+    org = await db.get(Organization, UUID(request.state.organization_id))
     content = await file.read(MAX_UPLOAD_BYTES + 1)
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Görsel en fazla 5 MB olabilir")
-    try:
-        with Image.open(io.BytesIO(content)) as image:
-            image.verify()
-            fmt = image.format
-        with Image.open(io.BytesIO(content)) as image:
-            width, height = image.size
-    except (UnidentifiedImageError, OSError, SyntaxError):
-        raise HTTPException(status_code=422, detail="Dosya geçerli bir görsel değil")
-    extension = IMAGE_FORMATS.get(fmt or "")
-    if not extension:
-        raise HTTPException(status_code=422, detail="Desteklenen biçimler: PNG, JPEG, WEBP, GIF, ICO")
-    if width * height > 40_000_000:
-        raise HTTPException(status_code=422, detail="Görsel çözünürlüğü çok yüksek")
-    org_id = request.state.organization_id
-    folder = Path(settings.MEDIA_ROOT) / org_id
-    folder.mkdir(parents=True, exist_ok=True)
-    name = f"{secrets.token_hex(12)}.{extension}"
-    with open(folder / name, "wb") as handle:
-        handle.write(content)
-    os.chmod(folder / name, 0o644)
-    return {"url": f"/api/v1/media/{org_id}/{name}", "width": width, "height": height}
+    asset = await create_asset(db, org, content, file.filename, getattr(current_user, "id", None))
+    await db.commit()
+    return {"url": asset.url, "width": asset.width, "height": asset.height, "id": str(asset.id)}
 
 
 # --- Admin: custom domains -------------------------------------------------------------

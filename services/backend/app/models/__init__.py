@@ -2,6 +2,7 @@ from app.models.organization import Organization, OrganizationDomain
 from app.models.user import User
 from app.models.staff import Department, StaffRole
 from app.models.cms import SitePage, SitePageRevision, MenuItem, GalleryItem, VolunteerApplication
+from app.models.media import MediaAsset, MediaFolder
 from app.models.sponsorship import Beneficiary, Pledge, PledgeInstallment, WellShare
 from app.models.fx import FxRate
 from app.models.credentials import TenantCredential

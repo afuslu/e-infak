@@ -136,9 +136,9 @@ PLAN_ADDONS: dict[Plan, frozenset[Feature]] = {
 }
 
 PLAN_LIMITS: dict[Plan, dict[str, int]] = {
-    Plan.BASLANGIC: {"users": 1, "bank_accounts": 0},
-    Plan.ORTA: {"users": 3, "bank_accounts": 1},
-    Plan.ILERI: {"users": 5, "bank_accounts": 3},
+    Plan.BASLANGIC: {"users": 1, "bank_accounts": 0, "storage_mb": 1024},
+    Plan.ORTA: {"users": 3, "bank_accounts": 1, "storage_mb": 5 * 1024},
+    Plan.ILERI: {"users": 5, "bank_accounts": 3, "storage_mb": 20 * 1024},
 }
 
 DEFAULT_PLAN = Plan.ILERI
@@ -179,3 +179,13 @@ def org_user_limit(organization) -> int:
 
 def org_bank_account_limit(organization) -> int:
     return PLAN_LIMITS[org_plan(organization)]["bank_accounts"]
+
+
+def org_storage_quota_bytes(organization) -> int:
+    """Medya kütüphanesi kotası; platform `settings.media_quota_mb` ile kuruma özel değer verebilir."""
+    override = (getattr(organization, "settings", None) or {}).get("media_quota_mb")
+    try:
+        megabytes = int(override) if override is not None else PLAN_LIMITS[org_plan(organization)]["storage_mb"]
+    except (TypeError, ValueError):
+        megabytes = PLAN_LIMITS[org_plan(organization)]["storage_mb"]
+    return max(0, megabytes) * 1024 * 1024
