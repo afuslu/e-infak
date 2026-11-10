@@ -422,7 +422,8 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         <div className={container}>
           {o.kicker && <div className="mb-2 text-[13px] font-bold tracking-[2px] text-primary-600">{o.kicker}</div>}
           <Tag className={`font-heading font-bold leading-tight ${size}`}>{o.text}</Tag>
-          {o.subtitle && <p className="mt-3 max-w-2xl text-lg leading-relaxed opacity-75">{o.subtitle}</p>}
+          {/* inline-block: follows the block's text alignment (a centred heading centres its subtitle too) */}
+          {o.subtitle && <div><p className="mt-3 inline-block max-w-2xl text-lg leading-relaxed opacity-75">{o.subtitle}</p></div>}
         </div>
       )
     }
@@ -650,7 +651,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
     default: {
-      const extra = extraContent(block, o, { locale: data.locale, editing: opts.editing, container: depth === 0 ? container : '' })
+      const extra = extraContent(block, o, { locale: data.locale, editing: opts.editing, container })
       if (extra !== undefined) return extra
       return opts.editing ? <p className="p-4 text-center text-sm text-red-500">Bilinmeyen blok: {block.type}</p> : null
     }

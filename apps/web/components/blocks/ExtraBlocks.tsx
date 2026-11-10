@@ -98,7 +98,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'progress_bars':
       return (
-        <div className={`${container} max-w-3xl`}>
+        <div className={container}><div className="mx-auto max-w-3xl">
           <Head o={o} />
           <div className="space-y-5">
             {items.filter((i) => i.label).map((item, i) => {
@@ -115,7 +115,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
               )
             })}
           </div>
-        </div>
+        </div></div>
       )
     case 'team':
       return (
@@ -175,7 +175,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       )
     case 'timeline':
       return (
-        <div className={`${container} max-w-3xl`}>
+        <div className={container}><div className="mx-auto max-w-3xl">
           <Head o={o} />
           <ol className="relative ms-3 border-s-2 border-primary-200">
             {items.filter((i) => i.title).map((item, i) => (
@@ -187,7 +187,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
               </li>
             ))}
           </ol>
-        </div>
+        </div></div>
       )
     case 'tabs': {
       const tabs = items.filter((i) => i.label)
@@ -205,10 +205,10 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         </div>
       ))
       return (
-        <div className={`${container} ${o.look === 'accordion' ? 'max-w-3xl' : ''}`}>
+        <div className={container}><div className={o.look === 'accordion' ? 'mx-auto max-w-3xl' : ''}>
           {o.title && <h2 className="mb-8 text-center font-heading text-3xl font-bold">{o.title}</h2>}
           <TabsView labels={tabs.map((i) => i.label)} panels={panels} look={o.look} />
-        </div>
+        </div></div>
       )
     }
     case 'marquee': {
@@ -228,8 +228,8 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       if (!o.text) return <Empty editing={editing} text="Alıntı metnini yazın" />
       if (o.look === 'side') {
         return (
-          <blockquote className={`${container} max-w-3xl`}>
-            <div className="border-s-4 border-primary-600 ps-6">
+          <blockquote className={container}>
+            <div className="mx-auto max-w-3xl border-s-4 border-primary-600 ps-6">
               <p className="font-heading text-2xl leading-relaxed">{o.text}</p>
               {o.source && <footer className="mt-3 text-sm font-bold text-primary-700">— {o.source}</footer>}
             </div>
@@ -237,8 +237,8 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         )
       }
       return (
-        <blockquote className={`${container} max-w-3xl text-center`}>
-          <div className={o.look === 'card' ? 'rounded-3xl bg-white p-10 text-gray-900 shadow-sm' : ''}>
+        <blockquote className={`${container} text-center`}>
+          <div className={`mx-auto max-w-3xl ${o.look === 'card' ? 'rounded-3xl bg-white p-10 text-gray-900 shadow-sm' : ''}`}>
             <div aria-hidden className="font-heading text-6xl leading-none text-primary-300">“</div>
             <p className="font-heading text-2xl leading-relaxed md:text-[28px]">{o.text}</p>
             {o.source && <footer className="mt-5 text-sm font-bold uppercase tracking-[2px] text-primary-700">{o.source}</footer>}
