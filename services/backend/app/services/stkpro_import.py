@@ -235,8 +235,10 @@ class StkProImporter:
 
     async def _ensure_kurban(self, campaign: Campaign, key: CampaignKey) -> None:
         """A kurban campaign must be linked to the kurban module, or no shares are recorded."""
-        if key.category != CampaignCategory.KURBAN or fold(campaign.title) in self._kurban_linked:
-            return
+        category = getattr(campaign.category, "value", campaign.category)
+        if key.category != CampaignCategory.KURBAN or category != CampaignCategory.KURBAN.value \
+                or fold(campaign.title) in self._kurban_linked:
+            return  # a water project typed KURBAN by mistake in STK PRO keeps its own category
         linked = (await self.db.execute(select(KurbanCampaign.id).where(
             KurbanCampaign.donation_campaign_id == campaign.id))).first()
         if not linked:

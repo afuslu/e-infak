@@ -287,13 +287,17 @@ async def test_stkpro_reuses_site_campaigns_links_kurban_and_applies_aliases(db_
                     category=CampaignCategory.KURBAN, status=CampaignStatus.ACTIVE)
     sut = Campaign(organization_id=org.id, slug="sut-keci", title="Süt Keçisi", summary="s", target_cents=0,
                    status=CampaignStatus.ACTIVE)
-    db_session.add_all([keci, sut])
+    su = Campaign(organization_id=org.id, slug="gazze-su", title="Gazze'ye Hisseli Temiz Su", summary="s", target_cents=0,
+                  category=CampaignCategory.GIDA, status=CampaignStatus.ACTIVE)
+    db_session.add_all([keci, sut, su])
     await db_session.flush()
     rows = [
         {"Bağış No": "1", "Makbuz No": "1", "Tür": "KURBAN", "Kampanya Adı": "keçi akika", "Toplam Tutar": 7000,
          "Bağışçı": "ALİ VELİ", "Bağış Tarihi": "01/06/2026 10:00:00", "Ödeme Şekli": "Nakit (Dernek)", "Durum": "Ödendi"},
         {"Bağış No": "2", "Makbuz No": "2", "Tür": "KUMANYA", "Kampanya Adı": "keçi süt", "Toplam Tutar": 3000,
          "Bağışçı": "ALİ VELİ", "Bağış Tarihi": "01/06/2026 11:00:00", "Ödeme Şekli": "Nakit (Dernek)", "Durum": "Ödendi"},
+        {"Bağış No": "4", "Makbuz No": "4", "Tür": "KURBAN", "Kampanya Adı": "Gazze'ye Hisseli Temiz Su", "Toplam Tutar": 500,
+         "Bağışçı": "ALİ VELİ", "Bağış Tarihi": "01/06/2026 13:00:00", "Ödeme Şekli": "Nakit (Dernek)", "Durum": "Ödendi"},
         {"Bağış No": "3", "Makbuz No": "3", "Tür": "STANDART", "Kampanya Adı": "ESKİŞEHİR CAMİ PROJESİ", "Toplam Tutar": 100,
          "Bağışçı": "ALİ VELİ", "Bağış Tarihi": "01/06/2026 12:00:00", "Ödeme Şekli": "Nakit (Dernek)", "Durum": "Ödendi"},
     ]
