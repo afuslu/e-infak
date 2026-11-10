@@ -28,6 +28,14 @@ def provider_spec(provider: str) -> dict:
         return {"label": sms.label, "fields": dict(sms.credential_fields),
                 "secret_fields": set(sms.secret_fields), "optional_fields": set(sms.optional_fields)}
 
+    if provider.startswith("bank:"):
+        from app.banking import CONNECTORS
+        bank = CONNECTORS.get(provider.split(":", 1)[1])
+        if not bank:
+            raise KeyError(provider)
+        return {"label": bank.label, "fields": dict(bank.credential_fields),
+                "secret_fields": set(bank.secret_fields), "optional_fields": set(bank.optional_fields)}
+
     cls = PROVIDERS.get(provider)
     if not cls:
         raise KeyError(provider)
@@ -43,7 +51,8 @@ def provider_spec(provider: str) -> dict:
 def known_providers() -> list[str]:
     from app.payments import PROVIDERS
     from app.sms import PROVIDERS as SMS_PROVIDERS
-    return [*PROVIDERS.keys(), *SMS_PROVIDERS.keys()]
+    from app.banking import CONNECTORS, credential_key
+    return [*PROVIDERS.keys(), *SMS_PROVIDERS.keys(), *(credential_key(k) for k in CONNECTORS)]
 
 
 class CredentialsUnavailable(RuntimeError):

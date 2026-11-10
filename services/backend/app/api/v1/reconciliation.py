@@ -119,9 +119,13 @@ async def import_bank_statement(
     request: Request,
     file: UploadFile = File(...),
     preview: bool = Query(False),
+    bank_account_id: UUID | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
 ):
+    from app.banking.sync import process_transactions
+    from app.models.automation import BankAccount
+
     if not file.filename or not file.filename.lower().endswith((".csv", ".xlsx")):
         raise HTTPException(status_code=400, detail="Yalnız CSV veya XLSX kabul edilir")
     content = await file.read()
@@ -134,6 +138,11 @@ async def import_bank_statement(
     if preview:
         return {"preview": True, "row_count": len(rows), "rows": rows[:20]}
     org_id = UUID(request.state.organization_id)
+    account = None
+    if bank_account_id:
+        account = await db.get(BankAccount, bank_account_id)
+        if not account or account.organization_id != org_id:
+            raise HTTPException(status_code=404, detail="Banka hesabı bulunamadı")
     file_hash = hashlib.sha256(content).hexdigest()
     duplicate = await db.execute(select(BankStatementImport).where(
         BankStatementImport.organization_id == org_id, BankStatementImport.file_hash == file_hash
@@ -148,6 +157,7 @@ async def import_bank_statement(
     await db.flush()
     imported_count = 0
     skipped_count = 0
+    new_transactions = []
     for row in rows:
         existing = await db.execute(select(BankTransaction.id).where(
             BankTransaction.organization_id == org_id,
@@ -156,11 +166,14 @@ async def import_bank_statement(
         if existing.scalar_one_or_none():
             skipped_count += 1
             continue
-        transaction = BankTransaction(organization_id=org_id, import_id=statement.id, **row)
+        transaction = BankTransaction(organization_id=org_id, import_id=statement.id, bank_account_id=bank_account_id, **row)
+        if account:
+            transaction.raw_data = {**transaction.raw_data, "_bank": account.bank_key}
         db.add(transaction)
         await db.flush()
-        await _auto_match(db, transaction, current_user.id)
+        new_transactions.append(transaction)
         imported_count += 1
+    stats = await process_transactions(db, new_transactions, account=account, user_id=current_user.id)
     await db.commit()
     return {
         "import_id": statement.id,
@@ -168,6 +181,7 @@ async def import_bank_statement(
         "imported_count": imported_count,
         "skipped_count": skipped_count,
         "status": "imported",
+        **stats,
     }
 
 

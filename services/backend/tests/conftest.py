@@ -11,7 +11,7 @@ import app.models  # noqa: F401  (register every table on Base.metadata)
 import app.main  # noqa: F401  (routers import the remaining models)
 
 # Test database URL
-TEST_DATABASE_URL = "postgresql+asyncpg://einfak:einfak123@localhost:5432/einfak_test"
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "postgresql+asyncpg://einfak:einfak123@localhost:5432/einfak_test")
 
 _schema_ready = False
 

@@ -34,6 +34,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/admin/gonulluler', label: 'Gönüllü Başvuruları', icon: '🙋', feature: 'website' },
   { href: '/admin/finance', label: 'Kasa & Giderler', icon: '💼' },
   { href: '/admin/muhasebe', label: 'Muhasebe', icon: '📚', feature: 'accounting' },
+  { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: '📨', feature: 'bank_transactions' },
+  { href: '/admin/banka-hesaplari', label: 'Banka Hesapları', icon: '🏦', feature: 'bank_transactions' },
   { href: '/admin/reconciliation', label: 'Banka Mutabakatı', icon: '🏛️', feature: 'bank_transactions' },
   { href: '/admin/sms', label: 'SMS Şablonları', icon: '✉️', feature: 'sms' },
   { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: '💬', feature: 'sms' },

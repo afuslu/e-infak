@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Text, Integer, Enum, ForeignKey, Index
+from sqlalchemy import UniqueConstraint, Column, String, Boolean, DateTime, Text, Integer, Enum, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -36,7 +36,10 @@ class Donor(Base):
     # Identity Numbers
     tc_no = Column(String(11))
     tax_number = Column(String(20))
-    
+
+    # Number of this donor in the system the organisation migrated from (e.g. STK PRO "Bağışçı No")
+    external_ref = Column(String(64))
+
     # Stats
     total_donations = Column(Integer, default=0)
     total_donated_cents = Column(Integer, default=0)
@@ -58,6 +61,10 @@ class Donor(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
+    __table_args__ = (
+        UniqueConstraint("organization_id", "external_ref", name="uq_donor_org_external_ref"),
+    )
+
     # Relationships
     organization = relationship("Organization", backref="donors")
     

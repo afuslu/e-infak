@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.middleware.tenant import TenantMiddleware
-from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, site_builder, media, poverty, receipt_books, data_tools, membership, accounting, inventory
+from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, bank_sync, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, site_builder, media, poverty, receipt_books, data_tools, membership, accounting, inventory
 from app.core.db import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.audit_log import AuditLog
@@ -111,6 +111,7 @@ app.include_router(admin_features.router, prefix="/api/v1")
 app.include_router(public_forms.router, prefix="/api/v1")
 app.include_router(checkout.router, prefix="/api/v1")
 app.include_router(reconciliation.router, prefix="/api/v1")
+app.include_router(bank_sync.router, prefix="/api/v1")
 
 
 @app.get("/health")

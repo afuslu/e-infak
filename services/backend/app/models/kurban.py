@@ -30,6 +30,7 @@ KURBAN_TYPES = {
     "sukur": "Şükür",
     "nafile": "Nafile",
     "sadaka": "Sadaka",
+    "sifa": "Şifa",
 }
 
 SHARES_PER_ANIMAL = {KurbanAnimalType.COW: 7, KurbanAnimalType.SHEEP: 1}

@@ -12,6 +12,11 @@
         First installation on an empty database: creates Hicret Derneği and
         Kardeşlik Payı with their domains and site design, and one administrator
         per organisation whose one-time password is printed. Existing data is kept.
+
+    python -m app.cli import-stkpro --org hakder --user admin@hakder.org \
+            --donors bagiscilar_1.xlsx bagiscilar_2.xlsx --donations tum_bagislar.xlsx [--commit]
+        Moves an organisation's STK PRO exports (donors, donations, kurban shares, transfer senders).
+        Without --commit it is a dry run: everything is computed in a transaction that is rolled back.
 """
 import argparse
 import asyncio
@@ -127,6 +132,31 @@ async def create_platform_admin(email: str, name: str) -> None:
     print(f"Geçici şifre: {password}  (ilk girişte değiştirin)")
 
 
+async def import_stkpro(args) -> None:
+    from sqlalchemy import func
+
+    from app.core.db import AsyncSessionLocal
+    from app.models.campaign import CampaignStatus
+    from app.models.organization import Organization
+    from app.models.user import User
+    from app.services.stkpro_import import run
+
+    async with AsyncSessionLocal() as db:
+        org = (await db.execute(select(Organization).where(Organization.slug == args.org))).scalar_one_or_none()
+        if not org:
+            raise SystemExit(f"Kurum bulunamadı: {args.org}")
+        user = (await db.execute(select(User).where(
+            User.organization_id == org.id, func.lower(User.email) == args.user.lower()))).scalar_one_or_none()
+        if not user:
+            raise SystemExit(f"Kullanıcı bulunamadı: {args.user}")
+        report = await run(db, org.id, actor=user, donor_files=args.donors or [], donation_files=args.donations or [],
+                           commit=args.commit, create_campaigns=not args.no_create_campaigns,
+                           campaign_status=CampaignStatus(args.campaign_status))
+    print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
+    if not args.commit:
+        print("\nDeneme çalışmasıydı, hiçbir şey yazılmadı. Yazmak için --commit ekleyin.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -136,6 +166,14 @@ def main() -> None:
     admin.add_argument("--email", required=True)
     admin.add_argument("--name", default="Platform Yöneticisi")
     commands.add_parser("bootstrap-sites", help="Boş veritabanında Hicret ve Kardeşlik kurumlarını oluşturur")
+    stk = commands.add_parser("import-stkpro", help="STK PRO Excel dışa aktarımlarını kuruma taşır")
+    stk.add_argument("--org", required=True, help="Kurum kısa adı (slug)")
+    stk.add_argument("--user", required=True, help="Aktarımı yapan yönetici e-postası")
+    stk.add_argument("--donors", nargs="*", help="bagiscilar_*.xlsx dosyaları")
+    stk.add_argument("--donations", nargs="*", help="tum_bagislar_*.xlsx dosyası")
+    stk.add_argument("--commit", action="store_true", help="Yaz (yoksa deneme çalışması)")
+    stk.add_argument("--no-create-campaigns", action="store_true", help="Eksik kampanyaları açma, hata ver")
+    stk.add_argument("--campaign-status", default="active", choices=["active", "draft", "paused"])
     args = parser.parse_args()
     if args.command == "import-legacy-credentials":
         asyncio.run(import_legacy_credentials(args.dry_run))
@@ -143,6 +181,8 @@ def main() -> None:
         asyncio.run(create_platform_admin(args.email.strip(), args.name.strip()))
     elif args.command == "bootstrap-sites":
         asyncio.run(bootstrap_sites())
+    elif args.command == "import-stkpro":
+        asyncio.run(import_stkpro(args))
 
 
 if __name__ == "__main__":

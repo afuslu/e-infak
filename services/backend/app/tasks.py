@@ -501,7 +501,23 @@ def warm_all_certificates_task():
     return asyncio.run(_warm_all_certificates())
 
 
+async def _sync_bank_accounts():
+    from app.banking.sync import sync_all
+    async with AsyncSessionLocal() as session:
+        return await sync_all(session)
+
+
+@celery_app.task(name="app.tasks.sync_bank_accounts_task")
+def sync_bank_accounts_task():
+    """Every 10 minutes: pull new movements of connected bank accounts and match them to donors."""
+    return asyncio.run(_sync_bank_accounts())
+
+
 celery_app.conf.beat_schedule = {
+    "sync-bank-accounts": {
+        "task": "app.tasks.sync_bank_accounts_task",
+        "schedule": 600.0,
+    },
     "verify-pending-domains": {
         "task": "app.tasks.verify_pending_domains_task",
         "schedule": 300.0,
