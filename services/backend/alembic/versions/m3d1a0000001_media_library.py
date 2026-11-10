@@ -1,14 +1,14 @@
 """Media library: folders and image assets with generated variants.
 
 Revision ID: m3d1a0000001
-Revises: b9c0d1e2f3a4
+Revises: b5c6d7e8f9a0
 """
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision = "m3d1a0000001"
-down_revision = "b9c0d1e2f3a4"
+down_revision = "b5c6d7e8f9a0"
 branch_labels = None
 depends_on = None
 

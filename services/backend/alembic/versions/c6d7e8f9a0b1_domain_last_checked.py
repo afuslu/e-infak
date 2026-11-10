@@ -1,13 +1,13 @@
 """Custom domains: when DNS verification last ran.
 
-Revision ID: b9c0d1e2f3a4
-Revises: a8b9c0d1e2f3
+Revision ID: c6d7e8f9a0b1
+Revises: m3d1a0000001
 """
 import sqlalchemy as sa
 from alembic import op
 
-revision = "b9c0d1e2f3a4"
-down_revision = "a8b9c0d1e2f3"
+revision = "c6d7e8f9a0b1"
+down_revision = "m3d1a0000001"
 branch_labels = None
 depends_on = None
 
