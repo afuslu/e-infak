@@ -30,6 +30,10 @@ settings_manager = require_permission(Permission.SETTINGS_MANAGE)
 NOTES = {
     "paytr": "PayTR mağaza panelinde Bildirim URL olarak aşağıdaki adresi girin.",
     "nestpay": "Bankanızın 3D Pay Hosting (ortak ödeme sayfası) üye işyeri bilgileri. API kullanıcısı iade ve sorgu için gerekir.",
+    "vakifkatilim": ("Vakıf Katılım Güvenli Ödeme Sayfası. kurumsal.vakifkatilim.com.tr üzerinden yalnızca e-infak için "
+                     "ayrı bir API kullanıcısı açın (şifresi ödeme formunda tarayıcıya hash'li olarak gider) ve "
+                     "sanalposdestek@vakifkatilim.com.tr'den sunucu IP'sine izin isteyin. Test ortamı yoktur: "
+                     "gerçek kartla deneyip aynı gün iptal edin."),
     "iyzico": "iyzico panelinde Ayarlar › Firma Ayarları › API Anahtarları.",
     "ziraatpay": "Ziraat Pay üye işyeri panelinden alınan API bilgileri.",
     "verimor": "Verimor panelinde SMS ayarlarından API şifresi oluşturun ve sunucu IP adresine izin verin.",
@@ -82,7 +86,8 @@ async def list_accounts(request: Request, db: AsyncSession = Depends(get_db), _:
         "sms_platform_fallback": org_settings.get("sms_platform_fallback") is not False,
         "payment_providers": payment,
         "sms_providers": sms,
-        "urls": {"paytr_notify": f"{base}/api/v1/payments/paytr/notify"},
+        "urls": {"paytr_notify": f"{base}/api/v1/payments/paytr/notify",
+                 "vakifkatilim_return": f"{base}/api/v1/payments/vakifkatilim/return"},
     }
 
 
