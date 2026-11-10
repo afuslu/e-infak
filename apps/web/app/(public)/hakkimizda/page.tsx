@@ -89,7 +89,7 @@ export default async function AboutPage() {
         <div id="seffaflik" className="bg-white rounded-2xl p-6" style={{ border: `1px solid ${c.border}` }}>
           <div className="font-heading text-xl font-bold mb-3.5">Şeffaflık ve Belgeler</div>
           <div className="flex flex-col gap-2.5">
-            <a href="/kvkk" className="font-semibold text-[14.5px]" style={{ color: c.primary }}>→ KVKK Aydınlatma Metni</a>
+            <Link href="/kvkk" className="font-semibold text-[14.5px]" style={{ color: c.primary }}>→ KVKK Aydınlatma Metni</Link>
             {documents.map(([label, url]) => (
               <a key={label} href={url} target="_blank" rel="noreferrer" className="font-semibold text-[14.5px]" style={{ color: c.primary }}>
                 → {label}
