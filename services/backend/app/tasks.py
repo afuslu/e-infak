@@ -470,7 +470,46 @@ def process_outbox_task():
     return asyncio.run(_process_outbox())
 
 
+async def _verify_pending_domains():
+    from app.services import domains
+    async with AsyncSessionLocal() as session:
+        return await domains.verify_pending(session)
+
+
+@celery_app.task(name="app.tasks.verify_pending_domains_task")
+def verify_pending_domains_task():
+    return asyncio.run(_verify_pending_domains())
+
+
+@celery_app.task(name="app.tasks.warm_certificates_task")
+def warm_certificates_task(hosts: list[str]):
+    """Make the Caddy certificate service obtain (or renew) certificates for these names."""
+    from app.services import domains
+    return asyncio.run(domains.warm_hosts(hosts))
+
+
+async def _warm_all_certificates():
+    from app.services import domains
+    async with AsyncSessionLocal() as session:
+        hosts = await domains.served_hosts(session)
+    return await domains.warm_hosts(hosts)
+
+
+@celery_app.task(name="app.tasks.warm_all_certificates_task")
+def warm_all_certificates_task():
+    """Daily: loads every certificate into Caddy so it renews them before they expire."""
+    return asyncio.run(_warm_all_certificates())
+
+
 celery_app.conf.beat_schedule = {
+    "verify-pending-domains": {
+        "task": "app.tasks.verify_pending_domains_task",
+        "schedule": 300.0,
+    },
+    "warm-certificates-daily": {
+        "task": "app.tasks.warm_all_certificates_task",
+        "schedule": 86400.0,
+    },
     "process-outbox-every-minute": {
         "task": "app.tasks.process_outbox_task",
         "schedule": 60.0,

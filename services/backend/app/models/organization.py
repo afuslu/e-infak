@@ -76,4 +76,5 @@ class OrganizationDomain(Base):
     is_primary = Column(Boolean, nullable=False, default=False)
     verified_at = Column(DateTime(timezone=True))
     last_check_error = Column(String(300))
+    last_checked_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

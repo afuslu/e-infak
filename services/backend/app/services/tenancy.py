@@ -124,10 +124,10 @@ async def forget_host(*hosts: str) -> None:
 
 
 async def tls_allowed(db: AsyncSession, domain: Optional[str]) -> bool:
-    """Caddy on-demand TLS gate: only hosts that resolve to an active organisation get a certificate."""
+    """Caddy on-demand TLS gate: only subdomains of active organisations and active custom
+    domains (with their www twin) get a certificate. The platform's own names have a
+    certbot certificate on host nginx and are refused here."""
     host = normalize_host(domain)
     if not host or host in ("localhost", "127.0.0.1"):
         return False
-    if host in (settings.PLATFORM_BASE_DOMAIN, f"www.{settings.PLATFORM_BASE_DOMAIN}"):
-        return True
     return await resolve_org_slug(db, host, use_cache=False) is not None

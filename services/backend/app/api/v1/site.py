@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +21,8 @@ from app.models.organization import Organization, OrganizationDomain
 from app.models.organization_settings import OrganizationSettings
 from app.models.user import User
 from app.services.site import DEFAULT_SECTIONS, FONTS, SECTION_LABELS, TEMPLATES, THEME_KITS, SiteAppearance, appearance_of, apply_appearance, public_site
-from app.services.tenancy import resolve_org_slug, tls_allowed
+from app.services import domains
+from app.services.tenancy import forget_host, resolve_org_slug, tls_allowed, twin
 from app.utils.i18n import request_language
 
 public_router = APIRouter(tags=["site"])
@@ -180,3 +182,71 @@ async def upload_image(
         handle.write(content)
     os.chmod(folder / name, 0o644)
     return {"url": f"/api/v1/media/{org_id}/{name}", "width": width, "height": height}
+
+
+# --- Admin: custom domains -------------------------------------------------------------
+
+class SiteDomainIn(BaseModel):
+    domain: str = Field(min_length=3, max_length=253)
+
+
+async def _own_domain(request: Request, db: AsyncSession, domain_id: UUID) -> OrganizationDomain:
+    row = await db.get(OrganizationDomain, domain_id)
+    if not row or str(row.organization_id) != request.state.organization_id:
+        raise HTTPException(status_code=404, detail="Alan adı bulunamadı")
+    return row
+
+
+@admin_router.get("/site-domains")
+async def list_site_domains(request: Request, db: AsyncSession = Depends(get_db),
+                            current_user: User = Depends(get_current_user)):
+    org = await db.get(Organization, UUID(request.state.organization_id))
+    rows = (await db.execute(select(OrganizationDomain).where(
+        OrganizationDomain.organization_id == org.id).order_by(OrganizationDomain.created_at))).scalars().all()
+    return {
+        "subdomain": f"{org.subdomain}.{settings.PLATFORM_BASE_DOMAIN}" if org.subdomain else None,
+        "url": await site_url(db, org),
+        "public_ip": settings.PLATFORM_PUBLIC_IP,
+        "domains": [domains.domain_out(r) for r in rows],
+    }
+
+
+@admin_router.post("/site-domains", status_code=status.HTTP_201_CREATED)
+async def add_site_domain(request: Request, payload: SiteDomainIn, db: AsyncSession = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    try:
+        row = await domains.add_domain(db, UUID(request.state.organization_id), payload.domain)
+    except domains.DomainError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+    db.add(AuditLog(organization_id=row.organization_id, user_id=current_user.id, action="alan_adi_ekle",
+                    details={"domain": row.domain}))
+    await db.commit()
+    return domains.domain_out(row)
+
+
+@admin_router.post("/site-domains/{domain_id}/verify")
+async def verify_site_domain(request: Request, domain_id: UUID, db: AsyncSession = Depends(get_db),
+                             current_user: User = Depends(get_current_user),
+                             _: None = Depends(rate_limit("domain-verify", limit=30))):
+    row = await _own_domain(request, db, domain_id)
+    was_active = row.status == "active"
+    result = await domains.verify(db, row)
+    if result.ok and not was_active:
+        db.add(AuditLog(organization_id=row.organization_id, user_id=current_user.id, action="alan_adi_dogrulandi",
+                        details={"domain": row.domain}))
+        await db.commit()
+        domains.warm_certificates_soon([row.domain, f"www.{row.domain}"])
+    return domains.domain_out(row)
+
+
+@admin_router.delete("/site-domains/{domain_id}")
+async def remove_site_domain(request: Request, domain_id: UUID, db: AsyncSession = Depends(get_db),
+                             current_user: User = Depends(get_current_user)):
+    row = await _own_domain(request, db, domain_id)
+    domain = row.domain
+    await db.delete(row)
+    db.add(AuditLog(organization_id=UUID(request.state.organization_id), user_id=current_user.id,
+                    action="alan_adi_sil", details={"domain": domain}))
+    await db.commit()
+    await forget_host(domain, twin(domain))
+    return {"ok": True}

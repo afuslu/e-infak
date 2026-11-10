@@ -5,6 +5,7 @@ import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { apiErrorMessage, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
 import { LANGUAGE_NAMES } from '../../../../lib/i18n'
+import { SiteDomainsCard } from '../../../../components/admin/SiteDomainsCard'
 
 interface OrgSettings {
   contact_phone: string | null
@@ -276,6 +277,8 @@ export default function AdminSiteSettingsPage() {
           </div>
         </form>
       )}
+
+      <SiteDomainsCard />
     </div>
   )
 }

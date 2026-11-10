@@ -82,8 +82,13 @@ for _ in $(seq 1 30); do
 done
 [[ "$saglikli" -eq 1 ]] || geri_don
 
+# Sertifika servisi siteyi taşımaz; başlamazsa dağıtım geri alınmaz, yalnızca uyarılır.
+compose "$TAG" up -d --no-deps certs || log "UYARI: sertifika servisi (certs) başlamadı; yeni alan adları SSL alamaz"
+
 echo "$TAG" > "$DIZIN/runtime/aktif-surum"
 cp "$SURUM/deploy/docker/dagit.sh" "$DIZIN/dagit.sh.yeni" && chmod +x "$DIZIN/dagit.sh.yeni" && mv "$DIZIN/dagit.sh.yeni" "$DIZIN/dagit.sh"
+# sudo ile çalıştırılan nginx betikleri de güncel sürümden alınır
+for betik in nginx-kur.sh nginx-otomatik-ssl.sh; do cp "$SURUM/deploy/docker/$betik" "$DIZIN/$betik" || true; done
 
 # Eski sürümler, imajlar ve yedekler
 ls -1dt "$DIZIN"/releases/*/ 2>/dev/null | tail -n +"$((SAKLANACAK_SURUM + 1))" | while read -r eski; do

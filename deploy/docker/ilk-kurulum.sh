@@ -33,6 +33,8 @@ TENANT_PROXY_SECRET=$(openssl rand -hex 32)
 # Bu anahtar kaybolursa panelde girilen ödeme/SMS şifreleri okunamaz. Yedeğini saklayın.
 CREDENTIALS_ENCRYPTION_KEY=${fernet}
 PLATFORM_BASE_DOMAIN=e-infak.org
+# Özel alan adlarının A kaydı bu IP'yi göstermeli (nginx-otomatik-ssl.sh boşsa doldurur)
+PLATFORM_PUBLIC_IP=
 PUBLIC_WEB_URL=https://e-infak.org
 PAYMENT_CALLBACK_BASE_URL=https://e-infak.org
 PAYMENTS_LIVE_ENABLED=false

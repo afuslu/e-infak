@@ -13,6 +13,8 @@ x-backend: &backend
     CELERY_BROKER_URL: redis://redis:6379/0
     CELERY_RESULT_BACKEND: redis://redis:6379/0
     MEDIA_ROOT: /data/media
+    CERT_SERVICE_HOST: certs
+    CERT_SERVICE_PORT: "8443"
   volumes:
     - media:/data/media
   depends_on:
@@ -76,6 +78,25 @@ services:
       - "127.0.0.1:3092:3000"
     depends_on:
       backend: { condition: service_healthy }
+
+  # Let's Encrypt certificates for organisation subdomains and verified custom domains.
+  # Writes into a host directory that host nginx reads per handshake (nginx-otomatik-ssl.sh
+  # creates it owned by the nginx worker user and sets CERTS_UID/CERTS_GID in .env).
+  certs:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    user: "${CERTS_UID:-33}:${CERTS_GID:-33}"
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    environment:
+      XDG_CONFIG_HOME: /config
+      XDG_DATA_HOME: /data
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CERTS_DIR:-/opt/e_infak/sertifikalar}:/data
+    tmpfs:
+      - /config
+    ports:
+      - "127.0.0.1:8480:8080"  # ACME HTTP-01 only; the TLS port stays inside the network
 
 volumes:
   db:

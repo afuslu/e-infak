@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Catalog, PlatformOrg, dateTr, platformCall } from '../../../../lib/platform-api'
+import { Catalog, PlatformDomain, PlatformOrg, dateTr, platformCall } from '../../../../lib/platform-api'
 
 interface Field { key: string; label: string; secret: boolean; optional: boolean; choices: Record<string, string> | null }
 interface Account { key: string; label: string; kind: 'payment' | 'sms'; fields: Field[]; values: Record<string, string | null>; configured: boolean }
@@ -174,10 +174,23 @@ export default function PlatformOrganizationPage() {
                   <span className="font-semibold">{d.domain}{d.is_primary && d.status === 'active' ? ' (ana adres)' : ''}</span>
                   <span className="flex gap-2">
                     {d.status !== 'active' && (
-                      <button type="button" className="rounded bg-green-600 px-2 py-1 text-xs font-semibold text-white"
-                        onClick={() => window.confirm(`${d.domain} DNS kayıtları bu sunucuyu gösteriyor mu? Etkinleştirilince site bu adreste açılır.`) &&
+                      <button type="button" className="rounded bg-slate-900 px-2 py-1 text-xs font-semibold text-white"
+                        onClick={() => run(async () => {
+                          const res = await platformCall<PlatformDomain>('post', `/organizations/${org.id}/domains/${d.id}/verify`)
+                          if (res.status !== 'active') {
+                            await load()
+                            throw { response: { data: { detail: res.last_check_error || 'DNS kayıtları henüz doğru değil' } } }
+                          }
+                        }, `${d.domain} doğrulandı ve yayında`)}>
+                        Doğrula
+                      </button>
+                    )}
+                    {d.status !== 'active' && (
+                      <button type="button" className="rounded border border-green-600 px-2 py-1 text-xs font-semibold text-green-700"
+                        title="TXT kaydı olmadan, A kaydını kendiniz kontrol ettiyseniz"
+                        onClick={() => window.confirm(`${d.domain} A kaydı bu sunucuyu gösteriyor mu? TXT doğrulaması atlanır ve site bu adreste açılır.`) &&
                           run(() => platformCall('post', `/organizations/${org.id}/domains/${d.id}/activate`), `${d.domain} etkin`)}>
-                        Etkinleştir
+                        Elle etkinleştir
                       </button>
                     )}
                     <button type="button" className="rounded border px-2 py-1 text-xs"
@@ -188,10 +201,13 @@ export default function PlatformOrganizationPage() {
                   </span>
                 </div>
                 {d.status !== 'active' && (
-                  <p className="text-xs text-amber-800">
-                    Bekliyor. Kurumdan DNS’te <b>@</b> ve <b>www</b> için A kaydını <b>{catalog?.public_ip || 'sunucu IP adresi'}</b> yapmasını isteyin;
-                    sonra “Etkinleştir”e basın. SSL sertifikası için sunucuda <code>nginx-kur.sh</code> yeniden çalıştırılmalıdır.
-                  </p>
+                  <div className="space-y-1 text-xs text-amber-800">
+                    <p>Bekliyor. Kurum DNS’e şu kayıtları girince sistem birkaç dakika içinde kendisi doğrular (ya da “Doğrula”ya basın); SSL otomatik alınır.</p>
+                    <ul className="font-mono text-slate-700">
+                      {d.dns_records.map((r) => <li key={r.type + r.name} className="break-all">{r.type} {r.host} → {r.value}</li>)}
+                    </ul>
+                    {d.last_check_error && <p className="text-red-700">Son kontrol: {d.last_check_error}</p>}
+                  </div>
                 )}
               </li>
             ))}

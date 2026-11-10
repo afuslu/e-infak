@@ -52,7 +52,7 @@ async def test_resolution_uses_subdomains_and_active_domains_only(db_session):
     assert await tenancy.tls_allowed(db_session, f"www.dernek{suffix}.org")
     assert not await tenancy.tls_allowed(db_session, f"bekleyen{suffix}.org")
     assert not await tenancy.tls_allowed(db_session, "random.example.net")
-    assert await tenancy.tls_allowed(db_session, "e-infak.org")
+    assert not await tenancy.tls_allowed(db_session, "e-infak.org")  # certbot on host nginx
 
     org.is_active = False
     await db_session.flush()
