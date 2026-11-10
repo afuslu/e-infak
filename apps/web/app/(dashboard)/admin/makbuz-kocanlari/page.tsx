@@ -200,7 +200,7 @@ export default function ReceiptBooksPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-[11px] text-gray-400">"Atlandı" satırları, sonraki numaralar kullanıldığı hâlde kesilmemiş yapraklardır; matbu koçanla karşılaştırıp gerekirse iptal edin.</p>
+          <p className="text-[11px] text-gray-400">&quot;Atlandı&quot; satırları, sonraki numaralar kullanıldığı hâlde kesilmemiş yapraklardır; matbu koçanla karşılaştırıp gerekirse iptal edin.</p>
         </Card>
       )}
 

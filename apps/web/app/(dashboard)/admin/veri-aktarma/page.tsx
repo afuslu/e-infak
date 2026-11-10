@@ -76,7 +76,7 @@ export default function DataImportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Excel'den Aktarım</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Excel&apos;den Aktarım</h1>
         <p className="mt-1 text-sm text-gray-500">XLSX veya CSV dosyasını yükleyin, sütunları eşleyin, önce doğrulayın sonra aktarın. En fazla 5000 satır.</p>
       </div>
 

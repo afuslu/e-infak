@@ -118,7 +118,7 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
 
       {tab === 'demos' && (
         <>
-          <p className="text-[11px] text-gray-400">Demo; ana sayfayı, header'ı, footer'ı ve isterseniz renk-yazı tipi temasını tek seferde kurar. Mevcut sayfalarınız silinmez.</p>
+          <p className="text-[11px] text-gray-400">Demo; ana sayfayı, header&apos;ı, footer&apos;ı ve isterseniz renk-yazı tipi temasını tek seferde kurar. Mevcut sayfalarınız silinmez.</p>
           {library.demos.map((d) => (
             <button key={d.key} type="button" onClick={() => setDemo(d)}
               className="block w-full overflow-hidden rounded-lg border bg-white text-start hover:border-blue-500">
@@ -138,7 +138,7 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
               <h3 className="text-lg font-bold">“{demo.label}” demosunu kur</h3>
               <p className="text-[13px] text-gray-600">{demo.description}</p>
               <ul className="list-disc ps-5 text-[12px] text-gray-600">
-                <li>Ana sayfa, header ve footer bu demoyla değiştirilir (önceki yayınlar Sürümler'de kalır).</li>
+                <li>Ana sayfa, header ve footer bu demoyla değiştirilir (önceki yayınlar Sürümler&apos;de kalır).</li>
                 {options.include_pages && <li>Eklenecek sayfalar: {demo.pages.join(', ')} (adresi dolu olan atlanır).</li>}
               </ul>
               {([['apply_theme', 'Renkleri ve yazı tiplerini de uygula'], ['include_pages', 'Örnek sayfaları ekle'], ['publish', 'Hemen yayınla (işaretsizse taslak olarak kalır)']] as const).map(([key, label]) => (

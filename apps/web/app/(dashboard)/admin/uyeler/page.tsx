@@ -113,7 +113,7 @@ export default function MembersPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Üyeler & Aidat</h1>
-          <p className="mt-1 text-sm text-gray-500">Dernek üye kayıtları, aidat dönemleri, tahsilat ve geciken aidat takibi. Tahsilat makbuzu "Üye Aidatı" kalemine kesilir.</p>
+          <p className="mt-1 text-sm text-gray-500">Dernek üye kayıtları, aidat dönemleri, tahsilat ve geciken aidat takibi. Tahsilat makbuzu &quot;Üye Aidatı&quot; kalemine kesilir.</p>
         </div>
         {canEdit && <button className={primaryButton} onClick={() => { setDetail(null); setForm({ ...emptyMember }) }}>+ Yeni üye</button>}
       </div>
@@ -471,7 +471,7 @@ function DuplicatesTab({ canEdit, onMessage }: { canEdit: boolean; onMessage: (m
   if (!groups.length) return <Card className="border border-gray-100 p-6 text-center text-sm text-gray-500 shadow-sm">Çift üye kaydı yok.</Card>
   return (
     <div className="space-y-3">
-      <p className="text-xs text-gray-500">Aynı kişiye ya da aynı telefona / TC'ye bağlı birden çok üye kaydı. Aynı dönem iki kayıtta da varsa ödenmiş olan kalır.</p>
+      <p className="text-xs text-gray-500">Aynı kişiye ya da aynı telefona / TC&apos;ye bağlı birden çok üye kaydı. Aynı dönem iki kayıtta da varsa ödenmiş olan kalır.</p>
       {groups.map((g, i) => (
         <Card key={g.members.map((m) => m.id).join()} className="space-y-2 border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center justify-between">

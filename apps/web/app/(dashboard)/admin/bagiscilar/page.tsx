@@ -103,7 +103,7 @@ function DonorsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/admin/bagiscilar/mukerrer" className={ghostButton}>Mükerrer kayıtlar</Link>
-          {canManage && <Link href="/admin/veri-aktarma" className={ghostButton}>Excel'den aktar</Link>}
+          {canManage && <Link href="/admin/veri-aktarma" className={ghostButton}>Excel&apos;den aktar</Link>}
           {canManage && <button onClick={() => setShowCreate((v) => !v)} className={primaryButton}>{showCreate ? 'Vazgeç' : '+ Yeni Bağışçı'}</button>}
         </div>
       </div>
