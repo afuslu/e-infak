@@ -22,7 +22,7 @@ interface Accounts {
   sms_platform_fallback: boolean
   payment_providers: ProviderInfo[]
   sms_providers: ProviderInfo[]
-  urls: { paytr_notify: string }
+  urls: { paytr_notify: string; vakifkatilim_return?: string }
 }
 type Message = { type: 'ok' | 'error'; text: string } | null
 
@@ -171,6 +171,12 @@ export default function PaymentSmsAccountsPage() {
               <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
                 PayTR panelinde <b>Bildirim URL</b>: <code className="break-all">{data.urls.paytr_notify}</code>
               </p>
+            ) : provider.key === 'vakifkatilim' ? (
+              <div className="mt-3 space-y-1 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+                <p>Banka dönüş adresi (otomatik gönderilir): <code className="break-all">{data.urls.vakifkatilim_return}</code></p>
+                <p>Sunucu IP adresi bankada tanımlı olmalı; aksi halde ödeme doğrulama ve iade çalışmaz.</p>
+                <p>Ödeme sonucu her zaman bankaya sorularak doğrulanır. Test ortamı yoktur; ortamı “Canlı” seçin.</p>
+              </div>
             ) : undefined} />
         ))}
       </Card>
