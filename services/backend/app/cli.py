@@ -151,7 +151,8 @@ async def import_stkpro(args) -> None:
             raise SystemExit(f"Kullanıcı bulunamadı: {args.user}")
         report = await run(db, org.id, actor=user, donor_files=args.donors or [], donation_files=args.donations or [],
                            commit=args.commit, create_campaigns=not args.no_create_campaigns,
-                           campaign_status=CampaignStatus(args.campaign_status))
+                           campaign_status=CampaignStatus(args.campaign_status),
+                           aliases=dict(a.split("=", 1) for a in args.alias or []))
     print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
     if not args.commit:
         print("\nDeneme çalışmasıydı, hiçbir şey yazılmadı. Yazmak için --commit ekleyin.")
@@ -173,7 +174,10 @@ def main() -> None:
     stk.add_argument("--donations", nargs="*", help="tum_bagislar_*.xlsx dosyası")
     stk.add_argument("--commit", action="store_true", help="Yaz (yoksa deneme çalışması)")
     stk.add_argument("--no-create-campaigns", action="store_true", help="Eksik kampanyaları açma, hata ver")
-    stk.add_argument("--campaign-status", default="active", choices=["active", "draft", "paused"])
+    stk.add_argument("--campaign-status", default="active", choices=["active", "draft", "paused"],
+                     help="Sitede karşılığı olmayan, yeni açılan kampanyaların durumu")
+    stk.add_argument("--alias", action="append", metavar="STK_ADI=KAMPANYA",
+                     help='STK PRO kampanyasını var olan kampanyaya bağla, ör. "keçi süt=Süt Keçisi" (tekrarlanabilir)')
     args = parser.parse_args()
     if args.command == "import-legacy-credentials":
         asyncio.run(import_legacy_credentials(args.dry_run))

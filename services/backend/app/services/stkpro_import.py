@@ -114,6 +114,7 @@ class CampaignKey:
     category: CampaignCategory
     kurban_type: Optional[str] = None
     animal: Optional[KurbanAnimalType] = None
+    animal_word: Optional[str] = None  # folded: "keci", "buyukbas"… (an existing "Keçi" campaign is reused)
 
 
 def campaign_key(name: Optional[str], kind: Optional[str]) -> CampaignKey:
@@ -126,7 +127,7 @@ def campaign_key(name: Optional[str], kind: Optional[str]) -> CampaignKey:
         animal_word = next((w for w in folded.split() if w in KURBAN_ANIMALS), None)
         if animal_word:
             canonical, animal = KURBAN_ANIMALS[animal_word]
-            return CampaignKey(canonical, CampaignCategory.KURBAN, kurban_intent(title) or "vacip", animal)
+            return CampaignKey(canonical, CampaignCategory.KURBAN, kurban_intent(title) or "vacip", animal, animal_word)
         return CampaignKey(title, CampaignCategory.KURBAN, kurban_intent(title) or "vacip", KurbanAnimalType.SHEEP)
     category = TYPE_CATEGORY.get(folded_kind)
     if not category:
@@ -146,6 +147,7 @@ class ImportReport:
     kurban_shares: int = 0
     sender_rules: int = 0
     campaigns_created: list = field(default_factory=list)
+    kurban_campaigns_linked: list = field(default_factory=list)
     campaign_map: dict = field(default_factory=dict)  # STK PRO name -> e-infak title (+ intent)
     totals: Counter = field(default_factory=Counter)  # by payment method label, kuruş
     errors: list = field(default_factory=list)
@@ -158,14 +160,18 @@ class ImportReport:
 
 class StkProImporter:
     def __init__(self, db: AsyncSession, organization_id: UUID, *, actor: User, create_campaigns: bool = True,
-                 campaign_status: CampaignStatus = CampaignStatus.ACTIVE, season_year: Optional[int] = None):
+                 campaign_status: CampaignStatus = CampaignStatus.ACTIVE, season_year: Optional[int] = None,
+                 aliases: Optional[dict[str, str]] = None):
         self.db, self.org_id, self.actor = db, organization_id, actor
         self.create_campaigns, self.campaign_status = create_campaigns, campaign_status
         self.season_year = season_year or date.today().year
+        # STK PRO campaign name -> title of an existing campaign ("keçi süt" -> "Süt Keçisi")
+        self.aliases = {fold(k): v for k, v in (aliases or {}).items()}
         self.report = ImportReport()
         self._donors: dict[str, Donor] = {}
         self._campaigns: dict[str, Campaign] = {}
         self._staff: dict[str, User] = {}
+        self._kurban_linked: set[str] = set()
 
     async def _prepare(self) -> None:
         donors = (await self.db.execute(select(Donor).where(
@@ -227,10 +233,29 @@ class StkProImporter:
 
     # --- campaigns ----------------------------------------------------------------------------
 
+    async def _ensure_kurban(self, campaign: Campaign, key: CampaignKey) -> None:
+        """A kurban campaign must be linked to the kurban module, or no shares are recorded."""
+        if key.category != CampaignCategory.KURBAN or fold(campaign.title) in self._kurban_linked:
+            return
+        linked = (await self.db.execute(select(KurbanCampaign.id).where(
+            KurbanCampaign.donation_campaign_id == campaign.id))).first()
+        if not linked:
+            self.db.add(KurbanCampaign(organization_id=self.org_id, title=campaign.title, price_per_share_cents=0,
+                                       donation_campaign_id=campaign.id, animal_type=key.animal or KurbanAnimalType.SHEEP,
+                                       season_year=self.season_year))
+            await self.db.flush()
+            self.report.kurban_campaigns_linked.append(campaign.title)
+        self._kurban_linked.add(fold(campaign.title))
+
     async def _campaign(self, key: CampaignKey) -> Optional[Campaign]:
         found = self._campaigns.get(fold(key.title))
-        if found or not self.create_campaigns:
+        if not found and key.animal_word:
+            found = self._campaigns.get(key.animal_word)  # the site already has a plain "Keçi" / "Büyükbaş"
+        if found:
+            await self._ensure_kurban(found, key)
             return found
+        if not self.create_campaigns:
+            return None
         slug_base = re.sub(r"[^a-z0-9]+", "-", fold(key.title)).strip("-")[:180] or "kampanya"
         slug, n = slug_base, 2
         taken = set((await self.db.execute(select(Campaign.slug).where(Campaign.organization_id == self.org_id))).scalars())
@@ -241,12 +266,8 @@ class StkProImporter:
                             currency="TRY")
         self.db.add(campaign)
         await self.db.flush()
-        if key.category == CampaignCategory.KURBAN:
-            self.db.add(KurbanCampaign(organization_id=self.org_id, title=key.title, price_per_share_cents=0,
-                                       donation_campaign_id=campaign.id, animal_type=key.animal or KurbanAnimalType.SHEEP,
-                                       season_year=self.season_year))
-            await self.db.flush()
         self._campaigns[fold(key.title)] = campaign
+        await self._ensure_kurban(campaign, key)
         self.report.campaigns_created.append(key.title)
         return campaign
 
@@ -313,6 +334,9 @@ class StkProImporter:
                 self.report.errors.append({"file": "tum_bagislar", "bagis_no": number, "message": str(exc)})
                 continue
             ckey = campaign_key(row.get("Kampanya Adı"), row.get("Tür"))
+            alias = self.aliases.get(fold(row.get("Kampanya Adı")))
+            if alias:
+                ckey = CampaignKey(alias, ckey.category, ckey.kurban_type, ckey.animal)
             campaign = await self._campaign(ckey)
             if not campaign:
                 self.report.errors.append({"file": "tum_bagislar", "bagis_no": number,
@@ -367,9 +391,9 @@ class StkProImporter:
 
 async def run(db: AsyncSession, organization_id: UUID, *, actor: User, donor_files: list[str],
               donation_files: list[str], commit: bool, create_campaigns: bool = True,
-              campaign_status: CampaignStatus = CampaignStatus.ACTIVE) -> dict:
+              campaign_status: CampaignStatus = CampaignStatus.ACTIVE, aliases: Optional[dict[str, str]] = None) -> dict:
     importer = StkProImporter(db, organization_id, actor=actor, create_campaigns=create_campaigns,
-                              campaign_status=campaign_status)
+                              campaign_status=campaign_status, aliases=aliases)
     try:
         for path in donor_files:
             await importer.import_donors(read_xlsx(path))

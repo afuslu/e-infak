@@ -277,3 +277,36 @@ async def test_incoming_transfer_api_approve_with_new_donor_and_rules(db_session
     banks = await bank_sync.list_banks(request, db=db_session, _=admin)
     assert {b["key"] for b in banks} >= {"vakifkatilim", "ziraatkatilim", "kuveytturk"}
     assert not any(b["ready"] for b in banks if b["key"] in ("vakifkatilim", "ziraatkatilim", "kuveytturk"))
+
+
+async def test_stkpro_reuses_site_campaigns_links_kurban_and_applies_aliases(db_session):
+    from app.models.kurban import KurbanCampaign
+
+    org, admin = await _setup(db_session)
+    keci = Campaign(organization_id=org.id, slug="keci", title="Keçi", summary="s", target_cents=0,
+                    category=CampaignCategory.KURBAN, status=CampaignStatus.ACTIVE)
+    sut = Campaign(organization_id=org.id, slug="sut-keci", title="Süt Keçisi", summary="s", target_cents=0,
+                   status=CampaignStatus.ACTIVE)
+    db_session.add_all([keci, sut])
+    await db_session.flush()
+    rows = [
+        {"Bağış No": "1", "Makbuz No": "1", "Tür": "KURBAN", "Kampanya Adı": "keçi akika", "Toplam Tutar": 7000,
+         "Bağışçı": "ALİ VELİ", "Bağış Tarihi": "01/06/2026 10:00:00", "Ödeme Şekli": "Nakit (Dernek)", "Durum": "Ödendi"},
+        {"Bağış No": "2", "Makbuz No": "2", "Tür": "KUMANYA", "Kampanya Adı": "keçi süt", "Toplam Tutar": 3000,
+         "Bağışçı": "ALİ VELİ", "Bağış Tarihi": "01/06/2026 11:00:00", "Ödeme Şekli": "Nakit (Dernek)", "Durum": "Ödendi"},
+        {"Bağış No": "3", "Makbuz No": "3", "Tür": "STANDART", "Kampanya Adı": "ESKİŞEHİR CAMİ PROJESİ", "Toplam Tutar": 100,
+         "Bağışçı": "ALİ VELİ", "Bağış Tarihi": "01/06/2026 12:00:00", "Ödeme Şekli": "Nakit (Dernek)", "Durum": "Ödendi"},
+    ]
+    importer = StkProImporter(db_session, org.id, actor=admin, campaign_status=CampaignStatus.PAUSED,
+                              aliases={"keçi süt": "Süt Keçisi"})
+    await importer.import_donations(rows)
+    report = importer.report
+    assert report.campaigns_created == ["ESKİŞEHİR CAMİ PROJESİ"] and report.kurban_campaigns_linked == ["Keçi"]
+    assert report.kurban_shares == 1
+    link = (await db_session.execute(select(KurbanCampaign).where(KurbanCampaign.donation_campaign_id == keci.id))).scalar_one()
+    assert link.organization_id == org.id
+    by_no = {d.payment_details["stkpro_bagis_no"]: d for d in (await db_session.execute(
+        select(Donation).where(Donation.organization_id == org.id))).scalars()}
+    assert by_no["1"].campaign_id == keci.id and by_no["2"].campaign_id == sut.id
+    cami = await db_session.get(Campaign, by_no["3"].campaign_id)
+    assert cami.status == CampaignStatus.PAUSED  # old campaign kept for history, not shown on the site

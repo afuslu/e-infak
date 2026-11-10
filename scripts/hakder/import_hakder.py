@@ -47,6 +47,20 @@ from app.services.templates import fresh_ids  # noqa: E402
 from app.utils.cms import slugify  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
+
+
+def _tr_lower(text: str) -> str:
+    return text.replace("İ", "i").replace("I", "ı").lower()
+
+
+def tr_title(text: str) -> str:
+    """'ESKİŞEHİR KIZ MEDRESE İNŞAATI (KÜLLİYE)' -> 'Eskişehir Kız Medrese İnşaatı (Külliye)' (str.title breaks İ/I)."""
+    def word(w: str) -> str:
+        lead = len(w) - len(w.lstrip("(\"'"))
+        head, rest = w[lead:lead + 1], w[lead + 1:]
+        head = {"i": "İ", "ı": "I"}.get(head, head.upper())
+        return w[:lead] + head + _tr_lower(rest)
+    return " ".join(word(w) for w in _tr_lower(text).split(" "))
 LEGAL_NAME = "Hayıra Açılan Kapı Derneği"
 MAPS = "https://www.google.com/maps/dir/?api=1&destination=39.775261,30.518211"  # Arifiye Mh., Odunpazarı (bagisimi-gel-al map)
 
@@ -180,7 +194,7 @@ class Importer:
             if not campaign:
                 campaign = Campaign(organization_id=org.id, slug=slug, translations={}, checkout_fields_schema=[], gallery_urls=[])
                 self.db.add(campaign)
-            title = card["title"] if not card["title"].isupper() else card["title"].title().replace("(Külliye)", "(KÜLLİYE)")
+            title = card["title"] if not card["title"].isupper() else tr_title(card["title"])
             campaign.title = title
             campaign.summary = first_paragraph(story) or f"{title} için bağışınızı güvenle yapabilirsiniz."
             campaign.story = story or None
