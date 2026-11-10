@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import Link from 'next/link'
 import { tenantHeaders } from '../../../lib/server-api'
 import { getSite } from '../../../lib/public-content'
+import { CmsPageView, loadPage } from '../../../components/site/CmsPageView'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,9 @@ async function getOrgSettings(orgSlug: string): Promise<PublicOrgSettings> {
 }
 
 export default async function AboutPage() {
+  // A published "hakkimizda" page (site builder / CMS) replaces the built-in one.
+  const custom = await loadPage('hakkimizda')
+  if (custom) return <CmsPageView page={custom} />
   const headersList = await headers()
   const orgSlug = headersList.get('x-organization-slug') || ''
   const site = await getSite()

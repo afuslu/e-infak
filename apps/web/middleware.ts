@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { devOrgSlug, isLocalHost, normalizeHost, resolveHostSlug } from './lib/tenant-host'
+import { redirectTarget } from './lib/site-redirects'
 
 function createNonce() {
   const bytes = new Uint8Array(16)
@@ -22,6 +23,19 @@ export async function middleware(request: NextRequest) {
   // The platform console exists only on the platform host, never on an organisation's site.
   if (url.pathname.startsWith('/platform') && orgSlug && !isLocalHost(hostname)) {
     return new NextResponse('Not found', { status: 404 })
+  }
+
+  // Old addresses of the organisation's previous site (Site Builder › Yönlendirmeler): 301.
+  if (orgSlug && (request.method === 'GET' || request.method === 'HEAD')) {
+    const target = await redirectTarget(orgSlug, url.pathname)
+    if (target) {
+      const destination = target.startsWith('/') ? new URL(target, url) : new URL(target)
+      if (target.startsWith('/')) {
+        // keep the query (?tab=…) unless the target sets its own; keep the local ?org= switch
+        if (!destination.search) destination.search = url.search
+      }
+      return NextResponse.redirect(destination, 301)
+    }
   }
 
   // Website language: ?lang=xx switches and is remembered in a cookie.

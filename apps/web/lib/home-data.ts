@@ -8,13 +8,25 @@ const API_URL = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL
 
 async function getCampaigns(orgSlug: string, locale: string): Promise<Campaign[]> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/${withLang('campaigns?status=active', locale)}`, {
+    const res = await fetch(`${API_URL}/api/v1/${withLang('campaigns?status=active&page_size=100', locale)}`, {
       headers: tenantHeaders(orgSlug),
       next: { revalidate: 10 },
     })
     return res.ok ? (await res.json()).items || [] : []
   } catch {
     return []
+  }
+}
+
+/** One campaign by slug (any status the public API shows), or null. */
+export async function getCampaign(slug: string): Promise<Campaign | null> {
+  const orgSlug = await currentOrgSlug()
+  if (!orgSlug) return null
+  try {
+    const res = await fetch(`${API_URL}/api/v1/campaigns/${encodeURIComponent(slug)}`, { headers: tenantHeaders(orgSlug), next: { revalidate: 30 } })
+    return res.ok ? ((await res.json()) as Campaign) : null
+  } catch {
+    return null
   }
 }
 

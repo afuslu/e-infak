@@ -506,7 +506,7 @@ export function News({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides 
   const tpl = tplOf(data)
   const list = data.news.slice(0, Number(o.limit) || 8)
   const card = (n: NewsPostDto) => (
-    <Link key={n.id} href={`/haberler/${n.slug || n.id}`} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+    <Link key={n.id} href={o.links === 'root' && n.slug ? `/${n.slug}` : `/haberler/${n.slug || n.id}`} className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
       <div className="relative aspect-[16/10] overflow-hidden bg-primary-50">
         {n.image_url && <img src={n.image_url} alt="" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />}
         {n.published_at && (
@@ -526,8 +526,8 @@ export function News({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides 
   return (
     <section id="haberler" className={tpl === 'kategori' ? 'bg-stone-50' : ''}>
       <div className={`${container} py-[72px]`}>
-        <SectionHead tpl={tpl} kicker={o.kicker || t('home.news.kicker')} title={o.title || t('home.news.title')} link={{ href: '/haberler', label: t('home.news.all') }} />
-        {list.length > 3
+        <SectionHead tpl={tpl} kicker={o.kicker || t('home.news.kicker')} title={o.title || t('home.news.title')} link={{ href: o.all_url || '/haberler', label: o.all_label || t('home.news.all') }} />
+        {o.layout !== 'grid' && (o.layout === 'carousel' || list.length > 3)
           ? <Carousel label={o.title || t('home.news.title')} items="w-[85%] sm:w-[46%] lg:w-[23.5%]">{list.map(card)}</Carousel>
           : <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{list.map(card)}</div>}
       </div>

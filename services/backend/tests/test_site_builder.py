@@ -1,4 +1,5 @@
 """Site builder: block validation, drafts, publishing, revisions, previews, isolation."""
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -282,3 +283,99 @@ async def test_demo_apply_and_saved_blocks(db_session, http):
     assert "saved" not in kinds
     assert (await http.get(f"{base}/pages/{item['id']}", headers=auth)).status_code == 404
     assert (await http.delete(f"{base}/saved-blocks/{item['id']}", headers=auth)).status_code == 204
+
+
+# --- Hayır Kapısı (HAKDER) blocks, demo and redirects ---------------------------------------
+
+def test_donation_and_site_blocks_validate():
+    camp = str(uuid.uuid4())
+    block = validate_blocks([{"id": "cards-1", "type": "donation_cards", "props": {
+        "source": "tabs", "tabs": [{"label": "Kurban", "tag": "kurban"}], "currency_switcher": True, "columns": 9,
+        "cards": [{"campaign_id": camp, "unit_amount": 2500, "quantity": "hisse", "niyet": "Adak, <b>Akika</b>",
+                   "durations": "12, 18", "shares_total": 20, "shares_taken": 8, "evil": "x"}],
+    }}])[0]
+    card = block["props"]["cards"][0]
+    assert block["props"]["columns"] == 4 and "evil" not in card and card["niyet"] == "Adak, Akika"
+    for bad in (
+        {"id": "cards-2", "type": "donation_cards", "props": {"cards": [{"campaign_id": "not-a-uuid"}]}},
+        {"id": "cards-3", "type": "donation_cards", "props": {"cards": [{"campaign_id": camp, "quantity": "kilo"}]}},
+        {"id": "ann-1", "type": "announcement_bar", "props": {"text": "x", "url": "javascript:alert(1)"}},
+        {"id": "ann-2", "type": "announcement_bar", "props": {}},
+    ):
+        with pytest.raises(BlockError):
+            validate_blocks([bad])
+    # Announcement bar may top a header; currency switcher and cart go into header slots
+    header = validate_blocks([
+        {"id": "ann-3", "type": "announcement_bar", "props": {"text": "Kurban kayıtları başladı", "url": "/bagis?tab=kurban"}},
+        {"id": "row-1", "type": "header_row", "props": {}, "children": [
+            {"id": "slot-1", "type": "header_slot", "children": [{"id": "cur-1", "type": "currency_switcher", "props": {"style": "select"}}]},
+            {"id": "slot-2", "type": "header_slot", "children": []},
+            {"id": "slot-3", "type": "header_slot", "children": [{"id": "cart-1", "type": "cart_button", "props": {}}]},
+        ]},
+    ], "header")
+    assert [b["type"] for b in header] == ["announcement_bar", "header_row"]
+    with pytest.raises(BlockError):
+        validate_blocks([{"id": "cart-2", "type": "cart_button", "props": {}}], "header")
+    # Phone tab bar: footer only
+    validate_blocks([{"id": "tab-1", "type": "mobile_tab_bar", "props": {"items": [{"label": "Sepetim", "url": "/bagis/sepetim", "icon": "cart"}]}}], "footer")
+    with pytest.raises(BlockError):
+        validate_blocks([{"id": "tab-2", "type": "mobile_tab_bar", "props": {"items": [{"label": "x", "url": "/"}]}}], "home")
+
+
+def test_hayir_kapisi_demo_and_legal_pages():
+    from app.services.site import THEME_KITS
+    from app.services.template_hakder import hayir_kapisi
+    from app.services.templates import DEMO_BY_KEY, PAGE_BY_KEY, fresh_ids
+
+    demo = DEMO_BY_KEY["hayir-kapisi"]
+    assert any(k["key"] == demo["kit"] for k in THEME_KITS)
+    for kind in ("home", "header", "footer"):
+        validate_blocks(fresh_ids(demo[kind]), kind)
+    slugs = {PAGE_BY_KEY[k]["slug"] for k in demo["pages"]}
+    assert {"bagis", "mesafeli-bagis-sozlesmesi", "iade-ve-iptal-kosullari", "cerez-politikasi"} <= slugs
+    for key in demo["pages"]:
+        validate_blocks(fresh_ids(PAGE_BY_KEY[key]["blocks"]), "page")
+    # The footer never carries a platform credit; organisation details reach the legal texts
+    built = hayir_kapisi(org={"legal_name": "Hayıra Açılan Kapı Derneği", "phone": "0222 233 30 30"})
+    flat = json.dumps(built, ensure_ascii=False)
+    assert '"show_powered": false' in flat and "STK PRO" not in flat
+    assert "Hayıra Açılan Kapı Derneği" in json.dumps(built["pages"]["mesafeli-bagis-sozlesmesi"], ensure_ascii=False)
+
+
+def test_redirect_table_is_cleaned():
+    from app.services.redirects import RedirectError, clean_redirects
+
+    rows = clean_redirects([{"from": "Zekat-Hesaplama/?x=1", "to": "/zekat-hesapla"},
+                            {"from": "/genel-bagis", "to": "/kampanyalar/genel-bagis"}])
+    assert rows[0] == {"from": "/zekat-hesaplama", "to": "/zekat-hesapla"}
+    for bad in (
+        [{"from": "/", "to": "/x"}],
+        [{"from": "/api/v1/x", "to": "/x"}],
+        [{"from": "/a", "to": "javascript:alert(1)"}],
+        [{"from": "/a", "to": "/a"}],
+        [{"from": "/a", "to": "/b"}, {"from": "/b", "to": "/a"}],
+        [{"from": "/a", "to": "/b"}, {"from": "/a", "to": "/c"}],
+        [{"from": "https://evil.example/a", "to": "/b"}],
+    ):
+        with pytest.raises(RedirectError):
+            clean_redirects(bad)
+
+
+async def test_redirects_api_and_appearance_keeps_them(db_session, http):
+    from app.services.site import SiteAppearance, apply_appearance
+
+    org, auth, host = await _org_with_admin(db_session)
+    other, other_auth, other_host = await _org_with_admin(db_session)
+    base = "/api/v1/admin-features/site-builder/redirects"
+    table = [{"from": "/zekat-hesaplama", "to": "/zekat-hesapla"}, {"from": "/eski", "to": "https://example.org/yeni"}]
+    saved = await http.put(base, json={"redirects": table}, headers=auth)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["redirects"] == table
+    assert (await http.put(base, json={"redirects": [{"from": "/a", "to": "/a"}]}, headers=auth)).status_code == 422
+    public = (await http.get("/api/v1/public/redirects", headers={"Host": host})).json()["redirects"]
+    assert public == {"/zekat-hesaplama": "/zekat-hesapla", "/eski": "https://example.org/yeni"}
+    assert (await http.get("/api/v1/public/redirects", headers={"Host": other_host})).json()["redirects"] == {}
+    # Saving the appearance form does not drop the table
+    await db_session.refresh(org)
+    apply_appearance(org, SiteAppearance(template="klasik"))
+    assert org.site["redirects"] == table
