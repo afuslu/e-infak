@@ -6,11 +6,18 @@ import { Card, Button } from '@e-infak/ui'
 import { apiErrorMessage, v1Send } from '../../../../lib/admin-access'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
 
+const CATEGORIES = [
+  ['genel', 'Genel'], ['egitim', 'Eğitim'], ['saglik', 'Sağlık'], ['gida', 'Gıda'], ['su', 'Su'], ['yetim', 'Yetim'],
+  ['kurban', 'Kurban'], ['insaat', 'İnşaat'], ['zekat', 'Zekât'], ['fitre', 'Fitre'], ['fidye', 'Fidye'],
+  ['sadaka', 'Sadaka'], ['adak', 'Adak'], ['akika', 'Akika'],
+] as const
+
 const CURRENCY_SYMBOL: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€' }
 
 /** Target amount and currency in which the campaign's progress is tracked. */
 function CampaignTargetForm({ campaign, onSaved }: { campaign: Campaign; onSaved: (c: Campaign) => void }) {
   const [currency, setCurrency] = useState(campaign.currency || 'TRY')
+  const [category, setCategory] = useState(campaign.category || 'genel')
   const [target, setTarget] = useState(String((campaign.target_cents || 0) / 100))
   const [translations, setTranslations] = useState<Translations>(campaign.translations || {})
   const [msg, setMsg] = useState('')
@@ -19,7 +26,7 @@ function CampaignTargetForm({ campaign, onSaved }: { campaign: Campaign; onSaved
     setMsg('')
     try {
       const res = await v1Send<Campaign>('patch', `/campaigns/${campaign.id}`, {
-        currency, target_cents: Math.round(Number(target.replace(',', '.')) * 100), translations,
+        currency, category, target_cents: Math.round(Number(target.replace(',', '.')) * 100), translations,
       })
       onSaved(res.data)
       setMsg('Kaydedildi')
@@ -31,6 +38,11 @@ function CampaignTargetForm({ campaign, onSaved }: { campaign: Campaign; onSaved
     <form onSubmit={save} className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
       <label className="text-xs font-bold text-gray-500">Hedef
         <input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} className="mt-1 block w-36 rounded-lg border p-2 text-sm" />
+      </label>
+      <label className="text-xs font-bold text-gray-500">Bağış türü
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 block rounded-lg border bg-white p-2 text-sm">
+          {CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
       </label>
       <label className="text-xs font-bold text-gray-500">Para birimi
         <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="mt-1 block rounded-lg border bg-white p-2 text-sm">
@@ -56,6 +68,7 @@ interface Campaign {
   collected_cents: number
   status: string
   currency?: string
+  category?: string
   gallery_urls?: string[]
   translations?: Record<string, Record<string, string>>
 }

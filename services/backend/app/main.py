@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.middleware.tenant import TenantMiddleware
-from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, site_builder
+from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, site_builder, poverty, receipt_books, data_tools, membership, accounting, inventory
 from app.core.db import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.audit_log import AuditLog
@@ -93,10 +93,18 @@ app.include_router(site_builder.public_router, prefix="/api/v1")
 app.include_router(staff.router, prefix="/api/v1")
 app.include_router(cms.admin_router, prefix="/api/v1")
 app.include_router(cms.public_router, prefix="/api/v1")
+# Before crm: /donors/duplicates must not be captured by /donors/{donor_id}.
+app.include_router(data_tools.router, prefix="/api/v1")
 app.include_router(crm.router, prefix="/api/v1")
 app.include_router(sponsorship.router, prefix="/api/v1")
 app.include_router(sponsorship.public_router, prefix="/api/v1")
 app.include_router(field_ops.router, prefix="/api/v1")
+app.include_router(poverty.router, prefix="/api/v1")
+app.include_router(poverty.public_router, prefix="/api/v1")
+app.include_router(receipt_books.router, prefix="/api/v1")
+app.include_router(membership.router, prefix="/api/v1")
+app.include_router(accounting.router, prefix="/api/v1")
+app.include_router(inventory.router, prefix="/api/v1")
 app.include_router(reports.router, prefix="/api/v1")
 app.include_router(admin_features.router, prefix="/api/v1")
 app.include_router(public_forms.router, prefix="/api/v1")

@@ -98,6 +98,7 @@ async def download_public_receipt_pdf(
         paid_at=donation.paid_at or donation.created_at,
         status={DonationStatus.REFUNDED: "refunded", DonationStatus.CANCELLED: "cancelled"}.get(donation.status, "valid"),
         on_behalf_of=donation.on_behalf_of,
+        official_receipt_no=donation.official_receipt_no,
         verify_base_url=_verify_base_url(request.state.organization),
     )
     return Response(

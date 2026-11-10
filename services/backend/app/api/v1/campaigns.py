@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from typing import List, Optional
 from uuid import UUID
 from app.core.db import get_db
-from app.models.campaign import Campaign, CampaignStatus, CampaignCategory
+from app.models.campaign import HIDDEN_CAMPAIGN_TAG, Campaign, CampaignStatus, CampaignCategory
 from app.schemas.campaign import CampaignCreate, CampaignUpdate, CampaignResponse, CampaignListResponse
 from app.api.deps import Permission, require_permission
 from app.models.user import User, UserRole
@@ -40,7 +40,11 @@ async def list_campaigns(
     organization_id = request.state.organization_id
     
     # Build query
-    query = select(Campaign).where(Campaign.organization_id == organization_id)
+    query = select(Campaign).where(
+        Campaign.organization_id == organization_id,
+        # System items (e.g. member dues) accept payments but are not listed as campaigns.
+        or_(Campaign.tags.is_(None), ~Campaign.tags.any(HIDDEN_CAMPAIGN_TAG)),
+    )
     
     if status:
         query = query.where(Campaign.status == status)

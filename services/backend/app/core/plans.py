@@ -37,11 +37,14 @@ class Feature(str, enum.Enum):
     FOOD_AID = "food_aid"
     BANK_TRANSACTIONS = "bank_transactions"
     REPORTS_ADVANCED = "reports_advanced"
+    MEMBERSHIP = "membership"
     # Orta paket için ek modül, İleri pakette dahil
     RECURRING = "recurring"
     DONATION_VIDEO = "donation_video"
     # Yalnız İleri
     CALL_CENTER = "call_center"
+    POVERTY_TRACKING = "poverty_tracking"
+    ACCOUNTING = "accounting"
     # Her pakette ek modül
     WHATSAPP = "whatsapp"
     SMS_DONATION = "sms_donation"
@@ -69,9 +72,12 @@ FEATURE_LABELS = {
     Feature.FOOD_AID: "Kumanya Dağıtım",
     Feature.BANK_TRANSACTIONS: "Banka Hesap Hareketleri",
     Feature.REPORTS_ADVANCED: "Gelişmiş Raporlar",
+    Feature.MEMBERSHIP: "Üyelik & Aidat",
     Feature.RECURRING: "Otomatik Talimatlar",
     Feature.DONATION_VIDEO: "Bağış Video & SMS Sistemi",
     Feature.CALL_CENTER: "Çağrı Merkezi Entegrasyonu",
+    Feature.POVERTY_TRACKING: "Yoksul Takibi & Puanlama",
+    Feature.ACCOUNTING: "Muhasebe (Kasa-Banka, Çek-Senet, Maaş)",
     Feature.WHATSAPP: "WhatsApp Business Entegrasyonu",
     Feature.SMS_DONATION: "SMS Bağışları Entegrasyonu",
 }
@@ -106,11 +112,14 @@ _ORTA = _BASLANGIC | {
     Feature.FOOD_AID,
     Feature.BANK_TRANSACTIONS,
     Feature.REPORTS_ADVANCED,
+    Feature.MEMBERSHIP,
 }
 _ILERI = _ORTA | {
     Feature.RECURRING,
     Feature.DONATION_VIDEO,
     Feature.CALL_CENTER,
+    Feature.POVERTY_TRACKING,
+    Feature.ACCOUNTING,
 }
 
 PLAN_FEATURES: dict[Plan, frozenset[Feature]] = {

@@ -7,10 +7,12 @@ import { Label, TextArea, TextInput, inputClass, primaryButton } from './FormKit
 
 interface CampaignRef { id: string; title: string }
 interface DonorRef { id: string; full_name: string; phone: string | null; email: string | null }
+interface BookRef { id: string; series: string; branch: string | null; status: string; next_label: string | null; remaining: number; holder_name: string | null }
 
 export interface ManualReceiptResult {
   id: string
   receipt_number: string
+  official_receipt_no?: string | null
 }
 
 function newKey() {
@@ -35,6 +37,8 @@ export function ManualReceiptForm({
   onDone, presetDonor, kurban,
 }: { onDone: (r: ManualReceiptResult) => void; presetDonor?: DonorRef; kurban?: KurbanMode }) {
   const [campaigns, setCampaigns] = useState<CampaignRef[]>([])
+  const [books, setBooks] = useState<BookRef[]>([])
+  const [book, setBook] = useState({ id: '', number: '' })
   const [donorQuery, setDonorQuery] = useState('')
   const [donorResults, setDonorResults] = useState<DonorRef[]>([])
   const [donor, setDonor] = useState<DonorRef | null>(presetDonor || null)
@@ -54,6 +58,10 @@ export function ManualReceiptForm({
     axios.get(`${adminApiBase()}/api/v1/campaigns`, { headers: adminAuthHeaders(), params: { page_size: 100 } })
       .then((res) => setCampaigns(res.data.items || []))
       .catch(() => setCampaigns([]))
+    // Koçan modülü pakette yoksa liste boş kalır ve alan gösterilmez.
+    adminGet<BookRef[]>('/receipt-books')
+      .then((res) => setBooks(res.data.filter((b) => b.status === 'active')))
+      .catch(() => setBooks([]))
   }, [])
 
   useEffect(() => {
@@ -111,7 +119,13 @@ export function ManualReceiptForm({
         note: form.note || null,
         is_anonymous: form.is_anonymous,
         send_receipt: form.send_receipt,
+        receipt_book_id: book.id || null,
+        official_no: book.id && book.number ? Number(book.number) : null,
       })
+      if (book.id) {
+        adminGet<BookRef[]>('/receipt-books').then((r) => setBooks(r.data.filter((b) => b.status === 'active'))).catch(() => {})
+        setBook({ ...book, number: '' })
+      }
       setIdempotencyKey(newKey())
       onDone(res.data)
     } catch (err) {
@@ -212,6 +226,21 @@ export function ManualReceiptForm({
           </Label>
           <TextInput label="Bağış tarihi" type="date" max={today()} value={form.paid_on} onChange={(v) => setForm({ ...form, paid_on: v })} />
         </div>
+        {books.length > 0 && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2">
+              <Label label="Matbu makbuz koçanı" hint={book.id ? `Boş bırakılırsa sıradaki yaprak: ${books.find((b) => b.id === book.id)?.next_label || '—'}` : undefined}>
+                <select className={inputClass} value={book.id} onChange={(e) => setBook({ id: e.target.value, number: '' })}>
+                  <option value="">Koçansız (yalnız sistem makbuzu)</option>
+                  {books.map((b) => (
+                    <option key={b.id} value={b.id}>{b.series} · {b.branch || 'Merkez'}{b.holder_name ? ` · ${b.holder_name}` : ''} ({b.remaining} yaprak)</option>
+                  ))}
+                </select>
+              </Label>
+            </div>
+            {book.id && <TextInput label="Yaprak no" inputMode="numeric" placeholder="otomatik" value={book.number} onChange={(v) => setBook({ ...book, number: v.replace(/\D/g, '') })} />}
+          </div>
+        )}
         {form.payment_method === 'bank_transfer' && (
           <TextInput label="Banka işlem / dekont no" value={form.bank_reference} onChange={(v) => setForm({ ...form, bank_reference: v })} />
         )}

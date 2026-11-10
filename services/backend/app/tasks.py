@@ -167,6 +167,7 @@ async def _fetch_donation_and_send_receipt(donation_id: str):
                 status=getattr(donation.status, "value", donation.status) if getattr(donation.status, "value", donation.status) in {"refunded", "cancelled"} else "valid",
                 verify_base_url=verify_base,
                 on_behalf_of=donation.on_behalf_of,
+                official_receipt_no=donation.official_receipt_no,
             )
             attachment = {
                 "filename": f"makbuz-{donation.receipt_number}.pdf",

@@ -120,6 +120,9 @@ class Donation(Base):
     # Receipt
     issued_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)  # staff who confirmed/issued; NULL = online
     receipt_pdf_url = Column(String(500))
+    # Matbu koçandan kesildiyse: koçan ve yaprak numarası ("A-1234")
+    receipt_book_id = Column(UUID(as_uuid=True), ForeignKey("receipt_books.id", ondelete="SET NULL"), index=True)
+    official_receipt_no = Column(String(40))
     receipt_sent_at = Column(DateTime(timezone=True))
     
     # Message
@@ -162,3 +165,6 @@ Index('idx_donations_org_campaign', Donation.organization_id, Donation.campaign_
 Index('idx_donations_org_donor', Donation.organization_id, Donation.donor_id)
 Index('idx_donors_org_email', Donor.organization_id, Donor.email)
 Index('idx_donors_org_phone', Donor.organization_id, Donor.phone)
+# A paper receipt number is issued once per organisation, even after the donation is cancelled.
+Index('uq_donations_org_official_receipt', Donation.organization_id, Donation.official_receipt_no,
+      unique=True, postgresql_where=Donation.official_receipt_no.isnot(None))

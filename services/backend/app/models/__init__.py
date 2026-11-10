@@ -7,9 +7,15 @@ from app.models.fx import FxRate
 from app.models.credentials import TenantCredential
 from app.models.platform import PlatformAuditLog, PlatformUser
 from app.models.field_ops import (
-    Region, MoneyBox, MoneyBoxCollection, AidPackage, AidRecipient, AidDistribution, TaskTemplate, Task,
+    Region, MoneyBox, MoneyBoxCollection, AidPackage, AidRecipient, AidDistribution, HouseholdMember, TaskTemplate, Task,
 )
 from app.models.campaign import Campaign, CampaignStatus, CampaignCategory
+from app.models.receipt_book import ReceiptBook
+from app.models.membership import Member, MemberDue
+from app.models.accounting import (
+    FinanceAccount, Counterparty, ExpenseCard, LedgerEntry, Cheque, Employee, SalaryAdvance, PayrollItem,
+    Warehouse, StockItem, StockMove, Invoice, InvoiceLine,
+)
 from app.models.donation import Donor, Donation, DonationStatus, PaymentMethod
 from app.models.kurban import KurbanCampaign, KurbanAnimal, KurbanShare
 from app.models.orphan import Orphan, OrphanSponsorship

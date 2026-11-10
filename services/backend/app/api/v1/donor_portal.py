@@ -558,3 +558,99 @@ async def pay_my_installment(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc).split("\n")[-1][:200])
     return await create_checkout_session(request, checkout_payload, db, None)
+
+
+# --- Üye aidatları ----------------------------------------------------------------------
+
+def _membership_enabled(request: Request) -> None:
+    from app.core.plans import Feature, org_has_feature
+
+    organization = getattr(request.state, "organization", None)
+    if organization is not None and not org_has_feature(organization, Feature.MEMBERSHIP):
+        raise HTTPException(status_code=404, detail="Üyelik modülü açık değil")
+
+
+@router.get("/me/member-dues", dependencies=[Depends(_membership_enabled)])
+async def my_member_dues(current_donor: Donor = Depends(get_current_donor), db: AsyncSession = Depends(get_db)):
+    """Bağışçının üyelik kayıtları ve aidatları (açık olanlar önce)."""
+    from app.api.v1.membership import _due_out
+    from app.models.membership import MEMBER_STATUSES, MEMBER_TYPES, Member, MemberDue
+
+    members = (await db.execute(select(Member).where(
+        Member.organization_id == current_donor.organization_id, Member.donor_id == current_donor.id))).scalars().all()
+    result = []
+    for m in members:
+        dues = (await db.execute(select(MemberDue).where(MemberDue.member_id == m.id)
+                                 .order_by(MemberDue.status != "open", MemberDue.due_date.desc()).limit(60))).scalars().all()
+        result.append({
+            "member_no": m.member_no, "member_type_label": MEMBER_TYPES.get(m.member_type, m.member_type),
+            "status_label": MEMBER_STATUSES.get(m.status, m.status), "joined_on": m.joined_on,
+            "dues": [_due_out(d) for d in dues],
+        })
+    return result
+
+
+class DuesPortalPayment(BaseModel):
+    due_ids: List[UUID]
+    payment_method: str = "credit_card"
+    kvkk_accepted: bool = False
+
+
+@router.post("/me/member-dues/pay", dependencies=[Depends(_membership_enabled)])
+async def pay_my_member_dues(
+    request: Request,
+    payload: DuesPortalPayment,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("member-dues-pay", limit=10, window_seconds=300)),
+):
+    """Seçili açık aidatları tek online ödemeyle öder; ödeme onaylanınca aidatlar kapanır."""
+    from uuid import uuid4
+    from app.api.v1.checkout import create_checkout_session
+    from app.api.v1.membership import dues_campaign
+    from app.models.membership import Member, MemberDue
+    from app.schemas.checkout import CheckoutDonor, CheckoutItem, CheckoutSessionCreate
+
+    if payload.payment_method not in ("credit_card", "bank_transfer"):
+        raise HTTPException(status_code=422, detail="Geçersiz ödeme yöntemi")
+    if not payload.due_ids or len(payload.due_ids) > 60:
+        raise HTTPException(status_code=422, detail="1 ile 60 arasında aidat seçin")
+    dues = (await db.execute(
+        select(MemberDue).join(Member, Member.id == MemberDue.member_id).where(
+            MemberDue.id.in_(payload.due_ids),
+            Member.organization_id == current_donor.organization_id,
+            Member.donor_id == current_donor.id,
+        )
+    )).scalars().all()
+    if len(dues) != len(set(payload.due_ids)):
+        raise HTTPException(status_code=404, detail="Aidat bulunamadı")
+    if any(d.status != "open" for d in dues):
+        raise HTTPException(status_code=409, detail="Seçilen aidatlardan bazıları ödemeye açık değil")
+    if not current_donor.email or not current_donor.last_name or not current_donor.phone:
+        raise HTTPException(
+            status_code=409,
+            detail="Ödeme için kayıtlı ad-soyad, e-posta ve telefon gerekir; lütfen kurumla iletişime geçin.",
+        )
+    campaign = await dues_campaign(db, current_donor.organization_id)
+    await db.commit()  # aidat kalemi ilk kez açıldıysa ödeme oturumundan önce kalıcı olsun
+    try:
+        checkout_payload = CheckoutSessionCreate(
+            items=[CheckoutItem(
+                campaign_id=campaign.id,
+                unit_amount_cents=sum(d.amount_cents for d in dues),
+                donor_message="Üye aidatı: " + ", ".join(sorted(d.period for d in dues)),
+                metadata={"member_due_ids": [str(d.id) for d in dues]},
+            )],
+            donor=CheckoutDonor(
+                first_name=current_donor.first_name, last_name=current_donor.last_name, email=current_donor.email,
+                phone=current_donor.phone, is_anonymous=False,
+                allow_email=bool(current_donor.allow_email), allow_sms=bool(current_donor.allow_sms),
+            ),
+            payment_method=payload.payment_method,
+            currency="TRY",
+            idempotency_key=f"dues-{uuid4().hex}",
+            kvkk_accepted=payload.kvkk_accepted,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc).split("\n")[-1][:200])
+    return await create_checkout_session(request, checkout_payload, db, None)

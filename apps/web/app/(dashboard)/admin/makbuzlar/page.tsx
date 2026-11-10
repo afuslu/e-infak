@@ -9,6 +9,7 @@ import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/ad
 interface Donation {
   id: string
   receipt_number: string
+  official_receipt_no?: string | null
   amount_cents: number
   currency: string
   status: string
@@ -21,6 +22,7 @@ interface Donation {
 
 interface ReceiptDetail {
   receipt_number: string
+  official_receipt_no?: string | null
   verification_hash: string
   verify_url: string
   status: string
@@ -110,7 +112,7 @@ export default function AdminReceiptsPage() {
         <Card className="p-6 border border-primary-100 shadow-sm">
           <ManualReceiptForm onDone={(r) => {
             setShowManual(false)
-            setNotice(`${r.receipt_number} numaralı makbuz kesildi`)
+            setNotice(`${r.receipt_number} numaralı makbuz kesildi${r.official_receipt_no ? ` (matbu: ${r.official_receipt_no})` : ''}`)
             loadDonations()
           }} />
         </Card>
@@ -178,7 +180,7 @@ export default function AdminReceiptsPage() {
               <tbody className="divide-y divide-gray-100">
                 {filteredDonations.map((don) => (
                   <tr key={don.id} className="hover:bg-gray-50/50">
-                    <td className="py-3.5 font-bold text-gray-900">{don.receipt_number}</td>
+                    <td className="py-3.5 font-bold text-gray-900">{don.receipt_number}{don.official_receipt_no && <div className="text-[11px] font-semibold text-gray-500">Matbu {don.official_receipt_no}</div>}</td>
                     <td className="py-3.5">
                       {don.donor_name}
                       {don.on_behalf_of && <div className="text-[10px] text-primary-700">Adına: {don.on_behalf_of}</div>}

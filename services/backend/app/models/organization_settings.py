@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
@@ -45,6 +45,12 @@ class OrganizationSettings(Base):
     seo_keywords = Column(String(300))
 
     # Website languages; the first is the default and must be "tr"
+    # Yoksul puanlamasında kişi başı aylık net gelir eşiği (kuruş); boşsa varsayılan kullanılır.
+    poverty_line_cents = Column(Integer)
+    # Üye aidatı: varsayılan tutar / dönem ve tahsilatın yazıldığı sistem bağış kalemi
+    member_dues_cents = Column(Integer)
+    member_dues_period = Column(String(8))  # monthly | yearly
+    member_dues_campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"))
     languages = Column(JSONB, nullable=False, default=lambda: ["tr"], server_default='["tr"]')
 
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

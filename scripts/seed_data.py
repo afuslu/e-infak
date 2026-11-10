@@ -208,14 +208,14 @@ async def seed():
             ),
             Orphan(
                 organization_id=kardeslik.id,
-                first_name="Aisha",
-                last_name="Yusuf",
+                first_name="Yusuf",
+                last_name="Al-Mansur",
                 birth_date=datetime.date(2019, 9, 20),
-                gender="female",
+                gender="male",
                 country="Somali",
                 city="Mogadişu",
-                description="Temel gıda ve barınma yardımı bekleyen yetim kızımız.",
-                photo_url="/images/orphans/aisha.jpg",
+                description="Temel gıda, barınma ve medrese eğitimi yardımı bekleyen yetim kardeşimiz.",
+                photo_url="/images/hicret/h-yetim.png",
                 monthly_sponsor_amount_cents=40000, # 400 TL
                 status=OrphanStatus.WAITING
             )

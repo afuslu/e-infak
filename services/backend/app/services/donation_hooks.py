@@ -14,6 +14,8 @@ from sqlalchemy.orm import selectinload
 
 from app.models.donation import Donation, Donor
 from app.models.kurban import KURBAN_TYPES, KurbanCampaign, KurbanShare
+from app.models.membership import Member, MemberDue
+from app.services.ledger import post_donation, remove_source
 from app.models.sponsorship import Pledge, PledgeInstallment, WellShare
 from app.models.water_well import WaterWell
 
@@ -157,16 +159,45 @@ async def fund_water_well(db: AsyncSession, donation: Donation, donor: Donor) ->
     return well
 
 
+async def pay_member_dues(db: AsyncSession, donation: Donation, metadata: dict) -> list[MemberDue]:
+    """Ödemede adı geçen açık aidatları kapatır; tutar hepsini karşılamıyorsa hiçbirini kapatmaz."""
+    raw = metadata.get("member_due_ids") or []
+    ids = []
+    for value in raw if isinstance(raw, list) else [raw]:
+        try:
+            ids.append(UUID(str(value)))
+        except ValueError:
+            continue
+    if not ids:
+        return []
+    dues = (await db.execute(
+        select(MemberDue).join(Member, Member.id == MemberDue.member_id)
+        .where(MemberDue.id.in_(ids), MemberDue.organization_id == donation.organization_id, MemberDue.status == "open")
+        .order_by(MemberDue.due_date).with_for_update(of=MemberDue)
+    )).scalars().all()
+    if not dues or donation.currency != "TRY" or donation.amount_cents < sum(d.amount_cents for d in dues):
+        donation.payment_details = {**(donation.payment_details or {}), "member_dues_note": "Aidat kapatılamadı (tutar / durum)"}
+        return []
+    now = datetime.now(timezone.utc)
+    for due in dues:
+        due.status, due.donation_id, due.paid_at = "paid", donation.id, now
+    return list(dues)
+
+
 async def on_donation_confirmed(db: AsyncSession, donation: Donation, donor: Donor, *,
                                 quantity: int = 1, metadata: Optional[dict] = None) -> dict:
     metadata = metadata or {}
     shares = await create_kurban_shares(db, donation, donor, quantity, metadata)
     installments = await pay_installments(db, donation, metadata)
     well = await fund_water_well(db, donation, donor)
+    dues = await pay_member_dues(db, donation, metadata)
+    entry = await post_donation(db, donation)
     await db.flush()
     return {
         "kurban_shares": len(shares),
         "installments_paid": len(installments),
+        "member_dues_paid": len(dues),
+        "ledger_account_id": str(entry.account_id) if entry else None,
         "water_well_id": str(well.id) if well else None,
     }
 
@@ -219,5 +250,9 @@ async def on_donation_cancelled(db: AsyncSession, donation: Donation) -> dict:
     well_shares = (await db.execute(select(WellShare).where(WellShare.donation_id == donation.id))).scalars().all()
     for ws in well_shares:
         await db.delete(ws)
+    dues = (await db.execute(select(MemberDue).where(MemberDue.donation_id == donation.id))).scalars().all()
+    for due in dues:
+        due.status, due.donation_id, due.paid_at = "open", None, None
+    await remove_source(db, donation.organization_id, "donation", donation.id)
     await db.flush()
-    return {"kurban_shares_removed": len(shares), "installments_reopened": len(installments)}
+    return {"kurban_shares_removed": len(shares), "installments_reopened": len(installments), "member_dues_reopened": len(dues)}

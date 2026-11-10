@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_admin_route_feature, require_admin_route_permission, require_feature
 from app.core.db import get_db
 from app.core.plans import Feature
-from app.models.campaign import Campaign, CampaignStatus
+from app.models.campaign import Campaign, CampaignCategory, CampaignStatus
 from app.models.donation import Donation, DonationStatus, Donor, PaymentMethod
 from app.models.user import User
 
@@ -30,6 +30,13 @@ ADVANCED = [Depends(require_feature(Feature.REPORTS_ADVANCED))]
 TZ = "Europe/Istanbul"
 MAX_RANGE_DAYS = 366
 MONTH_LABELS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+CATEGORY_LABELS = {
+    CampaignCategory.GENEL: "Genel", CampaignCategory.EGITIM: "Eğitim", CampaignCategory.SAGLIK: "Sağlık",
+    CampaignCategory.GIDA: "Gıda", CampaignCategory.SU: "Su", CampaignCategory.YETIM: "Yetim",
+    CampaignCategory.KURBAN: "Kurban", CampaignCategory.INSAAT: "İnşaat", CampaignCategory.ZEKAT: "Zekât",
+    CampaignCategory.FITRE: "Fitre", CampaignCategory.FIDYE: "Fidye", CampaignCategory.SADAKA: "Sadaka",
+    CampaignCategory.ADAK: "Adak", CampaignCategory.AKIKA: "Akika",
+}
 PAYMENT_METHOD_LABELS = {
     PaymentMethod.CREDIT_CARD: "Kredi Kartı",
     PaymentMethod.BANK_TRANSFER: "Havale / EFT",
@@ -302,7 +309,7 @@ async def campaign_report(
         select(
             Campaign.id, Campaign.title, Campaign.slug, Campaign.status,
             Campaign.target_cents, Campaign.collected_cents,
-            total, func.count(Donation.id), func.count(distinct(Donation.donor_id)),
+            total, func.count(Donation.id), func.count(distinct(Donation.donor_id)), Campaign.category,
         )
         .join(Donation, Donation.campaign_id == Campaign.id)
         .where(Campaign.organization_id == org_id, *_confirmed(org_id, currency), _local_day.between(start, end))
@@ -311,17 +318,36 @@ async def campaign_report(
         .limit(limit)
     )).all()
     grand_total = sum(int(r[6]) for r in rows)
+    by_category = (await db.execute(
+        select(Campaign.category, total, func.count(Donation.id))
+        .join(Donation, Donation.campaign_id == Campaign.id)
+        .where(Campaign.organization_id == org_id, *_confirmed(org_id, currency), _local_day.between(start, end))
+        .group_by(Campaign.category)
+        .order_by(total.desc())
+    )).all()
+    category_total = sum(int(r[1]) for r in by_category)
     return {
         "start": start.isoformat(),
         "end": end.isoformat(),
         "currency": currency,
         "total_cents": grand_total,
+        "categories": [
+            {
+                "category": r[0].value,
+                "label": CATEGORY_LABELS.get(r[0], r[0].value),
+                "total_cents": int(r[1]),
+                "count": int(r[2]),
+                "share_pct": round(int(r[1]) * 100 / category_total, 1) if category_total else 0,
+            }
+            for r in by_category
+        ],
         "campaigns": [
             {
                 "id": str(r[0]),
                 "title": r[1],
                 "slug": r[2],
                 "status": r[3].value if hasattr(r[3], "value") else r[3],
+                "category": r[9].value,
                 "target_cents": int(r[4] or 0),
                 "progress_pct": round(min(100, (r[5] or 0) * 100 / r[4]), 1) if r[4] else None,
                 "total_cents": int(r[6]),

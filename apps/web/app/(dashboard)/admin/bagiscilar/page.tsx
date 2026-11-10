@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
@@ -100,7 +101,11 @@ function DonorsPage() {
           <h1 className="text-3xl font-bold text-gray-900">Bağışçılar</h1>
           <p className="mt-1 text-sm text-gray-500">{list.total.toLocaleString('tr-TR')} kayıt</p>
         </div>
-        {canManage && <button onClick={() => setShowCreate((v) => !v)} className={primaryButton}>{showCreate ? 'Vazgeç' : '+ Yeni Bağışçı'}</button>}
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/bagiscilar/mukerrer" className={ghostButton}>Mükerrer kayıtlar</Link>
+          {canManage && <Link href="/admin/veri-aktarma" className={ghostButton}>Excel'den aktar</Link>}
+          {canManage && <button onClick={() => setShowCreate((v) => !v)} className={primaryButton}>{showCreate ? 'Vazgeç' : '+ Yeni Bağışçı'}</button>}
+        </div>
       </div>
 
       <Notice message={message} />

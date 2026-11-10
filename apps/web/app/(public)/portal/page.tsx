@@ -47,6 +47,14 @@ interface MyPledge {
   installments: PledgeInstallment[]
 }
 
+interface MyMembership {
+  member_no: string
+  member_type_label: string
+  status_label: string
+  joined_on: string | null
+  dues: { id: string; period: string; due_date: string; amount_cents: number; status: string; status_label: string; overdue: boolean; days_overdue: number; paid_at: string | null }[]
+}
+
 interface MyWell {
   id: string
   name: string
@@ -122,6 +130,7 @@ export default function PortalPage() {
   const [donations, setDonations] = useState<Donation[]>([])
   const [shares, setShares] = useState<KurbanShare[]>([])
   const [pledges, setPledges] = useState<MyPledge[]>([])
+  const [memberships, setMemberships] = useState<MyMembership[]>([])
   const [myWells, setMyWells] = useState<MyWell[]>([])
   const [payingId, setPayingId] = useState<string | null>(null)
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
@@ -229,12 +238,14 @@ export default function PortalPage() {
       setPaymentOrders(ordersRes.data)
       setProjects(projectsRes.data)
       // Newer modules: a failure here must not hide the rest of the dashboard.
-      const [pledgesRes, wellsRes] = await Promise.allSettled([
+      const [pledgesRes, wellsRes, duesRes] = await Promise.allSettled([
         axios.get(`${API_BASE}/api/v1/portal/me/pledges`, { headers: authHeaders }),
         axios.get(`${API_BASE}/api/v1/portal/me/water-wells`, { headers: authHeaders }),
+        axios.get(`${API_BASE}/api/v1/portal/me/member-dues`, { headers: authHeaders }),
       ])
       if (pledgesRes.status === 'fulfilled') setPledges(pledgesRes.value.data)
       if (wellsRes.status === 'fulfilled') setMyWells(wellsRes.value.data)
+      if (duesRes.status === 'fulfilled') setMemberships(duesRes.value.data)
     } catch (err) {
       console.error('Failed to load donor dashboard data:', err)
     }
@@ -248,6 +259,27 @@ export default function PortalPage() {
     try {
       const res = await axios.post(`${API_BASE}/api/v1/portal/me/installments/${installmentId}/pay`,
         { payment_method: method, kvkk_accepted: true },
+        { headers: { Authorization: `Bearer ${token}`, ...tenantHeaders() } })
+      if (res.data.redirect_url) {
+        window.location.assign(res.data.redirect_url)
+        return
+      }
+      setSuccessMsg(`Havale bilgileri: ${res.data.bank_name || ''} ${res.data.iban || ''} — Açıklamaya mutlaka "${res.data.transfer_reference}" yazınız.`)
+    } catch (err: any) {
+      setErrorMsg(err?.response?.data?.detail || 'Ödeme başlatılamadı.')
+    } finally {
+      setPayingId(null)
+    }
+  }
+
+  const payDues = async (dueIds: string[], method: 'credit_card' | 'bank_transfer') => {
+    if (!token || !dueIds.length) return
+    if (!window.confirm('Ödeme sayfasına yönlendirileceksiniz. KVKK aydınlatma metnini okuduğunuzu onaylıyor musunuz?')) return
+    setPayingId(dueIds[0])
+    setErrorMsg('')
+    try {
+      const res = await axios.post(`${API_BASE}/api/v1/portal/me/member-dues/pay`,
+        { due_ids: dueIds, payment_method: method, kvkk_accepted: true },
         { headers: { Authorization: `Bearer ${token}`, ...tenantHeaders() } })
       if (res.data.redirect_url) {
         window.location.assign(res.data.redirect_url)
@@ -596,6 +628,43 @@ export default function PortalPage() {
                 </div>
               )}
             </div>
+
+            {/* Association membership dues */}
+            {memberships.length > 0 && (
+              <div className="bg-white border rounded-3xl p-6 shadow-sm space-y-4">
+                <h3 className="font-heading text-lg font-black text-slate-800">Üyeliğim & Aidatlarım</h3>
+                {memberships.map((m) => {
+                  const open = m.dues.filter((d) => d.status === 'open')
+                  const openTotal = open.reduce((sum, d) => sum + d.amount_cents, 0)
+                  return (
+                    <div key={m.member_no} className="border border-slate-100 rounded-2xl p-4 bg-slate-50 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <span className="font-bold text-slate-800">Üye no {m.member_no} · {m.member_type_label}</span>
+                        <span className="text-xs text-slate-500">{m.status_label}{m.joined_on ? ` · ${new Date(m.joined_on).getFullYear()} yılından beri` : ''}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {m.dues.map((d) => (
+                          <span key={d.id} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${d.status === 'paid' ? 'bg-green-100 text-green-700' : d.overdue ? 'bg-red-100 text-red-700' : d.status === 'open' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {d.period} · {(d.amount_cents / 100).toLocaleString('tr-TR')} ₺ · {d.overdue ? 'gecikmiş' : d.status_label}
+                          </span>
+                        ))}
+                      </div>
+                      {open.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white p-3 text-xs">
+                          <span>Açık aidat: <b>{(openTotal / 100).toLocaleString('tr-TR')} ₺</b> ({open.length} dönem)</span>
+                          <span className="flex gap-2">
+                            <button disabled={payingId === open[0].id} onClick={() => payDues(open.map((d) => d.id), 'credit_card')}
+                              className="rounded-lg bg-slate-900 px-3 py-1.5 font-bold text-white disabled:opacity-50">Kartla öde</button>
+                            <button disabled={payingId === open[0].id} onClick={() => payDues(open.map((d) => d.id), 'bank_transfer')}
+                              className="rounded-lg border px-3 py-1.5 font-bold">Havale</button>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
 
             {/* Sponsorships / pledges with installments */}
             {pledges.length > 0 && (

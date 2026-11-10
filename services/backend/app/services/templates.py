@@ -196,8 +196,8 @@ _section("mission-3", "Misyon / vizyon / değerler", "Hakkımızda", "Üç kartt
                                           card("Vizyonumuz", "Kimsenin temel ihtiyaçlardan mahrum kalmadığı bir dünya için çalışmak.", "🌍"),
                                           card("Değerlerimiz", "Şeffaflık, emanet bilinci, gönüllülük ve hesap verebilirlik.", "🤝")])], tone="soft")])
 _section("story", "Hikaye (metin + görsel)", "Hakkımızda", "Bir projenin hikayesi; görsel sağda.",
-         [B("image_text", image_url="/demo/water.svg", image_side="right", kicker="SAHADAN", title="Ayşe'nin köyüne su geldi",
-            text="Kuyumuz açılmadan önce Ayşe her gün 6 kilometre yürüyerek su taşıyordu. Bugün okuluna zamanında gidiyor.\n\n**Bir kuyu, ortalama 400 kişiye** temiz su sağlıyor.",
+         [B("image_text", image_url="/demo/water.svg", image_side="right", kicker="SAHADAN", title="Ömer'in köyüne su geldi",
+            text="Kuyumuz açılmadan önce Ömer her gün 6 kilometre yürüyerek su taşıyordu. Bugün medresesine zamanında gidiyor.\n\n**Bir kuyu, ortalama 400 kişiye** temiz su sağlıyor.",
             button_label="Su kuyusu kampanyası", button_url="/kampanyalar")])
 _section("text-center", "Ortalı metin", "Hakkımızda", "Başlık ve kısa paragraf, dar sütunda.",
          [heading("Emanetinize sahip çıkıyoruz", kicker="ŞEFFAFLIK"),
@@ -220,7 +220,7 @@ _section("trust", "Güven bandı", "Etki & güven", "Adres, iletişim ve güvenl
 _section("testimonials", "Bağışçı yorumları", "Etki & güven", "Üç bağışçı yorumu, kartlarda.",
          [section([heading("Bağışçılarımız ne diyor?", kicker="YORUMLAR"),
                    card_columns("1-1-1", [card("Mehmet K.", "“Makbuzum anında geldi, projenin fotoğraflarını da gördüm. İçim rahat.”", "⭐⭐⭐⭐⭐"),
-                                          card("Zeynep A.", "“Her ay düzenli bağış yapıyorum; raporlar çok açık ve anlaşılır.”", "⭐⭐⭐⭐⭐"),
+                                          card("Mustafa A.", "“Her ay düzenli bağış yapıyorum; raporlar çok açık ve anlaşılır.”", "⭐⭐⭐⭐⭐"),
                                           card("Ahmet Y.", "“Kurban vekaletimi zahmetsizce verdim, kesim videosu da geldi.”", "⭐⭐⭐⭐⭐")])], tone="soft")])
 
 # Çağrı

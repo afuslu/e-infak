@@ -81,6 +81,7 @@ def build_receipt_pdf(
     status: str,
     verify_base_url: str,
     on_behalf_of: str | None = None,
+    official_receipt_no: str | None = None,
 ) -> bytes:
     """Tek sayfalık resmi görünümlü bağış makbuzu üretir ve PDF bayt dizisi döner."""
     buffer = BytesIO()
@@ -140,6 +141,7 @@ def build_receipt_pdf(
     # --- Detay tablosu ---
     rows = [
         ("Makbuz No", receipt_number),
+        *([("Koçan / Yaprak No", official_receipt_no)] if official_receipt_no else []),
         ("Bağışçı", donor_name or "Anonim Bağışçı"),
         *([("Adına Bağış", on_behalf_of[:80])] if on_behalf_of else []),
         ("Kampanya", (getattr(campaign, "title", None) or "-")[:80]),

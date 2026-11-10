@@ -29,6 +29,7 @@ from app.utils.content import sanitize_public_text
 from app.services.donation_hooks import DonationEffectsLocked, on_donation_cancelled
 from app.services.offline_donation import record_offline_donation
 from app.services.fx import remove_from_campaign
+from app.services.receipt_books import take_number
 
 router = APIRouter(
     prefix="/admin-features",
@@ -40,7 +41,7 @@ TZ = ZoneInfo("Europe/Istanbul")
 HOME_COUNTRIES = {"türkiye", "turkiye", "turkey", "tr"}
 MANUAL_PROVIDER = "manual"
 # Staff-entered sources that may be cancelled (online payments go through refunds)
-OFFLINE_PROVIDERS = {MANUAL_PROVIDER, "money_box"}
+OFFLINE_PROVIDERS = {MANUAL_PROVIDER, "money_box", "import"}
 METHOD_LABELS = {
     PaymentMethod.CREDIT_CARD: "Kredi Kartı",
     PaymentMethod.BANK_TRANSFER: "Havale / EFT",
@@ -380,6 +381,7 @@ def _donation_row(d: Donation, names: dict) -> dict:
     return {
         "id": str(d.id),
         "receipt_number": d.receipt_number,
+        "official_receipt_no": d.official_receipt_no,
         "campaign_id": str(d.campaign_id),
         "campaign_title": d.campaign.title if d.campaign else None,
         "amount_cents": d.amount_cents,
@@ -464,6 +466,7 @@ async def search_donations(
         like = f"%{q.strip()}%"
         conditions.append(or_(
             Donation.receipt_number.ilike(like),
+            Donation.official_receipt_no.ilike(like),
             Donation.on_behalf_of.ilike(like),
             Donor.first_name.ilike(like), Donor.last_name.ilike(like), Donor.company_name.ilike(like),
             Donor.email.ilike(like), Donor.phone.ilike(like),
@@ -527,6 +530,9 @@ class ManualDonationIn(BaseModel):
     note: Optional[str] = Field(default=None, max_length=1000)
     is_anonymous: bool = False
     send_receipt: bool = True
+    # Matbu koçan: numara boşsa sıradaki yaprak verilir
+    receipt_book_id: Optional[UUID] = None
+    official_no: Optional[int] = Field(default=None, ge=1, le=99_999_999)
     # Module details, e.g. {"kurban_type": "adak", "kurban_names": [...]} or {"pledge_installment_id": "..."}
     quantity: int = Field(default=1, ge=1, le=700)
     metadata: dict = Field(default_factory=dict)
@@ -590,6 +596,12 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
             db.add(donor)
             await db.flush()
 
+    book, official_no = None, None
+    if payload.receipt_book_id:
+        book, official_no = await take_number(db, org_id, payload.receipt_book_id, payload.official_no)
+    elif payload.official_no:
+        raise HTTPException(status_code=422, detail="Yaprak numarası için koçan seçin")
+
     now = datetime.now(timezone.utc)
     paid_at = datetime.combine(payload.paid_on, time(12, 0), TZ) if payload.paid_on else now
     method = PaymentMethod.CASH if payload.payment_method == "cash" else PaymentMethod.BANK_TRANSFER
@@ -603,8 +615,10 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
         transaction_id=payload.bank_reference, send_receipt=payload.send_receipt,
         quantity=payload.quantity, metadata=payload.metadata,
     )
+    if book:
+        donation.receipt_book_id, donation.official_receipt_no = book.id, official_no
     _audit(db, org_id, current_user, "makbuz_elle_kes", {
-        "donation_id": str(donation.id), "receipt_number": donation.receipt_number,
+        "donation_id": str(donation.id), "receipt_number": donation.receipt_number, "official_receipt_no": official_no,
         "amount_cents": payload.amount_cents, "currency": payload.currency, "method": payload.payment_method,
         **module_effects,
     })

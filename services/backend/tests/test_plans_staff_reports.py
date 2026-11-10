@@ -17,7 +17,7 @@ from app.api.deps import (
 )
 from app.api.v1 import reports, staff
 from app.core.plans import Feature, Plan, org_features, org_user_limit
-from app.models.campaign import Campaign
+from app.models.campaign import Campaign, CampaignCategory
 from app.models.donation import Donation, DonationStatus, Donor, PaymentMethod
 from app.models.organization import Organization
 from app.models.staff import StaffRole
@@ -193,7 +193,8 @@ async def test_reports_aggregate_real_confirmed_donations(db_session):
     org = await _org(db_session)
     clerk = await _user(db_session, org, role=UserRole.MUHASEBE)
     water = Campaign(organization_id=org.id, slug="su", title="Su Kuyusu", summary="s", target_cents=1_000_000, collected_cents=500_000)
-    school = Campaign(organization_id=org.id, slug="okul", title="Okul", summary="s", target_cents=0)
+    school = Campaign(organization_id=org.id, slug="okul", title="Okul", summary="s", target_cents=0,
+                      category=CampaignCategory.FITRE)
     ali = Donor(organization_id=org.id, first_name="Ali", country="Türkiye", city="İstanbul")
     eve = Donor(organization_id=org.id, first_name="Eve", country="Almanya", city="Köln")
     db_session.add_all([water, school, ali, eve])
@@ -225,6 +226,7 @@ async def test_reports_aggregate_real_confirmed_donations(db_session):
     assert campaigns["campaigns"][0]["total_cents"] == 27_000
     assert campaigns["campaigns"][0]["progress_pct"] == 50.0
     assert campaigns["campaigns"][1]["progress_pct"] is None
+    assert [(t["label"], t["total_cents"]) for t in campaigns["categories"]] == [("Genel", 27_000), ("Fitre", 5_000)]
 
     staff_rows = await reports.staff_receipt_report(request, start, end, "TRY", db_session)
     by_name = {r["name"]: r for r in staff_rows["staff"]}

@@ -11,6 +11,12 @@ const categories = [
   ['Su', 'su'],
   ['Yetim', 'yetim'],
   ['Kurban', 'kurban'],
+  ['Zekât', 'zekat'],
+  ['Fitre', 'fitre'],
+  ['Fidye', 'fidye'],
+  ['Sadaka', 'sadaka'],
+  ['Adak', 'adak'],
+  ['Akika', 'akika'],
 ]
 
 export default function CampaignsPage() {

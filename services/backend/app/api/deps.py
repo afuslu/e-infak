@@ -178,7 +178,10 @@ async def require_admin_route_permission(
             required = Permission.ADMIN_READ
         elif any(part in path for part in ("/users", "/departments", "/staff-roles")):
             required = Permission.USER_MANAGE
-        elif any(part in path for part in ("/finance", "/payments", "/reconciliation", "/bank-statements", "/zakat")):
+        elif any(part in path for part in (
+            "/finance", "/payments", "/reconciliation", "/bank-statements", "/zakat", "/receipt-books", "/member-dues",
+            "/admin-features/acc/",
+        )):
             required = Permission.FINANCE_MANAGE
         elif any(part in path for part in ("/donations",)):
             required = Permission.FINANCE_MANAGE
@@ -187,11 +190,11 @@ async def require_admin_route_permission(
             "/site-builder",
         )):
             required = Permission.CONTENT_MANAGE
-        elif any(part in path for part in ("/donors", "/sms", "/broadcast", "/volunteers", "/pledges")):
+        elif any(part in path for part in ("/donors", "/sms", "/broadcast", "/volunteers", "/pledges", "/members")):
             required = Permission.DONOR_MANAGE
         elif any(part in path for part in (
             "/kurban", "/students", "/water-wells", "/orphans", "/beneficiaries",
-            "/regions", "/money-boxes", "/aid-",
+            "/regions", "/money-boxes", "/aid-", "/households",
         )):
             required = Permission.OPERATIONS_MANAGE
         else:
@@ -225,6 +228,12 @@ ADMIN_ROUTE_FEATURES: tuple[tuple[str, Feature], ...] = (
     ("/pledges", Feature.SPONSORSHIP),
     ("/money-boxes", Feature.MONEY_BOX),
     ("/aid-", Feature.FOOD_AID),
+    ("/households", Feature.POVERTY_TRACKING),
+    ("/receipt-books", Feature.RECEIPTS),
+    ("/donations/import", Feature.RECEIPTS),
+    ("/members", Feature.MEMBERSHIP),
+    ("/member-dues", Feature.MEMBERSHIP),
+    ("/admin-features/acc/", Feature.ACCOUNTING),
     ("/regions", Feature.MONEY_BOX),
     ("/tasks", Feature.TASKS),
     ("/staff-roles", Feature.ROLES),

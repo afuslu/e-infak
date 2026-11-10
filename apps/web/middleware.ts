@@ -46,7 +46,8 @@ export async function middleware(request: NextRequest) {
     // Site builder canvas (same origin), CMS videos (YouTube privacy mode / Vimeo) and the Tawk.to chat widget
     "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://*.tawk.to",
     // 'strict-dynamic' lets the nonce'd app bundle inject the Tawk.to loader
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    // `next dev` evaluates modules with eval (React Refresh); production never needs it.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"}`,
     "connect-src 'self' https://vpos.ziraatpay.com.tr https://test.ziraatpay.com.tr https://*.tawk.to wss://*.tawk.to",
     "form-action 'self' https://vpos.ziraatpay.com.tr https://test.ziraatpay.com.tr",
   ].join('; ')

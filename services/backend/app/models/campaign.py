@@ -7,6 +7,10 @@ import enum
 from app.core.db import Base
 
 
+# Ödeme alan ama sitede kampanya olarak listelenmeyen sistem kalemleri (ör. üye aidatı)
+HIDDEN_CAMPAIGN_TAG = "sistem:gizli"
+
+
 class CampaignStatus(str, enum.Enum):
     DRAFT = "draft"
     ACTIVE = "active"
@@ -24,6 +28,13 @@ class CampaignCategory(str, enum.Enum):
     KURBAN = "kurban"
     INSAAT = "insaat"
     GENEL = "genel"
+    # Dinî bağış türleri (raporlarda ayrı izlenir)
+    ZEKAT = "zekat"
+    FITRE = "fitre"
+    FIDYE = "fidye"
+    SADAKA = "sadaka"
+    ADAK = "adak"
+    AKIKA = "akika"
 
 
 class Campaign(Base):

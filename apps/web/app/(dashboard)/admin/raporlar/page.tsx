@@ -241,7 +241,14 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
       c.title, c.count, c.donor_count, money(c.average_cents), `%${c.share_pct}`,
       c.progress_pct === null ? '—' : `%${c.progress_pct}`, money(c.total_cents),
     ])
+    const typeRows = (data.categories || []).map((t: any) => [t.label, t.count, `%${t.share_pct}`, money(t.total_cents)])
     return (
+      <div className="space-y-4">
+      <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
+        <h2 className="text-sm font-bold text-gray-900">Bağış türlerine göre</h2>
+        <ExportButton name={`bagis-turleri-${data.start}-${data.end}.csv`} header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
+        <Table header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
+      </Card>
       <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
         <Stat label="Aralık toplamı" value={money(data.total_cents)} />
         <h2 className="text-sm font-bold text-gray-900">En çok bağış alan kampanyalar</h2>
@@ -249,6 +256,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
         <ExportButton name={`kampanya-raporu-${data.start}-${data.end}.csv`} header={header} rows={rows} />
         <Table header={header} rows={rows} />
       </Card>
+      </div>
     )
   }
 

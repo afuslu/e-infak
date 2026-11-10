@@ -20,6 +20,7 @@ from app.models.field_ops import (
 from app.models.staff import Department
 from app.models.user import User
 from app.services.offline_donation import record_offline_donation
+from app.services.poverty import rescore
 from app.utils.content import sanitize_public_text
 
 router = APIRouter(
@@ -471,7 +472,8 @@ async def list_aid_recipients(
         select(AidRecipient, Region.name, delivered.c.last, delivered.c.total)
         .outerjoin(Region, Region.id == AidRecipient.region_id)
         .outerjoin(delivered, delivered.c.recipient_id == AidRecipient.id)
-        .where(AidRecipient.organization_id == org_id)
+        # Web başvuruları ve reddedilen haneler incelemeden önce kumanyada görünmez.
+        .where(AidRecipient.organization_id == org_id, AidRecipient.review_status == "approved")
     )
     if region_id:
         query = query.where(AidRecipient.region_id == region_id)
@@ -493,6 +495,8 @@ async def create_aid_recipient(request: Request, payload: AidRecipientIn, db: As
         raise HTTPException(status_code=409, detail="Bu kimlik numarasıyla kayıtlı bir hane var")
     r = AidRecipient(organization_id=org_id, **payload.model_dump())
     db.add(r)
+    await db.flush()
+    await rescore(db, r)
     await db.commit()
     return _recipient_out(r)
 
@@ -509,6 +513,7 @@ async def update_aid_recipient(request: Request, recipient_id: UUID, payload: Ai
         data.pop("national_id")  # keep the stored id when the masked field is left blank
     for key, value in data.items():
         setattr(r, key, value)
+    await rescore(db, r)
     await db.commit()
     return _recipient_out(r)
 
@@ -527,9 +532,10 @@ async def plan_distributions(request: Request, payload: DistributionPlan, db: As
     org_id = _org_id(request)
     package = await _owned(db, AidPackage, org_id, payload.package_id, "Paket")
     recipients = (await db.execute(select(AidRecipient).where(
-        AidRecipient.organization_id == org_id, AidRecipient.id.in_(payload.recipient_ids)))).scalars().all()
+        AidRecipient.organization_id == org_id, AidRecipient.id.in_(payload.recipient_ids),
+        AidRecipient.review_status == "approved"))).scalars().all()
     if len(recipients) != len(set(payload.recipient_ids)):
-        raise HTTPException(status_code=404, detail="Seçilen hanelerden bazıları bulunamadı")
+        raise HTTPException(status_code=404, detail="Seçilen hanelerden bazıları bulunamadı veya onaylı değil")
     for r in recipients:
         db.add(AidDistribution(
             organization_id=org_id, package_id=package.id, recipient_id=r.id, region_id=r.region_id,
