@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0B1437"/><stop offset="1" stop-color="#27306B"/></linearGradient>
+    <radialGradient id="g" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FDE68A" stop-opacity=".9"/><stop offset="1" stop-color="#FDE68A" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#n)"/>
+  <g fill="#fff" opacity=".85"><circle cx="160" cy="120" r="2.5"/><circle cx="420" cy="220" r="2"/><circle cx="640" cy="90" r="2.5"/><circle cx="860" cy="260" r="2"/><circle cx="300" cy="420" r="2"/><circle cx="560" cy="520" r="2.2"/><circle cx="1500" cy="420" r="2.4"/><circle cx="1040" cy="90" r="2"/></g>
+  <path d="M1330 110 A120 120 0 1 0 1450 300 A96 96 0 1 1 1330 110Z" fill="#FDE68A"/>
+  <g stroke="#C9A227" stroke-width="4">
+    <path d="M960 0 V250"/><path d="M1140 0 V380"/><path d="M1310 0 V520"/>
+  </g>
+  <g transform="translate(960 250)"><circle cx="0" cy="80" r="130" fill="url(#g)"/><path d="M-36 20 H36 L50 60 V130 L36 160 H-36 L-50 130 V60Z" fill="#C9A227"/><path d="M-26 40 H26 L36 66 V124 L26 146 H-26 L-36 124 V66Z" fill="#FDE68A"/><path d="M-36 20 L0 -14 L36 20Z" fill="#8A6D12"/><rect x="-18" y="160" width="36" height="14" fill="#8A6D12"/></g>
+  <g transform="translate(1140 380) scale(1.25)"><circle cx="0" cy="80" r="130" fill="url(#g)"/><path d="M-36 20 H36 L50 60 V130 L36 160 H-36 L-50 130 V60Z" fill="#B45309"/><path d="M-26 40 H26 L36 66 V124 L26 146 H-26 L-36 124 V66Z" fill="#FCD34D"/><path d="M-36 20 L0 -14 L36 20Z" fill="#7C2D12"/><rect x="-18" y="160" width="36" height="14" fill="#7C2D12"/></g>
+  <g transform="translate(1310 520) scale(.9)"><circle cx="0" cy="80" r="130" fill="url(#g)"/><path d="M-36 20 H36 L50 60 V130 L36 160 H-36 L-50 130 V60Z" fill="#C9A227"/><path d="M-26 40 H26 L36 66 V124 L26 146 H-26 L-36 124 V66Z" fill="#FDE68A"/><path d="M-36 20 L0 -14 L36 20Z" fill="#8A6D12"/><rect x="-18" y="160" width="36" height="14" fill="#8A6D12"/></g>
+  <g fill="#070C24"><rect y="800" width="1600" height="100"/><path d="M0 800 V760 A70 60 0 0 1 140 760 V800Z"/><rect x="180" y="640" width="26" height="160"/><path d="M176 640 L193 590 L210 640Z"/><path d="M240 800 V730 A120 100 0 0 1 480 730 V800Z"/><rect x="520" y="660" width="24" height="140"/><path d="M516 660 L532 615 L548 660Z"/><path d="M580 800 V770 A60 50 0 0 1 700 770 V800Z"/></g>
+</svg>

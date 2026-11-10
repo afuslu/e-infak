@@ -379,3 +379,33 @@ async def test_redirects_api_and_appearance_keeps_them(db_session, http):
     await db_session.refresh(org)
     apply_appearance(org, SiteAppearance(template="klasik"))
     assert org.site["redirects"] == table
+
+
+def test_extra_blocks_and_wider_library():
+    from app.services.templates import DEMOS, PAGE_BY_KEY, SECTIONS
+    blocks = validate_blocks([
+        {"id": "cd-1234", "type": "countdown", "props": {"title": "Kurban", "target": "2027-05-15T18:00:00+03:00", "tone": "dark"}},
+        {"id": "ib-1234", "type": "bank_accounts", "props": {"items": [{"bank": "Banka <b>A</b>", "iban": "TR00 0000", "currency": "USD", "x": 1}]}},
+        {"id": "ct-1234", "type": "counters", "props": {"look": "band", "items": [{"value": "1250", "suffix": "+", "label": "Kuyu"}]}},
+        {"id": "ga-1234", "type": "image_gallery", "props": {"columns": 99, "items": [{"image_url": "/demo/water.svg"}]}},
+        {"id": "tb-1234", "type": "tabs", "props": {"look": "accordion", "items": [{"label": "A", "text": "metin <script>x</script>"}]}},
+    ])
+    assert blocks[1]["props"]["items"] == [{"bank": "Banka A", "iban": "TR00 0000", "currency": "USD"}]
+    assert blocks[2]["props"]["items"][0]["value"] == 1250 and blocks[3]["props"]["columns"] == 6
+    assert "script" not in blocks[4]["props"]["items"][0]["text"]
+    for bad in (
+        [{"id": "cd-1234", "type": "countdown", "props": {"title": "x"}}],                       # needs a date
+        [{"id": "cd-1234", "type": "countdown", "props": {"target": "yarın"}}],
+        [{"id": "ga-1234", "type": "image_gallery", "props": {"items": [{"image_url": "http://x/y.png"}]}}],
+        [{"id": "mq-1234", "type": "marquee", "props": {"tone": "neon", "items": [{"text": "a"}]}}],
+        [{"id": "lg-1234", "type": "logos", "props": {"items": [{"name": "A", "url": "javascript:alert(1)"}]}}],
+    ):
+        with pytest.raises(BlockError):
+            validate_blocks(bad)
+    # A pop-up belongs to a page, never to the shared header or footer
+    with pytest.raises(BlockError):
+        validate_blocks([{"id": "pp-1234", "type": "popup", "props": {"title": "x"}}], "footer")
+    groups = {s["group"] for s in SECTIONS}
+    assert {"Slider", "Özellikler", "Hayır Kapısı"} <= groups
+    assert sum(s["group"] == "Slider" for s in SECTIONS) >= 8 and len(SECTIONS) >= 75 and len(DEMOS) >= 11
+    assert all(page in PAGE_BY_KEY for demo in DEMOS for page in demo["pages"])

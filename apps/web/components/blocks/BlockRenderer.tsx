@@ -13,6 +13,7 @@ import { LanguageSwitcher } from '../site/LanguageSwitcher'
 import { CountUp } from '../site/Carousel'
 import { AnnouncementBar, CartButton, ContactFormBlock, CurrencySwitcher, DonationCards, MobileTabBar, type DonationCardView } from './DonationBlocks'
 import { defaultFooterLinks, defaultHeaderLinks } from '../../lib/default-links'
+import { extraContent } from './ExtraBlocks'
 
 /**
  * Draws a block tree. Shared by the public site and the editor preview; the editor
@@ -53,6 +54,11 @@ const BASE_CSS = `
 @keyframes bzoom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
 /* Blocks stacked in a column get a gap; a block's own margin (Stil) still wins. */
 .b-col>*+*{margin-top:16px}
+/* Endless horizontal run (marquee, logo strip): the content is drawn twice and slides by half. */
+.bmq{display:flex;width:max-content;animation:bmq var(--bmq,35s) linear infinite}
+.bmq:hover{animation-play-state:paused}
+@keyframes bmq{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.bmq{animation:none;flex-wrap:wrap;width:auto}}
 .hrow{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto);align-items:center;column-gap:24px;min-height:var(--hrow-h,76px);transition:min-height .2s}
 .hrow>*{min-width:0}
 .hslot{display:flex;align-items:center;gap:16px;min-width:0}
@@ -69,7 +75,7 @@ const BASE_CSS = `
 const FULL_BLEED = new Set([
   'hero', 'slider', 'stats', 'zakat_band', 'cta_band', 'trust', 'banner', 'header_row',
   'featured_campaign', 'steps', 'gallery_strip', 'testimonials', 'campaigns', 'news', 'categories',
-  'announcement_bar', 'contact_form', 'mobile_tab_bar',
+  'announcement_bar', 'contact_form', 'mobile_tab_bar', 'countdown', 'marquee', 'popup',
 ])
 
 const list = (value?: string) => String(value || '').split(',').map((v) => v.trim()).filter(Boolean)
@@ -643,8 +649,11 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           <hr className="mx-auto border-0 border-t" style={{ width: `${o.width ?? 100}%`, borderTopStyle: o.line || 'solid', borderTopColor: o.color || 'rgba(0,0,0,.12)' }} />
         </div>
       )
-    default:
+    default: {
+      const extra = extraContent(block, o, { locale: data.locale, editing: opts.editing, container: depth === 0 ? container : '' })
+      if (extra !== undefined) return extra
       return opts.editing ? <p className="p-4 text-center text-sm text-red-500">Bilinmeyen blok: {block.type}</p> : null
+    }
   }
 }
 
@@ -653,14 +662,15 @@ export function renderBlock(block: Block, opts: RenderOptions, depth = 0): React
   if (!opts.editing && advanced.langs && advanced.langs !== opts.data.locale) return null
   const o = opts.data.locale !== 'tr' ? localizedProps(block, opts.data.locale) : block.props
   const hasOverlay = Object.values(block.style || {}).some((s) => s && s.overlay_color)
-  const padded = !FULL_BLEED.has(block.type) && !['column', 'spacer', 'divider'].includes(block.type) && depth === 0
+  const bleed = FULL_BLEED.has(block.type) || (block.type === 'counters' && o.look === 'band')
+  const padded = !bleed && !['column', 'spacer', 'divider'].includes(block.type) && depth === 0
   const tone = (block.type === 'section' || block.type === 'header_row') ? TONE[o.tone || (block.type === 'header_row' ? 'light' : '')] : ''
   const row = block.type === 'header_row'
     ? `${o.border !== false ? ' border-b border-black/5' : ''}${o.sticky && !opts.editing ? ` hrow-sticky${o.shrink !== false ? ' is-shrink' : ''}` : ''}`
     : ''
   let node: ReactNode = (
     <div key={block.id} id={advanced.anchor || undefined} aria-label={advanced.aria_label || undefined}
-      className={`b-block b-${block.id}${padded ? ' b-pad' : ''}${FULL_BLEED.has(block.type) && block.type !== 'header_row' ? ' b-fill' : ''}${tone ? ` ${tone}` : ''}${row}${advanced.css_class ? ` ${advanced.css_class}` : ''}`}>
+      className={`b-block b-${block.id}${padded ? ' b-pad' : ''}${bleed && block.type !== 'header_row' ? ' b-fill' : ''}${tone ? ` ${tone}` : ''}${row}${advanced.css_class ? ` ${advanced.css_class}` : ''}`}>
       {hasOverlay && <div className="b-overlay" aria-hidden />}
       <div className="b-inner">{content(block, o, opts, depth)}</div>
     </div>

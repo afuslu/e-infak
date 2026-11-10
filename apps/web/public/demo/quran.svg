@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs><radialGradient id="q" cx=".72" cy=".45" r=".7"><stop offset="0" stop-color="#FFF7D6"/><stop offset=".5" stop-color="#E9D8A6"/><stop offset="1" stop-color="#14532D"/></radialGradient></defs>
+  <rect width="1600" height="900" fill="#14532D"/><rect width="1600" height="900" fill="url(#q)" opacity=".85"/>
+  <g stroke="#C9A227" stroke-width="3" opacity=".5" fill="none"><circle cx="1150" cy="400" r="250"/><circle cx="1150" cy="400" r="320"/><path d="M1150 60 L1230 320 L1490 400 L1230 480 L1150 740 L1070 480 L810 400 L1070 320Z"/></g>
+  <g transform="translate(1150 470)">
+    <path d="M-190 170 L-60 -10 M190 170 L60 -10" stroke="#6B3A1F" stroke-width="26" stroke-linecap="round"/>
+    <path d="M-170 150 L170 150" stroke="#4A2614" stroke-width="18" stroke-linecap="round"/>
+    <path d="M0 -40 C-90 -90 -180 -80 -240 -50 V40 C-180 10 -90 0 0 50Z" fill="#fff" stroke="#14532D" stroke-width="6"/>
+    <path d="M0 -40 C90 -90 180 -80 240 -50 V40 C180 10 90 0 0 50Z" fill="#fff" stroke="#14532D" stroke-width="6"/>
+    <path d="M-40 -22 C-100 -46 -160 -40 -200 -24 M-40 4 C-100 -20 -160 -14 -200 2 M40 -22 C100 -46 160 -40 200 -24 M40 4 C100 -20 160 -14 200 2" stroke="#C9A227" stroke-width="5" fill="none"/>
+  </g>
+</svg>

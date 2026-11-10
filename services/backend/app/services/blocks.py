@@ -466,6 +466,183 @@ SITE_BLOCKS: dict[str, dict] = {
 }
 BLOCKS.update(SITE_BLOCKS)
 HEADER_SLOT_CHILDREN = frozenset(SLOT_CONTENT) | frozenset(k for k, v in SITE_BLOCKS.items() if "header" in v["zones"] and not v.get("container"))
+
+
+# --- More content blocks -------------------------------------------------------------
+
+def _head(**extra) -> dict:
+    """Kicker + title shared by most content blocks."""
+    return {"kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=160, translatable=True), **extra}
+
+
+BAND_TONES = {"brand": "Ana renk", "accent": "Vurgu rengi", "dark": "Koyu", "soft": "Açık ana renk", "light": "Beyaz"}
+
+EXTRA_BLOCKS: dict[str, dict] = {
+    "features": {
+        "label": "İkonlu özellikler", "group": "Metin & medya", "icon": "✨",
+        "fields": _head(
+            text=F("textarea", "Açıklama", max=400, translatable=True),
+            items=F("list", "Özellikler", max_items=12, min_items=1, item_label="title", fields={
+                "icon": F("text", "Simge (emoji)", max=4),
+                "image_url": F("image", "Simge yerine görsel"),
+                "title": F("text", "Başlık", max=80, translatable=True),
+                "text": F("textarea", "Açıklama", max=300, translatable=True),
+                "url": F("url", "Tıklanınca git"),
+            }),
+            columns=F("number", "Sütun (bilgisayar)", min=1, max=4, default=3),
+            look=F("select", "Görünüm", choices={"card": "Kart", "plain": "Sade", "bordered": "Çerçeveli", "icon_left": "Simge solda"}, default="card"),
+            align=F("select", "Hizalama", choices={"left": "Sola", "center": "Ortaya"}, default="center"),
+        ),
+    },
+    "counters": {
+        "label": "Sayaçlar (animasyonlu)", "group": "Güven & etki", "icon": "🔢",
+        "help": "Sayılar ekrana gelince sıfırdan yukarı sayar.",
+        "fields": _head(
+            items=F("list", "Sayılar", max_items=6, min_items=1, item_label="label", fields={
+                "icon": F("text", "Simge (emoji)", max=4),
+                "value": F("number", "Sayı", min=0, max=999999999, default=100),
+                "prefix": F("text", "Ön ek", max=6),
+                "suffix": F("text", "Son ek (ör. +, k, ₺)", max=8),
+                "label": F("text", "Açıklama", max=60, translatable=True),
+            }),
+            look=F("select", "Görünüm", choices={"plain": "Sade", "cards": "Kartlar", "band": "Renkli bant"}, default="plain"),
+        ),
+    },
+    "progress_bars": {
+        "label": "Hedef çubukları", "group": "Güven & etki", "icon": "📶",
+        "fields": _head(
+            items=F("list", "Çubuklar", max_items=10, min_items=1, item_label="label", fields={
+                "label": F("text", "Başlık", max=80, translatable=True),
+                "percent": F("number", "Yüzde", min=0, max=100, default=60),
+                "note": F("text", "Sağdaki not (ör. 320 / 500 koli)", max=60, translatable=True),
+            }),
+        ),
+    },
+    "team": {
+        "label": "Ekip / yönetim kurulu", "group": "Metin & medya", "icon": "👥",
+        "fields": _head(
+            items=F("list", "Kişiler", max_items=24, min_items=1, item_label="name", fields={
+                "image_url": F("image", "Fotoğraf"),
+                "name": F("text", "Ad soyad", max=80),
+                "role": F("text", "Görev", max=80, translatable=True),
+                "text": F("textarea", "Kısa tanıtım", max=300, translatable=True),
+            }),
+            columns=F("number", "Sütun (bilgisayar)", min=2, max=5, default=4),
+            shape=F("select", "Fotoğraf", choices={"round": "Yuvarlak", "square": "Köşeli"}, default="round"),
+        ),
+    },
+    "logos": {
+        "label": "Logo şeridi (iş ortakları)", "group": "Güven & etki", "icon": "🏷️",
+        "fields": {
+            "title": F("text", "Başlık", max=120, translatable=True),
+            "items": F("list", "Logolar", max_items=24, min_items=1, item_label="name", fields={
+                "image_url": F("image", "Logo"), "name": F("text", "Kurum adı", max=80), "url": F("url", "Bağlantı"),
+            }),
+            "size": F("number", "Logo yüksekliği", min=24, max=120, default=56, unit="px"),
+            "marquee": F("bool", "Kendiliğinden kaysın", default=False),
+            "grayscale": F("bool", "Gri tonlu (üzerine gelince renkli)", default=True),
+        },
+    },
+    "countdown": {
+        "label": "Geri sayım", "group": "Banner", "icon": "⏳",
+        "help": "Kurban kayıtları, Ramazan veya kampanya bitişi için gün-saat-dakika sayacı.",
+        "fields": _head(
+            text=F("textarea", "Açıklama", max=300, translatable=True),
+            target=F("datetime", "Hedef tarih ve saat", required=True),
+            button_label=F("text", "Buton yazısı", max=40, translatable=True),
+            button_url=F("url", "Buton bağlantısı"),
+            done_text=F("text", "Süre dolunca gösterilecek yazı", max=160, translatable=True),
+            tone=F("select", "Zemin", choices=BAND_TONES, default="brand"),
+        ),
+    },
+    "timeline": {
+        "label": "Zaman çizelgesi", "group": "Metin & medya", "icon": "🧭",
+        "fields": _head(
+            items=F("list", "Olaylar", max_items=30, min_items=1, item_label="title", fields={
+                "date": F("text", "Tarih / yıl", max=40),
+                "title": F("text", "Başlık", max=100, translatable=True),
+                "text": F("textarea", "Açıklama", max=500, translatable=True),
+            }),
+        ),
+    },
+    "tabs": {
+        "label": "Sekmeler / akordeon", "group": "Etkileşim", "icon": "🗂",
+        "fields": {
+            "title": F("text", "Başlık", max=160, translatable=True),
+            "look": F("select", "Görünüm", choices={"tabs": "Yatay sekmeler", "vertical": "Solda sekmeler", "accordion": "Akordeon"}, default="tabs"),
+            "items": F("list", "Sekmeler", max_items=10, min_items=1, item_label="label", fields={
+                "label": F("text", "Sekme adı", max=40, translatable=True),
+                "title": F("text", "İçerik başlığı", max=120, translatable=True),
+                "text": F("richtext", "Metin", max=4000, translatable=True),
+                "image_url": F("image", "Görsel"),
+                "button_label": F("text", "Buton yazısı", max=40, translatable=True),
+                "button_url": F("url", "Buton bağlantısı"),
+            }),
+        },
+    },
+    "marquee": {
+        "label": "Kayan yazı", "group": "Banner", "icon": "🎗️",
+        "fields": {
+            "items": F("list", "Yazılar", max_items=12, min_items=1, item_label="text", fields={"text": F("text", "Yazı", max=120, translatable=True)}),
+            "separator": F("text", "Ayraç", max=4, default="✦"),
+            "speed": F("select", "Hız", choices={"slow": "Yavaş", "normal": "Normal", "fast": "Hızlı"}, default="normal"),
+            "tone": F("select", "Zemin", choices=BAND_TONES, default="brand"),
+        },
+    },
+    "quote": {
+        "label": "Alıntı (ayet / hadis / söz)", "group": "Metin & medya", "icon": "❝",
+        "fields": {
+            "text": F("textarea", "Metin", max=700, translatable=True, required=True),
+            "source": F("text", "Kaynak", max=120, translatable=True),
+            "look": F("select", "Görünüm", choices={"centered": "Ortalı, büyük", "card": "Kart", "side": "Yan çizgili"}, default="centered"),
+        },
+    },
+    "image_gallery": {
+        "label": "Görsel galerisi", "group": "Metin & medya", "icon": "🖼️",
+        "help": "Kendi seçtiğiniz görseller; tıklanınca büyür.",
+        "fields": _head(
+            items=F("list", "Görseller", max_items=40, min_items=1, item_label="caption", fields={
+                "image_url": F("image", "Görsel"), "caption": F("text", "Alt yazı", max=120, translatable=True),
+            }),
+            columns=F("number", "Sütun (bilgisayar)", min=2, max=6, default=4),
+            aspect=F("select", "Oran", choices={"1/1": "Kare", "4/3": "4:3", "16/9": "16:9", "3/4": "Dikey", "masonry": "Karışık (orijinal oran)"}, default="1/1"),
+            gap=F("number", "Aralık", min=0, max=32, default=12, unit="px"),
+            lightbox=F("bool", "Tıklanınca büyüsün", default=True),
+        ),
+    },
+    "bank_accounts": {
+        "label": "Hesap numaraları (IBAN)", "group": "Bağış", "icon": "🏦",
+        "help": "Her hesapta \"IBAN'ı kopyala\" düğmesi bulunur.",
+        "fields": _head(
+            text=F("textarea", "Açıklama", max=400, translatable=True),
+            items=F("list", "Hesaplar", max_items=20, min_items=1, item_label="bank", fields={
+                "logo_url": F("image", "Banka logosu"),
+                "bank": F("text", "Banka", max=60),
+                "branch": F("text", "Şube", max=60),
+                "holder": F("text", "Hesap sahibi", max=140),
+                "iban": F("text", "IBAN", max=42),
+                "currency": F("select", "Para birimi", choices={"TRY": "TL", "USD": "USD", "EUR": "EUR", "GBP": "GBP"}, default="TRY"),
+            }),
+            note=F("textarea", "Alt not (ör. açıklamaya ne yazılacağı)", max=400, translatable=True),
+        ),
+    },
+    "popup": {
+        "label": "Açılır pencere (pop-up)", "group": "Banner", "icon": "🪟", "zones": ("home", "page"),
+        "help": "Sayfa açıldıktan birkaç saniye sonra bir kez gösterilir; kapatılınca seçilen süre boyunca çıkmaz.",
+        "fields": {
+            "image_url": F("image", "Görsel"),
+            "kicker": F("text", "Üst başlık", max=60, translatable=True),
+            "title": F("text", "Başlık", max=160, translatable=True),
+            "text": F("textarea", "Metin", max=500, translatable=True),
+            "button_label": F("text", "Buton yazısı", max=40, translatable=True),
+            "button_url": F("url", "Buton bağlantısı"),
+            "delay": F("number", "Kaç saniye sonra açılsın", min=0, max=60, default=3),
+            "hide_days": F("number", "Kapatınca kaç gün çıkmasın", min=0, max=60, default=1),
+            "size": F("select", "Boyut", choices={"sm": "Küçük", "md": "Orta", "lg": "Büyük"}, default="md"),
+        },
+    },
+}
+BLOCKS.update(EXTRA_BLOCKS)
 HEADER_TOP_LEVEL = frozenset({"header_row", "announcement_bar"})
 
 
