@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 const API_URL = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020').replace(/\/$/, '')
 
 interface DirectoryEntry {
@@ -42,8 +44,8 @@ export async function EInfakPortal() {
           </div>
         </div>
         <div className="flex gap-2 text-sm">
-          <a href="/giris" className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2 hover:border-slate-700">Kurum Girişi</a>
-          <a href="/platform" className="rounded-lg px-4 py-2 text-slate-400 hover:text-white">Platform</a>
+          <Link href="/giris" className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2 hover:border-slate-700">Kurum Girişi</Link>
+          <Link href="/platform" className="rounded-lg px-4 py-2 text-slate-400 hover:text-white">Platform</Link>
         </div>
       </header>
 
