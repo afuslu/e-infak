@@ -47,6 +47,8 @@ LEGACY_DEFAULT_SECTIONS = {
     "sade": [["campaigns", "news", "trust"]],
 }
 
+SITE_KEYS_KEPT = ("redirects",)
+
 SOCIAL_NETWORKS = ("facebook", "instagram", "x", "youtube", "linkedin", "telegram")
 
 # Flat keys of translatable site texts
@@ -61,7 +63,7 @@ _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 FONTS = {
     "public-sans": "Public Sans", "inter": "Inter", "poppins": "Poppins", "montserrat": "Montserrat",
     "nunito": "Nunito", "open-sans": "Open Sans", "lora": "Lora", "merriweather": "Merriweather",
-    "playfair": "Playfair Display", "roboto-slab": "Roboto Slab", "cairo": "Cairo", "amiri": "Amiri",
+    "playfair": "Playfair Display", "roboto-slab": "Roboto Slab", "cairo": "Cairo", "amiri": "Amiri", "outfit": "Outfit",
 }
 RADII = ("none", "small", "medium", "large", "pill")
 CONTAINERS = {"narrow": 1080, "normal": 1200, "wide": 1320, "full": 1440}
@@ -85,6 +87,9 @@ THEME_KITS = [
      "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "roboto-slab", "radius": "medium", "container": "wide", "page_color": "#F5F5F4", "text_color": "#1E1B4B"}},
     {"key": "arabi-altin", "label": "Arabî Altın", "primary_color": "#14532D", "accent_color": "#CA8A04",
      "design": {**DEFAULT_DESIGN, "body_font": "cairo", "heading_font": "amiri", "radius": "medium", "page_color": "#FEFCE8", "text_color": "#1A2E05"}},
+    # Deep green + red accents, geometric sans, pill buttons (made for HAKDER's move from STK PRO).
+    {"key": "hakder", "label": "Hayır Kapısı (yeşil)", "primary_color": "#136938", "accent_color": "#DC3545",
+     "design": {**DEFAULT_DESIGN, "body_font": "outfit", "heading_font": "outfit", "radius": "pill", "container": "wide", "page_color": "#FFFFFF", "text_color": "#0B0B0C", "heading_weight": "700"}},
 ]
 
 
@@ -324,7 +329,10 @@ def apply_appearance(org, payload: SiteAppearance) -> None:
     org.logo_url = payload.logo_url
     org.logo_dark_url = payload.logo_dark_url
     org.favicon_url = payload.favicon_url
+    # Keys this form does not own (redirect table, …) survive an appearance save.
+    kept = {k: v for k, v in (org.site or {}).items() if k in SITE_KEYS_KEPT}
     org.site = {
+        **kept,
         "hero": payload.hero.model_dump(exclude_none=True),
         "design": payload.design.model_dump(),
         "home_sections": payload.home_sections or DEFAULT_SECTIONS[payload.template],

@@ -22,6 +22,7 @@ from app.services.blocks import (
     BlockError, catalog, default_footer_blocks, default_header_blocks, home_blocks_for, page_blocks_from_body,
     validate_blocks,
 )
+from app.services.redirects import RedirectError, clean_redirects, redirect_map, redirects_of
 from app.services.site import THEME_KITS, design_of
 from app.services.templates import DEMO_BY_KEY, PAGE_BY_KEY, fresh_ids, library
 from app.utils.cms import slugify, validate_slug
@@ -455,6 +456,33 @@ async def delete_saved_block(saved_id: UUID, request: Request, db: AsyncSession 
     await db.commit()
 
 
+# --- Redirects (old addresses after a move from another platform) -----------------------
+
+class RedirectsIn(BaseModel):
+    redirects: list[dict] = Field(default_factory=list)
+
+
+@admin_router.get("/redirects")
+async def get_redirects(request: Request, db: AsyncSession = Depends(get_db)):
+    org = await db.get(Organization, _org_id(request))
+    return {"redirects": redirects_of(org)}
+
+
+@admin_router.put("/redirects")
+async def put_redirects(payload: RedirectsIn, request: Request, db: AsyncSession = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
+    org = await db.get(Organization, _org_id(request))
+    try:
+        cleaned = clean_redirects(payload.redirects)
+    except RedirectError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    org.site = {**(org.site or {}), "redirects": cleaned}
+    db.add(AuditLog(organization_id=org.id, user_id=current_user.id, action="yonlendirme_guncelle",
+                    details={"count": len(cleaned)}))
+    await db.commit()
+    return {"redirects": cleaned}
+
+
 # --- Public -----------------------------------------------------------------------
 
 def _visible_now(blocks: list[dict]) -> list[dict]:
@@ -488,6 +516,13 @@ async def public_home(request: Request, onizleme: Optional[str] = None, db: Asyn
         org = await db.get(Organization, page.organization_id)
         return {"blocks": _working_blocks(page, org), "preview": True}
     return {"blocks": _visible_now(page.blocks) if page.blocks is not None else None, "preview": False}
+
+
+@public_router.get("/public/redirects")
+async def public_redirects(request: Request, db: AsyncSession = Depends(get_db)):
+    """Old path -> new address; the web middleware answers these with a 301."""
+    org = await db.get(Organization, _org_id(request))
+    return {"redirects": redirect_map(org) if org else {}}
 
 
 @public_router.get("/public/site-chrome")

@@ -12,7 +12,11 @@ export interface CartItem {
   amount: number
   quantity?: number
   metadata?: Record<string, unknown>
+  /** Currency the amount was entered in (builder donation cards follow the site currency). */
+  currency?: 'TRY' | 'EUR' | 'USD'
 }
+
+const notifyCart = () => window.dispatchEvent(new Event('donation-cart-changed'))
 
 const makeKey = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`
 
@@ -49,6 +53,7 @@ export function DonationCart() {
   const persist = (next: CartItem[]) => {
     setCart(next)
     localStorage.setItem('einfak_cart', JSON.stringify(next))
+    notifyCart()
   }
 
   useEffect(() => {
@@ -61,18 +66,30 @@ export function DonationCart() {
     const add = (event: Event) => {
       const item = (event as CustomEvent<CartItem>).detail
       setCart((current) => {
-        const found = current.find((entry) => entry.campaignId === item.campaignId && entry.amount === item.amount)
+        const same = (entry: CartItem) => entry.campaignId === item.campaignId && entry.amount === item.amount
+          && JSON.stringify(entry.metadata || {}) === JSON.stringify(item.metadata || {})
+        const found = current.find(same)
         const next = found
           ? current.map((entry) => entry === found ? { ...entry, quantity: (entry.quantity || 1) + (item.quantity || 1) } : entry)
           : [...current, { ...item, quantity: item.quantity || 1 }]
         localStorage.setItem('einfak_cart', JSON.stringify(next))
+        setTimeout(notifyCart, 0)
         return next
       })
+      if (item.currency) setCurrency(item.currency)
       trackConversion('add_to_cart', { campaign_id: item.campaignId })
       setOpen(true)
     }
+    const show = () => setOpen(true)
+    const followSite = (event: Event) => setCurrency((event as CustomEvent<'TRY' | 'EUR' | 'USD'>).detail)
     window.addEventListener('add-to-donation-cart', add)
-    return () => window.removeEventListener('add-to-donation-cart', add)
+    window.addEventListener('open-donation-cart', show)
+    window.addEventListener('site-currency-change', followSite)
+    return () => {
+      window.removeEventListener('add-to-donation-cart', add)
+      window.removeEventListener('open-donation-cart', show)
+      window.removeEventListener('site-currency-change', followSite)
+    }
   }, [])
 
   const update = (index: number, patch: Partial<CartItem>) => {
@@ -141,7 +158,7 @@ export function DonationCart() {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)} aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-2xl text-white shadow-2xl">
+        className="float-above-tabbar fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-2xl text-white shadow-2xl">
         🤝
         {!!cart.length && <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1 text-xs font-black text-slate-900">{cart.length}</span>}
       </button>

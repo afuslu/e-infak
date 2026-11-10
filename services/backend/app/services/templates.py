@@ -13,6 +13,7 @@ import uuid
 from typing import Any, Optional
 
 from app.services.blocks import default_footer_blocks, default_header_blocks
+from app.services.template_hakder import hayir_kapisi
 
 _seq = itertools.count(1)
 
@@ -294,6 +295,13 @@ PAGE_TEMPLATES: list[dict] = [
      "blocks": [_page_hero("Şeffaflık ve hesap verebilirlik", "GÜVEN", "/demo/pattern.svg"), *_blocks("text-center", "values-4", "stats-auto", "faq")]},
 ]
 
+# "Hayır Kapısı" (HAKDER look): its own pages join the page templates.
+_HK = hayir_kapisi()
+_HK_PAGE_KEYS = []
+for _slug, (_title, _page_blocks) in _HK["pages"].items():
+    _HK_PAGE_KEYS.append(f"hk-{_slug}")
+    PAGE_TEMPLATES.append({"key": f"hk-{_slug}", "label": _title, "slug": _slug, "description": f"Hayır Kapısı demosu: {_title}.", "blocks": _page_blocks})
+
 PAGE_BY_KEY = {p["key"]: p for p in PAGE_TEMPLATES}
 
 
@@ -329,6 +337,13 @@ DEMOS: list[dict] = [
               *_blocks("donate-band", "mission-3", "campaigns-grid", "testimonials", "faq")],
      "pages": ["about", "volunteer", "contact"]},
 ]
+
+DEMOS.append({
+    "key": "hayir-kapisi", "label": "Hayır Kapısı (sepetli bağış)", "kit": "hakder", "image": "/demo/relief.svg",
+    "description": "Duyuru çubuğu, yeşil çift header ve mega menü, poster slider, sayaçlar, sepete eklenen bağış kartları "
+                   "(niyet, hisse, süre, döviz), mesaj formu ve Çağrı Merkezi'li footer. Mesafeli sözleşme, iade ve çerez sayfalarıyla.",
+    "header": _HK["header"], "footer": _HK["footer"], "home": _HK["home"], "pages": _HK_PAGE_KEYS,
+})
 
 DEMO_BY_KEY = {d["key"]: d for d in DEMOS}
 

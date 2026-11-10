@@ -198,3 +198,8 @@
   :where(.admin-dark) .admin-light .text-primary-700 { color: var(--brand-primary-700); }
   :where(.admin-dark) .admin-light .text-primary-800 { color: var(--brand-primary-800); }
 }
+
+/* Site builder › Telefon alt çubuğu: floating buttons sit above the bar on phones. */
+@media (max-width: 767px) {
+  html.has-tabbar .float-above-tabbar { bottom: 5.25rem; }
+}

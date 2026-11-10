@@ -10,6 +10,8 @@ import {
 import { BlockText } from './BlockText'
 import { MobileMenu, type NavItemView, type NavLinkView, Reveal, Slider, StickyShrink, type SlideView } from './BlockClient'
 import { LanguageSwitcher } from '../site/LanguageSwitcher'
+import { CountUp } from '../site/Carousel'
+import { AnnouncementBar, CartButton, ContactFormBlock, CurrencySwitcher, DonationCards, MobileTabBar, type DonationCardView } from './DonationBlocks'
 import { defaultFooterLinks, defaultHeaderLinks } from '../../lib/default-links'
 
 /**
@@ -67,7 +69,42 @@ const BASE_CSS = `
 const FULL_BLEED = new Set([
   'hero', 'slider', 'stats', 'zakat_band', 'cta_band', 'trust', 'banner', 'header_row',
   'featured_campaign', 'steps', 'gallery_strip', 'testimonials', 'campaigns', 'news', 'categories',
+  'announcement_bar', 'contact_form', 'mobile_tab_bar',
 ])
+
+const list = (value?: string) => String(value || '').split(',').map((v) => v.trim()).filter(Boolean)
+
+/** Cards of a Bağış kartları block: chosen/tagged campaigns + per-campaign settings. */
+function donationCards(o: Record<string, any>, data: HomeData, label: string): DonationCardView[] {
+  const settings = new Map<string, Record<string, any>>((o.cards || []).filter((c: any) => c?.campaign_id).map((c: any) => [c.campaign_id, c]))
+  const active = data.campaigns
+  let chosen: Campaign[]
+  if (o.source === 'selected' && o.campaign_ids?.length) chosen = o.campaign_ids.map((id: string) => active.find((c) => c.id === id)).filter(Boolean) as Campaign[]
+  else if (o.source === 'tabs') {
+    const tags = new Set((o.tabs || []).map((t: any) => t.tag))
+    chosen = active.filter((c) => (c.tags || []).some((t) => tags.has(t)))
+  } else if (o.source === 'featured') chosen = [...active].sort((a, b) => Number(b.is_featured) - Number(a.is_featured))
+  else chosen = active
+  if (o.source !== 'selected' && settings.size) {
+    // Cards with settings keep the order they were listed in (e.g. the old site's order).
+    const order = [...settings.keys()]
+    const rank = (c: Campaign) => { const i = order.indexOf(c.id); return i < 0 ? order.length : i }
+    chosen = [...chosen].sort((a, b) => rank(a) - rank(b))
+  }
+  return chosen.slice(0, o.limit || 12).map((c) => {
+    const s = settings.get(c.id) || {}
+    const fixed = !c.allow_custom_amount && c.suggested_amounts_cents?.length ? c.suggested_amounts_cents[0] / 100 : null
+    const unit = s.unit_amount ? Number(s.unit_amount) : fixed
+    const total = Number(s.shares_total) || 0
+    const taken = s.shares_taken != null ? Number(s.shares_taken) : unit ? Math.floor((c.collected_lira || 0) / unit) : 0
+    return {
+      key: `${c.id}`, campaignId: c.id, slug: c.slug, title: c.title, image: c.cover_image_url, currency: (c.currency || 'TRY') as DonationCardView['currency'],
+      unit, minAmount: (c.min_donation_cents || 100) / 100, quantity: s.quantity || '', maxQuantity: s.max_quantity || 21,
+      niyet: list(s.niyet), durations: list(s.durations).map(Number).filter((n) => n > 0),
+      shares: total ? { taken: Math.min(taken, total), total } : null, note: s.note, button: s.button_label || o.button_label || label, tags: c.tags || [],
+    }
+  })
+}
 
 /** Theme-following backgrounds of sections and header rows (a Stil background overrides them). */
 const TONE: Record<string, string> = {
@@ -276,6 +313,26 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     case 'trust':
       return <Trust data={data} t={t} o={o} />
     case 'stats':
+      if (o.variant === 'card' && o.mode === 'manual' && o.items?.length) {
+        return (
+          <div className={`${container} w-full`}>
+            <div className="grid grid-cols-2 gap-y-8 rounded-lg bg-white px-5 py-8 shadow-[0_8px_30px_-8px_rgba(0,0,0,.18)] lg:grid-cols-4 lg:divide-x lg:divide-gray-100">
+              {o.items.map((item: any, i: number) => {
+                const n = Number(String(item.value || '').replace(/\./g, '').replace(',', '.'))
+                return (
+                  <div key={i} className="flex flex-col items-center gap-2 text-center">
+                    {item.icon_url && <img src={item.icon_url} alt="" className="h-14 w-14 object-contain" loading="lazy" />}
+                    <div className="font-heading text-3xl font-bold text-gray-900 md:text-4xl">
+                      {Number.isFinite(n) && /^[\d.,]+$/.test(String(item.value)) ? <CountUp value={n} locale={data.locale} /> : item.value}
+                    </div>
+                    <div className="text-[15px] text-gray-700">{item.label}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      }
       return <Stats data={data} t={t} o={o} />
     case 'banner': {
       const c = campaignById(o.campaign_id)
@@ -317,6 +374,30 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
     }
+    case 'donation_cards':
+      return (
+        <div className={`${container} w-full`}>
+          {(o.kicker || o.title) && (
+            <div className="mb-8 text-center">
+              {o.kicker && <div className="mb-2 text-lg font-medium text-primary-700">{o.kicker}</div>}
+              {o.title && <h2 className="font-heading text-3xl font-bold md:text-[44px]">{o.title}</h2>}
+            </div>
+          )}
+          <DonationCards cards={donationCards(o, data, t('campaign.donate'))} tabs={o.source === 'tabs' ? (o.tabs || []).filter((x: any) => x.tag && x.label) : undefined}
+            layout={o.layout} columns={o.columns} switcher={o.currency_switcher} editing={opts.editing} title={o.title} />
+        </div>
+      )
+    case 'announcement_bar':
+      return <AnnouncementBar id={block.id} text={o.text} url={o.url} tone={o.tone} icon={o.icon} closable={o.closable !== false} hideDays={o.hide_days ?? 1} editing={opts.editing} />
+    case 'contact_form':
+      return <ContactFormBlock kicker={o.kicker} title={o.title} text={o.text} image={o.image_url} badgeValue={o.badge_value} badgeText={o.badge_text}
+        button={o.button_label} askEmail={o.ask_email !== false} editing={opts.editing} />
+    case 'mobile_tab_bar':
+      return <MobileTabBar items={o.items || []} editing={opts.editing} />
+    case 'currency_switcher':
+      return <div className={depth === 0 ? container : ''}><CurrencySwitcher variant={o.style} /></div>
+    case 'cart_button':
+      return <div className={depth === 0 ? container : ''}><CartButton label={o.label || 'Sepetim'} showLabel={o.show_label} url={o.url || '/bagis/sepetim'} /></div>
     case 'notice': {
       const tone = { info: 'border-sky-200 bg-sky-50 text-sky-900', success: 'border-green-200 bg-green-50 text-green-900', warning: 'border-amber-200 bg-amber-50 text-amber-900', danger: 'border-red-200 bg-red-50 text-red-900' }[o.tone as string] || 'border-sky-200 bg-sky-50 text-sky-900'
       return (
@@ -424,7 +505,9 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       return (
         <div className={depth === 0 ? container : ''}>
           <Link href="/" className="inline-flex min-w-0 items-center gap-3">
-            {src && <img src={src} alt={o.show_name === false ? site.name : ''} style={{ width: size, height: size }} className="flex-shrink-0 rounded-full bg-white object-cover" />}
+            {src && (o.wide
+              ? <img src={src} alt={o.show_name === false ? site.name : ''} style={{ height: size, width: 'auto', maxWidth: size * 5, filter: o.light && !site.logo_dark_url ? 'brightness(0) invert(1)' : undefined }} className="flex-shrink-0 object-contain" />
+              : <img src={src} alt={o.show_name === false ? site.name : ''} style={{ width: size, height: size }} className="flex-shrink-0 rounded-full bg-white object-cover" />)}
             {o.show_name !== false && (
               <span className="flex min-w-0 flex-col leading-tight">
                 <span className="truncate font-heading text-lg font-bold tracking-wide">{site.name}</span>

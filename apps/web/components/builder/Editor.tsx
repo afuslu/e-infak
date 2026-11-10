@@ -171,7 +171,7 @@ export function SiteBuilderEditor() {
   const fitsPage = (type: string) => {
     if (!catalog) return false
     const kind = page?.kind || 'home'
-    if (kind === 'header') return type === 'header_row' || catalog.header_slot_children.includes(type)
+    if (kind === 'header') return (catalog.header_top_level || ['header_row']).includes(type) || catalog.header_slot_children.includes(type)
     return (catalog.blocks[type]?.zones || catalog.content_zones).includes(kind)
   }
 
@@ -189,7 +189,9 @@ export function SiteBuilderEditor() {
       // A header is rows of three slots: rows go to the top level, everything else into a slot.
       const sel = state.selectedId ? findBlock(state.blocks, state.selectedId) : null
       const rootIndex = state.selectedId ? state.blocks.findIndex((r) => r.id === state.selectedId || !!findBlock(r.children || [], state.selectedId!)) : -1
-      if (type === 'header_row') {
+      if (type === 'announcement_bar') {
+        blocks = insertBlock(state.blocks, null, 0, block)
+      } else if (type === 'header_row') {
         blocks = insertBlock(state.blocks, null, rootIndex >= 0 ? rootIndex + 1 : state.blocks.length, block)
       } else {
         const target = insertTarget ? findBlock(state.blocks, insertTarget) : null
@@ -474,7 +476,7 @@ export function SiteBuilderEditor() {
     const out: Record<string, [string, typeof catalog.blocks[string]][]> = {}
     const kind = page?.kind || 'home'
     const fits = (key: string, spec: (typeof catalog.blocks)[string]) => kind === 'header'
-      ? key === 'header_row' || catalog.header_slot_children.includes(key)
+      ? (catalog.header_top_level || ['header_row']).includes(key) || catalog.header_slot_children.includes(key)
       : (spec.zones || catalog.content_zones).includes(kind)
     for (const [key, spec] of Object.entries(catalog.blocks)) {
       if (spec.hidden || !fits(key, spec)) continue

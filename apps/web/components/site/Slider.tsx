@@ -23,10 +23,14 @@ export type SliderLayout = 'overlay' | 'split'
 
 const HEIGHTS: Record<string, string> = {
   sm: 'min-h-[360px]', md: 'min-h-[480px] md:min-h-[540px]', lg: 'min-h-[540px] md:min-h-[640px]', screen: 'min-h-[calc(100vh-80px)]',
+  // Poster slides (text drawn into the image): the whole image at banner proportions, nothing cropped.
+  poster: 'aspect-[16/5]',
 }
 
-function SlideButton({ href, label, primary, light }: { href: string; label: string; primary?: boolean; light?: boolean }) {
-  const cls = primary
+function SlideButton({ href, label, primary, light }: { href: string; label: string; primary?: boolean | 'brand'; light?: boolean }) {
+  const cls = primary === 'brand'
+    ? 'inline-flex items-center gap-2 rounded-full bg-primary-700 px-7 py-3 text-sm font-bold uppercase text-white shadow-lg shadow-black/20 transition hover:bg-primary-800'
+    : primary
     ? 'inline-flex items-center gap-2 rounded-[10px] bg-accent-500 px-7 py-3.5 font-extrabold text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:bg-accent-600'
     : light
       ? 'rounded-[10px] border-[1.5px] border-gray-300 px-7 py-3.5 font-semibold text-gray-800 hover:border-primary-600 hover:text-primary-700'
@@ -115,9 +119,9 @@ export function Slider({
           const align = s.align === 'center' ? 'items-center text-center' : s.align === 'right' ? 'items-end text-end' : 'items-start text-start'
           const justify = s.align === 'center' ? 'justify-center' : s.align === 'right' ? 'justify-end' : ''
           const buttons = (
-            <div className={`flex flex-wrap gap-3 ${split ? '' : justify}`}>
-              {s.campaign && <SlideButton href={`/kampanyalar/${s.campaign.slug}`} label={s.button_label || s.donateLabel} primary />}
-              {!s.campaign && s.button_label && s.button_url && <SlideButton href={s.button_url} label={s.button_label} primary />}
+            <div className={`${height === 'poster' ? 'hidden sm:flex' : 'flex'} flex-wrap gap-3 ${split ? '' : justify}`}>
+              {s.campaign && <SlideButton href={`/kampanyalar/${s.campaign.slug}`} label={s.button_label || s.donateLabel} primary={height === 'poster' ? 'brand' : true} />}
+              {!s.campaign && s.button_label && s.button_url && <SlideButton href={s.button_url} label={s.button_label} primary={height === 'poster' ? 'brand' : true} />}
               {s.button2_label && s.button2_url && <SlideButton href={s.button2_url} label={s.button2_label} light={split} />}
             </div>
           )
@@ -165,13 +169,13 @@ export function Slider({
                 <picture>
                   {s.mobile_image_url && <source media="(max-width: 639px)" srcSet={s.mobile_image_url} />}
                   <img src={s.image_url} alt="" loading={i === 0 ? 'eager' : 'lazy'}
-                    className={`absolute inset-0 h-full w-full object-cover ${active && !reduced && !editing ? 'slider-kenburns' : ''}`}
+                    className={`absolute inset-0 h-full w-full object-cover ${active && !reduced && !editing && height !== 'poster' ? 'slider-kenburns' : ''}`}
                     style={{ animationDuration: `${seconds + 2}s` }} />
                 </picture>
               )}
               <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${(s.overlay ?? 45) / 100})` }} />
-              {s.align !== 'center' && <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-transparent rtl:bg-gradient-to-l" />}
-              <div className={`relative mx-auto flex h-full max-w-[1200px] flex-col justify-center px-6 pb-20 pt-16 ${arrows && count > 1 ? 'sm:px-20' : ''} ${align} ${heightClass}`}>
+              {s.align !== 'center' && (s.overlay ?? 45) > 0 && <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-transparent rtl:bg-gradient-to-l" />}
+              <div className={`relative mx-auto flex h-full max-w-[1200px] flex-col ${height === 'poster' ? 'justify-end pb-[3%] pt-4' : 'justify-center pb-20 pt-16'} px-6 ${arrows && count > 1 ? 'sm:px-20' : ''} ${align} ${heightClass}`}>
                 <div className={`max-w-2xl ${active && !reduced ? 'animate-[slide-text_.8s_ease-out_both]' : ''}`}>
                   {s.badge && <span className="mb-5 inline-block rounded-full border border-white/40 bg-white/10 px-4 py-1.5 text-[13px] font-bold tracking-[2px] text-white backdrop-blur-sm">{s.badge}</span>}
                   {s.title && <h2 className="mb-4 font-heading text-3xl font-bold leading-[1.12] text-white drop-shadow md:text-[54px]">{s.title}</h2>}

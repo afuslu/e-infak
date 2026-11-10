@@ -5,7 +5,7 @@
  * and a `--ff-<key>` variable, and the browser downloads just the families in use.
  */
 import {
-  Amiri, Cairo, Inter, Lora, Merriweather, Montserrat, Nunito, Open_Sans,
+  Amiri, Cairo, Inter, Lora, Merriweather, Montserrat, Nunito, Open_Sans, Outfit,
   Playfair_Display, Poppins, Public_Sans, Roboto_Slab,
 } from 'next/font/google'
 
@@ -20,9 +20,10 @@ const merriweather = Merriweather({ subsets: ['latin', 'latin-ext'], weight: ['4
 const playfair = Playfair_Display({ subsets: ['latin', 'latin-ext'], variable: '--ff-playfair', preload: false })
 const robotoSlab = Roboto_Slab({ subsets: ['latin', 'latin-ext'], variable: '--ff-roboto-slab', preload: false })
 const cairo = Cairo({ subsets: ['arabic', 'latin', 'latin-ext'], variable: '--ff-cairo', preload: false })
+const outfit = Outfit({ subsets: ['latin', 'latin-ext'], variable: '--ff-outfit', preload: false })
 const amiri = Amiri({ subsets: ['arabic', 'latin', 'latin-ext'], weight: ['400', '700'], variable: '--ff-amiri', preload: false })
 
 /** Put on <html>: declares every `--ff-*` variable. */
 export const fontVariables = [
-  publicSans, lora, inter, poppins, montserrat, nunito, openSans, merriweather, playfair, robotoSlab, cairo, amiri,
+  publicSans, lora, inter, poppins, montserrat, nunito, openSans, merriweather, playfair, robotoSlab, cairo, amiri, outfit,
 ].map((f) => f.variable).join(' ')

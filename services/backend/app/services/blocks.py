@@ -89,7 +89,7 @@ BLOCKS: dict[str, dict] = {
                 "align": F("select", "Metin konumu", choices=ALIGN, default="left"),
                 "overlay": F("number", "Karartma (%)", min=0, max=90, default=45),
             }),
-            "height": F("select", "Yükseklik", choices={"sm": "Alçak", "md": "Orta", "lg": "Yüksek", "screen": "Tam ekran"}, default="md"),
+            "height": F("select", "Yükseklik", choices={"sm": "Alçak", "md": "Orta", "lg": "Yüksek", "screen": "Tam ekran", "poster": "Afiş oranı (görsel kırpılmaz, 16:5)"}, default="md"),
             "autoplay": F("bool", "Otomatik geçiş", default=True),
             "interval": F("number", "Geçiş süresi (sn)", min=2, max=20, default=6),
             "effect": F("select", "Geçiş efekti", choices={"slide": "Kaydır", "fade": "Solarak"}, default="slide"),
@@ -144,6 +144,37 @@ BLOCKS: dict[str, dict] = {
         "label": "Zekat bandı", "group": "Bağış", "icon": "🌙",
         "fields": {"title": F("text", "Başlık", max=120, translatable=True), "text": F("textarea", "Metin", max=300, translatable=True), "button_label": F("text", "Buton yazısı", max=40, translatable=True)},
     },
+    "donation_cards": {
+        "label": "Bağış kartları (tutar + sepete ekle)", "group": "Bağış", "icon": "🛒",
+        "help": "Her kartta tutar, para birimi, niyet, adet/hisse ve süre seçilip sepete eklenir.",
+        "fields": {
+            "kicker": F("text", "Üst başlık", max=60, translatable=True),
+            "title": F("text", "Başlık", max=120, translatable=True),
+            "source": F("select", "Hangi kampanyalar", choices={"selected": "Seçtiklerim (aşağıdaki sırayla)", "tabs": "Sekmeler (kampanya etiketine göre)", "featured": "Öne çıkanlar", "latest": "En yeniler"}, default="selected"),
+            "campaign_ids": F("campaigns", "Seçilen kampanyalar", show_if={"source": "selected"}),
+            "tabs": F("list", "Sekmeler", max_items=12, item_label="label", show_if={"source": "tabs"}, fields={
+                "label": F("text", "Sekme adı", max=40, translatable=True),
+                "tag": F("text", "Kampanya etiketi", max=40, help="Bu etiketi taşıyan kampanyalar sekmede listelenir"),
+            }),
+            "limit": F("number", "En fazla kart", min=1, max=48, default=12),
+            "layout": F("select", "Düzen", choices={"grid": "Izgara", "carousel": "Kaydırmalı"}, default="grid"),
+            "columns": F("number", "Sütun (bilgisayar)", min=2, max=4, default=3),
+            "currency_switcher": F("bool", "Kartların üstünde TL / USD / EUR seçici", default=False),
+            "button_label": F("text", "Buton yazısı", max=40, translatable=True, placeholder="Bağış Yap"),
+            "cards": F("list", "Kart ayarları (kampanya başına, isteğe bağlı)", max_items=48, item_label="note", fields={
+                "campaign_id": F("campaign", "Kampanya"),
+                "note": F("text", "Sabit bilgi (ör. Keçi · Afrika)", max=80, translatable=True),
+                "unit_amount": F("number", "Sabit tutar (kampanya para biriminde; boşsa bağışçı yazar)", min=0, max=10_000_000, step=0.01),
+                "quantity": F("select", "Miktar seçimi", choices={"": "Yok", "adet": "Adet", "hisse": "Hisse"}, default=""),
+                "max_quantity": F("number", "En fazla adet/hisse", min=1, max=100, default=21),
+                "niyet": F("text", "Niyet seçenekleri (virgülle)", max=200, help="ör. Adak, Akika, Şükür, Nafile, Sadaka, Şifa"),
+                "durations": F("text", "Süre seçenekleri, ay (virgülle; tutar aylıktır)", max=60, help="ör. 12, 18, 24, 36"),
+                "shares_total": F("number", "Toplam hisse (hisse çubuğu)", min=0, max=100_000),
+                "shares_taken": F("number", "Alınan hisse (boşsa toplanan tutardan hesaplanır)", min=0, max=100_000),
+                "button_label": F("text", "Buton yazısı", max=40, translatable=True),
+            }),
+        },
+    },
     # Banners
     "banner": {
         "label": "Banner", "group": "Banner", "icon": "🏷️",
@@ -167,6 +198,18 @@ BLOCKS: dict[str, dict] = {
     "notice": {
         "label": "Duyuru kutusu", "group": "Banner", "icon": "ℹ️",
         "fields": {"tone": F("select", "Tür", choices={"info": "Bilgi", "success": "Başarı", "warning": "Uyarı", "danger": "Önemli"}, default="info"), "title": F("text", "Başlık", max=120, translatable=True), "text": F("textarea", "Metin", max=600, translatable=True)},
+    },
+    "announcement_bar": {
+        "label": "Duyuru çubuğu (kapatılabilir)", "group": "Banner", "icon": "📢", "zones": SITE_ZONES,
+        "help": "Header'ın en üstüne de konabilir; ziyaretçi kapatınca seçilen süre boyunca gizli kalır.",
+        "fields": {
+            "text": F("text", "Duyuru", max=160, translatable=True, required=True),
+            "url": F("url", "Tıklanınca git"),
+            "tone": F("select", "Renk", choices={"danger": "Kırmızı", "rose": "Gül kırmızısı", "brand": "Ana renk", "accent": "Vurgu rengi", "dark": "Koyu", "warning": "Sarı"}, default="danger"),
+            "icon": F("text", "Simge (emoji, isteğe bağlı)", max=4),
+            "closable": F("bool", "Kapatma düğmesi (×)", default=True),
+            "hide_days": F("number", "Kapatınca kaç gün gizlensin", min=0, max=60, default=1, show_if={"closable": True}),
+        },
     },
     # Text & media
     "heading": {
@@ -196,7 +239,14 @@ BLOCKS: dict[str, dict] = {
     # Trust
     "stats": {
         "label": "İstatistikler", "group": "Güven & etki", "icon": "📊",
-        "fields": {"mode": F("select", "Veri", choices={"auto": "Otomatik (kampanyalardan)", "manual": "Elle"}, default="auto"), "items": F("list", "Sayılar", max_items=6, item_label="label", show_if={"mode": "manual"}, fields={"value": F("text", "Değer", max=20), "label": F("text", "Açıklama", max=60, translatable=True)})},
+        "fields": {
+            "mode": F("select", "Veri", choices={"auto": "Otomatik (kampanyalardan)", "manual": "Elle"}, default="auto"),
+            "items": F("list", "Sayılar", max_items=6, item_label="label", show_if={"mode": "manual"}, fields={
+                "value": F("text", "Değer", max=20), "label": F("text", "Açıklama", max=60, translatable=True),
+                "icon_url": F("image", "Simge görseli"),
+            }),
+            "variant": F("select", "Görünüm", choices={"": "Tema", "card": "Beyaz kutu (simgeli, sayarak artan)"}, default=""),
+        },
     },
     "steps": {
         "label": "Nasıl bağış yapılır?", "group": "Güven & etki", "icon": "🪜",
@@ -227,7 +277,27 @@ BLOCKS: dict[str, dict] = {
     },
     "news": {
         "label": "Haberler", "group": "Haber & iletişim", "icon": "🗞️",
-        "fields": {"kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=120, translatable=True), "limit": F("number", "Adet", min=1, max=12, default=3)},
+        "fields": {
+            "kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=120, translatable=True),
+            "limit": F("number", "Adet", min=1, max=12, default=3),
+            "layout": F("select", "Düzen", choices={"auto": "4'ten fazlaysa kaydırmalı", "grid": "Izgara", "carousel": "Kaydırmalı"}, default="auto"),
+            "links": F("select", "Haber adresleri", choices={"haberler": "/haberler/haber-adi", "root": "/haber-adi (eski site adresleri)"}, default="haberler"),
+            "all_label": F("text", "\"Tümü\" bağlantı yazısı", max=40, translatable=True),
+            "all_url": F("url", "\"Tümü\" bağlantısı", placeholder="/haberler"),
+        },
+    },
+    "contact_form": {
+        "label": "Mesaj formu", "group": "Haber & iletişim", "icon": "✉️",
+        "fields": {
+            "kicker": F("text", "Üst başlık", max=60, translatable=True),
+            "title": F("text", "Başlık", max=160, translatable=True),
+            "text": F("textarea", "Açıklama", max=400, translatable=True),
+            "image_url": F("image", "Yan görsel"),
+            "badge_value": F("text", "Görsel rozeti: değer (ör. 70k)", max=12),
+            "badge_text": F("text", "Görsel rozeti: yazı", max=60, translatable=True),
+            "button_label": F("text", "Buton yazısı", max=40, translatable=True),
+            "ask_email": F("bool", "E-posta sorulsun", default=True),
+        },
     },
     "gallery_strip": {
         "label": "Galeri şeridi", "group": "Haber & iletişim", "icon": "📷",
@@ -297,6 +367,7 @@ SITE_BLOCKS: dict[str, dict] = {
         "label": "Logo ve kurum adı", "group": "Site öğeleri", "icon": "🔰", "zones": SITE_ZONES,
         "fields": {
             "size": F("number", "Logo boyutu", min=24, max=160, default=44, unit="px"),
+            "wide": F("bool", "Yatay logo (oranı korunur, boyut = yükseklik)", default=False),
             "show_name": F("bool", "Kurum adını göster", default=True),
             "show_tagline": F("bool", "Sloganı göster", default=True),
             "light": F("bool", "Koyu zemin için açık renk logo/yazı", default=False),
@@ -335,6 +406,19 @@ SITE_BLOCKS: dict[str, dict] = {
         "label": "Dil seçici", "group": "Site öğeleri", "icon": "🌐", "zones": SITE_ZONES,
         "fields": {}, "help": "Site Ayarları'nda birden fazla dil açıksa görünür",
     },
+    "currency_switcher": {
+        "label": "Para birimi seçici (TL / USD / EUR)", "group": "Site öğeleri", "icon": "💱", "zones": SITE_ZONES,
+        "help": "Bağış kartlarındaki tutarlar ve sepet seçilen para birimiyle gösterilir (güncel TCMB kuru).",
+        "fields": {"style": F("select", "Görünüm", choices={"buttons": "Yan yana düğmeler", "select": "Açılır liste"}, default="buttons")},
+    },
+    "cart_button": {
+        "label": "Bağış sepeti", "group": "Site öğeleri", "icon": "🛒", "zones": SITE_ZONES,
+        "fields": {
+            "label": F("text", "Yazı", max=30, translatable=True, placeholder="Sepetim"),
+            "show_label": F("bool", "Yazıyı göster", default=False),
+            "url": F("url", "Sepet sayfası", placeholder="/bagis/sepetim"),
+        },
+    },
     "social_icons": {
         "label": "Sosyal medya", "group": "Site öğeleri", "icon": "📣", "zones": SITE_ZONES,
         "fields": {
@@ -360,6 +444,18 @@ SITE_BLOCKS: dict[str, dict] = {
             "layout": F("select", "Yerleşim", choices={"inline": "Yan yana", "stacked": "Alt alta"}, default="inline"),
         },
     },
+    "mobile_tab_bar": {
+        "label": "Telefon alt çubuğu", "group": "Site öğeleri", "icon": "📱", "zones": ("footer",),
+        "help": "Yalnız telefonda, ekranın altında sabit duran kısayollar (ör. Anasayfa, Hesap No, Bağış Yap, Sepetim).",
+        "fields": {
+            "items": F("list", "Kısayollar", max_items=5, min_items=1, item_label="label", fields={
+                "label": F("text", "Yazı", max=20, translatable=True),
+                "url": F("url", "Bağlantı"),
+                "icon": F("select", "Simge", choices={"home": "Ev", "user": "Kişi", "bank": "Banka", "heart": "Kalp", "cart": "Sepet", "phone": "Telefon", "menu": "Menü"}, default="home"),
+                "highlight": F("bool", "Vurgulu (beyaz zemin)"),
+            }),
+        },
+    },
     "copyright": {
         "label": "Telif satırı", "group": "Site öğeleri", "icon": "©️", "zones": ("footer",),
         "fields": {
@@ -370,6 +466,7 @@ SITE_BLOCKS: dict[str, dict] = {
 }
 BLOCKS.update(SITE_BLOCKS)
 HEADER_SLOT_CHILDREN = frozenset(SLOT_CONTENT) | frozenset(k for k, v in SITE_BLOCKS.items() if "header" in v["zones"] and not v.get("container"))
+HEADER_TOP_LEVEL = frozenset({"header_row", "announcement_bar"})
 
 
 # --- Style & advanced settings ---------------------------------------------------
@@ -448,6 +545,7 @@ def catalog() -> dict:
         "limits": {"blocks": MAX_BLOCKS, "depth": MAX_DEPTH},
         "content_zones": list(CONTENT_ZONES),
         "header_slot_children": sorted(HEADER_SLOT_CHILDREN),
+        "header_top_level": sorted(HEADER_TOP_LEVEL),
     }
 
 
@@ -590,8 +688,8 @@ def _block(raw: Any, depth: int, counter: list[int], seen: set[str], parent_type
     if spec.get("parent") and parent_type != spec["parent"]:
         raise BlockError(f"{spec['label']} yalnızca {BLOCKS[spec['parent']]['label']} bloğunun içinde olabilir")
     if kind == "header":
-        if parent_type is None and block_type != "header_row":
-            raise BlockError("Header yalnızca Header satırlarından oluşur; öğeleri satırların alanlarına ekleyin")
+        if parent_type is None and block_type not in HEADER_TOP_LEVEL:
+            raise BlockError("Header yalnızca Header satırlarından (ve en üstte duyuru çubuğundan) oluşur; öğeleri satırların alanlarına ekleyin")
         if parent_type == "header_slot" and block_type not in HEADER_SLOT_CHILDREN:
             raise BlockError(f"{spec['label']} header içinde kullanılamaz")
     elif kind not in spec.get("zones", CONTENT_ZONES):

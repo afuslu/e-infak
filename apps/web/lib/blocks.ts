@@ -61,6 +61,8 @@ export interface BuilderCatalog {
   langs: string[]
   content_zones: string[]
   header_slot_children: string[]
+  /** Header page: block types allowed at the top level (rows, announcement bar). */
+  header_top_level?: string[]
 }
 
 /** Slots of a fixed layout (a column of Sütunlar, an area of a header row): never moved, deleted or copied alone. */
