@@ -31,7 +31,7 @@ from app.models.organization import Organization  # noqa: E402
 from app.models.organization_settings import OrganizationSettings  # noqa: E402
 from app.services.blocks import validate_blocks  # noqa: E402
 from app.services.site import design_of  # noqa: E402
-from app.services.templates import fresh_ids  # noqa: E402
+from app.services.templates import PAGE_BY_KEY, fresh_ids  # noqa: E402
 
 BRAND, DEEP, GOLD, SAGE, INK, PAPER = "#0E7A5F", "#07261E", "#B47B1E", "#EEF4F0", "#162923", "#FBFAF6"
 DESIGN = {
@@ -49,17 +49,29 @@ _n = [0]
 
 DEMO_REMAP = {
     "/demo/mosque.svg": "/images/hicret/hicret-hero.png",
+    "/demo/mosque.webp": "/images/hicret/hicret-hero.png",
     "/demo/education.svg": "/images/hicret/h-ibtida.png",
+    "/demo/education.webp": "/images/hicret/h-ibtida.png",
     "/demo/quran.svg": "/images/hicret/h-hafizlik.png",
+    "/demo/quran.webp": "/images/hicret/h-hafizlik.png",
     "/demo/water.svg": "/images/hicret/h-su.png",
+    "/demo/water.webp": "/images/hicret/h-su.png",
     "/demo/kurban.svg": "/images/hicret/h-kurban.png",
+    "/demo/kurban.webp": "/images/hicret/h-kurban.png",
     "/demo/orphan.svg": "/images/hicret/h-sibyan.png",
+    "/demo/orphan.webp": "/images/hicret/h-sibyan.png",
     "/demo/food.svg": "/images/hicret/h-arapca.png",
+    "/demo/food.webp": "/images/hicret/h-arapca.png",
     "/demo/community.svg": "/images/hicret/h-arapca.png",
+    "/demo/community.webp": "/images/hicret/h-arapca.png",
     "/demo/hands.svg": "/images/hicret/h-hafizlik.png",
+    "/demo/hands.webp": "/images/hicret/h-hafizlik.png",
     "/demo/relief.svg": "/images/hicret/h-kurban.png",
+    "/demo/relief.webp": "/images/hicret/h-kurban.png",
     "/demo/winter.svg": "/images/hicret/h-sibyan.png",
+    "/demo/winter.webp": "/images/hicret/h-sibyan.png",
     "/demo/ramadan.svg": "/images/hicret/hicret-hero.png",
+    "/demo/ramadan.webp": "/images/hicret/hicret-hero.png",
 }
 
 SOCIAL_LINKS = {
@@ -823,48 +835,74 @@ async def upsert_hicret_posts(db, org: Organization, now: datetime) -> int:
 
 # --- Apply --------------------------------------------------------------------------------
 
+COMPANION_TEMPLATE_KEYS = ("kurban", "bank", "history", "volunteer", "transparency")
+
+
 async def run(org_slug: str, publish: bool) -> None:
     async with AsyncSessionLocal() as db:
         org = (await db.execute(select(Organization).where(Organization.slug == org_slug))).scalar_one()
-        pages = (await db.execute(select(SitePage).where(SitePage.organization_id == org.id))).scalars().all()
+        pages = list((await db.execute(select(SitePage).where(SitePage.organization_id == org.id))).scalars().all())
         by_kind = {p.kind: p for p in pages if p.kind in ("home", "header", "footer")}
-        missing = [k for k in ("home", "header", "footer") if k not in by_kind or not by_kind[k].blocks]
-        if missing:
-            sys.exit(f"Yayınlanmış {', '.join(missing)} yok; önce site yapıcıda bu bölümler yayınlanmalı.")
-
         by_slug = {p.slug: p for p in pages if p.kind == "page"}
-        plan: list[tuple[SitePage, list]] = [
-            (by_kind["header"], build_header(by_kind["header"].blocks)),
-            (by_kind["footer"], build_footer(by_kind["footer"].blocks)),
-            (by_kind["home"], build_home(by_kind["home"].blocks)),
-        ]
-        if "faaliyetlerimiz" in by_slug:
-            plan.append((by_slug["faaliyetlerimiz"], build_activities_page()))
-        if "hakkimizda-sayfasi" in by_slug:
-            plan.append((by_slug["hakkimizda-sayfasi"], build_about_page()))
-        if "bize-ulasin" in by_slug:
-            plan.append((by_slug["bize-ulasin"], build_contact_page(by_slug["bize-ulasin"].blocks or [])))
 
-        handled = {p.id for p, _ in plan}
+        def get_or_create_page(kind: str, slug: str, title: str) -> SitePage:
+            existing = by_kind.get(kind) if kind in ("home", "header", "footer") else by_slug.get(slug)
+            if existing is not None:
+                return existing
+            created = SitePage(organization_id=org.id, kind=kind, slug=slug, title=title, body="", version=0)
+            db.add(created)
+            pages.append(created)
+            if kind in ("home", "header", "footer"):
+                by_kind[kind] = created
+            else:
+                by_slug[slug] = created
+            return created
+
+        header_page = get_or_create_page("header", "__header__", "Üst bölüm (header)")
+        footer_page = get_or_create_page("footer", "__footer__", "Alt bölüm (footer)")
+        home_page = get_or_create_page("home", "__home__", "Ana sayfa")
+        activities_page = get_or_create_page("page", "faaliyetlerimiz", "Faaliyetlerimiz")
+        about_page = get_or_create_page("page", "hakkimizda-sayfasi", "Hakkımızda")
+        contact_page = get_or_create_page("page", "bize-ulasin", "İletişim")
+
+        plan: list[tuple[SitePage, list]] = [
+            (header_page, build_header(header_page.blocks or [])),
+            (footer_page, build_footer(footer_page.blocks or [])),
+            (home_page, build_home(home_page.blocks or [])),
+            (activities_page, build_activities_page()),
+            (about_page, build_about_page()),
+            (contact_page, build_contact_page(contact_page.blocks or [])),
+        ]
+
+        for tpl_key in COMPANION_TEMPLATE_KEYS:
+            tpl = PAGE_BY_KEY.get(tpl_key)
+            if tpl and tpl["slug"] not in by_slug:
+                p = get_or_create_page("page", tpl["slug"], tpl["label"])
+                remapped, _ = remap_assets(copy.deepcopy(tpl["blocks"]))
+                plan.append((p, remapped))
+
+        handled = {p.slug for p, _ in plan}
         for page in pages:
-            if page.kind == "page" and page.id not in handled and page.blocks:
+            if page.kind == "page" and page.slug not in handled and page.blocks:
                 remapped, changed = remap_assets(copy.deepcopy(page.blocks))
                 if changed:
                     plan.append((page, remapped))
 
+        await db.flush()
         now = datetime.now(timezone.utc)
         for page, blocks in plan:
             cleaned = validate_blocks(fresh_ids(blocks), page.kind)
-            page.version += 1
+            page.version = (page.version or 0) + 1
             if publish:
-                db.add(SitePageRevision(
-                    page_id=page.id,
-                    organization_id=org.id,
-                    blocks=page.blocks,
-                    created_by=BY,
-                    note="Hicret v3 içerik aktarımı öncesi",
-                    created_at=now - timedelta(seconds=5),
-                ))
+                if page.blocks:
+                    db.add(SitePageRevision(
+                        page_id=page.id,
+                        organization_id=org.id,
+                        blocks=page.blocks,
+                        created_by=BY,
+                        note="Hicret v3 içerik aktarımı öncesi",
+                        created_at=now - timedelta(seconds=5),
+                    ))
                 page.blocks, page.draft_blocks, page.is_published = cleaned, None, True
                 page.published_at, page.published_by = now, BY
                 db.add(SitePageRevision(
