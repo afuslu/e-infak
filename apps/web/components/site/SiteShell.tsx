@@ -70,7 +70,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
   }
 
   return (
-    <div className={`site-design tpl-${site.template} flex min-h-screen flex-col font-sans`} style={siteDesignStyle(site.design)}>
+    <div className={`site-design tpl-${site.template} flex min-h-screen flex-col overflow-x-clip font-sans`} style={siteDesignStyle(site.design)}>
       {chrome.header && data ? (
         <header className="contents">
           <BlockStyles blocks={chrome.header} />
@@ -119,7 +119,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
         </>
       )}
 
-      <main className="flex-1">{children}</main>
+      <main className="min-w-0 w-full flex-1">{children}</main>
 
       {chrome.footer && data ? (
         <footer>

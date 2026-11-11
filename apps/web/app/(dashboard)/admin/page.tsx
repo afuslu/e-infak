@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import Link from 'next/link'
 import { Card } from '@e-infak/ui'
+import { hasFeature, useAdminAccess } from '../../../lib/admin-access'
 
 interface MonthlyTrend {
   month: string
@@ -47,12 +49,22 @@ interface PaymentMethod {
   total_lira: number
 }
 
+const QUICK_LINKS: { href: string; label: string; icon: string; feature?: string }[] = [
+  { href: '/admin/bagislar', label: 'Bağışlar', icon: '💰' },
+  { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: '📢' },
+  { href: '/admin/bagiscilar', label: 'Bağışçılar', icon: '👥', feature: 'donor_crm' },
+  { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: '🧾', feature: 'receipts' },
+  { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: '📨', feature: 'bank_transactions' },
+  { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: '🧩' },
+]
+
 export default function AdminDashboardPage() {
   const [trends, setTrends] = useState<MonthlyTrend[]>([])
   const [campaigns, setCampaigns] = useState<CampaignProgress[]>([])
   const [payments, setPayments] = useState<PaymentMethod[]>([])
   const [kpis, setKpis] = useState<Kpis | null>(null)
   const [loading, setLoading] = useState(false)
+  const { data: access } = useAdminAccess()
 
   const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
 
@@ -90,14 +102,30 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Analitik Kontrol Paneli</h1>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Genel Bakış</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
         <button
           onClick={loadAnalytics}
           className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
         >
           🔄 Yenile
         </button>
+      </div>
+
+      {/* Sık kullanılan işlemler */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {QUICK_LINKS.filter((link) => hasFeature(access, link.feature)).map((link) => (
+          <Link key={link.href} href={link.href}
+            className="group flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-3.5 py-3 text-[13px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-primary-500 hover:text-primary-700">
+            <span className="text-lg">{link.icon}</span>
+            <span className="min-w-0 truncate">{link.label}</span>
+          </Link>
+        ))}
       </div>
 
       {/* Stats Grid */}
@@ -139,11 +167,11 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Dynamic CSS Bar Chart */}
-              <div className="flex justify-between items-end h-64 pt-6 px-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+              <div className="flex items-end gap-2 h-64 pt-6 px-3 sm:px-4 bg-slate-50/50 rounded-2xl border border-slate-100">
                 {trends.map((t, idx) => {
                   const pct = (t.total_lira / maxTrend) * 80 // Max height 80%
                   return (
-                    <div key={idx} className="flex flex-col items-center gap-2 group w-1/8">
+                    <div key={idx} className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
                       {/* Tooltip value */}
                       <span className="text-[9px] font-bold text-primary-700 opacity-0 group-hover:opacity-100 transition-opacity bg-white border px-1.5 py-0.5 rounded shadow-sm">
                         {t.total_lira.toLocaleString('tr-TR')} ₺
@@ -151,13 +179,14 @@ export default function AdminDashboardPage() {
                       {/* Bar */}
                       <div 
                         style={{ height: `${pct}%` }} 
-                        className="w-12 bg-primary-600/90 hover:bg-primary-700 rounded-t-lg transition-all duration-500 shadow-sm cursor-pointer"
+                        className="w-full max-w-12 bg-primary-600/90 hover:bg-primary-700 rounded-t-lg transition-all duration-500 shadow-sm"
                       />
                       {/* Label */}
                       <span className="text-[10px] text-gray-500 font-bold mt-1 pb-2">{t.month}</span>
                     </div>
                   )
                 })}
+                {trends.length === 0 && <p className="m-auto text-sm text-gray-400">Henüz bağış verisi yok.</p>}
               </div>
             </Card>
           </div>

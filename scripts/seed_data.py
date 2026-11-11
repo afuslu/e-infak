@@ -6,17 +6,21 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add parent directory to path
+# Add parent directory and kardeslik helper path
 sys.path.insert(0, str(Path(__file__).parent.parent / "services" / "backend"))
+sys.path.insert(0, str(Path(__file__).parent / "kardeslik"))
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.core.config import settings
 from app.models.organization import Organization
 from app.models.user import User, UserRole
 from app.models.campaign import Campaign, CampaignStatus, CampaignCategory
+from app.models.cms import GalleryItem
+from app.models.content_post import ContentPost
 from app.models.kurban import KurbanCampaign, KurbanAnimal, KurbanShare, KurbanCampaignStatus, KurbanAnimalType, KurbanStatus
 from app.models.orphan import Orphan, OrphanSponsorship, OrphanStatus
 from app.core.security import get_password_hash
+from redesign_kardeslik import DEMO_CAMPAIGNS, DEMO_GALLERY, DEMO_POSTS
 import datetime
 
 async def seed():
@@ -29,13 +33,13 @@ async def seed():
             slug="hicret-dernegi",
             name="Hicret Derneği",
             legal_name="Hicret Eğitim ve Yardımlaşma Derneği",
-            email="info@hicretdernegi.org",
-            phone="02221234567",
-            address="Test Mahallesi, Test Sokak No:1",
+            email="hicretdernegi26@gmail.com",
+            phone="+90 542 641 26 26",
+            address="71 Evler Mh. Esenyazı Sk. No:41, Odunpazarı",
             city="Eskişehir",
             primary_domain="hicretdernegi.org",
-            theme_primary_color="#065f46",
-            theme_accent_color="#0284c7",
+            theme_primary_color="#0E7A5F",
+            theme_accent_color="#B47B1E",
             logo_url="/images/hicret/logo.png",
         )
         session.add(hicret)
@@ -87,70 +91,107 @@ async def seed():
         campaigns_hicret = [
             Campaign(
                 organization_id=hicret.id,
-                slug="talebe-bursu",
-                title="Talebe Eğitim Bursu",
-                summary="Üniversite öğrencilerine destek programı",
-                story="<p>Üniversite eğitimi alan gençlerimize destek olmak için başlattığımız kampanya ile maddi imkanları kısıtlı öğrencilerimizin eğitimlerine katkı sağlıyoruz.</p>",
+                slug="hafiz-yetistiriyorum",
+                title="Hafız Yetiştiriyorum (Talebe Bursu)",
+                summary="Kur'an-ı Kerim ezberi yapan talebelerimizin eğitim, barınma ve iaşe giderlerine destek olun.",
+                story="<p>Hafızlık eğitimi alan talebelerimizin barınma, beslenme, kırtasiye ve tüm eğitim ihtiyaçlarını karşılıyoruz.</p>",
                 category=CampaignCategory.EGITIM,
                 status=CampaignStatus.ACTIVE,
-                target_cents=100000000,  # 1M TL
-                collected_cents=35000000,  # 350K TL
-                cover_image_url="/images/hicret/talebe 1.png",
-                suggested_amounts_cents=[5000, 10000, 25000, 50000],
+                target_cents=35000000,
+                collected_cents=14200000,
+                cover_image_url="/images/hicret/h-hafizlik.png",
+                suggested_amounts_cents=[60000, 120000, 240000, 600000],
                 is_featured=True,
+                display_order=1,
             ),
             Campaign(
                 organization_id=hicret.id,
-                slug="iftar-yemegi",
-                title="İftar Yemeği Organizasyonu",
-                summary="Ramazan ayında ihtiyaç sahiplerine iftar",
-                story="<p>Ramazan ayında maddi durumu iyi olmayan kardeşlerimize sıcak iftar yemeği ulaştırıyoruz.</p>",
+                slug="ibtida-ve-sibyan",
+                title="Sıbyan ve İbtida Eğitimi Desteği",
+                summary="4-12 yaş arası talebelerimizin Kur'an, ahlak ve temel İslami ilimler derslerine destek olun.",
+                story="<p>Sıbyan Mektebi ve İbtida sınıflarımızda eğitim gören öğrencilerimizin kitap ve sınıf ihtiyaçlarını karşılıyoruz.</p>",
+                category=CampaignCategory.EGITIM,
+                status=CampaignStatus.ACTIVE,
+                target_cents=25000000,
+                collected_cents=9800000,
+                cover_image_url="/images/hicret/h-ibtida.png",
+                suggested_amounts_cents=[30000, 60000, 120000, 300000],
+                is_featured=True,
+                display_order=2,
+            ),
+            Campaign(
+                organization_id=hicret.id,
+                slug="arapca-ilmi-programi",
+                title="Arapça ve İslami İlimler Programı",
+                summary="Sarf, nahiv, fıkıh ve tefsir halkalarında yetişen ilim talebelerimizin yolculuğuna ortak olun.",
+                story="<p>Klasik medrese usulüyle Arapça ve İslami ilimler okuyan talebelerimizin burs ve kitap ihtiyaçlarına destek oluyoruz.</p>",
+                category=CampaignCategory.EGITIM,
+                status=CampaignStatus.ACTIVE,
+                target_cents=30000000,
+                collected_cents=11500000,
+                cover_image_url="/images/hicret/h-arapca.png",
+                suggested_amounts_cents=[50000, 100000, 250000, 500000],
+                is_featured=True,
+                display_order=3,
+            ),
+            Campaign(
+                organization_id=hicret.id,
+                slug="su-kuyusu",
+                title="Su Kuyusu Projesi",
+                summary="Temiz suya erişimi olmayan bölgelerde kalıcı su kuyuları açıyoruz.",
+                story="<p>Kurak bölgelerde yaklaşık 1.000 kişiye temiz içme suyu sağlayan kalıcı su kuyuları inşa ediyoruz.</p>",
+                category=CampaignCategory.SU,
+                status=CampaignStatus.ACTIVE,
+                target_cents=15000000,
+                collected_cents=6850000,
+                cover_image_url="/images/hicret/h-su.png",
+                suggested_amounts_cents=[50000, 150000, 500000, 1500000],
+                is_featured=True,
+                display_order=4,
+            ),
+            Campaign(
+                organization_id=hicret.id,
+                slug="medrese-sofrasi",
+                title="Medrese Sofrası ve İftar Desteği",
+                summary="Medreselerimizde eğitim gören talebelerimizin günlük yemek ve iftar sofralarını destekleyin.",
+                story="<p>Talebelerimizin üç öğün sıcak yemek ve Ramazan iftar sofraları hayırseverlerimizin desteğiyle hazırlanmaktadır.</p>",
                 category=CampaignCategory.GIDA,
                 status=CampaignStatus.ACTIVE,
-                target_cents=50000000,  # 500K TL
-                collected_cents=25000000,  # 250K TL
-                suggested_amounts_cents=[5000, 10000, 20000],
+                target_cents=20000000,
+                collected_cents=8400000,
+                cover_image_url="/images/hicret/hicret-hero.png",
+                suggested_amounts_cents=[25000, 50000, 150000, 300000],
                 is_featured=True,
+                display_order=5,
+            ),
+            Campaign(
+                organization_id=hicret.id,
+                slug="vekalet-kurban",
+                title="Vekalet Kurban (Adak · Akika · Şükür)",
+                summary="Adak, akika, şükür ve vacip kurbanlarınızı İslami usullere uygun kesip ihtiyaç sahiplerine ulaştırıyoruz.",
+                story="<p>Vekalet yoluyla emanet edilen kurbanlarınız kesilerek talebe sofralarına ve ihtiyaç sahibi ailelere ulaştırılır.</p>",
+                category=CampaignCategory.KURBAN,
+                status=CampaignStatus.ACTIVE,
+                target_cents=60000000,
+                collected_cents=26400000,
+                cover_image_url="/images/hicret/h-kurban.png",
+                suggested_amounts_cents=[350000, 1200000, 2400000],
+                is_featured=True,
+                display_order=6,
             ),
         ]
         
         for campaign in campaigns_hicret:
             session.add(campaign)
         
-        # Create sample campaigns for Kardeşlik
-        campaigns_kardeslik = [
-            Campaign(
+        # Create comprehensive campaigns for Kardeşlik Payı covering all donation categories
+        for data in DEMO_CAMPAIGNS:
+            session.add(Campaign(
                 organization_id=kardeslik.id,
-                slug="su-kuyusu-projesi",
-                title="Su Kuyusu Projesi",
-                summary="Afrika'da temiz su kuyuları açıyoruz",
-                story="<p>Temiz suya erişimi olmayan bölgelerde su kuyuları açarak binlerce insanın hayatını kolaylaştırıyoruz.</p>",
-                category=CampaignCategory.SU,
                 status=CampaignStatus.ACTIVE,
-                target_cents=75000000,  # 750K TL
-                collected_cents=42000000,  # 420K TL
-                cover_image_url="/images/kardeslik/su-kuyusu.jpg",
-                suggested_amounts_cents=[10000, 25000, 50000, 100000],
                 is_featured=True,
-            ),
-            Campaign(
-                organization_id=kardeslik.id,
-                slug="yetim-sponsorlugu",
-                title="Yetim Sponsorluğu",
-                summary="Yetim çocuklara düzenli destek",
-                story="<p>Ailelerini kaybetmiş çocuklarımıza eğitim, sağlık ve barınma desteği sağlıyoruz.</p>",
-                category=CampaignCategory.YETIM,
-                status=CampaignStatus.ACTIVE,
-                target_cents=120000000,  # 1.2M TL
-                collected_cents=65000000,  # 650K TL
-                cover_image_url="/images/kardeslik/yetim-sponsorlugu.jpg",
-                suggested_amounts_cents=[10000, 25000, 50000],
-                is_featured=True,
-            ),
-        ]
-        
-        for campaign in campaigns_kardeslik:
-            session.add(campaign)
+                **data,
+            ))
         
         # Create Kurban Campaigns
         kurban_hicret = KurbanCampaign(
@@ -215,14 +256,30 @@ async def seed():
                 country="Somali",
                 city="Mogadişu",
                 description="Temel gıda, barınma ve medrese eğitimi yardımı bekleyen yetim kardeşimiz.",
-                photo_url="/images/hicret/h-yetim.png",
+                photo_url="/images/kardeslik/yetim-sponsorlugu.jpg",
                 monthly_sponsor_amount_cents=40000, # 400 TL
                 status=OrphanStatus.WAITING
             )
         ]
         for orphan in orphans:
             session.add(orphan)
-            
+
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        for idx, post_data in enumerate(DEMO_POSTS):
+            session.add(ContentPost(
+                organization_id=kardeslik.id,
+                is_active=True,
+                published_at=now_utc - datetime.timedelta(days=idx),
+                **post_data,
+            ))
+
+        for item_data in DEMO_GALLERY:
+            session.add(GalleryItem(
+                organization_id=kardeslik.id,
+                is_active=True,
+                **item_data,
+            ))
+
         await session.commit()
         print("✅ Demo data seeded successfully with Kurban & Orphan mock data!")
         print("\nLogin credentials:")

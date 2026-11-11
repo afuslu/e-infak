@@ -62,6 +62,7 @@ const BASE_CSS = `
 .hrow{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto);align-items:center;column-gap:24px;min-height:var(--hrow-h,76px);transition:min-height .2s}
 .hrow>*{min-width:0}
 .hslot{display:flex;align-items:center;gap:16px;min-width:0}
+@media (max-width:767px){.hrow{grid-template-columns:minmax(0,1fr) auto auto;column-gap:10px}.hslot{gap:8px}}
 .hrow>:nth-child(1) .hslot{justify-content:flex-start}
 .hrow>:nth-child(2) .hslot{justify-content:var(--hrow-center,center)}
 .hrow>:nth-child(3) .hslot{justify-content:flex-end}

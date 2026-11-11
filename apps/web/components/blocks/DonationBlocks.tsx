@@ -271,7 +271,12 @@ export function DonationCards({ cards, tabs, layout = 'grid', columns = 3, switc
     if (wanted && tabs?.some((t) => t.tag === wanted)) setTab(wanted)
   }, [tabs])
   const shown = useMemo(() => (tabs?.length ? cards.filter((c) => c.tags.includes(tab)) : cards), [cards, tabs, tab])
-  const cols = ({ 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 lg:grid-cols-3', 4: 'sm:grid-cols-2 lg:grid-cols-4' } as Record<number, string>)[columns] || 'sm:grid-cols-2 lg:grid-cols-3'
+  const cols =
+    shown.length === 1
+      ? 'mx-auto max-w-md grid-cols-1'
+      : shown.length === 2
+        ? 'mx-auto max-w-4xl sm:grid-cols-2'
+        : ({ 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 lg:grid-cols-3', 4: 'sm:grid-cols-2 lg:grid-cols-4' } as Record<number, string>)[columns] || 'sm:grid-cols-2 lg:grid-cols-3'
   if (!cards.length) return editing ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-gray-400">Gösterilecek aktif kampanya yok</p> : null
   return (
     <div>

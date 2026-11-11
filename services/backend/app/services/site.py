@@ -90,6 +90,9 @@ THEME_KITS = [
     # Deep green + red accents, geometric sans, pill buttons (made for HAKDER's move from STK PRO).
     {"key": "hakder", "label": "Hayır Kapısı (yeşil)", "primary_color": "#136938", "accent_color": "#DC3545",
      "design": {**DEFAULT_DESIGN, "body_font": "outfit", "heading_font": "outfit", "radius": "pill", "container": "wide", "page_color": "#FFFFFF", "text_color": "#0B0B0C", "heading_weight": "700"}},
+    # Hicret Derneği: deep emerald + warm antique brass-gold, Lora serif headings & Inter body.
+    {"key": "hicret-vakif", "label": "Hicret Vakıf (zümrüt & altın)", "primary_color": "#0E7A5F", "accent_color": "#B47B1E",
+     "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "lora", "radius": "large", "container": "wide", "page_color": "#FBFAF6", "text_color": "#162923", "heading_weight": "700"}},
 ]
 
 

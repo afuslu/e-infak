@@ -80,11 +80,11 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'counters': {
       const look = o.look || 'plain'
       const grid = (
-        <div className={`grid grid-cols-2 gap-6 ${COLS[Math.min(Math.max(items.length, 2), 6)]}`}>
+        <div className={`grid grid-cols-2 gap-3 sm:gap-6 ${COLS[Math.min(Math.max(items.length, 2), 6)]}`}>
           {items.map((item, i) => (
-            <div key={i} className={`text-center ${look === 'cards' ? 'rounded-2xl bg-white p-6 text-gray-900 shadow-sm' : ''}`}>
-              {item.icon && <div className="mb-2 text-3xl">{item.icon}</div>}
-              <div className={`font-heading text-4xl font-bold tabular-nums md:text-5xl ${look === 'band' ? '' : 'text-primary-700'}`}>
+            <div key={i} className={`text-center ${look === 'cards' ? 'rounded-2xl bg-white p-4 text-gray-900 shadow-sm sm:p-6' : ''}`}>
+              {item.icon && <div className="mb-1.5 text-2xl sm:mb-2 sm:text-3xl">{item.icon}</div>}
+              <div className={`font-heading text-2xl font-bold tabular-nums sm:text-4xl md:text-5xl ${look === 'band' ? '' : 'text-primary-700'}`}>
                 {item.prefix}<CountUp value={Number(item.value) || 0} locale={ctx.locale} suffix={String(item.suffix || '').length === 1 ? item.suffix : ''} />
                 {String(item.suffix || '').length > 1 && <span className="ms-1.5 text-[0.5em] font-semibold">{item.suffix}</span>}
               </div>
