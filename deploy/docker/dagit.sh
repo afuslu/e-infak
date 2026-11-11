@@ -83,7 +83,11 @@ done
 [[ "$saglikli" -eq 1 ]] || geri_don
 
 # Sertifika servisi siteyi taşımaz; başlamazsa dağıtım geri alınmaz, yalnızca uyarılır.
-compose "$TAG" up -d --no-deps certs || log "UYARI: sertifika servisi (certs) başlamadı; yeni alan adları SSL alamaz"
+if compose "$TAG" up -d --no-deps certs; then
+  compose "$TAG" exec -T backend python -c "from app.tasks import warm_all_certificates_task; warm_all_certificates_task.delay()" >/dev/null 2>&1 || true
+else
+  log "UYARI: sertifika servisi (certs) başlamadı; yeni alan adları SSL alamaz"
+fi
 
 echo "$TAG" > "$DIZIN/runtime/aktif-surum"
 cp "$SURUM/deploy/docker/dagit.sh" "$DIZIN/dagit.sh.yeni" && chmod +x "$DIZIN/dagit.sh.yeni" && mv "$DIZIN/dagit.sh.yeni" "$DIZIN/dagit.sh"

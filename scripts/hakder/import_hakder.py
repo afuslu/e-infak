@@ -30,6 +30,7 @@ sys.path.insert(0, "/app")
 
 from sqlalchemy import delete, select  # noqa: E402
 
+from app.core.config import settings  # noqa: E402
 from app.core.db import AsyncSessionLocal  # noqa: E402
 import app.models  # noqa: E402,F401
 from app.models.campaign import Campaign, CampaignCategory, CampaignStatus  # noqa: E402
@@ -39,6 +40,7 @@ from app.models.media import MediaAsset  # noqa: E402
 from app.models.organization import Organization, OrganizationDomain  # noqa: E402
 from app.models.organization_settings import OrganizationSettings  # noqa: E402
 from app.services.blocks import validate_blocks  # noqa: E402
+from app.services.domains import warm_certificates_soon  # noqa: E402
 from app.services.media import create_asset  # noqa: E402
 from app.services.redirects import clean_redirects  # noqa: E402
 from app.services.site import THEME_KITS, design_of  # noqa: E402
@@ -514,6 +516,8 @@ class Importer:
         if vk and any("4444" in a["iban"] for a in vk["accounts"]):
             self.report["warnings"].append("Vakıf Katılım IBAN'ları örnek değer gibi görünüyor (…4444 4444…, Swift TRC^6587): HAKDER'den doğrusunu alın")
         await self.db.commit()
+        if org.subdomain:
+            warm_certificates_soon([f"{org.subdomain}.{settings.PLATFORM_BASE_DOMAIN}"])
         return {"org": org.slug, "org_id": str(org.id), "campaigns": len(self.campaigns), "pages": sorted(pages),
                 "posts": len(self.data["posts"]), "images": len(self.media), **self.report}
 

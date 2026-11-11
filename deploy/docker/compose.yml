@@ -85,6 +85,7 @@ services:
   certs:
     image: caddy:2.8.4-alpine
     restart: unless-stopped
+    userns_mode: host  # keep CERTS_UID/CERTS_GID aligned with host nginx even under Docker userns-remap
     user: "${CERTS_UID:-33}:${CERTS_GID:-33}"
     command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
     environment:
