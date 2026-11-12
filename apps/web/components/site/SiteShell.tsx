@@ -55,7 +55,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
   const t = translator(await currentLocale())
   const [menu, chrome] = await Promise.all([
     getPublic<PublicMenu>('menu', { header: [], footer: [] }, 60),
-    getPublic<{ header: Block[] | null; footer: Block[] | null }>('site-chrome', { header: null, footer: null }, 5),
+    getPublic<{ header: Block[] | null; footer: Block[] | null }>('site-chrome', { header: null, footer: null }, 60),
   ])
   const headerLinks = menu.header.length ? menu.header : defaultHeaderLinks(t)
   const footerLinks = menu.footer.length ? menu.footer : defaultFooterLinks(t)

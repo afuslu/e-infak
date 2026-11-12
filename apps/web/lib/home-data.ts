@@ -11,7 +11,7 @@ async function getCampaigns(orgSlug: string, locale: string): Promise<Campaign[]
   try {
     const res = await fetch(`${API_URL}/api/v1/${withLang('campaigns?status=active&page_size=100', locale)}`, {
       headers: tenantHeaders(orgSlug),
-      next: { revalidate: 10 },
+      next: { revalidate: 60 },
     })
     return res.ok ? (await res.json()).items || [] : []
   } catch {

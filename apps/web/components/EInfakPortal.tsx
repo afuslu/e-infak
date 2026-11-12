@@ -147,7 +147,10 @@ export async function EInfakPortal() {
           </nav>
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Link href="/giris" className="rounded-lg border border-slate-800 bg-slate-900/50 px-3.5 py-2 hover:border-slate-600">Kurum Girişi</Link>
-            <a href={DEMO_MAIL} className="hidden rounded-lg bg-emerald-600 px-3.5 py-2 text-white hover:bg-emerald-500 sm:block">Demo talep edin</a>
+            <a href={DEMO_MAIL} className="rounded-lg bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-500 sm:px-3.5">
+              <span className="sm:hidden">Demo</span>
+              <span className="hidden sm:inline">Demo talep edin</span>
+            </a>
           </div>
         </div>
       </header>

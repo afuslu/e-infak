@@ -175,7 +175,7 @@ export function DonationCart() {
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/60" role="dialog" aria-modal="true" aria-label="Bağış sepeti">
           <button type="button" className="flex-1" aria-label="Sepeti kapat" onClick={() => setOpen(false)} />
-          <aside dir={locale === 'ar' ? 'rtl' : 'ltr'} className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl">
+          <aside dir={locale === 'ar' ? 'rtl' : 'ltr'} className="h-[100dvh] w-full max-w-md overflow-y-auto bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl">
             <header className="mb-5 flex items-center justify-between border-b pb-4">
               <h2 className="text-xl font-black text-slate-900">Bağış Sepetim</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Kapat" className="rounded-full p-2">✕</button>
