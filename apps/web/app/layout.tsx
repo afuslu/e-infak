@@ -18,8 +18,17 @@ export async function generateMetadata(): Promise<Metadata> {
   if (!site) {
     return {
       metadataBase,
-      title: { default: 'E‑İnfak', template: '%s | E‑İnfak' },
-      description: 'STK’lar için bağış sitesi ve dernek otomasyonu.',
+      title: { default: 'e-infak.org — Online Bağış Platformu', template: '%s | e-infak.org' },
+      description: 'STK’lar için online bağış platformu ve dernek otomasyonu.',
+      icons: { icon: '/images/e-infak/mark.png', apple: '/images/e-infak/mark.png' },
+      openGraph: {
+        title: 'e-infak.org — Online Bağış Platformu',
+        description: 'STK’lar için online bağış platformu ve dernek otomasyonu.',
+        type: 'website',
+        url: '/',
+        siteName: 'e-infak.org',
+        images: ['/images/e-infak/logo.png'],
+      },
       alternates: { canonical: '/' },
     }
   }

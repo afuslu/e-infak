@@ -136,10 +136,16 @@ export async function EInfakPortal() {
       <header className="sticky top-0 z-20 border-b border-slate-900/80 bg-slate-950/85 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-sky-500 text-lg font-black text-white">e</div>
+            <img
+              src="/images/e-infak/mark.png"
+              alt="e-infak.org"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-xl bg-white/95 object-contain p-1 shadow-sm ring-1 ring-white/20"
+            />
             <div>
-              <span className="text-xl font-extrabold tracking-wider">E-İNFAK</span>
-              <p className="hidden text-[10px] uppercase tracking-widest text-slate-500 sm:block">Dernek bağış platformu</p>
+              <span className="text-xl font-extrabold tracking-wide">e-infak.org</span>
+              <p className="hidden text-[10px] uppercase tracking-widest text-slate-400 sm:block">Online Bağış Platformu</p>
             </div>
           </Link>
           <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-400 md:flex" aria-label="Sayfa bölümleri">
