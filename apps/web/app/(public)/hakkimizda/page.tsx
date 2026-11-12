@@ -22,7 +22,7 @@ async function getOrgSettings(orgSlug: string): Promise<PublicOrgSettings> {
   try {
     const response = await fetch(`${apiUrl}/api/v1/public/org-settings`, {
       headers: tenantHeaders(orgSlug),
-      cache: 'no-store',
+      next: { revalidate: 60 },
     })
     return response.ok ? await response.json() : {}
   } catch {

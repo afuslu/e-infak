@@ -272,6 +272,8 @@ export function Slider({
                                 src={s.image_url}
                                 alt={s.title || ''}
                                 loading={i === 0 ? 'eager' : 'lazy'}
+                                fetchPriority={i === 0 ? 'high' : undefined}
+                                decoding="async"
                                 className="h-full w-full object-cover"
                               />
                             </picture>

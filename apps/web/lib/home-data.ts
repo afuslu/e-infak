@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import type { Campaign } from '@e-infak/api-client'
 import type { CategoryDto, HomeData, NewsPostDto } from '../components/sections/HomeSections'
 import { currentLocale, currentOrgSlug, getPublic, withLang, type PublicGalleryItem, type SiteData } from './public-content'
@@ -30,8 +31,8 @@ export async function getCampaign(slug: string): Promise<Campaign | null> {
   }
 }
 
-/** Everything the home sections and dynamic blocks draw from. */
-export async function loadHomeData(site: SiteData): Promise<HomeData> {
+/** Everything the home sections and dynamic blocks draw from. Cached per request. */
+export const loadHomeData = cache(async (site: SiteData): Promise<HomeData> => {
   const orgSlug = await currentOrgSlug()
   const locale = await currentLocale()
   const [campaigns, news, categories, gallery] = await Promise.all([
@@ -41,4 +42,4 @@ export async function loadHomeData(site: SiteData): Promise<HomeData> {
     getPublic<PublicGalleryItem[]>('gallery?kind=photo', [], 60),
   ])
   return { site, locale, campaigns, news, categories, gallery: gallery.slice(0, 24) }
-}
+})
