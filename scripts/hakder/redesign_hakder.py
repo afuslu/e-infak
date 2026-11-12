@@ -136,7 +136,7 @@ COUNTER_ICONS = ["📣", "🤝", "📦", "🙋"]
 
 
 def build_home(old: list) -> list:
-    slider = find(old, "slider")
+    slider = restyle(find(old, "slider"), layout="card", nav="thumbs", effect="fade", arrows=True, dots=True)
     cards = find(old, "donation_cards")
     stats = find(old, "stats")
     testimonials = find(old, "testimonials")

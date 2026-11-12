@@ -57,6 +57,42 @@ def test_columns_are_normalised_and_nesting_is_limited():
     assert [b["type"] for b in validate_blocks(default_home_blocks("kategori"))][:3] == ["hero", "quick_donation", "categories"]
 
 
+def test_slider_card_layout_and_thumb_nav():
+    from app.services.template_hakder import hayir_kapisi
+
+    cleaned = validate_blocks([
+        {
+            "id": "slider-card",
+            "type": "slider",
+            "props": {
+                "layout": "card",
+                "nav": "thumbs",
+                "effect": "fade",
+                "slides": [{"image_url": "/demo/water.webp", "title": "Su Kuyusu", "button_label": "Bağış Yap", "button_url": "/bagis"}],
+            },
+        },
+        {
+            "id": "slider-omitted",
+            "type": "slider",
+            "props": {
+                "slides": [{"image_url": "/demo/water.webp", "title": "Varsayılan"}],
+            },
+        },
+    ], "home")
+    assert cleaned[0]["props"]["layout"] == "card"
+    assert cleaned[0]["props"]["nav"] == "thumbs"
+    assert "layout" not in cleaned[1]["props"]
+    assert "nav" not in cleaned[1]["props"]
+
+    with pytest.raises(BlockError):
+        validate_blocks([{"id": "slider-bad", "type": "slider", "props": {"layout": "unknown", "slides": [{"image_url": "/demo/water.webp"}]}}], "home")
+
+    hk_home = validate_blocks(hayir_kapisi()["home"], "home")
+    assert hk_home[0]["type"] == "slider"
+    assert hk_home[0]["props"]["layout"] == "card"
+    assert hk_home[0]["props"]["nav"] == "thumbs"
+
+
 @pytest.fixture
 async def http(db_session):
     from app.core.db import engine

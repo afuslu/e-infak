@@ -232,7 +232,7 @@ def build_home(org) -> list:
     own_images = (org.logo_url or "").startswith("/images/kardeslik/") or org.slug == "kardeslik-payi"
 
     hero_block = (
-        B("slider", slides=KARDESLIK_SLIDES, height="lg", autoplay=True, interval=6, effect="fade", arrows=True, dots=True)
+        B("slider", slides=KARDESLIK_SLIDES, layout="card", nav="thumbs", autoplay=True, interval=6, effect="fade", arrows=True, dots=True)
         if own_images else
         B("section", style={"bg_color": MIST, "padding_top": 40, "padding_bottom": 40}, mobile={"padding_top": 20, "padding_bottom": 20}, children=[
             B("columns", style={"bg_color": "#FFFFFF", "radius": 14, "shadow": "sm", "padding_top": 28, "padding_bottom": 28, "padding_left": 28, "padding_right": 28},

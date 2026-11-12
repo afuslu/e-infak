@@ -493,7 +493,7 @@ WORK_AREAS = [
 
 
 def build_home(old: list) -> list:
-    slider = B("slider", slides=HICRET_SLIDES, height="lg", autoplay=True, interval=6, effect="fade", arrows=True, dots=True)
+    slider = B("slider", slides=HICRET_SLIDES, layout="card", nav="thumbs", autoplay=True, interval=6, effect="fade", arrows=True, dots=True)
     counters = B("counters", look="cards", items=[
         {"icon": "🕌", "value": 30, "suffix": "yıl", "label": "Eğitim & Hizmet Tecrübesi"},
         {"icon": "📍", "value": 8, "label": "Eskişehir Şubemiz"},
@@ -509,7 +509,7 @@ def build_home(old: list) -> list:
 
     return [b for b in [
         slider,
-        section([counters], top=0, bottom=44, margin_top=-32),
+        section([counters], top=28, bottom=44),
         B("marquee", tone="dark", speed="normal", separator="✦", items=[
             {"text": t} for t in (
                 "Sıbyan Mektebi (4-7 Yaş)", "İbtida Sınıfları (8-12 Yaş)", "Hafızlık Bölümü",

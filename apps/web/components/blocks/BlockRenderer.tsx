@@ -268,7 +268,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           campaign: c ? { slug: c.slug, title: c.title, collected: money(c, data.locale, 'collected'), target: money(c, data.locale, 'target'), progress: c.progress_percentage || 0 } : null,
         }
       })
-      return <Slider slides={slides} height={o.height} autoplay={o.autoplay !== false} interval={o.interval} effect={o.effect} arrows={o.arrows !== false} dots={o.dots !== false} editing={opts.editing} />
+      return <Slider slides={slides} height={o.height} autoplay={o.autoplay !== false} interval={o.interval} effect={o.effect} arrows={o.arrows !== false} dots={o.dots !== false} layout={o.layout} nav={o.nav} editing={opts.editing} />
     }
     case 'quick_donation': {
       const c = campaignById(o.campaign_id) || data.campaigns[0]
