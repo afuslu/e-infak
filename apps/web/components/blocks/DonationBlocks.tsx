@@ -196,65 +196,99 @@ function DonationCard({ card, editing }: { card: DonationCardView; editing?: boo
     setTimeout(() => setAdded(false), 2500)
   }
   const sharePct = card.shares && card.shares.total ? Math.min(100, Math.round((card.shares.taken / card.shares.total) * 100)) : 0
+  const quickAmounts = unit == null ? [250, 500, 1000].filter((v) => v >= minimum) : []
 
   return (
-    <article className="flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-[0_10px_30px_-12px_rgba(0,0,0,.18)]">
-      <Link href={`/kampanyalar/${card.slug}`} className="block aspect-[16/9] overflow-hidden bg-primary-50">
+    <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+      <Link href={`/kampanyalar/${card.slug}`} className="relative block aspect-[16/10] overflow-hidden bg-primary-50">
         {card.image && <img src={card.image} alt={card.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />}
       </Link>
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        <h3 className="text-center font-heading text-[20px] font-bold leading-snug text-gray-900">
-          <Link href={`/kampanyalar/${card.slug}`} className="hover:text-primary-700">{card.title}</Link>
-        </h3>
-        {card.note && <p className="text-center text-sm text-gray-500">{card.note}</p>}
+      <div className="flex flex-1 flex-col gap-3.5 p-5">
+        <div>
+          {card.note && (
+            <span className="mb-2 inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-primary-700">
+              {card.note}
+            </span>
+          )}
+          <h3 className="font-heading text-[18px] font-bold leading-snug text-gray-900">
+            <Link href={`/kampanyalar/${card.slug}`} className="hover:text-primary-700">{card.title}</Link>
+          </h3>
+        </div>
         {card.shares && (
-          <div className="text-sm">
-            <div className="mb-1 flex justify-between font-semibold text-gray-700">
-              <span><b className="text-primary-700">{card.shares.taken}</b> Alınan Hisse</span>
-              <span><b>{card.shares.total}</b> Toplam Hisse</span>
+          <div className="rounded-xl bg-gray-50 p-3 text-xs">
+            <div className="mb-1.5 flex items-center justify-between font-semibold text-gray-700">
+              <span><b className="text-primary-700">{card.shares.taken}</b> / {card.shares.total} Hisse</span>
+              <span className="rounded-full bg-primary-100 px-2 py-0.5 font-bold text-primary-800">%{sharePct}</span>
             </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-gray-100" role="progressbar" aria-valuenow={sharePct} aria-valuemin={0} aria-valuemax={100}>
-              <div className="h-full rounded-full bg-primary-600" style={{ width: `${sharePct}%` }} />
+            <div className="h-2 overflow-hidden rounded-full bg-gray-200" role="progressbar" aria-valuenow={sharePct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-primary-600 transition-all" style={{ width: `${sharePct}%` }} />
             </div>
-            <div className="mt-1 text-end text-xs font-bold text-primary-700">%{sharePct}</div>
           </div>
         )}
         {(card.niyet.length > 0 || card.durations.length > 0) && (
           <div className="flex gap-2">
             {card.niyet.length > 0 && (
-              <select aria-label="Niyet" value={niyet} onChange={(e) => setNiyet(e.target.value)} className="min-w-0 flex-1 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm">
+              <select aria-label="Niyet" value={niyet} onChange={(e) => setNiyet(e.target.value)}
+                className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-gray-50/80 px-3.5 py-2.5 text-sm font-medium text-gray-800 outline-none focus:border-primary-500 focus:bg-white">
                 <option value="">Niyet Seçiniz</option>
                 {card.niyet.map((n) => <option key={n} value={n}>{n}{card.quantity === 'hisse' || /kurban/i.test(card.title) ? ' Kurban' : ''}</option>)}
               </select>
             )}
             {card.durations.length > 0 && (
-              <select aria-label="Süre" value={months} onChange={(e) => setMonths(Number(e.target.value))} className="min-w-0 flex-1 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm">
+              <select aria-label="Süre" value={months} onChange={(e) => setMonths(Number(e.target.value))}
+                className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-gray-50/80 px-3.5 py-2.5 text-sm font-medium text-gray-800 outline-none focus:border-primary-500 focus:bg-white">
                 {card.durations.map((m) => <option key={m} value={m}>{m} Ay</option>)}
               </select>
             )}
           </div>
         )}
+        {quickAmounts.length > 0 && (
+          <div className="grid grid-cols-3 gap-1.5">
+            {quickAmounts.map((val) => {
+              const active = amount === String(val)
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => { setAmount(String(val)); setError('') }}
+                  className={`rounded-lg border py-1.5 text-xs font-bold transition-colors ${
+                    active
+                      ? 'border-primary-600 bg-primary-50 text-primary-800'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-primary-400 hover:text-primary-700'
+                  }`}
+                >
+                  {fmt(val, currency)} {SYMBOL[currency]}
+                </button>
+              )
+            })}
+          </div>
+        )}
         <div className="mt-auto flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-center rounded-full border border-gray-200 bg-gray-50 pe-3">
-            <input inputMode="decimal" aria-label="Tutar" placeholder="0" readOnly={unit != null}
+          <div className="flex min-w-0 flex-1 items-center rounded-xl border border-gray-200 bg-gray-50/80 pe-3 focus-within:border-primary-500 focus-within:bg-white">
+            <input inputMode="decimal" aria-label="Tutar" placeholder="Tutar" readOnly={unit != null}
               value={unit != null ? fmt(unit * (months || 1), currency) : amount}
               onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ''))}
-              className={`min-w-0 flex-1 rounded-full bg-transparent px-4 py-2 text-center font-semibold outline-none ${unit != null ? 'text-gray-600' : ''}`} />
-            <span className="font-bold text-gray-500">{SYMBOL[currency]}</span>
+              className={`min-w-0 flex-1 rounded-xl bg-transparent px-3.5 py-2.5 text-sm font-bold outline-none ${unit != null ? 'text-gray-700' : 'text-gray-900'}`} />
+            <span className="text-sm font-bold text-gray-500">{SYMBOL[currency]}</span>
           </div>
           {card.quantity && (
-            <label className="flex items-center gap-1 text-xs font-semibold text-gray-500">
-              <input type="number" min={1} max={card.maxQuantity} value={qty} aria-label={card.quantity === 'hisse' ? 'Hisse' : 'Adet'}
-                onChange={(e) => setQty(Math.max(1, Math.min(card.maxQuantity, Number(e.target.value) || 1)))}
-                className="w-14 rounded-full border border-gray-200 bg-gray-50 px-2 py-2 text-center text-sm text-gray-900" />
-              {card.quantity === 'hisse' ? 'Hisse' : 'Adet'}
-            </label>
+            <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50/80 p-1">
+              <button type="button" aria-label="Azalt" onClick={() => setQty((q) => Math.max(1, q - 1))}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold text-gray-600 hover:bg-white hover:text-gray-900">−</button>
+              <span className="min-w-[2.2rem] px-1 text-center text-xs font-bold text-gray-900" aria-label={card.quantity === 'hisse' ? 'Hisse' : 'Adet'}>
+                {qty}
+              </span>
+              <button type="button" aria-label="Artır" onClick={() => setQty((q) => Math.min(card.maxQuantity, q + 1))}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold text-gray-600 hover:bg-white hover:text-gray-900">+</button>
+            </div>
           )}
         </div>
-        {error && <p role="alert" className="text-center text-xs font-semibold text-red-600">{error}</p>}
+        {error && <p role="alert" className="text-xs font-semibold text-red-600">{error}</p>}
         <button type="button" onClick={add}
-          className="flex items-center justify-center gap-2 rounded-full border-2 border-primary-700 px-4 py-2.5 font-semibold uppercase text-gray-900 transition-colors hover:bg-primary-700 hover:text-white">
-          <span aria-hidden>♥</span>{added ? 'Sepete eklendi ✓' : card.button}
+          className={`flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold tracking-wide text-white shadow-sm transition-colors ${
+            added ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-primary-600 hover:bg-primary-700'
+          }`}>
+          <span aria-hidden>{added ? '✓' : '♥'}</span>{added ? 'Sepete Eklendi' : card.button}
         </button>
       </div>
     </article>
@@ -328,33 +362,55 @@ export function ContactFormBlock({ kicker, title, text, image, badgeValue, badge
       setState('error'); setError(err?.response?.status === 429 ? 'Çok fazla deneme; lütfen birkaç dakika sonra tekrar deneyin.' : 'Mesajınız gönderilemedi, lütfen tekrar deneyin.')
     }
   }
-  const field = 'w-full rounded-md border-0 bg-gray-100 px-5 py-4 text-[15px] outline-none focus:ring-2 focus:ring-primary-500'
+  const field = 'w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-[15px] text-gray-900 outline-none transition focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/15'
   return (
-    <div className="mx-auto grid w-full max-w-[var(--site-container)] items-center gap-10 px-6 lg:grid-cols-[5fr_7fr]">
-      <div className="relative hidden lg:block">
-        {image && <img src={image} alt="" loading="lazy" className="w-[78%] border-e-[14px] border-primary-700 object-cover grayscale" />}
-        {badgeValue && (
-          <div className="absolute end-0 top-1/2 flex h-44 w-44 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-[#5BC2CF] p-4 text-center text-white shadow-lg">
-            <div className="font-heading text-5xl font-bold">{badgeValue}</div>
-            {badgeText && <div className="mt-1 text-sm leading-tight">{badgeText}</div>}
+    <div className="mx-auto grid w-full max-w-[var(--site-container)] items-stretch gap-6 px-4 sm:px-6 lg:grid-cols-[5fr_7fr] lg:gap-8">
+      <div className="relative flex flex-col justify-between gap-6 overflow-hidden rounded-2xl bg-primary-950 p-6 text-white shadow-lg sm:p-8">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_60%)]" aria-hidden />
+        <div className="relative">
+          {kicker && (
+            <span className="mb-3 inline-block rounded-full bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[1.5px] text-accent-400">
+              {kicker}
+            </span>
+          )}
+          {title && <h2 className="mb-3 font-heading text-2xl font-bold leading-tight text-white sm:text-3xl">{title}</h2>}
+          {text && <p className="text-sm leading-relaxed text-white/75 sm:text-base">{text}</p>}
+        </div>
+        {(image || badgeValue) && (
+          <div className="relative mt-auto">
+            {image && (
+              <div className="overflow-hidden rounded-xl ring-1 ring-white/15">
+                <img src={image} alt="" loading="lazy" className="aspect-[16/9] w-full object-cover" />
+              </div>
+            )}
+            {badgeValue && (
+              <div className={`${image ? 'mt-3' : ''} inline-flex items-center gap-3 rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 backdrop-blur-sm`}>
+                <span className="font-heading text-2xl font-bold text-accent-400">{badgeValue}</span>
+                {badgeText && <span className="text-xs font-medium text-white/85">{badgeText}</span>}
+              </div>
+            )}
           </div>
         )}
       </div>
-      <div>
-        {kicker && <div className="mb-2 text-lg font-medium text-primary-700">{kicker}</div>}
-        {title && <h2 className="mb-4 font-heading text-3xl font-bold leading-tight md:text-[44px]">{title}</h2>}
-        {text && <p className="mb-6 opacity-75">{text}</p>}
+      <div className="flex flex-col justify-center rounded-2xl border border-gray-200/80 bg-white p-6 shadow-sm sm:p-8">
         {state === 'sent' ? (
-          <p role="status" className="rounded-xl bg-primary-50 p-6 font-semibold text-primary-800">Teşekkürler, mesajınız bize ulaştı. En kısa sürede dönüş yapacağız.</p>
+          <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center font-semibold text-emerald-900">
+            Teşekkürler, mesajınız bize ulaştı. En kısa sürede dönüş yapacağız.
+          </div>
         ) : (
           <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
             <input className={field} placeholder="Adınız *" value={form.name} onChange={set('name')} autoComplete="given-name" aria-label="Adınız" />
             <input className={field} placeholder="Soyadınız" value={form.surname} onChange={set('surname')} autoComplete="family-name" aria-label="Soyadınız" />
             {askEmail && <input className={field} type="email" placeholder="E-Posta" value={form.email} onChange={set('email')} autoComplete="email" aria-label="E-posta" />}
             <input className={`${field} ${askEmail ? '' : 'sm:col-span-2'}`} type="tel" placeholder="Telefon *" value={form.phone} onChange={set('phone')} autoComplete="tel" aria-label="Telefon" />
-            <textarea className={`${field} min-h-[150px] sm:col-span-2`} placeholder="Mesajınız *" value={form.message} onChange={set('message')} aria-label="Mesajınız" />
+            <textarea className={`${field} min-h-[140px] sm:col-span-2`} placeholder="Mesajınız *" value={form.message} onChange={set('message')} aria-label="Mesajınız" />
             {error && <p role="alert" className="text-sm font-semibold text-red-600 sm:col-span-2">{error}</p>}
-            <div><button type="submit" disabled={state === 'sending'} className="rounded-full bg-[#060315] px-11 py-4 font-semibold uppercase text-white transition-opacity hover:opacity-85 disabled:opacity-60">{state === 'sending' ? 'Gönderiliyor…' : button}</button></div>
+            <div className="sm:col-span-2">
+              <button type="submit" disabled={state === 'sending'}
+                className="w-full rounded-xl bg-primary-600 px-8 py-3.5 text-sm font-bold uppercase tracking-wide text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60 sm:w-auto">
+                {state === 'sending' ? 'Gönderiliyor…' : button}
+              </button>
+            </div>
           </form>
         )}
       </div>

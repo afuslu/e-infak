@@ -109,13 +109,13 @@ def build_header(old: list) -> list:
     account = restyle(find(old, "account_links") or B("account_links"), show_portal=True, show_verify=False, layout="inline")
     account["advanced"] = {"hide_tablet": True, "hide_mobile": True}
     account["style"] = {"desktop": {"font_size": 14}}
-    row = B("header_row", tone="light", height=88, sticky=True, shrink=True, border=True, center_align="center", children=[
+    row = B("header_row", tone="light", height=76, sticky=True, shrink=True, border=True, center_align="center", children=[
         B("header_slot", children=[logo]),
         B("header_slot", children=[menu] if menu else []),
         B("header_slot", children=[
             account,
             find(old, "cart_button") or B("cart_button"),
-            B("donate_button", label="Bağış Yap", url="/bagis", size="md", heart=True, p={"style": "accent"},
+            B("donate_button", style={"radius": 999}, label="Bağış Yap", url="/bagis", size="md", heart=True, p={"style": "accent"},
               advanced={"hide_tablet": True, "hide_mobile": True}),
         ]),
     ])
@@ -294,19 +294,23 @@ def build_footer(old: list) -> list:
     address = next((c for c in contacts if c["props"].get("show_address")), None) or B("contact_info", layout="stacked", show_address=True)
     call = next((c for c in contacts if c["props"].get("title")), None)
     if call:
-        call["style"] = {"desktop": {"radius": 18, "bg_color": GREEN, "font_size": 22, "font_weight": "700",
-                                     "padding_top": 24, "padding_left": 24, "padding_right": 24, "padding_bottom": 24}}
+        call["style"] = {"desktop": {"radius": 16, "bg_color": "#0F4726", "border_width": 1, "border_color": "#1F6A3E",
+                                     "font_size": 20, "font_weight": "700",
+                                     "padding_top": 20, "padding_left": 20, "padding_right": 20, "padding_bottom": 20}}
     motto = find(old, "richtext")
     social = find(old, "social_icons") or B("social_icons", p={"style": "round"})
     copyright_ = restyle(find(old, "copyright") or B("copyright", show_powered=False), desktop={"text_align": "left"})
+    if copyright_:
+        copyright_["style"]["mobile"] = {"text_align": "center"}
     if legal:
         legal["props"]["align"] = "right"
         legal["style"] = {"desktop": {"font_size": 14}}
 
-    call_band = B("section", style={"bg_color": GREEN, "text_color": "#FFFFFF", "padding_top": 44, "padding_bottom": 44, "margin_top": 0}, children=[
-        B("columns", ratio="2-1", gap=32, valign="center", children=[
+    call_band = B("section", style={"bg_color": GREEN, "text_color": "#FFFFFF", "padding_top": 36, "padding_bottom": 36, "margin_top": 0},
+                  mobile={"padding_top": 28, "padding_bottom": 28}, children=[
+        B("columns", ratio="2-1", gap=24, valign="center", children=[
             B("column", children=[B("heading", text="Bir kapı aç, bir hayat değiştir", level="h3", subtitle="Küçük bir bağış, bir ailenin sofrasına umut olur.")]),
-            B("column", children=[B("buttons", align="right", items=[
+            B("column", children=[B("buttons", align="right", mobile_align="center", items=[
                 {"label": "Bağış Yap", "url": "/bagis", "style": "light"}, {"label": "Hesap Numaralarımız", "url": "/hesap-numaralarimiz", "style": "outline"}])]),
         ])])
     main = B("section", style={"bg_color": DEEP, "text_color": "#E8F1EA", "padding_top": 64, "padding_bottom": 24}, mobile={"padding_top": 40, "padding_bottom": 24}, children=[
