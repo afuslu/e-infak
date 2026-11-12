@@ -126,6 +126,7 @@ const SOCIAL_LABELS: Record<string, [string, string]> = {
 const BUTTON_VARIANT: Record<string, string> = {
   primary: 'bg-primary-600 text-white hover:bg-primary-700',
   accent: 'bg-accent-500 text-white hover:bg-accent-600',
+  danger: 'bg-[#E30A17] text-white shadow-md shadow-red-600/25 hover:bg-red-700',
   outline: 'border-[1.5px] border-current hover:bg-black/5',
   light: 'bg-white text-gray-900 hover:bg-gray-100',
   link: 'px-0 underline underline-offset-4',
@@ -210,11 +211,12 @@ function Btn({ href, children, variant = 'primary', newTab }: { href: string; ch
   const cls = {
     primary: 'bg-primary-600 text-white hover:bg-primary-700',
     accent: 'bg-accent-500 text-white hover:bg-accent-600',
+    danger: 'bg-[#E30A17] text-white shadow-md shadow-red-600/25 hover:bg-red-700',
     outline: 'border-[1.5px] border-current hover:bg-black/5',
     light: 'bg-white text-gray-900 hover:bg-gray-100',
     link: 'px-0 underline underline-offset-4',
   }[variant] || 'bg-primary-600 text-white hover:bg-primary-700'
-  const className = `inline-flex items-center justify-center rounded-[10px] px-6 py-3 font-bold transition-colors ${cls}`
+  const className = `inline-flex items-center justify-center rounded-[10px] px-6 py-3 font-bold transition-all ${cls}`
   if (href.startsWith('/') && !newTab) return <Link href={href} className={className}>{children}</Link>
   return <a href={href} className={className} target={newTab || !href.startsWith('/') ? '_blank' : undefined} rel="noopener noreferrer">{children}</a>
 }
@@ -344,15 +346,22 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       return <Stats data={data} t={t} o={o} />
     case 'banner': {
       const c = campaignById(o.campaign_id)
+      const isRed = o.tone === 'red' || /e-?devlet|348/i.test(`${o.kicker || ''} ${o.title || ''} ${o.text || ''} ${o.button_label || ''}`)
       const align = o.align === 'center' ? 'items-center text-center' : o.align === 'right' ? 'items-end text-end' : 'items-start'
       const button = c
-        ? <Btn href={`/kampanyalar/${c.slug}`} variant="accent">{o.button_label || t('campaign.donate')}</Btn>
-        : o.button_label && o.button_url ? <Btn href={o.button_url} variant={o.layout === 'color' ? 'light' : 'accent'}>{o.button_label}</Btn> : null
+        ? <Btn href={`/kampanyalar/${c.slug}`} variant={isRed ? 'danger' : 'accent'}>{o.button_label || t('campaign.donate')}</Btn>
+        : o.button_label && o.button_url ? <Btn href={o.button_url} variant={o.layout === 'color' || isRed ? 'light' : 'accent'}>{o.button_label}</Btn> : null
       const text = (light: boolean) => (
         <div className={`flex flex-col gap-3 ${align}`}>
-          {o.kicker && <div className={`text-[13px] font-bold tracking-[2px] ${light ? 'text-white/80' : 'text-primary-600'}`}>{o.kicker}</div>}
+          {o.kicker && (
+            <div className={`text-[13px] font-bold uppercase tracking-[2px] ${
+              isRed ? 'inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-white' : light ? 'text-white/80' : 'text-primary-600'
+            }`}>
+              {o.kicker}
+            </div>
+          )}
           {o.title && <h3 className={`font-heading text-2xl font-bold md:text-3xl ${light ? 'text-white' : 'text-gray-900'}`}>{o.title}</h3>}
-          {o.text && <p className={light ? 'text-white/85' : 'text-gray-600'}>{o.text}</p>}
+          {o.text && <p className={light ? 'text-white/90' : 'text-gray-600'}>{o.text}</p>}
           {c && <div className="w-full max-w-md"><ProgressBar c={c} locale={data.locale} light={light} /></div>}
           {button && <div className="pt-1">{button}</div>}
         </div>
@@ -360,18 +369,22 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       if (o.layout === 'split') {
         return (
           <div className={container}>
-            <div className="grid items-center gap-8 overflow-hidden rounded-2xl bg-primary-50 md:grid-cols-2">
+            <div className={`grid items-center gap-8 overflow-hidden rounded-2xl md:grid-cols-2 ${isRed ? 'bg-gradient-to-br from-[#C8102E] to-red-700 text-white shadow-xl shadow-red-900/15' : 'bg-primary-50'}`}>
               {o.image_url && <img src={o.image_url} alt="" className="h-full max-h-[420px] w-full object-cover" loading="lazy" />}
-              <div className="p-8">{text(false)}</div>
+              <div className="p-8">{text(isRed)}</div>
             </div>
           </div>
         )
       }
-      if (o.layout === 'color') {
-        return <div className="flex flex-col justify-center bg-primary-700"><div className={`${container} w-full py-12`}>{text(true)}</div></div>
+      if (o.layout === 'color' || (isRed && !o.image_url)) {
+        return (
+          <div className={`flex flex-col justify-center ${isRed ? 'bg-gradient-to-r from-[#C8102E] via-[#E30A17] to-red-700 shadow-lg shadow-red-900/15' : 'bg-primary-700'}`}>
+            <div className={`${container} w-full py-12`}>{text(true)}</div>
+          </div>
+        )
       }
       return (
-        <div className="relative flex flex-col justify-center overflow-hidden bg-primary-950">
+        <div className={`relative flex flex-col justify-center overflow-hidden ${isRed ? 'bg-red-950' : 'bg-primary-950'}`}>
           {o.image_url && (
             <picture>
               {o.mobile_image_url && <source media="(max-width: 639px)" srcSet={o.mobile_image_url} />}
@@ -386,9 +399,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       return (
         <div className={`${container} w-full`}>
           {(o.kicker || o.title) && (
-            <div className="mb-8 text-center">
-              {o.kicker && <div className="mb-2 text-lg font-medium text-primary-700">{o.kicker}</div>}
-              {o.title && <h2 className="font-heading text-3xl font-bold md:text-[44px]">{o.title}</h2>}
+            <div className="mb-10 text-center">
+              {o.kicker && (
+                <div className="mb-3 inline-flex items-center rounded-full bg-primary-50 px-4 py-1 text-xs font-bold uppercase tracking-[2px] text-primary-700 ring-1 ring-primary-200/70">
+                  {o.kicker}
+                </div>
+              )}
+              {o.title && <h2 className="font-heading text-3xl font-bold tracking-tight text-gray-900 md:text-[42px]">{o.title}</h2>}
             </div>
           )}
           <DonationCards cards={donationCards(o, data, t('campaign.donate'))} tabs={o.source === 'tabs' ? (o.tabs || []).filter((x: any) => x.tag && x.label) : undefined}
@@ -461,14 +478,36 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const v = o.url as { provider?: string; id?: string } | undefined
       if (!v?.id) return null
       const src = v.provider === 'vimeo' ? `https://player.vimeo.com/video/${encodeURIComponent(v.id)}` : `https://www.youtube-nocookie.com/embed/${encodeURIComponent(v.id)}`
+      const isHighlight = Boolean(o.highlight) || /348|saat/i.test(String(o.title || ''))
       return (
         <div className={container}>
-          {o.title && <h3 className="mb-4 font-heading text-2xl font-bold">{o.title}</h3>}
-          <div className="aspect-video overflow-hidden rounded-2xl bg-black">
-            {opts.editing
-              ? <div className="flex h-full items-center justify-center text-white/70">▶ {v.provider === 'vimeo' ? 'Vimeo' : 'YouTube'} videosu</div>
-              : <iframe src={src} title={o.title || 'Video'} className="h-full w-full" loading="lazy" allow="accelerometer; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />}
-          </div>
+          {isHighlight ? (
+            <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-zinc-900 to-red-950/80 p-5 shadow-2xl ring-2 ring-red-600/50 sm:p-8">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-[#E30A17] px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-white shadow-md shadow-red-600/30">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-white" aria-hidden />
+                    ▶ Video Arşivi
+                  </span>
+                  {o.title && <h3 className="font-heading text-xl font-bold text-white sm:text-2xl">{o.title}</h3>}
+                </div>
+              </div>
+              <div className="aspect-video overflow-hidden rounded-2xl bg-black ring-1 ring-white/15">
+                {opts.editing
+                  ? <div className="flex h-full items-center justify-center text-white/70">▶ {v.provider === 'vimeo' ? 'Vimeo' : 'YouTube'} videosu</div>
+                  : <iframe src={src} title={o.title || 'Video'} className="h-full w-full" loading="lazy" allow="accelerometer; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />}
+              </div>
+            </div>
+          ) : (
+            <>
+              {o.title && <h3 className="mb-4 font-heading text-2xl font-bold">{o.title}</h3>}
+              <div className="aspect-video overflow-hidden rounded-2xl bg-black">
+                {opts.editing
+                  ? <div className="flex h-full items-center justify-center text-white/70">▶ {v.provider === 'vimeo' ? 'Vimeo' : 'YouTube'} videosu</div>
+                  : <iframe src={src} title={o.title || 'Video'} className="h-full w-full" loading="lazy" allow="accelerometer; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />}
+              </div>
+            </>
+          )}
         </div>
       )
     }
@@ -478,9 +517,10 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         : JUSTIFY[o.align] || ''
       return (
         <div className={`${container} flex flex-wrap gap-3 ${justify}`}>
-          {(o.items || []).filter((b: any) => b.label && b.url).map((b: any, i: number) => (
-            <Btn key={i} href={b.url} variant={b.style} newTab={b.new_tab}>{b.label}</Btn>
-          ))}
+          {(o.items || []).filter((b: any) => b.label && b.url).map((b: any, i: number) => {
+            const autoDanger = (!b.style || b.style === 'primary' || b.style === 'accent') && /e-?devlet|348/i.test(`${b.label} ${b.url}`)
+            return <Btn key={i} href={b.url} variant={autoDanger ? 'danger' : b.style} newTab={b.new_tab}>{b.label}</Btn>
+          })}
         </div>
       )
     }

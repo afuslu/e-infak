@@ -55,24 +55,32 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const look = o.look || 'card'
       const left = look === 'icon_left'
       const center = o.align !== 'left' && !left
-      const box = { card: 'rounded-2xl bg-white p-7 text-gray-900 shadow-sm transition-shadow hover:shadow-lg', bordered: 'rounded-2xl border p-7', plain: 'p-2', icon_left: 'flex gap-4 p-2' }[look as string] || ''
+      const box = { card: 'rounded-2xl bg-white p-7 text-gray-900 shadow-sm transition-all hover:shadow-lg', bordered: 'rounded-2xl border p-7', plain: 'p-2', icon_left: 'flex gap-4 p-2' }[look as string] || ''
       return (
         <div className={container}>
           <Head o={o} center={o.align !== 'left'} />
           <div className={`grid gap-6 sm:grid-cols-2 ${COLS[o.columns ?? 3] || COLS[3]}`}>
-            {items.filter((i) => i.title || i.text).map((item, i) => (
-              <Go key={i} href={item.url} className={`${box} ${center ? 'text-center' : ''} ${item.url ? 'block hover:-translate-y-0.5 transition-transform' : ''}`}>
-                {(item.image_url || item.icon) && (
-                  <div className={`${left ? 'flex-none' : `mb-4 ${center ? 'mx-auto' : ''}`} flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-2xl text-primary-700`}>
-                    {item.image_url ? <img src={item.image_url} alt="" className="h-9 w-9 object-contain" loading="lazy" /> : item.icon}
+            {items.filter((i) => i.title || i.text).map((item, i) => {
+              const isRed = /e-?devlet|348/i.test(`${item.title || ''} ${item.text || ''}`)
+              const cardTheme = isRed && look !== 'plain'
+                ? 'border-2 border-red-200 bg-gradient-to-br from-red-50 via-white to-red-50/40 shadow-md shadow-red-600/10'
+                : ''
+              return (
+                <Go key={i} href={item.url} className={`${box} ${cardTheme} ${center ? 'text-center' : ''} ${item.url ? 'block hover:-translate-y-0.5 transition-transform' : ''}`}>
+                  {(item.image_url || item.icon) && (
+                    <div className={`${left ? 'flex-none' : `mb-4 ${center ? 'mx-auto' : ''}`} flex h-14 w-14 items-center justify-center rounded-2xl text-2xl ${
+                      isRed ? 'bg-[#E30A17] text-white shadow-sm shadow-red-600/30' : 'bg-primary-50 text-primary-700'
+                    }`}>
+                      {item.image_url ? <img src={item.image_url} alt="" className="h-9 w-9 object-contain" loading="lazy" /> : item.icon}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    {item.title && <h3 className={`font-heading text-lg font-bold ${isRed ? 'text-red-700' : ''}`}>{item.title}</h3>}
+                    {item.text && <p className="mt-2 text-[15px] leading-relaxed opacity-80">{item.text}</p>}
                   </div>
-                )}
-                <div className="min-w-0">
-                  {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
-                  {item.text && <p className="mt-2 text-[15px] leading-relaxed opacity-75">{item.text}</p>}
-                </div>
-              </Go>
-            ))}
+                </Go>
+              )
+            })}
           </div>
         </div>
       )
@@ -81,16 +89,27 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const look = o.look || 'plain'
       const grid = (
         <div className={`grid grid-cols-2 gap-3 sm:gap-6 ${COLS[Math.min(Math.max(items.length, 2), 6)]}`}>
-          {items.map((item, i) => (
-            <div key={i} className={`text-center ${look === 'cards' ? 'rounded-2xl bg-white p-4 text-gray-900 shadow-sm sm:p-6' : ''}`}>
-              {item.icon && <div className="mb-1.5 text-2xl sm:mb-2 sm:text-3xl">{item.icon}</div>}
-              <div className={`font-heading text-2xl font-bold tabular-nums sm:text-4xl md:text-5xl ${look === 'band' ? '' : 'text-primary-700'}`}>
-                {item.prefix}<CountUp value={Number(item.value) || 0} locale={ctx.locale} suffix={String(item.suffix || '').length === 1 ? item.suffix : ''} />
-                {String(item.suffix || '').length > 1 && <span className="ms-1.5 text-[0.5em] font-semibold">{item.suffix}</span>}
+          {items.map((item, i) => {
+            const isRed = /348|saat|video|e-?devlet/i.test(`${item.value || ''} ${item.suffix || ''} ${item.label || ''}`)
+            return (
+              <div key={i} className={`text-center ${
+                look === 'cards'
+                  ? isRed
+                    ? 'rounded-2xl border-2 border-red-200 bg-gradient-to-b from-red-50 to-white p-4 text-gray-900 shadow-md shadow-red-600/10 sm:p-6'
+                    : 'rounded-2xl bg-white p-4 text-gray-900 shadow-sm sm:p-6'
+                  : ''
+              }`}>
+                {item.icon && <div className="mb-1.5 text-2xl sm:mb-2 sm:text-3xl">{item.icon}</div>}
+                <div className={`font-heading text-2xl font-bold tabular-nums sm:text-4xl md:text-5xl ${
+                  isRed && look !== 'band' ? 'text-[#E30A17]' : look === 'band' ? '' : 'text-primary-700'
+                }`}>
+                  {item.prefix}<CountUp value={Number(item.value) || 0} locale={ctx.locale} suffix={String(item.suffix || '').length === 1 ? item.suffix : ''} />
+                  {String(item.suffix || '').length > 1 && <span className="ms-1.5 text-[0.5em] font-semibold">{item.suffix}</span>}
+                </div>
+                {item.label && <div className={`mt-2 text-sm font-semibold ${isRed && look !== 'band' ? 'text-red-900' : 'opacity-75'}`}>{item.label}</div>}
               </div>
-              {item.label && <div className="mt-2 text-sm font-semibold opacity-75">{item.label}</div>}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )
       if (look === 'band') return <div className="bg-primary-700 py-14 text-white"><div className={container}><Head o={o} />{grid}</div></div>
