@@ -163,7 +163,7 @@ function declarations(s: StyleValues): { outer: string[]; inner: string[]; hover
   return { outer, inner, hover, overlay }
 }
 
-function blockCss(block: Block, out: string[]) {
+function blockCss(block: Block, out: string[], editing = false) {
   const sel = `.b-${block.id}`
   for (const device of ['desktop', 'tablet', 'mobile'] as Device[]) {
     const values = block.style?.[device]
@@ -175,16 +175,18 @@ function blockCss(block: Block, out: string[]) {
       if (d.hover.length) rules.push(`${sel}{transition:box-shadow .25s,transform .25s}${sel}:hover{${d.hover.join(';')}}`)
       if (d.overlay.length) rules.push(`${sel}>.b-overlay{${d.overlay.join(';')}}`)
     }
-    if (block.advanced?.[`hide_${device}`]) rules.push(`${sel}{display:none!important}`)
+    if (block.advanced?.[`hide_${device}`]) {
+      rules.push(editing ? `${sel}{opacity:.35;filter:grayscale(.4)}` : `${sel}{display:none!important}`)
+    }
     if (rules.length) out.push(BREAKPOINTS[device] ? `@media ${BREAKPOINTS[device]}{${rules.join('')}}` : rules.join(''))
   }
-  block.children?.forEach((child) => blockCss(child, out))
+  block.children?.forEach((child) => blockCss(child, out, editing))
 }
 
 /** Scoped CSS for a whole block tree. Desktop first, then tablet and phone overrides. */
-export function compileCss(blocks: Block[]): string {
+export function compileCss(blocks: Block[], editing = false): string {
   const out: string[] = []
-  blocks.forEach((b) => blockCss(b, out))
+  blocks.forEach((b) => blockCss(b, out, editing))
   return out.join('\n')
 }
 
@@ -204,6 +206,17 @@ export function newBlock(type: string, spec: BlockSpec): Block {
   }
   if (type === 'heading') props.text = 'Yeni başlık'
   if (type === 'richtext') props.text = 'Metninizi buraya yazın.'
+  if (type === 'slider' && Array.isArray(props.slides) && props.slides.length === 1 && !props.slides[0].image_url) {
+    props.slides[0] = {
+      ...props.slides[0],
+      image_url: '/demo/water.webp',
+      badge: 'KAMPANYA',
+      title: 'Yeni Kampanya Başlığı',
+      text: 'Kampanya açıklamanızı ve bağış çağrınızı buraya yazabilirsiniz.',
+      button_label: 'Bağış Yap',
+      button_url: '/kampanyalar',
+    }
+  }
   const block: Block = { id: newBlockId(type), type, props, style: {}, advanced: {} }
   if (spec.container) {
     block.children = []

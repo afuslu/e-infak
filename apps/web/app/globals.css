@@ -201,5 +201,6 @@
 
 /* Site builder › Telefon alt çubuğu: floating buttons sit above the bar on phones. */
 @media (max-width: 767px) {
+  html.has-tabbar body { padding-bottom: calc(4.25rem + env(safe-area-inset-bottom)); }
   html.has-tabbar .float-above-tabbar { bottom: 5.25rem; }
 }

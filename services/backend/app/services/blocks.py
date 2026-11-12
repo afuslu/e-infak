@@ -61,7 +61,7 @@ BLOCKS: dict[str, dict] = {
     "hero": {
         "label": "Kapak", "group": "Kapak & slider", "icon": "🖼️",
         "fields": {
-            "variant": F("select", "Görünüm", choices={"klasik": "Büyük görsel + bağış formu", "kategori": "Büyük görsel + butonlar", "sade": "Sade, yan görselli"}, default="klasik"),
+            "variant": F("select", "Görünüm", choices={"vuslat": "Vitrin kartı + thumbnail (Vuslat tarzı)", "klasik": "Büyük görsel + bağış formu", "kategori": "Büyük görsel + butonlar", "sade": "Sade, yan görselli"}, default="klasik"),
             "badge": F("text", "Üst etiket", max=80, translatable=True),
             "title": F("text", "Başlık", max=160, translatable=True, placeholder="Boşsa site kapak başlığı"),
             "subtitle": F("textarea", "Açıklama", max=400, translatable=True),
@@ -89,14 +89,14 @@ BLOCKS: dict[str, dict] = {
                 "align": F("select", "Metin konumu", choices=ALIGN, default="left"),
                 "overlay": F("number", "Karartma (%)", min=0, max=90, default=45),
             }),
-            "layout": F("select", "Görünüm", choices={"overlay": "Tam genişlik (yazı görsel üstünde)", "split": "Bölünmüş (açık zemin)", "card": "Vitrin kartı (Vuslat tarzı: sol metin, sağ görsel)"}, default="overlay"),
-            "height": F("select", "Yükseklik", choices={"sm": "Alçak", "md": "Orta", "lg": "Yüksek", "screen": "Tam ekran", "poster": "Afiş oranı (görsel kırpılmaz, 16:5)"}, default="md"),
+            "layout": F("select", "Görünüm", choices={"overlay": "Tam genişlik (yazı görsel üstünde)", "split": "Bölünmüş (açık zemin)", "card": "Vitrin kartı (Vuslat tarzı: sol metin, sağ görsel)"}, default="card"),
+            "height": F("select", "Yükseklik", choices={"sm": "Alçak", "md": "Orta", "lg": "Yüksek", "screen": "Tam ekran", "poster": "Afiş oranı (görsel kırpılmaz, 16:5)"}, default="lg"),
             "autoplay": F("bool", "Otomatik geçiş", default=True),
             "interval": F("number", "Geçiş süresi (sn)", min=2, max=20, default=6),
-            "effect": F("select", "Geçiş efekti", choices={"slide": "Kaydır", "fade": "Solarak"}, default="slide"),
+            "effect": F("select", "Geçiş efekti", choices={"slide": "Kaydır", "fade": "Solarak"}, default="fade"),
             "arrows": F("bool", "Oklar", default=True),
             "dots": F("bool", "Noktalar / alt gezinme", default=True),
-            "nav": F("select", "Alt gezinme türü", choices={"dots": "Noktalar", "thumbs": "Küçük görseller (thumbnail)", "tabs": "Başlık sekmeleri"}, default="dots"),
+            "nav": F("select", "Alt gezinme türü", choices={"dots": "Noktalar", "thumbs": "Küçük görseller (thumbnail)", "tabs": "Başlık sekmeleri"}, default="thumbs"),
         },
     },
     # Donation
@@ -236,7 +236,11 @@ BLOCKS: dict[str, dict] = {
     },
     "buttons": {
         "label": "Butonlar", "group": "Metin & medya", "icon": "🔘",
-        "fields": {"items": F("list", "Butonlar", max_items=6, min_items=1, item_label="label", fields={"label": F("text", "Yazı", max=40, translatable=True), "url": F("url", "Bağlantı"), "style": F("select", "Stil", choices=BUTTON_STYLES, default="primary"), "new_tab": F("bool", "Yeni sekmede aç")}), "align": F("select", "Hizalama", choices=ALIGN, default="left")},
+        "fields": {
+            "items": F("list", "Butonlar", max_items=6, min_items=1, item_label="label", fields={"label": F("text", "Yazı", max=40, translatable=True), "url": F("url", "Bağlantı"), "style": F("select", "Stil", choices=BUTTON_STYLES, default="primary"), "new_tab": F("bool", "Yeni sekmede aç")}),
+            "align": F("select", "Hizalama", choices=ALIGN, default="left"),
+            "mobile_align": F("select", "Mobilde hizalama", choices={"": "Bilgisayarla aynı", "left": "Sola", "center": "Ortala", "right": "Sağa"}, default=""),
+        },
     },
     # Trust
     "stats": {
@@ -322,6 +326,7 @@ BLOCKS: dict[str, dict] = {
             "gap": F("number", "Aralık (px)", min=0, max=96, default=24),
             "valign": F("select", "Dikey hizalama", choices={"start": "Üst", "center": "Orta", "end": "Alt", "stretch": "Uzat"}, default="start"),
             "stack_on": F("select", "Alt alta geçiş", choices={"tablet": "Tablet ve telefonda", "mobile": "Yalnızca telefonda", "never": "Hiçbir zaman"}, default="tablet"),
+            "reverse_mobile": F("bool", "Mobilde sırayı ters çevir (sağdaki üstte)", default=False),
         },
     },
     "column": {

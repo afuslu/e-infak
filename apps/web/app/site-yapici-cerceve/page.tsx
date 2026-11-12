@@ -116,9 +116,15 @@ export default function BuilderCanvas() {
             )}
           </div>
         )}
-        {(block.advanced?.hide_desktop || block.advanced?.starts_at || block.advanced?.ends_at || block.advanced?.langs) && (
+        {(block.advanced?.hide_desktop || block.advanced?.hide_tablet || block.advanced?.hide_mobile || block.advanced?.starts_at || block.advanced?.ends_at || block.advanced?.langs) && (
           <div className="pointer-events-none absolute end-1 top-1 z-30 rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-amber-950">
-            {[block.advanced?.hide_desktop && 'masaüstünde gizli', (block.advanced?.starts_at || block.advanced?.ends_at) && 'tarihli', block.advanced?.langs && `yalnız ${block.advanced.langs}`].filter(Boolean).join(' · ')}
+            {[
+              block.advanced?.hide_desktop && 'bilgisayarda gizli',
+              block.advanced?.hide_tablet && 'tablette gizli',
+              block.advanced?.hide_mobile && 'telefonda gizli',
+              (block.advanced?.starts_at || block.advanced?.ends_at) && 'tarihli',
+              block.advanced?.langs && `yalnız ${block.advanced.langs}`,
+            ].filter(Boolean).join(' · ')}
           </div>
         )}
         {node}
@@ -155,7 +161,7 @@ export default function BuilderCanvas() {
       {state.blocks.length === 0 && (
         <div className="m-10 rounded-2xl border-2 border-dashed p-16 text-center text-gray-400">Sayfa boş. Soldaki “Bloklar” sekmesinden blok ekleyin.</div>
       )}
-      <BlockStyles blocks={state.blocks} />
+      <BlockStyles blocks={state.blocks} editing />
       {state.blocks.map((b) => renderBlock(b, options))}
     </div>
   )

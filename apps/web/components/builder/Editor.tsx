@@ -75,6 +75,7 @@ export function SiteBuilderEditor() {
   const [library, setLibrary] = useState<Library | null>(null)
   const [saved, setSaved] = useState<SavedBlock[]>([])
   const [rightTab, setRightTab] = useState<'content' | 'style' | 'advanced'>('content')
+  const [mobilePane, setMobilePane] = useState<'left' | 'canvas' | 'right'>('canvas')
   const [search, setSearch] = useState('')
   const [insertTarget, setInsertTarget] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -529,14 +530,14 @@ export function SiteBuilderEditor() {
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-gray-100 text-gray-900">
       {/* Top bar */}
-      <header className="flex h-12 flex-none items-center gap-2 border-b bg-white px-3">
+      <header className="flex min-h-12 flex-none flex-wrap items-center gap-2 border-b bg-white px-3 py-1.5 lg:h-12 lg:flex-nowrap lg:py-0">
         <Link href="/admin" className="text-[12px] font-semibold text-gray-500 hover:text-gray-900">← Panel</Link>
         <span className="mx-1 h-5 w-px bg-gray-200" />
         <span className="truncate text-sm font-bold">{page?.title || 'Ana sayfa'}</span>
-        <span className="text-[11px] text-gray-400">
+        <span className="hidden text-[11px] text-gray-400 sm:inline">
           {saveState === 'saving' ? 'Kaydediliyor…' : state.dirty ? 'Kaydedilmedi' : saveState === 'saved' ? 'Taslak kaydedildi' : page?.has_draft ? 'Yayınlanmamış değişiklik var' : 'Yayındaki hali'}
         </span>
-        <div className="mx-auto flex items-center gap-1">
+        <div className="mx-auto hidden items-center gap-1 sm:flex">
           {(['desktop', 'tablet', 'mobile'] as Device[]).map((d) => (
             <button key={d} type="button" onClick={() => setDevice(d)}
               className={`rounded-md px-2.5 py-1.5 text-[12px] font-semibold ${device === d ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>{DEVICE_LABEL[d]}</button>
@@ -570,7 +571,7 @@ export function SiteBuilderEditor() {
 
       <div className="flex min-h-0 flex-1">
         {/* Left panel */}
-        <aside className="flex w-72 flex-none flex-col border-e bg-white">
+        <aside className={`${mobilePane === 'left' ? 'flex w-full' : 'hidden'} flex-none flex-col border-e bg-white lg:flex lg:w-72`}>
           <div className="flex border-b">
             <button type="button" className={tabBtn(leftTab === 'pages')} onClick={() => setLeftTab('pages')}>Sayfalar</button>
             <button type="button" className={tabBtn(leftTab === 'blocks')} onClick={() => setLeftTab('blocks')}>Bloklar</button>
@@ -631,7 +632,7 @@ export function SiteBuilderEditor() {
         </aside>
 
         {/* Canvas */}
-        <main className="min-w-0 flex-1 overflow-auto p-4" onClick={() => dispatch({ type: 'select', id: null })}>
+        <main className={`${mobilePane === 'canvas' ? 'block' : 'hidden'} min-w-0 flex-1 overflow-auto p-2 sm:p-4 lg:block`} onClick={() => dispatch({ type: 'select', id: null })}>
           <div ref={canvasArea} className="mx-auto h-full overflow-hidden rounded-lg bg-white shadow-sm transition-[width] duration-300" style={{ width: DEVICE_WIDTH[device], maxWidth: '100%' }}>
             <iframe ref={frame} src="/site-yapici-cerceve" title="Sayfa önizlemesi" className="h-full w-full border-0"
               style={scale < 1 ? { width: DESKTOP_WIDTH, height: area.h / scale, transform: `scale(${scale})`, transformOrigin: '0 0' } : undefined}
@@ -640,7 +641,7 @@ export function SiteBuilderEditor() {
         </main>
 
         {/* Inspector */}
-        <aside className="flex w-80 flex-none flex-col border-s bg-white">
+        <aside className={`${mobilePane === 'right' ? 'flex w-full' : 'hidden'} flex-none flex-col border-s bg-white lg:flex lg:w-80`}>
           {!selected || !selectedSpec ? (
             <div className="p-5 text-[13px] text-gray-500">
               <p className="mb-2 font-semibold text-gray-700">Bir blok seçin</p>
@@ -739,6 +740,20 @@ export function SiteBuilderEditor() {
           )}
         </aside>
       </div>
+
+      {/* Narrow-screen pane switcher */}
+      <nav aria-label="Düzenleyici panelleri" className="flex flex-none border-t bg-white lg:hidden">
+        {([
+          ['left', '🧱 Bloklar & Sayfalar'],
+          ['canvas', '👁️ Önizleme'],
+          ['right', selected ? `⚙️ ${selectedSpec?.label || 'Ayarlar'}` : '⚙️ Ayarlar'],
+        ] as const).map(([key, label]) => (
+          <button key={key} type="button" onClick={() => setMobilePane(key)}
+            className={`flex-1 truncate px-2 py-2.5 text-center text-[12px] font-semibold ${mobilePane === key ? 'bg-blue-50 text-blue-700' : 'text-gray-600'}`}>
+            {label}
+          </button>
+        ))}
+      </nav>
 
       {modal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => setModal(null)}>

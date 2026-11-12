@@ -23,7 +23,7 @@ export interface HomeData {
 }
 
 type T = ReturnType<typeof translator>
-type Tpl = 'klasik' | 'kategori' | 'sade'
+type Tpl = 'klasik' | 'kategori' | 'sade' | 'vuslat'
 /** Optional site-builder settings of a section; empty = the template's look. */
 export type Overrides = Record<string, any>
 const CURRENCY: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€' }
@@ -161,6 +161,7 @@ export function Hero({ data, variant, o = {} }: { data: HomeData; variant: Tpl; 
   const showForm = variant === 'klasik' && o.show_form !== false
   return (
     <>
+      {variant === 'vuslat' && <Slider slides={slides} layout="card" nav="thumbs" effect="fade" interval={6} label={t('home.slider.label')} />}
       {variant === 'sade' && <Slider slides={slides} layout="split" interval={7} label={t('home.slider.label')} />}
       {variant === 'kategori' && <Slider slides={slides} effect="fade" height="lg" interval={6} label={t('home.slider.label')} />}
       {variant === 'klasik' && <Slider slides={slides} height="lg" interval={6} nav="tabs" label={t('home.slider.label')} />}

@@ -158,8 +158,8 @@ def _section(key: str, label: str, group: str, description: str, blocks: list, k
 
 
 # Kapak
-_section("hero-slider", "Kapak slider (3 slayt)", "Kapak", "Su, eğitim ve yetim slaytları; oklar ve otomatik geçiş.",
-         [B("slider", slides=_slides(), height="lg", autoplay=True, interval=6, effect="fade")])
+_section("hero-slider", "Kapak slider (3 slayt)", "Kapak", "Vitrin kartı ve altta küçük önizleme şeridi; su, eğitim ve yetim slaytları.",
+         [B("slider", slides=_slides(), layout="card", nav="thumbs", height="lg", autoplay=True, interval=6, effect="fade")])
 _section("hero-mosque", "Görselli kapak (ortalı)", "Kapak", "Tam genişlik görsel üzerinde ortalı başlık ve iki buton.",
          [B("banner", layout="image", image_url="/demo/mosque.webp", kicker="RAMAZAN 2027", title="Paylaştıkça bereketlenen bir Ramazan",
             text="İftar, fitre ve zekatlarınızı ihtiyaç sahiplerine güvenle ulaştırıyoruz.", button_label="Bağış yap", button_url="/kampanyalar",
@@ -269,7 +269,7 @@ def slide(image: str, badge: str, title: str, body: str, button: tuple = ("Bağ�
 
 
 def _slider(key: str, label: str, description: str, slides: list, **props) -> None:
-    _section(key, label, "Slider", description, [B("slider", slides=slides, **{"height": "lg", "autoplay": True, "interval": 6, "effect": "fade", **props})])
+    _section(key, label, "Slider", description, [B("slider", slides=slides, **{"layout": "card", "nav": "thumbs", "height": "lg", "autoplay": True, "interval": 6, "effect": "fade", **props})])
 
 
 _slider("slider-ramadan", "Ramazan slider", "Fenerler, cami ve iftar sofrası; solarak geçiş.", [
@@ -301,16 +301,16 @@ _slider("slider-fullscreen", "Tam ekran tanıtım slider", "Ekranı kaplayan, or
     slide("/demo/hands.webp", "BİRLİKTE", "İyilik, paylaştıkça çoğalır", "1995'ten beri gönüllülerle büyüyen bir iyilik hareketi.", button=("Bizi tanıyın", "/hakkimizda"), button2=("Bağış yap", "/kampanyalar"), align="center", overlay=50),
     slide("/demo/relief.webp", "GÖNÜLLÜLÜK", "Vaktini iyiliğe ayır", "Sahada, eğitimde ve dijitalde gönüllülerimize katılın.", button=("Gönüllü ol", "/gonullu"), align="center", overlay=50),
     slide("/demo/pattern.webp", "ŞEFFAFLIK", "Her kuruşun hesabı açık", "Bağımsız denetim raporlarımız ve faaliyet raporlarımız yayında.", button=("Raporlar", "/hakkimizda"), align="center", overlay=30),
-], height="screen", interval=7, arrows=False)
+], layout="overlay", nav="dots", height="screen", interval=7, arrows=False)
 _slider("slider-poster", "Afiş slider (görsel kırpılmaz)", "Hazır afiş/banner görselleriniz için 16:5 oran; yazı görselin üstüne binmez.", [
     slide("/demo/kurban-poster.webp", "", "", "", button=("Kurban bağışla", "/kampanyalar"), overlay=0),
     slide("/demo/ramadan-poster.webp", "", "", "", button=("Ramazan bağışı", "/kampanyalar"), overlay=0),
     slide("/demo/winter-poster.webp", "", "", "", button=("Kış yardımı", "/kampanyalar"), overlay=0),
-], height="poster", effect="slide", interval=5)
+], height="poster", effect="fade", interval=5)
 _slider("slider-compact", "Alçak bilgi slider", "Sayfa içinde kullanılan alçak, sağa hizalı slider.", [
     slide("/demo/pattern.webp", "DUYURU", "Faaliyet raporumuz yayında", "2026 yılı çalışmalarımızı rakamlarla inceleyin.", button=("Raporu oku", "/hakkimizda"), align="right", overlay=35),
     slide("/demo/quran.webp", "YENİ DÖNEM", "Kayıtlar başladı", "Kur'an kursu ve yaz okulu ön kayıtları açıldı.", button=("Ön kayıt", "/on-kayit"), align="right", overlay=40),
-], height="sm", effect="slide", dots=False)
+], layout="overlay", nav="dots", height="sm", effect="slide", dots=False)
 
 # --- Sections built with the newer blocks ---------------------------------------------------
 

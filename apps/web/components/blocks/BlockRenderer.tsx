@@ -27,7 +27,7 @@ export interface RenderOptions {
   renderChildren?: (parent: Block, children: Block[], depth: number) => ReactNode
 }
 
-const container = 'mx-auto max-w-[var(--site-container)] px-6'
+const container = 'mx-auto max-w-[var(--site-container)] px-4 sm:px-6'
 const CURRENCY: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€' }
 
 const BASE_CSS = `
@@ -248,6 +248,7 @@ const RATIOS_ALWAYS: Record<string, string> = {
 }
 const ALIGN_ITEMS: Record<string, string> = { start: 'items-start', center: 'items-center', end: 'items-end', stretch: 'items-stretch' }
 const JUSTIFY: Record<string, string> = { left: 'justify-start', center: 'justify-center', right: 'justify-end' }
+const JUSTIFY_MD: Record<string, string> = { left: 'md:justify-start', center: 'md:justify-center', right: 'md:justify-end' }
 
 function content(block: Block, o: Record<string, any>, opts: RenderOptions, depth: number): ReactNode {
   const { data } = opts
@@ -471,14 +472,18 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
     }
-    case 'buttons':
+    case 'buttons': {
+      const justify = o.mobile_align
+        ? `${JUSTIFY[o.mobile_align] || ''} ${JUSTIFY_MD[o.align] || 'md:justify-start'}`
+        : JUSTIFY[o.align] || ''
       return (
-        <div className={`${container} flex flex-wrap gap-3 ${JUSTIFY[o.align] || ''}`}>
+        <div className={`${container} flex flex-wrap gap-3 ${justify}`}>
           {(o.items || []).filter((b: any) => b.label && b.url).map((b: any, i: number) => (
             <Btn key={i} href={b.url} variant={b.style} newTab={b.new_tab}>{b.label}</Btn>
           ))}
         </div>
       )
+    }
     case 'faq':
       return (
         <div className={`${container} max-w-3xl`}>
@@ -635,8 +640,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     case 'columns': {
       const ratio = o.ratio || '1-1'
       const cols = o.stack_on === 'never' ? RATIOS_ALWAYS[ratio] : o.stack_on === 'mobile' ? RATIOS_MOBILE_ONLY[ratio] : RATIOS[ratio]
+      const rev = o.reverse_mobile && o.stack_on !== 'never'
+        ? (o.stack_on === 'mobile'
+          ? 'max-sm:[&>*:first-child]:order-2 max-sm:[&>*:last-child]:order-1'
+          : 'max-md:[&>*:first-child]:order-2 max-md:[&>*:last-child]:order-1')
+        : ''
       return (
-        <div className={`${container} grid ${cols || 'md:grid-cols-2'} ${ALIGN_ITEMS[o.valign] || ''}`} style={{ gap: `${o.gap ?? 24}px` }}>
+        <div className={`${container} grid ${cols || 'md:grid-cols-2'} ${ALIGN_ITEMS[o.valign] || ''} ${rev}`} style={{ gap: `${o.gap ?? 24}px` }}>
           {children(block.children)}
         </div>
       )
@@ -683,8 +693,8 @@ export function renderBlock(block: Block, opts: RenderOptions, depth = 0): React
   return opts.wrap ? opts.wrap(block, node, depth) : node
 }
 
-export function BlockStyles({ blocks }: { blocks: Block[] }) {
-  return <style dangerouslySetInnerHTML={{ __html: BASE_CSS + compileCss(blocks) }} />
+export function BlockStyles({ blocks, editing }: { blocks: Block[]; editing?: boolean }) {
+  return <style dangerouslySetInnerHTML={{ __html: BASE_CSS + compileCss(blocks, editing) }} />
 }
 
 export function BlockRenderer({ blocks, ...opts }: RenderOptions & { blocks: Block[] }) {
