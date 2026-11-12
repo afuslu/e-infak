@@ -15,9 +15,9 @@ export default async function GalleryPage() {
   return (
     <>
       <section className="mx-auto max-w-[var(--site-container)] px-4 py-12 sm:px-6">
-        <h1 className="text-4xl font-extrabold">{t('gallery.title')}</h1>
+        <h1 className="font-heading text-3xl font-bold text-gray-900 sm:text-4xl">{t('gallery.title')}</h1>
         {items.length === 0
-          ? <p className="mt-16 text-center text-[#6B7A70]">{t('gallery.empty')}</p>
+          ? <p className="mt-16 text-center text-gray-500">{t('gallery.empty')}</p>
           : <GalleryGrid items={items} locale={locale} />}
       </section>
     </>

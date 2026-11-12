@@ -7,12 +7,13 @@ interface CampaignListProps {
   featured?: boolean
   limit?: number
   category?: string
+  search?: string
 }
 
-export function CampaignList({ featured, limit, category }: CampaignListProps) {
+export function CampaignList({ featured, limit, category, search }: CampaignListProps) {
   const { data, isLoading, error } = useCampaigns({
     featured,
-    page_size: limit || 25,
+    page_size: limit || 50,
     status: 'active',
     category: category || undefined,
   })
@@ -35,17 +36,22 @@ export function CampaignList({ featured, limit, category }: CampaignListProps) {
     )
   }
 
-  if (!data?.items?.length) {
+  const q = (search || '').trim().toLocaleLowerCase('tr')
+  const items = q
+    ? (data?.items || []).filter((c) => `${c.title} ${c.summary || ''}`.toLocaleLowerCase('tr').includes(q))
+    : (data?.items || [])
+
+  if (!items.length) {
     return (
-      <div className="rounded-lg bg-gray-50 p-12 text-center">
-        <p className="text-gray-600">Henüz aktif kampanya bulunmamaktadır.</p>
+      <div className="rounded-2xl border border-gray-200/80 bg-white p-12 text-center">
+        <p className="text-gray-600">{q ? 'Aramanızla eşleşen kampanya bulunamadı.' : 'Henüz aktif kampanya bulunmamaktadır.'}</p>
       </div>
     )
   }
 
   return (
     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {data.items.map((campaign) => (
+      {items.map((campaign) => (
         <CampaignCard key={campaign.id} campaign={campaign} />
       ))}
     </div>
