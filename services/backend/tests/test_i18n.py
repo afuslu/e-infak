@@ -72,7 +72,7 @@ async def test_multiple_languages_need_the_feature(db_session):
     assert exc.value.status_code == 403
     org2, admin2 = await _org(db_session, "orta")
     saved = await update_org_settings(_request(org2, "PUT"), OrgSettingsUpdate(languages=["en"]), db_session, admin2)
-    assert saved.languages == ["tr", "en"]
+    assert saved["languages"] == ["tr", "en"]
 
 
 async def test_public_content_is_served_in_requested_language(db_session):

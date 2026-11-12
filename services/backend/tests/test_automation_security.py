@@ -85,3 +85,36 @@ def test_production_gate_rejects_debug_and_test_payment_urls():
         Settings(**common, DEBUG=True)
     with pytest.raises(ValidationError, match="test URLs"):
         Settings(**common, DEBUG=False, PAYMENTS_LIVE_ENABLED=True)
+
+
+def test_legal_links_accept_site_paths_and_http_urls_only():
+    settings = OrgSettingsUpdate(kvkk_url="/gizlilik-politikasi", terms_url="https://example.org/sozlesme.pdf")
+    assert settings.kvkk_url == "/gizlilik-politikasi"
+    assert settings.terms_url == "https://example.org/sozlesme.pdf"
+    assert OrgSettingsUpdate(preinfo_url="  ").preinfo_url is None
+    for bad in ("javascript:alert(1)", "//evil.example", "/a b", "sayfa"):
+        with pytest.raises(ValueError):
+            OrgSettingsUpdate(refund_url=bad)
+
+
+def test_legal_details_fall_back_to_generic_pages():
+    from types import SimpleNamespace
+
+    from app.services.site import legal_of
+
+    org = SimpleNamespace(legal_name="Örnek Derneği", name="Örnek", address="Merkez Mh.", tax_number="1234567890",
+                          phone=None, email="info@ornek.org")
+    legal = legal_of(org, None)
+    assert legal["kvkk_url"] == "/kvkk"
+    assert legal["terms_url"].startswith("/bagis-kosullari")
+    assert legal["tax_deduction_eligible"] is False
+    assert legal["address"] == "Merkez Mh."
+    row = SimpleNamespace(contact_address="Yeni adres", contact_phone=None, contact_email=None, tax_office="Odunpazarı",
+                          registry_no="26-001-123", kvkk_url="/gizlilik-politikasi", terms_url=None, preinfo_url=None,
+                          refund_url="/iade-ve-iptal-kosullari", tax_deduction_eligible=True)
+    legal = legal_of(org, row)
+    assert legal["kvkk_url"] == "/gizlilik-politikasi"
+    assert legal["refund_url"] == "/iade-ve-iptal-kosullari"
+    assert legal["address"] == "Yeni adres"
+    assert legal["registry_no"] == "26-001-123"
+    assert legal["tax_deduction_eligible"] is True

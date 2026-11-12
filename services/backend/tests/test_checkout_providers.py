@@ -79,7 +79,7 @@ async def test_paytr_checkout_launch_notify_and_refund(db_session, monkeypatch):
     payload = CheckoutSessionCreate(
         items=[{"campaign_id": str(campaign.id), "unit_amount_cents": 25_000}],
         donor={"first_name": "Ayşe", "last_name": "Yılmaz", "email": "ayse@example.com", "phone": "05321112233"},
-        idempotency_key=uuid.uuid4().hex, kvkk_accepted=True,
+        idempotency_key=uuid.uuid4().hex, kvkk_accepted=True, terms_accepted=True,
     )
     response = await checkout.create_checkout_session(_request(org, "POST"), payload, db_session, None)
     assert response.redirect_url.startswith("https://api.example.org/api/v1/payments/launch/")
@@ -160,7 +160,7 @@ async def test_amount_mismatch_goes_to_review(db_session, monkeypatch):
     payload = CheckoutSessionCreate(
         items=[{"campaign_id": str(campaign.id), "unit_amount_cents": 10_000}],
         donor={"first_name": "Ali", "last_name": "V", "email": "ali@example.com", "phone": "05321112244"},
-        idempotency_key=uuid.uuid4().hex, kvkk_accepted=True,
+        idempotency_key=uuid.uuid4().hex, kvkk_accepted=True, terms_accepted=True,
     )
     response = await checkout.create_checkout_session(_request(org, "POST"), payload, db_session, None)
     order = await checkout._load_order(db_session, response.checkout_id)

@@ -399,4 +399,27 @@ def public_site(org, settings_row, lang: Optional[str]) -> dict:
             "email": settings_row.contact_email if settings_row else None,
             "address": settings_row.contact_address if settings_row else None,
         },
+        "legal": legal_of(org, settings_row),
+    }
+
+
+def legal_of(org, settings_row) -> dict:
+    """Legal identity and document links shown in the footer, checkout and legal pages."""
+    def field(name):
+        return getattr(settings_row, name, None) if settings_row else None
+
+    return {
+        "legal_name": org.legal_name or org.name,
+        "address": field("contact_address") or org.address,
+        "phone": field("contact_phone") or getattr(org, "phone", None),
+        "email": field("contact_email") or getattr(org, "email", None),
+        "tax_office": field("tax_office"),
+        "tax_number": org.tax_number,
+        "registry_no": field("registry_no"),
+        "kvkk_url": field("kvkk_url") or "/kvkk",
+        "terms_url": field("terms_url") or "/bagis-kosullari#mesafeli-bagis-sozlesmesi",
+        "preinfo_url": field("preinfo_url") or "/bagis-kosullari#on-bilgilendirme",
+        "refund_url": field("refund_url") or "/bagis-kosullari",
+        "privacy_url": "/gizlilik",
+        "tax_deduction_eligible": bool(field("tax_deduction_eligible")),
     }

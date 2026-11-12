@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
@@ -32,6 +32,18 @@ class OrganizationSettings(Base):
     audit_report_url = Column(String(500))
     activity_report_url = Column(String(500))
     fundraising_permit_url = Column(String(500))
+
+    # Legal identity and documents that banks check before approving a virtual POS.
+    # The *_url fields hold a site path ("/gizlilik-politikasi") or a full http(s) URL;
+    # when empty the platform's generic page is shown, filled with these details.
+    tax_office = Column(String(120))
+    registry_no = Column(String(60))  # dernek kütük numarası
+    kvkk_url = Column(String(500))
+    terms_url = Column(String(500))  # mesafeli bağış sözleşmesi
+    preinfo_url = Column(String(500))  # ön bilgilendirme formu
+    refund_url = Column(String(500))  # iptal ve iade koşulları
+    # "Bağışlarınız vergi indirimi kapsamındadır" only for organisations with that status.
+    tax_deduction_eligible = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # Engagement widgets
     whatsapp_number = Column(String(20))  # digits only, international format (905xx...)

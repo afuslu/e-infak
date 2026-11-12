@@ -96,6 +96,8 @@ export interface CheckoutSessionCreate {
   idempotency_key: string
   consent_version: string
   kvkk_accepted: boolean
+  /** Ön bilgilendirme + mesafeli bağış sözleşmesi; required for card payments. */
+  terms_accepted?: boolean
 }
 
 export interface CheckoutSessionResponse {
@@ -220,6 +222,26 @@ export interface OrgSettingsInfo {
   seo_description?: string | null
   seo_keywords?: string | null
   languages?: string[]
+  legal?: OrgLegalInfo
+  /** False when the organisation has no card provider credentials: offer bank transfer only. */
+  card_payments?: boolean
+}
+
+/** Legal identity and document links (footer, checkout consent, legal pages). */
+export interface OrgLegalInfo {
+  legal_name: string
+  address: string | null
+  phone: string | null
+  email: string | null
+  tax_office: string | null
+  tax_number: string | null
+  registry_no: string | null
+  kvkk_url: string
+  terms_url: string
+  preinfo_url: string
+  refund_url: string
+  privacy_url: string
+  tax_deduction_eligible: boolean
 }
 
 export interface User {

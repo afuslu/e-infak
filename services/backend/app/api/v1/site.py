@@ -1,4 +1,5 @@
 """Public website data, tenant resolution for the gateway, and site appearance management."""
+import logging
 from pathlib import Path
 from uuid import UUID
 
@@ -21,6 +22,7 @@ from app.services import domains
 from app.services.tenancy import forget_host, resolve_org_slug, tls_allowed, twin
 from app.utils.i18n import request_language
 
+logger = logging.getLogger(__name__)
 public_router = APIRouter(tags=["site"])
 admin_router = APIRouter(
     prefix="/admin-features",
@@ -58,7 +60,20 @@ async def get_public_site(request: Request, db: AsyncSession = Depends(get_db)):
     data = public_site(org, settings_row, request_language(request))
     data["url"] = await site_url(db, org)
     data["features"] = sorted(f.value for f in org_features(org))
+    data["card_payments"] = await card_payments_available(db, org)
     return data
+
+
+async def card_payments_available(db: AsyncSession, org) -> bool:
+    """True when the organisation's card provider has its credentials; otherwise the
+    website offers bank transfer only instead of a card option that would fail."""
+    from app.payments import provider_for
+
+    try:
+        return bool((await provider_for(db, org)).configured)
+    except Exception:  # noqa: BLE001 - a broken credential row must not take the website down
+        logger.warning("card provider check failed for %s", org.slug, exc_info=True)
+        return False
 
 
 @public_router.get("/directory")

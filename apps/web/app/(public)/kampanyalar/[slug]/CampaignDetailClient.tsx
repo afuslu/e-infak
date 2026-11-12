@@ -1,6 +1,6 @@
 'use client'
 
-import { useCampaign } from '@e-infak/api-client'
+import { useCampaign, useOrgSettings } from '@e-infak/api-client'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@e-infak/ui'
@@ -10,6 +10,8 @@ import { translator } from '../../../../lib/i18n'
 export default function CampaignDetailClient({ slug, locale = 'tr' }: { slug: string; locale?: string }) {
   const t = translator(locale)
   const { data: campaign, isLoading, error } = useCampaign(slug)
+  const { data: orgSettings } = useOrgSettings()
+  const taxDeduction = orgSettings?.legal?.tax_deduction_eligible === true
   const addToCart = (amountCents: number) => {
     if (!campaign) return
     window.dispatchEvent(new CustomEvent('add-to-donation-cart', {
@@ -140,7 +142,7 @@ export default function CampaignDetailClient({ slug, locale = 'tr' }: { slug: st
 
               <div className="mt-4 rounded-lg bg-gray-50 p-4">
                 <p className="text-xs text-gray-600">
-                  Bağışlarınız vergi indirimi kapsamındadır.
+                  {taxDeduction && <>Bağışlarınız vergi indirimi kapsamındadır.{' '}</>}
                   Bağış makbuzunuz e-posta adresinize gönderilecektir.
                 </p>
               </div>

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useCreateCheckout, useOrgSettings, type CheckoutSessionResponse } from '@e-infak/api-client'
 import { trackConversion } from '../lib/analytics'
 import { clientLocale, translator } from '../lib/i18n'
+import { ConsentChecks, useCardFallback, useCheckoutLegal } from './CheckoutConsent'
+import { PaymentTrustBadges } from './site/PaymentTrustBadges'
 
 const CURRENCY_SYMBOL: Record<'TRY' | 'EUR' | 'USD', string> = { TRY: '₺', EUR: '€', USD: '$' }
 
@@ -68,6 +70,9 @@ export function QuickDonationForm({
   const [allowEmail, setAllowEmail] = useState(false)
   const [allowSms, setAllowSms] = useState(false)
   const [kvkkAccepted, setKvkkAccepted] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const { legal, cardPayments } = useCheckoutLegal()
+  useCardFallback(cardPayments, paymentMethod, setPaymentMethod)
   const [metadata, setMetadata] = useState<Record<string, string>>({})
   const [errorMsg, setErrorMsg] = useState('')
   const [transfer, setTransfer] = useState<CheckoutSessionResponse | null>(null)
@@ -93,6 +98,10 @@ export function QuickDonationForm({
     }
     if (!kvkkAccepted) {
       setErrorMsg('KVKK aydınlatma metnini okuduğunuzu onaylamalısınız.')
+      return
+    }
+    if (paymentMethod === 'credit_card' && !termsAccepted) {
+      setErrorMsg('Ön bilgilendirme formunu ve mesafeli bağış sözleşmesini onaylamalısınız.')
       return
     }
     if (isGift && !onBehalfOf.trim()) {
@@ -136,6 +145,7 @@ export function QuickDonationForm({
         idempotency_key: newIdempotencyKey(),
         consent_version: '2026-07',
         kvkk_accepted: kvkkAccepted,
+        terms_accepted: termsAccepted,
       })
       if (result.redirect_url) {
         trackConversion('payment_redirected', { campaign_id: campaignId, payment_method: paymentMethod, currency })
@@ -192,9 +202,11 @@ export function QuickDonationForm({
           </label>
           <fieldset>
             <legend className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">{t('form.paymentMethod')}</legend>
-            <div className="grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setPaymentMethod('credit_card')}
-                className={`rounded-xl border p-3 text-sm font-bold ${paymentMethod === 'credit_card' ? 'border-primary-600 bg-primary-50' : ''}`}>💳 {t('form.card')}</button>
+            <div className={`grid gap-3 ${cardPayments ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {cardPayments && (
+                <button type="button" onClick={() => setPaymentMethod('credit_card')}
+                  className={`rounded-xl border p-3 text-sm font-bold ${paymentMethod === 'credit_card' ? 'border-primary-600 bg-primary-50' : ''}`}>💳 {t('form.card')}</button>
+              )}
               <button type="button" onClick={() => setPaymentMethod('bank_transfer')}
                 className={`rounded-xl border p-3 text-sm font-bold ${paymentMethod === 'bank_transfer' ? 'border-primary-600 bg-primary-50' : ''}`}>🏦 {t('form.transfer')}</button>
             </div>
@@ -255,12 +267,13 @@ export function QuickDonationForm({
           <label className="flex gap-2 text-xs text-slate-600"><input type="checkbox" checked={isAnonymous} onChange={(e) => setIsAnonymous(e.target.checked)} /> İsmimi bağışçı listesinde gizle</label>
           <label className="flex gap-2 text-xs text-slate-600"><input type="checkbox" checked={allowEmail} onChange={(e) => setAllowEmail(e.target.checked)} /> E-posta bilgilendirmelerine izin veriyorum</label>
           <label className="flex gap-2 text-xs text-slate-600"><input type="checkbox" checked={allowSms} onChange={(e) => setAllowSms(e.target.checked)} /> SMS bilgilendirmelerine izin veriyorum</label>
-          <label className="flex gap-2 rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-700">
-            <input type="checkbox" checked={kvkkAccepted} onChange={(e) => setKvkkAccepted(e.target.checked)} />
-            KVKK aydınlatma metnini okudum. *
-          </label>
+          <ConsentChecks legal={legal} kvkk={kvkkAccepted} onKvkk={setKvkkAccepted}
+            terms={termsAccepted} onTerms={setTermsAccepted} requireTerms={paymentMethod === 'credit_card'} />
           {paymentMethod === 'credit_card' && (
-            <p className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">🔒 Kart bilgileriniz bu siteye girilmez; bankanın veya ödeme kuruluşunun güvenli ödeme sayfasına yönlendirileceksiniz.</p>
+            <div className="space-y-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">
+              <p>🔒 Kart bilgileriniz bu siteye girilmez; bankanın veya ödeme kuruluşunun güvenli ödeme sayfasına yönlendirileceksiniz.</p>
+              <PaymentTrustBadges />
+            </div>
           )}
           <div className="flex gap-3 pt-3">
             <button type="button" onClick={() => setStep(1)} className="flex-1 rounded-xl border py-3 font-bold">{t('form.back')}</button>

@@ -217,10 +217,18 @@ async def get_public_org_settings(
     if not isinstance(enabled_currencies, list) or not enabled_currencies:
         enabled_currencies = ["TRY"]
 
+    from app.api.v1.site import card_payments_available
+    from app.services.site import legal_of
+
+    checkout_info = {
+        "legal": legal_of(org, org_settings),
+        "card_payments": await card_payments_available(db, org),
+    }
     if not org_settings:
-        return {"enabled_payment_currencies": enabled_currencies, "languages": ["tr"]}
+        return {"enabled_payment_currencies": enabled_currencies, "languages": ["tr"], **checkout_info}
 
     return {
+        **checkout_info,
         "contact_phone": org_settings.contact_phone,
         "contact_email": org_settings.contact_email,
         "contact_address": org_settings.contact_address,

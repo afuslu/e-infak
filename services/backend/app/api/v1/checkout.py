@@ -295,6 +295,7 @@ async def create_checkout_session(
     donor = await _get_or_create_donor(org_id, payload.donor, db)
     for consent_type, granted in (
         ("kvkk_notice", payload.kvkk_accepted),
+        ("distance_contract", payload.terms_accepted),
         ("email_marketing", payload.donor.allow_email),
         ("sms_marketing", payload.donor.allow_sms),
     ):

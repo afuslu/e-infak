@@ -331,7 +331,7 @@ async def _org_with_order(db_session, monkeypatch, cents: int):
     payload = CheckoutSessionCreate(
         items=[{"campaign_id": str(campaign.id), "unit_amount_cents": cents}],
         donor={"first_name": "Ayşe", "last_name": "Yılmaz", "email": "ayse@example.com", "phone": "05321112233"},
-        idempotency_key=uuid.uuid4().hex, kvkk_accepted=True,
+        idempotency_key=uuid.uuid4().hex, kvkk_accepted=True, terms_accepted=True,
     )
     response = await checkout.create_checkout_session(_request(org, "POST"), payload, db_session, None)
     order = await checkout._load_order(db_session, response.checkout_id)

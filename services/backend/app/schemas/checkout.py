@@ -41,11 +41,15 @@ class CheckoutSessionCreate(BaseModel):
     idempotency_key: str = Field(min_length=16, max_length=128)
     consent_version: str = Field(default="2026-07", max_length=32)
     kvkk_accepted: bool
+    # Ön bilgilendirme formu + mesafeli bağış sözleşmesi; required for card payments.
+    terms_accepted: bool = False
 
     @model_validator(mode="after")
     def require_kvkk(self):
         if not self.kvkk_accepted:
             raise ValueError("KVKK aydınlatma metni onayı zorunludur")
+        if self.payment_method == "credit_card" and not self.terms_accepted:
+            raise ValueError("Ön bilgilendirme formu ve mesafeli bağış sözleşmesi onayı zorunludur")
         return self
 
 

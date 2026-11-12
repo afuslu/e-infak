@@ -58,6 +58,7 @@ def test_checkout_requires_kvkk_and_contains_no_card_fields():
     with pytest.raises(ValidationError):
         CheckoutSessionCreate.model_validate(payload)
     payload["kvkk_accepted"] = True
+    payload["terms_accepted"] = True
     checkout = CheckoutSessionCreate.model_validate(payload)
     assert "card_number" not in checkout.model_dump()
 
@@ -80,8 +81,22 @@ def test_checkout_supports_locale_and_currency_without_card_data():
         "locale": "ar",
         "idempotency_key": "1234567890abcdef",
         "kvkk_accepted": True,
+        "terms_accepted": True,
     }
     checkout = CheckoutSessionCreate.model_validate(payload)
     assert checkout.currency == "EUR"
     assert checkout.locale == "ar"
     assert "card_number" not in checkout.model_dump()
+
+
+def test_card_checkout_requires_distance_contract_consent():
+    base = {
+        "items": [{"campaign_id": "11111111-1111-1111-1111-111111111111", "unit_amount_cents": 10000}],
+        "donor": {"first_name": "Ahmet", "last_name": "Yılmaz", "email": "ahmet@example.com", "phone": "05555555555"},
+        "idempotency_key": "1234567890abcdef",
+        "kvkk_accepted": True,
+    }
+    with pytest.raises(ValidationError):
+        CheckoutSessionCreate.model_validate({**base, "payment_method": "credit_card"})
+    # Bank transfer has no card agreement to accept.
+    assert CheckoutSessionCreate.model_validate({**base, "payment_method": "bank_transfer"})

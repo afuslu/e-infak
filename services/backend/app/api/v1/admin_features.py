@@ -26,6 +26,7 @@ from app.models.api_key import ApiKey
 from app.models.webhook_setting import WebhookSetting
 from app.models.water_well import WaterWell
 from app.models.donation_category import DonationCategory
+from app.models.organization import Organization
 from app.models.organization_settings import OrganizationSettings
 from app.models.content_post import ContentPost
 from app.models.subscription import Subscription
@@ -1155,6 +1156,37 @@ class OrgSettingsUpdate(BaseModel):
     seo_description: Optional[str] = Field(default=None, max_length=320)
     seo_keywords: Optional[str] = Field(default=None, max_length=300)
     languages: Optional[List[str]] = Field(default=None, max_length=30)
+    legal_name: Optional[str] = Field(default=None, max_length=200)
+    tax_number: Optional[str] = Field(default=None, max_length=20)
+    tax_office: Optional[str] = Field(default=None, max_length=120)
+    registry_no: Optional[str] = Field(default=None, max_length=60)
+    kvkk_url: Optional[str] = Field(default=None, max_length=500)
+    terms_url: Optional[str] = Field(default=None, max_length=500)
+    preinfo_url: Optional[str] = Field(default=None, max_length=500)
+    refund_url: Optional[str] = Field(default=None, max_length=500)
+    tax_deduction_eligible: Optional[bool] = None
+
+    @field_validator("legal_name", "tax_number", "tax_office", "registry_no", mode="before")
+    @classmethod
+    def clean_legal_text(cls, value):
+        cleaned = sanitize_public_text(value) if value else None
+        return cleaned.replace("\n", " ").strip() or None if cleaned else None
+
+    @field_validator("kvkk_url", "terms_url", "preinfo_url", "refund_url", mode="before")
+    @classmethod
+    def validate_legal_link(cls, value):
+        """A path on the organisation's own site ("/gizlilik-politikasi") or an http(s) URL."""
+        if value is None or not str(value).strip():
+            return None
+        link = str(value).strip()
+        if link.startswith("/") and not link.startswith("//"):
+            if any(ch in link for ch in ' "<>\\'):
+                raise ValueError("Sayfa yolu boşluk veya özel karakter içeremez.")
+            return link
+        parsed = urlparse(link)
+        if parsed.scheme not in {"https", "http"} or not parsed.netloc:
+            raise ValueError("Bağlantı /sayfa-yolu biçiminde ya da geçerli bir http(s) adresi olmalıdır.")
+        return link
 
     @field_validator("languages", mode="before")
     @classmethod
@@ -1208,6 +1240,16 @@ class OrgSettingsUpdate(BaseModel):
             raise ValueError("Belge bağlantısı geçerli bir http(s) URL olmalıdır.")
         return normalized
 
+ORG_LEGAL_FIELDS = ("legal_name", "tax_number")
+
+
+def _org_settings_out(settings: OrganizationSettings, organization) -> dict:
+    data = {c.name: getattr(settings, c.name) for c in OrganizationSettings.__table__.columns}
+    for name in ORG_LEGAL_FIELDS:
+        data[name] = getattr(organization, name, None) if organization is not None else None
+    return data
+
+
 @router.get("/org-settings")
 async def get_org_settings(
     request: Request,
@@ -1225,7 +1267,7 @@ async def get_org_settings(
         await db.commit()
         await db.refresh(settings)
 
-    return settings
+    return _org_settings_out(settings, await db.get(Organization, org_id))
 
 @router.put("/org-settings")
 async def update_org_settings(
@@ -1248,8 +1290,14 @@ async def update_org_settings(
         organization = getattr(request.state, "organization", None)
         if organization is not None and not org_has_feature(organization, Feature.MULTI_LANGUAGE):
             raise HTTPException(status_code=403, detail="Çoklu dil desteği kurumunuzun paketinde yer almıyor")
+    organization = await db.get(Organization, org_id)
     for key, value in payload.model_dump(exclude_unset=True).items():
-        if key == "languages" and value is None:
+        if key in ("languages", "tax_deduction_eligible") and value is None:
+            continue
+        if key in ORG_LEGAL_FIELDS:
+            if key == "legal_name" and not value:
+                continue  # legal_name is required on the organisation
+            setattr(organization, key, value)
             continue
         setattr(settings, key, value)
 
@@ -1261,5 +1309,5 @@ async def update_org_settings(
         action="site_ayarlari_guncelle",
         details={"contact_phone": settings.contact_phone, "contact_email": settings.contact_email}
     )
-    return settings
+    return _org_settings_out(settings, organization)
 
