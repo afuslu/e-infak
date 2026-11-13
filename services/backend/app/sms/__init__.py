@@ -55,25 +55,54 @@ class SmsProvider:
             raise SmsError(f"{self.label} sunucusuna ulaşılamadı") from exc
 
 
+NETGSM_ERRORS = {
+    "20": "mesaj metni hatalı veya çok uzun",
+    "30": "abone numarası/şifre hatalı, API izni yok ya da sunucu IP'si NetGSM'de izinli değil",
+    "40": "SMS başlığı (gönderici adı) NetGSM'de tanımlı değil",
+    "50": "hesap İYS kontrollü gönderime uygun değil",
+    "51": "hesaba tanımlı İYS marka bilgisi yok",
+    "70": "parametre hatalı veya eksik",
+    "80": "gönderim sınırı aşıldı",
+    "85": "aynı numaraya 1 dakikada çok fazla gönderim",
+}
+
+
 class NetgsmProvider(SmsProvider):
+    """https://www.netgsm.com.tr/dokuman/#sms-gonderimi — REST v2 with HTTP Basic auth
+    (subscriber number + password of a sub-user of type "API Kullanıcısı"). The old
+    GET endpoint no longer accepts SMS sends."""
     key = "netgsm"
     label = "NetGSM"
-    credential_fields = {"username": "Kullanıcı kodu", "password": "Şifre", "sender": "SMS başlığı"}
+    credential_fields = {"username": "Abone numarası (850…)", "password": "API alt kullanıcı şifresi",
+                         "sender": "SMS başlığı"}
     secret_fields = {"password"}
     optional_fields = {"sender"}
 
     def send(self, phone: str, message: str) -> SmsResult:
         number = normalize_tr_phone(phone)
-        response = self._http("GET", "https://api.netgsm.com.tr/sms/send/get/", params={
-            "usercode": self.credentials["username"], "password": self.credentials["password"],
-            "gsmno": number[2:] if number.startswith("90") else number, "message": message,
-            "msgheader": self.credentials.get("sender") or "", "dil": "TR",
-        })
-        parts = response.text.strip().split()
-        # Success: "00 <job id>"; any other leading code is an error code.
-        if response.status_code != 200 or not parts or parts[0] != "00":
-            raise SmsError(f"NetGSM gönderimi reddetti (kod {parts[0] if parts else response.status_code})")
-        return SmsResult(self.key, parts[1] if len(parts) > 1 else None)
+        # NetGSM wants 5XXXXXXXXX for Turkish numbers and 00-prefixed international ones.
+        number = number[2:] if number.startswith("90") else (number if number.startswith("00") else "00" + number)
+        response = self._http(
+            "POST", "https://api.netgsm.com.tr/sms/rest/v2/send",
+            auth=(self.credentials["username"], self.credentials["password"]),
+            json={
+                "msgheader": self.credentials.get("sender") or "",
+                "messages": [{"msg": message, "no": number}],
+                "encoding": "TR",
+                # Receipts, codes and reminders are informational, not commercial (İYS "0").
+                "iysfilter": "0",
+                "appname": "e-infak",
+            },
+        )
+        try:
+            data = response.json() or {}
+        except ValueError:
+            data = {}
+        code = str(data.get("code") or "")
+        if response.status_code != 200 or code != "00":
+            reason = NETGSM_ERRORS.get(code) or data.get("description") or f"HTTP {response.status_code}"
+            raise SmsError(f"NetGSM gönderimi reddetti (kod {code or '-'}: {reason})")
+        return SmsResult(self.key, str(data.get("jobid") or "") or None)
 
 
 class VerimorProvider(SmsProvider):

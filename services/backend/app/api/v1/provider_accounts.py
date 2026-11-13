@@ -38,7 +38,9 @@ NOTES = {
     "ziraatpay": "Ziraat Pay üye işyeri panelinden alınan API bilgileri.",
     "verimor": "Verimor panelinde SMS ayarlarından API şifresi oluşturun ve sunucu IP adresine izin verin.",
     "iletimerkezi": "İleti Merkezi panelinde Ayarlar › Güvenlik › API Erişimi; ‘API kullanımına izin ver’ açık olmalı.",
-    "netgsm": "NetGSM kullanıcı kodu, API şifresi ve onaylı SMS başlığınız.",
+    "netgsm": ("NetGSM portalında Alt Kullanıcı Hesapları'ndan türü \"API Kullanıcısı\" olan bir alt kullanıcı açın; "
+               "abone numaranızı (850…) ve bu alt kullanıcının şifresini girin. API IP kısıtı kullanıyorsanız "
+               "31.97.159.228 adresini ekleyin. SMS başlığı NetGSM'de onaylı olmalıdır."),
 }
 
 

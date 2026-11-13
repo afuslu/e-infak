@@ -185,21 +185,28 @@ def test_sms_drivers(monkeypatch):
     def fake_request(method, url, **kwargs):
         seen.append((method, url, kwargs))
         if "netgsm" in url:
-            return _Resp(200, "00 123456")
+            return _Resp(200, data={"code": "00", "jobid": "123456", "description": "queued"})
         if "verimor" in url:
             return _Resp(200, "20210")
         return _Resp(200, data={"response": {"status": {"code": 200, "message": "ok"}, "order": {"id": "312"}}})
 
     monkeypatch.setattr(sms.requests, "request", fake_request)
     assert sms.deliver("05321112233", "m", {"provider": "netgsm", "username": "u", "password": "p"}).reference == "123456"
-    assert seen[-1][2]["params"]["gsmno"] == "5321112233"
+    method, url, kwargs = seen[-1]
+    assert method == "POST" and url.endswith("/sms/rest/v2/send") and kwargs["auth"] == ("u", "p")
+    assert kwargs["json"]["messages"] == [{"msg": "m", "no": "5321112233"}] and kwargs["json"]["iysfilter"] == "0"
     assert sms.deliver("05321112233", "m", {"provider": "verimor", "username": "u", "password": "p"}).reference == "20210"
     assert seen[-1][2]["json"]["messages"][0]["dest"] == "905321112233"
     result = sms.deliver("05321112233", "m", {"provider": "iletimerkezi", "api_key": "k", "api_hash": "h", "sender": "KURUM"})
     order = seen[-1][2]["json"]["request"]["order"]
     assert result.reference == "312" and order["iys"] == "0" and order["message"]["receipents"]["number"] == ["905321112233"]
 
-    monkeypatch.setattr(sms.requests, "request", lambda *a, **k: _Resp(200, "30"))
+    for code, words in (("30", "IP"), ("40", "başlığı")):
+        monkeypatch.setattr(sms.requests, "request",
+                            lambda *a, code=code, **k: _Resp(406, data={"code": code, "jobid": None}))
+        with pytest.raises(sms.SmsError, match=words):
+            sms.deliver("05321112233", "m", {"provider": "netgsm", "username": "u", "password": "p"})
+    monkeypatch.setattr(sms.requests, "request", lambda *a, **k: _Resp(502, "<html>"))
     with pytest.raises(sms.SmsError):
         sms.deliver("05321112233", "m", {"provider": "netgsm", "username": "u", "password": "p"})
     monkeypatch.setattr(sms.requests, "request", lambda *a, **k: _Resp(400, "INSUFFICIENT_CREDITS"))
