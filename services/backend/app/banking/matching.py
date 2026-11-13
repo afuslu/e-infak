@@ -283,11 +283,17 @@ async def approve(
     send_receipt: bool = True,
     matcher: Optional[Matcher] = None,
     automatic: bool = False,
+    amount_cents: Optional[int] = None,
+    line: int = 0,
 ) -> Donation:
-    """Record the transfer as a confirmed donation; the caller commits."""
+    """Record the transfer as a confirmed donation; the caller commits.
+
+    A transfer split over several campaigns is approved once per part: `line` 0 first, then
+    1, 2… each with its own `amount_cents` (the caller checks that the parts add up).
+    """
     from app.services.offline_donation import record_offline_donation
 
-    if transaction.status == ReconciliationStatus.MATCHED:
+    if line == 0 and transaction.status == ReconciliationStatus.MATCHED:
         raise ValueError("Bu hareket zaten bağışa dönüştürüldü")
     if transaction.amount_cents <= 0:
         raise ValueError("Yalnız gelen havaleler bağışa dönüştürülebilir")
@@ -295,11 +301,12 @@ async def approve(
     bank_key = (transaction.raw_data or {}).get("_bank") or "ekstre"
     donation, _ = await record_offline_donation(
         db, organization_id=transaction.organization_id, campaign=campaign, donor=donor,
-        amount_cents=transaction.amount_cents, currency=transaction.currency or "TRY",
+        amount_cents=amount_cents or transaction.amount_cents, currency=transaction.currency or "TRY",
         method=PaymentMethod.BANK_TRANSFER, paid_at=transaction.booked_at, issued_by_id=user_id,
-        provider=f"bank:{bank_key}", idempotency_key=f"bank:{transaction.id}", transaction_id=transaction.external_id,
+        provider=f"bank:{bank_key}", transaction_id=transaction.external_id,
+        idempotency_key=f"bank:{transaction.id}" + (f":{line}" if line else ""),
         details={"bank_transaction_id": str(transaction.id), "sender": suggestion.get("sender"),
-                 "description": transaction.description, "automatic": automatic},
+                 "description": transaction.description, "automatic": automatic, "line": line},
         note=(note if note is not None else suggestion.get("note")) or None,
         on_behalf_of=on_behalf_of, send_receipt=send_receipt,
         metadata={"kurban_type": kurban_type} if kurban_type else {},
@@ -308,6 +315,8 @@ async def approve(
         from app.services.receipt_books import take_number
         _, label = await take_number(db, transaction.organization_id, receipt_book_id)
         donation.official_receipt_no = label
+    if line:
+        return donation
     transaction.status = ReconciliationStatus.MATCHED
     transaction.donation_id = donation.id
     transaction.matched_by_id = user_id
@@ -316,3 +325,62 @@ async def approve(
         await learn_sender(db, transaction.organization_id, suggestion["sender"], donor.id,
                            source="auto" if automatic else "approval", matcher=matcher)
     return donation
+
+
+async def transfer_donations(db: AsyncSession, transactions: list[BankTransaction]) -> dict:
+    """Confirmed donations made from each transfer (several when it was split), by transfer id."""
+    from sqlalchemy.orm import selectinload
+
+    ids = {str(t.id): t for t in transactions if t.donation_id}
+    if not ids:
+        return {}
+    marker = Donation.payment_details["bank_transaction_id"].astext
+    rows = (await db.execute(
+        select(Donation).options(selectinload(Donation.campaign), selectinload(Donation.donor))
+        .where(Donation.organization_id == transactions[0].organization_id, Donation.status == DonationStatus.CONFIRMED,
+               (marker.in_(list(ids))) | Donation.id.in_([t.donation_id for t in ids.values()]))
+        .order_by(Donation.created_at)
+    )).scalars().all()
+    by_first = {str(t.donation_id): key for key, t in ids.items()}
+    out: dict = {}
+    for donation in rows:
+        key = (donation.payment_details or {}).get("bank_transaction_id") or by_first.get(str(donation.id))
+        if key in ids:
+            out.setdefault(key, []).append(donation)
+    return out
+
+
+async def unmatch(db: AsyncSession, transaction: BankTransaction, *, user_id: UUID, reason: str) -> list[Donation]:
+    """Undo a match: its receipts are cancelled and the transfer waits for a match again; the caller commits.
+
+    Raises ValueError when there is nothing to undo, DonationEffectsLocked when a receipt cannot be cancelled.
+    """
+    from sqlalchemy import update
+
+    from app.models.sms_message import SMS_OPEN_STATUSES, SmsMessage
+    from app.services.donation_hooks import on_donation_cancelled
+    from app.services.fx import remove_from_campaign
+
+    if transaction.status != ReconciliationStatus.MATCHED or not transaction.donation_id:
+        raise ValueError("Bu hareketin kaldırılacak bir bağış eşleşmesi yok")
+    donations = (await transfer_donations(db, [transaction])).get(str(transaction.id), [])
+    for donation in donations:
+        await on_donation_cancelled(db, donation)
+        donation.status = DonationStatus.CANCELLED
+        donation.payment_details = {**(donation.payment_details or {}), "cancel_reason": reason,
+                                    "cancelled_by": str(user_id)}
+        # The transfer can be matched again; its key must be free for the new receipt.
+        donation.idempotency_key = f"{donation.idempotency_key}:iptal:{donation.id.hex[:8]}"[:100]
+        if donation.campaign:
+            remove_from_campaign(donation, donation.campaign)
+        if donation.donor:
+            donation.donor.total_donations = max(0, (donation.donor.total_donations or 0) - 1)
+            donation.donor.total_donated_cents = max(0, (donation.donor.total_donated_cents or 0) - donation.amount_cents)
+    if donations:  # an SMS about a cancelled receipt must not go out
+        await db.execute(update(SmsMessage).where(
+            SmsMessage.organization_id == transaction.organization_id, SmsMessage.related_type == "donation",
+            SmsMessage.related_id.in_([d.id for d in donations]), SmsMessage.status.in_(SMS_OPEN_STATUSES),
+        ).values(status="cancelled"))
+    transaction.status = ReconciliationStatus.UNMATCHED
+    transaction.donation_id = transaction.matched_by_id = transaction.matched_at = None
+    return donations

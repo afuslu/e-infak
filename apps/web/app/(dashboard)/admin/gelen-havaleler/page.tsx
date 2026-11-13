@@ -16,6 +16,8 @@ interface Transfer {
   id: string; booked_at: string; amount_cents: number; currency: string; sender_name: string | null; description: string | null
   status: 'unmatched' | 'matched' | 'ambiguous' | 'ignored'; source: string; bank_account_id: string | null
   donation_id: string | null; payment_order_id: string | null; suggestion: Suggestion
+  donor: { id: string; name: string; phone: string | null } | null
+  receipts: { donation_id: string; receipt_number: string; campaign_title: string | null; amount_cents: number }[]
 }
 interface Account { id: string; bank: string; label: string; currency: string }
 interface Book { id: string; series: string; status: string; next_label: string | null }
@@ -113,6 +115,19 @@ export default function IncomingTransfersPage() {
     }
   }
 
+  const unmatch = async (t: Transfer) => {
+    const numbers = t.receipts.map((r) => `#${r.receipt_number}`).join(', ')
+    if (!confirm(`Hareketin eşleştirmesi kaldırılacak ve eşlenen makbuz (${numbers || 'bağış'}) İPTAL EDİLECEK. Hareket yeniden "Bekleyenler" listesine döner. Devam edilsin mi?`)) return
+    try {
+      await v1Send('post', `/admin/incoming-transfers/${t.id}/unmatch`)
+      setItems((list) => list.filter((x) => x.id !== t.id))
+      setTotal((n) => n - 1)
+      setMessage({ type: 'ok', text: 'Eşleştirme kaldırıldı; makbuz iptal edildi ve hareket yeniden bekleyenlerde.' })
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Eşleştirme kaldırılamadı') })
+    }
+  }
+
   const ignore = async (t: Transfer) => {
     if (!confirm('Bu hareket bağış sayılmayacak ve listeden kalkacak. Devam edilsin mi?')) return
     try {
@@ -183,8 +198,8 @@ export default function IncomingTransfersPage() {
                   <th className="p-3">Tarih</th>
                   <th className="p-3">Gönderen / açıklama</th>
                   <th className="p-3 text-right">Tutar</th>
-                  <th className="p-3">Önerilen bağışçı</th>
-                  <th className="p-3">Önerilen kampanya</th>
+                  <th className="p-3">{status === 'matched' ? 'Bağışçı' : 'Önerilen bağışçı'}</th>
+                  <th className="p-3">{status === 'matched' ? 'Makbuz' : 'Önerilen kampanya'}</th>
                   {status === 'matched' && <th className="p-3">SMS</th>}
                   <th className="p-3" />
                 </tr>
@@ -215,6 +230,11 @@ export default function IncomingTransfersPage() {
                             {!s.donor?.name && !!s.donor?.candidates?.length && <div className="mt-1 text-gray-500">{s.donor.candidates.length} aday</div>}
                             {s.donor?.reason && <div className="text-[10px] text-gray-400">{s.donor.reason}</div>}
                           </>
+                        ) : t.donor ? (
+                          <>
+                            <Link href={`/admin/bagiscilar?donor=${t.donor.id}`} className="font-bold text-primary-700 hover:underline">{t.donor.name}</Link>
+                            {t.donor.phone && <div className="font-mono text-[11px] text-gray-500">{t.donor.phone}</div>}
+                          </>
                         ) : t.donation_id ? <span className="font-bold text-green-700">Bağış oluşturuldu</span>
                           : t.payment_order_id ? <span className="font-bold text-green-700">Online sipariş ödendi</span> : '—'}
                       </td>
@@ -225,12 +245,22 @@ export default function IncomingTransfersPage() {
                             <div className="mt-1 font-semibold text-gray-800">{s.campaign.title}{s.kurban_type ? ` · ${s.kurban_type}` : ''}</div>
                             <div className="line-clamp-2 text-[10px] text-gray-400">{s.campaign.reason}</div>
                           </>
-                        ) : t.status === 'unmatched' ? <span className="text-gray-400">Seçilmedi</span> : null}
+                        ) : t.status === 'unmatched' ? <span className="text-gray-400">Seçilmedi</span>
+                          : t.receipts?.map((r) => (
+                            <div key={r.donation_id} className="mb-1 min-w-[190px] last:mb-0">
+                              <span className="whitespace-nowrap font-bold text-gray-900">#{r.receipt_number}</span>
+                              <span className="text-gray-500"> · {r.campaign_title}</span>
+                              {t.receipts.length > 1 && <span className="font-mono text-gray-500"> · {(r.amount_cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>}
+                            </div>
+                          ))}
                       </td>
                       {status === 'matched' && <td className="p-3"><SmsStatusPill sms={t.donation_id ? sms[t.donation_id] : undefined} /></td>}
                       <td className="whitespace-nowrap p-3 text-right">
-                        {canSms && t.status === 'matched' && t.donation_id && (
-                          <button onClick={() => setSmsFor(t)} className={ghostButton}>💬 SMS Gönder</button>
+                        {t.status === 'matched' && t.donation_id && (
+                          <div className="flex justify-end gap-2">
+                            {canSms && <button onClick={() => setSmsFor(t)} className={ghostButton}>💬 SMS Gönder</button>}
+                            {canEdit && <button onClick={() => unmatch(t)} className={`${ghostButton} text-red-600 hover:border-red-400`}>Eşleştirmeyi kaldır</button>}
+                          </div>
                         )}
                         {canEdit && t.status === 'unmatched' && (
                           <div className="flex justify-end gap-2">
@@ -252,7 +282,7 @@ export default function IncomingTransfersPage() {
         <QuickSmsDialog
           title="Hızlı SMS Gönder — Havale"
           eventKey="havale_eslesti"
-          target={{ donationId: smsFor.donation_id, name: smsFor.suggestion?.sender || smsFor.sender_name }}
+          target={{ donationId: smsFor.donation_id, name: smsFor.donor?.name || smsFor.suggestion?.sender || smsFor.sender_name }}
           onClose={() => setSmsFor(null)}
           onSent={(r) => { setMessage({ type: 'ok', text: sentNotice(r) }); load() }}
         />
@@ -290,6 +320,12 @@ function ApproveDialog({ transfer, campaigns, books, onClose, onDone }: {
   const [sendReceipt, setSendReceipt] = useState(true)
   const [smsBody, setSmsBody] = useState<string | null>(null)
   const [smsOpen, setSmsOpen] = useState(false)
+  // A transfer shared between several campaigns: [campaign, amount as typed]
+  const [lines, setLines] = useState<{ campaign_id: string; amount: string }[] | null>(null)
+  const toCents = (value: string) => Math.round(Number(value.replace(/\./g, '').replace(',', '.')) * 100) || 0
+  const linesTotal = (lines || []).reduce((sum, l) => sum + toCents(l.amount), 0)
+  const remaining = transfer.amount_cents - linesTotal
+  const money = (cents: number) => (cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2 })
   const smsPhone = donor ? donor.phone : newDonor?.phone
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -299,22 +335,26 @@ function ApproveDialog({ transfer, campaigns, books, onClose, onDone }: {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!campaignId) return setError('Kampanya seçin')
+    if (lines) {
+      if (lines.some((l) => !l.campaign_id || toCents(l.amount) <= 0)) return setError('Her kalem için kampanya ve tutar girin')
+      if (remaining !== 0) return setError(`Kalemlerin toplamı havale tutarına eşit olmalı (fark: ${money(remaining)} ${transfer.currency})`)
+    } else if (!campaignId) return setError('Kampanya seçin')
     if (!donor && !newDonor?.full_name.trim()) return setError('Bağışçı seçin veya yeni bağışçı girin')
     setSaving(true)
     try {
-      const res = await v1Send<{ receipt_number: string; official_receipt_no: string | null }>('post', `/admin/incoming-transfers/${transfer.id}/approve`, {
+      const res = await v1Send<{ receipt_number: string; official_receipt_no: string | null; receipts?: string[] }>('post', `/admin/incoming-transfers/${transfer.id}/approve`, {
         donor_id: donor?.id || null,
         new_donor: donor ? null : { full_name: newDonor!.full_name.trim(), phone: newDonor!.phone.trim() || null },
-        campaign_id: campaignId,
-        kurban_type: isKurban && kurbanType ? kurbanType : null,
+        campaign_id: lines ? null : campaignId,
+        lines: lines ? lines.map((l) => ({ campaign_id: l.campaign_id, amount_cents: toCents(l.amount) })) : null,
+        kurban_type: !lines && isKurban && kurbanType ? kurbanType : null,
         on_behalf_of: onBehalf.trim() || null,
         note: note.trim() || null,
         receipt_book_id: bookId || null,
         send_receipt: sendReceipt,
         sms_body: smsBody,
       })
-      onDone(`Bağış kaydedildi. Makbuz: ${res.data.official_receipt_no || res.data.receipt_number}`)
+      onDone(`Bağış kaydedildi. Makbuz: ${res.data.receipts?.join(', ') || res.data.official_receipt_no || res.data.receipt_number}`)
     } catch (err) {
       setError(apiErrorMessage(err, 'Bağış kaydedilemedi'))
     } finally {
@@ -363,13 +403,47 @@ function ApproveDialog({ transfer, campaigns, books, onClose, onDone }: {
           </div>
         )}
 
-        <Label label="Kampanya" hint={s.campaign ? `Öneri: ${s.campaign.title} (${CONFIDENCE[s.campaign.confidence][0].toLowerCase()})` : undefined}>
-          <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)} className={inputClass} required>
-            <option value="">Seçin</option>
-            {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-          </select>
-        </Label>
-        {isKurban && (
+        {!lines ? (
+          <div>
+            <Label label="Kampanya" hint={s.campaign ? `Öneri: ${s.campaign.title} (${CONFIDENCE[s.campaign.confidence][0].toLowerCase()})` : undefined}>
+              <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)} className={inputClass} required>
+                <option value="">Seçin</option>
+                {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+              </select>
+            </Label>
+            <button type="button" className="mt-1 text-xs font-bold text-primary-700"
+              onClick={() => setLines([{ campaign_id: campaignId, amount: money(transfer.amount_cents) }, { campaign_id: '', amount: '' }])}>
+              + Birden fazla bağış kalemine böl
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2 rounded-lg border p-3">
+            <div className="flex items-center justify-between text-xs font-bold text-gray-600">
+              <span>Makbuz kalemleri</span>
+              <button type="button" className="text-primary-700" onClick={() => setLines(null)}>Tek kaleme dön</button>
+            </div>
+            {lines.map((line, index) => (
+              <div key={index} className="flex gap-2">
+                <select value={line.campaign_id} className={inputClass}
+                  onChange={(e) => setLines(lines.map((l, i) => (i === index ? { ...l, campaign_id: e.target.value } : l)))}>
+                  <option value="">Bağış kalemi seçin</option>
+                  {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                </select>
+                <input value={line.amount} inputMode="decimal" placeholder="Tutar" className={`${inputClass} w-32 text-right font-mono`}
+                  onChange={(e) => setLines(lines.map((l, i) => (i === index ? { ...l, amount: e.target.value } : l)))} />
+                <button type="button" disabled={lines.length <= 2} aria-label="Kalemi sil" className="px-1 text-lg text-gray-400 hover:text-red-600 disabled:opacity-30"
+                  onClick={() => setLines(lines.filter((_, i) => i !== index))}>×</button>
+              </div>
+            ))}
+            <div className="flex items-center justify-between text-xs">
+              <button type="button" className="font-bold text-primary-700" onClick={() => setLines([...lines, { campaign_id: '', amount: remaining > 0 ? money(remaining) : '' }])}>+ Kalem ekle</button>
+              <span className={remaining === 0 ? 'font-bold text-green-700' : 'font-bold text-red-600'}>
+                Toplam {money(linesTotal)} / {money(transfer.amount_cents)} {transfer.currency}{remaining !== 0 ? ` · kalan ${money(remaining)}` : ' ✓'}
+              </span>
+            </div>
+          </div>
+        )}
+        {!lines && isKurban && (
           <Label label="Kurban niyeti">
             <select value={kurbanType} onChange={(e) => setKurbanType(e.target.value)} className={inputClass}>
               <option value="">Vacip</option>
@@ -401,11 +475,12 @@ function ApproveDialog({ transfer, campaigns, books, onClose, onDone }: {
           <QuickSmsDialog
             title="Hızlı SMS Gönder — Havale"
             eventKey="havale_eslesti"
-            campaignId={campaignId}
+            campaignId={lines ? null : campaignId}
             target={{
               donorId: donor?.id, transferId: transfer.id, name: donor?.full_name || newDonor?.full_name, phone: smsPhone,
               variables: {
-                tutar: smsAmount(transfer.amount_cents), bagis_kalemi: campaign?.title || '', kimin_adina: onBehalf,
+                tutar: smsAmount(transfer.amount_cents), kimin_adina: onBehalf,
+                bagis_kalemi: lines ? lines.map((l) => campaigns.find((c) => c.id === l.campaign_id)?.title).filter(Boolean).join(', ') : campaign?.title || '',
                 ...(donor ? {} : { ad_soyad: newDonor?.full_name || '' }),
               },
             }}

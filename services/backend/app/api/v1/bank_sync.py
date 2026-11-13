@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import Permission, require_feature, require_permission
 from app.banking import CONNECTORS, credential_key
-from app.banking.matching import Matcher, analyse, approve
+from app.banking.matching import Matcher, analyse, approve, transfer_donations, unmatch
 from app.banking.parsers import fold
 from app.banking.sync import sync_account
 from app.core.db import get_db
@@ -147,8 +147,13 @@ async def sync_now(account_id: UUID, request: Request, db: AsyncSession = Depend
 
 # --- Incoming transfers queue -----------------------------------------------------------------
 
-def _transfer_out(t: BankTransaction) -> dict:
-    return {"id": str(t.id), "booked_at": t.booked_at, "amount_cents": t.amount_cents, "currency": t.currency,
+def _transfer_out(t: BankTransaction, donations: Optional[list] = None) -> dict:
+    donor = donations[0].donor if donations else None
+    return {"donor": {"id": str(donor.id), "name": donor.full_name, "phone": donor.phone} if donor else None,
+            "receipts": [{"donation_id": str(d.id), "receipt_number": d.official_receipt_no or d.receipt_number,
+                          "campaign_title": d.campaign.title if d.campaign else None, "amount_cents": d.amount_cents}
+                         for d in donations or []],
+            "id": str(t.id), "booked_at": t.booked_at, "amount_cents": t.amount_cents, "currency": t.currency,
             "sender_name": t.sender_name, "description": t.description, "status": t.status.value, "source": t.source,
             "bank_account_id": str(t.bank_account_id) if t.bank_account_id else None,
             "donation_id": str(t.donation_id) if t.donation_id else None,
@@ -164,7 +169,8 @@ async def list_transfers(request: Request, status: ReconciliationStatus = Reconc
     base = select(BankTransaction).where(BankTransaction.organization_id == org_id, BankTransaction.status == status)
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
     rows = (await db.execute(base.order_by(BankTransaction.booked_at.desc()).limit(limit).offset(offset))).scalars().all()
-    return {"total": total, "items": [_transfer_out(t) for t in rows]}
+    donations = await transfer_donations(db, list(rows))
+    return {"total": total, "items": [_transfer_out(t, donations.get(str(t.id))) for t in rows]}
 
 
 @router.post("/admin/incoming-transfers/reanalyse")
@@ -186,10 +192,19 @@ class NewDonorIn(BaseModel):
     phone: Optional[str] = Field(default=None, max_length=20)
 
 
+class ApproveLine(BaseModel):
+    campaign_id: UUID
+    amount_cents: int = Field(gt=0)
+    on_behalf_of: Optional[str] = Field(default=None, max_length=200)
+    kurban_type: Optional[str] = Field(default=None, max_length=20)
+
+
 class ApproveIn(BaseModel):
     donor_id: Optional[UUID] = None
     new_donor: Optional[NewDonorIn] = None
-    campaign_id: UUID
+    campaign_id: Optional[UUID] = None
+    # One transfer shared between several campaigns; the amounts must add up to the transfer.
+    lines: Optional[list[ApproveLine]] = Field(default=None, max_length=20)
     on_behalf_of: Optional[str] = Field(default=None, max_length=200)
     kurban_type: Optional[str] = Field(default=None, max_length=20)
     note: Optional[str] = Field(default=None, max_length=1000)
@@ -214,7 +229,16 @@ async def approve_transfer(transfer_id: UUID, payload: ApproveIn, request: Reque
     transfer = await _transfer(db, org_id, transfer_id)
     if transfer.status not in (ReconciliationStatus.UNMATCHED, ReconciliationStatus.AMBIGUOUS):
         raise HTTPException(status_code=409, detail="Bu hareket zaten işlenmiş")
-    campaign = await _campaign(db, org_id, payload.campaign_id)
+    lines = payload.lines or []
+    if lines:
+        if sum(line.amount_cents for line in lines) != transfer.amount_cents:
+            raise HTTPException(status_code=422, detail="Kalemlerin toplamı havale tutarına eşit olmalıdır")
+    elif not payload.campaign_id:
+        raise HTTPException(status_code=422, detail="Kampanya seçin")
+    else:
+        lines = [ApproveLine(campaign_id=payload.campaign_id, amount_cents=transfer.amount_cents,
+                             on_behalf_of=payload.on_behalf_of, kurban_type=payload.kurban_type)]
+    campaigns = [await _campaign(db, org_id, line.campaign_id) for line in lines]
     if payload.donor_id:
         donor = await db.get(Donor, payload.donor_id)
         if not donor or donor.organization_id != org_id:
@@ -232,21 +256,60 @@ async def approve_transfer(transfer_id: UUID, payload: ApproveIn, request: Reque
         await db.flush()
     else:
         raise HTTPException(status_code=422, detail="Bağışçı seçin veya yeni bağışçı bilgisi girin")
+    donations = []
     try:
-        donation = await approve(db, transfer, donor=donor, campaign=campaign, user_id=current_user.id,
-                                 on_behalf_of=payload.on_behalf_of, kurban_type=payload.kurban_type, note=payload.note,
-                                 receipt_book_id=payload.receipt_book_id, send_receipt=payload.send_receipt)
+        for index, (line, campaign) in enumerate(zip(lines, campaigns)):
+            # One e-mail and one SMS per transfer, not per part.
+            donations.append(await approve(
+                db, transfer, donor=donor, campaign=campaign, user_id=current_user.id,
+                on_behalf_of=line.on_behalf_of or payload.on_behalf_of, kurban_type=line.kurban_type, note=payload.note,
+                receipt_book_id=payload.receipt_book_id, send_receipt=payload.send_receipt and index == 0,
+                amount_cents=line.amount_cents, line=index))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    from app.services.sms_service import queue_receipt_sms
+    donation = donations[0]
+    from app.services.sms_service import queue_receipt_sms, receipt_key, send_event_sms
     from app.sms import SmsError
     try:
-        await queue_receipt_sms(db, donation, donor, payload.sms_body, current_user.id, source="transfer")
+        written = await queue_receipt_sms(db, donation, donor, payload.sms_body, current_user.id, source="transfer")
     except SmsError as exc:
         raise HTTPException(status_code=422, detail=f"SMS: {exc}") from exc
+    if len(donations) > 1 and payload.send_receipt and not written:
+        # The automatic text would quote the first part only; send it now with the whole amount.
+        await send_event_sms(
+            db, org_id, "havale_eslesti", donor.phone, donor=donor, transfer=transfer, source="transfer",
+            related=("donation", donation.id), dedupe_key=receipt_key(donation.id),
+            extra={"bagis_kalemi": ", ".join(dict.fromkeys(c.title for c in campaigns))},
+        )
     await db.commit()
     return {"status": "matched", "donation_id": str(donation.id), "receipt_number": donation.receipt_number,
-            "official_receipt_no": donation.official_receipt_no}
+            "official_receipt_no": donation.official_receipt_no,
+            "receipts": [d.official_receipt_no or d.receipt_number for d in donations]}
+
+
+class UnmatchIn(BaseModel):
+    reason: str = Field(default="Eşleştirme kaldırıldı", min_length=3, max_length=500)
+
+
+@router.post("/admin/incoming-transfers/{transfer_id}/unmatch")
+async def unmatch_transfer(transfer_id: UUID, request: Request, payload: Optional[UnmatchIn] = None,
+                           db: AsyncSession = Depends(get_db), current_user: User = Depends(finance)):
+    """Undo a wrong match: the receipts made from the transfer are cancelled and it waits again."""
+    from app.services.donation_hooks import DonationEffectsLocked
+
+    org_id = _org_id(request)
+    transfer = await _transfer(db, org_id, transfer_id)
+    try:
+        cancelled = await unmatch(db, transfer, user_id=current_user.id, reason=(payload or UnmatchIn()).reason)
+    except (ValueError, DonationEffectsLocked) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    accounts = {a.id: a for a in (await db.execute(
+        select(BankAccount).where(BankAccount.organization_id == org_id))).scalars()}
+    await analyse(db, transfer, Matcher(db, org_id), accounts.get(transfer.bank_account_id))
+    db.add(AuditLog(organization_id=org_id, user_id=current_user.id, action="havale_eslesme_kaldir", details={
+        "transfer_id": str(transfer.id), "receipts": [d.receipt_number for d in cancelled]}))
+    await db.commit()
+    return {"status": "unmatched", "cancelled_receipts": [d.official_receipt_no or d.receipt_number for d in cancelled]}
 
 
 @router.post("/admin/incoming-transfers/{transfer_id}/ignore")

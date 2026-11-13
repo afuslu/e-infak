@@ -314,3 +314,50 @@ async def test_stkpro_reuses_site_campaigns_links_kurban_and_applies_aliases(db_
     assert by_no["1"].campaign_id == keci.id and by_no["2"].campaign_id == sut.id
     cami = await db_session.get(Campaign, by_no["3"].campaign_id)
     assert cami.status == CampaignStatus.PAUSED  # old campaign kept for history, not shown on the site
+
+
+async def test_transfer_split_over_campaigns_and_unmatched_again(db_session):
+    from fastapi import HTTPException
+    from app.api.v1 import bank_sync
+    from app.models.sms_message import SmsMessage
+
+    org, admin, kurban, gazze, genel, ali, berna = await _bank_setup(db_session)
+    tx = _tx(org, "Amir- ALI YILMAZ Aciklama- gazze ve genel")
+    db_session.add(tx)
+    await db_session.flush()
+    await analyse(db_session, tx, Matcher(db_session, org.id))
+    await db_session.commit()
+    request = _request(org)
+    half = tx.amount_cents // 2
+    before = (ali.total_donations or 0, gazze.collected_cents or 0)
+
+    with pytest.raises(HTTPException) as exc:  # parts must add up to the transfer
+        await bank_sync.approve_transfer(tx.id, bank_sync.ApproveIn(donor_id=ali.id, lines=[
+            bank_sync.ApproveLine(campaign_id=gazze.id, amount_cents=half)]), request, db=db_session, current_user=admin)
+    assert exc.value.status_code == 422
+
+    result = await bank_sync.approve_transfer(tx.id, bank_sync.ApproveIn(donor_id=ali.id, lines=[
+        bank_sync.ApproveLine(campaign_id=gazze.id, amount_cents=half),
+        bank_sync.ApproveLine(campaign_id=genel.id, amount_cents=tx.amount_cents - half),
+    ]), request, db=db_session, current_user=admin)
+    assert len(result["receipts"]) == 2
+    listed = await bank_sync.list_transfers(request, status=ReconciliationStatus.MATCHED, limit=200, offset=0,
+                                            db=db_session, _=admin)
+    row = next(i for i in listed["items"] if i["id"] == str(tx.id))
+    assert row["donor"]["name"] == ali.full_name and [r["amount_cents"] for r in row["receipts"]] == [half, tx.amount_cents - half]
+    assert {r["campaign_title"] for r in row["receipts"]} == {gazze.title, genel.title}
+    sms = (await db_session.execute(select(SmsMessage).where(SmsMessage.organization_id == org.id))).scalars().all()
+    assert len(sms) <= 1  # one SMS for the transfer, quoting the whole amount
+    assert ali.total_donations == before[0] + 2
+
+    undone = await bank_sync.unmatch_transfer(tx.id, request, None, db=db_session, current_user=admin)
+    assert len(undone["cancelled_receipts"]) == 2
+    assert tx.status == ReconciliationStatus.UNMATCHED and tx.donation_id is None
+    assert ali.total_donations == before[0] and (gazze.collected_cents or 0) == before[1]
+    assert all(m.status == "cancelled" for m in sms)
+    with pytest.raises(HTTPException):  # nothing left to undo
+        await bank_sync.unmatch_transfer(tx.id, request, None, db=db_session, current_user=admin)
+
+    again = await bank_sync.approve_transfer(tx.id, bank_sync.ApproveIn(donor_id=berna.id, campaign_id=genel.id),
+                                             request, db=db_session, current_user=admin)
+    assert again["status"] == "matched" and len(again["receipts"]) == 1
