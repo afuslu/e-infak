@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
@@ -337,7 +338,7 @@ function UsersTab({
                       {canManage && (
                         <td className="py-3">
                           {isSelf ? (
-                            <a href="/admin/sifre" className="text-[11px] font-semibold text-primary-700 hover:underline">Şifremi değiştir</a>
+                            <Link href="/admin/sifre" className="text-[11px] font-semibold text-primary-700 hover:underline">Şifremi değiştir</Link>
                           ) : locked ? null : passwordFor === user.id ? (
                             <form onSubmit={(e) => setPassword(e, user)} className="flex items-center gap-1">
                               <input required minLength={10} type="password" autoComplete="new-password" autoFocus
