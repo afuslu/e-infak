@@ -69,6 +69,7 @@ BLOCKS: dict[str, dict] = {
             "title": F("text", "Başlık", max=160, translatable=True, placeholder="Boşsa site kapak başlığı"),
             "subtitle": F("textarea", "Açıklama", max=400, translatable=True),
             "image_url": F("image", "Görsel"),
+            "mobile_image_url": F("image", "Görsel (telefon)"),
             "cta_label": F("text", "Buton yazısı", max=40, translatable=True),
             "cta_url": F("url", "Buton bağlantısı"),
             "show_form": F("bool", "Bağış formunu göster", default=True),
@@ -138,6 +139,7 @@ BLOCKS: dict[str, dict] = {
             "subtitle": F("textarea", "Alt açıklama", max=300, translatable=True),
             "items": F("list", "Kartlar", max_items=24, min_items=1, item_label="title", fields={
                 "image_url": F("image", "Görsel"),
+            "mobile_image_url": F("image", "Görsel (telefon)"),
                 "badge": F("text", "Etiket", max=40, translatable=True),
                 "title": F("text", "Başlık", max=120, translatable=True),
                 "text": F("textarea", "Açıklama", max=300, translatable=True),
@@ -311,7 +313,8 @@ BLOCKS: dict[str, dict] = {
     "image_text": {
         "label": "Görsel + metin", "group": "Metin & medya", "icon": "📰",
         "fields": {
-            "image_url": F("image", "Görsel"), "alt": F("text", "Alternatif metin", max=200, translatable=True),
+            "image_url": F("image", "Görsel"),
+            "mobile_image_url": F("image", "Görsel (telefon)"), "alt": F("text", "Alternatif metin", max=200, translatable=True),
             "image_side": F("select", "Görsel tarafı", choices={"left": "Solda", "right": "Sağda"}, default="left"),
             "look": F("select", "Görünüm", choices={"plain": "Sade", "card": "Kart içinde", "overlap": "Çerçeveli / taşan"}, default="plain"),
             "kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=160, translatable=True),
@@ -681,6 +684,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
                 "title": F("text", "İçerik başlığı", max=120, translatable=True),
                 "text": F("richtext", "Metin", max=4000, translatable=True),
                 "image_url": F("image", "Görsel"),
+            "mobile_image_url": F("image", "Görsel (telefon)"),
                 "button_label": F("text", "Buton yazısı", max=40, translatable=True),
                 "button_url": F("url", "Buton bağlantısı"),
             }),
@@ -708,7 +712,8 @@ EXTRA_BLOCKS: dict[str, dict] = {
         "help": "Kendi seçtiğiniz görseller; tıklanınca büyür veya carousel olarak kayar.",
         "fields": _head(
             items=F("list", "Görseller", max_items=40, min_items=1, item_label="caption", fields={
-                "image_url": F("image", "Görsel"), "caption": F("text", "Alt yazı", max=120, translatable=True),
+                "image_url": F("image", "Görsel"),
+            "mobile_image_url": F("image", "Görsel (telefon)"), "caption": F("text", "Alt yazı", max=120, translatable=True),
             }),
             layout=F("select", "Düzen", choices={"grid": "Izgara", "carousel": "Kaydırmalı (Carousel)"}, default="grid"),
             columns=F("number", "Sütun (bilgisayar)", min=2, max=6, default=4),
@@ -740,6 +745,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
         "help": "Sayfa açıldıktan birkaç saniye sonra bir kez gösterilir; kapatılınca seçilen süre boyunca çıkmaz.",
         "fields": {
             "image_url": F("image", "Görsel"),
+            "mobile_image_url": F("image", "Görsel (telefon)"),
             "kicker": F("text", "Üst başlık", max=60, translatable=True),
             "title": F("text", "Başlık", max=160, translatable=True),
             "text": F("textarea", "Metin", max=500, translatable=True),

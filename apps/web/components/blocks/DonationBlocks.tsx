@@ -165,7 +165,7 @@ function fmt(n: number, c: CurrencyCode) {
   return n.toLocaleString('tr-TR', { minimumFractionDigits: c === 'TRY' || Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })
 }
 
-function DonationCard({ card, editing }: { card: DonationCardView; editing?: boolean }) {
+function DonationCard({ card, editing, cardStyle = 'classic' }: { card: DonationCardView; editing?: boolean; cardStyle?: string }) {
   const { currency, convert } = useSiteCurrency()
   const unit = card.unit != null ? convert(card.unit, card.currency) : null
   const [amount, setAmount] = useState('')
@@ -198,8 +198,14 @@ function DonationCard({ card, editing }: { card: DonationCardView; editing?: boo
   const sharePct = card.shares && card.shares.total ? Math.min(100, Math.round((card.shares.taken / card.shares.total) * 100)) : 0
   const quickAmounts = unit == null ? [250, 500, 1000].filter((v) => v >= minimum) : []
 
+  const shellCls =
+    cardStyle === 'highlight'
+      ? 'border-2 border-primary-500/80 shadow-lg ring-1 ring-primary-200/60 hover:-translate-y-1 hover:shadow-xl'
+      : cardStyle === 'minimal'
+        ? 'border border-gray-200/70 shadow-none hover:border-gray-300'
+        : 'border border-gray-200/90 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] hover:-translate-y-1 hover:border-primary-200 hover:shadow-[0_16px_36px_-8px_rgba(0,0,0,0.12)]'
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-1 hover:border-primary-200 hover:shadow-[0_16px_36px_-8px_rgba(0,0,0,0.12)]">
+    <article className={`group flex h-full flex-col overflow-hidden rounded-2xl bg-white transition-all duration-300 ${shellCls}`}>
       <Link href={`/kampanyalar/${card.slug}`} className="relative block aspect-[16/10] overflow-hidden bg-primary-950/5">
         {card.image && (
           <img
@@ -303,8 +309,8 @@ function DonationCard({ card, editing }: { card: DonationCardView; editing?: boo
   )
 }
 
-export function DonationCards({ cards, tabs, layout = 'grid', columns = 3, switcher, editing, title }: {
-  cards: DonationCardView[]; tabs?: { label: string; tag: string }[]; layout?: string; columns?: number; switcher?: boolean; editing?: boolean; title?: string
+export function DonationCards({ cards, tabs, layout = 'grid', columns = 3, cardStyle = 'classic', autoplay = true, switcher, editing, title }: {
+  cards: DonationCardView[]; tabs?: { label: string; tag: string }[]; layout?: string; columns?: number; cardStyle?: string; autoplay?: boolean; switcher?: boolean; editing?: boolean; title?: string
 }) {
   const [tab, setTab] = useState(tabs?.[0]?.tag || '')
   useEffect(() => {
@@ -338,8 +344,8 @@ export function DonationCards({ cards, tabs, layout = 'grid', columns = 3, switc
         </div>
       )}
       {layout === 'carousel' && shown.length > columns
-        ? <Carousel label={title || 'Bağış kartları'} items={columns >= 4 ? 'w-[85%] sm:w-[46%] lg:w-[23.5%]' : 'w-[85%] sm:w-[46%] lg:w-[31.5%]'}>{shown.map((c) => <DonationCard key={c.key} card={c} editing={editing} />)}</Carousel>
-        : <div className={`grid gap-6 ${cols}`}>{shown.map((c) => <DonationCard key={c.key} card={c} editing={editing} />)}</div>}
+        ? <Carousel label={title || 'Bağış kartları'} autoplay={autoplay} editing={editing} items={columns >= 4 ? 'w-[85%] sm:w-[46%] lg:w-[23.5%]' : 'w-[85%] sm:w-[46%] lg:w-[31.5%]'}>{shown.map((c) => <DonationCard key={c.key} card={c} editing={editing} cardStyle={cardStyle} />)}</Carousel>
+        : <div className={`grid gap-6 ${cols}`}>{shown.map((c) => <DonationCard key={c.key} card={c} editing={editing} cardStyle={cardStyle} />)}</div>}
       {!shown.length && <p className="py-10 text-center text-gray-500">Bu sekmede şu an aktif bağış yok.</p>}
     </div>
   )

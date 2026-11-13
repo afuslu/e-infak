@@ -27,6 +27,7 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'genel', label: 'Genel', items: [
       { href: '/admin', label: 'Genel Bakış', icon: '📊' },
       { href: '/admin/raporlar', label: 'Raporlar', icon: '📈', feature: 'reports_basic', permission: 'report_read' },
+      { href: '/admin/ai', label: 'AI Öngörüleri', icon: '🤖', feature: 'reports_basic', permission: 'report_read' },
       { href: '/admin/gorevler', label: 'Görevler & Takvim', icon: '🗓️', feature: 'tasks' },
     ],
   },
@@ -259,6 +260,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const allowed = (item: NavItem) => hasFeature(access, item.feature) && hasPermission(access, item.permission)
   const groups = NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter(allowed) })).filter((group) => group.items.length)
   const blockedFeature = currentItem && !hasFeature(access, currentItem.feature) ? currentItem : undefined
+  const blockedPermission = currentItem && !blockedFeature && !hasPermission(access, currentItem.permission) ? currentItem : undefined
   const needle = searchKey(query.trim())
   const results = needle
     ? groups.flatMap((group) => group.items
@@ -418,6 +420,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </p>
               <Link href="/admin/paket" className="inline-block rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
                 Paketleri karşılaştır
+              </Link>
+            </div>
+          ) : blockedPermission ? (
+            <div className="mx-auto mt-16 max-w-lg rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+              <div className="mb-3 text-4xl">🔒</div>
+              <h1 className="mb-2 text-xl font-bold text-gray-900">Erişim yetkiniz yok</h1>
+              <p className="mb-6 text-sm text-gray-500">
+                <strong>{blockedPermission.label}</strong> sayfasını görüntülemek için gerekli personel yetkisine sahip değilsiniz.
+              </p>
+              <Link href="/admin" className="inline-block rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
+                Genel Bakış&apos;a dön
               </Link>
             </div>
           ) : (

@@ -30,6 +30,7 @@ security = HTTPBearer()
 
 # In-memory fallback if Redis is not available
 _otp_fallback_store = {}
+_otp_attempts_fallback_store = {}
 
 def get_redis_client():
     try:
@@ -174,6 +175,15 @@ async def verify_portal_otp(
         r.expire(f"otp-attempts:{otp_key}", 180)
         if attempts > 5:
             raise HTTPException(status_code=429, detail="Çok fazla hatalı deneme. Yeni kod isteyin.")
+    else:
+        now = datetime.now(timezone.utc)
+        count, exp = _otp_attempts_fallback_store.get(otp_key, (0, now + timedelta(minutes=3)))
+        if now >= exp:
+            count, exp = 0, now + timedelta(minutes=3)
+        count += 1
+        _otp_attempts_fallback_store[otp_key] = (count, exp)
+        if count > 5:
+            raise HTTPException(status_code=429, detail="Çok fazla hatalı deneme. Yeni kod isteyin.")
 
     if saved_code and saved_code == code:
         # Remove used OTP
@@ -181,6 +191,7 @@ async def verify_portal_otp(
             try: r.delete(f"otp:{otp_key}")
             except Exception: pass
         _otp_fallback_store.pop(otp_key, None)
+        _otp_attempts_fallback_store.pop(otp_key, None)
         
         # Check if donor exists in this organization
         result = await db.execute(

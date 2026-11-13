@@ -423,7 +423,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
             </div>
           )}
           <DonationCards cards={donationCards(o, data, t('campaign.donate'))} tabs={o.source === 'tabs' ? (o.tabs || []).filter((x: any) => x.tag && x.label) : undefined}
-            layout={o.layout} columns={o.columns} switcher={o.currency_switcher} editing={opts.editing} title={o.title} />
+            layout={o.layout} columns={o.columns} cardStyle={o.card_style} autoplay={o.autoplay !== false} switcher={o.currency_switcher} editing={opts.editing} title={o.title} />
         </div>
       )
     case 'announcement_bar':
@@ -755,7 +755,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
     default: {
-      const extra = extraContent(block, o, { locale: data.locale, editing: opts.editing, container })
+      const extra = extraContent(block, o, { locale: data.locale, editing: opts.editing, container, campaigns: data.campaigns })
       if (extra !== undefined) return extra
       return opts.editing ? <p className="p-4 text-center text-sm text-red-500">Bilinmeyen blok: {block.type}</p> : null
     }

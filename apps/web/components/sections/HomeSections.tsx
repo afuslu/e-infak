@@ -119,6 +119,7 @@ function heroSlides(data: HomeData, variant: Tpl, o: Overrides, t: T): SlideView
   const allLabel = t('home.campaigns.all').replace(' →', '').replace(' ←', '')
   const slides: SlideView[] = [{
     image_url: hero.image_url || undefined,
+    mobile_image_url: o.mobile_image_url || undefined,
     badge: hero.badge || undefined,
     title: hero.title || site.name,
     text: hero.subtitle || undefined,
@@ -357,10 +358,16 @@ export function pickCampaigns(all: Campaign[], o: Overrides): Campaign[] {
   return o.limit ? list.slice(0, Number(o.limit)) : list
 }
 
-export function CampaignCard({ c, t, locale, showProgress = true, wide = false }: { c: Campaign; t: T; locale: string; showProgress?: boolean; wide?: boolean }) {
+export function CampaignCard({ c, t, locale, showProgress = true, wide = false, style = 'classic' }: {
+  c: Campaign; t: T; locale: string; showProgress?: boolean; wide?: boolean; style?: string
+}) {
+  const isCompact = style === 'compact'
+  const isBordered = style === 'bordered'
   return (
-    <div className={`group flex h-full overflow-hidden rounded-2xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${wide ? 'flex-col sm:flex-row' : 'flex-col'}`}>
-      <Link href={`/kampanyalar/${c.slug}`} className={`relative block overflow-hidden bg-primary-50 ${wide ? 'h-[200px] sm:h-auto sm:w-72 sm:flex-none' : 'aspect-[16/10]'}`} tabIndex={-1} aria-hidden>
+    <div className={`group flex h-full overflow-hidden rounded-2xl bg-white transition-all duration-300 hover:-translate-y-1 ${
+      isBordered ? 'border-2 border-primary-200 shadow-sm hover:border-primary-500 hover:shadow-xl' : 'border border-gray-200 hover:shadow-2xl'
+    } ${wide ? 'flex-col sm:flex-row' : 'flex-col'}`}>
+      <Link href={`/kampanyalar/${c.slug}`} className={`relative block overflow-hidden bg-primary-50 ${wide ? 'h-[200px] sm:h-auto sm:w-72 sm:flex-none' : isCompact ? 'aspect-[16/9]' : 'aspect-[16/10]'}`} tabIndex={-1} aria-hidden>
         {c.cover_image_url
           ? <img src={c.cover_image_url} alt="" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
           : <div className="flex h-full items-center justify-center text-primary-600/30"><Icon name="heart" className="h-12 w-12" /></div>}
@@ -370,19 +377,21 @@ export function CampaignCard({ c, t, locale, showProgress = true, wide = false }
           {c.category && <span className="rounded-md bg-white/90 px-2.5 py-1 text-[11px] font-bold text-gray-800 backdrop-blur">{categoryLabel(c.category)}</span>}
         </div>
       </Link>
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        <Link href={`/kampanyalar/${c.slug}`} className="line-clamp-2 font-heading text-xl font-bold leading-snug text-gray-900 hover:text-primary-700">{c.title}</Link>
-        <p className="line-clamp-2 flex-1 text-sm leading-relaxed text-gray-500">{c.summary}</p>
+      <div className={`flex flex-1 flex-col ${isCompact ? 'gap-2 p-4' : 'gap-3 p-5'}`}>
+        <Link href={`/kampanyalar/${c.slug}`} className={`line-clamp-2 font-heading font-bold leading-snug text-gray-900 hover:text-primary-700 ${isCompact ? 'text-lg' : 'text-xl'}`}>{c.title}</Link>
+        {!isCompact && <p className="line-clamp-2 flex-1 text-sm leading-relaxed text-gray-500">{c.summary}</p>}
         {showProgress && <Progress c={c} locale={locale} />}
         <div className="flex gap-2 pt-1">
           <Link href={`/kampanyalar/${c.slug}`}
-            className="flex-1 rounded-lg bg-primary-600 py-3 text-center text-sm font-bold text-white transition-colors hover:bg-primary-700">
+            className={`flex-1 rounded-lg bg-primary-600 text-center text-sm font-bold text-white transition-colors hover:bg-primary-700 ${isCompact ? 'py-2.5' : 'py-3'}`}>
             {t('campaign.donate')}
           </Link>
-          <Link href={`/kampanyalar/${c.slug}`}
-            className="rounded-lg border-[1.5px] border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-600 transition-colors hover:border-primary-600 hover:text-primary-600">
-            {t('campaign.details')}
-          </Link>
+          {!isCompact && (
+            <Link href={`/kampanyalar/${c.slug}`}
+              className="rounded-lg border-[1.5px] border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-600 transition-colors hover:border-primary-600 hover:text-primary-600">
+              {t('campaign.details')}
+            </Link>
+          )}
         </div>
       </div>
     </div>
@@ -395,7 +404,8 @@ export function Campaigns({ data, t, o = {} }: { data: HomeData; t: T; o?: Overr
   const showProgress = o.show_progress !== false
   const layout = o.layout || (tpl === 'klasik' && list.length > 3 ? 'carousel' : 'grid')
   const columns = Number(o.columns) || (tpl === 'sade' ? 2 : 3)
-  const card = (c: Campaign) => <CampaignCard key={c.id} c={c} t={t} locale={data.locale} showProgress={showProgress} wide={layout === 'list'} />
+  const cardStyle = String(o.card_style || 'classic')
+  const card = (c: Campaign) => <CampaignCard key={c.id} c={c} t={t} locale={data.locale} showProgress={showProgress} wide={layout === 'list'} style={cardStyle} />
   return (
     <section id="projeler" className={tpl === 'klasik' ? 'bg-stone-50' : ''}>
       <div className={`${container} py-[72px]`}>
@@ -404,7 +414,7 @@ export function Campaigns({ data, t, o = {} }: { data: HomeData; t: T; o?: Overr
         {list.length === 0 ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center text-gray-500">{t('home.campaigns.empty')}</div>
         ) : layout === 'carousel' ? (
-          <Carousel label={o.title || t('home.campaigns.title')}>{list.map(card)}</Carousel>
+          <Carousel label={o.title || t('home.campaigns.title')} autoplay={o.autoplay !== false}>{list.map(card)}</Carousel>
         ) : (
           <div className={layout === 'list' ? 'grid gap-5' : `grid gap-6 sm:grid-cols-2 ${GRID_COLS[columns] || 'lg:grid-cols-3'}`}>{list.map(card)}</div>
         )}
@@ -509,19 +519,31 @@ export function Steps({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides
 }
 
 export function ZakatBand({ t, o = {}, tpl = 'klasik' }: { t: T; o?: Overrides; tpl?: Tpl }) {
+  const look = o.look || 'band'
+  const shell =
+    look === 'card'
+      ? 'bg-white border border-gray-200 shadow-lg'
+      : look === 'split'
+        ? 'bg-primary-900 text-white ring-1 ring-primary-800'
+        : 'bg-gradient-to-r from-primary-50 via-white to-accent-50 ring-1 ring-primary-100'
+  const dark = look === 'split'
   return (
     <section className={tpl === 'sade' ? 'py-10' : 'py-14'}>
       <div className={container}>
-        <div className="relative flex flex-wrap items-center justify-between gap-6 overflow-hidden rounded-3xl bg-gradient-to-r from-primary-50 via-white to-accent-50 p-8 ring-1 ring-primary-100 md:p-12">
-          <Icon name="moon" className="pointer-events-none absolute -end-6 -top-10 h-48 w-48 text-primary-100" />
+        <div className={`relative overflow-hidden rounded-3xl p-8 md:p-12 ${shell} ${look === 'split' ? 'grid items-center gap-8 md:grid-cols-[1fr_auto]' : 'flex flex-wrap items-center justify-between gap-6'}`}>
+          <Icon name="moon" className={`pointer-events-none absolute -end-6 -top-10 h-48 w-48 ${dark ? 'text-white/5' : 'text-primary-100'}`} />
           <div className="relative flex max-w-2xl items-start gap-5">
-            <div className="hidden h-14 w-14 flex-none items-center justify-center rounded-2xl bg-primary-600 text-white sm:flex"><Icon name="moon" className="h-7 w-7" /></div>
+            <div className={`hidden h-14 w-14 flex-none items-center justify-center rounded-2xl sm:flex ${dark ? 'bg-white/15 text-accent-300' : 'bg-primary-600 text-white'}`}>
+              <Icon name="moon" className="h-7 w-7" />
+            </div>
             <div>
-              <h3 className="mb-2 font-heading text-2xl font-bold text-gray-900 md:text-[28px]">{o.title || t('home.zakat.title')}</h3>
-              <p className="text-gray-600">{o.text || t('home.zakat.text')}</p>
+              <h3 className={`mb-2 font-heading text-2xl font-bold md:text-[28px] ${dark ? 'text-white' : 'text-gray-900'}`}>{o.title || t('home.zakat.title')}</h3>
+              <p className={dark ? 'text-white/80' : 'text-gray-600'}>{o.text || t('home.zakat.text')}</p>
             </div>
           </div>
-          <Link href="/zekat-hesapla" className="relative whitespace-nowrap rounded-[10px] bg-primary-600 px-8 py-4 font-extrabold text-white shadow-lg shadow-primary-600/20 transition hover:-translate-y-0.5 hover:bg-primary-700">
+          <Link href="/zekat-hesapla" className={`relative whitespace-nowrap rounded-[10px] px-8 py-4 font-extrabold shadow-lg transition hover:-translate-y-0.5 ${
+            dark ? 'bg-white text-primary-900 hover:bg-accent-50' : 'bg-primary-600 text-white shadow-primary-600/20 hover:bg-primary-700'
+          }`}>
             {o.button_label || t('home.zakat.cta')}
           </Link>
         </div>
@@ -533,25 +555,42 @@ export function ZakatBand({ t, o = {}, tpl = 'klasik' }: { t: T; o?: Overrides; 
 export function CtaBand({ data, o = {} }: { data: HomeData; o?: Overrides }) {
   const t = translator(data.locale)
   const tpl = tplOf(data)
+  const look = o.look || 'brand'
   const own = o.title ? { title: o.title, text: o.text, button_label: o.button_label, button_url: o.button_url } : data.site.cta_band
   const band = own.title ? own : { title: t('home.cta.title'), text: t('home.cta.text'), button_label: t('nav.donate'), button_url: '/kampanyalar' }
   const image = data.site.hero.image_url
+  const isLight = look === 'soft' || look === 'bordered'
+  const boxCls =
+    look === 'dark'
+      ? 'bg-gray-950 text-white'
+      : look === 'soft'
+        ? 'bg-primary-50 text-gray-900 ring-1 ring-primary-100'
+        : look === 'bordered'
+          ? 'bg-white text-gray-900 border-2 border-primary-600'
+          : 'bg-primary-800 text-white'
   return (
     <section className={tpl === 'kategori' ? '' : 'py-14'}>
       <div className={tpl === 'kategori' ? '' : container}>
-        <div className={`relative overflow-hidden bg-primary-800 ${tpl === 'kategori' ? '' : 'rounded-3xl'}`}>
-          {image && <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25 mix-blend-luminosity" loading="lazy" />}
-          <div className="absolute inset-0 bg-gradient-to-r from-primary-900 via-primary-800/90 to-accent-600/70" />
-          <div className="pointer-events-none absolute -end-16 -top-16 h-64 w-64 rounded-full border-[40px] border-white/5" aria-hidden />
-          <div className="pointer-events-none absolute -bottom-24 end-40 h-48 w-48 rounded-full border-[30px] border-white/5" aria-hidden />
+        <div className={`relative overflow-hidden ${boxCls} ${tpl === 'kategori' ? '' : 'rounded-3xl'}`}>
+          {!isLight && image && <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25 mix-blend-luminosity" loading="lazy" />}
+          {look === 'brand' && <div className="absolute inset-0 bg-gradient-to-r from-primary-900 via-primary-800/90 to-accent-600/70" />}
+          {look === 'dark' && <div className="absolute inset-0 bg-gradient-to-r from-gray-950 via-gray-900/90 to-primary-950/80" />}
+          {!isLight && (
+            <>
+              <div className="pointer-events-none absolute -end-16 -top-16 h-64 w-64 rounded-full border-[40px] border-white/5" aria-hidden />
+              <div className="pointer-events-none absolute -bottom-24 end-40 h-48 w-48 rounded-full border-[30px] border-white/5" aria-hidden />
+            </>
+          )}
           <div className={`relative grid items-center gap-8 px-8 py-14 md:grid-cols-[1fr_auto] md:px-14 md:py-16 ${tpl === 'kategori' ? 'mx-auto max-w-[1200px]' : ''}`}>
             <div>
-              <h3 className="mb-3 font-heading text-3xl font-bold leading-tight text-white md:text-[40px]">{band.title}</h3>
-              {band.text && <p className="max-w-xl text-base leading-relaxed text-white/80 md:text-lg">{band.text}</p>}
+              <h3 className={`mb-3 font-heading text-3xl font-bold leading-tight md:text-[40px] ${isLight ? 'text-gray-900' : 'text-white'}`}>{band.title}</h3>
+              {band.text && <p className={`max-w-xl text-base leading-relaxed md:text-lg ${isLight ? 'text-gray-600' : 'text-white/80'}`}>{band.text}</p>}
             </div>
             {band.button_label && (
-              <Link href={band.button_url || '/kampanyalar'} className="inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] bg-white px-9 py-4 text-base font-extrabold text-primary-800 shadow-xl transition hover:-translate-y-0.5 hover:bg-accent-50">
-                <Icon name="heart" className="h-5 w-5 text-accent-500" />{band.button_label}
+              <Link href={band.button_url || '/kampanyalar'} className={`inline-flex items-center gap-2 whitespace-nowrap rounded-[10px] px-9 py-4 text-base font-extrabold shadow-xl transition hover:-translate-y-0.5 ${
+                isLight ? 'bg-primary-600 text-white hover:bg-primary-700' : 'bg-white text-primary-800 hover:bg-accent-50'
+              }`}>
+                <Icon name="heart" className={`h-5 w-5 ${isLight ? 'text-white' : 'text-accent-500'}`} />{band.button_label}
               </Link>
             )}
           </div>

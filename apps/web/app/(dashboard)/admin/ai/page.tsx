@@ -21,6 +21,7 @@ export default function AdminAiPage() {
   const [churns, setChurns] = useState<ChurnDonor[]>([])
   const [predictives, setPredictives] = useState<PredictiveAmount[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
 
@@ -33,6 +34,7 @@ export default function AdminAiPage() {
 
   const loadAiInsights = async () => {
     setLoading(true)
+    setError('')
     try {
       const headers = getAuthHeaders()
       const res = await axios.get(`${API_BASE}/api/v1/admin-features/ai/donor-insights`, { headers })
@@ -40,6 +42,7 @@ export default function AdminAiPage() {
       setPredictives(res.data.predictive_amounts)
     } catch (err) {
       console.error('Failed to load AI insights:', err)
+      setError('AI öngörüleri yüklenemedi. Lütfen tekrar deneyin.')
     } finally {
       setLoading(false)
     }
@@ -61,6 +64,12 @@ export default function AdminAiPage() {
           🔄 Yenile
         </button>
       </div>
+
+      {error && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-gray-500 animate-pulse py-6 text-center">AI zeka modelleri analiz ediliyor...</p>

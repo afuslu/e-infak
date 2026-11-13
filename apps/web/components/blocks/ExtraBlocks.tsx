@@ -10,7 +10,7 @@ import { CopyButton, Countdown, GalleryGrid, Popup, TabsView } from './ExtraClie
  * countdown, timeline, tabs, marquee, quote, gallery, bank accounts, pop-up).
  * Returns undefined for a type it does not draw, so BlockRenderer can fall through.
  */
-interface Ctx { locale: string; editing?: boolean; container: string }
+interface Ctx { locale: string; editing?: boolean; container: string; campaigns?: { id: string; slug: string }[] }
 
 const BAND: Record<string, string> = {
   brand: 'bg-primary-700 text-white', accent: 'bg-accent-500 text-white', dark: 'bg-primary-950 text-primary-100',
@@ -77,7 +77,8 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
             editing={editing}
           >
             {cards.map((item, i) => {
-              const href = item.button_url || (item.campaign_id ? `/kampanyalar` : undefined)
+              const linked = item.campaign_id ? ctx.campaigns?.find((c) => c.id === item.campaign_id) : undefined
+              const href = item.button_url || (linked ? `/kampanyalar/${linked.slug}` : item.campaign_id ? `/kampanyalar` : undefined)
               if (look === 'overlay') {
                 return (
                   <div key={i} className="group relative overflow-hidden rounded-2xl bg-gray-900 text-white shadow-md" style={{ aspectRatio: aspect }}>

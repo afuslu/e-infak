@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 const loginSchema = z.object({
   email: z.string().email('Geçerli bir e-posta adresi girin'),
@@ -18,6 +18,7 @@ type LoginForm = z.infer<typeof loginSchema>
 export default function LoginPage() {
   const router = useRouter()
   const login = useLogin()
+  const [errorMsg, setErrorMsg] = useState('')
 
   // Platform support sign-in: e-infak.org/platform opens /giris#destek=<short-lived token>.
   // The fragment never reaches a server; it is removed from the address bar at once.
@@ -40,11 +41,12 @@ export default function LoginPage() {
   })
 
   const onSubmit = async (data: LoginForm) => {
+    setErrorMsg('')
     try {
       await login.mutateAsync(data)
       router.push('/admin')
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Giriş başarısız')
+      setErrorMsg(error.response?.data?.detail || 'Giriş başarısız')
     }
   }
 
@@ -91,6 +93,12 @@ export default function LoginPage() {
               <p className="mt-1.5 text-xs text-red-500">{errors.password.message}</p>
             )}
           </div>
+
+          {errorMsg && (
+            <p role="alert" className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-300">
+              {errorMsg}
+            </p>
+          )}
 
           <button
             type="submit"

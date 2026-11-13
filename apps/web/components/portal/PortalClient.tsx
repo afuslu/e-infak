@@ -480,6 +480,10 @@ export function PortalClient({ siteName }: { siteName: string }) {
   const projectCount = projects.water_wells.length + projects.orphan_sponsorships.length + projects.student_sponsorships.length
   const dueInstallments = pledges.filter((p) => p.status === 'active' && p.next_installment)
   const openDues = memberships.map((m) => ({ membership: m, open: m.dues.filter((d) => d.status === 'open') })).filter((m) => m.open.length)
+  const openDuesCount = openDues.reduce((sum, m) => sum + m.open.length, 0)
+  const myWellIds = new Set(myWells.map((w) => w.id))
+  const extraWells = projects.water_wells.filter((w) => !myWellIds.has(w.id))
+  const extraProjectCount = extraWells.length + projects.orphan_sponsorships.length + projects.student_sponsorships.length
   const awaitingTransfers = paymentOrders.filter((o) => o.status === 'awaiting_transfer')
   const pendingCount = dueInstallments.length + openDues.length + awaitingTransfers.length
 
@@ -487,8 +491,8 @@ export function PortalClient({ siteName }: { siteName: string }) {
     { key: 'ozet', label: 'Özet', count: pendingCount },
     { key: 'bagislar', label: 'Bağışlarım', count: donations.length },
     shares.length ? { key: 'kurban', label: 'Kurban', count: shares.length } : null,
-    pledges.length + myWells.length + projectCount ? { key: 'destek', label: 'Sponsorluk & Projeler', count: pledges.length + myWells.length + projectCount } : null,
-    memberships.length ? { key: 'uyelik', label: 'Üyelik & Aidat', count: 0 } : null,
+    pledges.length + myWells.length + extraProjectCount ? { key: 'destek', label: 'Sponsorluk & Projeler', count: pledges.length + myWells.length + extraProjectCount } : null,
+    memberships.length ? { key: 'uyelik', label: 'Üyelik & Aidat', count: openDuesCount } : null,
     { key: 'duzenli', label: 'Düzenli Bağış', count: subscriptions.length },
     paymentOrders.length ? { key: 'odemeler', label: 'Ödemeler', count: paymentOrders.length } : null,
   ].filter(Boolean)) as { key: TabKey; label: string; count: number }[]
@@ -666,11 +670,11 @@ export function PortalClient({ siteName }: { siteName: string }) {
         </Panel>
       )}
 
-      {projectCount > 0 && (
+      {extraProjectCount > 0 && (
         <Panel title="Proje ve sponsorluk takibi">
           <div className="space-y-2.5">
             {[
-              ...projects.water_wells.map((item) => ({ id: item.id, title: item.name, detail: item.location, status: WELL_STATUS[item.status] || item.status })),
+              ...extraWells.map((item) => ({ id: item.id, title: item.name, detail: item.location, status: WELL_STATUS[item.status] || item.status })),
               ...projects.orphan_sponsorships.map((item) => ({ id: item.id, title: `Yetim desteği: ${item.person_name}`, detail: undefined, status: item.active ? 'Aktif' : 'Tamamlandı' })),
               ...projects.student_sponsorships.map((item) => ({ id: item.id, title: `Öğrenci desteği: ${item.person_name}`, detail: cents(item.amount_cents), status: item.active ? 'Aktif' : 'Tamamlandı' })),
             ].map((item) => (

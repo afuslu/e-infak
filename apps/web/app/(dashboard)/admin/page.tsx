@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { hasFeature, useAdminAccess } from '../../../lib/admin-access'
+import { hasFeature, hasPermission, useAdminAccess } from '../../../lib/admin-access'
 
 interface MonthlyTrend {
   month: string
@@ -49,13 +49,13 @@ interface PaymentMethod {
   total_lira: number
 }
 
-const QUICK_LINKS: { href: string; label: string; icon: string; feature?: string }[] = [
+const QUICK_LINKS: { href: string; label: string; icon: string; feature?: string; permission?: string }[] = [
   { href: '/admin/bagislar', label: 'Bağışlar', icon: '💰' },
   { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: '📢' },
   { href: '/admin/bagiscilar', label: 'Bağışçılar', icon: '👥', feature: 'donor_crm' },
   { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: '🧾', feature: 'receipts' },
   { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: '📨', feature: 'bank_transactions' },
-  { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: '🧩' },
+  { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: '🧩', permission: 'content_manage' },
 ]
 
 export default function AdminDashboardPage() {
@@ -64,6 +64,7 @@ export default function AdminDashboardPage() {
   const [payments, setPayments] = useState<PaymentMethod[]>([])
   const [kpis, setKpis] = useState<Kpis | null>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const { data: access } = useAdminAccess()
 
   const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
@@ -77,6 +78,7 @@ export default function AdminDashboardPage() {
 
   const loadAnalytics = async () => {
     setLoading(true)
+    setError('')
     try {
       const headers = getAuthHeaders()
       const res = await axios.get(`${API_BASE}/api/v1/admin-features/analytics/stats`, { headers })
@@ -86,6 +88,7 @@ export default function AdminDashboardPage() {
       setKpis(res.data.kpis)
     } catch (err) {
       console.error('Failed to load analytics:', err)
+      setError('Analiz verileri yüklenemedi. Lütfen tekrar deneyin.')
     } finally {
       setLoading(false)
     }
@@ -117,9 +120,18 @@ export default function AdminDashboardPage() {
         </button>
       </div>
 
+      {error && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <span>{error}</span>
+          <button type="button" onClick={loadAnalytics} className="rounded-lg bg-white px-3 py-1 text-xs font-bold text-red-700 ring-1 ring-red-200 hover:bg-red-100">
+            Tekrar Dene
+          </button>
+        </div>
+      )}
+
       {/* Sık kullanılan işlemler */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {QUICK_LINKS.filter((link) => hasFeature(access, link.feature)).map((link) => (
+        {QUICK_LINKS.filter((link) => hasFeature(access, link.feature) && hasPermission(access, link.permission)).map((link) => (
           <Link key={link.href} href={link.href}
             className="group flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-3.5 py-3 text-[13px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-primary-500 hover:text-primary-700">
             <span className="text-lg">{link.icon}</span>
