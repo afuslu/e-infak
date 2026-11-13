@@ -272,3 +272,64 @@ async def test_dashboard_kpis_use_real_data(db_session):
     assert kpis["donor_count"] == 1
     assert kpis["new_donors_this_month"] == 0
     assert kpis["active_campaigns"] == 1
+
+
+# --- Passwords -----------------------------------------------------------------
+
+async def _session(db, user, token):
+    from datetime import timedelta
+    from app.models.user import Session as UserSession
+    row = UserSession(user_id=user.id, refresh_token=token,
+                      expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+    db.add(row)
+    await db.flush()
+    return row
+
+
+async def test_manager_sets_staff_password_and_signs_them_out(db_session):
+    from app.core.security import verify_password
+    org = await _org(db_session)
+    admin = await _user(db_session, org)
+    editor = await _user(db_session, org, role=UserRole.EDITOR)
+    old = await _session(db_session, editor, f"r-{uuid.uuid4().hex}")
+
+    body = staff.StaffPasswordSet(password="yeni-guclu-sifre")
+    assert (await staff.set_staff_password(_request(org, "POST"), editor.id, body, db_session, admin))["ok"]
+    await db_session.refresh(editor)
+    await db_session.refresh(old)
+    assert verify_password("yeni-guclu-sifre", editor.hashed_password)
+    assert old.revoked_at is not None
+
+    with pytest.raises(HTTPException) as own:
+        await staff.set_staff_password(_request(org, "POST"), admin.id, body, db_session, admin)
+    assert own.value.status_code == 400
+    # An editor cannot set the administrator's password (they lack the administrator's permissions).
+    with pytest.raises(HTTPException) as up:
+        await staff.set_staff_password(_request(org, "POST"), admin.id, body, db_session, editor)
+    assert up.value.status_code == 403
+    other = await _org(db_session)
+    with pytest.raises(HTTPException) as cross:
+        await staff.set_staff_password(_request(other, "POST"), editor.id, body, db_session, admin)
+    assert cross.value.status_code == 404
+
+
+async def test_user_changes_own_password_and_keeps_current_session(db_session):
+    from app.api.v1 import auth
+    from app.core.security import get_password_hash, verify_password
+    org = await _org(db_session)
+    user = await _user(db_session, org, role=UserRole.EDITOR)
+    user.hashed_password = get_password_hash("eski-sifre-12345")
+    here = await _session(db_session, user, f"r-{uuid.uuid4().hex}")
+    elsewhere = await _session(db_session, user, f"r-{uuid.uuid4().hex}")
+
+    with pytest.raises(HTTPException) as wrong:
+        await auth.change_my_password(auth.PasswordChange(current_password="yanlis", new_password="yeni-sifre-12345"),
+                                      user, db_session)
+    assert wrong.value.status_code == 400
+    await auth.change_my_password(auth.PasswordChange(current_password="eski-sifre-12345",
+                                                      new_password="yeni-sifre-12345",
+                                                      refresh_token=here.refresh_token), user, db_session)
+    await db_session.refresh(here)
+    await db_session.refresh(elsewhere)
+    assert verify_password("yeni-sifre-12345", user.hashed_password)
+    assert here.revoked_at is None and elsewhere.revoked_at is not None

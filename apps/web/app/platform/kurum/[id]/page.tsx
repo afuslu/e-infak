@@ -11,6 +11,7 @@ interface Detail extends PlatformOrg {
   provider_accounts: Account[]
 }
 type Msg = { type: 'ok' | 'error'; text: string } | null
+type Issued = { email: string; temporary_password: string; login_url: string }
 
 const input = 'w-full rounded-lg border bg-white p-2 text-sm'
 const errorText = (err: unknown, fallback: string) => {
@@ -71,6 +72,7 @@ export default function PlatformOrganizationPage() {
   const [plan, setPlan] = useState({ plan: '', enabled_addons: [] as string[], extra_user_seats: 0 })
   const [newDomain, setNewDomain] = useState('')
   const [msg, setMsg] = useState<Msg>(null)
+  const [issued, setIssued] = useState<Issued | null>(null)
 
   const load = useCallback(async () => {
     const data = await platformCall<Detail>('get', `/organizations/${id}`)
@@ -251,11 +253,32 @@ export default function PlatformOrganizationPage() {
         </Card>
 
         <Card title="Kullanıcılar">
+          {issued && (
+            <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
+              <p className="font-semibold text-amber-900">{issued.email} için yeni geçici şifre — yalnız şimdi gösterilir:</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="rounded bg-white px-2 py-1 font-mono text-base select-all">{issued.temporary_password}</code>
+                <button type="button" className="rounded border bg-white px-2 py-1 text-xs font-semibold"
+                  onClick={() => navigator.clipboard?.writeText(issued.temporary_password)}>Kopyala</button>
+                <button type="button" className="rounded border bg-white px-2 py-1 text-xs" onClick={() => setIssued(null)}>Kapat</button>
+              </div>
+              <p className="text-xs text-amber-800">Giriş: <a className="underline" href={issued.login_url} target="_blank" rel="noreferrer">{issued.login_url}</a>. Kullanıcı girdikten sonra “Şifremi değiştir”den kendi şifresini belirlemeli.</p>
+            </div>
+          )}
           <ul className="divide-y text-sm">
             {org.users.map((u) => (
-              <li key={u.id} className="flex flex-wrap justify-between gap-2 py-2">
+              <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span><b>{u.name}</b> <span className="text-slate-500">{u.email}</span></span>
-                <span className="text-xs text-slate-500">{u.role} · son giriş {dateTr(u.last_login_at)}{u.is_active ? '' : ' · pasif'}</span>
+                <span className="flex items-center gap-2 text-xs text-slate-500">
+                  {u.role} · son giriş {dateTr(u.last_login_at)}{u.is_active ? '' : ' · pasif'}
+                  <button type="button" className="rounded border px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => window.confirm(`${u.email} için yeni geçici şifre üretilsin mi? Eski şifre hemen geçersiz olur ve tüm oturumları kapanır.`) &&
+                      run(async () => {
+                        setIssued(await platformCall<Issued>('post', `/organizations/${org.id}/users/${u.id}/reset-password`))
+                      }, `${u.email} için yeni şifre üretildi`)}>
+                    Şifre sıfırla
+                  </button>
+                </span>
               </li>
             ))}
           </ul>

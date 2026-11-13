@@ -1,4 +1,7 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timedelta, timezone
@@ -11,7 +14,9 @@ from app.core.security import (
     decode_token,
 )
 from app.core.config import settings
+from app.models.audit_log import AuditLog
 from app.models.user import User, Session as UserSession
+from app.services import passwords
 from app.schemas.auth import (
     UserRegister,
     UserLogin,
@@ -182,3 +187,29 @@ async def logout(
 async def get_me(current_user: User = Depends(get_current_user)):
     """Get current user profile"""
     return current_user
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=passwords.MIN_LENGTH, max_length=128)
+    refresh_token: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.post("/me/password")
+async def change_my_password(
+    payload: PasswordChange,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("staff-password", limit=10, window_seconds=600)),
+):
+    """The signed-in user changes their own password; other devices are signed out."""
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Mevcut şifre hatalı")
+    if payload.new_password == payload.current_password:
+        raise HTTPException(status_code=400, detail="Yeni şifre eskisiyle aynı olamaz")
+    keep = await passwords.current_session_id(db, current_user, payload.refresh_token)
+    await passwords.set_password(db, current_user, payload.new_password, keep_session=keep)
+    db.add(AuditLog(organization_id=current_user.organization_id, user_id=current_user.id,
+                    action="sifre_degisti", details={"by": "self"}))
+    await db.commit()
+    return {"ok": True}

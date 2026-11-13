@@ -172,6 +172,17 @@ function UsersTab({
   const empty = { first_name: '', last_name: '', email: '', phone: '', password: '', role: 'readonly', department_id: '', staff_role_id: '' }
   const [form, setForm] = useState(empty)
   const [showForm, setShowForm] = useState(false)
+  const [passwordFor, setPasswordFor] = useState<string | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+
+  const setPassword = async (e: React.FormEvent, user: StaffUser) => {
+    e.preventDefault()
+    if (await run(() => adminSend('post', `/users/${user.id}/password`, { password: newPassword }),
+      `${user.email} için şifre belirlendi; açık oturumları kapatıldı`)) {
+      setPasswordFor(null)
+      setNewPassword('')
+    }
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -260,6 +271,7 @@ function UsersTab({
                   <th className="pb-3">Özel Rol</th>
                   <th className="pb-3">Birim</th>
                   <th className="pb-3">Durum</th>
+                  {canManage && <th className="pb-3">Şifre</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -322,6 +334,26 @@ function UsersTab({
                           {user.is_active ? 'Aktif' : 'Pasif'}
                         </button>
                       </td>
+                      {canManage && (
+                        <td className="py-3">
+                          {isSelf ? (
+                            <a href="/admin/sifre" className="text-[11px] font-semibold text-primary-700 hover:underline">Şifremi değiştir</a>
+                          ) : locked ? null : passwordFor === user.id ? (
+                            <form onSubmit={(e) => setPassword(e, user)} className="flex items-center gap-1">
+                              <input required minLength={10} type="password" autoComplete="new-password" autoFocus
+                                placeholder="en az 10 karakter" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                                className="w-36 rounded border border-gray-300 p-1 text-xs" />
+                              <button type="submit" className="rounded bg-primary-600 px-2 py-1 text-[11px] font-semibold text-white">Kaydet</button>
+                              <button type="button" onClick={() => { setPasswordFor(null); setNewPassword('') }} className="px-1 text-[11px] text-gray-500">Vazgeç</button>
+                            </form>
+                          ) : (
+                            <button onClick={() => { setPasswordFor(user.id); setNewPassword('') }}
+                              className="rounded border border-gray-300 px-2 py-0.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50">
+                              Şifre belirle
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   )
                 })}

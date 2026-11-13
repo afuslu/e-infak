@@ -26,7 +26,7 @@ from app.models.organization import Organization, OrganizationDomain
 from app.models.platform import PlatformAuditLog, PlatformUser
 from app.models.user import User, UserRole
 from app.payments import PROVIDERS as PAYMENT_PROVIDERS, build_provider
-from app.services import domains
+from app.services import domains, passwords
 from app.services.site import DEFAULT_SECTIONS, TEMPLATES
 from app.services.tenancy import RESERVED_SUBDOMAINS, forget_host, twin, valid_subdomain
 from app.services.tenant_credentials import CredentialsUnavailable, get_credentials, save_credentials
@@ -425,6 +425,24 @@ async def save_provider_account(org_id: UUID, provider: str, payload: Credential
 
 
 # --- Support sign-in ------------------------------------------------------------
+
+@router.post("/organizations/{org_id}/users/{user_id}/reset-password")
+async def reset_user_password(org_id: UUID, user_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
+                              operator: PlatformUser = Depends(get_platform_user)):
+    """New temporary password for one of the organisation's users, shown once and never stored in
+    clear. The user is signed out everywhere; both audit logs record who did it."""
+    org = await _org_or_404(db, org_id)
+    user = (await db.execute(select(User).where(User.id == user_id, User.organization_id == org.id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    password = passwords.temporary_password()
+    await passwords.set_password(db, user, password)
+    _audit(db, request, operator, "kullanici_sifre_sifirla", org.id, email=user.email)
+    db.add(AuditLog(organization_id=org.id, user_id=user.id, action="platform_sifre_sifirla",
+                    details={"by": operator.email, "email": user.email}))
+    await db.commit()
+    return {"email": user.email, "temporary_password": password, "login_url": f"{await site_url(db, org)}/giris"}
+
 
 @router.post("/organizations/{org_id}/support-session")
 async def support_session(org_id: UUID, request: Request, db: AsyncSession = Depends(get_db),

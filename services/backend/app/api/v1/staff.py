@@ -42,6 +42,7 @@ from app.models.audit_log import AuditLog
 from app.models.organization import Organization
 from app.models.staff import Department, StaffRole
 from app.models.user import User, UserRole
+from app.services import passwords
 
 router = APIRouter(
     prefix="/admin-features",
@@ -452,6 +453,37 @@ async def update_staff_user(
     _audit(db, org_id, current_user, "personel_guncelle", {"target_user_id": str(user.id), "email": user.email, **changes})
     await db.commit()
     return _user_out(user)
+
+
+class StaffPasswordSet(BaseModel):
+    password: str = Field(min_length=passwords.MIN_LENGTH, max_length=128)
+
+
+@router.post("/users/{user_id}/password")
+async def set_staff_password(
+    request: Request,
+    user_id: UUID,
+    payload: StaffPasswordSet,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """A manager sets a staff member's password; that person is signed out everywhere."""
+    org_id = _org_id(request)
+    user = (await db.execute(
+        select(User).options(selectinload(User.staff_role))
+        .where(User.id == user_id, User.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Kendi şifrenizi 'Şifremi değiştir' ekranından değiştirin")
+    if user.role == UserRole.PLATFORM_ADMIN:
+        raise HTTPException(status_code=403, detail="Sistem yöneticisi hesabı düzenlenemez")
+    _ensure_grantable(current_user, effective_permissions(user))
+    await passwords.set_password(db, user, payload.password)
+    _audit(db, org_id, current_user, "personel_sifre_belirle", {"target_user_id": str(user.id), "email": user.email})
+    await db.commit()
+    return {"ok": True}
 
 
 # --- Departments -----------------------------------------------------------

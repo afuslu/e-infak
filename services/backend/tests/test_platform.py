@@ -128,3 +128,32 @@ async def test_organisation_lifecycle(db_session, http):
     assert any(o["id"] == org_id and o["is_active"] is False for o in listing)
     actions = {a["action"] for a in (await http.get(f"/api/v1/platform/audit?organization_id={org_id}", headers=auth)).json()}
     assert {"kurum_olustur", "kurum_guncelle", "alan_adi_ekle", "alan_adi_aktif", "destek_girisi", "kurum_askiya_al"} <= actions
+
+
+async def test_operator_resets_organisation_user_password(db_session, http):
+    from app.core.security import verify_password
+    op, password = await _operator(db_session)
+    token = (await http.post("/api/v1/platform/auth/login", json={"email": op.email, "password": password})).json()["access_token"]
+    auth = {"Authorization": f"Bearer {token}"}
+    org = Organization(slug=f"o-{uuid.uuid4().hex[:6]}", name="O", legal_name="O", email="o@example.com",
+                       primary_domain=f"{uuid.uuid4().hex[:6]}.example.com", plan="ileri", enabled_addons=[],
+                       extra_user_seats=0)
+    db_session.add(org)
+    await db_session.flush()
+    admin = User(organization_id=org.id, email=f"a-{org.slug}@example.com", hashed_password="x",
+                 first_name="A", last_name="B", role=UserRole.STK_ADMIN)
+    db_session.add(admin)
+    await db_session.commit()
+
+    url = f"/api/v1/platform/organizations/{org.id}/users/{admin.id}/reset-password"
+    assert (await http.post(url)).status_code == 401
+    assert (await http.post(f"/api/v1/platform/organizations/{org.id}/users/{uuid.uuid4()}/reset-password",
+                            headers=auth)).status_code == 404
+    res = await http.post(url, headers=auth)
+    assert res.status_code == 200, res.text
+    temp = res.json()["temporary_password"]
+    assert len(temp) >= 12 and res.json()["email"] == admin.email
+    await db_session.refresh(admin)
+    assert verify_password(temp, admin.hashed_password)
+    actions = (await db_session.execute(select(AuditLog.action).where(AuditLog.organization_id == org.id))).scalars().all()
+    assert "platform_sifre_sifirla" in actions

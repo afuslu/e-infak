@@ -392,12 +392,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link href="/" className="hidden text-[13px] font-semibold border border-gray-200 px-3.5 py-2 rounded-lg text-gray-600 hover:border-primary-600 hover:text-primary-600 transition-colors sm:block">
                 Siteyi Görüntüle ↗
               </Link>
-              <div className="hidden items-center gap-2 md:flex">
+              <Link href="/admin/sifre" title="Şifremi değiştir" className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-gray-50">
                 <div className="h-8 w-8 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-[13px]">
                   {user.first_name?.[0]?.toUpperCase() || 'A'}
                 </div>
-                <span className="text-[13px] font-semibold text-gray-900">{user.first_name}</span>
-              </div>
+                <span className="hidden text-[13px] font-semibold text-gray-900 md:inline">{user.first_name}</span>
+              </Link>
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 Çıkış
               </Button>
