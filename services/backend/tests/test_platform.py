@@ -157,3 +157,79 @@ async def test_operator_resets_organisation_user_password(db_session, http):
     assert verify_password(temp, admin.hashed_password)
     actions = (await db_session.execute(select(AuditLog.action).where(AuditLog.organization_id == org.id))).scalars().all()
     assert "platform_sifre_sifirla" in actions
+
+
+async def _login(http, db):
+    op, password = await _operator(db)
+    token = (await http.post("/api/v1/platform/auth/login", json={"email": op.email, "password": password})).json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _small_org(db, plan="baslangic"):
+    org = Organization(slug=f"o-{uuid.uuid4().hex[:6]}", name="Küçük", legal_name="Küçük", email="o@example.com",
+                       primary_domain=f"{uuid.uuid4().hex[:6]}.example.com", plan=plan, enabled_addons=[],
+                       extra_user_seats=0, is_active=True)
+    db.add(org)
+    await db.flush()
+    admin = User(organization_id=org.id, email=f"a-{org.slug}@example.com", hashed_password="x",
+                 first_name="A", last_name="B", role=UserRole.STK_ADMIN, is_active=True)
+    db.add(admin)
+    await db.commit()
+    return org, admin
+
+
+async def test_operator_manages_organisation_users(db_session, http):
+    from app.core.security import verify_password
+    auth = await _login(http, db_session)
+    org, admin = await _small_org(db_session)
+    base = f"/api/v1/platform/organizations/{org.id}/users"
+    body = {"email": f"editor-{org.slug}@example.com", "first_name": "Edi", "role": "editor"}
+
+    # Başlangıç has one seat, already taken by the administrator.
+    full = await http.post(base, json=body, headers=auth)
+    assert full.status_code == 409 and full.json()["detail"]["code"] == "user_limit_reached"
+    assert (await http.patch(f"/api/v1/platform/organizations/{org.id}", json={"extra_user_seats": 1},
+                             headers=auth)).status_code == 200
+    assert (await http.post(base, json={**body, "role": "platform_admin"}, headers=auth)).status_code == 422
+    created = await http.post(base, json=body, headers=auth)
+    assert created.status_code == 201, created.text
+    editor = (await db_session.execute(select(User).where(User.email == body["email"]))).scalar_one()
+    assert editor.role == UserRole.EDITOR
+    assert verify_password(created.json()["temporary_password"], editor.hashed_password)
+    assert (await http.post(base, json=body, headers=auth)).status_code in (409,)
+
+    # The last active administrator can neither be demoted nor deactivated …
+    assert (await http.patch(f"{base}/{admin.id}", json={"role": "editor"}, headers=auth)).status_code == 409
+    assert (await http.patch(f"{base}/{admin.id}", json={"is_active": False}, headers=auth)).status_code == 409
+    # … but other users can.
+    assert (await http.patch(f"{base}/{editor.id}", json={"role": "crm"}, headers=auth)).status_code == 200
+    assert (await http.patch(f"{base}/{editor.id}", json={"is_active": False}, headers=auth)).status_code == 200
+    await db_session.refresh(editor)
+    assert editor.role == UserRole.CRM and editor.is_active is False
+
+    detail = (await http.get(f"/api/v1/platform/organizations/{org.id}", headers=auth)).json()
+    assert {u["role_label"] for u in detail["users"]} >= {"Dernek Yöneticisi"}
+    catalog = (await http.get("/api/v1/platform/catalog", headers=auth)).json()
+    assert "platform_admin" not in {r["key"] for r in catalog["roles"]}
+
+
+async def test_alerts_flag_full_seats_and_data_outside_plan(db_session, http):
+    from app.models.automation import BankAccount
+    auth = await _login(http, db_session)
+    org, _ = await _small_org(db_session)
+    db_session.add(BankAccount(organization_id=org.id, bank_key="vakifkatilim", label="Ana hesap"))
+    await db_session.commit()
+
+    res = await http.get(f"/api/v1/platform/alerts?org_id={org.id}", headers=auth)
+    assert res.status_code == 200, res.text
+    kinds = {a["kind"]: a for a in res.json()}
+    assert kinds["seats_full"]["level"] == "warning"
+    assert kinds["data_outside_plan"]["level"] == "danger" and "banka hesabı" in kinds["data_outside_plan"]["message"]
+    assert "payment_missing" in kinds
+    assert [a["level"] for a in res.json()] == sorted([a["level"] for a in res.json()],
+                                                      key={"danger": 0, "warning": 1, "info": 2}.get)
+
+    await http.patch(f"/api/v1/platform/organizations/{org.id}", json={"plan": "ileri"}, headers=auth)
+    kinds = {a["kind"] for a in (await http.get(f"/api/v1/platform/alerts?org_id={org.id}", headers=auth)).json()}
+    assert "seats_full" not in kinds and "data_outside_plan" not in kinds
+    assert (await http.get("/api/v1/platform/alerts")).status_code == 401

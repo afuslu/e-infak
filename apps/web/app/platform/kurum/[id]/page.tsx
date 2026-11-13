@@ -2,22 +2,21 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Catalog, PlatformDomain, PlatformOrg, dateTr, platformCall } from '../../../../lib/platform-api'
+import { AlertList } from '../../../../components/platform/AlertList'
+import { Catalog, PlatformAlert, PlatformDomain, PlatformOrg, dateTr, platformCall, platformError } from '../../../../lib/platform-api'
 
 interface Field { key: string; label: string; secret: boolean; optional: boolean; choices: Record<string, string> | null }
 interface Account { key: string; label: string; kind: 'payment' | 'sms'; fields: Field[]; values: Record<string, string | null>; configured: boolean }
 interface Detail extends PlatformOrg {
-  users: { id: string; email: string; name: string; role: string | null; is_active: boolean; last_login_at: string | null }[]
+  users: OrgUser[]
   provider_accounts: Account[]
 }
 type Msg = { type: 'ok' | 'error'; text: string } | null
 type Issued = { email: string; temporary_password: string; login_url: string }
+interface OrgUser { id: string; email: string; name: string; role: string | null; role_label: string | null; is_active: boolean; last_login_at: string | null }
 
 const input = 'w-full rounded-lg border bg-white p-2 text-sm'
-const errorText = (err: unknown, fallback: string) => {
-  const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
-  return typeof detail === 'string' ? detail : fallback
-}
+const errorText = platformError
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return <section className="space-y-3 rounded-2xl border bg-white p-5"><h2 className="font-bold">{title}</h2>{children}</section>
@@ -73,10 +72,15 @@ export default function PlatformOrganizationPage() {
   const [newDomain, setNewDomain] = useState('')
   const [msg, setMsg] = useState<Msg>(null)
   const [issued, setIssued] = useState<Issued | null>(null)
+  const [alerts, setAlerts] = useState<PlatformAlert[]>([])
+  const [adding, setAdding] = useState(false)
+  const emptyUser = { first_name: '', last_name: '', email: '', role: 'editor' }
+  const [newUser, setNewUser] = useState(emptyUser)
 
   const load = useCallback(async () => {
     const data = await platformCall<Detail>('get', `/organizations/${id}`)
     setOrg(data)
+    platformCall<PlatformAlert[]>('get', `/alerts?org_id=${id}`).then(setAlerts).catch(() => undefined)
     setPlan({ plan: data.plan, enabled_addons: data.enabled_addons, extra_user_seats: data.extra_user_seats })
   }, [id])
 
@@ -135,8 +139,98 @@ export default function PlatformOrganizationPage() {
         </div>
       </div>
       {msg && <p className={`rounded-lg p-3 text-sm font-semibold ${msg.type === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</p>}
+      {alerts.length > 0 && <AlertList alerts={alerts} showOrg={false} />}
 
       <div className="grid gap-5 lg:grid-cols-2">
+        <Card title="Kullanıcılar">
+          {issued && (
+            <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
+              <p className="font-semibold text-amber-900">{issued.email} için yeni geçici şifre — yalnız şimdi gösterilir:</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="rounded bg-white px-2 py-1 font-mono text-base select-all">{issued.temporary_password}</code>
+                <button type="button" className="rounded border bg-white px-2 py-1 text-xs font-semibold"
+                  onClick={() => navigator.clipboard?.writeText(issued.temporary_password)}>Kopyala</button>
+                <button type="button" className="rounded border bg-white px-2 py-1 text-xs" onClick={() => setIssued(null)}>Kapat</button>
+              </div>
+              <p className="text-xs text-amber-800">Giriş: <a className="underline" href={issued.login_url} target="_blank" rel="noreferrer">{issued.login_url}</a>. Kullanıcı girdikten sonra “Şifremi değiştir”den kendi şifresini belirlemeli.</p>
+            </div>
+          )}
+          {(() => {
+            const active = org.users.filter((u) => u.is_active).length
+            const full = active >= org.user_limit
+            return (
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className={full ? 'font-semibold text-amber-700' : 'text-slate-500'}>
+                  Aktif kullanıcı {active} / {org.user_limit}{full ? ' — sınır dolu; yeni hesap için paketi yükseltin veya ek hak verin' : ''}
+                </span>
+                <button type="button" disabled={full && !adding} onClick={() => { setAdding(!adding); setNewUser(emptyUser) }}
+                  className="rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white disabled:opacity-40">
+                  {adding ? 'Vazgeç' : '+ Kullanıcı ekle'}
+                </button>
+              </div>
+            )
+          })()}
+          {adding && (
+            <form className="grid gap-2 rounded-xl border bg-slate-50 p-3 sm:grid-cols-2"
+              onSubmit={(e) => {
+                e.preventDefault()
+                run(async () => {
+                  setIssued(await platformCall<Issued>('post', `/organizations/${org.id}/users`, newUser))
+                  setAdding(false)
+                  setNewUser(emptyUser)
+                }, `${newUser.email} eklendi`)
+              }}>
+              <label className="text-xs font-semibold text-slate-600">Ad
+                <input required className={input} value={newUser.first_name} onChange={(e) => setNewUser({ ...newUser, first_name: e.target.value })} />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">Soyad
+                <input className={input} value={newUser.last_name} onChange={(e) => setNewUser({ ...newUser, last_name: e.target.value })} />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">E-posta
+                <input required type="email" className={input} value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">Rol
+                <select className={input} value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>
+                  {(catalog?.roles || []).map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                </select>
+              </label>
+              <p className="text-xs text-slate-500 sm:col-span-2">Geçici şifre üretilir ve bir kez gösterilir. Görsel/içerik yükleyecekler için “İçerik Editörü” yeterlidir.</p>
+              <div className="sm:col-span-2"><button type="submit" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white">Hesabı oluştur</button></div>
+            </form>
+          )}
+          <ul className="divide-y text-sm">
+            {org.users.map((u) => (
+              <li key={u.id} className={`space-y-1.5 py-2.5 ${u.is_active ? '' : 'opacity-60'}`}>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span><b>{u.name}</b> <span className="text-slate-500">{u.email}</span></span>
+                  <span className="text-xs text-slate-500">son giriş {u.last_login_at ? dateTr(u.last_login_at) : 'hiç yok'}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  {u.role === 'platform_admin' ? <span className="font-semibold">{u.role_label}</span> : (
+                    <select aria-label={`${u.email} rolü`} className="rounded-lg border bg-white px-2 py-1 text-xs font-semibold" value={u.role || ''}
+                      onChange={(e) => run(() => platformCall('patch', `/organizations/${org.id}/users/${u.id}`, { role: e.target.value }), `${u.email} rolü değişti`)}>
+                      {(catalog?.roles || []).map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                    </select>
+                  )}
+                  <button type="button" className={`rounded border px-2 py-1 font-semibold ${u.is_active ? 'border-green-200 bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}
+                    title={u.is_active ? 'Pasifleştir' : 'Aktifleştir'}
+                    onClick={() => (u.is_active ? window.confirm(`${u.email} pasifleştirilsin mi? Hemen oturumu kapanır ve giriş yapamaz.`) : true) &&
+                      run(() => platformCall('patch', `/organizations/${org.id}/users/${u.id}`, { is_active: !u.is_active }),
+                        u.is_active ? `${u.email} pasifleştirildi` : `${u.email} aktifleştirildi`)}>
+                    {u.is_active ? 'Aktif' : 'Pasif'}
+                  </button>
+                  <button type="button" className="rounded border px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => window.confirm(`${u.email} için yeni geçici şifre üretilsin mi? Eski şifre hemen geçersiz olur ve tüm oturumları kapanır.`) &&
+                      run(async () => {
+                        setIssued(await platformCall<Issued>('post', `/organizations/${org.id}/users/${u.id}/reset-password`))
+                      }, `${u.email} için yeni şifre üretildi`)}>
+                    Şifre sıfırla
+                  </button>
+                </div>
+              </li>
+            ))}
+        </Card>
+
         <Card title="Paket">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold text-slate-600">Paket
@@ -162,8 +256,7 @@ export default function PlatformOrganizationPage() {
               ))}
             </div>
           )}
-          <p className="text-xs text-slate-500">Kullanıcı: {org.users.filter((u) => u.is_active).length} / {org.user_limit}</p>
-          <button type="button" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white"
+                    <button type="button" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white"
             onClick={() => run(() => platformCall('patch', `/organizations/${org.id}`, plan), 'Paket güncellendi')}>Paketi kaydet</button>
         </Card>
 
@@ -252,37 +345,6 @@ export default function PlatformOrganizationPage() {
           </div>
         </Card>
 
-        <Card title="Kullanıcılar">
-          {issued && (
-            <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
-              <p className="font-semibold text-amber-900">{issued.email} için yeni geçici şifre — yalnız şimdi gösterilir:</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <code className="rounded bg-white px-2 py-1 font-mono text-base select-all">{issued.temporary_password}</code>
-                <button type="button" className="rounded border bg-white px-2 py-1 text-xs font-semibold"
-                  onClick={() => navigator.clipboard?.writeText(issued.temporary_password)}>Kopyala</button>
-                <button type="button" className="rounded border bg-white px-2 py-1 text-xs" onClick={() => setIssued(null)}>Kapat</button>
-              </div>
-              <p className="text-xs text-amber-800">Giriş: <a className="underline" href={issued.login_url} target="_blank" rel="noreferrer">{issued.login_url}</a>. Kullanıcı girdikten sonra “Şifremi değiştir”den kendi şifresini belirlemeli.</p>
-            </div>
-          )}
-          <ul className="divide-y text-sm">
-            {org.users.map((u) => (
-              <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <span><b>{u.name}</b> <span className="text-slate-500">{u.email}</span></span>
-                <span className="flex items-center gap-2 text-xs text-slate-500">
-                  {u.role} · son giriş {dateTr(u.last_login_at)}{u.is_active ? '' : ' · pasif'}
-                  <button type="button" className="rounded border px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50"
-                    onClick={() => window.confirm(`${u.email} için yeni geçici şifre üretilsin mi? Eski şifre hemen geçersiz olur ve tüm oturumları kapanır.`) &&
-                      run(async () => {
-                        setIssued(await platformCall<Issued>('post', `/organizations/${org.id}/users/${u.id}/reset-password`))
-                      }, `${u.email} için yeni şifre üretildi`)}>
-                    Şifre sıfırla
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
       </div>
     </div>
   )

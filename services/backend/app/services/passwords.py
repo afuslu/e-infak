@@ -22,6 +22,10 @@ async def set_password(db: AsyncSession, user: User, password: str, keep_session
     """Store the new hash and sign the user out everywhere (except `keep_session`), so an old
     password or a stolen refresh token stops working at once. The caller commits."""
     user.hashed_password = get_password_hash(password)
+    await sign_out_everywhere(db, user, keep_session)
+
+
+async def sign_out_everywhere(db: AsyncSession, user: User, keep_session: Optional[UUID] = None) -> None:
     query = update(UserSession).where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
     if keep_session is not None:
         query = query.where(UserSession.id != keep_session)

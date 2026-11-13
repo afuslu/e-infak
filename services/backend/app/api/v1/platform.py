@@ -15,6 +15,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.api.v1.provider_accounts import _describe
 from app.api.v1.site import site_url
+from app.api.v1.staff import ROLE_LABELS
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.plans import FEATURE_LABELS, PLAN_ADDONS, PLAN_LABELS, Feature, Plan, org_user_limit
@@ -26,7 +27,7 @@ from app.models.organization import Organization, OrganizationDomain
 from app.models.platform import PlatformAuditLog, PlatformUser
 from app.models.user import User, UserRole
 from app.payments import PROVIDERS as PAYMENT_PROVIDERS, build_provider
-from app.services import domains, passwords
+from app.services import domains, passwords, platform_alerts
 from app.services.site import DEFAULT_SECTIONS, TEMPLATES
 from app.services.tenancy import RESERVED_SUBDOMAINS, forget_host, twin, valid_subdomain
 from app.services.tenant_credentials import CredentialsUnavailable, get_credentials, save_credentials
@@ -125,6 +126,7 @@ async def catalog(_: PlatformUser = Depends(get_platform_user)):
         "public_ip": settings.PLATFORM_PUBLIC_IP,
         "payment_providers": [{"key": k, "label": c.label} for k, c in PAYMENT_PROVIDERS.items()],
         "sms_providers": [{"key": k, "label": c.label} for k, c in SMS_PROVIDERS.items()],
+        "roles": [{"key": r.value, "label": ROLE_LABELS[r]} for r in ASSIGNABLE_ROLES],
     }
 
 
@@ -267,6 +269,7 @@ async def get_organization(org_id: UUID, db: AsyncSession = Depends(get_db),
     return {
         **await _org_out(db, org),
         "users": [{"id": str(u.id), "email": u.email, "name": u.full_name, "role": u.role.value if u.role else None,
+                   "role_label": ROLE_LABELS.get(u.role, u.role.value) if u.role else None,
                    "is_active": u.is_active,
                    "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None} for u in admins],
         "provider_accounts": accounts,
@@ -425,6 +428,102 @@ async def save_provider_account(org_id: UUID, provider: str, payload: Credential
 
 
 # --- Support sign-in ------------------------------------------------------------
+
+@router.get("/alerts")
+async def list_alerts(org_id: Optional[UUID] = None, db: AsyncSession = Depends(get_db),
+                      _: PlatformUser = Depends(get_platform_user)):
+    return await platform_alerts.collect(db, org_id)
+
+
+# --- Organisation users ----------------------------------------------------------
+
+ASSIGNABLE_ROLES = [r for r in UserRole if r != UserRole.PLATFORM_ADMIN]
+
+
+class OrgUserCreate(BaseModel):
+    email: EmailStr
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(default="", max_length=100)
+    role: UserRole = UserRole.EDITOR
+
+
+class OrgUserUpdate(BaseModel):
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+
+
+def _check_role(role: Optional[UserRole]) -> None:
+    if role == UserRole.PLATFORM_ADMIN:
+        raise HTTPException(status_code=422, detail="Bu rol kurum kullanıcısına verilemez")
+
+
+async def _org_user(db: AsyncSession, org: Organization, user_id: UUID) -> User:
+    user = (await db.execute(select(User).where(User.id == user_id, User.organization_id == org.id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    return user
+
+
+@router.post("/organizations/{org_id}/users", status_code=201)
+async def create_org_user(org_id: UUID, payload: OrgUserCreate, request: Request, db: AsyncSession = Depends(get_db),
+                          operator: PlatformUser = Depends(get_platform_user)):
+    """Adds a staff account to the organisation within its package's user limit; the temporary
+    password is returned once."""
+    from app.api.v1.staff import _ensure_seat_available
+    org = await _org_or_404(db, org_id)
+    _check_role(payload.role)
+    await _ensure_seat_available(db, org)
+    email = str(payload.email).lower()
+    if (await db.execute(select(User.id).where(func.lower(User.email) == email))).first():
+        raise HTTPException(status_code=409, detail="Bu e-posta adresiyle kayıtlı bir hesap zaten var")
+    password = passwords.temporary_password()
+    user = User(organization_id=org.id, email=email, hashed_password=get_password_hash(password),
+                first_name=payload.first_name.strip(), last_name=payload.last_name.strip(),
+                role=payload.role, is_active=True, is_verified=True)
+    db.add(user)
+    await db.flush()
+    _audit(db, request, operator, "kullanici_olustur", org.id, email=email, role=payload.role.value)
+    db.add(AuditLog(organization_id=org.id, user_id=user.id, action="platform_personel_olustur",
+                    details={"by": operator.email, "email": email, "role": payload.role.value}))
+    await db.commit()
+    return {"email": email, "temporary_password": password, "login_url": f"{await site_url(db, org)}/giris"}
+
+
+@router.patch("/organizations/{org_id}/users/{user_id}")
+async def update_org_user(org_id: UUID, user_id: UUID, payload: OrgUserUpdate, request: Request,
+                          db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    from app.api.v1.staff import _ensure_seat_available
+    org = await _org_or_404(db, org_id)
+    user = await _org_user(db, org, user_id)
+    _check_role(payload.role)
+    if user.role == UserRole.PLATFORM_ADMIN:
+        raise HTTPException(status_code=403, detail="Sistem yöneticisi hesabı buradan düzenlenemez")
+    losing_admin = user.role == UserRole.STK_ADMIN and user.is_active and (
+        payload.is_active is False or (payload.role is not None and payload.role != UserRole.STK_ADMIN))
+    if losing_admin:
+        others = (await db.execute(select(func.count(User.id)).where(
+            User.organization_id == org.id, User.role == UserRole.STK_ADMIN, User.is_active.is_(True),
+            User.id != user.id))).scalar_one()
+        if not others:
+            raise HTTPException(status_code=409, detail="Kurumun son aktif yöneticisi; önce başka bir yönetici atayın")
+    changes: dict = {}
+    if payload.role is not None and payload.role != user.role:
+        changes["role"] = {"old": user.role.value, "new": payload.role.value}
+        user.role = payload.role
+    if payload.is_active is not None and payload.is_active != user.is_active:
+        if payload.is_active:
+            await _ensure_seat_available(db, org)
+        changes["is_active"] = {"old": user.is_active, "new": payload.is_active}
+        user.is_active = payload.is_active
+        if not payload.is_active:
+            await passwords.sign_out_everywhere(db, user)
+    if changes:
+        _audit(db, request, operator, "kullanici_guncelle", org.id, email=user.email, **changes)
+        db.add(AuditLog(organization_id=org.id, user_id=user.id, action="platform_personel_guncelle",
+                        details={"by": operator.email, "email": user.email, **changes}))
+        await db.commit()
+    return {"ok": True}
+
 
 @router.post("/organizations/{org_id}/users/{user_id}/reset-password")
 async def reset_user_password(org_id: UUID, user_id: UUID, request: Request, db: AsyncSession = Depends(get_db),

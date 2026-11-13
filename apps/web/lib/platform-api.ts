@@ -54,6 +54,25 @@ export interface Catalog {
   templates: { key: string; label: string }[]
   base_domain: string
   public_ip: string
+  roles: { key: string; label: string }[]
+}
+
+export interface PlatformAlert {
+  organization_id: string | null
+  organization_name: string
+  level: 'danger' | 'warning' | 'info'
+  kind: string
+  message: string
+  hint: string | null
+}
+
+/** FastAPI error payload (string, {message} object or validation list) as one line. */
+export function platformError(err: unknown, fallback: string) {
+  const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(', ') || fallback
+  if (detail && typeof detail === 'object' && 'message' in detail) return String((detail as { message: unknown }).message)
+  return fallback
 }
 
 export const dateTr = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }) : '—')
