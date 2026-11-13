@@ -16,6 +16,8 @@ class SmsTemplate(Base):
 
     # Event this template answers ("makbuz", "havale_eslesti"…; see services.sms_service.SMS_EVENTS)
     event_key = Column(String(40))
+    # Receipt texts of this campaign (donation item) use this template instead of the event's
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"))
     # auto: sent when the event happens · manual: offered in the quick SMS window · off: never
     auto_mode = Column(String(8), nullable=False, default="manual", server_default="manual")
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
@@ -26,6 +28,7 @@ class SmsTemplate(Base):
 
     __table_args__ = (
         UniqueConstraint("organization_id", "event_key", name="uq_sms_template_org_event"),
+        UniqueConstraint("organization_id", "campaign_id", name="uq_sms_template_org_campaign"),
     )
 
     # Relationships

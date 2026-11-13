@@ -401,6 +401,7 @@ function ApproveDialog({ transfer, campaigns, books, onClose, onDone }: {
           <QuickSmsDialog
             title="Hızlı SMS Gönder — Havale"
             eventKey="havale_eslesti"
+            campaignId={campaignId}
             target={{
               donorId: donor?.id, transferId: transfer.id, name: donor?.full_name || newDonor?.full_name, phone: smsPhone,
               variables: {

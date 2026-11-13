@@ -25,7 +25,7 @@ PRESETS: dict[str, list[tuple[str, str | None, str]]] = {
         ("Banka Hesap Bilgileri", None,
          "ALICI ADI: HAYIRA AÇILAN KAPI DERNEĞİ\n\nIBAN: TR24 0021 0000 0444 4444 4000 01\n"
          "Açıklama kısmına telefon numaranızı yazmayı unutmayınız.\n\nhakder.org"),
-        ("Hafızlık Sponsor Hatırlatma", None,
+        ("Hafızlık Sponsor Hatırlatma", "sponsor_hatirlatma",
          "Kıymetli destekçimiz, hafızlık yolunda eğitimine devam eden kardeşlerimize vermiş olduğunuz kıymetli "
          "destek için teşekkür ederiz.\nDesteğinizi bu ay için hatırlatmak istedik.\n"
          "Rabbimiz hayrınızı kabul, bereketinizi daim eylesin.\nHAKDER - Hayıra Açılan Kapı Derneği\n"

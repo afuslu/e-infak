@@ -276,6 +276,7 @@ export function ManualReceiptForm({
           <QuickSmsDialog
             title="Hızlı SMS Gönder — Makbuz"
             eventKey="makbuz"
+            campaignId={kurban ? kurban.campaignId : form.campaign_id}
             target={{
               donorId: donor?.id, name: donor?.full_name || `${newDonor.first_name} ${newDonor.last_name}`.trim(), phone: smsPhone,
               variables: {

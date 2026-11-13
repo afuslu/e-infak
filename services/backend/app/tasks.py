@@ -5,6 +5,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from celery import Celery
+from celery.schedules import crontab
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import requests
@@ -550,7 +551,25 @@ def sync_bank_accounts_task():
     return asyncio.run(_sync_bank_accounts())
 
 
+async def _send_sms_reminders():
+    from app.services.sms_reminders import send_due_reminders
+    async with AsyncSessionLocal() as session:
+        queued = await send_due_reminders(session)
+        await session.commit()
+        return queued
+
+
+@celery_app.task(name="app.tasks.send_sms_reminders_task", ignore_result=True)
+def send_sms_reminders_task():
+    """Every morning: dues and pledge-installment reminders of organisations that switched them on."""
+    return asyncio.run(_send_sms_reminders())
+
+
 celery_app.conf.beat_schedule = {
+    "sms-reminders-every-morning": {
+        "task": "app.tasks.send_sms_reminders_task",
+        "schedule": crontab(hour=7, minute=0),  # 10:00 in Türkiye (Celery runs on UTC)
+    },
     "sync-bank-accounts": {
         "task": "app.tasks.sync_bank_accounts_task",
         "schedule": 600.0,

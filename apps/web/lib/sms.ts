@@ -40,7 +40,7 @@ export function segmentSummary(message: string) {
 }
 
 export interface SmsTemplate {
-  id: string; name: string; body: string; event_key: string | null; event_label: string | null
+  id: string; name: string; body: string; event_key: string | null; event_label: string | null; campaign_id: string | null
   auto_mode: 'auto' | 'manual' | 'off'; is_active: boolean; segments: SegmentInfo; updated_at: string | null
 }
 

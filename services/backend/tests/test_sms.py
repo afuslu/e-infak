@@ -261,8 +261,8 @@ async def test_hakder_preset_loads_once_and_binds_events(db_session):
     org, _admin, _campaign, _donor = await _setup(db_session)
     first = await load_preset(db_session, org.id, "hakder")
     again = await load_preset(db_session, org.id, "hakder")
-    # "Makbuz SMS", "Bağış Ulaştı SMS" and "Banka Hesap Bilgileri" replace the built-in defaults
-    assert first == {"created": 3, "updated": 3} and again == {"created": 0, "updated": len(PRESETS["hakder"])}
+    # only the two kurban texts are new; the others replace the built-in defaults of their event or name
+    assert first == {"created": 2, "updated": 4} and again == {"created": 0, "updated": len(PRESETS["hakder"])}
     templates = {t["name"]: t for t in await sms_api.list_templates(_request(org, "GET"), db_session)}
     assert templates["Makbuz SMS"]["event_key"] == "makbuz" and "hakder.org" in templates["Makbuz SMS"]["body"]
     assert templates["Bağış Ulaştı SMS"]["event_key"] == "havale_eslesti"
@@ -335,3 +335,66 @@ def test_bulk_sms_waits_for_the_morning():
     assert sms_service.after_quiet_hours(dt(2026, 11, 13, 14, 0, tzinfo=tz)) == dt(2026, 11, 13, 14, 0, tzinfo=tz)
     assert sms_service.after_quiet_hours(dt(2026, 11, 13, 22, 30, tzinfo=tz)) == dt(2026, 11, 14, 8, 0, tzinfo=tz)
     assert sms_service.after_quiet_hours(dt(2026, 11, 13, 3, 0, tzinfo=tz)) == dt(2026, 11, 13, 8, 0, tzinfo=tz)
+
+
+# --- Campaign templates and reminders ------------------------------------------------
+
+async def test_campaign_template_replaces_the_receipt_text(db_session):
+    org, admin, campaign, donor = await _setup(db_session)
+    await sms_api.list_templates(_request(org, "GET"), db_session)
+    own = await sms_api.create_template(_request(org), sms_api.TemplateIn(
+        name="Gazze Yemek", body="Değerli bağışçımız, {tutar} TL GAZZE YEMEK bağışınız ulaşmıştır.",
+        campaign_id=campaign.id), db_session, admin)
+    assert own["campaign_id"] == str(campaign.id)
+    with pytest.raises(HTTPException) as exc:
+        await sms_api.create_template(_request(org), sms_api.TemplateIn(
+            name="İkinci", body="Metin {tutar}", campaign_id=campaign.id), db_session, admin)
+    assert exc.value.status_code == 409
+    donation = Donation(organization_id=org.id, campaign_id=campaign.id, donor_id=donor.id, payment_provider="manual",
+                        receipt_number=f"R-{uuid.uuid4().hex[:8]}", amount_cents=50_000,
+                        payment_method=PaymentMethod.CASH, status=DonationStatus.CONFIRMED)
+    db_session.add(donation)
+    await db_session.flush()
+    queued = await send_event_sms(db_session, org.id, "makbuz", donor.phone, donor=donor, donation=donation,
+                                  related=("donation", donation.id))
+    assert queued.body == "Değerli bağışçımız, 500,00 TL GAZZE YEMEK bağışınız ulaşmıştır."
+
+
+async def test_due_reminders_go_once_and_only_when_switched_on(db_session):
+    from datetime import date
+    from app.models.membership import Member, MemberDue
+    from app.services.sms_reminders import send_due_reminders
+
+    org, admin, _campaign, donor = await _setup(db_session)
+    member = Member(organization_id=org.id, donor_id=donor.id, member_no="1")
+    db_session.add(member)
+    await db_session.flush()
+    today = date(2026, 11, 13)
+    db_session.add_all([
+        MemberDue(organization_id=org.id, member_id=member.id, period="2026-11", due_date=today, amount_cents=10_000),
+        MemberDue(organization_id=org.id, member_id=member.id, period="2026-10", due_date=date(2026, 10, 13), amount_cents=10_000),
+        MemberDue(organization_id=org.id, member_id=member.id, period="2026-12", due_date=date(2026, 12, 13), amount_cents=10_000),
+    ])
+    await db_session.flush()
+
+    async def mine():
+        rows = (await db_session.execute(select_org(org.id))).scalars().all()
+        return [r for r in rows if r.related_type == "member_due"]
+
+    await send_due_reminders(db_session, today)
+    assert await mine() == []  # off by default
+
+    templates = await sms_api.list_templates(_request(org, "GET"), db_session)
+    dues = next(t for t in templates if t["event_key"] == "aidat_hatirlatma")
+    await sms_api.update_template(_request(org), uuid.UUID(dues["id"]), sms_api.TemplateIn(
+        name=dues["name"], body=dues["body"], event_key="aidat_hatirlatma", auto_mode="auto"), db_session, admin)
+    await send_due_reminders(db_session, today)
+    await send_due_reminders(db_session, today)
+    sent = await mine()
+    assert len(sent) == 1  # only the one due today, once
+    assert "2026-11" in sent[0].body and "100,00 TL" in sent[0].body and "13.11.2026" in sent[0].body
+
+
+def select_org(org_id):
+    from sqlalchemy import select
+    return select(SmsMessage).where(SmsMessage.organization_id == org_id)

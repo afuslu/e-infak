@@ -35,12 +35,14 @@ const localNow = (plusMinutes = 60) => {
  * so the SMS goes out together with the receipt and is tied to it).
  */
 export function QuickSmsDialog({
-  target, title = 'Hızlı SMS Gönder', eventKey, compose, onClose, onSent,
+  target, title = 'Hızlı SMS Gönder', eventKey, campaignId, compose, onClose, onSent,
 }: {
   target: SmsTarget
   title?: string
   /** Preselects the template bound to this event ("makbuz", "havale_eslesti"…) */
   eventKey?: string
+  /** A template written for this campaign (donation item) wins over the event's template */
+  campaignId?: string | null
   compose?: { initial?: string | null; onDone: (body: string | null) => void }
   onClose: () => void
   onSent?: (result: SmsSent) => void
@@ -84,7 +86,8 @@ export function QuickSmsDialog({
       .then((res) => {
         const active = res.data.filter((t) => t.is_active)
         setTemplates(active)
-        const preset = eventKey && !compose?.initial ? active.find((t) => t.event_key === eventKey) : undefined
+        const preset = compose?.initial ? undefined
+          : (campaignId && active.find((t) => t.campaign_id === campaignId)) || (eventKey ? active.find((t) => t.event_key === eventKey) : undefined)
         if (preset) applyTemplate(preset.id)
       })
       .catch(() => setTemplates([]))

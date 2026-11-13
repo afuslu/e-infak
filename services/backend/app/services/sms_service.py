@@ -80,6 +80,8 @@ SMS_VARIABLES = {
     "bagis_kalemi": "Bağış kalemi / kampanya",
     "makbuz_no": "Makbuz numarası",
     "tarih": "Tarih (gg.aa.yyyy)",
+    "vade": "Son ödeme tarihi (hatırlatmalarda)",
+    "donem": "Dönem / taksit (2026-11, 3/12)",
     "kimin_adina": "Kimin adına",
     "kurban_no": "Kurban küpe / sıra no",
     "portal": "Bağışçı paneli adresi",
@@ -111,7 +113,18 @@ SMS_EVENTS: dict[str, tuple[str, str, str, str]] = {
         "Sayın {ad_soyad}, {kimin_adina} adına vekaletiniz yerine getirilmiş, kurbanınız ({kurban_no}) "
         "kesilmiştir. Allah kabul etsin. Video: {portal}",
     ),
+    "aidat_hatirlatma": (
+        "Aidat hatırlatması (vade günü)", "off", "Aidat Hatırlatma",
+        "Sayın {ad_soyad}, {donem} dönemi {tutar} {para_birimi} üyelik aidatınızın son ödeme tarihi {vade}. "
+        "Desteğiniz için teşekkür ederiz.\n{kurum}",
+    ),
+    "sponsor_hatirlatma": (
+        "Sponsorluk / taahhüt taksiti hatırlatması (vade günü)", "off", "Sponsorluk Hatırlatma",
+        "Kıymetli destekçimiz, {bagis_kalemi} için {tutar} {para_birimi} tutarındaki desteğinizi bu ay için "
+        "hatırlatmak istedik. Allah kabul etsin.\n{kurum}",
+    ),
 }
+RECEIPT_EVENTS = ("bagis_alindi", "makbuz", "havale_eslesti")
 # Offered to a new organisation next to the event templates.
 EXTRA_DEFAULT_TEMPLATES = [
     ("Banka Hesap Bilgileri",
@@ -199,15 +212,28 @@ async def ensure_default_templates(db: AsyncSession, org_id: UUID) -> None:
     await db.flush()
 
 
-async def event_template(db: AsyncSession, org_id: UUID, event_key: str) -> tuple[str, str, Optional[UUID]]:
-    """(body, mode, template id) for an event: the organisation's template, else the built-in default."""
+async def event_template(db: AsyncSession, org_id: UUID, event_key: str, campaign_id: Optional[UUID] = None,
+                         ) -> tuple[str, str, Optional[UUID]]:
+    """(body, mode, template id) for an event: the organisation's template, else the built-in default.
+
+    A template bound to the campaign replaces the text (the event still decides whether it is sent).
+    """
     template = (await db.execute(select(SmsTemplate).where(
         SmsTemplate.organization_id == org_id, SmsTemplate.event_key == event_key,
     ))).scalar_one_or_none()
     if template:
-        return template.body, (template.auto_mode if template.is_active else "off"), template.id
-    _label, mode, _name, body = SMS_EVENTS[event_key]
-    return body, mode, None
+        body, mode, template_id = template.body, (template.auto_mode if template.is_active else "off"), template.id
+    else:
+        _label, mode, _name, body = SMS_EVENTS[event_key]
+        template_id = None
+    if campaign_id:
+        own = (await db.execute(select(SmsTemplate).where(
+            SmsTemplate.organization_id == org_id, SmsTemplate.campaign_id == campaign_id,
+            SmsTemplate.is_active.is_(True),
+        ))).scalar_one_or_none()
+        if own:
+            body, template_id = own.body, own.id
+    return body, mode, template_id
 
 
 def receipt_event(payment_provider: Optional[str]) -> str:
@@ -344,12 +370,14 @@ async def enqueue_sms(
 async def send_event_sms(
     db: AsyncSession, org_id: UUID, event_key: str, phone: Optional[str], *, donor=None, donation=None,
     transfer=None, extra: Optional[dict] = None, related: Optional[tuple[str, UUID]] = None,
-    source: str = "auto", dedupe_key: Optional[str] = None,
+    source: str = "auto", dedupe_key: Optional[str] = None, campaign_id: Optional[UUID] = None,
 ) -> Optional[SmsMessage]:
     """Queue the SMS of an event if the organisation sends it automatically; once per related record."""
     if not phone:
         return None
-    body, mode, template_id = await event_template(db, org_id, event_key)
+    if campaign_id is None and donation is not None and event_key in RECEIPT_EVENTS:
+        campaign_id = donation.campaign_id
+    body, mode, template_id = await event_template(db, org_id, event_key, campaign_id)
     if mode != "auto":
         return None
     context = await build_context(db, org_id, donor=donor, donation=donation, transfer=transfer, extra=extra)

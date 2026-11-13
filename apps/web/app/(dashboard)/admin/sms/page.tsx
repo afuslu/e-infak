@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess, v1Get } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { MODE_LABEL, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
 
-type Draft = { id: string | null; name: string; body: string; event_key: string; auto_mode: SmsTemplate['auto_mode']; is_active: boolean }
-const EMPTY: Draft = { id: null, name: '', body: '', event_key: '', auto_mode: 'manual', is_active: true }
+type Draft = { id: string | null; name: string; body: string; event_key: string; campaign_id: string; auto_mode: SmsTemplate['auto_mode']; is_active: boolean }
+const EMPTY: Draft = { id: null, name: '', body: '', event_key: '', campaign_id: '', auto_mode: 'manual', is_active: true }
 // Shown in the preview so staff see a realistic message while writing.
 const SAMPLE: Record<string, string> = {
   ad_soyad: 'Ahmet Yılmaz', ad: 'Ahmet', tutar: '1.000,00', para_birimi: 'TL', bagis_kalemi: 'Genel Bağış', makbuz_no: 'A-1234',
-  tarih: new Date().toLocaleDateString('tr-TR'), kimin_adina: 'Fatma Yılmaz', kurban_no: 'K-17', portal: 'ornek.org/portal',
+  tarih: new Date().toLocaleDateString('tr-TR'), vade: new Date().toLocaleDateString('tr-TR'), donem: '2026-11', kimin_adina: 'Fatma Yılmaz', kurban_no: 'K-17', portal: 'ornek.org/portal',
   kurum: 'Kurumunuz', kurum_unvan: 'Kurumunuzun Unvanı', kurum_telefon: '0212 000 00 00', iban: 'TR00 0000 0000 0000 0000 0000 00',
 }
 const ALIASES: Record<string, string> = { donor_name: 'ad_soyad', amount_lira: 'tutar', campaign_name: 'bagis_kalemi' }
@@ -26,6 +26,7 @@ export default function SmsTemplatesPage() {
   const [draft, setDraft] = useState<Draft | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [campaigns, setCampaigns] = useState<{ id: string; title: string }[]>([])
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
   const load = async () => {
@@ -39,9 +40,10 @@ export default function SmsTemplatesPage() {
   useEffect(() => {
     load()
     adminGet<SmsMeta>('/sms/meta').then((r) => setMeta(r.data)).catch(() => {})
+    v1Get<{ items: { id: string; title: string }[] }>('/campaigns', { page_size: 100 }).then((r) => setCampaigns(r.data.items || [])).catch(() => {})
   }, [])
 
-  const edit = (t: SmsTemplate) => setDraft({ id: t.id, name: t.name, body: t.body, event_key: t.event_key || '', auto_mode: t.auto_mode, is_active: t.is_active })
+  const edit = (t: SmsTemplate) => setDraft({ id: t.id, name: t.name, body: t.body, event_key: t.event_key || '', campaign_id: t.campaign_id || '', auto_mode: t.auto_mode, is_active: t.is_active })
 
   const insert = (key: string) => {
     if (!draft) return
@@ -57,7 +59,7 @@ export default function SmsTemplatesPage() {
     if (!draft) return
     setSaving(true)
     try {
-      const body = { name: draft.name, body: draft.body, event_key: draft.event_key || null, auto_mode: draft.auto_mode, is_active: draft.is_active }
+      const body = { name: draft.name, body: draft.body, event_key: draft.event_key || null, campaign_id: draft.event_key ? null : draft.campaign_id || null, auto_mode: draft.auto_mode, is_active: draft.is_active }
       if (draft.id) await adminSend('put', `/sms/templates/${draft.id}`, body)
       else await adminSend('post', '/sms/templates', body)
       setMessage({ type: 'ok', text: 'Şablon kaydedildi' })
@@ -82,7 +84,7 @@ export default function SmsTemplatesPage() {
 
   const setMode = async (t: SmsTemplate, auto_mode: SmsTemplate['auto_mode']) => {
     try {
-      await adminSend('put', `/sms/templates/${t.id}`, { name: t.name, body: t.body, event_key: t.event_key, auto_mode, is_active: t.is_active })
+      await adminSend('put', `/sms/templates/${t.id}`, { name: t.name, body: t.body, event_key: t.event_key, campaign_id: t.campaign_id, auto_mode, is_active: t.is_active })
       load()
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
@@ -132,6 +134,14 @@ export default function SmsTemplatesPage() {
                   {(meta?.events || []).map((ev) => <option key={ev.key} value={ev.key} disabled={usedEvents.has(ev.key)}>{ev.label}{usedEvents.has(ev.key) ? ' (başka şablona bağlı)' : ''}</option>)}
                 </select>
               </Label>
+              {!draft.event_key && (
+                <Label label="Bağış kalemi / kampanya" hint="Seçilirse bu kampanyanın makbuz ve havale SMS'lerinde genel metin yerine bu şablon kullanılır.">
+                  <select className={inputClass} value={draft.campaign_id} onChange={(e) => setDraft({ ...draft, campaign_id: e.target.value })}>
+                    <option value="">Kampanyaya bağlı değil</option>
+                    {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                  </select>
+                </Label>
+              )}
               {draft.event_key && (
                 <Label label="Olay gerçekleşince">
                   <select className={inputClass} value={draft.auto_mode} onChange={(e) => setDraft({ ...draft, auto_mode: e.target.value as Draft['auto_mode'] })}>
@@ -170,6 +180,7 @@ export default function SmsTemplatesPage() {
                 <div>
                   <h3 className="font-bold text-gray-900">{t.name}</h3>
                   <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-bold">
+                    {t.campaign_id && <span className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-sky-800">Kalem: {campaigns.find((c) => c.id === t.campaign_id)?.title || 'kampanya'}</span>}
                     {t.event_label
                       ? <span className="rounded border border-primary-200 bg-primary-50 px-1.5 py-0.5 text-primary-800">Olay: {t.event_label}</span>
                       : <span className="rounded border px-1.5 py-0.5 text-gray-500">Hızlı SMS şablonu</span>}

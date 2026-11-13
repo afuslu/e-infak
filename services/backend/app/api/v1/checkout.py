@@ -93,6 +93,9 @@ async def _get_or_create_donor(org_id: UUID, payload, db: AsyncSession) -> Donor
     values = payload.model_dump()
     values["email"] = str(values["email"])
     if donor:
+        # An unticked box on a later donation is not a withdrawal of an earlier permission.
+        for consent in ("allow_sms", "allow_email"):
+            values[consent] = bool(values.get(consent) or getattr(donor, consent))
         for key, value in values.items():
             setattr(donor, key, value)
         return donor

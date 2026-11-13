@@ -18,6 +18,7 @@ interface Donation {
   payment_method_label: string
   is_manual: boolean
   donor_name: string
+  campaign_id?: string | null
   donor_id?: string | null
   on_behalf_of: string | null
   paid_at: string
@@ -117,6 +118,7 @@ export default function AdminReceiptsPage() {
         <QuickSmsDialog
           title="Hızlı SMS Gönder — Makbuz"
           eventKey="makbuz"
+          campaignId={smsFor.campaign_id}
           target={{ donationId: smsFor.id, name: smsFor.donor_name }}
           onClose={() => setSmsFor(null)}
           onSent={(r) => { setNotice(sentNotice(r)); loadDonations() }}

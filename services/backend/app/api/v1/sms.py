@@ -36,7 +36,7 @@ router = APIRouter(
     dependencies=[Depends(require_admin_route_permission), Depends(require_admin_route_feature)],
 )
 TZ = ZoneInfo("Europe/Istanbul")
-RELATED_TYPES = ("donation", "bank_transaction", "kurban_share", "member_due")
+RELATED_TYPES = ("donation", "bank_transaction", "kurban_share", "member_due", "pledge_installment")
 
 
 def _org_id(request: Request) -> UUID:
@@ -56,6 +56,8 @@ class TemplateIn(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     body: str = Field(min_length=2, max_length=1500)
     event_key: Optional[str] = None
+    # Receipt SMS of this campaign use this text (not together with an event)
+    campaign_id: Optional[UUID] = None
     auto_mode: Literal["auto", "manual", "off"] = "manual"
     is_active: bool = True
 
@@ -64,6 +66,7 @@ def _template_row(template: SmsTemplate) -> dict:
     return {
         "id": str(template.id), "name": template.name, "body": template.body, "event_key": template.event_key,
         "event_label": SMS_EVENTS[template.event_key][0] if template.event_key in SMS_EVENTS else None,
+        "campaign_id": str(template.campaign_id) if template.campaign_id else None,
         "auto_mode": template.auto_mode, "is_active": template.is_active,
         "segments": segment_info(template.body), "updated_at": template.updated_at or template.created_at,
     }
@@ -90,6 +93,18 @@ async def _apply_template(db: AsyncSession, org_id: UUID, template: SmsTemplate,
         SmsTemplate.id != template.id,
     ))).first():
         raise HTTPException(status_code=409, detail="Bu olaya bağlı başka bir şablon var; önce onu ayırın")
+    if payload.campaign_id:
+        if payload.event_key:
+            raise HTTPException(status_code=422, detail="Şablon ya bir olaya ya da bir kampanyaya bağlanabilir")
+        from app.models.campaign import Campaign
+        if not (await db.execute(select(Campaign.id).where(
+                Campaign.id == payload.campaign_id, Campaign.organization_id == org_id))).first():
+            raise HTTPException(status_code=404, detail="Kampanya bulunamadı")
+        if (await db.execute(select(SmsTemplate.id).where(
+                SmsTemplate.organization_id == org_id, SmsTemplate.campaign_id == payload.campaign_id,
+                SmsTemplate.id != template.id))).first():
+            raise HTTPException(status_code=409, detail="Bu kampanyaya bağlı başka bir şablon var")
+    template.campaign_id = payload.campaign_id
     template.name = payload.name.strip()
     template.body = body
     template.event_key = payload.event_key or None
