@@ -27,6 +27,7 @@ from app.models.expense import Expense
 from app.models.donor_note import DonorNote
 from app.models.sms_template import SmsTemplate
 from app.models.sms_message import SmsMessage
+from app.models.sms_batch import SmsBatch
 from app.models.audit_log import AuditLog
 from app.models.zakat_setting import ZakatSetting
 from app.models.student_sponsorship import StudentSponsorship

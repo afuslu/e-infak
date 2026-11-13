@@ -18,11 +18,14 @@ from app.core.db import get_db
 from app.models.audit_log import AuditLog
 from app.models.automation import BankTransaction
 from app.models.donation import Donation, Donor
+from app.models.sms_batch import SmsBatch
 from app.models.sms_message import SMS_OPEN_STATUSES, SMS_SOURCES, SMS_STATUSES, SmsMessage
 from app.models.sms_template import SmsTemplate
 from app.models.user import User
+from app.services.sms_audience import Audience, audience_label, audience_options, resolve
 from app.services.sms_service import (
-    AUTO_MODES, MAX_PARTS, SMS_EVENTS, SMS_VARIABLES, build_context, clean_sms_text, enqueue_sms,
+    AUTO_MODES, MAX_PARTS, SMS_EVENTS, SMS_VARIABLES, after_quiet_hours, build_context, cancel_batch, clean_sms_text,
+    create_batch, enqueue_sms, render_bulk,
     ensure_default_templates, kick_after_commit, related_sms, render_template, segment_info, unknown_variables,
 )
 from app.sms import SmsError
@@ -405,3 +408,132 @@ async def cancel_message(request: Request, message_id: UUID, db: AsyncSession = 
     _audit(db, org_id, current_user, "sms_iptal", {"sms_no": message.seq_no})
     await db.commit()
     return {"status": message.status}
+
+
+# --- Bulk ----------------------------------------------------------------------------
+
+class BatchIn(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=120)
+    body: str = Field(min_length=2, max_length=1500)
+    audience: Audience
+    commercial: bool = False  # promotion / campaign announcement: İYS-checked, consent required
+    template_id: Optional[UUID] = None
+    send_at: Optional[datetime] = None
+    quiet_hours: bool = True  # do not send at night; wait for 08:00
+
+
+async def _plan(db: AsyncSession, org_id: UUID, payload: BatchIn):
+    unknown = unknown_variables(payload.body)
+    if unknown:
+        raise HTTPException(status_code=422, detail="Bilinmeyen değişken: " + ", ".join("{%s}" % u for u in unknown))
+    if payload.audience.kind == "campaign" and not payload.audience.campaign_id:
+        raise HTTPException(status_code=422, detail="Kampanya seçin")
+    if payload.audience.kind == "tag" and not (payload.audience.tag or "").strip():
+        raise HTTPException(status_code=422, detail="Etiket seçin")
+    if payload.audience.kind == "city" and not (payload.audience.city or "").strip():
+        raise HTTPException(status_code=422, detail="Şehir seçin")
+    recipients, stats = await resolve(db, org_id, payload.audience, commercial=payload.commercial)
+    now = datetime.now(timezone.utc)
+    send_at = payload.send_at
+    if send_at and not send_at.tzinfo:
+        send_at = send_at.replace(tzinfo=TZ)
+    if send_at and send_at > now + timedelta(days=366):
+        raise HTTPException(status_code=422, detail="Gönderim tarihi en fazla bir yıl sonrası olabilir")
+    start = max(send_at or now, now)
+    adjusted = after_quiet_hours(start) if payload.quiet_hours else start
+    return recipients, stats, (adjusted if adjusted > now + timedelta(seconds=30) else None), adjusted != start
+
+
+@router.get("/audience-options")
+async def get_audience_options(request: Request, db: AsyncSession = Depends(get_db)):
+    return await audience_options(db, _org_id(request))
+
+
+@router.post("/batches/preview")
+async def preview_batch(request: Request, payload: BatchIn, db: AsyncSession = Depends(get_db)):
+    """Who would get the message and what it costs, without sending anything."""
+    org_id = _org_id(request)
+    recipients, stats, send_at, moved = await _plan(db, org_id, payload)
+    try:
+        rendered = render_bulk(clean_sms_text(payload.body), await build_context(db, org_id), recipients)
+    except SmsError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    sample = rendered[0] if rendered else None
+    return {
+        "recipients": len(recipients), "stats": stats, "parts_total": sum(info["parts"] for _r, _t, info in rendered),
+        "max_parts": max((info["parts"] for _r, _t, info in rendered), default=0),
+        "sample": {"name": sample[0].name, "phone": sample[0].phone, "body": sample[1], "segments": sample[2]} if sample else None,
+        "send_at": send_at, "moved_for_quiet_hours": moved,
+        "label": await audience_label(db, org_id, payload.audience),
+    }
+
+
+def _batch_row(batch: SmsBatch, counts: dict, sender: Optional[str]) -> dict:
+    done = counts.get("sent", 0) + counts.get("delivered", 0)
+    waiting = counts.get("queued", 0) + counts.get("scheduled", 0)
+    state = ("cancelled" if batch.cancelled_at and not waiting else
+             "scheduled" if counts.get("scheduled", 0) else "sending" if waiting else "done")
+    return {
+        "id": str(batch.id), "name": batch.name, "body": batch.body, "audience_label": batch.audience_label,
+        "commercial": batch.commercial, "total": batch.total, "sent": done, "failed": counts.get("failed", 0),
+        "waiting": waiting, "cancelled": counts.get("cancelled", 0), "state": state,
+        "send_after": batch.send_after, "created_at": batch.created_at, "created_by": sender,
+    }
+
+
+@router.post("/batches", status_code=201)
+async def send_batch(request: Request, payload: BatchIn, db: AsyncSession = Depends(get_db),
+                     current_user: User = Depends(get_current_user)):
+    org_id = _org_id(request)
+    recipients, stats, send_at, _moved = await _plan(db, org_id, payload)
+    label = await audience_label(db, org_id, payload.audience)
+    template_id = (await _template(db, org_id, payload.template_id)).id if payload.template_id else None
+    audience = payload.audience.model_dump(mode="json")
+    if audience.get("numbers"):  # the list is in the messages; do not keep a second copy of the numbers
+        audience["numbers"] = f"{len(recipients)} numara"
+    try:
+        batch = await create_batch(
+            db, org_id, name=(payload.name or "").strip() or label, body=payload.body, audience=audience, label=label,
+            recipients=recipients, commercial=payload.commercial, send_at=send_at, created_by=current_user.id,
+            template_id=template_id,
+        )
+    except SmsError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _audit(db, org_id, current_user, "toplu_sms_gonder", {
+        "batch_id": str(batch.id), "audience": label, "recipients": batch.total, "commercial": payload.commercial,
+        "without_consent": bool(payload.audience.include_without_consent and not payload.commercial), **stats,
+    })
+    await db.commit()
+    waiting = "scheduled" if send_at else "queued"
+    return _batch_row(batch, {waiting: batch.total}, current_user.email)
+
+
+@router.get("/batches")
+async def list_batches(request: Request, db: AsyncSession = Depends(get_db), limit: int = Query(default=30, ge=1, le=100)):
+    org_id = _org_id(request)
+    rows = (await db.execute(
+        select(SmsBatch, User.email).outerjoin(User, User.id == SmsBatch.created_by)
+        .where(SmsBatch.organization_id == org_id).order_by(SmsBatch.created_at.desc()).limit(limit)
+    )).all()
+    counts: dict = {}
+    if rows:
+        for batch_id, status, number in (await db.execute(
+            select(SmsMessage.batch_id, SmsMessage.status, func.count(SmsMessage.id))
+            .where(SmsMessage.batch_id.in_([b.id for b, _ in rows])).group_by(SmsMessage.batch_id, SmsMessage.status)
+        )).all():
+            counts.setdefault(batch_id, {})[status] = number
+    return [_batch_row(batch, counts.get(batch.id, {}), email) for batch, email in rows]
+
+
+@router.post("/batches/{batch_id}/cancel")
+async def cancel_bulk(request: Request, batch_id: UUID, db: AsyncSession = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    org_id = _org_id(request)
+    batch = (await db.execute(select(SmsBatch).where(
+        SmsBatch.id == batch_id, SmsBatch.organization_id == org_id).with_for_update())).scalar_one_or_none()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Toplu gönderim bulunamadı")
+    cancelled = await cancel_batch(db, batch)
+    _audit(db, org_id, current_user, "toplu_sms_iptal", {"batch_id": str(batch.id), "cancelled": cancelled})
+    await db.commit()
+    return {"cancelled": cancelled}

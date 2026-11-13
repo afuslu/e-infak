@@ -745,10 +745,6 @@ class WebhookSettingCreate(BaseModel):
     secret_ref: str
     subscribed_events: List[str] = Field(default_factory=lambda: ["donation.paid"])
 
-class BroadcastSms(BaseModel):
-    filter_type: str
-    message: str
-
 # --- Phase 5: Webhooks & API Keys Integration ---
 @router.get("/integrations/api-keys")
 async def list_api_keys(
@@ -898,32 +894,6 @@ async def delete_webhook(
         details={"hook_id": str(hook_id), "target_url": hook.target_url}
     )
     return {"status": "success"}
-
-# --- Phase 5: Broadcast SMS Broadcaster ---
-@router.post("/sms/broadcast")
-async def broadcast_bulk_sms(
-    request: Request,
-    payload: BroadcastSms,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    
-    # Query matching donor counts (simulating broadcast target)
-    count = 150 # Simulated bulk count
-    if payload.filter_type == "active_donors":
-        count = 120
-    elif payload.filter_type == "kurban_donors":
-        count = 45
-        
-    # Log audit log
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="toplu_sms_gonder",
-        details={"filter_type": payload.filter_type, "message_preview": payload.message[:50], "recipient_count": count}
-    )
-    
-    return {"status": "success", "sent_count": count}
 
 # --- Phase 5: Water Well Management ---
 # --- Phase 5: AI-Powered Insights ---

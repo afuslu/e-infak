@@ -374,7 +374,7 @@ async def send_message(db: AsyncSession, message: SmsMessage) -> None:
     usable = bool(provider) and not account.get("disabled") and provider(account).configured
     try:
         if usable:
-            result = await asyncio.to_thread(deliver, message.phone, message.body, account)
+            result = await asyncio.to_thread(deliver, message.phone, message.body, account, bool(message.commercial))
             message.provider, message.provider_ref = result.provider, result.reference
         elif settings.ENVIRONMENT == "production":
             raise SmsError("Kurumun SMS hesabı yapılandırılmadı")
@@ -411,6 +411,133 @@ async def process_in(session: AsyncSession, message_id) -> str:
     return message.status
 
 
+# --- Bulk ----------------------------------------------------------------------------
+
+QUIET_FROM, QUIET_UNTIL = 21, 8  # no bulk SMS between 21:00 and 08:00 (Istanbul)
+BULK_MAX_RECIPIENTS = 100_000
+
+
+def after_quiet_hours(moment: datetime) -> datetime:
+    """`moment`, or the next 08:00 when it falls into the night."""
+    local = moment.astimezone(TZ)
+    if QUIET_UNTIL <= local.hour < QUIET_FROM:
+        return moment
+    morning = local.replace(hour=QUIET_UNTIL, minute=0, second=0, microsecond=0)
+    if local.hour >= QUIET_FROM:
+        morning += timedelta(days=1)
+    return morning.astimezone(timezone.utc)
+
+
+def render_bulk(body: str, base_context: dict, recipients: list) -> list[tuple]:
+    """(recipient, text, length info) per recipient; raises SmsError when a text is unusable."""
+    personal = bool(_VARIABLE.search(body))
+    shared = None if personal else render_template(body, base_context)
+    out = []
+    for recipient in recipients:
+        text_ = shared if shared is not None else render_template(
+            body, {**base_context, "ad_soyad": recipient.name, "ad": recipient.first_name})
+        info = segment_info(text_)
+        if not info["parts"]:
+            raise SmsError("Mesaj metni boş")
+        if info["parts"] > MAX_PARTS:
+            raise SmsError(f"Mesaj çok uzun ({info['parts']} SMS); en fazla {MAX_PARTS} SMS boyunda olabilir")
+        out.append((recipient, text_, info))
+    return out
+
+
+async def create_batch(db: AsyncSession, org_id: UUID, *, name: str, body: str, audience: dict, label: str,
+                       recipients: list, commercial: bool, send_at: Optional[datetime], created_by: Optional[UUID],
+                       template_id: Optional[UUID] = None):
+    """Create a bulk SMS and its messages (the caller commits). Sending starts after the commit."""
+    from app.models.sms_batch import SmsBatch
+
+    if not recipients:
+        raise SmsError("Bu hedef kitlede SMS gönderilebilecek kimse yok")
+    if len(recipients) > BULK_MAX_RECIPIENTS:
+        raise SmsError(f"Bir gönderim en fazla {BULK_MAX_RECIPIENTS:,} kişiye yapılabilir".replace(",", "."))
+    rendered = render_bulk(clean_sms_text(body), await build_context(db, org_id), recipients)
+    now = datetime.now(timezone.utc)
+    scheduled = bool(send_at and send_at > now + timedelta(seconds=30))
+    batch = SmsBatch(organization_id=org_id, name=name.strip(), body=clean_sms_text(body), audience=audience,
+                     audience_label=label[:200], commercial=commercial, total=len(rendered),
+                     send_after=send_at if scheduled else now, created_by=created_by)
+    db.add(batch)
+    await db.flush()
+    seq = await _next_seq_no(db, org_id)
+    rows = [SmsMessage(
+        organization_id=org_id, seq_no=seq + index, donor_id=recipient.donor_id, phone=recipient.phone, body=text_,
+        status="scheduled" if scheduled else "queued", source="bulk", template_id=template_id, batch_id=batch.id,
+        commercial=commercial, encoding=info["encoding"], parts=info["parts"], send_after=batch.send_after,
+        created_by=created_by,
+    ) for index, (recipient, text_, info) in enumerate(rendered)]
+    for start in range(0, len(rows), 1000):
+        db.add_all(rows[start:start + 1000])
+        await db.flush()
+    if not scheduled:
+        event.listen(db.sync_session, "after_commit", lambda _session: _kick_batch(str(batch.id)), once=True)
+    return batch
+
+
+async def cancel_batch(db: AsyncSession, batch) -> int:
+    """Stop a bulk SMS: messages not sent yet are cancelled. Returns how many."""
+    from sqlalchemy import update
+
+    batch.cancelled_at = datetime.now(timezone.utc)
+    result = await db.execute(update(SmsMessage).where(
+        SmsMessage.batch_id == batch.id, SmsMessage.status.in_(SMS_OPEN_STATUSES)).values(status="cancelled"))
+    return result.rowcount or 0
+
+
+async def run_batch(batch_id: str, concurrency: int = 4) -> int:
+    """Send the due messages of a bulk SMS, a few at a time, on connections of its own."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
+    sessions = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    gate = asyncio.Semaphore(concurrency)
+    handled = 0
+
+    async def one(message_id) -> None:
+        async with gate, sessions() as session:
+            try:
+                await process_in(session, message_id)
+            except Exception:  # noqa: BLE001 - one bad row must not stop the batch
+                logger.exception("Toplu SMS iletisi gönderilemedi")
+
+    try:
+        while True:
+            async with sessions() as session:
+                ids = (await session.execute(
+                    select(SmsMessage.id).where(
+                        SmsMessage.batch_id == UUID(str(batch_id)), SmsMessage.status.in_(SMS_OPEN_STATUSES),
+                        SmsMessage.send_after <= datetime.now(timezone.utc),
+                    ).order_by(SmsMessage.seq_no).limit(100)
+                )).scalars().all()
+            if not ids:
+                return handled
+            await asyncio.gather(*(one(message_id) for message_id in ids))
+            handled += len(ids)
+    finally:
+        await engine.dispose()
+
+
+def _hand_over_batch(batch_id: str) -> None:
+    try:
+        from app.tasks import send_sms_batch_task
+        send_sms_batch_task.apply_async((batch_id,), retry=False, ignore_result=True)
+    except Exception as exc:  # noqa: BLE001 - no broker
+        logger.warning("SMS işçisine ulaşılamadı (%s); toplu gönderim bu süreçten yapılıyor", exc)
+        try:
+            asyncio.run(run_batch(batch_id))
+        except Exception:  # noqa: BLE001 - messages stay queued for the dispatcher
+            logger.exception("Toplu SMS gönderilemedi; kuyrukta bekliyor")
+
+
+def _kick_batch(batch_id: str) -> None:
+    threading.Thread(target=_hand_over_batch, args=(batch_id,), daemon=True, name="sms-batch").start()
+
+
 async def process_message(message_id: str) -> str:
     """Worker entry for one message."""
     from app.core.db import AsyncSessionLocal
@@ -423,13 +550,18 @@ async def dispatch_due(limit: int = 200) -> dict:
     """Send scheduled messages whose time has come and queued ones no worker picked up."""
     from app.core.db import AsyncSessionLocal
 
+    due = [SmsMessage.status.in_(SMS_OPEN_STATUSES), SmsMessage.send_after <= datetime.now(timezone.utc)]
     async with AsyncSessionLocal() as session:
+        batches = (await session.execute(
+            select(SmsMessage.batch_id).where(*due, SmsMessage.batch_id.is_not(None)).distinct()
+        )).scalars().all()
         ids = (await session.execute(
-            select(SmsMessage.id)
-            .where(SmsMessage.status.in_(SMS_OPEN_STATUSES), SmsMessage.send_after <= datetime.now(timezone.utc))
+            select(SmsMessage.id).where(*due, SmsMessage.batch_id.is_(None))
             .order_by(SmsMessage.send_after).limit(limit)
         )).scalars().all()
     outcomes: dict[str, int] = {}
+    for batch_id in batches:  # scheduled bulk SMS, or one whose worker was interrupted
+        outcomes["bulk"] = outcomes.get("bulk", 0) + await run_batch(str(batch_id))
     for message_id in ids:
         outcome = await process_message(str(message_id))
         outcomes[outcome] = outcomes.get(outcome, 0) + 1

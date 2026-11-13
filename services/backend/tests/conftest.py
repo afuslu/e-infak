@@ -22,6 +22,7 @@ def sms_kicks(monkeypatch):
     from app.services import sms_service
     kicked: list[str] = []
     monkeypatch.setattr(sms_service, "_kick", kicked.append)
+    monkeypatch.setattr(sms_service, "_kick_batch", lambda batch_id: kicked.append(f"batch:{batch_id}"))
     return kicked
 
 

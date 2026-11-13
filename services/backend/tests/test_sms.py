@@ -51,9 +51,10 @@ def provider(monkeypatch):
     async def account(_db, _org_id):
         return {"provider": "netgsm", "username": "850", "password": "p", "sender": "DERNEK"}
 
-    def deliver(phone, message, _account):
+    def deliver(phone, message, _account, commercial=False):
         if behaviour["error"]:
             raise behaviour["error"]
+        behaviour["commercial"] = commercial
         sent.append((phone, message))
         return SmsResult("netgsm", f"job-{len(sent)}")
 
@@ -266,3 +267,71 @@ async def test_hakder_preset_loads_once_and_binds_events(db_session):
     assert templates["Makbuz SMS"]["event_key"] == "makbuz" and "hakder.org" in templates["Makbuz SMS"]["body"]
     assert templates["Bağış Ulaştı SMS"]["event_key"] == "havale_eslesti"
     assert all(t["segments"]["encoding"] != "unicode" for t in templates.values())  # no emoji: normal SMS price
+
+
+# --- Bulk ----------------------------------------------------------------------------
+
+async def test_bulk_sms_resolves_audience_personalises_and_can_be_cancelled(db_session, provider, sms_kicks):
+    from datetime import datetime as dt
+    from app.models.sms_batch import SmsBatch
+    from app.services.sms_audience import Audience
+
+    sent, behaviour = provider
+    org, admin, campaign, donor = await _setup(db_session, allow_sms=True, tags=["vip"])
+    db_session.add_all([
+        Donor(organization_id=org.id, first_name="İzinsiz", last_name="Kişi", phone="05321110001", tags=["vip"]),
+        Donor(organization_id=org.id, first_name="Aynı", last_name="Numara", phone="905456236712", allow_sms=True, tags=["vip"]),
+        Donor(organization_id=org.id, first_name="Telefonsuz", allow_sms=True, tags=["vip"]),
+        Donor(organization_id=org.id, first_name="Bozuk", phone="123", allow_sms=True, tags=["vip"]),
+        Donor(organization_id=org.id, first_name="Başka", phone="05329990000", allow_sms=True, tags=["genel"]),
+    ])
+    await db_session.flush()
+
+    body = "Sayın {ad_soyad}, hayırlı kandiller. {kurum}"
+    plan = sms_api.BatchIn(body=body, audience=Audience(kind="tag", tag="vip"), quiet_hours=False)
+    preview = await sms_api.preview_batch(_request(org), plan, db_session)
+    assert preview["recipients"] == 1 and preview["stats"] == {
+        "matched": 5, "no_phone": 1, "no_consent": 1, "invalid": 1, "duplicate": 1}
+    assert preview["sample"]["body"] == "Sayın Seçkin Bozkurt, hayırlı kandiller. Hayır Derneği"
+
+    # informational: donors without permission can be included; promotion never
+    wide = sms_api.BatchIn(body=body, audience=Audience(kind="tag", tag="vip", include_without_consent=True), quiet_hours=False)
+    assert (await sms_api.preview_batch(_request(org), wide, db_session))["recipients"] == 2
+    promo = wide.model_copy(update={"commercial": True})
+    assert (await sms_api.preview_batch(_request(org), promo, db_session))["recipients"] == 1
+
+    created = await sms_api.send_batch(_request(org), promo, db_session, admin)
+    assert created["total"] == 1 and created["state"] == "sending" and f"batch:{created['id']}" in sms_kicks
+    message = (await db_session.execute(select_messages(created["id"]))).scalars().one()
+    assert message.source == "bulk" and message.commercial and message.donor_id == donor.id
+    assert await process_in(db_session, message.id) == "sent" and behaviour["commercial"] is True
+    assert sent[-1] == ("905456236712", "Sayın Seçkin Bozkurt, hayırlı kandiller. Hayır Derneği")
+
+    # a pasted list, scheduled, then cancelled
+    listed = await sms_api.send_batch(_request(org), sms_api.BatchIn(
+        body="Duyuru", audience=Audience(kind="numbers", numbers="0532 111 00 02\n5321110003, 5321110003;12"),
+        send_at=dt.now(timezone.utc) + timedelta(days=1), quiet_hours=False), db_session, admin)
+    assert listed["total"] == 2 and listed["state"] == "scheduled"
+    stored = await db_session.get(SmsBatch, uuid.UUID(listed["id"]))
+    assert stored.audience["numbers"] == "2 numara"
+    assert (await sms_api.cancel_bulk(_request(org), stored.id, db_session, admin)) == {"cancelled": 2}
+    rows = {b["id"]: b for b in await sms_api.list_batches(_request(org, "GET"), db_session, limit=30)}
+    assert rows[listed["id"]]["state"] == "cancelled" and rows[created["id"]]["sent"] == 1
+
+    with pytest.raises(HTTPException) as exc:  # nobody to send to
+        await sms_api.send_batch(_request(org), sms_api.BatchIn(body="x y", audience=Audience(kind="tag", tag="yok")), db_session, admin)
+    assert exc.value.status_code == 422
+
+
+def select_messages(batch_id):
+    from sqlalchemy import select
+    return select(SmsMessage).where(SmsMessage.batch_id == uuid.UUID(batch_id))
+
+
+def test_bulk_sms_waits_for_the_morning():
+    from datetime import datetime as dt
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Europe/Istanbul")
+    assert sms_service.after_quiet_hours(dt(2026, 11, 13, 14, 0, tzinfo=tz)) == dt(2026, 11, 13, 14, 0, tzinfo=tz)
+    assert sms_service.after_quiet_hours(dt(2026, 11, 13, 22, 30, tzinfo=tz)) == dt(2026, 11, 14, 8, 0, tzinfo=tz)
+    assert sms_service.after_quiet_hours(dt(2026, 11, 13, 3, 0, tzinfo=tz)) == dt(2026, 11, 13, 8, 0, tzinfo=tz)

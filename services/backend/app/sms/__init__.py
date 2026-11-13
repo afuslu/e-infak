@@ -49,7 +49,8 @@ class SmsProvider:
     def configured(self) -> bool:
         return all(self.credentials.get(f) for f in set(self.credential_fields) - self.optional_fields)
 
-    def send(self, phone: str, message: str) -> SmsResult:
+    def send(self, phone: str, message: str, commercial: bool = False) -> SmsResult:
+        """`commercial`: a promotional message to a consumer, checked against İYS by the provider."""
         raise NotImplementedError
 
     def _http(self, method: str, url: str, **kwargs) -> requests.Response:
@@ -82,7 +83,7 @@ class NetgsmProvider(SmsProvider):
     secret_fields = {"password"}
     optional_fields = {"sender"}
 
-    def send(self, phone: str, message: str) -> SmsResult:
+    def send(self, phone: str, message: str, commercial: bool = False) -> SmsResult:
         number = normalize_tr_phone(phone)
         # NetGSM wants 5XXXXXXXXX for Turkish numbers and 00-prefixed international ones.
         number = number[2:] if number.startswith("90") else (number if number.startswith("00") else "00" + number)
@@ -93,8 +94,8 @@ class NetgsmProvider(SmsProvider):
                 "msgheader": self.credentials.get("sender") or "",
                 "messages": [{"msg": message, "no": number}],
                 "encoding": "TR",
-                # Receipts, codes and reminders are informational, not commercial (İYS "0").
-                "iysfilter": "0",
+                # "0": informational (receipts, codes, reminders); "11": commercial to consumers (İYS checked)
+                "iysfilter": "11" if commercial else "0",
                 "appname": "e-infak",
             },
         )
@@ -118,13 +119,15 @@ class VerimorProvider(SmsProvider):
     secret_fields = {"password"}
     optional_fields = {"sender"}
 
-    def send(self, phone: str, message: str) -> SmsResult:
+    def send(self, phone: str, message: str, commercial: bool = False) -> SmsResult:
         payload = {
             "username": self.credentials["username"], "password": self.credentials["password"],
             "messages": [{"msg": message, "dest": normalize_tr_phone(phone)}],
         }
         if self.credentials.get("sender"):
             payload["source_addr"] = self.credentials["sender"]
+        if commercial:
+            payload.update(is_commercial=True, iys_recipient_type="BIREYSEL")
         response = self._http("POST", "https://sms.verimor.com.tr/v2/send.json", json=payload)
         body = response.text.strip()
         if response.status_code != 200:
@@ -140,11 +143,12 @@ class IletiMerkeziProvider(SmsProvider):
     credential_fields = {"api_key": "API anahtarı (key)", "api_hash": "API hash", "sender": "SMS başlığı"}
     secret_fields = {"api_hash"}
 
-    def send(self, phone: str, message: str) -> SmsResult:
+    def send(self, phone: str, message: str, commercial: bool = False) -> SmsResult:
+        order = {"iys": "1", "iysList": "BIREYSEL"} if commercial else {"iys": "0"}
         response = self._http("POST", "https://api.iletimerkezi.com/v1/send-sms/json", json={"request": {
             "authentication": {"key": self.credentials["api_key"], "hash": self.credentials["api_hash"]},
-            # Receipts, codes and reminders are informational, not commercial (İYS "0").
-            "order": {"sender": self.credentials["sender"], "iys": "0",
+            # iys "0": informational (receipts, codes, reminders); "1": marketing, checked against İYS
+            "order": {"sender": self.credentials["sender"], **order,
                       "message": {"text": message, "receipents": {"number": [normalize_tr_phone(phone)]}}},
         }})
         try:
@@ -163,7 +167,7 @@ PROVIDERS: dict[str, type[SmsProvider]] = {
 DEFAULT_PROVIDER = NetgsmProvider.key
 
 
-def deliver(phone: str, message: str, account: dict) -> SmsResult:
+def deliver(phone: str, message: str, account: dict, commercial: bool = False) -> SmsResult:
     """Send with an account from services.tenant_credentials.sms_account()."""
     cls = PROVIDERS.get(account.get("provider") or DEFAULT_PROVIDER)
     if not cls:
@@ -171,4 +175,4 @@ def deliver(phone: str, message: str, account: dict) -> SmsResult:
     provider = cls(account)
     if not provider.configured:
         raise SmsError("SMS hesabı yapılandırılmadı")
-    return provider.send(phone, message)
+    return provider.send(phone, message, commercial)

@@ -6,7 +6,7 @@ transfer, a kurban share…) so lists can show "SMS sent" next to that record.
 """
 import uuid
 
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 
@@ -34,6 +34,8 @@ class SmsMessage(Base):
     dedupe_key = Column(String(120))
     template_id = Column(UUID(as_uuid=True), ForeignKey("sms_templates.id", ondelete="SET NULL"))
     batch_id = Column(UUID(as_uuid=True), index=True)
+    # Promotion: sent through the provider's İYS permission check
+    commercial = Column(Boolean, nullable=False, default=False, server_default="false")
     encoding = Column(String(8), nullable=False, default="gsm", server_default="gsm")
     parts = Column(Integer, nullable=False, default=1, server_default="1")
     provider = Column(String(32))

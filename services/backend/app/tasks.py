@@ -94,6 +94,13 @@ def send_sms_message_task(message_id: str):
     return asyncio.run(process_message(message_id))
 
 
+@celery_app.task(name="app.tasks.send_sms_batch_task", ignore_result=True)
+def send_sms_batch_task(batch_id: str):
+    """Send the messages of one bulk SMS."""
+    from app.services.sms_service import run_batch
+    return asyncio.run(run_batch(batch_id))
+
+
 @celery_app.task(name="app.tasks.dispatch_due_sms_task", ignore_result=True)
 def dispatch_due_sms_task():
     """Every minute: scheduled SMS whose time has come, retries, and messages no worker picked up."""
