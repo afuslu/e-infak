@@ -139,7 +139,7 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
               <p className="text-[13px] text-gray-600">{demo.description}</p>
               <ul className="list-disc ps-5 text-[12px] text-gray-600">
                 <li>Ana sayfa, header ve footer bu demoyla değiştirilir (önceki yayınlar Sürümler&apos;de kalır).</li>
-                {options.include_pages && <li>Eklenecek sayfalar: {demo.pages.join(', ')} (adresi dolu olan atlanır).</li>}
+                {options.include_pages && <li>Eklenecek sayfalar: {demo.pages.map((key) => library.pages.find((p) => p.key === key)?.label || key).join(', ')} (adresi dolu olan atlanır).</li>}
               </ul>
               {([['apply_theme', 'Renkleri ve yazı tiplerini de uygula'], ['include_pages', 'Örnek sayfaları ekle'], ['publish', 'Hemen yayınla (işaretsizse taslak olarak kalır)']] as const).map(([key, label]) => (
                 <label key={key} className="flex items-center gap-2 text-[13px] font-semibold text-gray-700">

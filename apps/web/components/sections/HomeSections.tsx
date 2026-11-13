@@ -130,6 +130,33 @@ function heroSlides(data: HomeData, variant: Tpl, o: Overrides, t: T): SlideView
     overlay: 35,
     donateLabel: t('campaign.donate'),
   }]
+  // Slides set by hand in the builder win over the automatic campaign slides.
+  const custom: Record<string, any>[] = Array.isArray(o.slides) ? o.slides : []
+  if (custom.length) {
+    for (const s of custom) {
+      const c = s.campaign_id ? data.campaigns.find((x) => x.id === s.campaign_id) : undefined
+      const href = c ? `/kampanyalar/${c.slug}` : undefined
+      const progress = c && c.show_collected && c.target_lira > 0
+      slides.push({
+        image_url: s.image_url || c?.cover_image_url || undefined,
+        mobile_image_url: s.mobile_image_url || undefined,
+        badge: s.badge || undefined,
+        title: s.title || c?.title || undefined,
+        text: s.text || c?.summary || undefined,
+        button_label: s.button_label || (c ? t('campaign.donate') : undefined),
+        button_url: s.button_url || href,
+        button2_label: s.button2_label || (c ? t('campaign.details') : undefined),
+        button2_url: s.button2_url || href,
+        align,
+        overlay: 40,
+        campaign: progress
+          ? { slug: c.slug, title: c.title, collected: money(c.collected_lira, c, data.locale), target: money(c.target_lira, c, data.locale), progress: c.progress_percentage || 0 }
+          : null,
+        donateLabel: t('campaign.donate'),
+      })
+    }
+    return slides
+  }
   const withSlides = (o.slider ?? site.hero.slider) !== false
   if (!withSlides) return slides
   const ranked = [...data.campaigns.filter((c) => c.is_featured), ...data.campaigns.filter((c) => !c.is_featured)]

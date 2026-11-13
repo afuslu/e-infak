@@ -26,6 +26,9 @@ MAX_DEPTH = 4
 MAX_TREE_BYTES = 600_000
 DEVICES = ("desktop", "tablet", "mobile")
 LANGS = ("en", "ar", "de", "fr", "ru", "fa", "ur", "id", "ms", "bs", "sq", "ku")
+LANG_NAMES = {"tr": "Türkçe", "en": "English", "ar": "العربية", "de": "Deutsch", "fr": "Français", "ru": "Русский",
+              "fa": "فارسی", "ur": "اردو", "id": "Bahasa Indonesia", "ms": "Bahasa Melayu", "bs": "Bosanski",
+              "sq": "Shqip", "ku": "Kurdî"}
 _ID = re.compile(r"^[a-zA-Z0-9_-]{4,40}$")
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 _ANCHOR = re.compile(r"^[a-z0-9][a-z0-9-]{0,59}$")
@@ -69,7 +72,21 @@ BLOCKS: dict[str, dict] = {
             "cta_label": F("text", "Buton yazısı", max=40, translatable=True),
             "cta_url": F("url", "Buton bağlantısı"),
             "show_form": F("bool", "Bağış formunu göster", default=True),
-            "slider": F("bool", "Kampanya slaytlarını ekle (görselli aktif kampanyalar)", default=True),
+            # Slides after the cover (1st slide = the fields above). A slide linked to a
+            # campaign falls back to that campaign's image, title and summary for empty fields.
+            "slides": F("list", "Ek slaytlar (kapaktan sonra)", max_items=12, item_label="title", fields={
+                "campaign_id": F("campaign", "Kampanyaya bağla (boş alanlar kampanyadan dolar)"),
+                "image_url": F("image", "Görsel (bilgisayar)"),
+                "mobile_image_url": F("image", "Görsel (telefon)"),
+                "badge": F("text", "Üst etiket", max=80, translatable=True),
+                "title": F("text", "Başlık", max=160, translatable=True),
+                "text": F("textarea", "Açıklama", max=400, translatable=True),
+                "button_label": F("text", "1. buton yazısı", max=40, translatable=True),
+                "button_url": F("url", "1. buton bağlantısı"),
+                "button2_label": F("text", "2. buton yazısı", max=40, translatable=True),
+                "button2_url": F("url", "2. buton bağlantısı"),
+            }),
+            "slider": F("bool", "Ek slayt yoksa görselli aktif kampanyaları otomatik ekle", default=True),
         },
     },
     "slider": {
@@ -712,7 +729,7 @@ ADVANCED_FIELDS: dict[str, dict] = {
     "hide_mobile": F("bool", "Telefonda gizle"),
     "starts_at": F("datetime", "Yayın başlangıcı"),
     "ends_at": F("datetime", "Yayın bitişi"),
-    "langs": F("select", "Yalnızca bu dilde göster", choices={"": "Tüm diller", "tr": "Türkçe", "en": "English", "ar": "العربية"}),
+    "langs": F("select", "Yalnızca bu dilde göster", choices={"": "Tüm diller", **{code: LANG_NAMES[code] for code in ("tr", *LANGS)}}),
     "anchor": F("text", "Bağlantı çıpası (#)", max=60, pattern="anchor"),
     "aria_label": F("text", "Erişilebilirlik etiketi", max=120),
     "css_class": F("text", "CSS sınıfı", max=80, pattern="css_class"),

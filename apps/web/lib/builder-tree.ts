@@ -1,4 +1,4 @@
-import { type Block, FIXED_CHILD, FIXED_PARENT, cloneBlock } from './blocks'
+import { type Block, type BuilderCatalog, FIXED_CHILD, FIXED_PARENT, cloneBlock } from './blocks'
 
 /** Immutable helpers for the editor's block tree. */
 
@@ -49,17 +49,57 @@ function contains(block: Block, id: string): boolean {
   return block.id === id || !!block.children?.some((c) => contains(c, id))
 }
 
-/** Move a block before/after another, or inside a container (at its end). */
-export function moveBlock(blocks: Block[], id: string, targetId: string, position: 'before' | 'after' | 'inside'): Block[] {
+/** Whether `block` (with its children) may sit directly inside a parent of `parentType` (null = top level). */
+export type PlaceRule = (parentType: string | null, block: Block) => boolean
+
+/** The backend's placement rules (services/backend/app/services/blocks.py `_block`), so the editor never builds a tree the server would reject or prune. */
+export function placementRule(catalog: BuilderCatalog, kind: string): PlaceRule {
+  const fits: PlaceRule = (parentType, block) => {
+    const spec = catalog.blocks[block.type]
+    if (!spec) return false
+    if (spec.parent && parentType !== spec.parent) return false
+    const parentSpec = parentType ? catalog.blocks[parentType] : null
+    if (parentSpec?.child_type && block.type !== parentSpec.child_type) return false
+    if (kind === 'header') {
+      if (parentType === null && !(catalog.header_top_level || ['header_row']).includes(block.type)) return false
+      if (parentType === 'header_slot' && !catalog.header_slot_children.includes(block.type)) return false
+    } else if (!(spec.zones || catalog.content_zones).includes(kind)) {
+      return false
+    }
+    return (block.children || []).every((child) => fits(block.type, child))
+  }
+  return fits
+}
+
+/** Whether the block `id` is allowed where it now sits in `blocks`. */
+export function placedOk(blocks: Block[], id: string, fits: PlaceRule): boolean {
+  const place = locate(blocks, id)
+  const block = findBlock(blocks, id)
+  if (!place || !block) return false
+  return fits(place[0] ? findBlock(blocks, place[0])?.type ?? null : null, block)
+}
+
+/**
+ * Move a block before/after another, or inside a container (at its end).
+ * Dropping next to a fixed slot (a column, a header area) puts the block into that slot.
+ * Returns `blocks` unchanged when the move is not allowed.
+ */
+export function moveBlock(blocks: Block[], id: string, targetId: string, position: 'before' | 'after' | 'inside', fits?: PlaceRule): Block[] {
   const moving = findBlock(blocks, id)
   const target = findBlock(blocks, targetId)
   if (!moving || !target || contains(moving, targetId)) return blocks
   if (FIXED_CHILD.has(moving.type) || (position === 'inside' && FIXED_PARENT.has(target.type))) return blocks
   const without = removeBlock(blocks, id)
-  if (position === 'inside') return insertBlock(without, targetId, target.children?.length ?? 0, moving)
-  const place = locate(without, targetId)
-  if (!place) return blocks
-  return insertBlock(without, place[0], place[1] + (position === 'after' ? 1 : 0), moving)
+  let next: Block[]
+  if (position === 'inside' || FIXED_CHILD.has(target.type)) {
+    const slot = findBlock(without, targetId)
+    next = insertBlock(without, targetId, position === 'before' ? 0 : slot?.children?.length ?? 0, moving)
+  } else {
+    const place = locate(without, targetId)
+    if (!place) return blocks
+    next = insertBlock(without, place[0], place[1] + (position === 'after' ? 1 : 0), moving)
+  }
+  return fits && !placedOk(next, id, fits) ? blocks : next
 }
 
 export function shiftBlock(blocks: Block[], id: string, delta: -1 | 1): Block[] {

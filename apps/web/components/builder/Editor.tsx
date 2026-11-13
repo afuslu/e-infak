@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import type { Campaign } from '@e-infak/api-client'
 import { adminApiBase, adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
 import { type Block, type BuilderCatalog, type Device, FIXED_CHILD, FIXED_PARENT, cloneBlock, newBlock } from '../../lib/blocks'
-import { checklist, countBlocks, duplicateBlock, findBlock, insertBlock, locate, moveBlock, removeBlock, shiftBlock, updateBlock } from '../../lib/builder-tree'
+import { type PlaceRule, checklist, countBlocks, duplicateBlock, findBlock, insertBlock, locate, moveBlock, placedOk, placementRule, removeBlock, shiftBlock, updateBlock } from '../../lib/builder-tree'
 import type { HomeData } from '../sections/HomeSections'
 import type { SiteData } from '../../lib/public-content'
 import { Fields } from './FieldInput'
@@ -19,7 +19,9 @@ type Action =
   | { type: 'load'; blocks: Block[] }
   | { type: 'commit'; blocks: Block[]; select?: string | null }
   | { type: 'select'; id: string | null }
-  | { type: 'undo' } | { type: 'redo' } | { type: 'saved' }
+  | { type: 'undo' } | { type: 'redo' }
+  /** `blocks`: the tree that was sent; edits made while the request was in flight stay unsaved. */
+  | { type: 'saved'; blocks: Block[] }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
@@ -43,7 +45,7 @@ function reducer(state: State, action: Action): State {
       return { ...state, blocks: next, past: [...state.past, state.blocks], future: state.future.slice(1), dirty: true }
     }
     case 'saved':
-      return { ...state, dirty: false }
+      return { ...state, dirty: state.blocks !== action.blocks }
   }
 }
 
@@ -67,7 +69,10 @@ export function SiteBuilderEditor() {
   const [pageId, setPageId] = useState<string>('home')
   const [page, setPage] = useState<PageSummary | null>(null)
   const [state, dispatch] = useReducer(reducer, { blocks: [], past: [], future: [], selectedId: null, dirty: false })
-  const [version, setVersion] = useState(0)
+  /** Page version the next save must match; a ref so queued saves always send the latest one. */
+  const versionRef = useRef(0)
+  /** The draft save in flight, if any: saves run one at a time. */
+  const savingRef = useRef<Promise<boolean> | null>(null)
   const [data, setData] = useState<HomeData | null>(null)
   const [device, setDevice] = useState<Device>('desktop')
   const [lang, setLang] = useState('tr')
@@ -95,6 +100,11 @@ export function SiteBuilderEditor() {
   const frameReady = useRef(false)
   const stateRef = useRef(state)
   stateRef.current = state
+
+  /** Where blocks may go on this page; same rules as the backend. */
+  const fits = useMemo<PlaceRule | null>(() => (catalog ? placementRule(catalog, page?.kind || 'home') : null), [catalog, page?.kind])
+  const fitsRef = useRef(fits)
+  fitsRef.current = fits
 
   const selected = state.selectedId ? findBlock(state.blocks, state.selectedId) : null
   const selectedSpec = selected && catalog ? catalog.blocks[selected.type] : null
@@ -127,7 +137,7 @@ export function SiteBuilderEditor() {
   const loadPage = useCallback(async (id: string) => {
     const res = await adminGet<PageSummary & { blocks: Block[]; version: number }>(`/site-builder/pages/${id}`)
     setPage(res.data)
-    setVersion(res.data.version)
+    versionRef.current = res.data.version
     dispatch({ type: 'load', blocks: res.data.blocks })
     setConflict(null)
     setSaveState('idle')
@@ -135,23 +145,35 @@ export function SiteBuilderEditor() {
   useEffect(() => { loadPage(pageId).catch((e) => setMessage({ type: 'error', text: apiErrorMessage(e, 'Sayfa yüklenemedi') })) }, [pageId, loadPage])
 
   // --- Saving ----------------------------------------------------------------------
-  const save = useCallback(async () => {
+  const save = useCallback(async (): Promise<boolean> => {
     if (conflict) return false
-    setSaveState('saving')
+    // Wait for a save already in flight: two requests with the same version would look like a conflict.
+    while (savingRef.current) await savingRef.current
+    if (!stateRef.current.dirty) return true
+    const sent = stateRef.current.blocks
+    const run = (async () => {
+      setSaveState('saving')
+      try {
+        const res = await adminSend<{ version: number }>('put', `/site-builder/pages/${pageId}/draft`, { blocks: sent, version: versionRef.current })
+        versionRef.current = res.data.version
+        dispatch({ type: 'saved', blocks: sent })
+        setSaveState('saved')
+        return true
+      } catch (err) {
+        const status = (err as { response?: { status?: number } }).response?.status
+        if (status === 409) setConflict(apiErrorMessage(err, 'Sayfa başka bir oturumda değiştirildi'))
+        else setMessage({ type: 'error', text: apiErrorMessage(err, 'Taslak kaydedilemedi') })
+        setSaveState('error')
+        return false
+      }
+    })()
+    savingRef.current = run
     try {
-      const res = await adminSend<{ version: number }>('put', `/site-builder/pages/${pageId}/draft`, { blocks: stateRef.current.blocks, version })
-      setVersion(res.data.version)
-      dispatch({ type: 'saved' })
-      setSaveState('saved')
-      return true
-    } catch (err) {
-      const status = (err as { response?: { status?: number } }).response?.status
-      if (status === 409) setConflict(apiErrorMessage(err, 'Sayfa başka bir oturumda değiştirildi'))
-      else setMessage({ type: 'error', text: apiErrorMessage(err, 'Taslak kaydedilemedi') })
-      setSaveState('error')
-      return false
+      return await run
+    } finally {
+      savingRef.current = null
     }
-  }, [pageId, version, conflict])
+  }, [pageId, conflict])
 
   useEffect(() => {
     if (!state.dirty || conflict) return
@@ -221,6 +243,10 @@ export function SiteBuilderEditor() {
       }
     } else {
       blocks = [...state.blocks, block]
+    }
+    if (fits && !placedOk(blocks, block.id, fits)) {
+      setMessage({ type: 'error', text: `“${catalog.blocks[type]?.label || type}” buraya eklenemez; başka bir yer seçin.` })
+      return
     }
     setInsertTarget(null)
     commit(blocks, block.id)
@@ -300,9 +326,17 @@ export function SiteBuilderEditor() {
       const [next, copyId] = duplicateBlock(blocks, id)
       if (copyId) commit(next, copyId)
     }
-    if (action === 'hide') {
-      commit(updateBlock(blocks, id, (b) => ({ ...b, advanced: { ...b.advanced, hide_desktop: !b.advanced?.hide_desktop, hide_tablet: !b.advanced?.hide_desktop, hide_mobile: !b.advanced?.hide_desktop } })))
+  }, [])
+
+  /** Drag-and-drop move (canvas or tree); refused when the block may not go there. */
+  const move = useCallback((id: string, targetId: string, position: 'before' | 'after' | 'inside') => {
+    const blocks = stateRef.current.blocks
+    const next = moveBlock(blocks, id, targetId, position, fitsRef.current ?? undefined)
+    if (next === blocks) {
+      if (id !== targetId) setMessage({ type: 'error', text: 'Blok buraya taşınamaz.' })
+      return
     }
+    commit(next)
   }, [])
 
   const copySelected = () => {
@@ -316,11 +350,27 @@ export function SiteBuilderEditor() {
     let raw: string | null = null
     try { raw = localStorage.getItem(CLIPBOARD_KEY) } catch { /* ignore */ }
     if (!raw) return
-    const copy = cloneBlock(JSON.parse(raw) as Block)
+    let copy: Block
+    try {
+      const parsed = JSON.parse(raw) as Block
+      if (!parsed || typeof parsed.type !== 'string') return
+      copy = cloneBlock(parsed)
+    } catch {
+      return
+    }
     const blocks = stateRef.current.blocks
-    const sel = stateRef.current.selectedId
-    const place = sel ? locate(blocks, sel) : null
-    commit(place ? insertBlock(blocks, place[0], place[1] + 1, copy) : [...blocks, copy], copy.id)
+    const sel = stateRef.current.selectedId ? findBlock(blocks, stateRef.current.selectedId) : null
+    const place = sel ? locate(blocks, sel.id) : null
+    // A selected slot (column, header area) receives the block; otherwise it goes after the selection.
+    const next = sel && FIXED_CHILD.has(sel.type)
+      ? insertBlock(blocks, sel.id, sel.children?.length ?? 0, copy)
+      : place ? insertBlock(blocks, place[0], place[1] + 1, copy) : [...blocks, copy]
+    const rule = fitsRef.current
+    if (rule && !placedOk(next, copy.id, rule)) {
+      setMessage({ type: 'error', text: 'Kopyalanan blok buraya yapıştırılamaz (bu sayfa türünde ya da bu alanda kullanılamaz).' })
+      return
+    }
+    commit(next, copy.id)
   }
 
   const onKey = useCallback((key: string, ctrl: boolean, shift: boolean) => {
@@ -338,7 +388,7 @@ export function SiteBuilderEditor() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
-      if ((e.ctrlKey || e.metaKey) || e.key === 'Delete') {
+      if ((e.ctrlKey || e.metaKey) || e.key === 'Delete' || e.key === 'Backspace') {
         if ((e.ctrlKey || e.metaKey) && ['z', 'y', 'c', 'v', 'd', 's'].includes(e.key.toLowerCase())) e.preventDefault()
         onKey(e.key, e.ctrlKey || e.metaKey, e.shiftKey)
       }
@@ -365,13 +415,13 @@ export function SiteBuilderEditor() {
       if (msg.type === 'ready') { frameReady.current = true; sendRender() }
       if (msg.type === 'select') { dispatch({ type: 'select', id: msg.id }); setInsertTarget(null) }
       if (msg.type === 'action') blockAction(msg.id, msg.action)
-      if (msg.type === 'move') commit(moveBlock(stateRef.current.blocks, msg.id, msg.targetId, msg.position))
+      if (msg.type === 'move') move(msg.id, msg.targetId, msg.position)
       if (msg.type === 'add-into') { setInsertTarget(msg.parentId); dispatch({ type: 'select', id: msg.parentId }); setLeftTab('blocks') }
       if (msg.type === 'key') onKey(msg.key, msg.ctrl, msg.shift)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [sendRender, blockAction, onKey])
+  }, [sendRender, blockAction, onKey, move])
 
   // --- Page actions ----------------------------------------------------------------
   const switchPage = async (id: string) => {
@@ -396,7 +446,7 @@ export function SiteBuilderEditor() {
     if (state.dirty && !(await save())) return
     try {
       const res = await adminSend<PageSummary & { version: number }>('post', `/site-builder/pages/${pageId}/publish`)
-      setVersion(res.data.version)
+      versionRef.current = res.data.version
       setPage(res.data)
       setModal(null)
       setMessage({ type: 'ok', text: 'Yayınlandı. Ziyaretçiler yeni hali görüyor.' })
@@ -426,7 +476,7 @@ export function SiteBuilderEditor() {
     if (state.dirty) await save()
     try {
       const res = await adminSend<{ version: number; blocks: Block[] }>('post', `/site-builder/pages/${pageId}/revisions/${id}/restore`)
-      setVersion(res.data.version)
+      versionRef.current = res.data.version
       dispatch({ type: 'load', blocks: res.data.blocks })
       setModal(null)
       setMessage({ type: 'ok', text: 'Sürüm taslak olarak geri yüklendi.' })
@@ -440,7 +490,7 @@ export function SiteBuilderEditor() {
     if (state.dirty && !(await save())) return
     try {
       const res = await adminSend<PageSummary & { version: number }>('post', `/site-builder/pages/${pageId}/unpublish`)
-      setVersion(res.data.version)
+      versionRef.current = res.data.version
       setPage(res.data)
       setMessage({ type: 'ok', text: 'Yerleşik tasarıma dönüldü.' })
       loadPages()
@@ -503,7 +553,7 @@ export function SiteBuilderEditor() {
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                 const y = (e.clientY - rect.top) / rect.height
                 const inside = spec?.container && !FIXED_PARENT.has(b.type) && y > 0.3 && y < 0.7
-                if (dragTree.current) commit(moveBlock(state.blocks, dragTree.current, b.id, inside ? 'inside' : y < 0.5 ? 'before' : 'after'))
+                if (dragTree.current) move(dragTree.current, b.id, inside ? 'inside' : y < 0.5 ? 'before' : 'after')
                 dragTree.current = null
               }}
               onClick={() => { dispatch({ type: 'select', id: b.id }); frame.current?.contentWindow?.postMessage({ source: 'einfak-builder', type: 'scroll-to', id: b.id }, window.location.origin) }}
@@ -634,9 +684,9 @@ export function SiteBuilderEditor() {
         {/* Canvas */}
         <main className={`${mobilePane === 'canvas' ? 'block' : 'hidden'} min-w-0 flex-1 overflow-auto p-2 sm:p-4 lg:block`} onClick={() => dispatch({ type: 'select', id: null })}>
           <div ref={canvasArea} className="mx-auto h-full overflow-hidden rounded-lg bg-white shadow-sm transition-[width] duration-300" style={{ width: DEVICE_WIDTH[device], maxWidth: '100%' }}>
+            {/* The canvas posts "ready" whenever it (re)loads; messages sent while it loads are simply dropped. */}
             <iframe ref={frame} src="/site-yapici-cerceve" title="Sayfa önizlemesi" className="h-full w-full border-0"
-              style={scale < 1 ? { width: DESKTOP_WIDTH, height: area.h / scale, transform: `scale(${scale})`, transformOrigin: '0 0' } : undefined}
-              onLoad={() => { frameReady.current = false }} />
+              style={scale < 1 ? { width: DESKTOP_WIDTH, height: area.h / scale, transform: `scale(${scale})`, transformOrigin: '0 0' } : undefined} />
           </div>
         </main>
 

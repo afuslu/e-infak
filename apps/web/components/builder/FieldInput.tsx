@@ -5,6 +5,14 @@ import type { Campaign } from '@e-infak/api-client'
 import type { FieldSpec } from '../../lib/blocks'
 import { ImageField } from '../admin/ImageField'
 
+/** A stored ISO time (UTC) as the browser's local "YYYY-MM-DDTHH:mm", which is what datetime-local shows and edits. */
+function localDateTime(value: unknown): string {
+  if (!value) return ''
+  const date = new Date(String(value))
+  if (Number.isNaN(date.getTime())) return ''
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+}
+
 const input = 'w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-[13px] outline-none focus:border-blue-500'
 
 export interface FieldContext {
@@ -138,7 +146,7 @@ export function FieldInput({ spec, value, onChange, ctx }: { spec: FieldSpec; va
     case 'datetime':
       return (
         <Label spec={spec}>
-          <input type="datetime-local" className={input} value={value ? String(value).slice(0, 16) : ''}
+          <input type="datetime-local" className={input} value={localDateTime(value)}
             onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : undefined)} />
         </Label>
       )

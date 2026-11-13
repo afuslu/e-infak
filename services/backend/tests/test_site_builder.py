@@ -39,6 +39,14 @@ def test_validation_cleans_and_rejects():
             validate_blocks(bad)
 
 
+def test_language_only_option_covers_every_site_language():
+    for lang in ("tr", "de", "fr", "ru"):
+        block = validate_blocks([{"id": "b-lang", "type": "heading", "props": {"text": "a"}, "advanced": {"langs": lang}}])[0]
+        assert block["advanced"]["langs"] == lang
+    with pytest.raises(BlockError):
+        validate_blocks([{"id": "b-lang", "type": "heading", "props": {"text": "a"}, "advanced": {"langs": "xx"}}])
+
+
 def test_columns_are_normalised_and_nesting_is_limited():
     blocks = validate_blocks([{"id": "cols-1", "type": "columns", "props": {"ratio": "1-1-1"}, "children": [
         {"id": "col-a", "type": "column", "children": [{"id": "txt-1", "type": "richtext", "props": {"text": "a"}}]},
@@ -445,3 +453,16 @@ def test_extra_blocks_and_wider_library():
     assert {"Slider", "Özellikler", "Hayır Kapısı"} <= groups
     assert sum(s["group"] == "Slider" for s in SECTIONS) >= 8 and len(SECTIONS) >= 75 and len(DEMOS) >= 11
     assert all(page in PAGE_BY_KEY for demo in DEMOS for page in demo["pages"])
+
+
+def test_hero_takes_its_own_slides():
+    cid = str(uuid.uuid4())
+    block = validate_blocks([{"id": "b-hero", "type": "hero", "props": {"slides": [
+        {"title": "Su kuyusu", "image_url": "https://example.com/a.jpg", "button_url": "/kampanyalar"},
+        {"campaign_id": cid},
+    ]}}])[0]
+    slides = block["props"]["slides"]
+    assert slides[0]["title"] == "Su kuyusu" and slides[0]["button_url"] == "/kampanyalar"
+    assert slides[1]["campaign_id"] == cid
+    with pytest.raises(BlockError):
+        validate_blocks([{"id": "b-hero", "type": "hero", "props": {"slides": [{"button_url": "javascript:alert(1)"}]}}])

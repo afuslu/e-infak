@@ -73,7 +73,9 @@ export default function BuilderCanvas() {
     e.stopPropagation()
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const y = (e.clientY - rect.top) / rect.height
-    const position = container && !FIXED_PARENT.has(block.type) && y > 0.25 && y < 0.75 ? 'inside' : y < 0.5 ? 'before' : 'after'
+    // A fixed slot (column, header area) only takes blocks inside; dropping on its edge would leave the layout.
+    const position = FIXED_CHILD.has(block.type) || (container && !FIXED_PARENT.has(block.type) && y > 0.25 && y < 0.75)
+      ? 'inside' : y < 0.5 ? 'before' : 'after'
     setDrop((d) => (d?.targetId === block.id && d.position === position ? d : { targetId: block.id, position }))
   }, [])
 
