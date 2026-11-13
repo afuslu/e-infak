@@ -363,16 +363,16 @@ async def send_donor_sms(request: Request, donor_id: UUID, payload: DonorSms, db
             status_code=409,
             detail="Bağışçının SMS izni yok. İzinsiz ticari ileti gönderilemez (İYS).",
         )
-    message = sanitize_public_text(payload.message) or ""
-    from app.tasks import send_sms_task
+    from app.services.sms_service import enqueue_sms
+    from app.sms import SmsError
     try:
-        send_sms_task.delay(donor.phone, message, str(org_id))
-    except Exception:
-        raise HTTPException(status_code=503, detail="SMS kuyruğuna ulaşılamadı, lütfen tekrar deneyin")
-    db.add(DonorNote(donor_id=donor.id, author_id=current_user.id, content=f"SMS gönderildi: {message}"))
-    _audit(db, org_id, current_user, "bagisci_sms", {"donor_id": str(donor.id), "length": len(message)})
+        queued = await enqueue_sms(db, org_id, donor.phone, sanitize_public_text(payload.message) or "",
+                                   donor_id=donor.id, created_by=current_user.id)
+    except SmsError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _audit(db, org_id, current_user, "bagisci_sms", {"donor_id": str(donor.id), "sms_no": queued.seq_no})
     await db.commit()
-    return {"status": "queued"}
+    return {"status": "queued", "seq_no": queued.seq_no}
 
 
 # --- Donations --------------------------------------------------------------
@@ -530,6 +530,8 @@ class ManualDonationIn(BaseModel):
     note: Optional[str] = Field(default=None, max_length=1000)
     is_anonymous: bool = False
     send_receipt: bool = True
+    # SMS text staff wrote on the form; sent instead of the automatic receipt SMS
+    sms_body: Optional[str] = Field(default=None, max_length=1500)
     # Matbu koçan: numara boşsa sıradaki yaprak verilir
     receipt_book_id: Optional[UUID] = None
     official_no: Optional[int] = Field(default=None, ge=1, le=99_999_999)
@@ -617,6 +619,12 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
     )
     if book:
         donation.receipt_book_id, donation.official_receipt_no = book.id, official_no
+    from app.services.sms_service import queue_receipt_sms
+    from app.sms import SmsError
+    try:
+        await queue_receipt_sms(db, donation, donor, payload.sms_body, current_user.id)
+    except SmsError as exc:
+        raise HTTPException(status_code=422, detail=f"SMS: {exc}") from exc
     _audit(db, org_id, current_user, "makbuz_elle_kes", {
         "donation_id": str(donation.id), "receipt_number": donation.receipt_number, "official_receipt_no": official_no,
         "amount_cents": payload.amount_cents, "currency": payload.currency, "method": payload.payment_method,

@@ -130,7 +130,8 @@ async def send_portal_otp(
     org_name = getattr(getattr(request.state, "organization", None), "name", "") or "E-Infak"
     org_name = org_name.translate(str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU"))
     sms_message = f"{org_name} bagisci giris kodunuz: {code}. Bu kod 3 dakika gecerlidir."
-    await send_sms(phone, sms_message, getattr(request.state, "organization_id", None))
+    await send_sms(phone, sms_message, getattr(request.state, "organization_id", None),
+                   log_text=sms_message.replace(code, "******"))
     
     return {"status": "success", "message": "OTP kodu başarıyla gönderildi."}
 

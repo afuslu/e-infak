@@ -16,6 +16,15 @@ TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "postgresql+asyncpg://ei
 _schema_ready = False
 
 
+@pytest.fixture(autouse=True)
+def sms_kicks(monkeypatch):
+    """No broker in tests: collect the ids of SMS that would be handed to a worker."""
+    from app.services import sms_service
+    kicked: list[str] = []
+    monkeypatch.setattr(sms_service, "_kick", kicked.append)
+    return kicked
+
+
 @pytest.fixture
 async def db_session():
     """Database session on a function-scoped engine.

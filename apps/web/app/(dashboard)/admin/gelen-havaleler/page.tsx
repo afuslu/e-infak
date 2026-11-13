@@ -6,6 +6,8 @@ import { Card } from '@e-infak/ui'
 import { adminGet, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, v1Get, v1Send } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, PickedDonor } from '../../../../components/admin/DonorPicker'
+import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
+import { RelatedSms, smsAmount } from '../../../../lib/sms'
 
 interface DonorHit { id?: string; name?: string; phone?: string | null; confidence: number; reason?: string; candidates: { id: string; name: string; phone: string | null }[] }
 interface CampaignHit { id: string; title: string; category: string; confidence: 'high' | 'medium' | 'low'; reason: string }
@@ -48,6 +50,9 @@ export default function IncomingTransfersPage() {
   const [file, setFile] = useState<File | null>(null)
   const [uploadAccount, setUploadAccount] = useState('')
   const [busy, setBusy] = useState(false)
+  const [sms, setSms] = useState<Record<string, RelatedSms>>({})
+  const [smsFor, setSmsFor] = useState<Transfer | null>(null)
+  const canSms = hasPermission(access, 'donor_manage')
 
   const load = async () => {
     setLoading(true)
@@ -55,6 +60,7 @@ export default function IncomingTransfersPage() {
       const res = await v1Get<{ total: number; items: Transfer[] }>('/admin/incoming-transfers', { status, limit: 200 })
       setItems(res.data.items)
       setTotal(res.data.total)
+      setSms(await loadRelatedSms('donation', res.data.items.map((t) => t.donation_id).filter((id): id is string => !!id)))
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Havaleler yüklenemedi') })
     } finally {
@@ -179,6 +185,7 @@ export default function IncomingTransfersPage() {
                   <th className="p-3 text-right">Tutar</th>
                   <th className="p-3">Önerilen bağışçı</th>
                   <th className="p-3">Önerilen kampanya</th>
+                  {status === 'matched' && <th className="p-3">SMS</th>}
                   <th className="p-3" />
                 </tr>
               </thead>
@@ -220,7 +227,11 @@ export default function IncomingTransfersPage() {
                           </>
                         ) : t.status === 'unmatched' ? <span className="text-gray-400">Seçilmedi</span> : null}
                       </td>
+                      {status === 'matched' && <td className="p-3"><SmsStatusPill sms={t.donation_id ? sms[t.donation_id] : undefined} /></td>}
                       <td className="whitespace-nowrap p-3 text-right">
+                        {canSms && t.status === 'matched' && t.donation_id && (
+                          <button onClick={() => setSmsFor(t)} className={ghostButton}>💬 SMS Gönder</button>
+                        )}
                         {canEdit && t.status === 'unmatched' && (
                           <div className="flex justify-end gap-2">
                             <button onClick={() => setOpen(t)} className={primaryButton}>İncele / onayla</button>
@@ -236,6 +247,16 @@ export default function IncomingTransfersPage() {
           </div>
         )}
       </Card>
+
+      {smsFor && smsFor.donation_id && (
+        <QuickSmsDialog
+          title="Hızlı SMS Gönder — Havale"
+          eventKey="havale_eslesti"
+          target={{ donationId: smsFor.donation_id, name: smsFor.suggestion?.sender || smsFor.sender_name }}
+          onClose={() => setSmsFor(null)}
+          onSent={(r) => { setMessage({ type: 'ok', text: sentNotice(r) }); load() }}
+        />
+      )}
 
       {open && (
         <ApproveDialog transfer={open} campaigns={campaigns} books={books} onClose={() => setOpen(null)}
@@ -267,6 +288,9 @@ function ApproveDialog({ transfer, campaigns, books, onClose, onDone }: {
   const [note, setNote] = useState(s.note || '')
   const [bookId, setBookId] = useState('')
   const [sendReceipt, setSendReceipt] = useState(true)
+  const [smsBody, setSmsBody] = useState<string | null>(null)
+  const [smsOpen, setSmsOpen] = useState(false)
+  const smsPhone = donor ? donor.phone : newDonor?.phone
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const campaign = campaigns.find((c) => c.id === campaignId)
@@ -288,6 +312,7 @@ function ApproveDialog({ transfer, campaigns, books, onClose, onDone }: {
         note: note.trim() || null,
         receipt_book_id: bookId || null,
         send_receipt: sendReceipt,
+        sms_body: smsBody,
       })
       onDone(`Bağış kaydedildi. Makbuz: ${res.data.official_receipt_no || res.data.receipt_number}`)
     } catch (err) {
@@ -366,8 +391,33 @@ function ApproveDialog({ transfer, campaigns, books, onClose, onDone }: {
           <input type="checkbox" checked={sendReceipt} onChange={(e) => setSendReceipt(e.target.checked)} />
           Bağışçıya makbuz / teşekkür mesajı gönder
         </label>
+        {smsBody && (
+          <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-xs text-gray-700">
+            <div className="mb-1 font-bold text-primary-800">Bağışla birlikte gidecek SMS</div>
+            <div className="whitespace-pre-line">{smsBody}</div>
+          </div>
+        )}
+        {smsOpen && (
+          <QuickSmsDialog
+            title="Hızlı SMS Gönder — Havale"
+            eventKey="havale_eslesti"
+            target={{
+              donorId: donor?.id, transferId: transfer.id, name: donor?.full_name || newDonor?.full_name, phone: smsPhone,
+              variables: {
+                tutar: smsAmount(transfer.amount_cents), bagis_kalemi: campaign?.title || '', kimin_adina: onBehalf,
+                ...(donor ? {} : { ad_soyad: newDonor?.full_name || '' }),
+              },
+            }}
+            compose={{ initial: smsBody, onDone: setSmsBody }}
+            onClose={() => setSmsOpen(false)}
+          />
+        )}
         {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
+          <button type="button" disabled={!smsPhone} onClick={() => setSmsOpen(true)} className={`${ghostButton} mr-auto`}
+            title={smsPhone ? undefined : 'Bağışçının telefonu yok'}>
+            💬 {smsBody ? 'SMS metnini düzenle' : 'SMS Gönder'}
+          </button>
           <button type="button" onClick={onClose} className={ghostButton}>Vazgeç</button>
           <button type="submit" disabled={saving} className={primaryButton}>{saving ? 'Kaydediliyor…' : 'Bağışı kaydet'}</button>
         </div>

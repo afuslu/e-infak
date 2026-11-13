@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
-import { Label, TextArea, TextInput, inputClass, primaryButton } from './FormKit'
+import { Label, TextArea, TextInput, ghostButton, inputClass, primaryButton } from './FormKit'
+import { QuickSmsDialog } from './QuickSmsDialog'
+import { smsAmount } from '../../lib/sms'
 
 interface CampaignRef { id: string; title: string }
 interface DonorRef { id: string; full_name: string; phone: string | null; email: string | null }
@@ -53,6 +55,9 @@ export function ManualReceiptForm({
   const [idempotencyKey, setIdempotencyKey] = useState(newKey)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  // Text staff wrote for this receipt's SMS; null = the organisation's automatic receipt SMS
+  const [smsBody, setSmsBody] = useState<string | null>(null)
+  const [smsOpen, setSmsOpen] = useState(false)
 
   useEffect(() => {
     axios.get(`${adminApiBase()}/api/v1/campaigns`, { headers: adminAuthHeaders(), params: { page_size: 100 } })
@@ -81,6 +86,8 @@ export function ManualReceiptForm({
     () => (kurban ? kurban.pricePerShareCents * shareCount : Math.round(Number(form.amount.replace(',', '.')) * 100)),
     [form.amount, kurban, shareCount],
   )
+
+  const smsPhone = donor ? donor.phone : newDonor.phone
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -119,6 +126,7 @@ export function ManualReceiptForm({
         note: form.note || null,
         is_anonymous: form.is_anonymous,
         send_receipt: form.send_receipt,
+        sms_body: smsBody,
         receipt_book_id: book.id || null,
         official_no: book.id && book.number ? Number(book.number) : null,
       })
@@ -127,6 +135,7 @@ export function ManualReceiptForm({
         setBook({ ...book, number: '' })
       }
       setIdempotencyKey(newKey())
+      setSmsBody(null)
       onDone(res.data)
     } catch (err) {
       setError(apiErrorMessage(err, 'Makbuz kesilemedi'))
@@ -249,8 +258,38 @@ export function ManualReceiptForm({
           <label className="flex items-center gap-2"><input type="checkbox" checked={form.send_receipt} onChange={(e) => setForm({ ...form, send_receipt: e.target.checked })} /> Makbuzu e-posta/SMS ile gönder</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={form.is_anonymous} onChange={(e) => setForm({ ...form, is_anonymous: e.target.checked })} /> İsimsiz göster</label>
         </div>
+        {smsBody && (
+          <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-xs text-gray-700">
+            <div className="mb-1 font-bold text-primary-800">Makbuzla birlikte gidecek SMS</div>
+            <div className="whitespace-pre-line">{smsBody}</div>
+          </div>
+        )}
         {error && <div className="rounded-lg border border-red-100 bg-red-50 p-2 text-sm font-semibold text-red-700">{error}</div>}
-        <button type="submit" disabled={saving} className={`${primaryButton} w-full`}>{saving ? 'Kesiliyor...' : 'Makbuzu Kes'}</button>
+        <div className="flex gap-2">
+          <button type="button" disabled={!smsPhone} onClick={() => setSmsOpen(true)} className={`${ghostButton} whitespace-nowrap`}
+            title={smsPhone ? undefined : 'Bağışçının telefonu yok'}>
+            💬 {smsBody ? 'SMS metnini düzenle' : 'SMS Gönder'}
+          </button>
+          <button type="submit" disabled={saving} className={`${primaryButton} flex-1`}>{saving ? 'Kesiliyor...' : 'Makbuzu Kes'}</button>
+        </div>
+        {smsOpen && (
+          <QuickSmsDialog
+            title="Hızlı SMS Gönder — Makbuz"
+            eventKey="makbuz"
+            target={{
+              donorId: donor?.id, name: donor?.full_name || `${newDonor.first_name} ${newDonor.last_name}`.trim(), phone: smsPhone,
+              variables: {
+                tutar: amountCents > 0 ? smsAmount(amountCents) : '',
+                para_birimi: (kurban ? 'TRY' : form.currency) === 'TRY' ? 'TL' : form.currency,
+                bagis_kalemi: campaigns.find((c) => c.id === (kurban ? kurban.campaignId : form.campaign_id))?.title || '',
+                kimin_adina: form.on_behalf_of,
+                ...(donor ? {} : { ad_soyad: `${newDonor.first_name} ${newDonor.last_name}`.trim(), ad: newDonor.first_name }),
+              },
+            }}
+            compose={{ initial: smsBody, onDone: setSmsBody }}
+            onClose={() => setSmsOpen(false)}
+          />
+        )}
       </div>
     </form>
   )

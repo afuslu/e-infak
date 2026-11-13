@@ -17,6 +17,10 @@
             --donors bagiscilar_1.xlsx bagiscilar_2.xlsx --donations tum_bagislar.xlsx [--commit]
         Moves an organisation's STK PRO exports (donors, donations, kurban shares, transfer senders).
         Without --commit it is a dry run: everything is computed in a transaction that is rolled back.
+
+    python -m app.cli seed-sms-templates --org hakder --preset hakder
+        Loads a ready SMS template set (app/services/sms_presets.py) into the organisation.
+        Templates are matched by event or name, so running it again only refreshes the texts.
 """
 import argparse
 import asyncio
@@ -158,6 +162,20 @@ async def import_stkpro(args) -> None:
         print("\nDeneme çalışmasıydı, hiçbir şey yazılmadı. Yazmak için --commit ekleyin.")
 
 
+async def seed_sms_templates(org_slug: str, preset: str) -> None:
+    from app.core.db import AsyncSessionLocal
+    from app.models.organization import Organization
+    from app.services.sms_presets import load_preset
+
+    async with AsyncSessionLocal() as db:
+        org = (await db.execute(select(Organization).where(Organization.slug == org_slug))).scalar_one_or_none()
+        if not org:
+            raise SystemExit(f"Kurum bulunamadı: {org_slug}")
+        result = await load_preset(db, org.id, preset)
+        await db.commit()
+    print(f"{org.name}: {result['created']} şablon eklendi, {result['updated']} şablon güncellendi.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -178,6 +196,9 @@ def main() -> None:
                      help="Sitede karşılığı olmayan, yeni açılan kampanyaların durumu")
     stk.add_argument("--alias", action="append", metavar="STK_ADI=KAMPANYA",
                      help='STK PRO kampanyasını var olan kampanyaya bağla, ör. "keçi süt=Süt Keçisi" (tekrarlanabilir)')
+    sms = commands.add_parser("seed-sms-templates", help="Kuruma hazır SMS şablon setini yükler")
+    sms.add_argument("--org", required=True, help="Kurum kısa adı (slug)")
+    sms.add_argument("--preset", required=True, choices=["hakder"])
     args = parser.parse_args()
     if args.command == "import-legacy-credentials":
         asyncio.run(import_legacy_credentials(args.dry_run))
@@ -187,6 +208,8 @@ def main() -> None:
         asyncio.run(bootstrap_sites())
     elif args.command == "import-stkpro":
         asyncio.run(import_stkpro(args))
+    elif args.command == "seed-sms-templates":
+        asyncio.run(seed_sms_templates(args.org, args.preset))
 
 
 if __name__ == "__main__":

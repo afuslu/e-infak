@@ -515,17 +515,15 @@ def _portal_url(organization) -> str:
     return f"{settings.PUBLIC_WEB_URL.rstrip('/')}/portal"
 
 
-def _ascii(text: str) -> str:
-    return text.translate(str.maketrans("çğıöşüÇĞİÖŞÜâîû", "cgiosuCGIOSUaiu"))
-
-
 @router.post("/animals/slaughter")
 async def slaughter_animals(request: Request, payload: SlaughterRequest, db: AsyncSession = Depends(get_db),
                             current_user: User = WRITE):
     """Kesildi işaretleme (tekli veya toplu) ve hissedarlara bir kez 'kesildi' SMS'i."""
-    from app.tasks import send_sms_task
+    from app.services.sms_service import event_template, send_event_sms
 
     org_id = _org_id(request)
+    # The organisation can switch the "kurban kesildi" SMS off in its SMS templates.
+    notify = payload.notify and (await event_template(db, org_id, "kurban_kesildi"))[1] == "auto"
     now = datetime.now(timezone.utc)
     portal = _portal_url(getattr(request.state, "organization", None))
     marked, sms_queued, sms_failed = 0, 0, 0
@@ -543,21 +541,22 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
         notified_phones: set[str] = set()
         for share in shares:
             share.status = KurbanStatus.SLAUGHTERED
-            if not payload.notify or share.notified_at or not share.donor_phone:
+            if not notify or share.notified_at or not share.donor_phone:
                 continue
             if share.donor_phone in notified_phones:
                 share.notified_at = now
                 continue
-            message = _ascii(
-                f"Sayin {share.donor_name}, {share.on_behalf_of or share.donor_name} adina vekaletiniz yerine getirilmis, "
-                f"kurbaniniz ({animal.animal_number}) kesilmistir. Allah kabul etsin. Video: {portal}"
+            queued = await send_event_sms(
+                db, org_id, "kurban_kesildi", share.donor_phone, related=("kurban_share", share.id), source="kurban",
+                extra={"ad_soyad": share.donor_name, "kimin_adina": share.on_behalf_of or share.donor_name,
+                       "kurban_no": animal.animal_number, "portal": portal},
             )
-            try:
-                send_sms_task.delay(share.donor_phone, message, str(org_id))
+            if queued:
+                queued.donor_id = share.donor_id
                 share.notified_at = now
                 notified_phones.add(share.donor_phone)
                 sms_queued += 1
-            except Exception:
+            else:
                 sms_failed += 1
     _audit(db, org_id, current_user, "kurban_kesim", {
         "animals": [str(i.animal_id) for i in payload.items], "marked": marked, "sms_queued": sms_queued,

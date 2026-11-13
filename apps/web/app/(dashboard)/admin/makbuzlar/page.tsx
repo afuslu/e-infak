@@ -5,6 +5,8 @@ import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { adminGet, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
+import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
+import { RelatedSms } from '../../../../lib/sms'
 
 interface Donation {
   id: string
@@ -16,6 +18,7 @@ interface Donation {
   payment_method_label: string
   is_manual: boolean
   donor_name: string
+  donor_id?: string | null
   on_behalf_of: string | null
   paid_at: string
 }
@@ -39,8 +42,11 @@ export default function AdminReceiptsPage() {
   const [receiptLoadingId, setReceiptLoadingId] = useState<string | null>(null)
   const [showManual, setShowManual] = useState(false)
   const [notice, setNotice] = useState('')
+  const [sms, setSms] = useState<Record<string, RelatedSms>>({})
+  const [smsFor, setSmsFor] = useState<Donation | null>(null)
   const { data: access } = useAdminAccess()
   const canIssue = hasPermission(access, 'finance_manage')
+  const canSms = hasPermission(access, 'donor_manage')
 
   const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
 
@@ -58,6 +64,7 @@ export default function AdminReceiptsPage() {
         status: 'confirmed', q: searchQuery || undefined, page_size: 100,
       })
       setDonations(res.data.items)
+      setSms(await loadRelatedSms('donation', res.data.items.map((d) => d.id)))
     } catch (err) {
       console.error('Failed to load donations:', err)
     } finally {
@@ -105,6 +112,16 @@ export default function AdminReceiptsPage() {
           )}
         </div>
       </div>
+
+      {smsFor && (
+        <QuickSmsDialog
+          title="Hızlı SMS Gönder — Makbuz"
+          eventKey="makbuz"
+          target={{ donationId: smsFor.id, name: smsFor.donor_name }}
+          onClose={() => setSmsFor(null)}
+          onSent={(r) => { setNotice(sentNotice(r)); loadDonations() }}
+        />
+      )}
 
       {notice && <div className="rounded-lg border border-green-100 bg-green-50 p-3 text-sm font-semibold text-green-700">{notice}</div>}
 
@@ -174,6 +191,7 @@ export default function AdminReceiptsPage() {
                   <th className="pb-3">Ödeme Tipi</th>
                   <th className="pb-3">Tarih</th>
                   <th className="pb-3 text-right">Tutar</th>
+                  <th className="pb-3 pl-4">SMS</th>
                   <th className="pb-3 text-right">İşlem</th>
                 </tr>
               </thead>
@@ -188,7 +206,9 @@ export default function AdminReceiptsPage() {
                     <td className="py-3.5">{don.payment_method_label}{don.is_manual && ' (elle)'}</td>
                     <td className="py-3.5 text-gray-400">{new Date(don.paid_at).toLocaleDateString('tr-TR')}</td>
                     <td className="py-3.5 text-right font-bold text-emerald-800">{formatMoney(don.amount_cents, don.currency)}</td>
+                    <td className="py-3.5 pl-4"><SmsStatusPill sms={sms[don.id]} /></td>
                     <td className="py-3.5 text-right">
+                      {canSms && <button onClick={() => setSmsFor(don)} className="mr-3 font-bold text-primary-600 hover:text-primary-700">SMS</button>}
                       <button
                         onClick={() => viewReceipt(don.id)}
                         disabled={receiptLoadingId === don.id}

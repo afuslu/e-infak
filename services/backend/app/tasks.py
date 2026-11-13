@@ -69,12 +69,36 @@ async def _sms_account(organization_id):
         return await sms_account(session, organization_id)
 
 
+async def _enqueue_org_sms(phone: str, message: str, organization_id: str) -> bool:
+    import uuid
+    from app.services.sms_service import enqueue_sms
+    async with AsyncSessionLocal() as session:
+        await enqueue_sms(session, uuid.UUID(str(organization_id)), phone, message, source="auto")
+        await session.commit()
+    return True
+
+
 @celery_app.task(name="app.tasks.send_sms_task")
 def send_sms_task(phone: str, message: str, organization_id: str | None = None):
-    """Queue-friendly SMS. With `organization_id` the organisation's own SMS account is used."""
+    """Older entry point. An organisation's SMS goes through its queue (and log); platform SMS is sent directly."""
     from app.services.tenant_credentials import platform_sms
-    account = asyncio.run(_sms_account(organization_id)) if organization_id else platform_sms()
-    return deliver_sms(phone, message, account)
+    if organization_id:
+        return asyncio.run(_enqueue_org_sms(phone, message, organization_id))
+    return deliver_sms(phone, message, platform_sms())
+
+
+@celery_app.task(name="app.tasks.send_sms_message_task", ignore_result=True)
+def send_sms_message_task(message_id: str):
+    """Send one queued SmsMessage."""
+    from app.services.sms_service import process_message
+    return asyncio.run(process_message(message_id))
+
+
+@celery_app.task(name="app.tasks.dispatch_due_sms_task", ignore_result=True)
+def dispatch_due_sms_task():
+    """Every minute: scheduled SMS whose time has come, retries, and messages no worker picked up."""
+    from app.services.sms_service import dispatch_due
+    return asyncio.run(dispatch_due())
 
 
 async def _fetch_donation_and_send_receipt(donation_id: str):
@@ -183,11 +207,17 @@ async def _fetch_donation_and_send_receipt(donation_id: str):
 
         # Trigger SMS notification as well
         if donor.phone:
-            sms_msg = f"Sayin {donor.first_name} {donor.last_name or ''}, {campaign.title} bagisiniz alinmistir. Makbuz No: #{donation.receipt_number}. Tesekkur ederiz."
-            from app.services.tenant_credentials import sms_account
+            # Staff-entered receipts and online donations have their own template and on/off switch.
+            from app.services.sms_service import receipt_event, receipt_key, send_event_sms
             try:
-                deliver_sms(donor.phone, sms_msg, await sms_account(session, donation.organization_id))
+                await send_event_sms(
+                    session, donation.organization_id, receipt_event(donation.payment_provider), donor.phone,
+                    donor=donor, donation=donation, related=("donation", donation.id), source="receipt",
+                    dedupe_key=receipt_key(donation.id),
+                )
+                await session.commit()
             except Exception as sms_err:
+                await session.rollback()
                 print(f"Receipt SMS failed for {donation.receipt_number}: {sms_err}")
         
         return True
@@ -525,6 +555,10 @@ celery_app.conf.beat_schedule = {
     "warm-certificates-daily": {
         "task": "app.tasks.warm_all_certificates_task",
         "schedule": 86400.0,
+    },
+    "dispatch-due-sms-every-minute": {
+        "task": "app.tasks.dispatch_due_sms_task",
+        "schedule": 60.0,
     },
     "process-outbox-every-minute": {
         "task": "app.tasks.process_outbox_task",

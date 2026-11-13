@@ -195,6 +195,8 @@ class ApproveIn(BaseModel):
     note: Optional[str] = Field(default=None, max_length=1000)
     receipt_book_id: Optional[UUID] = None
     send_receipt: bool = True
+    # SMS text staff wrote while matching; sent instead of the automatic "bağış ulaştı" SMS
+    sms_body: Optional[str] = Field(default=None, max_length=1500)
 
 
 async def _transfer(db: AsyncSession, org_id: UUID, transfer_id: UUID) -> BankTransaction:
@@ -236,6 +238,12 @@ async def approve_transfer(transfer_id: UUID, payload: ApproveIn, request: Reque
                                  receipt_book_id=payload.receipt_book_id, send_receipt=payload.send_receipt)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    from app.services.sms_service import queue_receipt_sms
+    from app.sms import SmsError
+    try:
+        await queue_receipt_sms(db, donation, donor, payload.sms_body, current_user.id, source="transfer")
+    except SmsError as exc:
+        raise HTTPException(status_code=422, detail=f"SMS: {exc}") from exc
     await db.commit()
     return {"status": "matched", "donation_id": str(donation.id), "receipt_number": donation.receipt_number,
             "official_receipt_no": donation.official_receipt_no}

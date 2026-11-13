@@ -12,7 +12,6 @@ from sqlalchemy import func
 
 from app.core.db import get_db
 from app.models.donor_note import DonorNote
-from app.models.sms_template import SmsTemplate
 from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign
 from app.models.user import User, UserRole
@@ -52,18 +51,6 @@ class NoteResponse(BaseModel):
 
     class Config:
         from_attributes = True
-
-class SmsTemplateResponse(BaseModel):
-    id: UUID
-    name: str
-    body: str
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-class SmsTemplateUpdate(BaseModel):
-    body: str
 
 class AuditLogResponse(BaseModel):
     id: UUID
@@ -176,73 +163,6 @@ async def list_donor_notes(
         )
         for note, user in rows
     ]
-
-# --- SMS Templates ---
-@router.get("/sms-templates", response_model=List[SmsTemplateResponse])
-async def list_sms_templates(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    
-    # Fetch templates
-    query = select(SmsTemplate).where(SmsTemplate.organization_id == org_id)
-    result = await db.execute(query)
-    templates = result.scalars().all()
-    
-    # Seed default templates if database is empty for this tenant context
-    if not templates:
-        t1 = SmsTemplate(
-            organization_id=org_id,
-            name="Bağış Teşekkür",
-            body="Sayın {donor_name}, {amount_lira} TL tutarındaki bağışınız {campaign_name} projemize ulaşmıştır. Destekleriniz için teşekkür ederiz."
-        )
-        t2 = SmsTemplate(
-            organization_id=org_id,
-            name="Abonelik Tahsilat Bildirimi",
-            body="Sayın {donor_name}, düzenli bağış talimatınız kapsamında bu aya ait {amount_lira} TL tutarındaki bağışınız kartınızdan tahsil edilmiştir."
-        )
-        db.add_all([t1, t2])
-        await db.commit()
-        
-        # Re-fetch
-        result = await db.execute(query)
-        templates = result.scalars().all()
-        
-    return templates
-
-@router.put("/sms-templates/{template_id}", response_model=SmsTemplateResponse)
-async def update_sms_template(
-    request: Request,
-    template_id: UUID,
-    payload: SmsTemplateUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    org_id = UUID(request.state.organization_id)
-    
-    query = select(SmsTemplate).where(
-        SmsTemplate.id == template_id,
-        SmsTemplate.organization_id == org_id
-    )
-    res = await db.execute(query)
-    template = res.scalar_one_or_none()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-        
-    template.body = payload.body
-    await db.commit()
-    await db.refresh(template)
-    
-    # Audit log
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="sms_sablon_guncelle",
-        details={"template_id": str(template_id), "template_name": template.name}
-    )
-    
-    return template
 
 # --- Audit Logs ---
 @router.get("/audit-logs", response_model=List[AuditLogResponse])

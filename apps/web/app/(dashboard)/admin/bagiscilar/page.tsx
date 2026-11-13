@@ -7,6 +7,8 @@ import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
+import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
+import { STATUS_CLASS, STATUS_LABEL, SmsMessage } from '../../../../lib/sms'
 
 interface DonorRow {
   id: string
@@ -286,7 +288,8 @@ function DonorCardPanel({
   const [card, setCard] = useState<DonorCard | null>(null)
   const [tab, setTab] = useState<'donations' | 'notes' | 'edit' | 'receipt'>('donations')
   const [note, setNote] = useState('')
-  const [sms, setSms] = useState('')
+  const [smsOpen, setSmsOpen] = useState(false)
+  const [smsLog, setSmsLog] = useState<SmsMessage[]>([])
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const load = async () => {
@@ -295,6 +298,9 @@ function DonorCardPanel({
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Bağışçı yüklenemedi') })
     }
+    // The SMS module may not be in the package; the history is simply left empty then.
+    adminGet<{ items: SmsMessage[] }>('/sms/messages', { donor_id: donorId, page_size: 30 })
+      .then((res) => setSmsLog(res.data.items)).catch(() => setSmsLog([]))
   }
   useEffect(() => { setCard(null); setTab('donations'); setMessage(null); load() }, [donorId])
 
@@ -305,18 +311,6 @@ function DonorCardPanel({
     try {
       await adminSend('post', `/donors/${card.id}/notes`, { content: note })
       setNote('')
-      await load()
-    } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
-    }
-  }
-
-  const sendSms = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      await adminSend('post', `/donors/${card.id}/sms`, { message: sms })
-      setSms('')
-      setMessage({ type: 'ok', text: 'SMS gönderim kuyruğuna alındı' })
       await load()
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
@@ -341,8 +335,19 @@ function DonorCardPanel({
             {card.tags.map((t) => <span key={t} className="rounded border border-primary-200 bg-primary-50 px-1.5 py-0.5 text-primary-800">{t}</span>)}
           </div>
         </div>
-        <button onClick={onClose} className="text-xl leading-none text-gray-400 hover:text-gray-700" aria-label="Kapat">✕</button>
+        <div className="flex shrink-0 items-center gap-3">
+          {canManage && <button onClick={() => setSmsOpen(true)} className={primaryButton}>💬 SMS Gönder</button>}
+          <button onClick={onClose} className="text-xl leading-none text-gray-400 hover:text-gray-700" aria-label="Kapat">✕</button>
+        </div>
       </div>
+
+      {smsOpen && (
+        <QuickSmsDialog
+          target={{ donorId: card.id, name: card.full_name, phone: card.phone, allowSms: card.allow_sms }}
+          onClose={() => setSmsOpen(false)}
+          onSent={(r) => { setMessage({ type: 'ok', text: sentNotice(r) }); load() }}
+        />
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Toplam</div><div className="text-lg font-black">{formatMoney(card.total_donated_cents)}</div></div>
@@ -355,7 +360,7 @@ function DonorCardPanel({
       <div className="flex flex-wrap gap-1 border-b text-sm font-semibold">
         {([
           ['donations', `Bağışlar (${card.donations.length})`],
-          ['notes', `Notlar & SMS (${card.notes.length})`],
+          ['notes', `Notlar & SMS (${card.notes.length + smsLog.length})`],
           ...(canManage ? [['edit', 'Bilgileri Düzenle']] : []),
           ...(canIssue ? [['receipt', 'Makbuz Kes']] : []),
         ] as [typeof tab, string][]).map(([k, l]) => (
@@ -405,20 +410,23 @@ function DonorCardPanel({
               <button type="submit" className={primaryButton}>Ekle</button>
             </form>
           )}
-          {canManage && card.phone && (
-            <form onSubmit={sendSms} className="space-y-2 rounded-lg border p-3">
-              <div className="flex items-center justify-between text-xs font-bold text-gray-600">
-                <span>Bağışçıya SMS</span><span className="text-gray-400">{sms.length}/612</span>
-              </div>
-              {card.allow_sms ? (
-                <>
-                  <textarea required maxLength={612} rows={2} className={inputClass} value={sms} onChange={(e) => setSms(e.target.value)} />
-                  <button type="submit" className={primaryButton}>SMS Gönder</button>
-                </>
-              ) : (
-                <p className="text-xs text-gray-500">Bu bağışçının SMS izni (İYS) yok; SMS gönderilemez.</p>
-              )}
-            </form>
+          {smsLog.length > 0 && (
+            <div className="rounded-lg border p-3">
+              <div className="mb-2 text-xs font-bold text-gray-600">Gönderilen SMS&apos;ler</div>
+              <ul className="space-y-2">
+                {smsLog.map((m) => (
+                  <li key={m.id} className="text-sm">
+                    <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                      <span className="font-bold text-gray-600">#{m.seq_no}</span>
+                      <span className={`rounded border px-1.5 py-0.5 font-bold ${STATUS_CLASS[m.status]}`}>{STATUS_LABEL[m.status]}</span>
+                      <span>{new Date(m.sent_at || m.send_after).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    </div>
+                    <div className="whitespace-pre-line text-gray-700">{m.body}</div>
+                    {m.error && <div className="text-[11px] text-red-600">{m.error}</div>}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           <ul className="space-y-2">
             {card.notes.map((n) => (

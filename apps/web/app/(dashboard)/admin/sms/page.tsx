@@ -1,171 +1,200 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import { Card, Button } from '@e-infak/ui'
+import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { Card } from '@e-infak/ui'
+import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { MODE_LABEL, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
 
-interface SmsTemplate {
-  id: string
-  name: string
-  body: string
-  updated_at?: string
+type Draft = { id: string | null; name: string; body: string; event_key: string; auto_mode: SmsTemplate['auto_mode']; is_active: boolean }
+const EMPTY: Draft = { id: null, name: '', body: '', event_key: '', auto_mode: 'manual', is_active: true }
+// Shown in the preview so staff see a realistic message while writing.
+const SAMPLE: Record<string, string> = {
+  ad_soyad: 'Ahmet Yılmaz', ad: 'Ahmet', tutar: '1.000,00', para_birimi: 'TL', bagis_kalemi: 'Genel Bağış', makbuz_no: 'A-1234',
+  tarih: new Date().toLocaleDateString('tr-TR'), kimin_adina: 'Fatma Yılmaz', kurban_no: 'K-17', portal: 'ornek.org/portal',
+  kurum: 'Kurumunuz', kurum_unvan: 'Kurumunuzun Unvanı', kurum_telefon: '0212 000 00 00', iban: 'TR00 0000 0000 0000 0000 0000 00',
 }
+const ALIASES: Record<string, string> = { donor_name: 'ad_soyad', amount_lira: 'tutar', campaign_name: 'bagis_kalemi' }
+const fill = (body: string) => body.replace(/\{(\w+)\}/g, (all, name) => SAMPLE[ALIASES[name] || name] ?? all)
 
-export default function AdminSmsPage() {
-  const [templates, setTemplates] = useState<SmsTemplate[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState<SmsTemplate | null>(null)
-  const [editedBody, setEditedBody] = useState('')
-  const [loading, setLoading] = useState(false)
+export default function SmsTemplatesPage() {
+  const { data: access } = useAdminAccess()
+  const canEdit = hasPermission(access, 'donor_manage')
+  const [templates, setTemplates] = useState<SmsTemplate[] | null>(null)
+  const [meta, setMeta] = useState<SmsMeta | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(null)
+  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
-  const [successMsg, setSuccessMsg] = useState('')
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
-
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
-
-  const loadTemplates = async () => {
-    setLoading(true)
+  const load = async () => {
     try {
-      const headers = getAuthHeaders()
-      const res = await axios.get(`${API_BASE}/api/v1/admin-features/sms-templates`, { headers })
-      setTemplates(res.data)
-      if (res.data.length > 0) {
-        setSelectedTemplate(res.data[0])
-        setEditedBody(res.data[0].body)
-      }
+      setTemplates((await adminGet<SmsTemplate[]>('/sms/templates')).data)
     } catch (err) {
-      console.error('Failed to load templates:', err)
-    } finally {
-      setLoading(false)
+      setTemplates([])
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Şablonlar yüklenemedi') })
     }
   }
-
   useEffect(() => {
-    loadTemplates()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    load()
+    adminGet<SmsMeta>('/sms/meta').then((r) => setMeta(r.data)).catch(() => {})
   }, [])
 
-  const handleSelectTemplate = (tpl: SmsTemplate) => {
-    setSelectedTemplate(tpl)
-    setEditedBody(tpl.body)
-    setSuccessMsg('')
+  const edit = (t: SmsTemplate) => setDraft({ id: t.id, name: t.name, body: t.body, event_key: t.event_key || '', auto_mode: t.auto_mode, is_active: t.is_active })
+
+  const insert = (key: string) => {
+    if (!draft) return
+    const el = bodyRef.current
+    const at = el ? el.selectionStart : draft.body.length
+    const end = el ? el.selectionEnd : draft.body.length
+    setDraft({ ...draft, body: `${draft.body.slice(0, at)}{${key}}${draft.body.slice(end)}` })
+    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(at + key.length + 2, at + key.length + 2) })
   }
 
-  const handleSaveTemplate = async (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedTemplate || !editedBody.trim()) return
-
+    if (!draft) return
     setSaving(true)
-    setSuccessMsg('')
     try {
-      const headers = getAuthHeaders()
-      const res = await axios.put(`${API_BASE}/api/v1/admin-features/sms-templates/${selectedTemplate.id}`, {
-        body: editedBody
-      }, { headers })
-      
-      setSuccessMsg('SMS Şablonu başarıyla güncellendi!')
-      setTemplates(prev => prev.map(t => t.id === selectedTemplate.id ? res.data : t))
-      setSelectedTemplate(res.data)
+      const body = { name: draft.name, body: draft.body, event_key: draft.event_key || null, auto_mode: draft.auto_mode, is_active: draft.is_active }
+      if (draft.id) await adminSend('put', `/sms/templates/${draft.id}`, body)
+      else await adminSend('post', '/sms/templates', body)
+      setMessage({ type: 'ok', text: 'Şablon kaydedildi' })
+      setDraft(null)
+      load()
     } catch (err) {
-      console.error('Failed to save template:', err)
-      alert('Şablon güncellenemedi.')
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Şablon kaydedilemedi') })
     } finally {
       setSaving(false)
     }
   }
 
+  const remove = async (t: SmsTemplate) => {
+    if (!confirm(`"${t.name}" şablonu silinsin mi?${t.event_key ? ' Bu olay için yerleşik varsayılan metin kullanılacak.' : ''}`)) return
+    try {
+      await adminSend('delete', `/sms/templates/${t.id}`)
+      load()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const setMode = async (t: SmsTemplate, auto_mode: SmsTemplate['auto_mode']) => {
+    try {
+      await adminSend('put', `/sms/templates/${t.id}`, { name: t.name, body: t.body, event_key: t.event_key, auto_mode, is_active: t.is_active })
+      load()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const usedEvents = new Set((templates || []).filter((t) => t.id !== draft?.id).map((t) => t.event_key).filter(Boolean))
+  const draftCount = draft ? segmentSummary(fill(draft.body)) : null
+
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">SMS Şablon Yönetimi</h1>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">SMS Şablonları</h1>
+          <p className="mt-1 text-sm text-gray-500">Hızlı SMS penceresinde seçilen ve olaylarda otomatik giden metinler. Değişkenler gönderim anında doldurulur.</p>
+        </div>
+        <div className="flex shrink-0 gap-2 whitespace-nowrap">
+          <Link href="/admin/sms-gonderimleri" className={`${ghostButton} flex items-center`}>SMS Gönderimleri</Link>
+          {canEdit && <button onClick={() => setDraft({ ...EMPTY })} className={primaryButton}>+ Yeni Şablon</button>}
+        </div>
       </div>
 
-      {successMsg && (
-        <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
-          ✨ {successMsg}
-        </div>
+      <Notice message={message} />
+
+      {draft && (
+        <Card className="border border-primary-100 p-6 shadow-sm">
+          <form onSubmit={save} className="grid gap-5 lg:grid-cols-2">
+            <div className="space-y-3">
+              <TextInput label="Şablon adı" required maxLength={100} value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} placeholder="Vacip Kurban Hisse" />
+              <Label label="Mesaj metni">
+                <textarea ref={bodyRef} required rows={7} maxLength={1500} className={`${inputClass} resize-y`} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
+              </Label>
+              <div>
+                <div className="mb-1 text-xs font-bold text-gray-600">Değişken ekle</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(meta?.variables || []).map((v) => (
+                    <button type="button" key={v.key} onClick={() => insert(v.key)} title={v.label}
+                      className="rounded border border-primary-200 bg-primary-50 px-2 py-1 font-mono text-[11px] font-bold text-primary-800 hover:bg-primary-100">{`{${v.key}}`}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <Label label="Bağlı olay" hint="Olaya bağlı şablon, o olay gerçekleştiğinde kullanılır. Olaysız şablonlar yalnızca hızlı SMS penceresinde seçilir.">
+                <select className={inputClass} value={draft.event_key} onChange={(e) => setDraft({ ...draft, event_key: e.target.value, auto_mode: e.target.value ? draft.auto_mode : 'manual' })}>
+                  <option value="">Olaya bağlı değil</option>
+                  {(meta?.events || []).map((ev) => <option key={ev.key} value={ev.key} disabled={usedEvents.has(ev.key)}>{ev.label}{usedEvents.has(ev.key) ? ' (başka şablona bağlı)' : ''}</option>)}
+                </select>
+              </Label>
+              {draft.event_key && (
+                <Label label="Olay gerçekleşince">
+                  <select className={inputClass} value={draft.auto_mode} onChange={(e) => setDraft({ ...draft, auto_mode: e.target.value as Draft['auto_mode'] })}>
+                    {Object.entries(MODE_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                </Label>
+              )}
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <input type="checkbox" checked={draft.is_active} onChange={(e) => setDraft({ ...draft, is_active: e.target.checked })} /> Kullanımda
+              </label>
+              <div>
+                <div className="mb-1 text-xs font-bold text-gray-600">Örnek görünüm</div>
+                <div className="min-h-[96px] whitespace-pre-line rounded-2xl rounded-bl-sm bg-gray-100 p-3 text-sm text-gray-800">{fill(draft.body) || '…'}</div>
+                {draftCount && (
+                  <p className={`mt-1 text-xs font-semibold ${draftCount.info.encoding === 'unicode' || draftCount.info.parts > 3 ? 'text-amber-700' : 'text-gray-500'}`}>
+                    {draftCount.text} <span className="font-normal text-gray-400">(örnek değerlerle)</span>
+                  </p>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setDraft(null)} className={ghostButton}>Vazgeç</button>
+                <button type="submit" disabled={saving} className={primaryButton}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</button>
+              </div>
+            </div>
+          </form>
+        </Card>
       )}
 
-      {loading ? (
-        <p className="text-sm text-gray-500 animate-pulse py-6 text-center">Şablonlar yükleniyor...</p>
+      {!templates ? (
+        <p className="animate-pulse py-10 text-center text-sm text-gray-400">Yükleniyor…</p>
       ) : (
-        <div className="grid lg:grid-cols-12 gap-8 items-start">
-          {/* Left: Template selector list */}
-          <div className="lg:col-span-4 space-y-3">
-            <Card className="p-4 border border-gray-100 shadow-sm space-y-3">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Şablon Listesi</h3>
-              <div className="space-y-2">
-                {templates.map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => handleSelectTemplate(t)}
-                    className={`w-full text-left p-3 rounded-xl border text-xs font-bold transition-all block ${selectedTemplate?.id === t.id ? 'border-primary-600 bg-primary-50/50 text-primary-900' : 'border-gray-200 hover:bg-gray-50 text-gray-600'}`}
-                  >
-                    ✉️ {t.name}
-                  </button>
-                ))}
+        <div className="grid gap-4 md:grid-cols-2">
+          {templates.map((t) => (
+            <Card key={t.id} className={`space-y-3 border border-gray-100 p-5 shadow-sm ${t.is_active ? '' : 'opacity-60'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-gray-900">{t.name}</h3>
+                  <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-bold">
+                    {t.event_label
+                      ? <span className="rounded border border-primary-200 bg-primary-50 px-1.5 py-0.5 text-primary-800">Olay: {t.event_label}</span>
+                      : <span className="rounded border px-1.5 py-0.5 text-gray-500">Hızlı SMS şablonu</span>}
+                    {!t.is_active && <span className="rounded border px-1.5 py-0.5 text-gray-500">Kullanım dışı</span>}
+                  </div>
+                </div>
+                {canEdit && (
+                  <div className="flex shrink-0 gap-3 text-xs font-bold">
+                    <button onClick={() => edit(t)} className="text-primary-700">Düzenle</button>
+                    <button onClick={() => remove(t)} className="text-red-600">Sil</button>
+                  </div>
+                )}
+              </div>
+              <p className="whitespace-pre-line rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{t.body}</p>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
+                <span>{segmentSummary(fill(t.body)).text}</span>
+                {t.event_key && (
+                  <select disabled={!canEdit} value={t.auto_mode} onChange={(e) => setMode(t, e.target.value as SmsTemplate['auto_mode'])}
+                    className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-700">
+                    {Object.entries(MODE_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                  </select>
+                )}
               </div>
             </Card>
-          </div>
-
-          {/* Right: Template editor form */}
-          {selectedTemplate && (
-            <div className="lg:col-span-8 space-y-6">
-              <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-                <div className="border-b pb-2 flex justify-between items-center">
-                  <h2 className="text-lg font-bold text-gray-900">{selectedTemplate.name} Şablonunu Düzenle</h2>
-                  {selectedTemplate.updated_at && (
-                    <span className="text-[10px] text-gray-400">
-                      Güncelleme: {new Date(selectedTemplate.updated_at).toLocaleString('tr-TR')}
-                    </span>
-                  )}
-                </div>
-
-                <form onSubmit={handleSaveTemplate} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Şablon Mesaj Gövdesi</label>
-                    <textarea
-                      value={editedBody}
-                      onChange={(e) => setEditedBody(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 p-4 text-xs font-mono outline-none focus:border-primary-500 min-h-[140px] leading-relaxed"
-                      required
-                    />
-                  </div>
-
-                  {/* Variables Hint Panel */}
-                  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Kullanılabilir Dinamik Değişkenler</span>
-                    <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-600 font-semibold font-mono">
-                      <div>
-                        <span className="text-primary-600">{'{donor_name}'}</span> ➔ Bağışçı Ad Soyadı
-                      </div>
-                      <div>
-                        <span className="text-primary-600">{'{amount_lira}'}</span> ➔ Bağış Tutarı (TL)
-                      </div>
-                      <div>
-                        <span className="text-primary-600">{'{campaign_name}'}</span> ➔ Kampanya Başlığı
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button
-                      type="submit"
-                      disabled={saving}
-                      className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs uppercase"
-                    >
-                      {saving ? 'Kaydediliyor...' : 'Şablonu Güncelle'}
-                    </Button>
-                  </div>
-                </form>
-              </Card>
-            </div>
-          )}
+          ))}
         </div>
       )}
     </div>

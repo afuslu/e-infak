@@ -84,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     key: 'iletisim', label: 'İletişim', items: [
       { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: '💬', feature: 'sms' },
+      { href: '/admin/sms-gonderimleri', label: 'SMS Gönderimleri', icon: '📨', feature: 'sms' },
       { href: '/admin/sms', label: 'SMS Şablonları', icon: '✉️', feature: 'sms' },
     ],
   },

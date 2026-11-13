@@ -15,6 +15,10 @@ class SmsError(RuntimeError):
     """The provider refused the message; the text is safe to show staff."""
 
 
+class SmsUnreachable(SmsError):
+    """The provider could not be reached; sending again later may work."""
+
+
 @dataclass
 class SmsResult:
     provider: str
@@ -52,7 +56,7 @@ class SmsProvider:
         try:
             return requests.request(method, url, timeout=15, **kwargs)
         except requests.RequestException as exc:
-            raise SmsError(f"{self.label} sunucusuna ulaşılamadı") from exc
+            raise SmsUnreachable(f"{self.label} sunucusuna ulaşılamadı") from exc
 
 
 NETGSM_ERRORS = {

@@ -46,21 +46,12 @@ def _manual(campaign_id, amount, **extra):
     return crm.ManualDonationIn(**base, **extra)
 
 
-@pytest.fixture
-def sms(monkeypatch):
-    sent = []
-
-    class FakeTask:
-        @staticmethod
-        def delay(phone, message, organization_id=None):
-            sent.append((phone, message, organization_id))
-
-    import app.tasks
-    monkeypatch.setattr(app.tasks, "send_sms_task", FakeTask)
-    return sent
+async def _queued_sms(db, org):
+    from app.models.sms_message import SmsMessage
+    return (await db.execute(select(SmsMessage).where(SmsMessage.organization_id == org.id))).scalars().all()
 
 
-async def test_kurban_flow_shares_distribution_slaughter_and_papers(db_session, sms):
+async def test_kurban_flow_shares_distribution_slaughter_and_papers(db_session):
     org, admin = await _setup(db_session)
     created = await kurban.create_campaign(_request(org, "POST"), kurban.KurbanCampaignIn(
         title="Çad Büyükbaş 2026", price_per_share_cents=500_000, country="Çad", season_year=2026,
@@ -106,8 +97,9 @@ async def test_kurban_flow_shares_distribution_slaughter_and_papers(db_session, 
     again = await kurban.slaughter_animals(_request(org, "POST"), kurban.SlaughterRequest(
         items=[kurban.SlaughterItem(animal_id=first)]), db_session, admin)
     assert again["sms_queued"] == 0
-    assert len(sms) == 1
-    assert sms[0][2] == str(org.id)  # sent with the organisation's own SMS account
+    queued = await _queued_sms(db_session, org)  # in the organisation's own SMS queue, once
+    assert len(queued) == 1 and queued[0].source == "kurban" and queued[0].related_type == "kurban_share"
+    assert "kesilmiştir" in queued[0].body and "{" not in queued[0].body
 
     # A receipt whose kurban was slaughtered cannot be cancelled
     slaughtered_share = (await db_session.execute(select(KurbanShare).where(KurbanShare.animal_id == first))).scalars().first()
