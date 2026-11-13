@@ -551,6 +551,20 @@ def sync_bank_accounts_task():
     return asyncio.run(_sync_bank_accounts())
 
 
+async def _collect_sms_reports():
+    from app.services.sms_service import collect_reports
+    async with AsyncSessionLocal() as session:
+        totals = await collect_reports(session)
+        await session.commit()
+        return totals
+
+
+@celery_app.task(name="app.tasks.collect_sms_reports_task", ignore_result=True)
+def collect_sms_reports_task():
+    """Every two minutes: delivery reports of recently sent SMS."""
+    return asyncio.run(_collect_sms_reports())
+
+
 async def _send_sms_reminders():
     from app.services.sms_reminders import send_due_reminders
     async with AsyncSessionLocal() as session:
@@ -566,6 +580,10 @@ def send_sms_reminders_task():
 
 
 celery_app.conf.beat_schedule = {
+    "collect-sms-reports": {
+        "task": "app.tasks.collect_sms_reports_task",
+        "schedule": 120.0,
+    },
     "sms-reminders-every-morning": {
         "task": "app.tasks.send_sms_reminders_task",
         "schedule": crontab(hour=7, minute=0),  # 10:00 in Türkiye (Celery runs on UTC)

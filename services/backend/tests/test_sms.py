@@ -398,3 +398,74 @@ async def test_due_reminders_go_once_and_only_when_switched_on(db_session):
 def select_org(org_id):
     from sqlalchemy import select
     return select(SmsMessage).where(SmsMessage.organization_id == org_id)
+
+
+# --- Delivery reports and balance ----------------------------------------------------
+
+class _Resp:
+    def __init__(self, status_code=200, text="", data=None):
+        self.status_code, self.text, self._data = status_code, text, data
+
+    def json(self):
+        if self._data is None:
+            raise ValueError
+        return self._data
+
+
+def test_providers_read_reports_and_balance(monkeypatch):
+    import app.sms as sms
+
+    seen = []
+
+    def fake(method, url, **kwargs):
+        seen.append((method, url, kwargs))
+        if url.endswith("/sms/rest/v2/report"):
+            return _Resp(data={"code": "00", "jobs": [
+                {"jobid": "11", "status": 1}, {"jobid": "12", "status": 0}, {"jobid": "13", "status": 3}]})
+        if url.endswith("netgsm.com.tr/balance"):
+            return _Resp(data={"code": "00", "balance": "1.092,150"})
+        if "verimor" in url and "status" in url:
+            return _Resp(data=[{"status": "NOT_ALLOWED_BY_IYS"}])
+        if "verimor" in url:
+            return _Resp(text="123")
+        if "get-report" in url:
+            return _Resp(data={"response": {"order": {"id": "5", "status": "114", "delivered": 1, "undelivered": 0}}})
+        return _Resp(data={"response": {"balance": {"amount": 12.5, "sms": 250}}})
+
+    monkeypatch.setattr(sms.requests, "request", fake)
+    netgsm = sms.NetgsmProvider({"username": "850", "password": "p"})
+    assert netgsm.reports(["11", "12", "13"]) == {
+        "11": ("delivered", None), "13": ("failed", "İletilemedi: hatalı veya kısıtlı numara")}
+    assert seen[-1][2]["json"]["jobids"] == ["11", "12", "13"] and seen[-1][2]["auth"] == ("850", "p")
+    assert netgsm.balance() == {"text": "1.092,150 TL", "amount": 1092.15, "unit": "TL"}
+    assert seen[-1][2]["json"] == {"usercode": "850", "password": "p", "stip": 2}  # balance takes credentials in the body
+    verimor = sms.VerimorProvider({"username": "u", "password": "p"})
+    assert verimor.reports(["7"]) == {"7": ("failed", "İletilemedi: NOT_ALLOWED_BY_IYS")}
+    assert verimor.balance()["amount"] == 123
+    ileti = sms.IletiMerkeziProvider({"api_key": "k", "api_hash": "h", "sender": "X"})
+    assert ileti.reports(["5"]) == {"5": ("delivered", None)} and ileti.balance()["amount"] == 12.5
+
+
+async def test_reports_mark_messages_delivered_or_failed(db_session, provider, monkeypatch):
+    import app.sms as sms
+
+    org, _admin, _campaign, donor = await _setup(db_session)
+    first = await enqueue_sms(db_session, org.id, donor.phone, "Bir")
+    second = await enqueue_sms(db_session, org.id, donor.phone, "İki")
+    fresh = await enqueue_sms(db_session, org.id, donor.phone, "Üç")
+    for message in (first, second, fresh):
+        await process_in(db_session, message.id)
+    for message in (first, second):
+        message.sent_at = datetime.now(timezone.utc) - timedelta(minutes=10)
+    asked = []
+
+    def reports(self, references):
+        asked.append(list(references))
+        return {first.provider_ref: ("delivered", None), second.provider_ref: ("failed", "İletilemedi: zaman aşımı")}
+
+    monkeypatch.setattr(sms.NetgsmProvider, "reports", reports)
+    await sms_service.collect_reports(db_session)
+    mine = [refs for refs in asked if first.provider_ref in refs]
+    assert len(mine) == 1 and fresh.provider_ref not in mine[0]  # just-sent messages are not asked about yet
+    assert first.status == "delivered" and first.delivered_at is not None
+    assert second.status == "failed" and "zaman aşımı" in second.error and fresh.status == "sent"

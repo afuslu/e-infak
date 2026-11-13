@@ -7,6 +7,7 @@ import { adminGet, adminSend, apiErrorMessage, exportCsv, hasPermission, useAdmi
 import { Notice, ghostButton, inputClass } from '../../../../components/admin/FormKit'
 import { SOURCE_LABEL, STATUS_CLASS, STATUS_LABEL, SmsMessage, SmsStatus } from '../../../../lib/sms'
 
+interface Account { provider: string | null; own_account: boolean; balance: { text: string; amount: number | null; unit: string } | null }
 interface Listing { items: SmsMessage[]; total: number; counts: Record<SmsStatus, number>; parts_sent: number }
 
 const TABS: ['' | SmsStatus, string][] = [
@@ -27,6 +28,7 @@ export default function SmsLogPage() {
   const [page, setPage] = useState(1)
   const [data, setData] = useState<Listing | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [account, setAccount] = useState<Account | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const params = { status: status || undefined, source: source || undefined, q: q.trim() || undefined, date_from: dateFrom || undefined, date_to: dateTo || undefined }
   const latest = useRef(params)
@@ -45,6 +47,10 @@ export default function SmsLogPage() {
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, source, q, dateFrom, dateTo, page])
+
+  useEffect(() => {
+    adminGet<Account>('/sms/account').then((r) => setAccount(r.data)).catch(() => {})
+  }, [])
 
   // While something is waiting to be sent, keep the list fresh.
   const waiting = (data?.counts.queued || 0) > 0
@@ -94,6 +100,17 @@ export default function SmsLogPage() {
       </div>
 
       <Notice message={message} />
+
+      {account && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm shadow-sm">
+          <span className="text-gray-500">SMS hesabı:</span>
+          <strong className="text-gray-900">{account.own_account ? account.provider : 'Platform hesabı'}</strong>
+          {account.own_account && (
+            <span className="text-gray-500">Kalan bakiye: <strong className="text-gray-900">{account.balance?.text || 'sorgulanamadı'}</strong></span>
+          )}
+          <Link href="/admin/odeme-sms" className="ml-auto text-xs font-bold text-primary-700">Hesap ayarları</Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {([

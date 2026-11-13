@@ -594,3 +594,84 @@ async def dispatch_due(limit: int = 200) -> dict:
         outcome = await process_message(str(message_id))
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
     return outcomes
+
+
+# --- Delivery reports and balance ----------------------------------------------------
+
+REPORT_WINDOW = timedelta(hours=48)   # operators report within two days; after that "sent" stays
+REPORT_FIRST_WAIT = timedelta(minutes=2)
+
+
+async def collect_reports(db: AsyncSession) -> dict:
+    """Ask providers what happened to sent messages and mark them delivered or failed (the caller commits).
+
+    Each message is asked for again with growing pauses; providers limit report queries, so one
+    round handles a bounded number per organisation and the rest waits for the next round.
+    """
+    from app.services.tenant_credentials import sms_account
+
+    now = datetime.now(timezone.utc)
+    pending = [SmsMessage.status == "sent", SmsMessage.provider_ref.is_not(None), SmsMessage.provider.in_(PROVIDERS),
+               SmsMessage.sent_at > now - REPORT_WINDOW, SmsMessage.sent_at < now - REPORT_FIRST_WAIT]
+    org_ids = (await db.execute(select(SmsMessage.organization_id).where(*pending).distinct())).scalars().all()
+    totals = {"delivered": 0, "failed": 0, "asked": 0}
+    for org_id in org_ids:
+        account = await sms_account(db, org_id)
+        cls = PROVIDERS.get(account.get("provider") or "")
+        if not cls or account.get("disabled") or not cls(account).configured:
+            continue
+        provider = cls(account)
+        rows = (await db.execute(
+            select(SmsMessage).where(*pending, SmsMessage.organization_id == org_id, SmsMessage.provider == provider.key)
+            .order_by(SmsMessage.report_checked_at.asc().nulls_first(), SmsMessage.sent_at)
+            .limit(provider.report_chunk * provider.report_calls * 3)
+        )).scalars().all()
+        # Skip those asked recently: 5, 10, 20… minutes between questions.
+        due = [m for m in rows if not m.report_checked_at
+               or now - m.report_checked_at >= timedelta(minutes=min(5 * 2 ** max(m.report_checks - 1, 0), 240))]
+        due = due[:provider.report_chunk * provider.report_calls]
+        for start in range(0, len(due), provider.report_chunk):
+            chunk = due[start:start + provider.report_chunk]
+            try:
+                outcomes = await asyncio.to_thread(provider.reports, [m.provider_ref for m in chunk])
+            except SmsError as exc:
+                logger.warning("SMS iletim raporu alınamadı: %s", exc)
+                break
+            for message in chunk:
+                message.report_checked_at, message.report_checks = now, (message.report_checks or 0) + 1
+                outcome = outcomes.get(message.provider_ref)
+                if not outcome:
+                    continue
+                message.status = outcome[0]
+                if outcome[0] == "delivered":
+                    message.delivered_at = now
+                else:
+                    message.error = outcome[1]
+                totals[outcome[0]] += 1
+            totals["asked"] += len(chunk)
+    return totals
+
+
+_balance_cache: dict = {}
+
+
+async def provider_balance(db: AsyncSession, org_id: UUID) -> dict:
+    """The organisation's own SMS account and its remaining credit (asked at most once a minute)."""
+    from app.services.tenant_credentials import sms_account
+
+    account = await sms_account(db, org_id)
+    cls = PROVIDERS.get(account.get("provider") or "")
+    info = {"provider": cls.label if cls else None, "own_account": False, "balance": None}
+    if not cls or account.get("disabled") or account.get("platform") or not cls(account).configured:
+        return info  # the platform account's credit is not the organisation's to see
+    info["own_account"] = True
+    cached = _balance_cache.get(org_id)
+    if cached and cached[0] > datetime.now(timezone.utc):
+        info["balance"] = cached[1]
+        return info
+    try:
+        info["balance"] = await asyncio.to_thread(cls(account).balance)
+    except SmsError:
+        info["balance"] = None
+    _balance_cache[org_id] = (datetime.now(timezone.utc) + timedelta(seconds=60), info["balance"])
+    return info

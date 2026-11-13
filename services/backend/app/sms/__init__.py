@@ -53,6 +53,20 @@ class SmsProvider:
         """`commercial`: a promotional message to a consumer, checked against İYS by the provider."""
         raise NotImplementedError
 
+    # How many references one reports() call may carry, and how many calls a polling round may make
+    # (providers limit report queries per minute).
+    report_chunk = 1
+    report_calls = 5
+
+    def reports(self, references: list[str]) -> dict[str, tuple[str, Optional[str]]]:
+        """Delivery outcome per reference: ("delivered", None) or ("failed", reason).
+        References still on their way (or unknown to the provider) are left out."""
+        return {}
+
+    def balance(self) -> Optional[dict]:
+        """{"text": "92,15 TL", "amount": 92.15, "unit": "TL" | "SMS"} or None when not available."""
+        return None
+
     def _http(self, method: str, url: str, **kwargs) -> requests.Response:
         try:
             return requests.request(method, url, timeout=15, **kwargs)
@@ -70,6 +84,21 @@ NETGSM_ERRORS = {
     "80": "gönderim sınırı aşıldı",
     "85": "aynı numaraya 1 dakikada çok fazla gönderim",
 }
+
+
+# REST v2 report row status (official SDK, SmsStatus). 0 = still pending, 1 = delivered.
+NETGSM_REPORT_FAILURES = {
+    2: "zaman aşımı (telefon kapalı veya kapsama dışı)", 3: "hatalı veya kısıtlı numara",
+    4: "operatöre gönderilemedi", 11: "operatör kabul etmedi", 12: "gönderim hatası", 13: "mükerrer gönderim",
+    14: "yetersiz bakiye", 15: "numara kara listede", 16: "İYS izni yok", 17: "İYS hatası",
+}
+
+
+def _decimal(value) -> Optional[float]:
+    try:
+        return float(str(value).replace(".", "").replace(",", ".")) if "," in str(value) else float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 class NetgsmProvider(SmsProvider):
@@ -109,6 +138,46 @@ class NetgsmProvider(SmsProvider):
             raise SmsError(f"NetGSM gönderimi reddetti (kod {code or '-'}: {reason})")
         return SmsResult(self.key, str(data.get("jobid") or "") or None)
 
+    report_chunk = 50
+    report_calls = 4  # NetGSM allows 10 report queries a minute
+
+    def reports(self, references: list[str]) -> dict[str, tuple[str, Optional[str]]]:
+        response = self._http(
+            "POST", "https://api.netgsm.com.tr/sms/rest/v2/report",
+            auth=(self.credentials["username"], self.credentials["password"]),
+            json={"jobids": references, "appname": "e-infak"},
+        )
+        try:
+            data = response.json() or {}
+        except ValueError:
+            return {}
+        out: dict[str, tuple[str, Optional[str]]] = {}
+        for job in data.get("jobs") or []:
+            try:
+                status = int(job.get("status"))
+            except (TypeError, ValueError):
+                continue
+            reference = str(job.get("jobid") or "")
+            if status == 1:
+                out[reference] = ("delivered", None)
+            elif status in NETGSM_REPORT_FAILURES:
+                out[reference] = ("failed", f"İletilemedi: {NETGSM_REPORT_FAILURES[status]}")
+        return out
+
+    def balance(self) -> Optional[dict]:
+        response = self._http("POST", "https://api.netgsm.com.tr/balance", json={
+            "usercode": self.credentials["username"], "password": self.credentials["password"], "stip": 2,
+        })
+        try:
+            data = response.json() or {}
+        except ValueError:
+            return None
+        if str(data.get("code")) != "00" or isinstance(data.get("balance"), (list, type(None))):
+            return None
+        raw = str(data["balance"]).strip()
+        unit = "SMS" if "sms" in str(data.get("type") or "").lower() else "TL"
+        return {"text": f"{raw} {unit}", "amount": _decimal(raw), "unit": unit}
+
 
 class VerimorProvider(SmsProvider):
     """https://github.com/verimor/SMS-API/blob/master/user_guide.md — the sending
@@ -133,6 +202,31 @@ class VerimorProvider(SmsProvider):
         if response.status_code != 200:
             raise SmsError(f"Verimor gönderimi reddetti ({body[:80] or response.status_code})")
         return SmsResult(self.key, body[:64] or None)
+
+    VERIMOR_PENDING = {"SENDING", "WAITING", "SENT"}
+    report_calls = 8  # Verimor allows 20 status queries a minute
+
+    def reports(self, references: list[str]) -> dict[str, tuple[str, Optional[str]]]:
+        out: dict[str, tuple[str, Optional[str]]] = {}
+        for reference in references:
+            response = self._http("GET", "https://sms.verimor.com.tr/v2/status", params={
+                "username": self.credentials["username"], "password": self.credentials["password"], "id": reference})
+            try:
+                rows = response.json() if response.status_code == 200 else []
+            except ValueError:
+                rows = []
+            status = str(rows[0].get("status") or "") if rows and isinstance(rows, list) else ""
+            if status == "DELIVERED":
+                out[reference] = ("delivered", None)
+            elif status and status not in self.VERIMOR_PENDING:
+                out[reference] = ("failed", f"İletilemedi: {status}")
+        return out
+
+    def balance(self) -> Optional[dict]:
+        response = self._http("GET", "https://sms.verimor.com.tr/v2/balance", params={
+            "username": self.credentials["username"], "password": self.credentials["password"]})
+        amount = _decimal(response.text.strip()) if response.status_code == 200 else None
+        return None if amount is None else {"text": f"{amount:g} kredi", "amount": amount, "unit": "SMS"}
 
 
 class IletiMerkeziProvider(SmsProvider):
@@ -159,6 +253,34 @@ class IletiMerkeziProvider(SmsProvider):
         if status.get("code") != 200:
             raise SmsError(f"İleti Merkezi gönderimi reddetti ({status.get('code')}: {status.get('message')})")
         return SmsResult(self.key, str((data.get("order") or {}).get("id") or "") or None)
+
+    report_calls = 10
+
+    def _call(self, path: str, body: dict) -> dict:
+        response = self._http("POST", f"https://api.iletimerkezi.com/v1/{path}/json", json={"request": {
+            "authentication": {"key": self.credentials["api_key"], "hash": self.credentials["api_hash"]}, **body}})
+        try:
+            return response.json().get("response", {}) or {}
+        except ValueError:
+            return {}
+
+    def reports(self, references: list[str]) -> dict[str, tuple[str, Optional[str]]]:
+        out: dict[str, tuple[str, Optional[str]]] = {}
+        for reference in references:
+            order = self._call("get-report", {"order": {"id": reference}}).get("order") or {}
+            # One number per order: the order's own counters tell the outcome.
+            if int(order.get("delivered") or 0) > 0:
+                out[reference] = ("delivered", None)
+            elif int(order.get("undelivered") or 0) > 0 or str(order.get("status")) == "115":
+                out[reference] = ("failed", "İletilemedi")
+        return out
+
+    def balance(self) -> Optional[dict]:
+        data = self._call("get-balance", {}).get("balance") or {}
+        if data.get("sms") is None and data.get("amount") is None:
+            return None
+        return {"text": f"{data.get('amount')} TL (yaklaşık {data.get('sms')} SMS)", "amount": _decimal(data.get("amount")),
+                "unit": "TL"}
 
 
 PROVIDERS: dict[str, type[SmsProvider]] = {

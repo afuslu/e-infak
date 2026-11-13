@@ -25,7 +25,7 @@ from app.models.user import User
 from app.services.sms_audience import Audience, audience_label, audience_options, resolve
 from app.services.sms_service import (
     AUTO_MODES, MAX_PARTS, SMS_EVENTS, SMS_VARIABLES, after_quiet_hours, build_context, cancel_batch, clean_sms_text,
-    create_batch, enqueue_sms, render_bulk,
+    create_batch, enqueue_sms, provider_balance, render_bulk,
     ensure_default_templates, kick_after_commit, related_sms, render_template, segment_info, unknown_variables,
 )
 from app.sms import SmsError
@@ -370,6 +370,12 @@ async def list_messages(
             .where(*scope, SmsMessage.status.in_(("sent", "delivered")))
         )).scalar(),
     }
+
+
+@router.get("/account")
+async def sms_account_info(request: Request, db: AsyncSession = Depends(get_db)):
+    """Which SMS account the organisation sends with and how much credit is left."""
+    return await provider_balance(db, _org_id(request))
 
 
 @router.get("/related")

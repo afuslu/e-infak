@@ -14,6 +14,7 @@ from app.models.automation import BankAccount
 from app.models.kurban import KurbanShare
 from app.models.membership import Member
 from app.models.organization import Organization, OrganizationDomain
+from app.models.sms_message import SmsMessage
 from app.models.subscription import Subscription
 from app.models.user import User, UserRole
 from app.payments import build_provider
@@ -64,8 +65,25 @@ async def collect(db: AsyncSession, org_id: Optional[UUID] = None) -> list[dict]
     for row in (await db.execute(select(OrganizationDomain).where(OrganizationDomain.status != "active"))).scalars():
         pending.setdefault(row.organization_id, []).append(row)
 
+    now = datetime.now(timezone.utc)
+    sms_stuck = await _counts(db, SmsMessage, SmsMessage.status == "queued",
+                              SmsMessage.send_after < now - timedelta(minutes=15))
+    sms_recent = await _counts(db, SmsMessage, SmsMessage.created_at > now - timedelta(days=7),
+                               SmsMessage.status.in_(("sent", "delivered", "failed")))
+    sms_failed = await _counts(db, SmsMessage, SmsMessage.created_at > now - timedelta(days=7),
+                               SmsMessage.status == "failed")
+
     alerts: list[dict] = []
     for org in orgs:
+        if sms_stuck.get(org.id):
+            alerts.append(_alert(org, DANGER, "sms_stuck", f"{sms_stuck[org.id]} SMS 15 dakikadır kuyrukta bekliyor",
+                                 "SMS işçisi (worker / beat) çalışmıyor olabilir."))
+        if sms_recent.get(org.id, 0) >= 10 and sms_failed.get(org.id, 0) / sms_recent[org.id] >= 0.2:
+            alerts.append(_alert(org, WARNING, "sms_failing",
+                                 f"Son 7 günde SMS'lerin {round(100 * sms_failed[org.id] / sms_recent[org.id])}%'i başarısız "
+                                 f"({sms_failed[org.id]} / {sms_recent[org.id]})",
+                                 "Kurumun SMS Gönderimleri ekranındaki hata nedenlerine bakın (başlık, bakiye, IP izni)."))
+
         if not admins.get(org.id):
             alerts.append(_alert(org, DANGER, "no_admin", "Aktif kurum yöneticisi yok",
                                  "Kullanıcılar bölümünden bir hesabı Dernek Yöneticisi yapın."))

@@ -45,6 +45,8 @@ class SmsMessage(Base):
     send_after = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     sent_at = Column(DateTime(timezone=True))
     delivered_at = Column(DateTime(timezone=True))
+    report_checked_at = Column(DateTime(timezone=True))
+    report_checks = Column(Integer, nullable=False, default=0, server_default="0")
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
