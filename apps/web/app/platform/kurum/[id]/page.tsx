@@ -229,6 +229,7 @@ export default function PlatformOrganizationPage() {
                 </div>
               </li>
             ))}
+          </ul>
         </Card>
 
         <Card title="Paket">
