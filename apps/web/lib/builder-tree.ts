@@ -135,6 +135,10 @@ export function checklist(blocks: Block[]): string[] {
     if ((b.type === 'image' || b.type === 'image_text') && b.props.image_url && !b.props.alt) issues.push('Bir görselde “alternatif metin” eksik (görme engelliler ve arama motorları için).')
     if (b.type === 'slider' && !(b.props.slides || []).length) issues.push('Slider’da hiç slayt yok.')
     if (b.type === 'slider' && (b.props.slides || []).some((s: any) => !s.image_url)) issues.push('Slider’da görseli olmayan slayt var.')
+    if (b.type === 'carousel' && !(b.props.items || []).length) issues.push('Carousel’de hiç kart yok.')
+    if (b.type === 'image_gallery' && !(b.props.items || []).some((i: any) => i.image_url)) issues.push('Görsel galerisinde hiç görsel yok.')
+    if (b.type === 'countdown' && !b.props.target) issues.push('Geri sayım bloğunda hedef tarih seçilmemiş.')
+    if (b.type === 'video' && !b.props.url) issues.push('Video bloğunda video bağlantısı eksik.')
     if (b.type === 'campaign_card' && !b.props.campaign_id) issues.push('“Tek kampanya” bloğunda kampanya seçilmemiş.')
     if (b.type === 'buttons' && (b.props.items || []).some((i: any) => i.label && !i.url)) issues.push('Bağlantısı olmayan buton var.')
     const st = b.style?.desktop

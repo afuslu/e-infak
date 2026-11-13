@@ -38,19 +38,38 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
   onApplyDemo: (demo: LibraryDemo, options: DemoOptions) => Promise<void>
 }) {
   const [tab, setTab] = useState<Tab>('sections')
+  const [query, setQuery] = useState('')
+  const [groupFilter, setGroupFilter] = useState<string>('Tümü')
   const [demo, setDemo] = useState<LibraryDemo | null>(null)
   const [options, setOptions] = useState<DemoOptions>({ apply_theme: true, include_pages: true, publish: false })
   const [busy, setBusy] = useState(false)
   const chrome = kind === 'header' || kind === 'footer'
 
-  const groups = useMemo(() => {
-    const out: Record<string, LibrarySection[]> = {}
+  const allGroups = useMemo(() => {
+    const set = new Set<string>()
     for (const s of library?.sections || []) {
       if (chrome ? s.kind !== kind : s.kind !== 'content') continue
+      set.add(s.group)
+    }
+    return ['Tümü', ...Array.from(set)]
+  }, [library, kind, chrome])
+
+  const groups = useMemo(() => {
+    const out: Record<string, LibrarySection[]> = {}
+    const q = query.trim().toLocaleLowerCase('tr')
+    for (const s of library?.sections || []) {
+      if (chrome ? s.kind !== kind : s.kind !== 'content') continue
+      if (groupFilter !== 'Tümü' && s.group !== groupFilter) continue
+      if (q && !`${s.label} ${s.description} ${s.group}`.toLocaleLowerCase('tr').includes(q)) continue
       ;(out[s.group] ||= []).push(s)
     }
     return Object.entries(out)
-  }, [library, kind, chrome])
+  }, [library, kind, chrome, query, groupFilter])
+
+  const filteredPages = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('tr')
+    return (library?.pages || []).filter((p) => !q || `${p.label} ${p.description}`.toLocaleLowerCase('tr').includes(q))
+  }, [library, query])
 
   if (!library) return <p className="text-[12px] text-gray-400">Şablonlar yükleniyor…</p>
 
@@ -65,12 +84,26 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
 
       {tab === 'sections' && (
         <>
+          <input className="w-full rounded-md border px-2 py-1.5 text-[12px]" placeholder="Şablon ara (slider, carousel, bağış…)" value={query} onChange={(e) => setQuery(e.target.value)} />
+          {!chrome && allGroups.length > 2 && (
+            <div className="flex flex-wrap gap-1">
+              {allGroups.map((g) => (
+                <button key={g} type="button" onClick={() => setGroupFilter(g)}
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${groupFilter === g ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
           <p className="text-[11px] text-gray-400">
             {chrome ? 'Seçtiğiniz düzen mevcut olanın yerine geçer (yayınlayana kadar taslaktır).' : 'Bölüm, seçili bloğun altına; seçim yoksa sayfanın sonuna eklenir.'}
           </p>
+          {groups.length === 0 && <p className="py-4 text-center text-[12px] text-gray-400">Eşleşen şablon bulunamadı.</p>}
           {groups.map(([group, items]) => (
             <div key={group}>
-              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">{group}</div>
+              <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-gray-400">
+                <span>{group}</span><span className="font-normal">{items.length}</span>
+              </div>
               <div className="space-y-1.5">
                 {items.map((s) => (
                   <button key={s.key} type="button" onClick={() => (chrome ? onReplace(s.blocks, s.label) : onInsert(s.blocks))}
@@ -88,8 +121,9 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
 
       {tab === 'pages' && (
         <>
+          <input className="w-full rounded-md border px-2 py-1.5 text-[12px]" placeholder="Sayfa şablonu ara…" value={query} onChange={(e) => setQuery(e.target.value)} />
           <p className="text-[11px] text-gray-400">Şablon bu sayfanın içeriğinin yerine geçer. Geri almak için Ctrl+Z.</p>
-          {library.pages.map((p) => (
+          {filteredPages.map((p) => (
             <button key={p.key} type="button" onClick={() => onReplace(p.blocks, p.label)}
               className="block w-full rounded-lg border bg-white p-2.5 text-start hover:border-blue-500 hover:bg-blue-50">
               <span className="block text-[12px] font-bold text-gray-800">📄 {p.label}</span>

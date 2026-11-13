@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import type { Block } from '../../lib/blocks'
-import { CountUp } from '../site/Carousel'
+import { Carousel, CountUp } from '../site/Carousel'
 import { BlockText } from './BlockText'
 import { CopyButton, Countdown, GalleryGrid, Popup, TabsView } from './ExtraClient'
 
@@ -51,11 +51,92 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
   const items: Record<string, any>[] = Array.isArray(o.items) ? o.items : []
 
   switch (block.type) {
+    case 'carousel': {
+      const cards = items.filter((i) => i.title || i.image_url || i.text)
+      if (!cards.length) return <Empty editing={editing} text="Carousel’e kart ekleyin" />
+      const colsMap: Record<number, string> = {
+        1: 'w-full',
+        2: 'w-[88%] sm:w-[48%]',
+        3: 'w-[85%] sm:w-[46%] lg:w-[31.5%]',
+        4: 'w-[78%] sm:w-[46%] lg:w-[23.5%]',
+        5: 'w-[72%] sm:w-[32%] lg:w-[18.5%]',
+      }
+      const itemWidth = colsMap[o.columns ?? 3] || colsMap[3]
+      const aspect = o.aspect || '4/3'
+      const look = o.look || 'card'
+      return (
+        <div className={container}>
+          <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
+          <Carousel
+            label={o.title || 'Carousel'}
+            items={itemWidth}
+            autoplay={o.autoplay !== false}
+            interval={o.interval ?? 5}
+            dots={o.dots !== false}
+            arrowPos={o.arrows === false ? 'bottom' : (o.arrow_pos || 'sides')}
+            editing={editing}
+          >
+            {cards.map((item, i) => {
+              const href = item.button_url || (item.campaign_id ? `/kampanyalar` : undefined)
+              if (look === 'overlay') {
+                return (
+                  <div key={i} className="group relative overflow-hidden rounded-2xl bg-gray-900 text-white shadow-md" style={{ aspectRatio: aspect }}>
+                    {item.image_url && <img src={item.image_url} alt={item.title || ''} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+                    <div className="relative flex h-full flex-col justify-end p-5">
+                      {item.badge && <span className="mb-2 w-fit rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider backdrop-blur-sm">{item.badge}</span>}
+                      {item.title && <h3 className="font-heading text-xl font-bold leading-snug">{item.title}</h3>}
+                      {item.text && <p className="mt-1.5 line-clamp-2 text-sm text-white/80">{item.text}</p>}
+                      {item.button_label && href && (
+                        <Go href={href} className="mt-3 inline-flex w-fit rounded-lg bg-white px-4 py-2 text-xs font-bold text-gray-900 hover:bg-primary-50">{item.button_label}</Go>
+                      )}
+                    </div>
+                  </div>
+                )
+              }
+              if (look === 'pill') {
+                return (
+                  <div key={i} className="flex h-full items-center gap-4 rounded-2xl border bg-white p-3.5 text-gray-900 shadow-sm transition hover:shadow-md">
+                    {item.image_url && <img src={item.image_url} alt={item.title || ''} className="h-24 w-24 flex-none rounded-xl object-cover" loading="lazy" />}
+                    <div className="min-w-0 flex-1">
+                      {item.badge && <span className="text-[10px] font-bold uppercase tracking-wider text-primary-600">{item.badge}</span>}
+                      {item.title && <h3 className="truncate font-heading text-base font-bold">{item.title}</h3>}
+                      {item.text && <p className="mt-1 line-clamp-2 text-xs text-gray-600">{item.text}</p>}
+                      {item.button_label && href && <Go href={href} className="mt-2 inline-block text-xs font-bold text-primary-700 hover:underline">{item.button_label} →</Go>}
+                    </div>
+                  </div>
+                )
+              }
+              return (
+                <div key={i} className={`flex h-full flex-col overflow-hidden ${look === 'minimal' ? '' : look === 'featured' ? 'rounded-3xl border bg-white shadow-md' : 'rounded-2xl border bg-white shadow-sm transition hover:shadow-lg'} text-gray-900`}>
+                  {item.image_url && (
+                    <div className={`overflow-hidden bg-gray-100 ${look === 'minimal' ? 'rounded-2xl' : ''}`} style={{ aspectRatio: aspect }}>
+                      <img src={item.image_url} alt={item.title || ''} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" loading="lazy" />
+                    </div>
+                  )}
+                  <div className={`flex flex-1 flex-col ${look === 'minimal' ? 'pt-3' : look === 'featured' ? 'p-6' : 'p-5'}`}>
+                    {item.badge && <span className="mb-2 w-fit rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary-700">{item.badge}</span>}
+                    {item.title && <h3 className={`font-heading font-bold ${look === 'featured' ? 'text-2xl' : 'text-lg'}`}>{item.title}</h3>}
+                    {item.text && <p className="mt-2 flex-1 text-sm leading-relaxed text-gray-600">{item.text}</p>}
+                    {item.button_label && href && (
+                      <div className="mt-4">
+                        <Go href={href} className="inline-flex rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700">{item.button_label}</Go>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </Carousel>
+        </div>
+      )
+    }
     case 'features': {
       const look = o.look || 'card'
-      const left = look === 'icon_left'
+      const numbered = look === 'numbered'
+      const left = look === 'icon_left' || numbered
       const center = o.align !== 'left' && !left
-      const box = { card: 'rounded-2xl bg-white p-7 text-gray-900 shadow-sm transition-all hover:shadow-lg', bordered: 'rounded-2xl border p-7', plain: 'p-2', icon_left: 'flex gap-4 p-2' }[look as string] || ''
+      const box = { card: 'rounded-2xl bg-white p-7 text-gray-900 shadow-sm transition-all hover:shadow-lg', bordered: 'rounded-2xl border p-7', plain: 'p-2', icon_left: 'flex gap-4 p-2', numbered: 'flex gap-4 rounded-2xl border bg-white p-6 text-gray-900 shadow-sm' }[look as string] || ''
       return (
         <div className={container}>
           <Head o={o} center={o.align !== 'left'} />
@@ -67,7 +148,11 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                 : ''
               return (
                 <Go key={i} href={item.url} className={`${box} ${cardTheme} ${center ? 'text-center' : ''} ${item.url ? 'block hover:-translate-y-0.5 transition-transform' : ''}`}>
-                  {(item.image_url || item.icon) && (
+                  {numbered ? (
+                    <div className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-primary-600 font-heading text-lg font-bold text-white">
+                      {String(i + 1).padStart(2, '0')}
+                    </div>
+                  ) : (item.image_url || item.icon) && (
                     <div className={`${left ? 'flex-none' : `mb-4 ${center ? 'mx-auto' : ''}`} flex h-14 w-14 items-center justify-center rounded-2xl text-2xl ${
                       isRed ? 'bg-[#E30A17] text-white shadow-sm shadow-red-600/30' : 'bg-primary-50 text-primary-700'
                     }`}>
@@ -136,13 +221,26 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         </div></div>
       )
-    case 'team':
+    case 'team': {
+      const look = o.look || 'plain'
       return (
         <div className={container}>
           <Head o={o} />
-          <div className={`grid grid-cols-2 gap-8 ${COLS[o.columns ?? 4] || COLS[4]}`}>
-            {items.filter((i) => i.name).map((item, i) => (
-              <div key={i} className="text-center">
+          <div className={`grid grid-cols-2 gap-6 sm:gap-8 ${look === 'compact' ? 'lg:grid-cols-3' : COLS[o.columns ?? 4] || COLS[4]}`}>
+            {items.filter((i) => i.name).map((item, i) => look === 'compact' ? (
+              <div key={i} className="flex items-center gap-4 rounded-2xl border bg-white p-4 text-gray-900 shadow-sm">
+                <div className={`h-16 w-16 flex-none overflow-hidden bg-primary-50 ${o.shape === 'square' ? 'rounded-xl' : 'rounded-full'}`}>
+                  {item.image_url
+                    ? <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" />
+                    : <div className="flex h-full items-center justify-center font-heading text-2xl font-bold text-primary-300">{String(item.name).trim().charAt(0)}</div>}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate font-heading text-base font-bold">{item.name}</div>
+                  {item.role && <div className="text-xs font-semibold text-primary-600">{item.role}</div>}
+                </div>
+              </div>
+            ) : (
+              <div key={i} className={`text-center ${look === 'card' ? 'rounded-2xl bg-white p-6 text-gray-900 shadow-sm' : ''}`}>
                 <div className={`mx-auto mb-4 aspect-square w-full max-w-[180px] overflow-hidden bg-primary-50 ${o.shape === 'square' ? 'rounded-2xl' : 'rounded-full'}`}>
                   {item.image_url
                     ? <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" loading="lazy" />
@@ -156,6 +254,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         </div>
       )
+    }
     case 'logos': {
       const logos = items.filter((i) => i.image_url || i.name)
       if (!logos.length) return <Empty editing={editing} text="Logo ekleyin" />
@@ -177,6 +276,19 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       )
     }
     case 'countdown':
+      if (o.look === 'minimal') {
+        return (
+          <div className={`${BAND[o.tone] || BAND.brand} py-5`}>
+            <div className={`${container} flex flex-wrap items-center justify-between gap-4`}>
+              <div className="font-heading text-lg font-bold">{o.title || o.kicker}</div>
+              {o.target ? <Countdown target={o.target} labels={words.time} done={o.done_text} look="minimal" /> : <Empty editing={editing} text="Hedef tarihi seçin" />}
+              {o.button_label && o.button_url && (
+                <Go href={o.button_url} className="inline-flex rounded-lg bg-white px-5 py-2 text-sm font-bold text-gray-900 hover:bg-gray-100">{o.button_label}</Go>
+              )}
+            </div>
+          </div>
+        )
+      }
       return (
         <div className={`${BAND[o.tone] || BAND.brand} flex flex-col justify-center py-14`}>
           <div className={`${container} flex w-full flex-col items-center gap-6 text-center`}>
@@ -185,29 +297,45 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
               {o.title && <h2 className="font-heading text-3xl font-bold md:text-4xl">{o.title}</h2>}
               {o.text && <p className="mx-auto mt-3 max-w-2xl opacity-85">{o.text}</p>}
             </div>
-            {o.target ? <Countdown target={o.target} labels={words.time} done={o.done_text} /> : <Empty editing={editing} text="Hedef tarihi seçin" />}
+            {o.target ? <Countdown target={o.target} labels={words.time} done={o.done_text} look={o.look} /> : <Empty editing={editing} text="Hedef tarihi seçin" />}
             {o.button_label && o.button_url && (
               <Go href={o.button_url} className="inline-flex rounded-lg bg-white px-7 py-3 font-bold text-gray-900 transition-colors hover:bg-gray-100">{o.button_label}</Go>
             )}
           </div>
         </div>
       )
-    case 'timeline':
+    case 'timeline': {
+      const look = o.look || 'vertical'
       return (
-        <div className={container}><div className="mx-auto max-w-3xl">
+        <div className={container}><div className={look === 'horizontal' ? '' : 'mx-auto max-w-3xl'}>
           <Head o={o} />
-          <ol className="relative ms-3 border-s-2 border-primary-200">
-            {items.filter((i) => i.title).map((item, i) => (
-              <li key={i} className="relative pb-9 ps-8 last:pb-0">
-                <span className="absolute -start-[9px] top-1.5 h-4 w-4 rounded-full border-4 border-white bg-primary-600 shadow" aria-hidden />
-                {item.date && <div className="text-[13px] font-bold uppercase tracking-wider text-primary-600">{item.date}</div>}
-                <h3 className="font-heading text-xl font-bold">{item.title}</h3>
-                {item.text && <p className="mt-1.5 leading-relaxed opacity-75">{item.text}</p>}
-              </li>
-            ))}
-          </ol>
+          {look === 'horizontal' ? (
+            <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-5">
+              {items.filter((i) => i.title).map((item, i) => (
+                <div key={i} className="relative rounded-2xl border bg-white p-5 text-gray-900 shadow-sm">
+                  {item.date && <div className="mb-2 inline-block rounded-full bg-primary-50 px-3 py-1 text-xs font-bold text-primary-700">{item.date}</div>}
+                  <h3 className="font-heading text-lg font-bold">{item.title}</h3>
+                  {item.text && <p className="mt-1.5 text-sm leading-relaxed text-gray-600">{item.text}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ol className="relative ms-3 border-s-2 border-primary-200">
+              {items.filter((i) => i.title).map((item, i) => (
+                <li key={i} className="relative pb-9 ps-8 last:pb-0">
+                  <span className="absolute -start-[9px] top-1.5 h-4 w-4 rounded-full border-4 border-white bg-primary-600 shadow" aria-hidden />
+                  <div className={look === 'cards' ? 'rounded-2xl border bg-white p-5 text-gray-900 shadow-sm' : ''}>
+                    {item.date && <div className="text-[13px] font-bold uppercase tracking-wider text-primary-600">{item.date}</div>}
+                    <h3 className="font-heading text-xl font-bold">{item.title}</h3>
+                    {item.text && <p className="mt-1.5 leading-relaxed opacity-75">{item.text}</p>}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
         </div></div>
       )
+    }
     case 'tabs': {
       const tabs = items.filter((i) => i.label)
       if (!tabs.length) return <Empty editing={editing} text="Sekme ekleyin" />
@@ -255,6 +383,17 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </blockquote>
         )
       }
+      if (o.look === 'dark_band') {
+        return (
+          <blockquote className="bg-primary-950 py-14 text-center text-white">
+            <div className={`${container} mx-auto max-w-3xl`}>
+              <div aria-hidden className="font-heading text-6xl leading-none text-accent-400">“</div>
+              <p className="font-heading text-2xl leading-relaxed md:text-[30px]">{o.text}</p>
+              {o.source && <footer className="mt-5 text-sm font-bold uppercase tracking-[2px] text-accent-300">{o.source}</footer>}
+            </div>
+          </blockquote>
+        )
+      }
       return (
         <blockquote className={`${container} text-center`}>
           <div className={`mx-auto max-w-3xl ${o.look === 'card' ? 'rounded-3xl bg-white p-10 text-gray-900 shadow-sm' : ''}`}>
@@ -270,9 +409,26 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       return (
         <div className={container}>
           <Head o={o} />
-          {images.length
-            ? <GalleryGrid items={images} columns={o.columns ?? 4} aspect={o.aspect || '1/1'} gap={o.gap ?? 12} lightbox={o.lightbox !== false && !editing} />
-            : <Empty editing={editing} text="Galeriye görsel ekleyin" />}
+          {!images.length ? <Empty editing={editing} text="Galeriye görsel ekleyin" />
+            : o.layout === 'carousel' ? (
+              <Carousel
+                label={o.title || 'Galeri'}
+                items={o.columns === 2 ? 'w-[88%] sm:w-[48%]' : o.columns === 3 ? 'w-[85%] sm:w-[46%] lg:w-[31.5%]' : 'w-[78%] sm:w-[46%] lg:w-[23.5%]'}
+                autoplay={o.autoplay !== false}
+                dots
+                arrowPos="sides"
+                editing={editing}
+              >
+                {images.map((item, i) => (
+                  <figure key={i} className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                    <div className="overflow-hidden bg-gray-100" style={{ aspectRatio: o.aspect && o.aspect !== 'masonry' ? o.aspect : '4/3' }}>
+                      <img src={item.image_url} alt={item.caption || ''} className="h-full w-full object-cover" loading="lazy" />
+                    </div>
+                    {item.caption && <figcaption className="px-3 py-2 text-center text-xs font-medium text-gray-600">{item.caption}</figcaption>}
+                  </figure>
+                ))}
+              </Carousel>
+            ) : <GalleryGrid items={images} columns={o.columns ?? 4} aspect={o.aspect || '1/1'} gap={o.gap ?? 12} lightbox={o.lightbox !== false && !editing} />}
         </div>
       )
     }
@@ -281,8 +437,22 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       return (
         <div className={container}>
           <Head o={o} />
-          <div className="grid gap-5 md:grid-cols-2">
-            {accounts.map((item, i) => (
+          <div className={o.look === 'compact' ? 'space-y-3' : 'grid gap-5 md:grid-cols-2'}>
+            {accounts.map((item, i) => o.look === 'compact' ? (
+              <div key={i} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-white px-5 py-3.5 text-gray-900 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-bold text-primary-700">{item.currency || 'TRY'}</span>
+                  <span className="font-heading font-bold">{item.bank}</span>
+                  {item.holder && <span className="text-sm text-gray-500">· {item.holder}</span>}
+                </div>
+                {item.iban && (
+                  <div className="flex items-center gap-3">
+                    <code dir="ltr" className="select-all text-sm font-bold">{item.iban}</code>
+                    <CopyButton value={String(item.iban).replace(/\s+/g, '')} label={words.copy} copied={words.copied} />
+                  </div>
+                )}
+              </div>
+            ) : (
               <div key={i} className="rounded-2xl border bg-white p-6 text-gray-900 shadow-sm">
                 <div className="mb-4 flex items-center gap-3">
                   {item.logo_url

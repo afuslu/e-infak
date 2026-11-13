@@ -64,7 +64,7 @@ BLOCKS: dict[str, dict] = {
     "hero": {
         "label": "Kapak", "group": "Kapak & slider", "icon": "🖼️",
         "fields": {
-            "variant": F("select", "Görünüm", choices={"vuslat": "Vitrin kartı + thumbnail (Vuslat tarzı)", "klasik": "Büyük görsel + bağış formu", "kategori": "Büyük görsel + butonlar", "sade": "Sade, yan görselli"}, default="klasik"),
+            "variant": F("select", "Görünüm", choices={"vuslat": "Vitrin kartı + thumbnail (Vuslat tarzı)", "klasik": "Büyük görsel + bağış formu", "kategori": "Büyük görsel + butonlar", "sade": "Sade, yan görselli", "glass": "Cam kutulu tam görsel", "centered": "Ortalı geniş kapak"}, default="klasik"),
             "badge": F("text", "Üst etiket", max=80, translatable=True),
             "title": F("text", "Başlık", max=160, translatable=True, placeholder="Boşsa site kapak başlığı"),
             "subtitle": F("textarea", "Açıklama", max=400, translatable=True),
@@ -106,14 +106,59 @@ BLOCKS: dict[str, dict] = {
                 "align": F("select", "Metin konumu", choices=ALIGN, default="left"),
                 "overlay": F("number", "Karartma (%)", min=0, max=90, default=45),
             }),
-            "layout": F("select", "Görünüm", choices={"overlay": "Tam genişlik (yazı görsel üstünde)", "split": "Bölünmüş (açık zemin)", "card": "Vitrin kartı (Vuslat tarzı: sol metin, sağ görsel)"}, default="card"),
+            "layout": F("select", "Görünüm", choices={
+                "overlay": "Tam genişlik (yazı görsel üstünde)",
+                "split": "Bölünmüş (açık zemin)",
+                "card": "Vitrin kartı (Vuslat tarzı: sol metin, sağ görsel)",
+                "glass": "Cam kart (görsel üstünde buzlu kutu)",
+                "minimal": "Sade alt şerit (ince bilgi bandı)",
+                "stacked": "Katmanlı (üst görsel + alt bilgi kartı)",
+            }, default="card"),
             "height": F("select", "Yükseklik", choices={"sm": "Alçak", "md": "Orta", "lg": "Yüksek", "screen": "Tam ekran", "poster": "Afiş oranı (görsel kırpılmaz, 16:5)"}, default="lg"),
             "autoplay": F("bool", "Otomatik geçiş", default=True),
             "interval": F("number", "Geçiş süresi (sn)", min=2, max=20, default=6),
-            "effect": F("select", "Geçiş efekti", choices={"slide": "Kaydır", "fade": "Solarak"}, default="fade"),
+            "effect": F("select", "Geçiş efekti", choices={"slide": "Kaydır", "fade": "Solarak", "zoom": "Yakınlaşarak (Ken Burns)", "flip": "Yükselerek"}, default="fade"),
             "arrows": F("bool", "Oklar", default=True),
-            "dots": F("bool", "Noktalar / alt gezinme", default=True),
-            "nav": F("select", "Alt gezinme türü", choices={"dots": "Noktalar", "thumbs": "Küçük görseller (thumbnail)", "tabs": "Başlık sekmeleri"}, default="thumbs"),
+            "dots": F("bool", "Alt gezinme", default=True),
+            "nav": F("select", "Alt gezinme türü", choices={
+                "dots": "Noktalar",
+                "thumbs": "Küçük görseller (thumbnail)",
+                "tabs": "Başlık sekmeleri",
+                "numbers": "Sayısal sayaç (01 / 04)",
+                "progress": "İlerleme çubuğu",
+            }, default="thumbs"),
+        },
+    },
+    "carousel": {
+        "label": "Çoklu kart carousel", "group": "Kapak & slider", "icon": "🎠",
+        "help": "Yan yana birden fazla kartı kaydıran carousel; projeler, hizmetler, hikayeler veya görseller için.",
+        "fields": {
+            "kicker": F("text", "Üst başlık", max=60, translatable=True),
+            "title": F("text", "Başlık", max=160, translatable=True),
+            "subtitle": F("textarea", "Alt açıklama", max=300, translatable=True),
+            "items": F("list", "Kartlar", max_items=24, min_items=1, item_label="title", fields={
+                "image_url": F("image", "Görsel"),
+                "badge": F("text", "Etiket", max=40, translatable=True),
+                "title": F("text", "Başlık", max=120, translatable=True),
+                "text": F("textarea", "Açıklama", max=300, translatable=True),
+                "button_label": F("text", "Buton yazısı", max=40, translatable=True),
+                "button_url": F("url", "Buton bağlantısı"),
+                "campaign_id": F("campaign", "Kampanyaya bağla (isteğe bağlı)"),
+            }),
+            "look": F("select", "Kart görünümü", choices={
+                "card": "Klasik kart",
+                "overlay": "Görsel üstünde yazı",
+                "minimal": "Sade (çerçevesiz)",
+                "featured": "Büyük odaklı kart",
+                "pill": "Yatay (sol görsel, sağ metin)",
+            }, default="card"),
+            "columns": F("number", "Aynı anda görünen (bilgisayar)", min=1, max=5, default=3),
+            "aspect": F("select", "Görsel oranı", choices={"16/9": "16:9", "4/3": "4:3", "1/1": "Kare", "3/4": "Dikey"}, default="4/3"),
+            "autoplay": F("bool", "Otomatik kaydır", default=True),
+            "interval": F("number", "Geçiş süresi (sn)", min=2, max=20, default=5, show_if={"autoplay": True}),
+            "arrows": F("bool", "Oklar", default=True),
+            "arrow_pos": F("select", "Ok konumu", choices={"sides": "Yanlarda yüzen", "bottom": "Altta sağda"}, default="sides", show_if={"arrows": True}),
+            "dots": F("bool", "Sayfa noktaları", default=True),
         },
     },
     # Donation
@@ -122,6 +167,7 @@ BLOCKS: dict[str, dict] = {
         "fields": {
             "campaign_id": F("campaign", "Kampanya", placeholder="Boşsa ilk aktif kampanya"),
             "title": F("text", "Başlık", max=120, translatable=True),
+            "look": F("select", "Görünüm", choices={"card": "Kart kutu", "band": "Geniş renkli bant", "compact": "Sade kompakt"}, default="card"),
         },
     },
     "campaigns": {
@@ -134,6 +180,8 @@ BLOCKS: dict[str, dict] = {
             "category": F("text", "Kategori", max=40, show_if={"source": "category"}),
             "limit": F("number", "Adet", min=1, max=24, default=6),
             "layout": F("select", "Düzen", choices={"grid": "Izgara", "list": "Liste", "carousel": "Kaydırmalı"}, default="grid"),
+            "card_style": F("select", "Kart stili", choices={"classic": "Klasik", "compact": "Kompakt", "bordered": "Çerçeveli"}, default="classic"),
+            "autoplay": F("bool", "Otomatik kaydır", default=True, show_if={"layout": "carousel"}),
             "columns": F("number", "Sütun (bilgisayar)", min=1, max=4, default=3),
             "show_progress": F("bool", "Toplanan tutarı göster", default=True),
             "show_all_link": F("bool", "\"Tümü\" bağlantısı", default=True),
@@ -149,7 +197,11 @@ BLOCKS: dict[str, dict] = {
     },
     "categories": {
         "label": "Bağış kategorileri", "group": "Bağış", "icon": "🗂️",
-        "fields": {"kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=120, translatable=True)},
+        "fields": {
+            "kicker": F("text", "Üst başlık", max=60, translatable=True),
+            "title": F("text", "Başlık", max=120, translatable=True),
+            "look": F("select", "Görünüm", choices={"grid": "İkonlu kutular", "pills": "Yatay hap butonlar", "cards": "Büyük kartlar"}, default="grid"),
+        },
     },
     "featured_campaign": {
         "label": "Acil kampanya vitrini", "group": "Bağış", "icon": "🚨",
@@ -161,7 +213,12 @@ BLOCKS: dict[str, dict] = {
     },
     "zakat_band": {
         "label": "Zekat bandı", "group": "Bağış", "icon": "🌙",
-        "fields": {"title": F("text", "Başlık", max=120, translatable=True), "text": F("textarea", "Metin", max=300, translatable=True), "button_label": F("text", "Buton yazısı", max=40, translatable=True)},
+        "fields": {
+            "title": F("text", "Başlık", max=120, translatable=True),
+            "text": F("textarea", "Metin", max=300, translatable=True),
+            "button_label": F("text", "Buton yazısı", max=40, translatable=True),
+            "look": F("select", "Görünüm", choices={"band": "Renkli şerit", "card": "Beyaz kart", "split": "İki sütun"}, default="band"),
+        },
     },
     "donation_cards": {
         "label": "Bağış kartları (tutar + sepete ekle)", "group": "Bağış", "icon": "🛒",
@@ -177,6 +234,8 @@ BLOCKS: dict[str, dict] = {
             }),
             "limit": F("number", "En fazla kart", min=1, max=48, default=12),
             "layout": F("select", "Düzen", choices={"grid": "Izgara", "carousel": "Kaydırmalı"}, default="grid"),
+            "card_style": F("select", "Kart stili", choices={"classic": "Klasik", "minimal": "Sade", "highlight": "Vurgulu"}, default="classic"),
+            "autoplay": F("bool", "Otomatik kaydır", default=True, show_if={"layout": "carousel"}),
             "columns": F("number", "Sütun (bilgisayar)", min=2, max=4, default=3),
             "currency_switcher": F("bool", "Kartların üstünde TL / USD / EUR seçici", default=False),
             "button_label": F("text", "Buton yazısı", max=40, translatable=True, placeholder="Bağış Yap"),
@@ -198,7 +257,7 @@ BLOCKS: dict[str, dict] = {
     "banner": {
         "label": "Banner", "group": "Banner", "icon": "🏷️",
         "fields": {
-            "layout": F("select", "Tür", choices={"image": "Görselli", "color": "Renkli metin", "split": "Görsel + metin yan yana"}, default="image"),
+            "layout": F("select", "Tür", choices={"image": "Görselli", "color": "Renkli metin", "split": "Görsel + metin yan yana", "gradient": "Renk geçişli (Gradient)", "glass": "Görsel üstü cam kutu"}, default="image"),
             "image_url": F("image", "Görsel"),
             "mobile_image_url": F("image", "Telefon görseli"),
             "kicker": F("text", "Üst etiket", max=60, translatable=True),
@@ -212,7 +271,13 @@ BLOCKS: dict[str, dict] = {
     },
     "cta_band": {
         "label": "Çağrı bandı", "group": "Banner", "icon": "📣",
-        "fields": {"title": F("text", "Başlık", max=160, translatable=True, placeholder="Boşsa site çağrı bandı"), "text": F("textarea", "Metin", max=400, translatable=True), "button_label": F("text", "Buton yazısı", max=40, translatable=True), "button_url": F("url", "Buton bağlantısı")},
+        "fields": {
+            "title": F("text", "Başlık", max=160, translatable=True, placeholder="Boşsa site çağrı bandı"),
+            "text": F("textarea", "Metin", max=400, translatable=True),
+            "button_label": F("text", "Buton yazısı", max=40, translatable=True),
+            "button_url": F("url", "Buton bağlantısı"),
+            "look": F("select", "Görünüm", choices={"brand": "Ana renk", "dark": "Koyu", "soft": "Açık ton", "bordered": "Çerçeveli"}, default="brand"),
+        },
     },
     "notice": {
         "label": "Duyuru kutusu", "group": "Banner", "icon": "ℹ️",
@@ -245,7 +310,14 @@ BLOCKS: dict[str, dict] = {
     },
     "image_text": {
         "label": "Görsel + metin", "group": "Metin & medya", "icon": "📰",
-        "fields": {"image_url": F("image", "Görsel"), "alt": F("text", "Alternatif metin", max=200, translatable=True), "image_side": F("select", "Görsel tarafı", choices={"left": "Solda", "right": "Sağda"}, default="left"), "kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=160, translatable=True), "text": F("richtext", "Metin", max=6000, translatable=True), "button_label": F("text", "Buton yazısı", max=40, translatable=True), "button_url": F("url", "Buton bağlantısı")},
+        "fields": {
+            "image_url": F("image", "Görsel"), "alt": F("text", "Alternatif metin", max=200, translatable=True),
+            "image_side": F("select", "Görsel tarafı", choices={"left": "Solda", "right": "Sağda"}, default="left"),
+            "look": F("select", "Görünüm", choices={"plain": "Sade", "card": "Kart içinde", "overlap": "Çerçeveli / taşan"}, default="plain"),
+            "kicker": F("text", "Üst başlık", max=60, translatable=True), "title": F("text", "Başlık", max=160, translatable=True),
+            "text": F("richtext", "Metin", max=6000, translatable=True),
+            "button_label": F("text", "Buton yazısı", max=40, translatable=True), "button_url": F("url", "Buton bağlantısı"),
+        },
     },
     "video": {
         "label": "Video", "group": "Metin & medya", "icon": "▶️",
@@ -276,6 +348,7 @@ BLOCKS: dict[str, dict] = {
         "fields": {
             "kicker": F("text", "Üst başlık", max=60, translatable=True),
             "title": F("text", "Başlık", max=120, translatable=True),
+            "look": F("select", "Görünüm", choices={"grid": "Yatay adımlar", "vertical": "Dikey çizelge", "cards": "Kutulu kartlar"}, default="grid"),
             "items": F("list", "Adımlar (boşsa hazır 4 adım)", max_items=6, item_label="title", fields={
                 "title": F("text", "Başlık", max=60, translatable=True),
                 "text": F("textarea", "Açıklama", max=200, translatable=True),
@@ -287,6 +360,8 @@ BLOCKS: dict[str, dict] = {
         "fields": {
             "kicker": F("text", "Üst başlık", max=60, translatable=True),
             "title": F("text", "Başlık", max=120, translatable=True),
+            "look": F("select", "Görünüm", choices={"carousel": "Kaydırmalı (Carousel)", "grid": "Izgara kartlar", "quote": "Büyük odaklı alıntı"}, default="carousel"),
+            "autoplay": F("bool", "Otomatik kaydır", default=True, show_if={"look": "carousel"}),
             "items": F("list", "Mesajlar (boşsa Görünüm ayarlarındakiler)", max_items=12, item_label="name", fields={
                 "quote": F("textarea", "Mesaj", max=400, translatable=True),
                 "name": F("text", "İsim", max=80),
@@ -296,7 +371,11 @@ BLOCKS: dict[str, dict] = {
     },
     "faq": {
         "label": "Sık sorulan sorular", "group": "Etkileşim", "icon": "❓",
-        "fields": {"title": F("text", "Başlık", max=120, translatable=True), "items": F("list", "Sorular", max_items=40, min_items=1, item_label="question", fields={"question": F("text", "Soru", max=200, translatable=True), "answer": F("richtext", "Cevap", max=3000, translatable=True)})},
+        "fields": {
+            "title": F("text", "Başlık", max=120, translatable=True),
+            "look": F("select", "Görünüm", choices={"accordion": "Akordeon", "two_col": "2 sütunlu açık kartlar", "minimal": "Sade çizgili liste"}, default="accordion"),
+            "items": F("list", "Sorular", max_items=40, min_items=1, item_label="question", fields={"question": F("text", "Soru", max=200, translatable=True), "answer": F("richtext", "Cevap", max=3000, translatable=True)}),
+        },
     },
     "news": {
         "label": "Haberler", "group": "Haber & iletişim", "icon": "🗞️",
@@ -514,7 +593,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
                 "url": F("url", "Tıklanınca git"),
             }),
             columns=F("number", "Sütun (bilgisayar)", min=1, max=4, default=3),
-            look=F("select", "Görünüm", choices={"card": "Kart", "plain": "Sade", "bordered": "Çerçeveli", "icon_left": "Simge solda"}, default="card"),
+            look=F("select", "Görünüm", choices={"card": "Kart", "plain": "Sade", "bordered": "Çerçeveli", "icon_left": "Simge solda", "numbered": "Numaralı adımlar (01, 02...)"}, default="card"),
             align=F("select", "Hizalama", choices={"left": "Sola", "center": "Ortaya"}, default="center"),
         ),
     },
@@ -553,6 +632,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
             }),
             columns=F("number", "Sütun (bilgisayar)", min=2, max=5, default=4),
             shape=F("select", "Fotoğraf", choices={"round": "Yuvarlak", "square": "Köşeli"}, default="round"),
+            look=F("select", "Görünüm", choices={"plain": "Sade", "card": "Gölgeli kart", "compact": "Yatay kompakt"}, default="plain"),
         ),
     },
     "logos": {
@@ -576,12 +656,14 @@ EXTRA_BLOCKS: dict[str, dict] = {
             button_label=F("text", "Buton yazısı", max=40, translatable=True),
             button_url=F("url", "Buton bağlantısı"),
             done_text=F("text", "Süre dolunca gösterilecek yazı", max=160, translatable=True),
+            look=F("select", "Görünüm", choices={"band": "Büyük renkli bant", "cards": "Ayrı beyaz kutular", "minimal": "İnce duyuru çubuğu"}, default="band"),
             tone=F("select", "Zemin", choices=BAND_TONES, default="brand"),
         ),
     },
     "timeline": {
         "label": "Zaman çizelgesi", "group": "Metin & medya", "icon": "🧭",
         "fields": _head(
+            look=F("select", "Görünüm", choices={"vertical": "Dikey çizgi", "cards": "Kartlı duraklar", "horizontal": "Yatay aşamalar"}, default="vertical"),
             items=F("list", "Olaylar", max_items=30, min_items=1, item_label="title", fields={
                 "date": F("text", "Tarih / yıl", max=40),
                 "title": F("text", "Başlık", max=100, translatable=True),
@@ -593,7 +675,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
         "label": "Sekmeler / akordeon", "group": "Etkileşim", "icon": "🗂",
         "fields": {
             "title": F("text", "Başlık", max=160, translatable=True),
-            "look": F("select", "Görünüm", choices={"tabs": "Yatay sekmeler", "vertical": "Solda sekmeler", "accordion": "Akordeon"}, default="tabs"),
+            "look": F("select", "Görünüm", choices={"tabs": "Yatay sekmeler", "vertical": "Solda sekmeler", "accordion": "Akordeon", "pills": "Hap düğmeler"}, default="tabs"),
             "items": F("list", "Sekmeler", max_items=10, min_items=1, item_label="label", fields={
                 "label": F("text", "Sekme adı", max=40, translatable=True),
                 "title": F("text", "İçerik başlığı", max=120, translatable=True),
@@ -618,19 +700,21 @@ EXTRA_BLOCKS: dict[str, dict] = {
         "fields": {
             "text": F("textarea", "Metin", max=700, translatable=True, required=True),
             "source": F("text", "Kaynak", max=120, translatable=True),
-            "look": F("select", "Görünüm", choices={"centered": "Ortalı, büyük", "card": "Kart", "side": "Yan çizgili"}, default="centered"),
+            "look": F("select", "Görünüm", choices={"centered": "Ortalı, büyük", "card": "Kart", "side": "Yan çizgili", "dark_band": "Koyu tam bant"}, default="centered"),
         },
     },
     "image_gallery": {
         "label": "Görsel galerisi", "group": "Metin & medya", "icon": "🖼️",
-        "help": "Kendi seçtiğiniz görseller; tıklanınca büyür.",
+        "help": "Kendi seçtiğiniz görseller; tıklanınca büyür veya carousel olarak kayar.",
         "fields": _head(
             items=F("list", "Görseller", max_items=40, min_items=1, item_label="caption", fields={
                 "image_url": F("image", "Görsel"), "caption": F("text", "Alt yazı", max=120, translatable=True),
             }),
+            layout=F("select", "Düzen", choices={"grid": "Izgara", "carousel": "Kaydırmalı (Carousel)"}, default="grid"),
             columns=F("number", "Sütun (bilgisayar)", min=2, max=6, default=4),
             aspect=F("select", "Oran", choices={"1/1": "Kare", "4/3": "4:3", "16/9": "16:9", "3/4": "Dikey", "masonry": "Karışık (orijinal oran)"}, default="1/1"),
-            gap=F("number", "Aralık", min=0, max=32, default=12, unit="px"),
+            gap=F("number", "Aralık", min=0, max=32, default=12, unit="px", show_if={"layout": "grid"}),
+            autoplay=F("bool", "Otomatik kaydır", default=True, show_if={"layout": "carousel"}),
             lightbox=F("bool", "Tıklanınca büyüsün", default=True),
         ),
     },
@@ -648,6 +732,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
                 "currency": F("select", "Para birimi", choices={"TRY": "TL", "USD": "USD", "EUR": "EUR", "GBP": "GBP"}, default="TRY"),
             }),
             note=F("textarea", "Alt not (ör. açıklamaya ne yazılacağı)", max=400, translatable=True),
+            look=F("select", "Görünüm", choices={"cards": "2 sütunlu kartlar", "compact": "Kompakt satır listesi"}, default="cards"),
         ),
     },
     "popup": {

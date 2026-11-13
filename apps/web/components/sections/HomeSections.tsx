@@ -182,9 +182,9 @@ function heroSlides(data: HomeData, variant: Tpl, o: Overrides, t: T): SlideView
   return slides
 }
 
-export function Hero({ data, variant, o = {} }: { data: HomeData; variant: Tpl; o?: Overrides }) {
+export function Hero({ data, variant, o = {} }: { data: HomeData; variant: Tpl | 'glass' | 'centered'; o?: Overrides }) {
   const t = translator(data.locale)
-  const slides = heroSlides(data, variant, o, t)
+  const slides = heroSlides(data, (variant === 'glass' || variant === 'centered' ? 'klasik' : variant) as Tpl, o, t)
   const showForm = variant === 'klasik' && o.show_form !== false
   return (
     <>
@@ -192,6 +192,8 @@ export function Hero({ data, variant, o = {} }: { data: HomeData; variant: Tpl; 
       {variant === 'sade' && <Slider slides={slides} layout="split" interval={7} label={t('home.slider.label')} />}
       {variant === 'kategori' && <Slider slides={slides} effect="fade" height="lg" interval={6} label={t('home.slider.label')} />}
       {variant === 'klasik' && <Slider slides={slides} height="lg" interval={6} nav="tabs" label={t('home.slider.label')} />}
+      {variant === 'glass' && <Slider slides={slides} layout="glass" height="lg" nav="numbers" effect="zoom" interval={6} label={t('home.slider.label')} />}
+      {variant === 'centered' && <Slider slides={slides.map((s) => ({ ...s, align: 'center' }))} layout="overlay" height="screen" nav="dots" effect="fade" interval={6} label={t('home.slider.label')} />}
       {showForm && <QuickDonateBand data={data} o={o} />}
     </>
   )
@@ -300,26 +302,41 @@ export function Stats({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides
 export function Categories({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides }) {
   if (!data.categories.length) return null
   const tpl = tplOf(data)
+  const look = o.look || 'grid'
   const slugById = new Map(data.campaigns.map((c) => [c.id, c.slug]))
   return (
     <section id="kategoriler" className={tpl === 'kategori' ? 'bg-gradient-to-b from-primary-50/70 to-transparent' : ''}>
       <div className={`${container} py-[72px]`}>
         <SectionHead tpl={tpl} kicker={o.kicker || t('home.categories.kicker')} title={o.title || t('home.categories.title')} text={t('home.categories.text')} />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {data.categories.map((k) => {
-            const slug = k.campaign_id ? slugById.get(k.campaign_id) : undefined
-            return (
-              <Link key={k.id || k.title} href={slug ? `/kampanyalar/${slug}` : '/kampanyalar'}
-                className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary-600 hover:shadow-xl">
-                <span className="absolute -end-8 -top-8 h-24 w-24 rounded-full bg-primary-50 transition-transform duration-500 group-hover:scale-[3]" aria-hidden />
-                <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600 text-[28px] shadow-lg shadow-primary-600/20">{k.icon}</div>
-                <div className="relative mt-2 text-lg font-bold text-gray-900">{k.title}</div>
-                <div className="relative text-[13px] leading-relaxed text-gray-500">{k.description}</div>
-                <div className="relative mt-auto pt-2 text-[13px] font-bold text-primary-600">{t('campaign.donate')} <span className="inline-block transition-transform group-hover:translate-x-1 rtl:rotate-180">→</span></div>
-              </Link>
-            )
-          })}
-        </div>
+        {look === 'pills' ? (
+          <div className="flex flex-wrap justify-center gap-3">
+            {data.categories.map((k) => {
+              const slug = k.campaign_id ? slugById.get(k.campaign_id) : undefined
+              return (
+                <Link key={k.id || k.title} href={slug ? `/kampanyalar/${slug}` : '/kampanyalar'}
+                  className="inline-flex items-center gap-2.5 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm font-bold text-gray-800 shadow-sm transition hover:border-primary-600 hover:bg-primary-50 hover:text-primary-800">
+                  <span className="text-lg">{k.icon}</span>{k.title}
+                </Link>
+              )
+            })}
+          </div>
+        ) : (
+          <div className={`grid gap-4 sm:grid-cols-2 ${look === 'cards' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
+            {data.categories.map((k) => {
+              const slug = k.campaign_id ? slugById.get(k.campaign_id) : undefined
+              return (
+                <Link key={k.id || k.title} href={slug ? `/kampanyalar/${slug}` : '/kampanyalar'}
+                  className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary-600 hover:shadow-xl">
+                  <span className="absolute -end-8 -top-8 h-24 w-24 rounded-full bg-primary-50 transition-transform duration-500 group-hover:scale-[3]" aria-hidden />
+                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600 text-[28px] shadow-lg shadow-primary-600/20">{k.icon}</div>
+                  <div className="relative mt-2 text-lg font-bold text-gray-900">{k.title}</div>
+                  <div className="relative text-[13px] leading-relaxed text-gray-500">{k.description}</div>
+                  <div className="relative mt-auto pt-2 text-[13px] font-bold text-primary-600">{t('campaign.donate')} <span className="inline-block transition-transform group-hover:translate-x-1 rtl:rotate-180">→</span></div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </div>
     </section>
   )
@@ -449,6 +466,7 @@ export function FeaturedCampaign({ data, t, o = {} }: { data: HomeData; t: T; o?
 
 export function Steps({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides }) {
   const tpl = tplOf(data)
+  const look = o.look || 'grid'
   const custom = Array.isArray(o.items) ? (o.items as { title?: string; text?: string }[]).filter((i) => i.title) : []
   const steps = custom.length ? custom : ([1, 2, 3, 4] as const).map((n) => ({
     title: t(`home.steps.s${n}` as 'home.steps.s1'), text: t(`home.steps.s${n}Text` as 'home.steps.s1Text'),
@@ -458,19 +476,33 @@ export function Steps({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides
     <section className={tpl === 'kategori' ? 'bg-white' : tpl === 'klasik' ? 'bg-primary-50/60' : ''}>
       <div className={`${container} py-[72px]`}>
         <SectionHead tpl={tpl === 'klasik' ? 'kategori' : tpl} kicker={o.kicker || t('home.steps.kicker')} title={o.title || t('home.steps.title')} />
-        <ol className={`relative grid gap-8 sm:grid-cols-2 ${steps.length >= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
-          <span className="absolute inset-x-[12%] top-8 hidden h-[2px] bg-[repeating-linear-gradient(90deg,var(--color-primary-300)_0_8px,transparent_8px_16px)] lg:block" aria-hidden />
-          {steps.map((s, i) => (
-            <li key={i} className="relative text-center">
-              <div className="relative mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-primary-600 shadow-lg ring-1 ring-primary-100">
-                <Icon name={icons[i % icons.length]} className="h-7 w-7" />
-                <span className="absolute -end-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-accent-500 text-xs font-extrabold text-white">{i + 1}</span>
-              </div>
-              <div className="mb-2 font-heading text-lg font-bold text-gray-900">{s.title}</div>
-              {s.text && <p className="mx-auto max-w-[260px] text-sm leading-relaxed text-gray-500">{s.text}</p>}
-            </li>
-          ))}
-        </ol>
+        {look === 'vertical' ? (
+          <ol className="mx-auto max-w-2xl space-y-4">
+            {steps.map((s, i) => (
+              <li key={i} className="flex items-start gap-4 rounded-2xl border bg-white p-5 shadow-sm">
+                <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-primary-600 font-heading text-sm font-bold text-white">{i + 1}</span>
+                <div>
+                  <div className="font-heading text-lg font-bold text-gray-900">{s.title}</div>
+                  {s.text && <p className="mt-1 text-sm text-gray-600">{s.text}</p>}
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <ol className={`relative grid gap-8 sm:grid-cols-2 ${steps.length >= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+            {look !== 'cards' && <span className="absolute inset-x-[12%] top-8 hidden h-[2px] bg-[repeating-linear-gradient(90deg,var(--color-primary-300)_0_8px,transparent_8px_16px)] lg:block" aria-hidden />}
+            {steps.map((s, i) => (
+              <li key={i} className={`relative text-center ${look === 'cards' ? 'rounded-2xl border bg-white p-6 shadow-sm' : ''}`}>
+                <div className="relative mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-primary-600 shadow-lg ring-1 ring-primary-100">
+                  <Icon name={icons[i % icons.length]} className="h-7 w-7" />
+                  <span className="absolute -end-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-accent-500 text-xs font-extrabold text-white">{i + 1}</span>
+                </div>
+                <div className="mb-2 font-heading text-lg font-bold text-gray-900">{s.title}</div>
+                {s.text && <p className="mx-auto max-w-[260px] text-sm leading-relaxed text-gray-500">{s.text}</p>}
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
     </section>
   )
@@ -595,30 +627,42 @@ export function Testimonials({ data, t, o = {} }: { data: HomeData; t: T; o?: Ov
   const items = own.length ? own : data.site.testimonials || []
   if (!items.length) return null
   const tpl = tplOf(data)
+  const look = o.look || 'carousel'
   const dark = tpl === 'klasik'
+  const cardNode = (item: NonNullable<SiteData['testimonials']>[number], i: number) => (
+    <figure key={i} className={`flex h-full flex-col rounded-3xl p-8 ${dark ? 'bg-white/5 ring-1 ring-white/10' : 'bg-white shadow-sm ring-1 ring-gray-100'}`}>
+      <Icon name="quote" className={`mb-5 h-10 w-10 ${dark ? 'text-accent-400' : 'text-primary-200'}`} />
+      <blockquote className={`flex-1 font-heading text-lg leading-relaxed ${dark ? 'text-white/90' : 'text-gray-700'}`}>{item.quote}</blockquote>
+      {(item.name || item.role) && (
+        <figcaption className="mt-6 flex items-center gap-3">
+          <span className={`flex h-11 w-11 items-center justify-center rounded-full text-base font-bold ${dark ? 'bg-accent-500 text-white' : 'bg-primary-600 text-white'}`}>
+            {(item.name || '♥').trim().charAt(0).toLocaleUpperCase(data.locale)}
+          </span>
+          <span>
+            {item.name && <span className={`block font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{item.name}</span>}
+            {item.role && <span className={`block text-sm ${dark ? 'text-white/60' : 'text-gray-500'}`}>{item.role}</span>}
+          </span>
+        </figcaption>
+      )}
+    </figure>
+  )
   return (
     <section className={dark ? 'bg-primary-950' : tpl === 'kategori' ? 'bg-primary-50' : ''}>
       <div className={`${container} py-[72px]`}>
         <SectionHead tpl={tpl} light={dark} kicker={o.kicker || t('home.testimonials.kicker')} title={o.title || t('home.testimonials.title')} />
-        <Carousel label={o.title || t('home.testimonials.title')} tone={dark ? 'dark' : 'light'}>
-          {items.map((item, i) => (
-            <figure key={i} className={`flex h-full flex-col rounded-3xl p-8 ${dark ? 'bg-white/5 ring-1 ring-white/10' : 'bg-white shadow-sm ring-1 ring-gray-100'}`}>
-              <Icon name="quote" className={`mb-5 h-10 w-10 ${dark ? 'text-accent-400' : 'text-primary-200'}`} />
-              <blockquote className={`flex-1 font-heading text-lg leading-relaxed ${dark ? 'text-white/90' : 'text-gray-700'}`}>{item.quote}</blockquote>
-              {(item.name || item.role) && (
-                <figcaption className="mt-6 flex items-center gap-3">
-                  <span className={`flex h-11 w-11 items-center justify-center rounded-full text-base font-bold ${dark ? 'bg-accent-500 text-white' : 'bg-primary-600 text-white'}`}>
-                    {(item.name || '♥').trim().charAt(0).toLocaleUpperCase(data.locale)}
-                  </span>
-                  <span>
-                    {item.name && <span className={`block font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{item.name}</span>}
-                    {item.role && <span className={`block text-sm ${dark ? 'text-white/60' : 'text-gray-500'}`}>{item.role}</span>}
-                  </span>
-                </figcaption>
-              )}
-            </figure>
-          ))}
-        </Carousel>
+        {look === 'grid' ? (
+          <div className="grid gap-6 md:grid-cols-3">{items.map(cardNode)}</div>
+        ) : look === 'quote' ? (
+          <figure className={`mx-auto max-w-3xl rounded-3xl p-10 text-center ${dark ? 'bg-white/5 ring-1 ring-white/10' : 'bg-white shadow-sm ring-1 ring-gray-100'}`}>
+            <Icon name="quote" className={`mx-auto mb-4 h-12 w-12 ${dark ? 'text-accent-400' : 'text-primary-300'}`} />
+            <blockquote className={`font-heading text-2xl leading-relaxed ${dark ? 'text-white' : 'text-gray-800'}`}>{items[0].quote}</blockquote>
+            {items[0].name && <figcaption className={`mt-6 font-bold ${dark ? 'text-accent-300' : 'text-primary-700'}`}>{items[0].name}{items[0].role ? ` · ${items[0].role}` : ''}</figcaption>}
+          </figure>
+        ) : (
+          <Carousel label={o.title || t('home.testimonials.title')} tone={dark ? 'dark' : 'light'} autoplay={o.autoplay !== false} dots arrowPos="sides">
+            {items.map(cardNode)}
+          </Carousel>
+        )}
       </div>
     </section>
   )

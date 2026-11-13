@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 /** Days / hours / minutes / seconds until `target`; `done` replaces the boxes once it has passed. */
-export function Countdown({ target, labels, done }: { target: string; labels: [string, string, string, string]; done?: ReactNode }) {
+export function Countdown({ target, labels, done, look = 'band' }: { target: string; labels: [string, string, string, string]; done?: ReactNode; look?: string }) {
   const [left, setLeft] = useState<number | null>(null)
   useEffect(() => {
     const end = new Date(target).getTime()
@@ -17,11 +17,23 @@ export function Countdown({ target, labels, done }: { target: string; labels: [s
   if (left === 0 && done) return <div className="text-xl font-bold">{done}</div>
   const s = Math.floor((left ?? 0) / 1000)
   const parts = [Math.floor(s / 86400), Math.floor((s % 86400) / 3600), Math.floor((s % 3600) / 60), s % 60]
+  if (look === 'minimal') {
+    return (
+      <div className="flex flex-wrap items-center justify-center gap-3 font-heading text-lg font-bold tabular-nums" role="timer" aria-live="off">
+        {parts.map((value, i) => (
+          <span key={i} className="inline-flex items-baseline gap-1">
+            <span className="text-2xl">{left === null ? '--' : String(value).padStart(2, '0')}</span>
+            <span className="text-xs font-semibold uppercase opacity-75">{labels[i]}</span>
+          </span>
+        ))}
+      </div>
+    )
+  }
   return (
     <div className="flex flex-wrap justify-center gap-3" role="timer" aria-live="off">
       {parts.map((value, i) => (
-        <div key={i} className="min-w-[78px] rounded-xl bg-current/10 px-3 py-3 text-center backdrop-blur">
-          <div className="font-heading text-3xl font-bold tabular-nums md:text-4xl">{left === null ? '--' : String(value).padStart(2, '0')}</div>
+        <div key={i} className={`min-w-[78px] rounded-xl px-3 py-3 text-center ${look === 'cards' ? 'bg-white text-gray-900 shadow-md' : 'bg-current/10 backdrop-blur'}`}>
+          <div className={`font-heading text-3xl font-bold tabular-nums md:text-4xl ${look === 'cards' ? 'text-primary-700' : ''}`}>{left === null ? '--' : String(value).padStart(2, '0')}</div>
           <div className="mt-1 text-[11px] font-semibold uppercase tracking-widest opacity-75">{labels[i]}</div>
         </div>
       ))}
@@ -48,12 +60,13 @@ export function TabsView({ labels, panels, look = 'tabs' }: { labels: string[]; 
     )
   }
   const vertical = look === 'vertical'
+  const pills = look === 'pills'
   return (
     <div className={vertical ? 'grid gap-6 md:grid-cols-[240px_1fr]' : ''}>
       <div role="tablist" className={vertical ? 'flex flex-row gap-2 overflow-x-auto md:flex-col' : 'mb-6 flex flex-wrap justify-center gap-2'}>
         {labels.map((label, i) => (
           <button key={i} type="button" role="tab" aria-selected={active === i} onClick={() => setActive(i)}
-            className={`whitespace-nowrap rounded-lg px-4 py-2.5 text-sm font-bold transition-colors ${vertical ? 'text-start' : ''} ${active === i ? 'bg-primary-600 text-white' : 'bg-black/5 hover:bg-black/10'}`}>
+            className={`whitespace-nowrap px-4 py-2.5 text-sm font-bold transition-colors ${pills ? 'rounded-full' : 'rounded-lg'} ${vertical ? 'text-start' : ''} ${active === i ? 'bg-primary-600 text-white shadow-sm' : 'bg-black/5 hover:bg-black/10'}`}>
             {label}
           </button>
         ))}

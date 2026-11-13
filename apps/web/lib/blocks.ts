@@ -33,7 +33,7 @@ export interface FieldSpec {
   translatable?: boolean
   placeholder?: string
   help?: string
-  show_if?: Record<string, string>
+  show_if?: Record<string, string | boolean>
   fields?: Record<string, FieldSpec>
   max_items?: number
   min_items?: number
@@ -216,6 +216,54 @@ export function newBlock(type: string, spec: BlockSpec): Block {
       button_label: 'Bağış Yap',
       button_url: '/kampanyalar',
     }
+  }
+  if (type === 'carousel') {
+    props.title ??= 'Öne Çıkanlar'
+    props.items = [
+      { image_url: '/demo/water.webp', badge: 'SU KUYUSU', title: 'Temiz Su Projesi', text: 'Kurak bölgelere kalıcı su kuyuları açıyoruz.', button_label: 'İncele', button_url: '/kampanyalar' },
+      { image_url: '/demo/education.webp', badge: 'EĞİTİM', title: 'Öğrenci Bursu', text: 'Geleceğin mimarlarına eğitim desteği sağlıyoruz.', button_label: 'Destek Ol', button_url: '/kampanyalar' },
+      { image_url: '/demo/orphan.webp', badge: 'YETİM', title: 'Yetim Sponsorluğu', text: 'Bir yetimin aylık bakım ve eğitimini üstlenin.', button_label: 'Sponsor Ol', button_url: '/kampanyalar' },
+    ]
+  }
+  if (type === 'image_gallery' && Array.isArray(props.items) && props.items.length === 1 && !props.items[0].image_url) {
+    props.items = [
+      { image_url: '/demo/water.webp', caption: 'Su kuyusu çalışması' },
+      { image_url: '/demo/education.webp', caption: 'Eğitim desteği' },
+      { image_url: '/demo/food.webp', caption: 'Aşevi ikramı' },
+      { image_url: '/demo/relief.webp', caption: 'Acil yardım dağıtımı' },
+    ]
+  }
+  if (type === 'features' && Array.isArray(props.items) && props.items.length === 1 && !props.items[0].title) {
+    props.items = [
+      { icon: '🧾', title: 'Resmi Makbuz', text: 'Her bağış için anında dijital makbuz.' },
+      { icon: '🔒', title: 'Güvenli Ödeme', text: '3D Secure ile korunan bağış altyapısı.' },
+      { icon: '📊', title: 'Şeffaf Raporlama', text: 'Projelerin her aşamasını takip edin.' },
+    ]
+  }
+  if (type === 'counters' && Array.isArray(props.items) && props.items.length === 1 && !props.items[0].label) {
+    props.items = [
+      { icon: '💧', value: 120, suffix: '+', label: 'Su Kuyusu' },
+      { icon: '🎓', value: 1500, suffix: '+', label: 'Öğrenci' },
+      { icon: '🌍', value: 18, label: 'Ülke' },
+    ]
+  }
+  if (type === 'progress_bars' && Array.isArray(props.items) && props.items.length === 1 && !props.items[0].label) {
+    props.items = [
+      { label: 'Ramazan Kumanya Hedefi', percent: 72, note: '720 / 1.000 koli' },
+      { label: 'Su Kuyusu Projesi', percent: 45, note: '9 / 20 kuyu' },
+    ]
+  }
+  if (type === 'marquee' && Array.isArray(props.items) && props.items.length === 1 && !props.items[0].text) {
+    props.items = [{ text: 'Zekat' }, { text: 'Fitre' }, { text: 'Kurban' }, { text: 'Su Kuyusu' }]
+  }
+  if (type === 'tabs' && Array.isArray(props.items) && props.items.length === 1 && !props.items[0].label) {
+    props.items = [
+      { label: '1. Sekme', title: 'Sekme Başlığı', text: 'Bu sekmenin açıklamasını buraya yazabilirsiniz.' },
+      { label: '2. Sekme', title: 'İkinci Sekme', text: 'İkinci sekme içeriğini buradan düzenleyin.' },
+    ]
+  }
+  if (type === 'faq' && Array.isArray(props.items) && props.items.length === 1 && !props.items[0].question) {
+    props.items = [{ question: 'Bağış makbuzumu nasıl alırım?', answer: 'Bağışınız tamamlandığında makbuzunuz e-posta adresinize gönderilir.' }]
   }
   const block: Block = { id: newBlockId(type), type, props, style: {}, advanced: {} }
   if (spec.container) {

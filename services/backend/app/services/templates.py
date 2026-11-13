@@ -311,6 +311,144 @@ _slider("slider-compact", "Alçak bilgi slider", "Sayfa içinde kullanılan alç
     slide("/demo/pattern.webp", "DUYURU", "Faaliyet raporumuz yayında", "2026 yılı çalışmalarımızı rakamlarla inceleyin.", button=("Raporu oku", "/hakkimizda"), align="right", overlay=35),
     slide("/demo/quran.webp", "YENİ DÖNEM", "Kayıtlar başladı", "Kur'an kursu ve yaz okulu ön kayıtları açıldı.", button=("Ön kayıt", "/on-kayit"), align="right", overlay=40),
 ], layout="overlay", nav="dots", height="sm", effect="slide", dots=False)
+_slider("slider-glass", "Cam kartlı vitrin slider", "Görsel üzerinde buzlu cam kutu, yakınlaşma efekti ve 01/03 sayaç.", [
+    slide("/demo/water.webp", "SU KUYUSU", "Temiz suyla gelen hayat", "Kurak bölgelerde kalıcı sondaj ve şadırvan kuyuları açıyoruz.", button=("Kuyu açtır", "/kampanyalar"), overlay=25),
+    slide("/demo/orphan.webp", "YETİM SPONSORLUĞU", "Bir çocuğun yarınına umut ol", "Aylık düzenli destekle eğitim ve barınma ihtiyaçlarını karşılayın.", button=("Sponsor ol", "/kampanyalar"), overlay=25),
+    slide("/demo/mosque.webp", "MİSAFİRHANE & CAMİ", "İbadet ve ilim merkezleri", "Köy ve beldelerde cami, Kur'an kursu ve aşevi inşa ediyoruz.", button=("Destek ol", "/kampanyalar"), overlay=25),
+], layout="glass", nav="numbers", effect="zoom", height="lg")
+_slider("slider-split-story", "Bölünmüş hikaye slider", "Açık zemin üzerinde solda metin, sağda çerçeveli görsel.", [
+    slide("/demo/community.webp", "SAHA HİKAYESİ", "Gönüllülerimizle 27 ülkedeyiz", "Emanetlerinizi bizzat saha ekiplerimizle ihtiyaç sahiplerine ulaştırıyoruz.", button=("Hikayemiz", "/hakkimizda"), button2=("Gönüllü ol", "/gonullu")),
+    slide("/demo/education.webp", "BURS DESTEĞİ", "Eğitimde fırsat eşitliği", "Lise ve üniversite öğrencilerine aylık kesintisiz burs sağlıyoruz.", button=("Burs ver", "/kampanyalar")),
+    slide("/demo/food.webp", "AŞEVİ", "Her gün 5.000 kap sıcak yemek", "Yaşlı, hasta ve kimsesiz ailelerin sofrasına sıcak aş götürüyoruz.", button=("İftar / yemek ver", "/kampanyalar")),
+], layout="split", nav="dots", effect="slide", height="md")
+_slider("slider-tabs-projects", "Başlık sekmeli proje slider", "Altta tıklanabilir başlık sekmeleri ve ilerleme çubuğu.", [
+    slide("/demo/kurban.webp", "KURBAN", "Vekaletle kurban organizasyonu", "Kesim anı videosu ve SMS bilgilendirmesi ile şeffaf süreç.", button=("Hisse al", "/kampanyalar"), overlay=45),
+    slide("/demo/water.webp", "SU KUYUSU", "Afrika ve Asya'da su kuyuları", "Adınıza veya sevdikleriniz adına kalıcı su kuyusu açtırın.", button=("Kuyu bağışla", "/kampanyalar"), overlay=45),
+    slide("/demo/relief.webp", "ACİL YARDIM", "Afet ve kriz bölgeleri", "İlk 24 saat içinde gıda, battaniye ve sağlık desteği.", button=("Acil yardım", "/kampanyalar"), overlay=45),
+    slide("/demo/quran.webp", "HAFIZLIK", "Kur'an talebelerine destek", "Bir hafızın yıllık eğitim ve barınma giderini üstlenin.", button=("Talebe okut", "/kampanyalar"), overlay=45),
+], layout="overlay", nav="tabs", effect="zoom", height="lg")
+_slider("slider-minimal-strip", "Sade alt şeritli slider", "Temiz alt bilgi şeridi ve üstte ince ilerleme çubuğu.", [
+    slide("/demo/mosque.webp", "RAMAZAN", "İftar ve sahur sofraları kuruluyor", "Her gün binlerce kardeşimizle aynı sofrada buluşuyoruz.", button=("Sofraya ortak ol", "/kampanyalar"), overlay=20),
+    slide("/demo/winter.webp", "KIŞ", "Sıcak bir yuva, sıcak bir mont", "Kış şartlarının ağır geçtiği bölgelere yakacak ve giyim ulaştırıyoruz.", button=("Kış yardımı", "/kampanyalar"), overlay=20),
+    slide("/demo/hands.webp", "ZEKAT", "Zekatlarınız emin ellerde", "Fıkhi ölçülere uygun, doğrudan hak sahiplerine teslim.", button=("Zekat ver", "/zekat-hesapla"), overlay=20),
+], layout="minimal", nav="progress", effect="fade", height="md")
+_slider("slider-stacked-impact", "Katmanlı vitrin slider", "Üstte geniş görsel, altta yükselen beyaz bilgi kartı.", [
+    slide("/demo/relief.webp", "GAZZE & FİLİSTİN", "Acil insani yardım koridoru", "Gıda kolisi, temiz su ve tıbbi malzeme sevkiyatlarımız sürüyor.", button=("Acil bağış yap", "/kampanyalar"), button2=("Detaylı bilgi", "/hakkimizda"), overlay=20),
+    slide("/demo/orphan.webp", "YETİM GÜLERSE", "4.600 yetim çocuğa aylık destek", "Eğitim, sağlık ve gıda desteğiyle yanlarındayız.", button=("Yetim destekle", "/kampanyalar"), overlay=20),
+    slide("/demo/water.webp", "SADAKA-İ CARİYE", "Ömürlük hayır: Su kuyusu", "Yıllarca akacak temiz su kaynağıyla kalıcı iz bırakın.", button=("Başvur", "/kampanyalar"), overlay=20),
+], layout="stacked", nav="numbers", effect="flip", height="md")
+
+# --- Ready-made carousels ----------------------------------------------------------------
+
+_section("carousel-projects-3", "Proje kartları carousel (3'lü)", "Carousel", "Görselli, etiketli ve butonlu 3'lü kaydırmalı proje kartları.",
+         [B("carousel", kicker="PROJELERİMİZ", title="Öne çıkan yardım alanları", subtitle="İlgi duyduğunuz alanı seçerek hemen destek olabilirsiniz.",
+            look="card", columns=3, aspect="4/3", autoplay=True, arrow_pos="sides", dots=True, items=[
+                {"image_url": "/demo/water.webp", "badge": "SU KUYUSU", "title": "Temiz Su Kuyuları", "text": "Kurak köylere kalıcı su kuyuları açıyoruz.", "button_label": "Kuyu açtır", "button_url": "/kampanyalar"},
+                {"image_url": "/demo/orphan.webp", "badge": "YETİM", "title": "Yetim Sponsorluğu", "text": "Aylık destekle bir yetimin eğitimini üstlenin.", "button_label": "Sponsor ol", "button_url": "/kampanyalar"},
+                {"image_url": "/demo/food.webp", "badge": "GIDA", "title": "Kumanya & Aşevi", "text": "Günlük sıcak yemek ve aylık gıda kolisi dağıtımı.", "button_label": "Kumanya ver", "button_url": "/kampanyalar"},
+                {"image_url": "/demo/education.webp", "badge": "EĞİTİM", "title": "Öğrenci Bursu", "text": "Başarılı ve ihtiyaç sahibi öğrencilere burs desteği.", "button_label": "Burs ver", "button_url": "/kampanyalar"},
+                {"image_url": "/demo/winter.webp", "badge": "KIŞ", "title": "Kış Yardımları", "text": "Mont, bot, battaniye ve yakacak desteği.", "button_label": "Destek ol", "button_url": "/kampanyalar"},
+            ])])
+_section("carousel-overlay-4", "Görsel üstü 4'lü dikey carousel", "Carousel", "Dikey poster tarzında, yazı görsel üstünde 4'lü kaydırmalı kartlar.",
+         [B("carousel", kicker="SAHADAN", title="Dünyanın dört bir yanındayız", look="overlay", columns=4, aspect="3/4", autoplay=True, arrow_pos="sides", dots=True, items=[
+             {"image_url": "/demo/water.webp", "badge": "AFRİKA", "title": "Çad & Nijer Su Kuyuları", "button_label": "İncele", "button_url": "/kampanyalar"},
+             {"image_url": "/demo/relief.webp", "badge": "ORTA DOĞU", "title": "Acil Gıda & Barınma", "button_label": "Destek ol", "button_url": "/kampanyalar"},
+             {"image_url": "/demo/quran.webp", "badge": "ASYA", "title": "Medrese & Hafızlık", "button_label": "Katkı sun", "button_url": "/kampanyalar"},
+             {"image_url": "/demo/winter.webp", "badge": "BALKANLAR", "title": "Kışlık Yakacak & Koli", "button_label": "Bağış yap", "button_url": "/kampanyalar"},
+             {"image_url": "/demo/community.webp", "badge": "TÜRKİYE", "title": "Aşevi & Aile Destek", "button_label": "Detay", "button_url": "/kampanyalar"},
+         ])])
+_section("carousel-featured-2", "Büyük odaklı hikaye carousel (2'li)", "Carousel", "Geniş 16:9 görsellerle 2'li büyük hikaye kartları.",
+         [section([B("carousel", kicker="HİKAYELER", title="İyiliğin ulaştığı hayatlar", look="featured", columns=2, aspect="16/9", autoplay=False, arrow_pos="bottom", dots=True, items=[
+             {"image_url": "/demo/water.webp", "badge": "SU KUYUSU", "title": "Köyümüz artık 6 km yürümüyor", "text": "Açılan yeni sondaj kuyusuyla 450 kişi temiz suya kavuştu.", "button_label": "Projeyi gör", "button_url": "/kampanyalar"},
+             {"image_url": "/demo/education.webp", "badge": "EĞİTİM", "title": "Burslarla mezun olan 120 genç", "text": "Mühendislikten tıbba kadar onlarca öğrenci mezuniyet sevinci yaşadı.", "button_label": "Burs ver", "button_url": "/kampanyalar"},
+             {"image_url": "/demo/kurban.webp", "badge": "KURBAN", "title": "Bayram sevinci 18 ülkede", "text": "Kurban hisselerinizle binlerce ailenin sofrasına bayram geldi.", "button_label": "Kurban bağışı", "button_url": "/kampanyalar"},
+         ])], tone="soft")])
+_section("carousel-minimal-4", "Sade hizmet carousel (4'lü)", "Carousel", "Çerçevesiz, temiz 4'lü hizmet ve bağış alanları carousel'i.",
+         [B("carousel", kicker="NELER YAPIYORUZ?", title="Faaliyet başlıklarımız", look="minimal", columns=4, aspect="1/1", autoplay=True, arrow_pos="sides", dots=False, items=[
+             {"image_url": "/demo/mosque.webp", "title": "Cami & Mescid İnşası", "text": "İbadethane olmayan bölgelere kalıcı mescidler."},
+             {"image_url": "/demo/food.webp", "title": "Günlük Sıcak Yemek", "text": "Aşevlerimizden her gün binlerce kişiye ikram."},
+             {"image_url": "/demo/orphan.webp", "title": "Yetim Hamiliği", "text": "Eğitim, sağlık ve giyim ihtiyaçlarının düzenli takibi."},
+             {"image_url": "/demo/hands.webp", "title": "Zekat & Fitre Dağıtımı", "text": "Emanetlerinizin doğrudan ihtiyaç sahiplerine teslimi."},
+             {"image_url": "/demo/relief.webp", "title": "Afet Müdahale", "text": "Deprem ve sel bölgelerine hızlı lojistik destek."},
+         ])])
+_section("carousel-pill-3", "Yatay kompakt kart carousel", "Carousel", "Solda kare görsel, sağda başlık ve metin; kompakt yatay kartlar.",
+         [B("carousel", kicker="HIZLI ERİŞİM", title="İyilik seçenekleri", look="pill", columns=3, aspect="1/1", autoplay=True, arrow_pos="sides", dots=True, items=[
+             {"image_url": "/demo/water.webp", "badge": "SÜREKLİ", "title": "Su Kuyusu Fonu", "text": "Dilediğiniz tutarla ortak kuyu fonuna katılın.", "button_label": "Katıl", "button_url": "/kampanyalar"},
+             {"image_url": "/demo/food.webp", "badge": "GÜNLÜK", "title": "Bir Kap Sıcak Yemek", "text": "Bir kişinin günlük yemek bedelini karşılayın.", "button_label": "Bağışla", "button_url": "/kampanyalar"},
+             {"image_url": "/demo/quran.webp", "badge": "İLİM", "title": "Kur'an-ı Kerim Hediyesi", "text": "Talebeler için mushaf ve ilmihal seti hediye edin.", "button_label": "Hediye et", "button_url": "/kampanyalar"},
+             {"image_url": "/demo/orphan.webp", "badge": "AYLIK", "title": "Yetim Eğitim Paketi", "text": "Okul çantası ve kırtasiye desteği sağlayın.", "button_label": "Destekle", "button_url": "/kampanyalar"},
+         ])])
+_section("carousel-gallery", "Fotoğraf galerisi carousel", "Carousel", "Tıklanınca büyüyen kaydırmalı fotoğraf galerisi.",
+         [B("image_gallery", kicker="SAHADAN KARELER", title="Çalışmalarımızdan görüntüler", layout="carousel", columns=4, aspect="4/3", autoplay=True, lightbox=True, items=[
+             {"image_url": f"/demo/{name}.webp", "caption": caption} for name, caption in (
+                 ("water", "Su kuyusu açılışı"), ("education", "Öğrenci buluşması"), ("food", "Aşevi dağıtımı"),
+                 ("orphan", "Yetim şenliği"), ("kurban", "Kurban organizasyonu"), ("relief", "Acil yardım kolileri"))])])
+_section("carousel-news", "Haberler carousel", "Carousel", "Son haber ve duyurular yatay kaydırmalı kartlarda.",
+         [B("news", kicker="GÜNCEL", title="Sahadan son haberler", limit=8, layout="carousel")])
+_section("carousel-testimonials-grid", "Bağışçı yorumları (ızgara)", "Etki & güven", "Üç sütunlu bağışçı teşekkür kartları.",
+         [section([B("testimonials", kicker="SİZDEN GELENLER", title="Bağışçılarımız ne diyor?", look="grid", items=[
+             {"quote": "Kurban videom aynı gün geldi, gözlerim doldu. Allah razı olsun.", "name": "Hasan T.", "role": "İstanbul"},
+             {"quote": "Yıllardır düzenli bağış yapıyorum; her kuruşun raporunu görüyorum.", "name": "Mustafa E.", "role": "Konya"},
+             {"quote": "Açtırdığımız kuyunun fotoğraflarını çocuklarımla izledik.", "name": "İbrahim S.", "role": "Almanya"},
+         ])], tone="soft")])
+_section("header-centered-split", "İki satırlı modern header", "Header", "Üstte sosyal medya ve iletişim, altta logo-menü-buton.",
+         [_row({"tone": "soft", "height": 40, "border": True},
+               [B("contact_info", layout="inline", show_phone=True, show_email=True)], [],
+               [B("social_icons", p={"style": "round"}), B("language_switcher", advanced=_TABLET_DOWN)], style={"font_size": 13}),
+          _row({"tone": "light", "height": 80, "sticky": True, "shrink": True, "center_align": "center"},
+               [B("logo", size=44)], [B("nav_menu", source="header", mobile="drawer")],
+               [B("cart_button"), B("donate_button", p={"style": "primary"}, heart=True)])], kind="header")
+_section("footer-compact", "Kompakt koyu footer", "Footer", "Tek satır logo, menü, sosyal medya ve telif hakkı.",
+         [section([
+             columns("1-2-1",
+                     [B("logo", light=True, show_tagline=False, size=40)],
+                     [B("nav_menu", source="footer", layout="horizontal", mobile="inline", align="center")],
+                     [B("social_icons", p={"style": "round"}, align="right")], gap=24, valign="center"),
+             B("copyright", style={"margin_top": 28}, show_powered=True),
+         ], tone="dark", top=40, bottom=20, margin_top=48)], kind="footer")
+_section("features-numbered", "Numaralı süreç (01, 02, 03)", "Özellikler", "Sıralı numaralı 4 adım veya güvence kartı.",
+         [B("features", kicker="SÜRECİMİZ", title="Bağışınız nasıl ulaşıyor?", columns=2, look="numbered", items=[
+             {"title": "Niyet ve Proje Seçimi", "text": "İhtiyaç duyulan alanı ve bağış tutarınızı belirlersiniz."},
+             {"title": "Güvenli Ödeme ve Makbuz", "text": "3D Secure ile ödemenizi tamamlar, makbuzunuzu alırsınız."},
+             {"title": "Saha Dağıtımı", "text": "Ekiplerimiz bağışınızı doğrudan hak sahiplerine ulaştırır."},
+             {"title": "Fotoğraf & Video Rapor", "text": "Çalışma tamamlandığında bilgilendirme mesajı gönderilir."},
+         ])])
+_section("faq-two-col", "SSS (2 sütunlu açık kartlar)", "SSS & iletişim", "Açılır kapanır yerine 2 sütunda açık soru-cevap kartları.",
+         [section([B("faq", title="Merak Edilenler", look="two_col", items=[
+             {"question": "Bağış makbuzu nasıl alınır?", "answer": "Ödeme sonrası e-postanıza otomatik gönderilir; Bağışçı Girişi'nden de indirebilirsiniz."},
+             {"question": "Zekat hangi projelere gider?", "answer": "Zekat uygun projeler işaretlidir; sadece fıkhi şartları taşıyan ihtiyaç sahiplerine ulaştırılır."},
+             {"question": "Kurban kesim videosu geliyor mu?", "answer": "Evet, kesim tamamlandığında video bağlantısı SMS ile iletilir."},
+             {"question": "Düzenli bağışı iptal edebilir miyim?", "answer": "Evet, panelinizden istediğiniz an tek tıkla durdurabilirsiniz."},
+         ])], tone="soft")])
+_section("steps-vertical", "Adımlar (dikey çizelge)", "Etki & güven", "Alt alta numaralı 4 bağış adımı.",
+         [B("steps", kicker="ADIM ADIM", title="Bağış yapmak çok kolay", look="vertical")])
+_section("categories-pills", "Bağış kategorileri (hap butonlar)", "Bağış", "Kompakt yatay kategori seçici butonları.",
+         [B("categories", kicker="KATEGORİLER", title="Hızlı bağış türü seçin", look="pills")])
+_section("banner-glass", "Cam kutulu görselli banner", "Çağrı", "Tam genişlik görsel üzerinde buzlu cam çağrı kutusu.",
+         [B("banner", layout="glass", image_url="/demo/mosque.webp", kicker="RAMAZAN & ZEKAT", title="Bir iyilikle gönüllere dokunun",
+            text="Fitre, zekat ve iftar bağışlarınızla binlerce sofraya bereket taşıyın.", button_label="Bağış yap", button_url="/kampanyalar")])
+_section("banner-gradient", "Renk geçişli modern banner", "Çağrı", "Ana renkten vurgu rengine uzanan canlı çağrı bandı.",
+         [B("banner", layout="gradient", kicker="DÜZENLİ BAĞIŞ", title="Her ay küçük bir destekle büyük değişim",
+            text="Aylık düzenli bağışçı olarak yetim ve öğrenci projelerimize sürekli destek olun.", button_label="Düzenli bağışçı ol", button_url="/kampanyalar", align="center")])
+_section("quote-dark", "Koyu bantta ayet / hadis", "Hakkımızda", "Koyu zeminli tam genişlik alıntı bandı.",
+         [B("quote", text="Sadaka malı eksiltmez; aksine bereketlendirir.", source="Hadis-i Şerif", look="dark_band")])
+_section("timeline-horizontal", "Yatay tarihçe kartları", "Hakkımızda", "Yan yana dizili 5 dönem tarihçe kartları.",
+         [B("timeline", kicker="YOLCULUĞUMUZ", title="Kilometre taşlarımız", look="horizontal", items=[
+             {"date": "1995", "title": "Kuruluş", "text": "Gönüllü hareketi olarak başladık."},
+             {"date": "2004", "title": "Su Kuyuları", "text": "Afrika'da ilk kuyular açıldı."},
+             {"date": "2012", "title": "Yetim Hamiliği", "text": "Düzenli sponsorluk sistemi kuruldu."},
+             {"date": "2020", "title": "Dijital Altyapı", "text": "Online bağış ve şeffaf raporlama."},
+             {"date": "Bugün", "title": "27 Ülke", "text": "Binlerce gönüllüyle sahadayız."},
+         ])])
+_section("countdown-cards", "Geri sayım (ayrı kutular)", "Çağrı", "Beyaz gün-saat-dakika kutularıyla kampanya sayacı.",
+         [B("countdown", kicker="YAKLAŞIYOR", title="Ramazan kampanyasına kalan süre", target="2027-02-08T00:00:00+03:00",
+            button_label="Şimdi hazırlan", button_url="/kampanyalar", look="cards", tone="soft")])
+_section("bank-compact", "Kompakt IBAN listesi", "Bağış", "Tek satırlı kopyalanabilir IBAN listesi.",
+         [B("bank_accounts", kicker="BANKA HESAPLARI", title="Hızlı IBAN listesi", look="compact", items=[
+             {"bank": "Vakıf Katılım", "holder": "Örnek Yardım Derneği", "iban": "TR00 0000 0000 0000 0000 0000 00", "currency": "TRY"},
+             {"bank": "Kuveyt Türk", "holder": "Örnek Yardım Derneği", "iban": "TR00 0000 0000 0000 0000 0000 01", "currency": "TRY"},
+             {"bank": "Ziraat Katılım", "holder": "Örnek Yardım Derneği", "iban": "TR00 0000 0000 0000 0000 0000 02", "currency": "USD"},
+         ])])
 
 # --- Sections built with the newer blocks ---------------------------------------------------
 
@@ -502,6 +640,12 @@ PAGE_TEMPLATES += [
                 *_blocks("story", "counters-plain", "donate-band", "gallery-grid", "faq")]},
     {"key": "activities", "label": "Faaliyetlerimiz", "slug": "faaliyetlerimiz", "description": "Çalışma alanları, sekmeler, haberler ve galeri.",
      "blocks": [_page_hero("Faaliyetlerimiz", "SAHADAN", "/demo/relief.webp"), *_blocks("features-work", "tabs-activities", "news", "gallery-strip")]},
+    {"key": "orphan-sponsorship", "label": "Yetim sponsorluğu", "slug": "yetim-sponsorlugu", "description": "Yetim slider'ı, sponsorluk adımları, hikayeler ve bağış kartları.",
+     "blocks": _blocks("slider-stacked-impact", "steps", "carousel-featured-2", "donation-cards", "testimonials-block", "faq")},
+    {"key": "zakat-guide", "label": "Zekat & fitre rehberi", "slug": "zekat-rehberi", "description": "Zekat bandı, ayet, akordeon bilgi, bağış kartları ve SSS.",
+     "blocks": [_page_hero("Zekat ve Fitre", "İBADET & PAYLAŞIM", "/demo/mosque.webp"), *_blocks("zakat", "quote-verse", "tabs-accordion", "donation-cards", "faq")]},
+    {"key": "projects-showcase", "label": "Projeler vitrini", "slug": "projelerimiz", "description": "Sekmeli slider, 3'lü ve 4'lü proje carousel'leri, hedefler ve galeri.",
+     "blocks": _blocks("slider-tabs-projects", "carousel-projects-3", "carousel-overlay-4", "progress-targets", "carousel-gallery")},
 ]
 
 # "Hayır Kapısı" (HAKDER look): its own pages join the page templates.

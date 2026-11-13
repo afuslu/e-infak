@@ -19,13 +19,16 @@ export interface SlideView {
   donateLabel: string
 }
 
-export type SliderLayout = 'overlay' | 'split' | 'card'
-export type SliderNav = 'dots' | 'tabs' | 'thumbs'
+export type SliderLayout = 'overlay' | 'split' | 'card' | 'glass' | 'minimal' | 'stacked'
+export type SliderNav = 'dots' | 'tabs' | 'thumbs' | 'numbers' | 'progress'
 
 const HEIGHTS: Record<string, string> = {
   sm: 'min-h-[360px]', md: 'min-h-[480px] md:min-h-[540px]', lg: 'min-h-[540px] md:min-h-[640px]', screen: 'min-h-[calc(100vh-80px)]',
   // Poster slides (text drawn into the image): the whole image at banner proportions, nothing cropped.
   poster: 'aspect-[16/5]',
+}
+const CARD_HEIGHTS: Record<string, string> = {
+  sm: 'md:min-h-[320px]', md: 'md:min-h-[400px]', lg: 'md:min-h-[460px]', screen: 'md:min-h-[calc(100vh-140px)]', poster: '',
 }
 
 function SlideButton({
@@ -156,7 +159,10 @@ export function Slider({
   const playing = autoplay && !paused && !editing && !reduced && count > 1
   const card = layout === 'card'
   const split = layout === 'split'
-  const fade = effect === 'fade' || split
+  const glass = layout === 'glass'
+  const minimal = layout === 'minimal'
+  const stacked = layout === 'stacked'
+  const fade = effect === 'fade' || effect === 'zoom' || effect === 'flip'
 
   useEffect(() => { setRtl(document.documentElement.dir === 'rtl') }, [])
   useEffect(() => {
@@ -185,9 +191,19 @@ export function Slider({
     go(index + ((dx < 0) !== rtl ? 1 : -1))
   }
 
-  const heightClass = split || card ? '' : HEIGHTS[height] || HEIGHTS.md
+  const heightClass = split || card || stacked ? '' : HEIGHTS[height] || HEIGHTS.md
+  const cardHeightClass = CARD_HEIGHTS[height] || ''
   const motion = reduced ? '' : 'duration-700 ease-out'
   const showThumbs = dots && count > 1 && nav === 'thumbs'
+  const showNumbers = dots && count > 1 && nav === 'numbers'
+  const showProgress = dots && count > 1 && nav === 'progress'
+  const showTabs = dots && count > 1 && nav === 'tabs'
+  const slideAnim = (active: boolean) => {
+    if (!fade) return 'w-full flex-none'
+    if (effect === 'zoom') return `transition-all ${motion} ${active ? 'opacity-100 scale-100' : 'pointer-events-none opacity-0 scale-[1.04]'}`
+    if (effect === 'flip') return `transition-all ${motion} ${active ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-3'}`
+    return `transition-opacity ${motion} ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}`
+  }
 
   const renderButtons = (s: SlideView, justify: string, isCard?: boolean) => (
     <div className={`${height === 'poster' ? 'hidden sm:flex' : 'flex'} flex-wrap gap-2.5 sm:gap-3 ${split || isCard ? '' : justify}`}>
@@ -261,8 +277,8 @@ export function Slider({
 
                 return (
                   <div key={i} role="group" aria-roledescription="slide" aria-label={`${i + 1} / ${count}`} {...hidden}
-                    className={fade ? `transition-opacity ${motion} ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}` : 'w-full flex-none'}>
-                    <div className="grid grid-cols-1 items-center md:grid-cols-[5fr_7fr]">
+                    className={slideAnim(active)}>
+                    <div className={`grid grid-cols-1 items-center md:grid-cols-[5fr_7fr] ${cardHeightClass}`}>
                       {s.image_url && (
                         <div className="order-1 p-2 pb-0 md:order-2 md:p-3">
                           <div className="overflow-hidden rounded-xl bg-gray-100 aspect-[16/10] md:aspect-auto md:h-[390px] lg:h-[430px]">
@@ -329,8 +345,44 @@ export function Slider({
             </div>
           )}
 
-          {dots && count > 1 && !showThumbs && (
-            <div className="mt-4 flex justify-center gap-2">
+          {showNumbers && (
+            <div className="mt-4 flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-2.5 shadow-sm ring-1 ring-black/[0.06]">
+              <div className="flex items-center gap-3">
+                <span className="font-heading text-sm font-bold text-primary-700">{String(index + 1).padStart(2, '0')}</span>
+                <div className="h-1.5 w-28 overflow-hidden rounded-full bg-gray-200 sm:w-44">
+                  <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${((index + 1) / count) * 100}%` }} />
+                </div>
+                <span className="font-heading text-sm font-semibold text-gray-400">{String(count).padStart(2, '0')}</span>
+              </div>
+              {arrows && (
+                <div className="flex gap-1.5">
+                  <button type="button" aria-label="Önceki slayt" onClick={() => go(index - 1)} className="flex h-8 w-8 items-center justify-center rounded-full border text-lg hover:border-primary-600 hover:text-primary-700">‹</button>
+                  <button type="button" aria-label="Sonraki slayt" onClick={() => go(index + 1)} className="flex h-8 w-8 items-center justify-center rounded-full border text-lg hover:border-primary-600 hover:text-primary-700">›</button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showProgress && (
+            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+              <div key={`${index}-${playing}`} className={`h-full bg-primary-600 ${playing ? 'slider-progress' : 'w-full'}`} style={{ animationDuration: `${seconds}s` }} />
+            </div>
+          )}
+
+          {showTabs && (
+            <div className="mt-3 hidden grid-cols-1 gap-2 md:grid" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}>
+              {slides.map((s, i) => (
+                <button key={i} type="button" onClick={() => go(i)} aria-label={`${i + 1}. slayt`} aria-current={i === index}
+                  className={`relative truncate rounded-xl border px-3 py-3 text-start text-sm font-semibold transition ${i === index ? 'border-primary-600 bg-white text-primary-800 shadow-sm' : 'border-transparent bg-white/60 text-gray-600 hover:bg-white'}`}>
+                  <span className="me-2 font-heading text-xs opacity-60">{String(i + 1).padStart(2, '0')}</span>
+                  {s.title || s.badge || `${i + 1}`}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {dots && count > 1 && !showThumbs && !showNumbers && !showProgress && (!showTabs || true) && (
+            <div className={`mt-4 flex justify-center gap-2 ${showTabs ? 'md:hidden' : ''}`}>
               {slides.map((_, i) => (
                 <button key={i} type="button" aria-label={`${i + 1}. slayt`} aria-current={i === index} onClick={() => go(i)}
                   className={`relative h-2.5 overflow-hidden rounded-full transition-all ${i === index ? 'w-9 bg-primary-200' : 'w-2.5 bg-gray-300'}`}>
@@ -348,7 +400,7 @@ export function Slider({
 
   return (
     <section
-      className={`group/slider relative overflow-hidden ${split ? 'bg-gradient-to-br from-primary-50 via-white to-accent-50' : 'bg-primary-950'} ${heightClass}`}
+      className={`group/slider relative overflow-hidden ${split ? 'bg-gradient-to-br from-primary-50 via-white to-accent-50' : stacked ? 'bg-[#F8FAFC]' : minimal ? 'bg-white' : 'bg-primary-950'} ${heightClass}`}
       aria-roledescription="carousel" aria-label={label} tabIndex={-1}
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
       onFocusCapture={() => setPaused(true)} onBlurCapture={() => setPaused(false)}
@@ -359,15 +411,15 @@ export function Slider({
           const active = i === index
           const align = s.align === 'center' ? 'items-center text-center' : s.align === 'right' ? 'items-end text-end' : 'items-start text-start'
           const justify = s.align === 'center' ? 'justify-center' : s.align === 'right' ? 'justify-end' : ''
-          const buttons = renderButtons(s, justify)
-          const progress = renderProgress(s, split)
+          const buttons = renderButtons(s, justify, stacked)
+          const progress = renderProgress(s, split || stacked || minimal)
           const hidden = { 'aria-hidden': !active, inert: !active }
 
           if (split) {
             return (
               <div key={i} role="group" aria-roledescription="slide" aria-label={`${i + 1} / ${count}`} {...hidden}
-                className={`transition-opacity ${motion} ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
-                <div className="mx-auto grid max-w-[1200px] items-center gap-10 px-6 py-12 md:grid-cols-[1.05fr_0.95fr] md:py-16">
+                className={slideAnim(active)}>
+                <div className={`mx-auto grid max-w-[1200px] items-center gap-10 px-6 py-12 md:grid-cols-[1.05fr_0.95fr] md:py-16 ${cardHeightClass}`}>
                   <div className={`${active && !reduced ? 'animate-[slide-text_.8s_ease-out_both]' : ''}`}>
                     {s.badge && <div className="mb-4 text-[13px] font-bold uppercase tracking-[3px] text-primary-600">{s.badge}</div>}
                     {s.title && <h2 className="mb-4 font-heading text-4xl font-bold leading-[1.12] text-gray-900 md:text-[52px]">{s.title}</h2>}
@@ -387,9 +439,65 @@ export function Slider({
             )
           }
 
+          if (stacked) {
+            return (
+              <div key={i} role="group" aria-roledescription="slide" aria-label={`${i + 1} / ${count}`} {...hidden}
+                className={`${slideAnim(active)} py-6`}>
+                <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
+                  <div className="relative h-[280px] overflow-hidden rounded-3xl bg-gray-200 sm:h-[380px] md:h-[440px]">
+                    {s.image_url && (
+                      <picture>
+                        {s.mobile_image_url && <source media="(max-width: 639px)" srcSet={s.mobile_image_url} />}
+                        <img src={s.image_url} alt="" loading={i === 0 ? 'eager' : 'lazy'} className="h-full w-full object-cover" />
+                      </picture>
+                    )}
+                    <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${(s.overlay ?? 20) / 100})` }} />
+                  </div>
+                  <div className="relative z-10 mx-auto -mt-16 max-w-4xl rounded-2xl bg-white p-6 shadow-xl ring-1 ring-black/[0.06] sm:p-8">
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                      <div className="min-w-0 flex-1">
+                        {s.badge && <span className="mb-2 inline-block rounded-full bg-primary-50 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-primary-700">{s.badge}</span>}
+                        {s.title && <h2 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">{s.title}</h2>}
+                        {s.text && <p className="mt-2 text-gray-600">{s.text}</p>}
+                      </div>
+                      <div className="flex-none">{buttons}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          if (minimal) {
+            return (
+              <div key={i} role="group" aria-roledescription="slide" aria-label={`${i + 1} / ${count}`} {...hidden}
+                className={`${slideAnim(active)} relative`}>
+                <div className="relative h-[320px] overflow-hidden bg-gray-900 sm:h-[420px]">
+                  {s.image_url && (
+                    <picture>
+                      {s.mobile_image_url && <source media="(max-width: 639px)" srcSet={s.mobile_image_url} />}
+                      <img src={s.image_url} alt="" loading={i === 0 ? 'eager' : 'lazy'} className="h-full w-full object-cover" />
+                    </picture>
+                  )}
+                  <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${(s.overlay ?? 20) / 100})` }} />
+                </div>
+                <div className="border-b bg-white">
+                  <div className="mx-auto flex max-w-[1200px] flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      {s.badge && <span className="me-2 text-xs font-bold uppercase tracking-wider text-primary-600">{s.badge}</span>}
+                      {s.title && <h2 className="inline font-heading text-xl font-bold text-gray-900 md:text-2xl">{s.title}</h2>}
+                      {s.text && <p className="mt-1 text-sm text-gray-600">{s.text}</p>}
+                    </div>
+                    <div className="flex-none">{renderButtons(s, '', true)}</div>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
           return (
             <div key={i} role="group" aria-roledescription="slide" aria-label={`${i + 1} / ${count}`} {...hidden}
-              className={`relative overflow-hidden ${fade ? `transition-opacity ${motion} ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}` : 'w-full flex-none'} ${heightClass}`}>
+              className={`relative overflow-hidden ${slideAnim(active)} ${heightClass}`}>
               {s.image_url && (
                 <picture>
                   {s.mobile_image_url && <source media="(max-width: 639px)" srcSet={s.mobile_image_url} />}
@@ -399,9 +507,9 @@ export function Slider({
                 </picture>
               )}
               <div className="absolute inset-0" style={{ background: `rgba(0,0,0,${(s.overlay ?? 45) / 100})` }} />
-              {s.align !== 'center' && (s.overlay ?? 45) > 0 && <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-transparent rtl:bg-gradient-to-l" />}
+              {!glass && s.align !== 'center' && (s.overlay ?? 45) > 0 && <div className="absolute inset-0 bg-gradient-to-r from-black/45 via-black/10 to-transparent rtl:bg-gradient-to-l" />}
               <div className={`relative mx-auto flex h-full max-w-[1200px] flex-col ${height === 'poster' ? 'justify-end pb-[3%] pt-4' : 'justify-center pb-20 pt-16'} px-6 ${arrows && count > 1 ? 'sm:px-20' : ''} ${align} ${heightClass}`}>
-                <div className={`max-w-2xl ${active && !reduced ? 'animate-[slide-text_.8s_ease-out_both]' : ''}`}>
+                <div className={`${glass ? 'max-w-xl rounded-3xl border border-white/25 bg-black/45 p-7 shadow-2xl backdrop-blur-md sm:p-10' : 'max-w-2xl'} ${active && !reduced ? 'animate-[slide-text_.8s_ease-out_both]' : ''}`}>
                   {s.badge && <span className="mb-5 inline-block rounded-full border border-white/40 bg-white/10 px-4 py-1.5 text-[13px] font-bold tracking-[2px] text-white backdrop-blur-sm">{s.badge}</span>}
                   {s.title && <h2 className="mb-4 font-heading text-3xl font-bold leading-[1.12] text-white drop-shadow md:text-[54px]">{s.title}</h2>}
                   {s.text && <p className={`mb-7 text-lg leading-relaxed text-white/85 ${s.align === 'center' ? 'mx-auto max-w-xl' : 'max-w-xl'}`}>{s.text}</p>}
@@ -414,20 +522,20 @@ export function Slider({
         })}
       </div>
 
-      {arrows && count > 1 && !showThumbs && (
+      {arrows && count > 1 && !showThumbs && !showNumbers && (
         <>
           <button type="button" aria-label="Önceki slayt" onClick={() => go(index - 1)}
-            className={`absolute start-3 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-2xl transition sm:flex md:start-6 ${split ? 'bg-white text-gray-700 shadow hover:text-primary-700' : 'bg-white/15 text-white backdrop-blur hover:bg-white/30'}`}>
+            className={`absolute start-3 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-2xl transition sm:flex md:start-6 ${split || stacked || minimal ? 'bg-white text-gray-700 shadow hover:text-primary-700' : 'bg-white/15 text-white backdrop-blur hover:bg-white/30'}`}>
             <span className="rtl:rotate-180">‹</span>
           </button>
           <button type="button" aria-label="Sonraki slayt" onClick={() => go(index + 1)}
-            className={`absolute end-3 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-2xl transition sm:flex md:end-6 ${split ? 'bg-white text-gray-700 shadow hover:text-primary-700' : 'bg-white/15 text-white backdrop-blur hover:bg-white/30'}`}>
+            className={`absolute end-3 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full text-2xl transition sm:flex md:end-6 ${split || stacked || minimal ? 'bg-white text-gray-700 shadow hover:text-primary-700' : 'bg-white/15 text-white backdrop-blur hover:bg-white/30'}`}>
             <span className="rtl:rotate-180">›</span>
           </button>
         </>
       )}
 
-      {dots && count > 1 && nav === 'tabs' && (
+      {showTabs && (
         <div className="absolute inset-x-0 bottom-0 z-10 hidden border-t border-white/15 bg-black/25 backdrop-blur md:block">
           <div className="mx-auto grid max-w-[1200px] px-6" style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}>
             {slides.map((s, i) => (
@@ -445,21 +553,43 @@ export function Slider({
           </div>
         </div>
       )}
+      {showNumbers && (
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 px-6 py-3">
+          <div className={`flex items-center gap-3 ${split || stacked || minimal ? 'text-gray-800' : 'text-white'}`}>
+            <span className="font-heading text-sm font-bold">{String(index + 1).padStart(2, '0')}</span>
+            <div className={`h-1 w-28 overflow-hidden rounded-full sm:w-44 ${split || stacked || minimal ? 'bg-gray-200' : 'bg-white/25'}`}>
+              <div className={`h-full rounded-full transition-all duration-500 ${split || stacked || minimal ? 'bg-primary-600' : 'bg-white'}`} style={{ width: `${((index + 1) / count) * 100}%` }} />
+            </div>
+            <span className="font-heading text-sm opacity-60">{String(count).padStart(2, '0')}</span>
+          </div>
+          {arrows && (
+            <div className="flex gap-2">
+              <button type="button" aria-label="Önceki slayt" onClick={() => go(index - 1)} className="flex h-9 w-9 items-center justify-center rounded-full border border-current/25 text-lg hover:bg-white/15">‹</button>
+              <button type="button" aria-label="Sonraki slayt" onClick={() => go(index + 1)} className="flex h-9 w-9 items-center justify-center rounded-full border border-current/25 text-lg hover:bg-white/15">›</button>
+            </div>
+          )}
+        </div>
+      )}
+      {showProgress && (
+        <div className="h-1.5 w-full overflow-hidden bg-black/15">
+          <div key={`${index}-${playing}`} className={`h-full bg-primary-600 ${playing ? 'slider-progress' : 'w-full'}`} style={{ animationDuration: `${seconds}s` }} />
+        </div>
+      )}
       {showThumbs ? (
-        <div className={`inset-x-0 z-10 px-4 py-3 ${split ? '' : 'absolute bottom-0 bg-black/25 backdrop-blur-sm'}`}>
+        <div className={`inset-x-0 z-10 px-4 py-3 ${split || stacked || minimal ? '' : 'absolute bottom-0 bg-black/25 backdrop-blur-sm'}`}>
           <ThumbnailStrip
             slides={slides} index={index} onSelect={go}
             onPrev={() => go(index - 1)} onNext={() => go(index + 1)}
-            arrows={arrows} dark={!split} reduced={reduced}
+            arrows={arrows} dark={!(split || stacked || minimal)} reduced={reduced}
           />
         </div>
-      ) : dots && count > 1 && (
-        <div className={`absolute inset-x-0 z-10 flex justify-center gap-2 ${nav === 'tabs' ? 'bottom-5 md:hidden' : split ? 'bottom-4' : 'bottom-6'}`}>
+      ) : dots && count > 1 && !showNumbers && !showProgress && (
+        <div className={`absolute inset-x-0 z-10 flex justify-center gap-2 ${showTabs ? 'bottom-5 md:hidden' : split || stacked || minimal ? 'bottom-4' : 'bottom-6'}`}>
           {slides.map((_, i) => (
             <button key={i} type="button" aria-label={`${i + 1}. slayt`} aria-current={i === index} onClick={() => go(i)}
-              className={`relative h-2.5 overflow-hidden rounded-full transition-all ${i === index ? 'w-9' : 'w-2.5'} ${split ? 'bg-primary-200' : 'bg-white/45'}`}>
+              className={`relative h-2.5 overflow-hidden rounded-full transition-all ${i === index ? 'w-9' : 'w-2.5'} ${split || stacked || minimal ? 'bg-primary-200' : 'bg-white/45'}`}>
               {i === index && (
-                <span key={`${index}-${playing}`} className={`absolute inset-y-0 start-0 ${split ? 'bg-primary-600' : 'bg-white'} ${playing ? 'slider-progress' : 'w-full'}`} style={{ animationDuration: `${seconds}s` }} />
+                <span key={`${index}-${playing}`} className={`absolute inset-y-0 start-0 ${split || stacked || minimal ? 'bg-primary-600' : 'bg-white'} ${playing ? 'slider-progress' : 'w-full'}`} style={{ animationDuration: `${seconds}s` }} />
               )}
             </button>
           ))}

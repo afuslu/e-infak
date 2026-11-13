@@ -74,7 +74,7 @@ const BASE_CSS = `
 
 /** Blocks whose own markup is full width with its own container and padding. */
 const FULL_BLEED = new Set([
-  'hero', 'slider', 'stats', 'zakat_band', 'cta_band', 'trust', 'banner', 'header_row',
+  'hero', 'slider', 'carousel', 'stats', 'zakat_band', 'cta_band', 'trust', 'banner', 'header_row',
   'featured_campaign', 'steps', 'gallery_strip', 'testimonials', 'campaigns', 'news', 'categories',
   'announcement_bar', 'contact_form', 'mobile_tab_bar', 'countdown', 'marquee', 'popup',
 ])
@@ -275,10 +275,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     }
     case 'quick_donation': {
       const c = campaignById(o.campaign_id) || data.campaigns[0]
+      const look = o.look || 'card'
       return (
-        <div id="hizli-bagis" className="mx-auto max-w-xl px-6">
-          {o.title && <h2 className="mb-4 text-center font-heading text-2xl font-bold">{o.title}</h2>}
-          {c ? <QuickDonationForm campaignId={c.id} campaignTitle={c.title} /> : <p className="rounded-2xl border bg-white p-6 text-center text-gray-500">{t('home.noCampaignForm')}</p>}
+        <div id="hizli-bagis" className={look === 'band' ? 'bg-primary-50 py-10' : ''}>
+          <div className={`mx-auto px-6 ${look === 'compact' ? 'max-w-md' : 'max-w-xl'}`}>
+            {o.title && <h2 className="mb-4 text-center font-heading text-2xl font-bold">{o.title}</h2>}
+            {c ? <QuickDonationForm campaignId={c.id} campaignTitle={c.title} /> : <p className="rounded-2xl border bg-white p-6 text-center text-gray-500">{t('home.noCampaignForm')}</p>}
+          </div>
         </div>
       )
     }
@@ -376,6 +379,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           </div>
         )
       }
+      if (o.layout === 'gradient') {
+        return (
+          <div className="flex flex-col justify-center bg-gradient-to-r from-primary-700 via-primary-600 to-accent-500">
+            <div className={`${container} w-full py-12 md:py-16`}>{text(true)}</div>
+          </div>
+        )
+      }
       if (o.layout === 'color' || (isRed && !o.image_url)) {
         return (
           <div className={`flex flex-col justify-center ${isRed ? 'bg-gradient-to-r from-[#C8102E] via-[#E30A17] to-red-700 shadow-lg shadow-red-900/15' : 'bg-primary-700'}`}>
@@ -391,7 +401,11 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
               <img src={o.image_url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" loading="lazy" />
             </picture>
           )}
-          <div className={`relative ${container} w-full py-16 md:py-20`}>{text(true)}</div>
+          <div className={`relative ${container} w-full py-16 md:py-20`}>
+            {o.layout === 'glass'
+              ? <div className="max-w-2xl rounded-3xl border border-white/25 bg-black/45 p-7 shadow-2xl backdrop-blur-md sm:p-10">{text(true)}</div>
+              : text(true)}
+          </div>
         </div>
       )
     }
@@ -462,18 +476,27 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </figure>
       )
     }
-    case 'image_text':
+    case 'image_text': {
+      const look = o.look || 'plain'
       return (
-        <div className={`${container} grid items-center gap-10 md:grid-cols-2`}>
-          {o.image_url && <img src={o.image_url} alt={o.alt || ''} loading="lazy" className={`w-full rounded-2xl object-cover ${o.image_side === 'right' ? 'md:order-2' : ''}`} />}
-          <div>
-            {o.kicker && <div className="mb-2 text-[13px] font-bold tracking-[2px] text-primary-600">{o.kicker}</div>}
-            {o.title && <h2 className="mb-4 font-heading text-3xl font-bold">{o.title}</h2>}
-            <BlockText text={o.text} />
-            {o.button_label && o.button_url && <div className="mt-6"><Btn href={o.button_url}>{o.button_label}</Btn></div>}
+        <div className={container}>
+          <div className={`grid items-center gap-10 md:grid-cols-2 ${look === 'card' ? 'rounded-3xl border bg-white p-6 shadow-sm md:p-10' : ''}`}>
+            {o.image_url && (
+              <div className={`${o.image_side === 'right' ? 'md:order-2' : ''} ${look === 'overlap' ? 'relative p-2' : ''}`}>
+                {look === 'overlap' && <div className="absolute inset-0 -rotate-2 rounded-3xl bg-primary-100" aria-hidden />}
+                <img src={o.image_url} alt={o.alt || ''} loading="lazy" className="relative w-full rounded-2xl object-cover shadow-sm" />
+              </div>
+            )}
+            <div>
+              {o.kicker && <div className="mb-2 text-[13px] font-bold tracking-[2px] text-primary-600">{o.kicker}</div>}
+              {o.title && <h2 className="mb-4 font-heading text-3xl font-bold">{o.title}</h2>}
+              <BlockText text={o.text} />
+              {o.button_label && o.button_url && <div className="mt-6"><Btn href={o.button_url}>{o.button_label}</Btn></div>}
+            </div>
           </div>
         </div>
       )
+    }
     case 'video': {
       const v = o.url as { provider?: string; id?: string } | undefined
       if (!v?.id) return null
@@ -525,6 +548,36 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       )
     }
     case 'faq':
+      if (o.look === 'two_col') {
+        return (
+          <div className={container}>
+            {o.title && <h2 className="mb-8 text-center font-heading text-3xl font-bold">{o.title}</h2>}
+            <div className="grid gap-5 md:grid-cols-2">
+              {(o.items || []).map((item: any, i: number) => (
+                <div key={i} className="rounded-2xl border bg-white p-6 shadow-sm">
+                  <h3 className="mb-2 font-heading text-lg font-bold text-gray-900">{item.question}</h3>
+                  <BlockText text={item.answer} className="text-[15px] opacity-80" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      if (o.look === 'minimal') {
+        return (
+          <div className={`${container} max-w-3xl`}>
+            {o.title && <h2 className="mb-6 font-heading text-3xl font-bold">{o.title}</h2>}
+            <div className="divide-y">
+              {(o.items || []).map((item: any, i: number) => (
+                <div key={i} className="py-5">
+                  <h3 className="mb-1.5 font-heading text-lg font-bold">{item.question}</h3>
+                  <BlockText text={item.answer} className="text-[15px] opacity-80" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }
       return (
         <div className={`${container} max-w-3xl`}>
           {o.title && <h2 className="mb-6 text-center font-heading text-3xl font-bold">{o.title}</h2>}
