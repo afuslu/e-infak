@@ -21,6 +21,7 @@ interface RenderMessage {
   selectedId: string | null
   specs: Record<string, BlockSpec>
   device?: 'desktop' | 'tablet' | 'mobile'
+  scale?: number
 }
 
 type Drop = { targetId: string; position: 'before' | 'after' | 'inside' } | null
@@ -108,6 +109,7 @@ export default function BuilderCanvas() {
 
   const device = state.device || 'desktop'
   const locale = state.data?.locale || 'tr'
+  const invScale = state.scale && state.scale < 1 ? Math.min(2.2, 1 / state.scale) : 1
 
   const getTextFields = (block: Block, spec?: BlockSpec) => {
     if (!spec?.fields) return []
@@ -185,18 +187,24 @@ export default function BuilderCanvas() {
         {dropHere === 'after' && <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 h-1 bg-blue-500" />}
         {dropHere === 'inside' && <div className="pointer-events-none absolute inset-0 z-30 bg-blue-500/10 ring-2 ring-inset ring-blue-500" />}
         {(selected || isHover) && (
-          <div className={`absolute z-40 flex items-center gap-0.5 rounded-b-md text-[11px] font-semibold text-white shadow ${depth ? 'end-0 top-0' : 'start-0 top-0'} ${selected ? 'bg-blue-600' : 'bg-blue-400'}`}>
-            <span className="cursor-grab px-2 py-1">{spec?.icon} {spec?.label || block.type}</span>
+          <div
+            style={{
+              transform: invScale > 1 ? `scale(${invScale})` : undefined,
+              transformOrigin: depth ? 'top right' : 'top left',
+            }}
+            className={`absolute z-40 flex items-center gap-0.5 rounded-b-md text-[12px] font-semibold text-white shadow-md ${depth ? 'end-0 top-0' : 'start-0 top-0'} ${selected ? 'bg-blue-600' : 'bg-blue-500'}`}
+          >
+            <span className="cursor-grab px-2.5 py-1">{spec?.icon} {spec?.label || block.type}</span>
             {selected && hasTextFields && (
-              <button type="button" title="Metni tuvalde düzenle (Çift tık)" className="px-1.5 py-1 hover:bg-white/20"
+              <button type="button" title="Metni tuvalde düzenle (Çift tık)" className="px-2 py-1 hover:bg-white/20"
                 onClick={(e) => { e.stopPropagation(); openInlineEdit(block, (e.currentTarget as HTMLElement).closest('[data-block-id]') as HTMLElement) }}>
                 ✏️
               </button>
             )}
             {selected && !isColumn && (
               <>
-                {[['↑', 'up', 'Yukarı'], ['↓', 'down', 'Aşağı'], ['⧉', 'duplicate', 'Kopyala'], ['🗑', 'delete', 'Sil']].map(([glyph, action, title]) => (
-                  <button key={action} type="button" title={title} className="px-1.5 py-1 hover:bg-white/20"
+                {[['↑', 'up', 'Yukarı'], ['↓', 'down', 'Aşağı'], ['⧉', 'duplicate', 'Çoğalt'], ['🗑', 'delete', 'Sil']].map(([glyph, action, title]) => (
+                  <button key={action} type="button" title={title} className={`px-2 py-1 hover:bg-white/20 ${action === 'delete' ? 'hover:bg-red-500' : ''}`}
                     onClick={(e) => { e.stopPropagation(); post({ type: 'action', id: block.id, action }) }}>{glyph}</button>
                 ))}
               </>
@@ -204,7 +212,13 @@ export default function BuilderCanvas() {
           </div>
         )}
         {(block.advanced?.hide_desktop || block.advanced?.hide_tablet || block.advanced?.hide_mobile || block.advanced?.starts_at || block.advanced?.ends_at || block.advanced?.langs) && (
-          <div className="pointer-events-none absolute end-1 top-1 z-30 rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-amber-950">
+          <div
+            style={{
+              transform: invScale > 1 ? `scale(${invScale})` : undefined,
+              transformOrigin: 'top right',
+            }}
+            className="pointer-events-none absolute end-1 top-1 z-30 rounded bg-amber-400 px-2 py-0.5 text-[11px] font-bold text-amber-950 shadow-xs"
+          >
             {[
               block.advanced?.hide_desktop && 'bilgisayarda gizli',
               block.advanced?.hide_tablet && 'tablette gizli',
@@ -216,11 +230,14 @@ export default function BuilderCanvas() {
         )}
         {node}
         {depth === 0 && !isColumn && (isHover || selected) && (
-          <div className="pointer-events-none absolute inset-x-0 -bottom-3 z-40 flex items-center justify-center">
+          <div
+            style={{ transform: invScale > 1 ? `scale(${invScale})` : undefined }}
+            className="pointer-events-none absolute inset-x-0 -bottom-3 z-40 flex items-center justify-center"
+          >
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); post({ type: 'insert-after', targetId: block.id }) }}
-              className="pointer-events-auto rounded-full bg-blue-600 px-3 py-0.5 text-[11px] font-bold text-white shadow-md transition hover:scale-105 hover:bg-blue-700"
+              className="pointer-events-auto rounded-full bg-blue-600 px-4 py-1 text-[12px] font-bold text-white shadow-md transition hover:scale-110 hover:bg-blue-700"
             >
               + Bölüm Ekle
             </button>
@@ -240,13 +257,13 @@ export default function BuilderCanvas() {
         {children.map((child) => renderBlock(child, options, depth))}
         {parent.type === 'header_slot' && (
           <button type="button" title="Bu alana öğe ekle" onClick={(e) => { e.stopPropagation(); post({ type: 'add-into', parentId: parent.id }) }}
-            className="flex h-8 w-8 flex-none items-center justify-center rounded-md border-2 border-dashed border-blue-300 text-sm font-bold text-blue-600 hover:bg-blue-50">
+            className="flex h-9 w-9 flex-none items-center justify-center rounded-md border-2 border-dashed border-blue-400 text-base font-bold text-blue-600 transition hover:scale-110 hover:bg-blue-50">
             +
           </button>
         )}
         {!FIXED_PARENT.has(parent.type) && parent.type !== 'header_slot' && (
           <button type="button" onClick={(e) => { e.stopPropagation(); post({ type: 'add-into', parentId: parent.id }) }}
-            className="my-2 flex w-full items-center justify-center rounded-lg border-2 border-dashed border-blue-300 py-4 text-sm font-semibold text-blue-600 hover:bg-blue-50">
+            className="my-2 flex w-full items-center justify-center rounded-lg border-2 border-dashed border-blue-400 py-4 text-base font-bold text-blue-600 transition hover:bg-blue-50">
             + Buraya blok ekle
           </button>
         )}

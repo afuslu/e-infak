@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { CheckCircle2, Droplets, ExternalLink, MapPin, Plus, Search, Users, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
 import { PageHeader } from '../../../../components/admin/ui'
@@ -32,6 +33,12 @@ interface Well {
 }
 
 const STATUS: Record<Well['status'], string> = { planned: 'Planlandı', funding: 'Fon toplanıyor', drilling: 'Sondaj / yapım', completed: 'Tamamlandı' }
+const STATUS_STYLE: Record<Well['status'], string> = {
+  planned: 'bg-gray-100 text-gray-700',
+  funding: 'bg-sky-50 text-sky-700',
+  drilling: 'bg-amber-50 text-amber-700',
+  completed: 'bg-emerald-50 text-emerald-700',
+}
 const MODELS: Record<Well['funding_model'], string> = { standard: 'Standart bağış', fonlama: 'Fonlama (hedefli)', hisseli: 'Hisseli' }
 
 const empty = {
@@ -44,11 +51,17 @@ export default function WellsPage() {
   const canEdit = hasPermission(access, 'operations_manage')
   const [wells, setWells] = useState<Well[]>([])
   const [statusFilter, setStatusFilter] = useState('')
+  const [countryFilter, setCountryFilter] = useState('')
+  const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Well | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(empty)
   const [owner, setOwner] = useState<PickedDonor | null>(null)
-  const [shares, setShares] = useState<{ wellId: string; rows: { id: string; share_count: number; donor_name: string; on_behalf_of: string | null; receipt_number: string | null }[] } | null>(null)
+  const [clearOwner, setClearOwner] = useState(false)
+  const [shares, setShares] = useState<{
+    well: Well
+    rows: { id: string; share_count: number; donor_name: string; on_behalf_of: string | null; receipt_number: string | null; created_at: string | null }[]
+  } | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const load = async () => {
@@ -60,10 +73,37 @@ export default function WellsPage() {
   }
   useEffect(() => { load() }, [statusFilter])
 
+  const countries = useMemo(
+    () => Array.from(new Set(wells.map((w) => w.country).filter((c): c is string => Boolean(c)))).sort(),
+    [wells],
+  )
+
+  const filteredWells = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return wells.filter((w) => {
+      if (countryFilter && w.country !== countryFilter) return false
+      if (q && !`${w.name} ${w.location_name} ${w.country || ''}`.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [wells, countryFilter, query])
+
+  const kpi = useMemo(() => {
+    return wells.reduce(
+      (acc, w) => ({
+        total: acc.total + 1,
+        completed: acc.completed + (w.status === 'completed' ? 1 : 0),
+        active: acc.active + (w.status === 'funding' || w.status === 'drilling' ? 1 : 0),
+        collectedCents: acc.collectedCents + w.collected_cents,
+      }),
+      { total: 0, completed: 0, active: 0, collectedCents: 0 },
+    )
+  }, [wells])
+
   const open = (w: Well | null) => {
     setEditing(w)
     setShowForm(true)
     setOwner(null)
+    setClearOwner(false)
     setForm(w ? {
       name: w.name, location_name: w.location_name, country: w.country || '',
       latitude: w.latitude?.toString() || '', longitude: w.longitude?.toString() || '', status: w.status,
@@ -77,6 +117,7 @@ export default function WellsPage() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
+    const nextDonorId = owner ? owner.id : clearOwner ? null : editing?.donor_id || null
     const body = {
       name: form.name, location_name: form.location_name, country: form.country || null,
       latitude: form.latitude ? Number(form.latitude) : null, longitude: form.longitude ? Number(form.longitude) : null,
@@ -84,7 +125,7 @@ export default function WellsPage() {
       target_cents: money(form.target), share_count: form.share_count ? Number(form.share_count) : null,
       share_price_cents: form.share_price ? money(form.share_price) : null,
       gallery_urls: form.gallery.split('\n').map((s) => s.trim()).filter(Boolean),
-      donor_id: owner?.id || editing?.donor_id || null, create_donation_campaign: form.create_donation_campaign,
+      donor_id: nextDonorId, create_donation_campaign: form.create_donation_campaign,
     }
     try {
       if (editing) await adminSend('put', `/water-wells/${editing.id}`, body)
@@ -99,7 +140,7 @@ export default function WellsPage() {
 
   const showShares = async (w: Well) => {
     try {
-      setShares({ wellId: w.id, rows: (await adminGet<any[]>(`/water-wells/${w.id}/shares`)).data })
+      setShares({ well: w, rows: (await adminGet<NonNullable<typeof shares>['rows']>(`/water-wells/${w.id}/shares`)).data })
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
     }
@@ -109,14 +150,80 @@ export default function WellsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Su Kuyusu Yönetimi" description={<>Kuyuya bağlı bağış kalemine gelen bağışlar fonlamayı ve hisseleri otomatik günceller. Taksitli kuyu taahhütleri Sponsorluk ekranından açılır.</>} actions={<div className="flex gap-2">
-          <select className={`${inputClass} w-44`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">Tüm durumlar</option>{Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </select>
-          {canEdit && <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : open(null))}>{showForm ? 'Vazgeç' : '+ Yeni Kuyu'}</button>}
+      <PageHeader title="Su Kuyusu Yönetimi" description={<>Kuyuya bağlı bağış kalemine gelen bağışlar fonlamayı ve hisseleri otomatik günceller. Taksitli kuyu taahhütleri Sponsorluk ekranından açılır.</>} actions={<div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={ghostButton}
+            onClick={() => exportCsv(
+              'su-kuyulari.csv',
+              ['Kuyu Adı', 'Ülke', 'Konum', 'Durum', 'Model', 'Hedef (TL)', 'Toplanan (TL)', 'Hisse', 'Satılan Hisse'],
+              filteredWells.map((w) => [
+                w.name, w.country, w.location_name, STATUS[w.status], MODELS[w.funding_model],
+                w.target_cents / 100, w.collected_cents / 100, w.share_count ?? '', w.shares_sold,
+              ]),
+            )}
+          >
+            ⬇ CSV
+          </button>
+          {canEdit && (
+            <button className={`inline-flex items-center gap-1.5 ${primaryButton}`} onClick={() => (showForm ? setShowForm(false) : open(null))}>
+              <Plus className="h-4 w-4" /> {showForm ? 'Vazgeç' : 'Yeni Kuyu'}
+            </button>
+          )}
         </div>} />
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Toplam Kuyu</span>
+            <Droplets className="h-4 w-4 text-sky-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-gray-950">{kpi.total}</div>
+        </Card>
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Fonlanan / Sondaj</span>
+            <Users className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-amber-700">{kpi.active}</div>
+        </Card>
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Tamamlanan</span>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-emerald-700">{kpi.completed}</div>
+        </Card>
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Toplanan Bağış</span>
+            <Wallet className="h-4 w-4 text-primary-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-primary-700">{formatMoney(kpi.collectedCents)}</div>
+        </Card>
+      </div>
+
       <Notice message={message} />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-56 flex-1 max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input className={`${inputClass} pl-9`} placeholder="Kuyu adı, konum, ülke ara..." value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+        <select className={`${inputClass} w-44`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="">Tüm durumlar</option>{Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+        {countries.length > 0 && (
+          <select className={`${inputClass} w-40`} value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)}>
+            <option value="">Tüm ülkeler</option>{countries.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        {(query || statusFilter || countryFilter) && (
+          <button type="button" onClick={() => { setQuery(''); setStatusFilter(''); setCountryFilter('') }} className="text-xs font-semibold text-primary-700 hover:underline">
+            Filtreyi temizle
+          </button>
+        )}
+      </div>
 
       {showForm && (
         <Card className="border border-primary-100 p-6 shadow-sm">
@@ -144,7 +251,18 @@ export default function WellsPage() {
             </Label>
             <TextInput label="Enlem" inputMode="decimal" value={form.latitude} onChange={(v) => set('latitude', v)} />
             <TextInput label="Boylam" inputMode="decimal" value={form.longitude} onChange={(v) => set('longitude', v)} />
-            <div className="sm:col-span-2"><DonorPicker value={owner} onChange={setOwner} label="Tek bağışçılı kuyu sahibi (isteğe bağlı)" /></div>
+            <div className="sm:col-span-2 space-y-1.5">
+              <DonorPicker value={owner} onChange={(d) => { setOwner(d); if (d) setClearOwner(false) }} label="Tek bağışçılı kuyu sahibi (isteğe bağlı)" />
+              {editing?.donor_id && !owner && !clearOwner && (
+                <div className="flex items-center justify-between rounded bg-gray-50 px-2.5 py-1 text-[11px] text-gray-600">
+                  <span>Mevcut bir kuyu sahibi kayıtlı.</span>
+                  <button type="button" onClick={() => setClearOwner(true)} className="font-semibold text-red-600 hover:underline">Sahibi kaldır</button>
+                </div>
+              )}
+              {clearOwner && (
+                <div className="text-[11px] font-semibold text-amber-700">Kaydedildiğinde mevcut kuyu sahibi kaldırılacak.</div>
+              )}
+            </div>
             <div className="sm:col-span-2"><TextArea label="Açıklama" rows={3} value={form.description} onChange={(v) => set('description', v)} /></div>
             <div className="sm:col-span-2"><TextArea label="Fotoğraflar (her satıra bir adres)" rows={3} value={form.gallery} onChange={(v) => set('gallery', v)} /></div>
             {(!editing || !editing.donation_campaign_id) && (
@@ -153,52 +271,121 @@ export default function WellsPage() {
                 Web sitesinde bu kuyu için bağış kalemi oluştur
               </label>
             )}
-            <div className="flex justify-end sm:col-span-2 lg:col-span-4"><button type="submit" className={primaryButton}>{editing ? 'Kaydet' : 'Oluştur'}</button></div>
+            <div className="flex justify-end gap-2 sm:col-span-2 lg:col-span-4">
+              <button type="button" className={ghostButton} onClick={() => setShowForm(false)}>Vazgeç</button>
+              <button type="submit" className={primaryButton}>{editing ? 'Kaydet' : 'Oluştur'}</button>
+            </div>
           </form>
         </Card>
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {wells.map((w) => (
-          <Card key={w.id} className="space-y-3 border border-gray-100 p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="font-bold text-gray-900">{w.name}</div>
-                <div className="text-xs text-gray-500">{[w.location_name, w.country].filter(Boolean).join(', ')}</div>
+        {filteredWells.map((w) => (
+          <Card key={w.id} className="flex flex-col justify-between overflow-hidden border border-gray-100 shadow-sm">
+            <div>
+              {w.gallery_urls[0] && (
+                <div className="h-40 w-full overflow-hidden bg-gray-100">
+                  <img src={w.gallery_urls[0]} alt={w.name} className="h-full w-full object-cover" />
+                </div>
+              )}
+              <div className="space-y-3 p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-bold text-gray-900">{w.name}</div>
+                    <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-500">
+                      <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                      <span>{[w.location_name, w.country].filter(Boolean).join(', ')}</span>
+                    </div>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${STATUS_STYLE[w.status]}`}>
+                    {STATUS[w.status]}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {MODELS[w.funding_model]}
+                  {w.active_pledges > 0 && ` · ${w.active_pledges} taksitli taahhüt`}
+                </div>
+                {w.target_cents > 0 && (
+                  <div>
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span className="text-gray-900">{formatMoney(w.collected_cents)}</span>
+                      <span className="text-gray-500">{formatMoney(w.target_cents)} · %{w.progress_pct ?? 0}</span>
+                    </div>
+                    <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-gray-100">
+                      <div className="h-full rounded-full bg-sky-600 transition-all" style={{ width: `${w.progress_pct || 0}%` }} />
+                    </div>
+                  </div>
+                )}
+                {w.funding_model === 'hisseli' && (
+                  <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-xs">
+                    <span><strong>{w.shares_sold}</strong> / {w.share_count} hisse satıldı</span>
+                    <span className="font-semibold text-gray-700">{formatMoney(w.share_price_cents || 0)} / hisse</span>
+                  </div>
+                )}
               </div>
-              <span className="rounded border px-2 py-0.5 text-[10px] font-bold">{STATUS[w.status]}</span>
             </div>
-            <div className="text-xs text-gray-500">{MODELS[w.funding_model]}{w.active_pledges ? ` · ${w.active_pledges} taksitli taahhüt` : ''}</div>
-            {w.target_cents > 0 && (
-              <div>
-                <div className="flex justify-between text-xs font-semibold">
-                  <span>{formatMoney(w.collected_cents)}</span><span className="text-gray-500">{formatMoney(w.target_cents)}</span>
-                </div>
-                <div className="mt-1 h-2 overflow-hidden rounded-full bg-gray-100">
-                  <div className="h-full rounded-full bg-sky-600" style={{ width: `${w.progress_pct || 0}%` }} />
-                </div>
-              </div>
-            )}
-            {w.funding_model === 'hisseli' && (
-              <div className="text-sm"><strong>{w.shares_sold}</strong> / {w.share_count} hisse satıldı · {formatMoney(w.share_price_cents || 0)} / hisse</div>
-            )}
-            <div className="flex flex-wrap gap-2 border-t pt-3">
+            <div className="flex flex-wrap items-center gap-2 border-t bg-gray-50/50 px-5 py-3">
               {canEdit && <button className={ghostButton} onClick={() => open(w)}>Düzenle</button>}
               {w.funding_model === 'hisseli' && <button className={ghostButton} onClick={() => showShares(w)}>Hissedarlar</button>}
-              {w.donation_campaign_slug && <a className={ghostButton} href={`/kampanyalar/${w.donation_campaign_slug}`} target="_blank" rel="noreferrer">Bağış sayfası ↗</a>}
+              {w.latitude !== null && w.longitude !== null && (
+                <a
+                  className={ghostButton}
+                  href={`https://www.openstreetmap.org/?mlat=${w.latitude}&mlon=${w.longitude}#map=16/${w.latitude}/${w.longitude}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Harita ↗
+                </a>
+              )}
+              {w.donation_campaign_slug && (
+                <a className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-primary-700 hover:underline" href={`/kampanyalar/${w.donation_campaign_slug}`} target="_blank" rel="noreferrer">
+                  Bağış sayfası <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </div>
-            {shares?.wellId === w.id && (
-              <ul className="space-y-1 rounded-lg bg-gray-50 p-3 text-xs">
-                {shares.rows.map((s) => (
-                  <li key={s.id} className="flex justify-between"><span>{s.on_behalf_of || s.donor_name}</span><span>{s.share_count} hisse</span></li>
-                ))}
-                {shares.rows.length === 0 && <li className="text-gray-400">Henüz hisse yok.</li>}
-              </ul>
-            )}
           </Card>
         ))}
-        {wells.length === 0 && <p className="py-10 text-center text-xs text-gray-400 md:col-span-2 xl:col-span-3">Kuyu kaydı yok.</p>}
+        {filteredWells.length === 0 && (
+          <p className="py-10 text-center text-xs text-gray-400 md:col-span-2 xl:col-span-3">
+            {wells.length === 0 ? 'Kuyu kaydı yok.' : 'Filtreye uygun kuyu bulunamadı.'}
+          </p>
+        )}
       </div>
+
+      {shares && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShares(null)}>
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">{shares.well.name} — Hissedarlar</h3>
+                <p className="text-xs text-gray-500">{shares.well.shares_sold} / {shares.well.share_count} hisse satıldı</p>
+              </div>
+              <button type="button" onClick={() => setShares(null)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {shares.rows.length === 0 ? (
+              <p className="py-8 text-center text-xs text-gray-400">Henüz hisse satışı yok.</p>
+            ) : (
+              <ul className="max-h-96 divide-y divide-gray-100 overflow-y-auto text-sm">
+                {shares.rows.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between py-2.5">
+                    <div>
+                      <div className="font-semibold text-gray-900">{s.on_behalf_of || s.donor_name}</div>
+                      <div className="text-[11px] text-gray-500">
+                        {s.on_behalf_of && s.donor_name ? `Bağışçı: ${s.donor_name} · ` : ''}
+                        {s.created_at ? new Date(s.created_at).toLocaleDateString('tr-TR') : ''}
+                        {s.receipt_number ? ` · Makbuz ${s.receipt_number}` : ''}
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-bold text-sky-700">{s.share_count} hisse</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

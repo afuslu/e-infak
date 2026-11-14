@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
+import { AlertCircle, CalendarClock, CheckCircle2, HeartHandshake, Search, Users, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
   adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { PageHeader, TBody, Table, Td, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface Beneficiary {
   id: string
@@ -79,6 +80,8 @@ export default function SponsorshipPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [pledgeFor, setPledgeFor] = useState<Beneficiary | null>(null)
+  const [onlyWaiting, setOnlyWaiting] = useState(false)
+  const [onlyOverdue, setOnlyOverdue] = useState(false)
 
   const loadSummary = () => adminGet<Summary>('/pledges/summary').then((r) => setSummary(r.data)).catch(() => {})
   useEffect(() => { loadSummary() }, [])
@@ -88,37 +91,96 @@ export default function SponsorshipPage() {
       <PageHeader title="Sponsorluk & Burs" description={<>Talebe, hoca ve yetim kayıtları; bağışçılarla eşleştirme ve aylık taksit takibi.</>} />
 
       {summary && (
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {[
-            ['Aktif taahhüt', summary.active_pledges],
-            ['Sponsorlu kişi', summary.sponsored_beneficiaries],
-            ['Sponsor bekleyen', summary.waiting_beneficiaries],
-            ['Bu ay beklenen', formatMoney(summary.due_this_month.amount_cents)],
-            ['Bu ay ödenen', formatMoney(summary.paid_this_month.amount_cents)],
-            ['Gecikmiş', `${summary.overdue.count} · ${formatMoney(summary.overdue.amount_cents)}`],
-          ].map(([l, v]) => (
-            <Card key={l as string} className="border border-gray-100 p-4 shadow-sm">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{l}</div>
-              <div className="mt-1 text-xl font-black text-gray-950">{v}</div>
-            </Card>
-          ))}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          <Card className="border border-gray-100 p-4 shadow-sm">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>Aktif taahhüt</span>
+              <HeartHandshake className="h-3.5 w-3.5 text-primary-600" />
+            </div>
+            <div className="mt-1 text-xl font-black text-gray-950">{summary.active_pledges}</div>
+          </Card>
+          <Card className="border border-gray-100 p-4 shadow-sm">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>Sponsorlu kişi</span>
+              <Users className="h-3.5 w-3.5 text-emerald-600" />
+            </div>
+            <div className="mt-1 text-xl font-black text-emerald-700">{summary.sponsored_beneficiaries}</div>
+          </Card>
+          <Card
+            onClick={() => { setOnlyWaiting(true); setTab('beneficiaries') }}
+            className={`cursor-pointer border p-4 shadow-sm transition ${summary.waiting_beneficiaries > 0 ? 'border-amber-200 bg-amber-50/40 hover:bg-amber-50' : 'border-gray-100 hover:bg-gray-50'}`}
+          >
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>Sponsor bekleyen</span>
+              <CalendarClock className="h-3.5 w-3.5 text-amber-600" />
+            </div>
+            <div className={`mt-1 text-xl font-black ${summary.waiting_beneficiaries > 0 ? 'text-amber-700' : 'text-gray-950'}`}>{summary.waiting_beneficiaries}</div>
+          </Card>
+          <Card className="border border-gray-100 p-4 shadow-sm">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>Bu ay beklenen</span>
+              <Wallet className="h-3.5 w-3.5 text-gray-400" />
+            </div>
+            <div className="mt-1 text-xl font-black text-gray-950">{formatMoney(summary.due_this_month.amount_cents)}</div>
+          </Card>
+          <Card className="border border-gray-100 p-4 shadow-sm">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>Bu ay ödenen</span>
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            </div>
+            <div className="mt-1 text-xl font-black text-emerald-700">{formatMoney(summary.paid_this_month.amount_cents)}</div>
+          </Card>
+          <Card
+            onClick={() => { setOnlyOverdue(true); setPledgeFor(null); setTab('pledges') }}
+            className={`cursor-pointer border p-4 shadow-sm transition ${summary.overdue.count > 0 ? 'border-red-200 bg-red-50/40 hover:bg-red-50' : 'border-gray-100 hover:bg-gray-50'}`}
+          >
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>Gecikmiş</span>
+              <AlertCircle className={`h-3.5 w-3.5 ${summary.overdue.count > 0 ? 'text-red-600' : 'text-gray-400'}`} />
+            </div>
+            <div className={`mt-1 text-lg font-black ${summary.overdue.count > 0 ? 'text-red-700' : 'text-gray-950'}`}>
+              {summary.overdue.count} · {formatMoney(summary.overdue.amount_cents)}
+            </div>
+          </Card>
         </div>
       )}
 
       <div className="flex gap-1 border-b text-sm font-semibold">
         {([['beneficiaries', 'Talebe / Hoca / Yetim'], ['pledges', 'Taahhütler & Taksitler']] as [Tab, string][]).map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}>{l}</button>
+          <button
+            key={k}
+            onClick={() => {
+              setTab(k)
+              if (k === 'beneficiaries') setPledgeFor(null)
+            }}
+            className={`-mb-px border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}
+          >
+            {l}
+          </button>
         ))}
       </div>
 
       <Notice message={message} />
 
       {tab === 'beneficiaries' ? (
-        <BeneficiariesTab canEdit={canOps} canPledge={canDonor} setMessage={setMessage}
-          onPledge={(b) => { setPledgeFor(b); setTab('pledges') }} />
+        <BeneficiariesTab
+          canEdit={canOps}
+          canPledge={canDonor}
+          setMessage={setMessage}
+          initialWaiting={onlyWaiting}
+          onClearInitialWaiting={() => setOnlyWaiting(false)}
+          onPledge={(b) => { setPledgeFor(b); setTab('pledges') }}
+        />
       ) : (
-        <PledgesTab canEdit={canDonor} setMessage={setMessage} presetBeneficiary={pledgeFor}
-          onChanged={() => { loadSummary(); setPledgeFor(null) }} />
+        <PledgesTab
+          canEdit={canDonor}
+          setMessage={setMessage}
+          presetBeneficiary={pledgeFor}
+          initialOverdue={onlyOverdue}
+          onClearInitialOverdue={() => setOnlyOverdue(false)}
+          onClearPreset={() => setPledgeFor(null)}
+          onChanged={() => { loadSummary(); setPledgeFor(null) }}
+        />
       )}
     </div>
   )
@@ -131,19 +193,28 @@ const emptyBeneficiary = {
   guardian_name: '', guardian_phone: '', photo_url: '', description: '', monthly_need: '', status: 'active',
 }
 
-function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge }: {
-  canEdit: boolean; canPledge: boolean; setMessage: SetMessage; onPledge: (b: Beneficiary) => void
+function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWaiting, onClearInitialWaiting }: {
+  canEdit: boolean; canPledge: boolean; setMessage: SetMessage; onPledge: (b: Beneficiary) => void;
+  initialWaiting: boolean; onClearInitialWaiting: () => void;
 }) {
   const [rows, setRows] = useState<Beneficiary[]>([])
-  const [filters, setFilters] = useState({ kind: '', sponsored: '', q: '' })
+  const [filters, setFilters] = useState({ kind: '', sponsored: '', status: '', q: '' })
   const [editing, setEditing] = useState<Beneficiary | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyBeneficiary)
 
+  useEffect(() => {
+    if (initialWaiting) {
+      setFilters((f) => ({ ...f, sponsored: 'false' }))
+      onClearInitialWaiting()
+    }
+  }, [initialWaiting, onClearInitialWaiting])
+
   const load = async () => {
     try {
       setRows((await adminGet<Beneficiary[]>('/beneficiaries', {
-        kind: filters.kind || undefined, sponsored: filters.sponsored || undefined, q: filters.q || undefined,
+        kind: filters.kind || undefined, sponsored: filters.sponsored || undefined,
+        status: filters.status || undefined, q: filters.q || undefined,
       })).data)
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
@@ -188,12 +259,18 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge }: {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <input className={`${inputClass} w-56`} placeholder="Ad, kod, şehir, okul" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input className={`${inputClass} w-56 pl-8`} placeholder="Ad, kod, şehir, okul" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
+        </div>
         <select className={`${inputClass} w-44`} value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })}>
           <option value="">Tüm türler</option>{KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
         <select className={`${inputClass} w-44`} value={filters.sponsored} onChange={(e) => setFilters({ ...filters, sponsored: e.target.value })}>
           <option value="">Sponsor durumu</option><option value="true">Sponsorlu</option><option value="false">Sponsor bekleyen</option>
+        </select>
+        <select className={`${inputClass} w-36`} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+          <option value="">Tüm durumlar</option><option value="active">Aktif</option><option value="passive">Pasif</option>
         </select>
         <button className={ghostButton} onClick={() => exportCsv('yararlanicilar.csv', ['Tür', 'Kod', 'Ad Soyad', 'Ülke', 'Şehir', 'Okul', 'Sponsorlar'],
           rows.map((r) => [r.kind_label, r.code, r.full_name, r.country, r.city, r.school, r.sponsors.join(', ')]))}>⬇ CSV</button>
@@ -248,6 +325,9 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge }: {
                 <span className="rounded border px-1.5 py-0.5 text-[10px] font-bold">{b.kind_label}</span>
               </div>
               <div className="truncate text-xs text-gray-500">{[b.school, b.city, b.country].filter(Boolean).join(' · ') || '—'}</div>
+              {b.monthly_need_cents > 0 && (
+                <div className="mt-1 text-xs text-gray-600">Aylık ihtiyaç: <span className="font-semibold tabular-nums">{formatMoney(b.monthly_need_cents)}</span></div>
+              )}
               <div className={`mt-1 text-xs font-semibold ${b.active_pledges ? 'text-green-700' : 'text-amber-700'}`}>
                 {b.active_pledges ? `Sponsor: ${b.sponsors.join(', ')}` : 'Sponsor bekliyor'}
               </div>
@@ -264,13 +344,33 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge }: {
   )
 }
 
-function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
-  canEdit: boolean; setMessage: SetMessage; presetBeneficiary: Beneficiary | null; onChanged: () => void
+function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initialOverdue, onClearInitialOverdue, onClearPreset }: {
+  canEdit: boolean; setMessage: SetMessage; presetBeneficiary: Beneficiary | null; onChanged: () => void;
+  initialOverdue: boolean; onClearInitialOverdue: () => void; onClearPreset: () => void;
 }) {
   const [rows, setRows] = useState<PledgeRow[]>([])
   const [filters, setFilters] = useState({ kind: '', status: 'active', overdue: '' })
+  const [query, setQuery] = useState('')
   const [detail, setDetail] = useState<PledgeRow | null>(null)
   const [showForm, setShowForm] = useState(!!presetBeneficiary)
+  const [matchModal, setMatchModal] = useState<Installment | null>(null)
+  const [receiptInput, setReceiptInput] = useState('')
+
+  useEffect(() => {
+    if (initialOverdue) {
+      setFilters((f) => ({ ...f, overdue: 'true' }))
+      onClearInitialOverdue()
+    }
+  }, [initialOverdue, onClearInitialOverdue])
+
+  const filteredRows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((p) =>
+      [p.donor_name, p.donor_phone, p.beneficiary_name, p.title, p.campaign_title]
+        .some((v) => v?.toLowerCase().includes(q))
+    )
+  }, [rows, query])
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([])
   const [wells, setWells] = useState<{ id: string; name: string }[]>([])
   const [campaigns, setCampaigns] = useState<{ id: string; title: string }[]>([])
@@ -345,9 +445,15 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
     }
   }
 
-  const match = async (inst: Installment) => {
-    const receipt = window.prompt('Eşleştirilecek bağışın makbuz numarası:')
-    if (!receipt || !detail) return
+  const openMatch = (inst: Installment) => {
+    setReceiptInput('')
+    setMatchModal(inst)
+  }
+
+  const submitMatch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const receipt = receiptInput.trim()
+    if (!receipt || !detail || !matchModal) return
     try {
       const found = await adminGet<{ items: { id: string; donor_id: string }[] }>('/donations', { q: receipt, status: 'confirmed', page_size: 5 })
       const donation = found.data.items.find((d) => d.donor_id === detail.donor_id) || found.data.items[0]
@@ -355,8 +461,10 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
         setMessage({ type: 'error', text: 'Bu makbuz numarasıyla onaylı bağış bulunamadı' })
         return
       }
-      await adminSend('post', `/pledges/installments/${inst.id}/match`, { donation_id: donation.id })
+      await adminSend('post', `/pledges/installments/${matchModal.id}/match`, { donation_id: donation.id })
       setMessage({ type: 'ok', text: 'Taksit bağışla eşleştirildi' })
+      setMatchModal(null)
+      setReceiptInput('')
       await openDetail(detail)
       onChanged()
       await load()
@@ -370,6 +478,10 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input className={`${inputClass} w-56 pl-8`} placeholder="Bağışçı, telefon, yararlanıcı" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
         <select className={`${inputClass} w-44`} value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })}>
           <option value="">Tüm türler</option><option value="sponsorship">Sponsorluk / Burs</option><option value="water_well">Su Kuyusu</option><option value="general">Genel</option>
         </select>
@@ -384,7 +496,21 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
           rows.map((r) => [r.donor_name, r.donor_phone, r.kind_label, r.title, `${r.installment_count} × ${r.installment_amount_cents / 100} ${r.currency}`,
             r.paid_count, r.overdue_count, r.overdue_cents / 100, r.next_due_date]))}>⬇ CSV</button>
         <div className="flex-1" />
-        {canEdit && <button className={primaryButton} onClick={() => setShowForm((v) => !v)}>{showForm ? 'Vazgeç' : '+ Yeni Taahhüt'}</button>}
+        {canEdit && (
+          <button
+            className={primaryButton}
+            onClick={() => {
+              if (showForm) {
+                setShowForm(false)
+                onClearPreset()
+              } else {
+                setShowForm(true)
+              }
+            }}
+          >
+            {showForm ? 'Vazgeç' : '+ Yeni Taahhüt'}
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -433,22 +559,28 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
       <div className="grid items-start gap-4 xl:grid-cols-12">
         <Card className={`border border-gray-100 p-2 shadow-sm ${detail ? 'xl:col-span-6' : 'xl:col-span-12'}`}>
           <ul className="divide-y divide-gray-100">
-            {rows.map((p) => (
-              <li key={p.id}>
-                <button onClick={() => openDetail(p)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-gray-50 ${detail?.id === p.id ? 'bg-primary-50' : ''}`}>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold">{p.donor_name} → {p.title || p.beneficiary_name || p.campaign_title}</div>
-                    <div className="text-xs text-gray-500">
-                      {p.kind_label} · {formatMoney(p.installment_amount_cents, p.currency)} × {p.installment_count} · {p.paid_count} ödendi
-                      {p.next_due_date && ` · sonraki ${new Date(p.next_due_date).toLocaleDateString('tr-TR')}`}
+            {filteredRows.map((p) => {
+              const pct = p.installment_count > 0 ? Math.min(100, Math.round((p.paid_count / p.installment_count) * 100)) : 0
+              return (
+                <li key={p.id}>
+                  <button onClick={() => openDetail(p)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-gray-50 ${detail?.id === p.id ? 'bg-primary-50' : ''}`}>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="truncate font-semibold">{p.donor_name} → {p.title || p.beneficiary_name || p.campaign_title}</div>
+                      <div className="text-xs text-gray-500">
+                        {p.kind_label} · {formatMoney(p.installment_amount_cents, p.currency)} × {p.installment_count} · {p.paid_count}/{p.installment_count} ödendi
+                        {p.next_due_date && ` · sonraki ${new Date(p.next_due_date).toLocaleDateString('tr-TR')}`}
+                      </div>
+                      <div className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-gray-100">
+                        <div className="h-full rounded-full bg-primary-600 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
                     </div>
-                  </div>
-                  {p.overdue_count > 0 && <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">{p.overdue_count} gecikmiş</span>}
-                  {p.status !== 'active' && <span className="rounded border px-2 py-0.5 text-[10px] font-bold text-gray-500">{p.status === 'completed' ? 'Tamamlandı' : 'İptal'}</span>}
-                </button>
-              </li>
-            ))}
-            {rows.length === 0 && <li className="py-10 text-center text-xs text-gray-400">Taahhüt yok.</li>}
+                    {p.overdue_count > 0 && <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">{p.overdue_count} gecikmiş</span>}
+                    {p.status !== 'active' && <span className="rounded border px-2 py-0.5 text-[10px] font-bold text-gray-500">{p.status === 'completed' ? 'Tamamlandı' : 'İptal'}</span>}
+                  </button>
+                </li>
+              )
+            })}
+            {filteredRows.length === 0 && <li className="py-10 text-center text-xs text-gray-400">Taahhüt yok.</li>}
           </ul>
         </Card>
 
@@ -462,6 +594,15 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
               <button onClick={() => setDetail(null)} className="text-xl text-gray-400">✕</button>
             </div>
             <Table>
+              <THead>
+                <Tr>
+                  <Th>#</Th>
+                  <Th>Vade</Th>
+                  <Th className="text-right">Tutar</Th>
+                  <Th className="text-right">Durum</Th>
+                  <Th />
+                </Tr>
+              </THead>
               <TBody>
                 {(detail.installments || []).map((i) => (
                   <Tr key={i.id}>
@@ -473,7 +614,7 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
                     </Td>
                     <Td className="text-right">
                       {canEdit && (i.status === 'pending' || i.status === 'overdue') && detail.status === 'active' && (
-                        <button className="font-bold text-primary-700" onClick={() => match(i)}>Eşleştir</button>
+                        <button className="font-bold text-primary-700" onClick={() => openMatch(i)}>Eşleştir</button>
                       )}
                     </Td>
                   </Tr>
@@ -490,6 +631,35 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
           </Card>
         )}
       </div>
+
+      {matchModal && detail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900">Taksit #{matchModal.seq} · Makbuz Eşleştir</h3>
+              <button type="button" onClick={() => setMatchModal(null)} className="rounded p-1 text-gray-400 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mb-3 text-xs text-gray-500">
+              {detail.donor_name} · Vade: {new Date(matchModal.due_date).toLocaleDateString('tr-TR')} · Tutar: {formatMoney(matchModal.amount_cents, detail.currency)}
+            </p>
+            <form onSubmit={submitMatch} className="space-y-3">
+              <TextInput
+                label="Onaylı Bağış Makbuz Numarası"
+                required
+                value={receiptInput}
+                onChange={setReceiptInput}
+                placeholder="Örn: MKB-2026-000123"
+              />
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" className={ghostButton} onClick={() => setMatchModal(null)}>Vazgeç</button>
+                <button type="submit" className={primaryButton}>Eşleştir</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

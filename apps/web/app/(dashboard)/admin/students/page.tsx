@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { useEffect, useMemo, useState } from 'react'
+import { BookOpen, GraduationCap, HeartHandshake, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react'
 import { Card, Button } from '@e-infak/ui'
-import { PageHeader, toast } from '../../../../components/admin/ui'
-import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
+import { PageHeader, confirmDialog, toast } from '../../../../components/admin/ui'
+import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 
 interface Student {
   id: string
@@ -12,7 +13,7 @@ interface Student {
   last_name: string
   parent_name: string
   parent_phone: string
-  parent_email?: string
+  parent_email?: string | null
 }
 
 interface ProgressLog {
@@ -26,29 +27,24 @@ interface ProgressLog {
 interface Sponsor {
   id: string
   donor_name: string
-  donor_phone: string
+  donor_phone: string | null
   amount_cents: number
   is_active: boolean
 }
 
-interface Donor {
-  id: string
-  first_name: string
-  last_name: string
-  email: string
-}
+const TOTAL_QURAN_PAGES = 604
 
 export default function AdminStudentsPage() {
+  const { data: access } = useAdminAccess()
+  const canEdit = hasPermission(access, 'operations_manage')
+
   const [students, setStudents] = useState<Student[]>([])
+  const [query, setQuery] = useState('')
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
-  
-  // Data for selected student
+
   const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([])
   const [sponsors, setSponsors] = useState<Sponsor[]>([])
-  
-  // Dropdown list of all donors to select sponsor
-  const [allDonors, setAllDonors] = useState<Donor[]>([])
-  
+
   // Add Student Form State
   const [showAddForm, setShowAddForm] = useState(false)
   const [newFirstName, setNewFirstName] = useState('')
@@ -56,37 +52,32 @@ export default function AdminStudentsPage() {
   const [newParentName, setNewParentName] = useState('')
   const [newParentPhone, setNewParentPhone] = useState('')
   const [newParentEmail, setNewParentEmail] = useState('')
-  
+
+  // Edit Student Modal State
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null)
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', parent_name: '', parent_phone: '', parent_email: '' })
+
   // Lesson Log Form State
   const [newSurah, setNewSurah] = useState('')
   const [newPages, setNewPages] = useState('1')
   const [instructorNotes, setInstructorNotes] = useState('')
-  
+
   // Add Sponsor State
-  const [selectedDonorId, setSelectedDonorId] = useState('')
+  const [pickedDonor, setPickedDonor] = useState<PickedDonor | null>(null)
   const [sponsorshipAmount, setSponsorshipAmount] = useState('500')
 
   const [loading, setLoading] = useState(false)
   const [savingProgress, setSavingProgress] = useState(false)
   const [savingSponsorship, setSavingSponsorship] = useState(false)
-  const [successMsg, setSuccessMsg] = useState('')
-
-  const API_BASE = adminApiBase()
-
-  const getAuthHeaders = adminAuthHeaders
+  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const loadStudents = async () => {
     setLoading(true)
     try {
-      const headers = getAuthHeaders()
-      const res = await axios.get(`${API_BASE}/api/v1/admin-features/students`, { headers })
+      const res = await adminGet<Student[]>('/students')
       setStudents(res.data)
-      
-      // Fetch donors list for sponsor selection dropdown
-      const donorsRes = await axios.get(`${API_BASE}/api/v1/admin-features/donors`, { headers })
-      setAllDonors(donorsRes.data)
     } catch (err) {
-      console.error('Failed to load students data:', err)
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Öğrenci kayıtları yüklenemedi') })
     } finally {
       setLoading(false)
     }
@@ -94,42 +85,56 @@ export default function AdminStudentsPage() {
 
   useEffect(() => {
     loadStudents()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const filteredStudents = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return students
+    return students.filter((s) =>
+      `${s.first_name} ${s.last_name} ${s.parent_name} ${s.parent_phone}`.toLowerCase().includes(q),
+    )
+  }, [students, query])
+
+  const totalPages = useMemo(
+    () => progressLogs.reduce((sum, l) => sum + (Number(l.memorized_pages) || 0), 0),
+    [progressLogs],
+  )
+  const progressPct = Math.min(100, Math.round((totalPages / TOTAL_QURAN_PAGES) * 100))
+  const estimatedJuz = Math.min(30, Math.floor(totalPages / 20))
+  const totalSponsorCents = useMemo(
+    () => sponsors.filter((s) => s.is_active).reduce((sum, s) => sum + s.amount_cents, 0),
+    [sponsors],
+  )
 
   const handleSelectStudent = async (st: Student) => {
     setSelectedStudent(st)
     setProgressLogs([])
     setSponsors([])
-    setSuccessMsg('')
-    
+    setMessage(null)
     try {
-      const headers = getAuthHeaders()
-      // 1. Fetch lessons progress
-      const progRes = await axios.get(`${API_BASE}/api/v1/admin-features/students/${st.id}/progress`, { headers })
+      const [progRes, spRes] = await Promise.all([
+        adminGet<ProgressLog[]>(`/students/${st.id}/progress`),
+        adminGet<Sponsor[]>(`/students/${st.id}/sponsorships`),
+      ])
       setProgressLogs(progRes.data)
-      
-      // 2. Fetch sponsors
-      const spRes = await axios.get(`${API_BASE}/api/v1/admin-features/students/${st.id}/sponsorships`, { headers })
       setSponsors(spRes.data)
     } catch (err) {
-      console.error(err)
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Öğrenci detayları yüklenemedi') })
     }
   }
 
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault()
+    setMessage(null)
     try {
-      const headers = getAuthHeaders()
-      const res = await axios.post(`${API_BASE}/api/v1/admin-features/students`, {
+      const res = await adminSend<Student>('post', '/students', {
         first_name: newFirstName,
         last_name: newLastName,
         parent_name: newParentName,
         parent_phone: newParentPhone,
-        parent_email: newParentEmail
-      }, { headers })
-      
-      setStudents(prev => [...prev, res.data])
+        parent_email: newParentEmail || null,
+      })
+      setStudents((prev) => [...prev, res.data])
       setShowAddForm(false)
       setNewFirstName('')
       setNewLastName('')
@@ -138,32 +143,57 @@ export default function AdminStudentsPage() {
       setNewParentEmail('')
       toast.ok('Öğrenci kaydı oluşturuldu')
     } catch (err) {
-      console.error(err)
-      toast.error('Öğrenci eklenemedi.')
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Öğrenci eklenemedi') })
+    }
+  }
+
+  const openEditStudent = (st: Student) => {
+    setEditingStudent(st)
+    setEditForm({
+      first_name: st.first_name,
+      last_name: st.last_name,
+      parent_name: st.parent_name,
+      parent_phone: st.parent_phone,
+      parent_email: st.parent_email || '',
+    })
+  }
+
+  const handleUpdateStudent = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingStudent) return
+    setMessage(null)
+    try {
+      const res = await adminSend<Student>('put', `/students/${editingStudent.id}`, {
+        ...editForm,
+        parent_email: editForm.parent_email || null,
+      })
+      setStudents((prev) => prev.map((s) => (s.id === res.data.id ? res.data : s)))
+      if (selectedStudent?.id === res.data.id) setSelectedStudent(res.data)
+      setEditingStudent(null)
+      toast.ok('Öğrenci bilgileri güncellendi')
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Öğrenci güncellenemedi') })
     }
   }
 
   const handleSaveProgress = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedStudent || !newSurah.trim()) return
-
     setSavingProgress(true)
-    setSuccessMsg('')
+    setMessage(null)
     try {
-      const headers = getAuthHeaders()
-      const res = await axios.post(`${API_BASE}/api/v1/admin-features/students/${selectedStudent.id}/progress`, {
+      const res = await adminSend<ProgressLog>('post', `/students/${selectedStudent.id}/progress`, {
         memorized_pages: Number(newPages),
         current_surah: newSurah,
-        instructor_notes: instructorNotes
-      }, { headers })
-      
-      setProgressLogs(prev => [res.data, ...prev])
+        instructor_notes: instructorNotes || null,
+      })
+      setProgressLogs((prev) => [res.data, ...prev])
       setNewSurah('')
       setNewPages('1')
       setInstructorNotes('')
-      setSuccessMsg('Öğrenci gelişim kaydı eklendi!')
+      setMessage({ type: 'ok', text: 'Öğrenci gelişim kaydı eklendi ve sponsorlara bildirildi.' })
     } catch (err) {
-      console.error(err)
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Ders kaydı eklenemedi') })
     } finally {
       setSavingProgress(false)
     }
@@ -171,48 +201,90 @@ export default function AdminStudentsPage() {
 
   const handleLinkSponsor = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedStudent || !selectedDonorId) return
-
+    if (!selectedStudent || !pickedDonor) return
     setSavingSponsorship(true)
-    setSuccessMsg('')
+    setMessage(null)
     try {
-      const headers = getAuthHeaders()
-      await axios.post(`${API_BASE}/api/v1/admin-features/students/${selectedStudent.id}/sponsorships`, {
-        donor_id: selectedDonorId,
-        amount_cents: Math.round(Number(sponsorshipAmount) * 100)
-      }, { headers })
-      
-      // Reload sponsors
-      const spRes = await axios.get(`${API_BASE}/api/v1/admin-features/students/${selectedStudent.id}/sponsorships`, { headers })
+      await adminSend('post', `/students/${selectedStudent.id}/sponsorships`, {
+        donor_id: pickedDonor.id,
+        amount_cents: Math.round(Number(sponsorshipAmount) * 100),
+      })
+      const spRes = await adminGet<Sponsor[]>(`/students/${selectedStudent.id}/sponsorships`)
       setSponsors(spRes.data)
-      setSuccessMsg('Sponsorluk eşleşmesi başarıyla sağlandı!')
-      setSelectedDonorId('')
+      setPickedDonor(null)
+      setMessage({ type: 'ok', text: 'Sponsorluk eşleşmesi başarıyla sağlandı.' })
     } catch (err) {
-      console.error(err)
-      toast.error('Sponsor eklenemedi.')
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Sponsor eklenemedi') })
     } finally {
       setSavingSponsorship(false)
     }
   }
 
-  return (
-    <div className="space-y-8">
-      <PageHeader title="Medrese Öğrenci & Sponsorluk Paneli" actions={<button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs"
-        >
-          {showAddForm ? 'İptal Et' : '+ Yeni Öğrenci Ekle'}
-        </button>} />
+  const handleRemoveSponsor = async (sp: Sponsor) => {
+    if (!selectedStudent) return
+    if (!(await confirmDialog(`${sp.donor_name} sponsorluğu kaldırılsın mı?`))) return
+    try {
+      await adminSend('delete', `/students/${selectedStudent.id}/sponsorships/${sp.id}`)
+      setSponsors((prev) => prev.filter((item) => item.id !== sp.id))
+      toast.ok('Sponsorluk kaldırıldı')
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Sponsorluk kaldırılamadı') })
+    }
+  }
 
-      {successMsg && (
-        <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
-          {successMsg}
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Hafızlık Öğrencileri"
+        description="Medrese talebeleri, 604 sayfa ezber ilerleme takibi ve sponsor eşleştirme."
+        actions={canEdit && (
+          <button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700"
+          >
+            {showAddForm ? <><X className="h-4 w-4" /> İptal Et</> : <><Plus className="h-4 w-4" /> Yeni Öğrenci Ekle</>}
+          </button>
+        )}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Kayıtlı Öğrenci</span>
+            <Users className="h-4 w-4 text-primary-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-gray-950">{students.length}</div>
+        </Card>
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Seçili Talebe İlerlemesi</span>
+            <BookOpen className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-gray-950">
+            {selectedStudent ? `${totalPages} / ${TOTAL_QURAN_PAGES} sayfa` : '—'}
+          </div>
+          {selectedStudent && <div className="text-[11px] text-gray-500">Yaklaşık {estimatedJuz}. Cüz · %{progressPct}</div>}
+        </Card>
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Seçili Talebe Aylık Sponsorluk</span>
+            <HeartHandshake className="h-4 w-4 text-emerald-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-emerald-700">
+            {selectedStudent ? formatMoney(totalSponsorCents) : '—'}
+          </div>
+        </Card>
+      </div>
+
+      {message && (
+        <div className={`rounded-lg border p-3 text-sm font-semibold ${message.type === 'ok' ? 'border-green-100 bg-green-50 text-green-700' : 'border-red-100 bg-red-50 text-red-700'}`}>
+          {message.text}
         </div>
       )}
 
       {/* Add Student Collapse Form */}
-      {showAddForm && (
-        <Card className="p-6 border border-gray-100 shadow-sm space-y-4 max-w-2xl animate-fade-in">
+      {showAddForm && canEdit && (
+        <Card className="max-w-2xl space-y-4 border border-gray-100 p-6 shadow-sm">
           <h2 className="border-b pb-2 text-base font-bold text-gray-900">Yeni Öğrenci Bilgileri</h2>
           <form onSubmit={handleAddStudent} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -239,7 +311,7 @@ export default function AdminStudentsPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs font-bold text-gray-600">Veli Adı Soyadı *</label>
                 <input
@@ -274,7 +346,7 @@ export default function AdminStudentsPage() {
               </div>
             </div>
             <div className="flex justify-end">
-              <Button type="submit" className="bg-primary-600 text-white font-bold py-2 px-5 text-xs rounded-lg">
+              <Button type="submit" className="rounded-lg bg-primary-600 px-5 py-2 text-xs font-bold text-white">
                 Öğrenci Kaydet
               </Button>
             </div>
@@ -283,174 +355,224 @@ export default function AdminStudentsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-gray-500 animate-pulse py-6 text-center">Öğrenci kayıtları yükleniyor...</p>
+        <p className="py-6 text-center text-sm text-gray-500 animate-pulse">Öğrenci kayıtları yükleniyor...</p>
       ) : (
-        <div className="grid lg:grid-cols-12 gap-8 items-start">
+        <div className="grid items-start gap-8 lg:grid-cols-12">
           {/* Left: Students List */}
           <div className={`${selectedStudent ? 'lg:col-span-5' : 'lg:col-span-12'} space-y-4 transition-all duration-300`}>
-            <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-lg font-bold text-gray-900 border-b pb-2">Kayıtlı Medrese Talebeleri</h2>
-              <div className="space-y-3">
-                {students.map(st => (
+            <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+                <h2 className="flex items-center gap-2 text-base font-bold text-gray-900">
+                  <GraduationCap className="h-4 w-4 text-primary-600" /> Kayıtlı Medrese Talebeleri
+                </h2>
+                <div className="relative w-full sm:w-56">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Öğrenci veya veli ara..."
+                    className="w-full rounded-lg border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-primary-500"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                {filteredStudents.map((st) => (
                   <div
                     key={st.id}
                     onClick={() => handleSelectStudent(st)}
-                    className={`flex justify-between items-center p-4 bg-gray-50 rounded-2xl border transition-all cursor-pointer ${selectedStudent?.id === st.id ? 'border-primary-600 bg-primary-50/20' : 'border-gray-100 hover:bg-gray-100/50'}`}
+                    className={`flex cursor-pointer items-center justify-between rounded-2xl border p-4 transition-all ${
+                      selectedStudent?.id === st.id ? 'border-primary-600 bg-primary-50/30' : 'border-gray-100 bg-gray-50 hover:bg-gray-100/60'
+                    }`}
                   >
                     <div>
-                      <div className="font-bold text-gray-900 text-sm">{st.first_name} {st.last_name}</div>
-                      <div className="text-[10px] text-gray-400 font-bold uppercase mt-1">Veli: {st.parent_name} | {st.parent_phone}</div>
+                      <div className="text-sm font-bold text-gray-900">{st.first_name} {st.last_name}</div>
+                      <div className="mt-1 text-[11px] font-medium text-gray-500">Veli: {st.parent_name} · {st.parent_phone}</div>
                     </div>
-                    <Button size="sm" variant="ghost" className="text-primary-600 font-bold text-[11px]">
+                    <Button size="sm" variant="ghost" className="text-[11px] font-bold text-primary-600">
                       Yönet →
                     </Button>
                   </div>
                 ))}
+                {filteredStudents.length === 0 && (
+                  <p className="py-6 text-center text-xs text-gray-400">
+                    {students.length === 0 ? 'Henüz kayıtlı öğrenci yok.' : 'Aramaya uygun öğrenci bulunamadı.'}
+                  </p>
+                )}
               </div>
             </Card>
           </div>
 
-          {/* Right: Selected Student details (Lessons progress & Sponsorship links) */}
+          {/* Right: Selected Student details */}
           {selectedStudent && (
-            <div className="lg:col-span-7 space-y-6 animate-fade-in">
-              <Card className="p-6 border border-gray-100 shadow-md space-y-6 relative">
-                <button 
-                  onClick={() => setSelectedStudent(null)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-sm font-bold"
-                >
-                  Kapat
-                </button>
+            <div className="space-y-6 lg:col-span-7">
+              <Card className="relative space-y-6 border border-gray-100 p-6 shadow-md">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <span className="rounded bg-primary-100 px-2 py-0.5 text-[10px] font-bold text-primary-800">Talebe Eğitim & Sponsor Profili</span>
+                    <h2 className="mt-2 text-xl font-bold text-gray-900">{selectedStudent.first_name} {selectedStudent.last_name}</h2>
+                    <p className="text-xs text-gray-500">
+                      Veli: {selectedStudent.parent_name} · {selectedStudent.parent_phone}
+                      {selectedStudent.parent_email ? ` · ${selectedStudent.parent_email}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => openEditStudent(selectedStudent)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                      >
+                        <Pencil className="h-3 w-3" /> Düzenle
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setSelectedStudent(null)}
+                      className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
 
-                {/* Header */}
-                <div>
-                  <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-2 py-0.5 rounded">Talebe Eğitim & Sponsor Profili</span>
-                  <h2 className="text-xl font-bold text-gray-900 mt-2">{selectedStudent.first_name} {selectedStudent.last_name}</h2>
+                {/* Hafızlık 604 sayfa ilerleme çubuğu */}
+                <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+                  <div className="flex items-center justify-between text-xs font-bold text-gray-800">
+                    <span>Kur&apos;an-ı Kerim Hafızlık İlerlemesi</span>
+                    <span className="text-amber-800">{totalPages} / {TOTAL_QURAN_PAGES} sayfa (%{progressPct}) · {estimatedJuz}. Cüz</span>
+                  </div>
+                  <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-amber-100">
+                    <div className="h-full rounded-full bg-amber-600 transition-all" style={{ width: `${progressPct}%` }} />
+                  </div>
                 </div>
 
                 {/* Sponsors Match Panel */}
                 <div className="space-y-4 border-t pt-4">
-                  <h3 className="text-sm font-bold text-gray-900 border-b pb-1.5">Sponsor Eşleştirme</h3>
-                  
-                  {/* Current Active Sponsors */}
+                  <h3 className="border-b pb-1.5 text-sm font-bold text-gray-900">Sponsor Eşleştirme</h3>
+
                   <div className="space-y-2">
                     {sponsors.length === 0 ? (
                       <p className="text-xs text-gray-400">Bu öğrenciye atanmış aktif sponsor bulunmamaktadır.</p>
                     ) : (
-                      <div className="grid grid-cols-2 gap-3">
-                        {sponsors.map(sp => (
-                          <div key={sp.id} className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex justify-between items-center text-xs">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {sponsors.map((sp) => (
+                          <div key={sp.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3 text-xs">
                             <div>
                               <span className="font-bold text-gray-900">{sp.donor_name}</span>
-                              <span className="text-[9px] text-gray-400 block font-mono">{sp.donor_phone}</span>
+                              <span className="block font-mono text-[10px] text-gray-400">{sp.donor_phone || '—'}</span>
                             </div>
-                            <span className="font-bold text-emerald-700">{(sp.amount_cents / 100)} ₺/Ay</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-emerald-700">{formatMoney(sp.amount_cents)}/Ay</span>
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveSponsor(sp)}
+                                  className="rounded p-1 text-red-500 hover:bg-red-50"
+                                  title="Sponsorluğu kaldır"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
 
-                  {/* Add Sponsor Form */}
-                  <form onSubmit={handleLinkSponsor} className="flex gap-2 items-end pt-2">
-                    <div className="flex-1">
-                      <label className="mb-1 block text-xs font-bold text-gray-600">Sponsor Bağışçı Seçin</label>
-                      <select
-                        value={selectedDonorId}
-                        onChange={(e) => setSelectedDonorId(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 p-2 text-xs bg-white outline-none focus:border-primary-500"
-                        required
+                  {canEdit && (
+                    <form onSubmit={handleLinkSponsor} className="flex flex-wrap items-end gap-3 pt-2">
+                      <div className="min-w-56 flex-1">
+                        <DonorPicker value={pickedDonor} onChange={setPickedDonor} label="Sponsor Bağışçı Seçin" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-bold text-gray-600">Aylık Tutar (₺)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={sponsorshipAmount}
+                          onChange={(e) => setSponsorshipAmount(e.target.value)}
+                          className="w-24 rounded-lg border border-gray-300 p-2 text-xs outline-none focus:border-primary-500"
+                          required
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={savingSponsorship || !pickedDonor}
+                        className="rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700 disabled:opacity-50"
                       >
-                        <option value="">Seçiniz...</option>
-                        {allDonors.map(d => (
-                          <option key={d.id} value={d.id}>{d.first_name} {d.last_name || ''} ({d.email})</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-gray-600">Sponsorluk Tutarı</label>
-                      <input
-                        type="number"
-                        value={sponsorshipAmount}
-                        onChange={(e) => setSponsorshipAmount(e.target.value)}
-                        className="w-20 rounded-lg border border-gray-300 p-2 text-xs outline-none focus:border-primary-500"
-                        required
-                      />
-                    </div>
-                    <Button 
-                      type="submit" 
-                      disabled={savingSponsorship}
-                      className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-4 rounded-lg text-xs"
-                    >
-                      {savingSponsorship ? 'Atanıyor...' : 'Sponsor Eşle'}
-                    </Button>
-                  </form>
+                        {savingSponsorship ? 'Atanıyor...' : 'Sponsor Eşle'}
+                      </Button>
+                    </form>
+                  )}
                 </div>
 
                 {/* Lesson logs & checklist */}
                 <div className="space-y-4 border-t pt-4">
-                  <h3 className="text-sm font-bold text-gray-900 border-b pb-1.5">Hafızlık / Ders Takip Günlüğü</h3>
-                  
-                  {/* Log new check */}
-                  <form onSubmit={handleSaveProgress} className="space-y-3 p-4 bg-amber-50/20 border border-amber-100 rounded-2xl">
-                    <span className="text-[10px] font-bold text-amber-800 uppercase block tracking-wider">Hoca Ders Girişi</span>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="mb-1 block text-xs font-bold text-gray-600">Ezberlenen Sure *</label>
-                        <input
-                          type="text"
-                          placeholder="Örn: Yasin Suresi"
-                          value={newSurah}
-                          onChange={(e) => setNewSurah(e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 p-2 text-xs outline-none bg-white focus:border-primary-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-bold text-gray-600">Sayfa Sayısı *</label>
-                        <input
-                          type="number"
-                          value={newPages}
-                          onChange={(e) => setNewPages(e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 p-2 text-xs outline-none bg-white focus:border-primary-500"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-bold text-gray-600">Eğitmen Notları</label>
-                      <textarea
-                        placeholder="Örn: Tecvid kurallarına dikkat etmesi gerekiyor, ezberi zayıf..."
-                        value={instructorNotes}
-                        onChange={(e) => setInstructorNotes(e.target.value)}
-                        className="w-full rounded-lg border border-gray-300 p-2 text-xs outline-none bg-white focus:border-primary-500 min-h-[50px]"
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <Button 
-                        type="submit" 
-                        disabled={savingProgress}
-                        className="bg-primary-600 text-white font-bold py-1.5 px-4 rounded-lg text-xs"
-                      >
-                        {savingProgress ? 'Kaydediliyor...' : 'Ders Kaydet'}
-                      </Button>
-                    </div>
-                  </form>
+                  <h3 className="border-b pb-1.5 text-sm font-bold text-gray-900">Hafızlık / Ders Takip Günlüğü</h3>
 
-                  {/* Progress Logs Feed */}
+                  {canEdit && (
+                    <form onSubmit={handleSaveProgress} className="space-y-3 rounded-2xl border border-amber-100 bg-amber-50/20 p-4">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-800">Hoca Ders Girişi</span>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-bold text-gray-600">Ezberlenen Sure / Cüz *</label>
+                          <input
+                            type="text"
+                            placeholder="Örn: Yasin Suresi"
+                            value={newSurah}
+                            onChange={(e) => setNewSurah(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs outline-none focus:border-primary-500"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-bold text-gray-600">Sayfa Sayısı *</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={newPages}
+                            onChange={(e) => setNewPages(e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 bg-white p-2 text-xs outline-none focus:border-primary-500"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-bold text-gray-600">Eğitmen Notları</label>
+                        <textarea
+                          placeholder="Örn: Tecvid kurallarına dikkat etmesi gerekiyor..."
+                          value={instructorNotes}
+                          onChange={(e) => setInstructorNotes(e.target.value)}
+                          className="min-h-[50px] w-full rounded-lg border border-gray-300 bg-white p-2 text-xs outline-none focus:border-primary-500"
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <Button
+                          type="submit"
+                          disabled={savingProgress}
+                          className="rounded-lg bg-primary-600 px-4 py-1.5 text-xs font-bold text-white"
+                        >
+                          {savingProgress ? 'Kaydediliyor...' : 'Ders Kaydet'}
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider">Ders Geçmişi ({progressLogs.length})</label>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">Ders Geçmişi ({progressLogs.length})</label>
                     {progressLogs.length === 0 ? (
                       <p className="text-xs text-gray-400">Henüz ders kaydı girilmemiştir.</p>
                     ) : (
-                      <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                        {progressLogs.map(log => (
-                          <div key={log.id} className="p-3 bg-white border border-gray-200 rounded-xl space-y-1.5">
-                            <div className="flex justify-between items-center text-xs">
+                      <div className="max-h-60 space-y-3 overflow-y-auto pr-1">
+                        {progressLogs.map((log) => (
+                          <div key={log.id} className="space-y-1.5 rounded-xl border border-gray-200 bg-white p-3">
+                            <div className="flex items-center justify-between text-xs">
                               <span className="font-bold text-gray-900">{log.current_surah} ({log.memorized_pages} Sayfa)</span>
                               <span className="text-[10px] text-gray-400">{new Date(log.check_date).toLocaleDateString('tr-TR')}</span>
                             </div>
                             {log.instructor_notes && (
-                              <p className="text-[11px] text-gray-500 italic bg-gray-50 p-2 rounded-lg leading-relaxed">
+                              <p className="rounded-lg bg-gray-50 p-2 text-[11px] italic leading-relaxed text-gray-500">
                                 Not: {log.instructor_notes}
                               </p>
                             )}
@@ -463,6 +585,54 @@ export default function AdminStudentsPage() {
               </Card>
             </div>
           )}
+        </div>
+      )}
+
+      {editingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditingStudent(null)}>
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900">Öğrenci Bilgilerini Düzenle</h3>
+              <button type="button" onClick={() => setEditingStudent(null)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateStudent} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Ad *</label>
+                  <input required value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 p-2 text-xs outline-none focus:border-primary-500" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Soyad *</label>
+                  <input required value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 p-2 text-xs outline-none focus:border-primary-500" />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Veli Adı Soyadı *</label>
+                  <input required value={editForm.parent_name} onChange={(e) => setEditForm({ ...editForm, parent_name: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 p-2 text-xs outline-none focus:border-primary-500" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Veli Telefonu *</label>
+                  <input required value={editForm.parent_phone} onChange={(e) => setEditForm({ ...editForm, parent_phone: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 p-2 text-xs outline-none focus:border-primary-500" />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Veli E-Postası</label>
+                <input type="email" value={editForm.parent_email} onChange={(e) => setEditForm({ ...editForm, parent_email: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 p-2 text-xs outline-none focus:border-primary-500" />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setEditingStudent(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50">Vazgeç</button>
+                <Button type="submit" className="rounded-lg bg-primary-600 px-5 py-2 text-xs font-bold text-white">Kaydet</Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

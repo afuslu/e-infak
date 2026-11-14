@@ -39,10 +39,11 @@ from app.core.plans import (
 )
 from app.core.security import get_password_hash
 from app.models.audit_log import AuditLog
+from app.models.automation import BankAccount
 from app.models.organization import Organization
 from app.models.staff import Department, StaffRole
 from app.models.user import User, UserRole
-from app.services import passwords
+from app.services import media as media_service, passwords
 
 router = APIRouter(
     prefix="/admin-features",
@@ -243,6 +244,13 @@ async def get_access(
     plan = org_plan(org)
     features = org_features(org)
     addons = org_addons(org)
+    bank_count = (await db.execute(
+        select(func.count(BankAccount.id)).where(
+            BankAccount.organization_id == org_id,
+            BankAccount.enabled.is_(True),
+        )
+    )).scalar_one()
+    storage_info = await media_service.usage(db, org)
     return {
         "plan": plan.value,
         "plan_label": PLAN_LABELS[plan],
@@ -265,6 +273,8 @@ async def get_access(
                 "features": sorted(f.value for f in PLAN_FEATURES[p]),
                 "addons": sorted(f.value for f in PLAN_ADDONS[p]),
                 "users": PLAN_LIMITS[p]["users"],
+                "bank_accounts": PLAN_LIMITS[p]["bank_accounts"],
+                "storage_mb": PLAN_LIMITS[p]["storage_mb"],
             }
             for p in Plan
         ],
@@ -272,8 +282,14 @@ async def get_access(
             "users": org_user_limit(org),
             "extra_user_seats": org.extra_user_seats or 0,
             "bank_accounts": org_bank_account_limit(org),
+            "storage_bytes": storage_info["quota_bytes"],
         },
-        "usage": {"users": await _active_seat_count(db, org_id)},
+        "usage": {
+            "users": await _active_seat_count(db, org_id),
+            "bank_accounts": bank_count,
+            "storage_bytes": storage_info["used_bytes"],
+            "media_count": storage_info["count"],
+        },
         "me": {
             "id": str(current_user.id),
             "role": current_user.role.value,

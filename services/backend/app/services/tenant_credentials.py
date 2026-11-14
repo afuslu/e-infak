@@ -141,6 +141,19 @@ async def save_credentials(db: AsyncSession, organization_id: UUID, provider: st
     return payload
 
 
+async def delete_credentials(db: AsyncSession, organization_id: UUID, provider: str) -> bool:
+    row = (await db.execute(
+        select(TenantCredential).where(
+            TenantCredential.organization_id == organization_id, TenantCredential.provider == provider,
+        )
+    )).scalar_one_or_none()
+    if not row:
+        return False
+    await db.delete(row)
+    await db.flush()
+    return True
+
+
 def platform_sms() -> dict:
     return {"provider": "netgsm", "username": settings.NETGSM_USERNAME, "password": settings.NETGSM_PASSWORD,
             "sender": settings.NETGSM_SENDER, "platform": True}

@@ -19,6 +19,7 @@ import {
   PanelRight,
   Plus,
   Redo2,
+  Save,
   Settings,
   Smartphone,
   Tablet,
@@ -243,14 +244,16 @@ export function SiteBuilderEditor() {
     }
   }, [pageId, conflict])
 
-  useEffect(() => {
-    if (!state.dirty || conflict) return
-    const timer = setTimeout(() => { save() }, 2500)
-    return () => clearTimeout(timer)
-  }, [state.blocks, state.dirty, save, conflict])
+  const themeDirtyRef = useRef(themeDirty)
+  themeDirtyRef.current = themeDirty
 
   useEffect(() => {
-    const warn = (e: BeforeUnloadEvent) => { if (stateRef.current.dirty) { e.preventDefault(); e.returnValue = '' } }
+    const warn = (e: BeforeUnloadEvent) => {
+      if (stateRef.current.dirty || themeDirtyRef.current) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [])
@@ -479,11 +482,13 @@ export function SiteBuilderEditor() {
   // --- Canvas messaging ------------------------------------------------------------
   const sendRender = useCallback(() => {
     if (!frameReady.current || !data || !catalog) return
+    const fit = area.w > 0 && area.w < TARGET_WIDTH[device] ? area.w / TARGET_WIDTH[device] : 1
+    const curScale = zoom === 'fit' ? fit : zoom / 100
     frame.current?.contentWindow?.postMessage({
       source: 'einfak-builder', type: 'render', blocks: state.blocks, selectedId: state.selectedId,
-      data: { ...data, locale: lang }, specs: catalog.blocks, device,
+      data: { ...data, locale: lang }, specs: catalog.blocks, device, scale: curScale,
     }, window.location.origin)
-  }, [state.blocks, state.selectedId, data, catalog, lang, device])
+  }, [state.blocks, state.selectedId, data, catalog, lang, device, zoom, area.w])
   useEffect(() => { sendRender() }, [sendRender])
 
   useEffect(() => {
@@ -997,7 +1002,15 @@ export function SiteBuilderEditor() {
     <div className="fixed inset-0 z-[60] flex flex-col bg-gray-100 text-gray-900">
       {/* Top bar */}
       <header className="flex min-h-12 flex-none flex-wrap items-center gap-2 border-b border-gray-200/80 bg-white px-3 py-1.5 shadow-2xs lg:h-12 lg:flex-nowrap lg:py-0">
-        <Link href="/admin" className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-900">
+        <Link
+          href="/admin"
+          onClick={(e) => {
+            if ((state.dirty || themeDirty) && !window.confirm('Kaydedilmemiş değişiklikleriniz var. Kaydetmeden çıkmak istediğinize emin misiniz?')) {
+              e.preventDefault()
+            }
+          }}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
+        >
           <ArrowLeft className="h-3.5 w-3.5" />
           <span>Panel</span>
         </Link>
@@ -1066,6 +1079,19 @@ export function SiteBuilderEditor() {
         {!CHROME.has(page?.kind || '') && <button type="button" className={`inline-flex items-center gap-1 ${smallBtn}`} disabled={previewing} onClick={openPreview}><span>{previewing ? 'Açılıyor…' : 'Önizle'}</span><ExternalLink className="h-3 w-3" /></button>}
         {CHROME.has(page?.kind || '') && page?.is_published && <button type="button" className={smallBtn} onClick={unpublish}>Yerleşik tasarıma dön</button>}
         {(page?.has_draft || state.dirty) && <button type="button" className={smallBtn} onClick={discard}>Değişiklikleri at</button>}
+        <button
+          type="button"
+          disabled={saveState === 'saving' || (!state.dirty && !themeDirty)}
+          onClick={async () => {
+            if (themeDirty && themeSaveRef.current) await themeSaveRef.current()
+            if (state.dirty) await save()
+          }}
+          title="Taslak olarak kaydet (Ctrl+S)"
+          className={`inline-flex items-center gap-1 ${smallBtn} ${(state.dirty || themeDirty) ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100' : 'opacity-50'}`}
+        >
+          <Save className="h-3.5 w-3.5" />
+          <span>{saveState === 'saving' ? 'Kaydediliyor…' : 'Taslak Kaydet'}</span>
+        </button>
         <button type="button" className="rounded-md bg-blue-600 px-3.5 py-1.5 text-[12px] font-bold text-white shadow-xs transition hover:bg-blue-700" onClick={() => setModal('publish')}>Yayınla</button>
       </header>
 
@@ -1485,11 +1511,11 @@ export function SiteBuilderEditor() {
                 <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-base shadow-2xs ring-1 ring-gray-200/80">{selectedSpec.icon}</span>
                 <span className="flex-1 truncate text-sm font-bold text-gray-900">{selectedSpec.label}</span>
                 {!FIXED_CHILD.has(selected.type) && (
-                  <div className="flex items-center gap-0.5">
-                    <button type="button" title="Çoğalt" className="rounded p-1.5 text-gray-500 transition hover:bg-white hover:text-gray-900" onClick={() => blockAction(selected.id, 'duplicate')}><CopyPlus className="h-3.5 w-3.5" /></button>
-                    <button type="button" title="Kopyala" className="rounded p-1.5 text-gray-500 transition hover:bg-white hover:text-gray-900" onClick={copySelected}><Clipboard className="h-3.5 w-3.5" /></button>
-                    <button type="button" title="Kayıtlı bloklara ekle" className="rounded p-1.5 text-gray-500 transition hover:bg-white hover:text-gray-900" onClick={saveSelectedBlock}><BookmarkPlus className="h-3.5 w-3.5" /></button>
-                    <button type="button" title="Sil" className="rounded p-1.5 text-red-500 transition hover:bg-red-50 hover:text-red-700" onClick={() => blockAction(selected.id, 'delete')}><Trash2 className="h-3.5 w-3.5" /></button>
+                  <div className="flex items-center gap-1">
+                    <button type="button" title="Çoğalt (Ctrl+D)" className="rounded-md border border-gray-200/80 bg-white p-1.5 text-gray-600 shadow-2xs transition hover:border-gray-300 hover:text-gray-900" onClick={() => blockAction(selected.id, 'duplicate')}><CopyPlus className="h-4 w-4" /></button>
+                    <button type="button" title="Kopyala (Ctrl+C)" className="rounded-md border border-gray-200/80 bg-white p-1.5 text-gray-600 shadow-2xs transition hover:border-gray-300 hover:text-gray-900" onClick={copySelected}><Clipboard className="h-4 w-4" /></button>
+                    <button type="button" title="Kayıtlı bloklara ekle" className="rounded-md border border-gray-200/80 bg-white p-1.5 text-gray-600 shadow-2xs transition hover:border-gray-300 hover:text-gray-900" onClick={saveSelectedBlock}><BookmarkPlus className="h-4 w-4" /></button>
+                    <button type="button" title="Sil (Delete)" className="rounded-md border border-red-200 bg-white p-1.5 text-red-600 shadow-2xs transition hover:bg-red-50 hover:text-red-700" onClick={() => blockAction(selected.id, 'delete')}><Trash2 className="h-4 w-4" /></button>
                   </div>
                 )}
               </div>

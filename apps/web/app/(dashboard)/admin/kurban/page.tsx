@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import {
+  Calculator, CheckCircle2, Clock, Coins, FileText, MessageSquare, Search, Users, Video, X,
+} from 'lucide-react'
+import {
   apiErrorMessage, downloadFile, exportCsv, formatMoney, hasPermission, useAdminAccess, v1Get, v1Send,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
@@ -87,8 +90,14 @@ export default function KurbanAdminPage() {
   const [animalFilter, setAnimalFilter] = useState<'' | 'waiting' | 'slaughtered'>('')
   const [search, setSearch] = useState('')
   const [shareFilter, setShareFilter] = useState<'' | 'true' | 'false'>('')
+  const [shareKurbanType, setShareKurbanType] = useState('')
+  const [shareStatus, setShareStatus] = useState<'' | 'waiting' | 'slaughtered'>('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [showCreate, setShowCreate] = useState(false)
+  const [slaughterModal, setSlaughterModal] = useState<{ ids: string[]; videoUrl: string; notify: boolean } | null>(null)
+  const [animalEditModal, setAnimalEditModal] = useState<{ animal: Animal; animalNumber: string; videoUrl: string } | null>(null)
+  const [addAnimalModal, setAddAnimalModal] = useState<{ count: string; animalNumber: string } | null>(null)
+  const [shareEditModal, setShareEditModal] = useState<{ share: Share; onBehalfOf: string; kurbanType: string } | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -110,7 +119,9 @@ export default function KurbanAdminPage() {
         v1Get<Summary>(`/kurban/campaigns/${selectedId}/summary`),
         v1Get<Animal[]>('/kurban/animals', { campaign_id: selectedId, status: animalFilter || undefined, q: search || undefined }),
         v1Get<{ items: Share[] }>('/kurban/shares', {
-          campaign_id: selectedId, assigned: shareFilter || undefined, q: search || undefined, page_size: 1000,
+          campaign_id: selectedId, assigned: shareFilter || undefined,
+          kurban_type: shareKurbanType || undefined, status: shareStatus || undefined,
+          q: search || undefined, page_size: 1000,
         }),
       ])
       setSummary(s.data)
@@ -127,7 +138,7 @@ export default function KurbanAdminPage() {
     const t = setTimeout(loadSelected, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, animalFilter, search, shareFilter])
+  }, [selectedId, animalFilter, search, shareFilter, shareKurbanType, shareStatus])
 
   const run = async (fn: () => Promise<unknown>, ok: string | ((r: any) => string)) => {
     setBusy(true)
@@ -167,26 +178,49 @@ export default function KurbanAdminPage() {
 
   const slaughter = (ids: string[]) => {
     const single = ids.length === 1 ? animals.find((a) => a.id === ids[0]) : undefined
-    const video = window.prompt(
-      `${ids.length} hayvan "kesildi" olarak işaretlenecek ve hissedarlara SMS gidecek.\nKesim videosu bağlantısı (isteğe bağlı, https://):`,
-      single?.video_url || '',
-    )
-    if (video === null) return
-    run(() => v1Send('post', '/kurban/animals/slaughter', {
-      items: ids.map((animal_id) => ({ animal_id, video_url: video || null })), notify: true,
+    setSlaughterModal({ ids, videoUrl: single?.video_url || '', notify: true })
+  }
+
+  const submitSlaughter = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!slaughterModal) return
+    const { ids, videoUrl, notify } = slaughterModal
+    setSlaughterModal(null)
+    await run(() => v1Send('post', '/kurban/animals/slaughter', {
+      items: ids.map((animal_id) => ({ animal_id, video_url: videoUrl.trim() || null })), notify,
     }), (r) => `${r.marked} hayvan kesildi olarak işaretlendi, ${r.sms_queued} SMS kuyruğa alındı${r.sms_failed ? `, ${r.sms_failed} SMS gönderilemedi` : ''}`)
   }
 
   const setVideo = (animal: Animal) => {
-    const video = window.prompt('Kesim videosu bağlantısı (https://)', animal.video_url || '')
-    if (video === null) return
-    run(() => v1Send('put', `/kurban/animals/${animal.id}`, { video_url: video || null }), 'Video kaydedildi')
+    setAnimalEditModal({ animal, animalNumber: animal.animal_number, videoUrl: animal.video_url || '' })
+  }
+
+  const submitAnimalEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!animalEditModal) return
+    const { animal, animalNumber, videoUrl } = animalEditModal
+    setAnimalEditModal(null)
+    await run(() => v1Send('put', `/kurban/animals/${animal.id}`, {
+      animal_number: animalNumber.trim() || undefined,
+      video_url: videoUrl.trim() || null,
+    }), 'Hayvan güncellendi')
   }
 
   const addAnimals = () => {
-    const count = Number(window.prompt('Kaç hayvan eklensin? (otomatik numaralanır)', '1'))
-    if (!count) return
-    run(() => v1Send('post', '/kurban/animals', { campaign_id: selectedId, count }), `${count} hayvan eklendi`)
+    setAddAnimalModal({ count: '1', animalNumber: '' })
+  }
+
+  const submitAddAnimals = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!addAnimalModal) return
+    const count = Math.max(1, Number(addAnimalModal.count) || 1)
+    const customNo = addAnimalModal.animalNumber.trim()
+    setAddAnimalModal(null)
+    await run(() => v1Send('post', '/kurban/animals', {
+      campaign_id: selectedId,
+      count: customNo ? 1 : count,
+      animal_number: customNo || undefined,
+    }), customNo ? `${customNo} numaralı hayvan eklendi` : `${count} hayvan eklendi`)
   }
 
   const deleteAnimal = async (animal: Animal) => {
@@ -195,9 +229,18 @@ export default function KurbanAdminPage() {
   }
 
   const editShare = (share: Share) => {
-    const name = window.prompt('Hissedar adı (kurban kağıdında yazar)', share.on_behalf_of || share.donor_name)
-    if (name === null) return
-    run(() => v1Send('put', `/kurban/shares/${share.id}`, { on_behalf_of: name }), 'Hisse güncellendi')
+    setShareEditModal({ share, onBehalfOf: share.on_behalf_of || share.donor_name, kurbanType: share.kurban_type })
+  }
+
+  const submitShareEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!shareEditModal) return
+    const { share, onBehalfOf, kurbanType } = shareEditModal
+    setShareEditModal(null)
+    await run(() => v1Send('put', `/kurban/shares/${share.id}`, {
+      on_behalf_of: onBehalfOf.trim(),
+      kurban_type: kurbanType,
+    }), 'Hisse güncellendi')
   }
 
   const moveShare = (share: Share, animalId: string) => {
@@ -241,19 +284,57 @@ export default function KurbanAdminPage() {
       {selected && summary && (
         <>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            {[
-              ['Hisse bedeli', formatMoney(selected.price_per_share_cents)],
-              ['Toplam hisse', summary.shares],
-              ['Dağıtılmayı bekleyen', summary.unassigned_shares],
-              ['Hayvan (bekleyen / kesilen)', `${summary.animals_waiting} / ${summary.animals_slaughtered}`],
-              ['Gereken hayvan', summary.expected_animals],
-              ['SMS gönderilen hisse', summary.notified_shares],
-            ].map(([label, value]) => (
-              <Card key={label as string} className="border border-gray-100 p-4 shadow-sm">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{label}</div>
-                <div className="mt-1 text-xl font-black text-gray-950">{value}</div>
-              </Card>
-            ))}
+            <Card className="border border-gray-100 p-4 shadow-sm">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                <span>Hisse bedeli</span>
+                <Coins className="h-3.5 w-3.5 text-primary-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-gray-950">{formatMoney(selected.price_per_share_cents)}</div>
+            </Card>
+            <Card
+              onClick={() => { setTab('shares'); setShareFilter(''); setShareKurbanType(''); setShareStatus('') }}
+              className="cursor-pointer border border-gray-100 p-4 shadow-sm transition hover:border-primary-200 hover:bg-primary-50/30"
+            >
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                <span>Toplam hisse</span>
+                <Users className="h-3.5 w-3.5 text-primary-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-gray-950">{summary.shares}</div>
+            </Card>
+            <Card
+              onClick={() => { setTab('shares'); setShareFilter('false') }}
+              className={`cursor-pointer border p-4 shadow-sm transition ${summary.unassigned_shares > 0 ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300' : 'border-gray-100 hover:border-primary-200'}`}
+            >
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                <span>Dağıtılmayı bekleyen</span>
+                <Clock className="h-3.5 w-3.5 text-amber-600" />
+              </div>
+              <div className={`mt-1 text-xl font-black ${summary.unassigned_shares > 0 ? 'text-amber-700' : 'text-gray-950'}`}>{summary.unassigned_shares}</div>
+            </Card>
+            <Card
+              onClick={() => setTab('animals')}
+              className="cursor-pointer border border-gray-100 p-4 shadow-sm transition hover:border-primary-200 hover:bg-primary-50/30"
+            >
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                <span>Hayvan (bekleyen / kesilen)</span>
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-gray-950">{summary.animals_waiting} / {summary.animals_slaughtered}</div>
+            </Card>
+            <Card className="border border-gray-100 p-4 shadow-sm">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                <span>Gereken hayvan</span>
+                <Calculator className="h-3.5 w-3.5 text-gray-400" />
+              </div>
+              <div className="mt-1 text-xl font-black text-gray-950">{summary.expected_animals}</div>
+            </Card>
+            <Card className="border border-gray-100 p-4 shadow-sm">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                <span>SMS gönderilen hisse</span>
+                <MessageSquare className="h-3.5 w-3.5 text-primary-600" />
+              </div>
+              <div className="mt-1 text-xl font-black text-gray-950">{summary.notified_shares}</div>
+            </Card>
           </div>
           {summary.by_kurban_type.length > 0 && (
             <div className="flex flex-wrap gap-2 text-xs">
@@ -276,13 +357,21 @@ export default function KurbanAdminPage() {
               ))}
             </div>
             <div className="flex flex-wrap gap-2">
-              <input className={`${inputClass} w-56`} placeholder="Hayvan no, isim, telefon" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input className={`${inputClass} w-56 pl-8`} placeholder="Hayvan no, isim, telefon" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
               {canWrite && summary.unassigned_shares > 0 && (
                 <button disabled={busy} onClick={distribute} className={primaryButton}>Hisseleri dağıt ({summary.unassigned_shares})</button>
               )}
-              <button className={ghostButton} onClick={() => downloadFile(`/kurban/campaigns/${selectedId}/papers.pdf`, 'kurban-kagitlari.pdf', { status: 'waiting' })
-                .catch((err) => setMessage({ type: 'error', text: apiErrorMessage(err, 'PDF indirilemedi') }))}>
-                ⬇ Kurban kağıtları (PDF)
+              <button
+                className={ghostButton}
+                onClick={() => downloadFile(`/kurban/campaigns/${selectedId}/papers.pdf`, 'kurban-kagitlari.pdf', {
+                  status: animalFilter === 'slaughtered' ? 'slaughtered' : 'waiting',
+                }).catch((err) => setMessage({ type: 'error', text: apiErrorMessage(err, 'PDF indirilemedi') }))}
+              >
+                <FileText className="mr-1.5 inline h-4 w-4" />
+                {animalFilter === 'slaughtered' ? 'Kesilen kağıtlar (PDF)' : 'Kurban kağıtları (PDF)'}
               </button>
             </div>
           </div>
@@ -316,6 +405,12 @@ export default function KurbanAdminPage() {
                           {a.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor'} · {a.shares.length}/{a.capacity}
                         </span>
                       </div>
+                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className={`h-full rounded-full transition-all ${a.status === 'slaughtered' ? 'bg-green-600' : 'bg-primary-600'}`}
+                          style={{ width: `${a.capacity > 0 ? Math.min(100, Math.round((a.shares.length / a.capacity) * 100)) : 0}%` }}
+                        />
+                      </div>
                       <ol className="mt-3 space-y-1 text-sm">
                         {a.shares.map((s) => (
                           <li key={s.id} className="flex justify-between gap-2">
@@ -329,7 +424,12 @@ export default function KurbanAdminPage() {
                       </ol>
                       <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
                         <button className={ghostButton} onClick={() => downloadFile(`/kurban/animals/${a.id}/paper.pdf`, `kurban-${a.animal_number}.pdf`)}>Kağıt</button>
-                        {canWrite && <button className={ghostButton} onClick={() => setVideo(a)}>{a.video_url ? 'Video ✓' : 'Video ekle'}</button>}
+                        {canWrite && (
+                          <button className={ghostButton} onClick={() => setVideo(a)}>
+                            <Video className="mr-1 inline h-3.5 w-3.5" />
+                            {a.video_url ? 'Video ✓ / No' : 'Video / Düzenle'}
+                          </button>
+                        )}
                         {canWrite && a.status === 'waiting' && <button className={ghostButton} onClick={() => slaughter([a.id])}>Kesildi</button>}
                         {canWrite && a.status === 'waiting' && a.shares.length === 0 && <button className={`${ghostButton} text-red-600`} onClick={() => deleteAnimal(a)}>Sil</button>}
                       </div>
@@ -343,8 +443,15 @@ export default function KurbanAdminPage() {
           {tab === 'shares' && (
             <Card className="border border-gray-100 p-4 shadow-sm">
               <div className="mb-3 flex flex-wrap items-center gap-2">
-                <select className={`${inputClass} w-48`} value={shareFilter} onChange={(e) => setShareFilter(e.target.value as typeof shareFilter)}>
+                <select className={`${inputClass} w-44`} value={shareFilter} onChange={(e) => setShareFilter(e.target.value as typeof shareFilter)}>
                   <option value="">Tüm hisseler</option><option value="false">Dağıtılmamış</option><option value="true">Hayvana atanmış</option>
+                </select>
+                <select className={`${inputClass} w-40`} value={shareKurbanType} onChange={(e) => setShareKurbanType(e.target.value)}>
+                  <option value="">Tüm niyetler</option>
+                  {types.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+                <select className={`${inputClass} w-40`} value={shareStatus} onChange={(e) => setShareStatus(e.target.value as typeof shareStatus)}>
+                  <option value="">Tüm durumlar</option><option value="waiting">Bekliyor</option><option value="slaughtered">Kesildi</option>
                 </select>
                 <button className={ghostButton} onClick={() => exportCsv('kurban-hisseleri.csv',
                   ['Hayvan', 'Hisse', 'Hissedar', 'Bağışçı', 'Telefon', 'Tür', 'Durum', 'Makbuz'],
@@ -376,7 +483,7 @@ export default function KurbanAdminPage() {
                         </Td>
                         <Td className="font-mono text-[10px] text-gray-500">{s.receipt_number}</Td>
                         <Td className="text-right">
-                          {canWrite && s.status !== 'slaughtered' && <button className="font-bold text-primary-700" onClick={() => editShare(s)}>İsim</button>}
+                          {canWrite && s.status !== 'slaughtered' && <button className="font-bold text-primary-700" onClick={() => editShare(s)}>Düzenle</button>}
                         </Td>
                       </Tr>
                     ))}
@@ -415,6 +522,139 @@ export default function KurbanAdminPage() {
             </Card>
           )}
         </>
+      )}
+      {slaughterModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900">Kesim Onayı ({slaughterModal.ids.length} hayvan)</h3>
+              <button type="button" onClick={() => setSlaughterModal(null)} className="rounded p-1 text-gray-400 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={submitSlaughter} className="space-y-3">
+              <TextInput
+                label="Kesim Videosu Bağlantısı (isteğe bağlı)"
+                value={slaughterModal.videoUrl}
+                onChange={(v) => setSlaughterModal({ ...slaughterModal, videoUrl: v })}
+                placeholder="https://..."
+                hint="Bağışçı panelinde görüntülenecektir."
+              />
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={slaughterModal.notify}
+                  onChange={(e) => setSlaughterModal({ ...slaughterModal, notify: e.target.checked })}
+                />
+                Hissedarlara kesim SMS bildirimi gönder
+              </label>
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" className={ghostButton} onClick={() => setSlaughterModal(null)}>Vazgeç</button>
+                <button type="submit" className={primaryButton}>Kesildi İşaretle</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {animalEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900">Hayvan Düzenle · {animalEditModal.animal.animal_number}</h3>
+              <button type="button" onClick={() => setAnimalEditModal(null)} className="rounded p-1 text-gray-400 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={submitAnimalEdit} className="space-y-3">
+              <TextInput
+                label="Hayvan Numarası"
+                required
+                value={animalEditModal.animalNumber}
+                onChange={(v) => setAnimalEditModal({ ...animalEditModal, animalNumber: v })}
+              />
+              <TextInput
+                label="Kesim Videosu Bağlantısı"
+                value={animalEditModal.videoUrl}
+                onChange={(v) => setAnimalEditModal({ ...animalEditModal, videoUrl: v })}
+                placeholder="https://..."
+              />
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" className={ghostButton} onClick={() => setAnimalEditModal(null)}>Vazgeç</button>
+                <button type="submit" className={primaryButton}>Kaydet</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {addAnimalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900">Elle Hayvan Ekle</h3>
+              <button type="button" onClick={() => setAddAnimalModal(null)} className="rounded p-1 text-gray-400 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={submitAddAnimals} className="space-y-3">
+              <TextInput
+                label="Hayvan Adedi"
+                type="number"
+                min={1}
+                max={500}
+                required
+                value={addAnimalModal.count}
+                onChange={(v) => setAddAnimalModal({ ...addAnimalModal, count: v })}
+                hint="Özel numara boş bırakılırsa otomatik numaralanır."
+              />
+              <TextInput
+                label="Özel Hayvan No (isteğe bağlı, tek hayvan için)"
+                value={addAnimalModal.animalNumber}
+                onChange={(v) => setAddAnimalModal({ ...addAnimalModal, animalNumber: v })}
+                placeholder="Örn: K-105"
+              />
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" className={ghostButton} onClick={() => setAddAnimalModal(null)}>Vazgeç</button>
+                <button type="submit" className={primaryButton}>Ekle</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {shareEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900">Hisse Düzenle</h3>
+              <button type="button" onClick={() => setShareEditModal(null)} className="rounded p-1 text-gray-400 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={submitShareEdit} className="space-y-3">
+              <TextInput
+                label="Hissedar Adı (kurban kağıdında yazar)"
+                required
+                value={shareEditModal.onBehalfOf}
+                onChange={(v) => setShareEditModal({ ...shareEditModal, onBehalfOf: v })}
+              />
+              <Label label="Niyet Türü">
+                <select
+                  className={inputClass}
+                  value={shareEditModal.kurbanType}
+                  onChange={(e) => setShareEditModal({ ...shareEditModal, kurbanType: e.target.value })}
+                >
+                  {types.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </select>
+              </Label>
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" className={ghostButton} onClick={() => setShareEditModal(null)}>Vazgeç</button>
+                <button type="submit" className={primaryButton}>Kaydet</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )

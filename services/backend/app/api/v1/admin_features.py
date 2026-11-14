@@ -504,12 +504,48 @@ async def create_student(
     )
     return student
 
+@router.put("/students/{student_id}")
+async def update_student(
+    request: Request,
+    student_id: UUID,
+    payload: StudentCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = UUID(request.state.organization_id)
+    student = (await db.execute(
+        select(Student).where(Student.id == student_id, Student.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Öğrenci bulunamadı")
+    student.first_name = payload.first_name
+    student.last_name = payload.last_name
+    student.parent_name = payload.parent_name
+    student.parent_phone = payload.parent_phone
+    student.parent_email = payload.parent_email
+    await db.commit()
+    await db.refresh(student)
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="ogrenci_guncelle",
+        details={"student_id": str(student.id), "full_name": student.full_name},
+    )
+    return student
+
+
 @router.get("/students/{student_id}/progress")
 async def list_student_progress(
+    request: Request,
     student_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
+    org_id = UUID(request.state.organization_id)
+    exists = (await db.execute(
+        select(Student.id).where(Student.id == student_id, Student.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Öğrenci bulunamadı")
     query = select(StudentProgress).where(StudentProgress.student_id == student_id).order_by(StudentProgress.check_date.desc())
     res = await db.execute(query)
     return res.scalars().all()
@@ -581,14 +617,21 @@ async def add_student_progress(
 
 @router.get("/students/{student_id}/sponsorships")
 async def list_student_sponsorships(
+    request: Request,
     student_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
+    org_id = UUID(request.state.organization_id)
+    exists = (await db.execute(
+        select(Student.id).where(Student.id == student_id, Student.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Öğrenci bulunamadı")
     query = (
         select(StudentSponsorship, Donor)
         .join(Donor, StudentSponsorship.donor_id == Donor.id)
-        .where(StudentSponsorship.student_id == student_id)
+        .where(StudentSponsorship.student_id == student_id, StudentSponsorship.is_active.is_(True))
     )
     res = await db.execute(query)
     rows = res.all()
@@ -620,6 +663,12 @@ async def add_student_sponsorship(
     student = st_res.scalar_one_or_none()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
+
+    donor_exists = (await db.execute(
+        select(Donor.id).where(Donor.id == payload.donor_id, Donor.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not donor_exists:
+        raise HTTPException(status_code=404, detail="Bağışçı bulunamadı")
         
     spons = StudentSponsorship(
         student_id=student_id,
@@ -638,6 +687,38 @@ async def add_student_sponsorship(
         details={"student_id": str(student_id), "student_name": student.full_name, "donor_id": str(payload.donor_id)}
     )
     return spons
+
+
+@router.delete("/students/{student_id}/sponsorships/{sponsorship_id}")
+async def remove_student_sponsorship(
+    request: Request,
+    student_id: UUID,
+    sponsorship_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = UUID(request.state.organization_id)
+    st_exists = (await db.execute(
+        select(Student.id).where(Student.id == student_id, Student.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not st_exists:
+        raise HTTPException(status_code=404, detail="Öğrenci bulunamadı")
+    spons = (await db.execute(
+        select(StudentSponsorship).where(
+            StudentSponsorship.id == sponsorship_id,
+            StudentSponsorship.student_id == student_id,
+        )
+    )).scalar_one_or_none()
+    if not spons:
+        raise HTTPException(status_code=404, detail="Sponsorluk kaydı bulunamadı")
+    spons.is_active = False
+    await db.commit()
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="ogrenci_sponsor_kaldir",
+        details={"student_id": str(student_id), "sponsorship_id": str(sponsorship_id)},
+    )
+    return {"ok": True}
 
 # --- Phase 4: Dynamic Alert Banner Management ---
 @router.get("/banners")

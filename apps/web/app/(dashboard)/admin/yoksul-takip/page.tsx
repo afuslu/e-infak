@@ -80,10 +80,17 @@ export default function PovertyTrackingPage() {
   const [packages, setPackages] = useState<{ id: string; name: string; stock: number; unit_cost_cents: number }[]>([])
   const [rows, setRows] = useState<Household[]>([])
   const [filters, setFilters] = useState({ degree: '', city: '', district: '', neighborhood: '', q: '', not_helped_days: '', region_id: '' })
+  const [appFilter, setAppFilter] = useState<'open' | 'applied' | 'inspecting' | 'rejected'>('open')
+  const [appQuery, setAppQuery] = useState('')
+  const [reviewModal, setReviewModal] = useState<{ household: Household; status: 'approved' | 'rejected' } | null>(null)
+  const [reviewNote, setReviewNote] = useState('')
   const [detail, setDetail] = useState<Detail | null>(null)
   const [form, setForm] = useState<HouseholdForm | null>(null)
   const [memberForm, setMemberForm] = useState<MemberForm | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
+  const refreshPackages = () =>
+    adminGet<typeof packages>('/aid-packages').then((p) => setPackages(p.data)).catch(() => {})
 
   useEffect(() => {
     Promise.all([
@@ -101,7 +108,7 @@ export default function PovertyTrackingPage() {
     if (tab !== 'households' && tab !== 'applications') return
     try {
       const params = tab === 'applications'
-        ? { review: 'open' }
+        ? { review: appFilter, ...(appQuery.trim() ? { q: appQuery.trim() } : {}) }
         : { review: 'approved', ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) }
       setRows((await adminGet<Household[]>('/households', params)).data)
     } catch (err) {
@@ -112,7 +119,7 @@ export default function PovertyTrackingPage() {
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, filters])
+  }, [tab, filters, appFilter, appQuery])
 
   const openDetail = async (id: string) => {
     try {
@@ -185,11 +192,29 @@ export default function PovertyTrackingPage() {
   }
 
   const review = (h: Household, status: Exclude<Review, 'applied'>) => {
-    const note = status === 'inspecting' ? null : window.prompt(status === 'approved' ? 'İnceleme notu (isteğe bağlı)' : 'Ret gerekçesi (isteğe bağlı)')
-    if (note === null && status !== 'inspecting') return
-    act(() => adminSend('post', `/households/${h.id}/review`, { status, note: note || null }),
-      { inspecting: 'Saha incelemesine alındı', approved: 'Hane onaylandı', rejected: 'Başvuru reddedildi' }[status],
-      detail?.id === h.id ? h.id : undefined)
+    if (status === 'inspecting') {
+      act(() => adminSend('post', `/households/${h.id}/review`, { status, note: null }),
+        'Saha incelemesine alındı',
+        detail?.id === h.id ? h.id : undefined)
+      return
+    }
+    setReviewNote('')
+    setReviewModal({ household: h, status })
+  }
+
+  const submitReview = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!reviewModal) return
+    const { household, status } = reviewModal
+    const ok = await act(
+      () => adminSend('post', `/households/${household.id}/review`, { status, note: reviewNote.trim() || null }),
+      status === 'approved' ? 'Hane onaylandı' : 'Başvuru reddedildi',
+      detail?.id === household.id ? household.id : undefined,
+    )
+    if (ok) {
+      setReviewModal(null)
+      setReviewNote('')
+    }
   }
 
   const set = <K extends keyof HouseholdForm>(k: K, v: HouseholdForm[K]) => setForm((f) => (f ? { ...f, [k]: v } : f))
@@ -308,12 +333,14 @@ export default function PovertyTrackingPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 text-sm sm:grid-cols-4">
+          <div className="grid gap-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
             {[
               ['Aylık gelir', detail.monthly_income_cents !== null ? formatMoney(detail.monthly_income_cents) : '—'],
               ['Kira', detail.rent_cents !== null ? formatMoney(detail.rent_cents) : '—'],
-              ['Konut / ısınma', `${meta.housing[detail.housing_status || ''] || '—'} / ${meta.heating[detail.heating_type || ''] || '—'}`],
+              ['Aylık gider', detail.monthly_expense_cents !== null ? formatMoney(detail.monthly_expense_cents) : '—'],
               ['Borç', detail.debt_cents ? formatMoney(detail.debt_cents) : '—'],
+              ['Konut / ısınma', `${meta.housing[detail.housing_status || ''] || '—'} / ${meta.heating[detail.heating_type || ''] || '—'}`],
+              ['Saha bölgesi', detail.region_name || '—'],
             ].map(([k, v]) => (
               <div key={k} className="rounded-lg bg-gray-50 p-3"><p className="text-[11px] font-bold text-gray-400">{k}</p><p className="font-semibold text-gray-800">{v}</p></div>
             ))}
@@ -416,24 +443,59 @@ export default function PovertyTrackingPage() {
       {(tab === 'households' || tab === 'applications') && (
         <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
           {tab === 'households' && meta && (
-            <div className="grid gap-2 sm:grid-cols-4 lg:grid-cols-7">
-              <select className={inputClass} value={filters.degree} onChange={(e) => setFilters({ ...filters, degree: e.target.value })}>
-                <option value="">Tüm dereceler</option>{Object.entries(meta.degrees).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <input className={inputClass} placeholder="İl" value={filters.city} onChange={(e) => setFilters({ ...filters, city: e.target.value })} />
-              <input className={inputClass} placeholder="İlçe" value={filters.district} onChange={(e) => setFilters({ ...filters, district: e.target.value })} />
-              <input className={inputClass} placeholder="Mahalle" value={filters.neighborhood} onChange={(e) => setFilters({ ...filters, neighborhood: e.target.value })} />
-              <select className={inputClass} value={filters.region_id} onChange={(e) => setFilters({ ...filters, region_id: e.target.value })}>
-                <option value="">Tüm bölgeler</option>{regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </select>
-              <select className={inputClass} value={filters.not_helped_days} onChange={(e) => setFilters({ ...filters, not_helped_days: e.target.value })}>
-                <option value="">Yardım fark etmez</option><option value="30">30 gündür yardım almayan</option>
-                <option value="90">90 gündür yardım almayan</option><option value="180">180 gündür yardım almayan</option>
-              </select>
-              <input className={inputClass} placeholder="Ad, telefon, adres…" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
+            <div className="space-y-2">
+              <div className="grid gap-2 sm:grid-cols-4 lg:grid-cols-7">
+                <select className={inputClass} value={filters.degree} onChange={(e) => setFilters({ ...filters, degree: e.target.value })}>
+                  <option value="">Tüm dereceler</option>{Object.entries(meta.degrees).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+                <input className={inputClass} placeholder="İl" value={filters.city} onChange={(e) => setFilters({ ...filters, city: e.target.value })} />
+                <input className={inputClass} placeholder="İlçe" value={filters.district} onChange={(e) => setFilters({ ...filters, district: e.target.value })} />
+                <input className={inputClass} placeholder="Mahalle" value={filters.neighborhood} onChange={(e) => setFilters({ ...filters, neighborhood: e.target.value })} />
+                <select className={inputClass} value={filters.region_id} onChange={(e) => setFilters({ ...filters, region_id: e.target.value })}>
+                  <option value="">Tüm bölgeler</option>{regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                <select className={inputClass} value={filters.not_helped_days} onChange={(e) => setFilters({ ...filters, not_helped_days: e.target.value })}>
+                  <option value="">Yardım fark etmez</option><option value="30">30 gündür yardım almayan</option>
+                  <option value="90">90 gündür yardım almayan</option><option value="180">180 gündür yardım almayan</option>
+                </select>
+                <input className={inputClass} placeholder="Ad, telefon, adres…" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
+              </div>
+              {Object.values(filters).some(Boolean) && (
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setFilters({ degree: '', city: '', district: '', neighborhood: '', q: '', not_helped_days: '', region_id: '' })}
+                    className="text-xs font-semibold text-primary-700 hover:underline"
+                  >
+                    Filtreleri temizle
+                  </button>
+                </div>
+              )}
             </div>
           )}
-          {tab === 'applications' && <p className="text-sm text-gray-500">Web sitesinden gelen ve incelemesi süren başvurular. Onaylanana kadar kumanya ve toplu yardımda görünmezler.</p>}
+          {tab === 'applications' && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-gray-500">Web sitesinden gelen başvurular ve inceleme durumu. Onaylanana kadar kumanya ve toplu yardımda görünmezler.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  className={`${inputClass} w-52`}
+                  value={appFilter}
+                  onChange={(e) => setAppFilter(e.target.value as typeof appFilter)}
+                >
+                  <option value="open">Açık (Bekleyen + İncelemede)</option>
+                  <option value="applied">Yalnızca Bekleyen</option>
+                  <option value="inspecting">Yalnızca İncelemede</option>
+                  <option value="rejected">Reddedilenler</option>
+                </select>
+                <input
+                  className={`${inputClass} w-52`}
+                  placeholder="Ad, telefon, adres ara…"
+                  value={appQuery}
+                  onChange={(e) => setAppQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-gray-500">{rows.length} hane · en yüksek puan üstte</p>
             <button className={ghostButton} onClick={() => exportCsv('haneler.csv', ['Puan', 'Derece', 'Ad', 'Telefon', 'İl', 'İlçe', 'Mahalle', 'Kişi', 'Son yardım', 'Alınan paket', 'Durum'],
@@ -455,7 +517,7 @@ export default function PovertyTrackingPage() {
                       {canEdit && tab === 'applications' && <>
                         {h.review_status === 'applied' && <button className="mr-2 font-bold text-gray-700" onClick={() => review(h, 'inspecting')}>İncele</button>}
                         <button className="mr-2 font-bold text-primary-700" onClick={() => review(h, 'approved')}>Onayla</button>
-                        <button className="font-bold text-red-600" onClick={() => review(h, 'rejected')}>Reddet</button>
+                        {h.review_status !== 'rejected' && <button className="font-bold text-red-600" onClick={() => review(h, 'rejected')}>Reddet</button>}
                       </>}
                     </Td>
                   </Tr>
@@ -467,16 +529,45 @@ export default function PovertyTrackingPage() {
         </Card>
       )}
 
-      {tab === 'bulk' && meta && <BulkPlan meta={meta} regions={regions} packages={packages} canEdit={canEdit} onMessage={setMessage} />}
-      {tab === 'stats' && <Stats />}
+      {tab === 'bulk' && meta && <BulkPlan meta={meta} regions={regions} packages={packages} canEdit={canEdit} onMessage={setMessage} onPlanned={refreshPackages} />}
+      {tab === 'stats' && <Stats onSelectHousehold={openDetail} />}
       {tab === 'settings' && meta && <Settings meta={meta} canEdit={canEdit} onSaved={(line) => setMeta({ ...meta, poverty_line_cents: line })} onMessage={setMessage} />}
+
+      {reviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setReviewModal(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-gray-900">
+              {reviewModal.status === 'approved' ? 'Haneyi Onayla' : 'Başvuruyu Reddet'}
+            </h3>
+            <p className="mt-1 text-xs text-gray-500">{reviewModal.household.full_name}</p>
+            <form onSubmit={submitReview} className="mt-4 space-y-4">
+              <TextArea
+                label={reviewModal.status === 'approved' ? 'İnceleme notu (isteğe bağlı)' : 'Ret gerekçesi (isteğe bağlı)'}
+                value={reviewNote}
+                onChange={setReviewNote}
+                rows={3}
+              />
+              <div className="flex justify-end gap-2">
+                <button type="button" className={ghostButton} onClick={() => setReviewModal(null)}>Vazgeç</button>
+                <button
+                  type="submit"
+                  className={reviewModal.status === 'approved' ? primaryButton : 'rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700'}
+                >
+                  {reviewModal.status === 'approved' ? 'Onayla' : 'Reddet'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function BulkPlan({ meta, regions, packages, canEdit, onMessage }: {
+function BulkPlan({ meta, regions, packages, canEdit, onMessage, onPlanned }: {
   meta: Meta; regions: { id: string; name: string }[]; packages: { id: string; name: string; stock: number }[]; canEdit: boolean
   onMessage: (m: { type: 'ok' | 'error'; text: string } | null) => void
+  onPlanned: () => void
 }) {
   const [plan, setPlan] = useState({
     package_id: '', degrees: ['critical', 'high'] as Degree[], region_id: '', city: '', district: '', neighborhood: '',
@@ -497,7 +588,10 @@ function BulkPlan({ meta, regions, packages, canEdit, onMessage }: {
         notes: plan.notes || null, dry_run: dryRun,
       })
       setResult(res.data)
-      if (!dryRun) onMessage({ type: 'ok', text: `${res.data.planned} haneye dağıtım planlandı. Teslimleri Kumanya → Dağıtımlar ekranından işaretleyin.` })
+      if (!dryRun) {
+        onPlanned()
+        onMessage({ type: 'ok', text: `${res.data.planned} haneye dağıtım planlandı. Teslimleri Kumanya → Dağıtımlar ekranından işaretleyin.` })
+      }
     } catch (err) {
       onMessage({ type: 'error', text: apiErrorMessage(err) })
     }
@@ -566,7 +660,7 @@ function BulkPlan({ meta, regions, packages, canEdit, onMessage }: {
   )
 }
 
-function Stats() {
+function Stats({ onSelectHousehold }: { onSelectHousehold: (id: string) => void }) {
   const [level, setLevel] = useState<'city' | 'district' | 'neighborhood'>('neighborhood')
   const [days, setDays] = useState(180)
   const [stats, setStats] = useState<any>(null)
@@ -626,13 +720,13 @@ function Stats() {
           <div>
             <h3 className="mb-1 text-xs font-bold text-red-700">Gözden kaçanlar: çok acil / yüksek ama bu dönemde yardım almamış ({fair.overlooked.length})</h3>
             <Table><TBody>{fair.overlooked.map((h: Household) => (
-              <Tr key={h.id} className="border-t"><Td><ScoreBadge h={h} /></Td><Td>{h.full_name}</Td><Td>{location(h)}</Td><Td>son: {fmtDate(h.last_delivery_at)}</Td></Tr>
+              <Tr key={h.id} onClick={() => onSelectHousehold(h.id)} className="cursor-pointer border-t hover:bg-gray-50"><Td><ScoreBadge h={h} /></Td><Td className="font-semibold text-gray-900">{h.full_name}</Td><Td>{location(h)}</Td><Td>son: {fmtDate(h.last_delivery_at)}</Td></Tr>
             ))}</TBody></Table>
           </div>
           <div>
             <h3 className="mb-1 text-xs font-bold text-gray-700">Bu dönemde en çok yardım alanlar</h3>
             <Table><TBody>{fair.most_helped.map((h: Household) => (
-              <Tr key={h.id} className="border-t"><Td><ScoreBadge h={h} /></Td><Td>{h.full_name}</Td><Td>{h.total_received} paket</Td></Tr>
+              <Tr key={h.id} onClick={() => onSelectHousehold(h.id)} className="cursor-pointer border-t hover:bg-gray-50"><Td><ScoreBadge h={h} /></Td><Td className="font-semibold text-gray-900">{h.full_name}</Td><Td>{h.total_received} paket</Td></Tr>
             ))}</TBody></Table>
           </div>
         </div>

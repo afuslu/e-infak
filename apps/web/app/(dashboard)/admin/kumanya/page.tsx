@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
+import { AlertTriangle, Boxes, CheckCircle2, Package, Search, Truck, Wallet } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
   adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
@@ -37,10 +38,12 @@ export default function KumanyaPage() {
   const [byRegion, setByRegion] = useState<{ label: string; households: number; packages: number }[]>([])
   const [regionFilter, setRegionFilter] = useState('')
   const [q, setQ] = useState('')
-  const [distStatus, setDistStatus] = useState<'planned' | 'delivered' | ''>('planned')
+  const [distStatus, setDistStatus] = useState<'planned' | 'delivered' | 'cancelled' | ''>('planned')
+  const [distPackageId, setDistPackageId] = useState('')
+  const [distQuery, setDistQuery] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
-  const [pkgForm, setPkgForm] = useState<{ id?: string; name: string; contents: string; cost: string; campaign: string; stock: string } | null>(null)
+  const [pkgForm, setPkgForm] = useState<{ id?: string; name: string; contents: string; cost: string; campaign: string; stock: string; is_active: boolean } | null>(null)
   const [recForm, setRecForm] = useState<{ id?: string; full_name: string; phone: string; national_id: string; region_id: string; address: string; household_size: string; needs: string } | null>(null)
   const [plan, setPlan] = useState({ package_id: '', quantity: '1', planned_date: '' })
 
@@ -49,7 +52,11 @@ export default function KumanyaPage() {
       const [rep, rec, dist, reg] = await Promise.all([
         adminGet<{ packages: Package[]; by_region: typeof byRegion }>('/aid-report'),
         adminGet<Recipient[]>('/aid-recipients', { region_id: regionFilter || undefined, q: q || undefined }),
-        adminGet<Distribution[]>('/aid-distributions', { status: distStatus || undefined, region_id: regionFilter || undefined }),
+        adminGet<Distribution[]>('/aid-distributions', {
+          status: distStatus || undefined,
+          package_id: distPackageId || undefined,
+          region_id: regionFilter || undefined,
+        }),
         adminGet<{ id: string; name: string }[]>('/regions'),
       ])
       setPackages(rep.data.packages)
@@ -66,7 +73,7 @@ export default function KumanyaPage() {
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [regionFilter, q, distStatus])
+  }, [regionFilter, q, distStatus, distPackageId])
   useEffect(() => {
     axios.get(`${adminApiBase()}/api/v1/campaigns`, { headers: adminAuthHeaders(), params: { page_size: 100 } })
       .then((r) => setCampaigns(r.data.items || [])).catch(() => {})
@@ -91,7 +98,7 @@ export default function KumanyaPage() {
     const body = {
       name: pkgForm.name, contents: pkgForm.contents || null,
       unit_cost_cents: Math.round(Number(pkgForm.cost.replace(',', '.')) * 100),
-      donation_campaign_id: pkgForm.campaign || null, stock: Number(pkgForm.stock) || 0, is_active: true,
+      donation_campaign_id: pkgForm.campaign || null, stock: Number(pkgForm.stock) || 0, is_active: pkgForm.is_active,
     }
     if (await act(() => (pkgForm.id ? adminSend('put', `/aid-packages/${pkgForm.id}`, body) : adminSend('post', '/aid-packages', body)), 'Paket kaydedildi')) setPkgForm(null)
   }
@@ -117,9 +124,13 @@ export default function KumanyaPage() {
     }), `${picked.size} haneye dağıtım planlandı`).then((ok) => ok && setPicked(new Set()))
   }
 
-  const setDistributionStatus = (status: 'delivered' | 'cancelled' | 'planned') =>
-    act(() => adminSend('post', '/aid-distributions/status', { ids: [...picked], status }),
-      status === 'delivered' ? 'Teslim edildi olarak işaretlendi' : 'Dağıtımlar güncellendi')
+  const setDistributionStatus = (status: 'delivered' | 'cancelled' | 'planned', ids?: string[]) => {
+    const targetIds = ids ?? [...picked]
+    if (targetIds.length === 0) return
+    act(() => adminSend('post', '/aid-distributions/status', { ids: targetIds, status }),
+      status === 'delivered' ? 'Teslim edildi olarak işaretlendi' : status === 'cancelled' ? 'Dağıtımlar iptal edildi' : 'Dağıtımlar güncellendi')
+      .then((ok) => ok && setPicked(new Set()))
+  }
 
   const toggle = (id: string) => setPicked((prev) => {
     const next = new Set(prev)
@@ -127,9 +138,69 @@ export default function KumanyaPage() {
     return next
   })
 
+  const kpi = useMemo(() => {
+    return packages.reduce(
+      (acc, p) => ({
+        stock: acc.stock + p.stock,
+        planned: acc.planned + p.planned,
+        delivered: acc.delivered + p.delivered,
+        fundedCents: acc.fundedCents + p.funded_cents,
+      }),
+      { stock: 0, planned: 0, delivered: 0, fundedCents: 0 },
+    )
+  }, [packages])
+
+  const filteredDistributions = useMemo(() => {
+    const query = distQuery.trim().toLowerCase()
+    if (!query) return distributions
+    return distributions.filter((d) =>
+      `${d.recipient_name || ''} ${d.recipient_phone || ''} ${d.recipient_address || ''} ${d.package_name}`.toLowerCase().includes(query),
+    )
+  }, [distributions, distQuery])
+
+  const pickedPlannedIds = useMemo(
+    () => filteredDistributions.filter((d) => picked.has(d.id) && d.status === 'planned').map((d) => d.id),
+    [filteredDistributions, picked],
+  )
+  const pickedDeliveredIds = useMemo(
+    () => filteredDistributions.filter((d) => picked.has(d.id) && d.status === 'delivered').map((d) => d.id),
+    [filteredDistributions, picked],
+  )
+
   return (
     <div className="space-y-6">
       <PageHeader title="Kumanya Dağıtım" description={<>Paketin bağış kalemine gelen bağışlar kaç paketin fonlandığını gösterir; teslimde stok düşer.</>} />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Hazır Stok</span>
+            <Boxes className="h-4 w-4 text-primary-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-gray-950">{kpi.stock} <span className="text-xs font-semibold text-gray-500">paket</span></div>
+        </Card>
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Planlı Dağıtım</span>
+            <Truck className="h-4 w-4 text-amber-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-amber-700">{kpi.planned} <span className="text-xs font-semibold text-gray-500">paket</span></div>
+        </Card>
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Teslim Edilen</span>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-emerald-700">{kpi.delivered} <span className="text-xs font-semibold text-gray-500">paket</span></div>
+        </Card>
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
+            <span>Fonlanan Bağış</span>
+            <Wallet className="h-4 w-4 text-gray-400" />
+          </div>
+          <div className="mt-1 text-2xl font-black text-gray-950">{formatMoney(kpi.fundedCents)}</div>
+        </Card>
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 border-b text-sm font-semibold">
@@ -146,7 +217,7 @@ export default function KumanyaPage() {
 
       {tab === 'packages' && (
         <div className="space-y-4">
-          {canEdit && !pkgForm && <button className={primaryButton} onClick={() => setPkgForm({ name: '', contents: '', cost: '', campaign: '', stock: '0' })}>+ Paket Tanımla</button>}
+          {canEdit && !pkgForm && <button className={primaryButton} onClick={() => setPkgForm({ name: '', contents: '', cost: '', campaign: '', stock: '0', is_active: true })}>+ Paket Tanımla</button>}
           {pkgForm && (
             <Card className="border border-primary-100 p-6 shadow-sm">
               <form onSubmit={savePackage} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -161,7 +232,11 @@ export default function KumanyaPage() {
                   </Label>
                 </div>
                 <div className="sm:col-span-2"><TextArea label="İçerik" rows={2} value={pkgForm.contents} onChange={(v) => setPkgForm({ ...pkgForm, contents: v })} /></div>
-                <div className="flex justify-end gap-2 sm:col-span-2 lg:col-span-4">
+                <label className="flex items-center gap-2 text-xs font-semibold text-gray-700 sm:col-span-2">
+                  <input type="checkbox" checked={pkgForm.is_active} onChange={(e) => setPkgForm({ ...pkgForm, is_active: e.target.checked })} />
+                  Paket dağıtım planlamasında aktif olsun
+                </label>
+                <div className="flex justify-end gap-2 sm:col-span-2">
                   <button type="button" className={ghostButton} onClick={() => setPkgForm(null)}>Vazgeç</button>
                   <button type="submit" className={primaryButton}>Kaydet</button>
                 </div>
@@ -169,23 +244,69 @@ export default function KumanyaPage() {
             </Card>
           )}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {packages.map((p) => (
-              <Card key={p.id} className="space-y-2 border border-gray-100 p-5 shadow-sm">
-                <div className="flex justify-between"><strong>{p.name}</strong><span className="text-sm text-gray-500">{formatMoney(p.unit_cost_cents)}</span></div>
-                {p.contents && <p className="text-xs text-gray-500">{p.contents}</p>}
-                <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                  {[['Fonlanan', p.funded_packages], ['Stok', p.stock], ['Planlı', p.planned], ['Teslim', p.delivered]].map(([l, v]) => (
-                    <div key={l as string} className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">{l}</div><div className="text-lg font-black">{v}</div></div>
-                  ))}
-                </div>
-                {p.donation_campaign_id && <div className="text-xs text-gray-500">Toplanan bağış: {formatMoney(p.funded_cents)}</div>}
-                {canEdit && (
-                  <button className={ghostButton} onClick={() => setPkgForm({
-                    id: p.id, name: p.name, contents: p.contents || '', cost: String(p.unit_cost_cents / 100), campaign: p.donation_campaign_id || '', stock: String(p.stock),
-                  })}>Düzenle / stok</button>
-                )}
-              </Card>
-            ))}
+            {packages.map((p) => {
+              const deficit = Math.max(0, p.planned - p.stock)
+              const targetCount = Math.max(p.funded_packages, p.planned + p.delivered, 1)
+              const fundedPct = Math.min(100, Math.round((p.funded_packages / targetCount) * 100))
+              return (
+                <Card key={p.id} className={`flex flex-col justify-between space-y-3 border p-5 shadow-sm ${p.is_active ? 'border-gray-100' : 'border-gray-200 bg-gray-50/70 opacity-80'}`}>
+                  <div className="space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 text-primary-600" />
+                          <strong className="text-gray-900">{p.name}</strong>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${p.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-200 text-gray-600'}`}>
+                            {p.is_active ? 'Aktif' : 'Pasif'}
+                          </span>
+                          {deficit > 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                              <AlertTriangle className="h-3 w-3" /> {deficit} adet stok açığı
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="rounded-lg bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700">{formatMoney(p.unit_cost_cents)}</span>
+                    </div>
+                    {p.contents && <p className="text-xs leading-relaxed text-gray-500">{p.contents}</p>}
+                    <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                      {[
+                        ['Fonlanan', p.funded_packages, 'text-gray-900'],
+                        ['Stok', p.stock, deficit > 0 ? 'text-red-700' : 'text-gray-900'],
+                        ['Planlı', p.planned, 'text-amber-700'],
+                        ['Teslim', p.delivered, 'text-emerald-700'],
+                      ].map(([l, v, tone]) => (
+                        <div key={l as string} className="rounded-lg bg-gray-50 p-2">
+                          <div className="text-[11px] text-gray-500">{l}</div>
+                          <div className={`text-lg font-black ${tone}`}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {p.donation_campaign_id && (
+                      <div className="space-y-1 pt-1">
+                        <div className="flex justify-between text-[11px] text-gray-500">
+                          <span>Toplanan bağış</span>
+                          <span className="font-semibold text-gray-800">{formatMoney(p.funded_cents)}</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                          <div className="h-full rounded-full bg-primary-600" style={{ width: `${fundedPct}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {canEdit && (
+                    <div className="pt-1">
+                      <button className={ghostButton} onClick={() => setPkgForm({
+                        id: p.id, name: p.name, contents: p.contents || '', cost: String(p.unit_cost_cents / 100),
+                        campaign: p.donation_campaign_id || '', stock: String(p.stock), is_active: p.is_active,
+                      })}>Düzenle / stok</button>
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
           </div>
           {byRegion.length > 0 && (
             <Card className="border border-gray-100 p-5 shadow-sm">
@@ -200,20 +321,24 @@ export default function KumanyaPage() {
 
       {tab === 'recipients' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-2">
-            <input className={`${inputClass} w-56`} placeholder="Ad, telefon, adres" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="relative w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input className={`${inputClass} pl-9`} placeholder="Ad, telefon, adres ara..." value={q} onChange={(e) => setQ(e.target.value)} />
+            </div>
             {canEdit && !recForm && <button className={primaryButton} onClick={() => setRecForm({ full_name: '', phone: '', national_id: '', region_id: regionFilter, address: '', household_size: '', needs: '' })}>+ Hane</button>}
-            {canEdit && picked.size > 0 && (
-              <>
-                <select className={`${inputClass} w-48`} value={plan.package_id} onChange={(e) => setPlan({ ...plan, package_id: e.target.value })}>
-                  <option value="">Paket seçin</option>{packages.filter((p) => p.is_active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <input className={`${inputClass} w-20`} type="number" min={1} value={plan.quantity} onChange={(e) => setPlan({ ...plan, quantity: e.target.value })} aria-label="Adet" />
-                <input className={`${inputClass} w-40`} type="date" value={plan.planned_date} onChange={(e) => setPlan({ ...plan, planned_date: e.target.value })} aria-label="Planlanan tarih" />
-                <button className={primaryButton} onClick={planSelected}>Seçilen {picked.size} haneye planla</button>
-              </>
-            )}
           </div>
+          {canEdit && picked.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/70 p-3">
+              <span className="text-xs font-bold text-primary-800">{picked.size} hane seçili:</span>
+              <select className={`${inputClass} w-48`} value={plan.package_id} onChange={(e) => setPlan({ ...plan, package_id: e.target.value })}>
+                <option value="">Paket seçin</option>{packages.filter((p) => p.is_active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <input className={`${inputClass} w-20`} type="number" min={1} value={plan.quantity} onChange={(e) => setPlan({ ...plan, quantity: e.target.value })} aria-label="Adet" />
+              <input className={`${inputClass} w-40`} type="date" value={plan.planned_date} onChange={(e) => setPlan({ ...plan, planned_date: e.target.value })} aria-label="Planlanan tarih" />
+              <button className={primaryButton} onClick={planSelected}>Seçilenlere Planla</button>
+            </div>
+          )}
           {recForm && (
             <Card className="border border-primary-100 p-6 shadow-sm">
               <form onSubmit={saveRecipient} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -267,45 +392,83 @@ export default function KumanyaPage() {
 
       {tab === 'distributions' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <select className={`${inputClass} w-44`} value={distStatus} onChange={(e) => setDistStatus(e.target.value as typeof distStatus)}>
-              <option value="planned">Planlanan</option><option value="delivered">Teslim edilen</option><option value="">Tümü</option>
-            </select>
-            {canEdit && picked.size > 0 && distStatus === 'planned' && (
-              <>
-                <button className={primaryButton} onClick={() => setDistributionStatus('delivered')}>Seçilen {picked.size} teslim edildi</button>
-                <button className={`${ghostButton} text-red-600`} onClick={() => setDistributionStatus('cancelled')}>İptal</button>
-              </>
-            )}
-            {canEdit && picked.size > 0 && distStatus === 'delivered' && (
-              <button className={ghostButton} onClick={() => setDistributionStatus('planned')}>Teslimi geri al</button>
-            )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-56">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input className={`${inputClass} pl-9`} placeholder="Hane, telefon, adres ara..." value={distQuery} onChange={(e) => setDistQuery(e.target.value)} />
+              </div>
+              <select className={`${inputClass} w-44`} value={distStatus} onChange={(e) => setDistStatus(e.target.value as typeof distStatus)}>
+                <option value="planned">Planlanan</option>
+                <option value="delivered">Teslim edilen</option>
+                <option value="cancelled">İptal edilenler</option>
+                <option value="">Tümü</option>
+              </select>
+              <select className={`${inputClass} w-48`} value={distPackageId} onChange={(e) => setDistPackageId(e.target.value)}>
+                <option value="">Tüm paketler</option>
+                {packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
             <button className={ghostButton} onClick={() => exportCsv('kumanya-dagitim-listesi.csv', ['Hane', 'Telefon', 'Adres', 'Bölge', 'Paket', 'Adet', 'Durum', 'Tarih'],
-              distributions.map((d) => [d.recipient_name, d.recipient_phone, d.recipient_address, d.region_name, d.package_name, d.quantity,
+              filteredDistributions.map((d) => [d.recipient_name, d.recipient_phone, d.recipient_address, d.region_name, d.package_name, d.quantity,
                 d.status === 'delivered' ? 'Teslim' : d.status === 'planned' ? 'Planlı' : 'İptal',
                 d.delivered_at ? new Date(d.delivered_at).toLocaleDateString('tr-TR') : d.planned_date || '']))}>⬇ Dağıtım listesi (CSV)</button>
           </div>
+          {canEdit && picked.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/70 p-3">
+              <span className="text-xs font-bold text-primary-800">{picked.size} dağıtım seçili:</span>
+              {pickedPlannedIds.length > 0 && (
+                <>
+                  <button className={primaryButton} onClick={() => setDistributionStatus('delivered', pickedPlannedIds)}>
+                    Teslim edildi ({pickedPlannedIds.length})
+                  </button>
+                  <button className={`${ghostButton} text-red-600`} onClick={() => setDistributionStatus('cancelled', pickedPlannedIds)}>
+                    İptal et ({pickedPlannedIds.length})
+                  </button>
+                </>
+              )}
+              {pickedDeliveredIds.length > 0 && (
+                <button className={ghostButton} onClick={() => setDistributionStatus('planned', pickedDeliveredIds)}>
+                  Teslimi geri al ({pickedDeliveredIds.length})
+                </button>
+              )}
+            </div>
+          )}
           <Card className="border border-gray-100 p-4 shadow-sm">
             <Table>
               <THead>
                 <Tr>
-                  {canEdit && <Th><input type="checkbox" checked={picked.size > 0 && picked.size === distributions.length}
-                    onChange={(e) => setPicked(e.target.checked ? new Set(distributions.map((d) => d.id)) : new Set())} aria-label="Tümünü seç" /></Th>}
-                  <Th>Hane</Th><Th>Paket</Th><Th>Bölge</Th><Th>Tarih</Th><Th>Durum</Th>
+                  {canEdit && <Th><input type="checkbox" checked={picked.size > 0 && picked.size === filteredDistributions.length && filteredDistributions.length > 0}
+                    onChange={(e) => setPicked(e.target.checked ? new Set(filteredDistributions.map((d) => d.id)) : new Set())} aria-label="Tümünü seç" /></Th>}
+                  <Th>Hane / İletişim</Th><Th>Paket</Th><Th>Bölge</Th><Th>Tarih</Th><Th>Durum</Th>
                 </Tr>
               </THead>
               <TBody>
-                {distributions.map((d) => (
+                {filteredDistributions.map((d) => (
                   <Tr key={d.id}>
                     {canEdit && <Td><input type="checkbox" checked={picked.has(d.id)} onChange={() => toggle(d.id)} /></Td>}
-                    <Td><div className="font-semibold">{d.recipient_name}</div><div className="text-[10px] text-gray-500">{d.recipient_address}</div></Td>
-                    <Td>{d.package_name} × {d.quantity}</Td>
+                    <Td>
+                      <div className="font-semibold text-gray-900">{d.recipient_name}</div>
+                      {d.recipient_phone && <div className="text-[11px] text-gray-500">{d.recipient_phone}</div>}
+                      {d.recipient_address && <div className="text-[10px] text-gray-400">{d.recipient_address}</div>}
+                    </Td>
+                    <Td className="font-medium">{d.package_name} × {d.quantity}</Td>
                     <Td>{d.region_name || '—'}</Td>
                     <Td>{d.delivered_at ? new Date(d.delivered_at).toLocaleDateString('tr-TR') : d.planned_date ? new Date(d.planned_date).toLocaleDateString('tr-TR') : '—'}</Td>
-                    <Td>{d.status === 'delivered' ? 'Teslim edildi' : d.status === 'planned' ? 'Planlı' : 'İptal'}</Td>
+                    <Td>
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        d.status === 'delivered'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : d.status === 'planned'
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {d.status === 'delivered' ? 'Teslim edildi' : d.status === 'planned' ? 'Planlı' : 'İptal'}
+                      </span>
+                    </Td>
                   </Tr>
                 ))}
-                {distributions.length === 0 && <Tr><Td colSpan={6} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}
+                {filteredDistributions.length === 0 && <Tr><Td colSpan={6} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}
               </TBody>
             </Table>
           </Card>

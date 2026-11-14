@@ -90,7 +90,7 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'ayarlar', label: 'Ayarlar', items: [
       { href: '/admin/site-ayarlari', label: 'Site Ayarları', icon: Settings, permission: 'settings_manage' },
       { href: '/admin/odeme-sms', label: 'Ödeme & SMS Hesapları', icon: KeyRound, permission: 'settings_manage' },
-      { href: '/admin/integrations', label: 'Ayarlar / POS / API', icon: Plug, permission: 'settings_manage' },
+      { href: '/admin/integrations', label: 'API & Webhook', icon: Plug, permission: 'settings_manage' },
       { href: '/admin/users', label: 'Personel & Yetkiler', icon: ShieldCheck, feature: 'roles' },
       { href: '/admin/paket', label: 'Paket & Kullanım', icon: PackageCheck },
     ],

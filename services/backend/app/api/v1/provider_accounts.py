@@ -16,7 +16,7 @@ from app.models.organization import Organization
 from app.models.user import User
 from app.payments import DEFAULT_PROVIDER as DEFAULT_PAYMENT, PROVIDERS as PAYMENT_PROVIDERS, build_provider
 from app.services.tenant_credentials import (
-    CredentialsUnavailable, get_credentials, masked, provider_spec, save_credentials, sms_account,
+    CredentialsUnavailable, delete_credentials, get_credentials, masked, provider_spec, save_credentials, sms_account,
 )
 from app.sms import DEFAULT_PROVIDER as DEFAULT_SMS, PROVIDERS as SMS_PROVIDERS, SmsError, deliver
 
@@ -111,9 +111,22 @@ async def save_account(provider: str, payload: CredentialsIn, request: Request, 
     db.add(AuditLog(organization_id=org.id, user_id=current_user.id, action="entegrasyon_hesabi_guncelle",
                     details={"provider": provider, "fields": sorted(stored)}))
     await db.commit()
-    configured = (build_provider(provider, stored).configured if provider in PAYMENT_PROVIDERS
+    configured = (build_provider(provider, stored, tenant_slug=org.slug).configured if provider in PAYMENT_PROVIDERS
                   else SMS_PROVIDERS[provider](stored).configured)
     return _describe(provider, stored, configured)
+
+
+@router.delete("/{provider}")
+async def remove_account(provider: str, request: Request, db: AsyncSession = Depends(get_db),
+                         current_user: User = Depends(settings_manager)):
+    if provider not in PAYMENT_PROVIDERS and provider not in SMS_PROVIDERS:
+        raise HTTPException(status_code=404, detail="Bilinmeyen sağlayıcı")
+    org = await _org(request, db)
+    await delete_credentials(db, org.id, provider)
+    db.add(AuditLog(organization_id=org.id, user_id=current_user.id, action="entegrasyon_hesabi_sil",
+                    details={"provider": provider}))
+    await db.commit()
+    return _describe(provider, {}, False)
 
 
 class SelectionIn(BaseModel):

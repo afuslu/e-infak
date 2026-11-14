@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
+import { AlertCircle, History, MapPin, PiggyBank, Plus, Search, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
   adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
@@ -41,9 +42,14 @@ interface Report {
 }
 
 const STATUS: Record<Box['status'], string> = { active: 'Aktif', passive: 'Pasif', lost: 'Kayıp' }
+const STATUS_STYLE: Record<Box['status'], string> = {
+  active: 'bg-emerald-50 text-emerald-700',
+  passive: 'bg-gray-100 text-gray-600',
+  lost: 'bg-red-50 text-red-700',
+}
 const emptyBox = {
   code: '', region_id: '', location_name: '', address: '', city: '', district: '', contact_name: '', contact_phone: '',
-  responsible_user_id: '', campaign_id: '', status: 'active' as Box['status'], notes: '',
+  responsible_user_id: '', campaign_id: '', status: 'active' as Box['status'], placed_at: '', notes: '',
 }
 
 function newKey() {
@@ -63,9 +69,20 @@ export default function KumbaraPage() {
   const [editing, setEditing] = useState<Box | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [collecting, setCollecting] = useState<Box | null>(null)
-  const [collection, setCollection] = useState({ amount: '', date: '', notes: '', key: newKey() })
+  const [collection, setCollection] = useState({ amount: '', date: new Date().toISOString().slice(0, 10), notes: '', key: newKey() })
   const [history, setHistory] = useState<{ box: Box; rows: any[] } | null>(null)
+  const [showRegionModal, setShowRegionModal] = useState(false)
+  const [regionForm, setRegionForm] = useState({ name: '', description: '' })
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
+  const staffMap = useMemo(
+    () => new Map(staff.map((s) => [s.id, `${s.first_name} ${s.last_name}`.trim()])),
+    [staff],
+  )
+  const campaignMap = useMemo(
+    () => new Map(campaigns.map((c) => [c.id, c.title])),
+    [campaigns],
+  )
 
   const load = async () => {
     try {
@@ -101,7 +118,8 @@ export default function KumbaraPage() {
     setForm(b ? {
       code: b.code, region_id: b.region_id || '', location_name: b.location_name, address: b.address || '', city: b.city || '',
       district: b.district || '', contact_name: b.contact_name || '', contact_phone: b.contact_phone || '',
-      responsible_user_id: b.responsible_user_id || '', campaign_id: b.campaign_id || '', status: b.status, notes: b.notes || '',
+      responsible_user_id: b.responsible_user_id || '', campaign_id: b.campaign_id || '', status: b.status,
+      placed_at: b.placed_at ? b.placed_at.slice(0, 10) : '', notes: b.notes || '',
     } : emptyBox)
   }
 
@@ -119,11 +137,17 @@ export default function KumbaraPage() {
     }
   }
 
-  const addRegion = async () => {
-    const name = window.prompt('Bölge adı')
-    if (!name) return
+  const saveRegion = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!regionForm.name.trim()) return
     try {
-      await adminSend('post', '/regions', { name })
+      await adminSend('post', '/regions', {
+        name: regionForm.name.trim(),
+        description: regionForm.description.trim() || null,
+      })
+      setShowRegionModal(false)
+      setRegionForm({ name: '', description: '' })
+      setMessage({ type: 'ok', text: 'Bölge eklendi' })
       await load()
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
@@ -162,24 +186,49 @@ export default function KumbaraPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Kumbara Organizasyonu" description={<>Boşaltılan tutar seçilen bağış kalemine &quot;Kumbara Bağışları&quot; adına işlenir ve raporlara yansır.</>} actions={<div className="flex gap-2">
-          {canEdit && <button className={ghostButton} onClick={addRegion}>+ Bölge</button>}
-          {canEdit && <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : open(null))}>{showForm ? 'Vazgeç' : '+ Kumbara'}</button>}
+          {canEdit && <button className={`inline-flex items-center gap-1.5 ${ghostButton}`} onClick={() => setShowRegionModal(true)}><MapPin className="h-3.5 w-3.5" /> + Bölge</button>}
+          {canEdit && <button className={`inline-flex items-center gap-1.5 ${primaryButton}`} onClick={() => (showForm ? setShowForm(false) : open(null))}><Plus className="h-4 w-4" /> {showForm ? 'Vazgeç' : 'Kumbara Ekle'}</button>}
         </div>} />
 
       {report && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {[
-            ['Bu yıl toplanan', formatMoney(report.total_cents)],
-            ['Boşaltma', report.collections],
-            ['Aktif kumbara', report.boxes.active],
-            ['Kayıp / pasif', `${report.boxes.lost} / ${report.boxes.passive}`],
-            ['90 gündür boşaltılmayan', report.not_collected_90_days],
-          ].map(([l, v]) => (
-            <Card key={l as string} className="border border-gray-100 p-4 shadow-sm">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{l}</div>
-              <div className="mt-1 text-xl font-black">{v}</div>
-            </Card>
-          ))}
+          <Card className="border border-gray-100 p-4 shadow-sm">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>Bu yıl toplanan</span>
+              <Wallet className="h-4 w-4 text-primary-600" />
+            </div>
+            <div className="mt-1 text-xl font-black text-primary-700">{formatMoney(report.total_cents)}</div>
+          </Card>
+          <Card className="border border-gray-100 p-4 shadow-sm">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>Boşaltma</span>
+              <History className="h-4 w-4 text-gray-400" />
+            </div>
+            <div className="mt-1 text-xl font-black text-gray-950">{report.collections}</div>
+          </Card>
+          <Card className="border border-gray-100 p-4 shadow-sm">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>Aktif kumbara</span>
+              <PiggyBank className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div className="mt-1 text-xl font-black text-emerald-700">{report.boxes.active}</div>
+          </Card>
+          <Card className="border border-gray-100 p-4 shadow-sm">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Kayıp / Pasif</div>
+            <div className="mt-1 text-xl font-black text-gray-700">{report.boxes.lost} / {report.boxes.passive}</div>
+          </Card>
+          <Card
+            onClick={() => report.not_collected_90_days > 0 && setFilters((f) => ({ ...f, status: 'active', stale: f.stale === '90' ? '' : '90' }))}
+            className={`border p-4 shadow-sm transition ${report.not_collected_90_days > 0 ? 'cursor-pointer border-red-200 bg-red-50/40 hover:bg-red-50' : 'border-gray-100'}`}
+          >
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
+              <span>90+ gün boşaltılmayan</span>
+              <AlertCircle className={`h-4 w-4 ${report.not_collected_90_days > 0 ? 'text-red-600' : 'text-gray-400'}`} />
+            </div>
+            <div className={`mt-1 text-xl font-black ${report.not_collected_90_days > 0 ? 'text-red-700' : 'text-gray-950'}`}>
+              {report.not_collected_90_days}
+            </div>
+          </Card>
         </div>
       )}
 
@@ -215,29 +264,19 @@ export default function KumbaraPage() {
                 {Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
             </Label>
-            <div className="sm:col-span-2 lg:col-span-3"><TextInput label="Not" value={form.notes} onChange={(v) => set('notes', v)} /></div>
+            <TextInput label="Yerleştirme tarihi" type="date" value={form.placed_at} onChange={(v) => set('placed_at', v)} />
+            <div className="sm:col-span-2 lg:col-span-2"><TextInput label="Not" value={form.notes} onChange={(v) => set('notes', v)} /></div>
             <div className="flex items-end justify-end"><button type="submit" className={primaryButton}>{editing ? 'Kaydet' : 'Ekle'}</button></div>
           </form>
         </Card>
       )}
 
-      {collecting && (
-        <Card className="border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm">
-          <form onSubmit={collect} className="flex flex-wrap items-end gap-3">
-            <div className="text-sm font-bold">{collecting.code} — {collecting.location_name}</div>
-            <div className="w-40"><TextInput label="Çıkan tutar (₺)" required inputMode="decimal" value={collection.amount} onChange={(v) => setCollection({ ...collection, amount: v })} /></div>
-            <div className="w-44"><TextInput label="Boşaltma tarihi" type="date" value={collection.date} onChange={(v) => setCollection({ ...collection, date: v })} /></div>
-            <div className="min-w-48 flex-1"><TextInput label="Not" value={collection.notes} onChange={(v) => setCollection({ ...collection, notes: v })} /></div>
-            <button type="submit" className={primaryButton}>Kaydet</button>
-            <button type="button" className={ghostButton} onClick={() => setCollecting(null)}>Vazgeç</button>
-            {!collecting.campaign_id && <p className="w-full text-xs text-red-600">Bu kumbaranın aktarılacağı bağış kalemi seçili değil; önce kumbarayı düzenleyin.</p>}
-          </form>
-        </Card>
-      )}
-
       <Card className="border border-gray-100 p-4 shadow-sm">
-        <div className="mb-3 flex flex-wrap gap-2">
-          <input className={`${inputClass} w-56`} placeholder="Kod, yer, adres, yetkili" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="relative w-56">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input className={`${inputClass} pl-9`} placeholder="Kod, yer, adres, yetkili" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
+          </div>
           <select className={`${inputClass} w-40`} value={filters.region_id} onChange={(e) => setFilters({ ...filters, region_id: e.target.value })}>
             <option value="">Tüm bölgeler</option>{regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
@@ -251,57 +290,145 @@ export default function KumbaraPage() {
           <select className={`${inputClass} w-52`} value={filters.stale} onChange={(e) => setFilters({ ...filters, stale: e.target.value })}>
             <option value="">Boşaltma zamanı</option><option value="30">30+ gündür boşaltılmayan</option><option value="90">90+ gündür boşaltılmayan</option>
           </select>
-          <button className={ghostButton} onClick={() => exportCsv('kumbaralar.csv', ['Kod', 'Yer', 'Bölge', 'Adres', 'Yetkili', 'Telefon', 'Durum', 'Son boşaltma', 'Toplam'],
+          {(filters.q || filters.region_id || filters.status !== 'active' || filters.responsible || filters.stale) && (
+            <button
+              type="button"
+              onClick={() => setFilters({ region_id: '', status: 'active', responsible: '', stale: '', q: '' })}
+              className="text-xs font-semibold text-primary-700 hover:underline"
+            >
+              Temizle
+            </button>
+          )}
+          <button className={ghostButton} onClick={() => exportCsv('kumbaralar.csv', ['Kod', 'Yer', 'Bölge', 'Adres', 'Yetkili', 'Telefon', 'Sorumlu', 'Durum', 'Son boşaltma', 'Toplam'],
             boxes.map((b) => [b.code, b.location_name, b.region_name, [b.address, b.district, b.city].filter(Boolean).join(', '), b.contact_name,
-              b.contact_phone, STATUS[b.status], b.last_collected_at ? new Date(b.last_collected_at).toLocaleDateString('tr-TR') : '', b.total_collected_cents / 100]))}>⬇ CSV</button>
+              b.contact_phone, b.responsible_user_id ? staffMap.get(b.responsible_user_id) || '' : '', STATUS[b.status], b.last_collected_at ? new Date(b.last_collected_at).toLocaleDateString('tr-TR') : '', b.total_collected_cents / 100]))}>⬇ CSV</button>
         </div>
         <div className="overflow-x-auto">
           <Table>
             <THead>
               <Tr>
-                <Th>Kod</Th><Th>Yer / adres</Th><Th>Bölge</Th><Th>Son boşaltma</Th>
+                <Th>Kod</Th><Th>Yer / adres</Th><Th>Bölge / Sorumlu</Th><Th>Durum</Th><Th>Son boşaltma</Th>
                 <Th className="text-right">Toplam</Th><Th />
               </Tr>
             </THead>
             <TBody>
               {boxes.map((b) => (
-                <Tr key={b.id} className={b.status !== 'active' ? 'opacity-50' : ''}>
-                  <Td className="font-mono font-bold">{b.code}</Td>
+                <Tr key={b.id} className={b.status !== 'active' ? 'opacity-60' : ''}>
+                  <Td className="font-mono font-bold text-gray-900">{b.code}</Td>
                   <Td>
-                    <div className="font-semibold">{b.location_name}</div>
+                    <div className="font-semibold text-gray-900">{b.location_name}</div>
                     <div className="text-[10px] text-gray-500">{[b.address, b.district, b.city].filter(Boolean).join(', ')} {b.contact_phone && `· ${b.contact_phone}`}</div>
                   </Td>
-                  <Td>{b.region_name || '—'}</Td>
+                  <Td>
+                    <div className="text-xs font-medium text-gray-800">{b.region_name || '—'}</div>
+                    <div className="text-[10px] text-gray-500">
+                      {b.responsible_user_id ? staffMap.get(b.responsible_user_id) || '—' : 'Sorumlu yok'}
+                      {b.campaign_id && campaignMap.get(b.campaign_id) ? ` · ${campaignMap.get(b.campaign_id)}` : ''}
+                    </div>
+                  </Td>
+                  <Td>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_STYLE[b.status]}`}>
+                      {STATUS[b.status]}
+                    </span>
+                  </Td>
                   <Td className={`py-2 ${b.days_since_collection !== null && b.days_since_collection > 90 ? 'font-bold text-red-600' : ''}`}>
                     {b.last_collected_at ? `${new Date(b.last_collected_at).toLocaleDateString('tr-TR')} (${b.days_since_collection} gün)` : 'Hiç'}
                   </Td>
                   <Td className="text-right tabular-nums">{formatMoney(b.total_collected_cents)}<div className="text-[10px] text-gray-400">{b.collection_count} boşaltma</div></Td>
                   <Td className="text-right whitespace-nowrap">
-                    {canEdit && b.status === 'active' && <button className="font-bold text-emerald-700" onClick={() => setCollecting(b)}>Boşalt</button>}
-                    <button className="ml-3 font-bold text-primary-700" onClick={() => showHistory(b)}>Geçmiş</button>
-                    {canEdit && <button className="ml-3 font-bold text-gray-600" onClick={() => open(b)}>Düzenle</button>}
+                    {canEdit && b.status === 'active' && <button className="font-bold text-emerald-700 hover:underline" onClick={() => setCollecting(b)}>Boşalt</button>}
+                    <button className="ml-3 font-bold text-primary-700 hover:underline" onClick={() => showHistory(b)}>Geçmiş</button>
+                    {canEdit && <button className="ml-3 font-bold text-gray-600 hover:underline" onClick={() => open(b)}>Düzenle</button>}
                   </Td>
                 </Tr>
               ))}
-              {boxes.length === 0 && <Tr><Td colSpan={6} className="text-center text-gray-400">Kumbara yok.</Td></Tr>}
+              {boxes.length === 0 && <Tr><Td colSpan={7} className="text-center text-gray-400">Kumbara yok.</Td></Tr>}
             </TBody>
           </Table>
         </div>
       </Card>
 
+      {collecting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setCollecting(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Kumbara Boşalt</h3>
+                <p className="text-xs text-gray-500">{collecting.code} — {collecting.location_name}</p>
+              </div>
+              <button type="button" onClick={() => setCollecting(null)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={collect} className="space-y-4">
+              <TextInput label="Çıkan tutar (₺)" required inputMode="decimal" value={collection.amount} onChange={(v) => setCollection({ ...collection, amount: v })} />
+              <TextInput label="Boşaltma tarihi" type="date" value={collection.date} onChange={(v) => setCollection({ ...collection, date: v })} />
+              <TextInput label="Not" value={collection.notes} onChange={(v) => setCollection({ ...collection, notes: v })} />
+              {!collecting.campaign_id && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                  Bu kumbaranın aktarılacağı bağış kalemi seçili değil. Önce kumbarayı düzenleyip bağış kalemi seçin.
+                  <button
+                    type="button"
+                    onClick={() => { const box = collecting; setCollecting(null); open(box) }}
+                    className="ml-1.5 font-bold underline"
+                  >
+                    Şimdi düzenle
+                  </button>
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <button type="button" className={ghostButton} onClick={() => setCollecting(null)}>Vazgeç</button>
+                <button type="submit" disabled={!collecting.campaign_id} className={primaryButton}>Kaydet</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {history && (
-        <Card className="border border-gray-100 p-5 shadow-sm">
-          <div className="mb-2 flex justify-between"><strong>{history.box.code} boşaltma geçmişi</strong><button onClick={() => setHistory(null)} className="text-gray-400">✕</button></div>
-          <ul className="divide-y divide-gray-100 text-sm">
-            {history.rows.map((c) => (
-              <li key={c.id} className={`flex justify-between py-1.5 ${c.cancelled ? 'line-through opacity-50' : ''}`}>
-                <span>{new Date(c.collected_at).toLocaleDateString('tr-TR')} · {c.collected_by} · <span className="font-mono text-xs">{c.receipt_number}</span></span>
-                <strong>{formatMoney(c.amount_cents, c.currency)}</strong>
-              </li>
-            ))}
-            {history.rows.length === 0 && <li className="py-3 text-gray-400">Henüz boşaltılmadı.</li>}
-          </ul>
-        </Card>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setHistory(null)}>
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">{history.box.code} Boşaltma Geçmişi</h3>
+                <p className="text-xs text-gray-500">{history.box.location_name}</p>
+              </div>
+              <button type="button" onClick={() => setHistory(null)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <ul className="max-h-96 divide-y divide-gray-100 overflow-y-auto text-sm">
+              {history.rows.map((c) => (
+                <li key={c.id} className={`flex items-center justify-between py-2.5 ${c.cancelled ? 'line-through opacity-50' : ''}`}>
+                  <span>{new Date(c.collected_at).toLocaleDateString('tr-TR')} · {c.collected_by} · <span className="font-mono text-xs text-gray-500">{c.receipt_number}</span></span>
+                  <strong>{formatMoney(c.amount_cents, c.currency)}</strong>
+                </li>
+              ))}
+              {history.rows.length === 0 && <li className="py-6 text-center text-xs text-gray-400">Henüz boşaltılmadı.</li>}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {showRegionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowRegionModal(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900">Yeni Saha Bölgesi</h3>
+              <button type="button" onClick={() => setShowRegionModal(false)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form onSubmit={saveRegion} className="space-y-4">
+              <TextInput label="Bölge adı" required value={regionForm.name} onChange={(v) => setRegionForm({ ...regionForm, name: v })} placeholder="ör. Fatih / Merkez" />
+              <TextInput label="Açıklama (isteğe bağlı)" value={regionForm.description} onChange={(v) => setRegionForm({ ...regionForm, description: v })} />
+              <div className="flex justify-end gap-2">
+                <button type="button" className={ghostButton} onClick={() => setShowRegionModal(false)}>Vazgeç</button>
+                <button type="submit" className={primaryButton}>Bölge Ekle</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {report && (report.by_region.length > 0 || report.by_staff.length > 0) && (

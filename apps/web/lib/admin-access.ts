@@ -17,9 +17,9 @@ export interface AdminAccess {
   features: string[]
   addons: string[]
   catalog: FeatureInfo[]
-  plans: { key: string; label: string; features: string[]; addons: string[]; users: number }[]
-  limits: { users: number; extra_user_seats: number; bank_accounts: number }
-  usage: { users: number }
+  plans: { key: string; label: string; features: string[]; addons: string[]; users: number; bank_accounts: number; storage_mb: number }[]
+  limits: { users: number; extra_user_seats: number; bank_accounts: number; storage_bytes: number }
+  usage: { users: number; bank_accounts: number; storage_bytes: number; media_count: number }
   me: { id: string; role: string; is_platform_admin: boolean; permissions: string[] }
   permission_catalog: { key: string; label: string }[]
   builtin_roles: { key: string; label: string; permissions: string[] }[]
