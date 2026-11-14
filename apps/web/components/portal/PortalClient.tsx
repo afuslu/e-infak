@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
+import { Printer } from 'lucide-react'
 import { exportCsv } from '../../lib/admin-access'
+import { ExcelIcon, PdfIcon } from '../admin/ui'
 
 interface Donation {
   id: string
@@ -747,29 +749,77 @@ export function PortalClient({ siteName }: { siteName: string }) {
     </Panel>
   )
 
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null)
+  const downloadPortalExport = async (fmt: 'xlsx' | 'pdf') => {
+    const headers = ['Makbuz No', 'Tarih', 'Tutar', 'Para Birimi', 'Ödeme Yöntemi', 'Durum', 'Not']
+    const rows = donations.map((d) => [
+      d.receipt_number,
+      date(d.created_at),
+      d.amount_lira,
+      d.currency,
+      METHOD_LABELS[d.payment_method] || d.payment_method,
+      (DONATION_STATUS[d.status] || [d.status])[0],
+      d.donor_message || '',
+    ])
+    setExporting(fmt)
+    try {
+      const res = await axios.post(
+        `${apiBase()}/api/v1/portal/me/export/${fmt}`,
+        {
+          filename: 'bagislarim',
+          title: 'Bağış Geçmişim',
+          subtitle: displayName ? `${displayName} · ${donations.length} bağış` : `${donations.length} bağış`,
+          headers,
+          rows,
+          currency_cols: [2],
+        },
+        { headers: authHeaders(token || ''), responseType: 'blob' },
+      )
+      const url = URL.createObjectURL(new Blob([res.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `bagislarim.${fmt}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      exportCsv('bagislarim.csv', headers, rows)
+    } finally {
+      setExporting(null)
+    }
+  }
+
   const donationList = (
     <Panel
       title="Bağış geçmişim"
       action={donations.length > 0 && (
-        <button
-          type="button"
-          onClick={() => exportCsv(
-            'bagislarim.csv',
-            ['Makbuz No', 'Tarih', 'Tutar', 'Para Birimi', 'Ödeme Yöntemi', 'Durum', 'Not'],
-            donations.map((d) => [
-              d.receipt_number,
-              date(d.created_at),
-              d.amount_lira,
-              d.currency,
-              METHOD_LABELS[d.payment_method] || d.payment_method,
-              (DONATION_STATUS[d.status] || [d.status])[0],
-              d.donor_message || '',
-            ]),
-          )}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-        >
-          ⬇ CSV İndir
-        </button>
+        <div className="inline-flex flex-wrap items-center gap-1.5 print:hidden">
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => downloadPortalExport('xlsx')}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#1D6F42]/30 bg-[#1D6F42]/10 px-3 py-1.5 text-xs font-bold text-[#1D6F42] transition-colors hover:bg-[#1D6F42]/15 disabled:opacity-50"
+          >
+            <ExcelIcon className="h-3.5 w-3.5" />
+            {exporting === 'xlsx' ? 'Hazırlanıyor…' : 'Excel'}
+          </button>
+          <button
+            type="button"
+            disabled={exporting !== null}
+            onClick={() => downloadPortalExport('pdf')}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#D32F2F]/30 bg-[#D32F2F]/10 px-3 py-1.5 text-xs font-bold text-[#D32F2F] transition-colors hover:bg-[#D32F2F]/15 disabled:opacity-50"
+          >
+            <PdfIcon className="h-3.5 w-3.5" />
+            {exporting === 'pdf' ? 'Hazırlanıyor…' : 'PDF'}
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+            Yazdır
+          </button>
+        </div>
       )}
     >
       {donations.length === 0

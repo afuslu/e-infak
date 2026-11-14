@@ -220,6 +220,7 @@ export default function BankAccountsPage() {
                 filename="banka-hesaplari"
                 title="Banka Hesapları"
                 subtitle={`${accounts.length} hesap`}
+                printable={false}
                 getData={() => ({
                   headers: ['Banka', 'Hesap Adı', 'IBAN', 'Para Birimi', 'Durum', 'Otomatik Onay', 'Varsayılan Kampanya'],
                   rows: accounts.map((a) => [

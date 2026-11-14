@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { AlertTriangle, MessageSquare, RefreshCw, Sparkles, TrendingUp, Users } from 'lucide-react'
 import { Button, Card } from '@e-infak/ui'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
-import { EmptyState, ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
-import { adminGet, apiErrorMessage, formatMoney } from '../../../../lib/admin-access'
+import { EmptyState, ExportButtons, PageHeader, SmsIcon, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, toast } from '../../../../components/admin/ui'
+import { adminGet, apiErrorMessage, formatMoney, whatsappUrl } from '../../../../lib/admin-access'
 
 interface ChurnDonor {
   donor_id: string
@@ -217,10 +217,34 @@ export default function AdminAiPage() {
                           <Td className="text-xs text-slate-600 max-w-[220px]">{c.recommended_action}</Td>
                           <Td className="text-right whitespace-nowrap">
                             {c.donor_phone ? (
-                              <Button type="button" variant="outline" size="sm" onClick={() => setSmsTarget(c)}>
-                                <MessageSquare className="w-3.5 h-3.5 mr-1" />
-                                SMS
-                              </Button>
+                              <div className="inline-flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSmsTarget(c)}
+                                  className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700 hover:bg-sky-100"
+                                >
+                                  <SmsIcon className="h-3.5 w-3.5" />
+                                  SMS
+                                </button>
+                                {(() => {
+                                  const wa = whatsappUrl(
+                                    c.donor_phone,
+                                    `Merhaba ${c.donor_name}, desteğiniz için teşekkür ederiz. Hayırlı günler dileriz.`,
+                                  )
+                                  return wa ? (
+                                    <a
+                                      href={wa}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="WhatsApp ile mesaj gönder"
+                                      className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-1 text-[11px] font-bold text-[#128C7E] hover:bg-[#25D366]/20"
+                                    >
+                                      <WhatsAppIcon className="h-3.5 w-3.5" />
+                                      WhatsApp
+                                    </a>
+                                  ) : null
+                                })()}
+                              </div>
                             ) : (
                               <Link
                                 href={`/admin/bagiscilar?donor=${c.donor_id}`}

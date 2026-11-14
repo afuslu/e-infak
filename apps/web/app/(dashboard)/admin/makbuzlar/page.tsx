@@ -20,7 +20,7 @@ import { Notice, TextInput, compactInputClass, ghostButton, inputClass, primaryB
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms } from '../../../../lib/sms'
-import { ExportButtons, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, PageHeader, PdfIcon, SmsIcon, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, toast } from '../../../../components/admin/ui'
 
 interface Donation {
   id: string
@@ -286,6 +286,14 @@ export default function AdminReceiptsPage() {
             >
               <Copy className="h-3 w-3" /> Linki Kopyala
             </button>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(`Sayın ${receiptDetail.donor_name}, ${receiptDetail.receipt_number} numaralı bağış makbuzunuzu buradan doğrulayabilirsiniz: ${receiptDetail.verify_url}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2.5 py-1 text-xs font-bold text-[#128C7E] transition-colors hover:bg-[#25D366]/20"
+            >
+              <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp Paylaş
+            </a>
           </div>
         </Card>
       )}
@@ -458,9 +466,9 @@ export default function AdminReceiptsPage() {
                               <button
                                 type="button"
                                 onClick={() => setSmsFor(don)}
-                                className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                                className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700 transition-colors hover:bg-sky-100"
                               >
-                                <MessageSquare className="h-3 w-3" aria-hidden="true" />
+                                <SmsIcon className="h-3.5 w-3.5" />
                                 SMS
                               </button>
                             )}
@@ -478,9 +486,9 @@ export default function AdminReceiptsPage() {
                               onClick={() =>
                                 downloadReceiptPdf(don.id, don.receipt_number).catch(() => toast.error('PDF indirilemedi.'))
                               }
-                              className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 transition-colors hover:bg-rose-100"
+                              className="inline-flex items-center gap-1 rounded-md border border-[#D32F2F]/30 bg-[#D32F2F]/10 px-2 py-1 text-[11px] font-bold text-[#D32F2F] transition-colors hover:bg-[#D32F2F]/15"
                             >
-                              <FileDown className="h-3 w-3" aria-hidden="true" />
+                              <PdfIcon className="h-3.5 w-3.5" />
                               PDF
                             </button>
                             {canIssue && don.is_manual && don.status === 'confirmed' && (

@@ -277,6 +277,7 @@ export default function AdminReconciliationPage() {
                 title="Banka Mutabakat Raporu"
                 subtitle={`${filteredTransactions.length} hareket`}
                 currencyCols={[4]}
+                printable={false}
                 getData={() => ({
                   headers: ['Tarih', 'İşlem No', 'Gönderen', 'Açıklama', 'Tutar', 'Para Birimi', 'Durum'],
                   rows: filteredTransactions.map((t) => [

@@ -407,7 +407,21 @@ export function WhatsAppIcon({ className = 'h-4 w-4' }: { className?: string }) 
   )
 }
 
-/** Kurum logolu ve marka renkli kurumsal Excel (.xlsx) + PDF dışa aktarım butonları. */
+export function SmsIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none">
+      <path
+        d="M4 4.5h16a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2H8.5L4 21.5V18a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2Z"
+        fill="#0284C7"
+      />
+      <circle cx="8" cy="11.25" r="1.35" fill="#FFFFFF" />
+      <circle cx="12" cy="11.25" r="1.35" fill="#FFFFFF" />
+      <circle cx="16" cy="11.25" r="1.35" fill="#FFFFFF" />
+    </svg>
+  )
+}
+
+/** Kurum logolu ve marka renkli kurumsal Excel (.xlsx) + PDF dışa aktarım + Yazdır butonları. */
 export function ExportButtons({
   filename,
   title,
@@ -415,6 +429,7 @@ export function ExportButtons({
   getData,
   summary,
   currencyCols,
+  printable = true,
 }: {
   filename: string
   title: string
@@ -422,6 +437,7 @@ export function ExportButtons({
   getData: () => { headers: string[]; rows: (string | number | null | undefined)[][] }
   summary?: [string, string][]
   currencyCols?: number[]
+  printable?: boolean
 }) {
   const [busy, setBusy] = useState<'xlsx' | 'pdf' | null>(null)
 
@@ -442,7 +458,7 @@ export function ExportButtons({
   }
 
   return (
-    <div className="inline-flex items-center gap-1.5">
+    <div className="inline-flex flex-wrap items-center gap-1.5 print:hidden">
       <button
         type="button"
         disabled={busy !== null}
@@ -461,6 +477,16 @@ export function ExportButtons({
         <PdfIcon className="h-3.5 w-3.5" />
         {busy === 'pdf' ? 'Hazırlanıyor…' : 'PDF'}
       </button>
+      {printable && (
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:bg-primary-100"
+        >
+          <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+          Yazdır
+        </button>
+      )}
     </div>
   )
 }

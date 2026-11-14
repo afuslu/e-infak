@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { Copy, KeyRound, Pencil, Plus, Search, Shield, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess, type CapabilityGroup } from '../../../../lib/admin-access'
-import { ExportButtons, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess, whatsappUrl, type CapabilityGroup } from '../../../../lib/admin-access'
+import { ExportButtons, PageHeader, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface StaffUser {
   id: string
@@ -432,7 +432,25 @@ function UsersTab({
                           {isSelf && <span className="ml-1.5 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold text-primary-700">siz</span>}
                         </div>
                         <div className="font-mono text-[11px] text-gray-500">{user.email}</div>
-                        {user.phone && <div className="text-[11px] text-gray-500">{user.phone}</div>}
+                        {user.phone && (
+                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500">
+                            <span>{user.phone}</span>
+                            {(() => {
+                              const wa = whatsappUrl(user.phone, `Merhaba ${user.first_name},`)
+                              return wa ? (
+                                <a
+                                  href={wa}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="WhatsApp ile mesaj gönder"
+                                  className="inline-flex items-center hover:opacity-80"
+                                >
+                                  <WhatsAppIcon className="h-3.5 w-3.5" />
+                                </a>
+                              ) : null
+                            })()}
+                          </div>
+                        )}
                       </Td>
                       <Td>
                         <select

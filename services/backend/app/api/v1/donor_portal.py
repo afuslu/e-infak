@@ -572,6 +572,61 @@ async def pay_my_installment(
     return await create_checkout_session(request, checkout_payload, db, None)
 
 
+@router.post("/me/export/{fmt}")
+async def export_donor_donations(
+    fmt: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_donor: Donor = Depends(get_current_donor),
+):
+    from fastapi.responses import Response
+    from app.models.organization import Organization
+    from app.api.v1.admin_features import _safe_export_name
+    from app.utils.excel_export import build_corporate_xlsx
+    from app.utils.report_pdf import build_report_pdf
+
+    if fmt not in ("xlsx", "pdf"):
+        raise HTTPException(status_code=400, detail="Desteklenmeyen format")
+    org = await db.get(Organization, current_donor.organization_id)
+    title = str(payload.get("title") or "Bağış Geçmişim")
+    subtitle = str(payload.get("subtitle") or "")
+    headers = [str(h) for h in (payload.get("headers") or [])]
+    rows = list(payload.get("rows") or [])
+    currency_cols = set(payload.get("currency_cols") or [])
+    org_name = getattr(org, "name", "") or ""
+    if fmt == "xlsx":
+        data = build_corporate_xlsx(
+            title=title,
+            headers=headers,
+            rows=rows,
+            org_name=org_name,
+            subtitle=subtitle,
+            primary_color=getattr(org, "theme_primary_color", None),
+            currency_cols=currency_cols,
+            organization=org,
+        )
+        fname = _safe_export_name(str(payload.get("filename") or title), "xlsx")
+        return Response(
+            content=data,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        )
+    data = build_report_pdf(
+        title=title,
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        subtitle=subtitle,
+        organization=org,
+    )
+    fname = _safe_export_name(str(payload.get("filename") or title), "pdf")
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
 # --- Üye aidatları ----------------------------------------------------------------------
 
 def _membership_enabled(request: Request) -> None:
@@ -666,3 +721,58 @@ async def pay_my_member_dues(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc).split("\n")[-1][:200])
     return await create_checkout_session(request, checkout_payload, db, None)
+
+
+@router.post("/me/export/{fmt}")
+async def export_donor_donations(
+    fmt: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_donor: Donor = Depends(get_current_donor),
+):
+    from fastapi.responses import Response
+    from app.models.organization import Organization
+    from app.api.v1.admin_features import _safe_export_name
+    from app.utils.excel_export import build_corporate_xlsx
+    from app.utils.report_pdf import build_report_pdf
+
+    if fmt not in ("xlsx", "pdf"):
+        raise HTTPException(status_code=400, detail="Desteklenmeyen format")
+    org = await db.get(Organization, current_donor.organization_id)
+    title = str(payload.get("title") or "Bağış Geçmişim")
+    subtitle = str(payload.get("subtitle") or "")
+    headers = [str(h) for h in (payload.get("headers") or [])]
+    rows = list(payload.get("rows") or [])
+    currency_cols = set(payload.get("currency_cols") or [])
+    org_name = getattr(org, "name", "") or ""
+    if fmt == "xlsx":
+        data = build_corporate_xlsx(
+            title=title,
+            headers=headers,
+            rows=rows,
+            org_name=org_name,
+            subtitle=subtitle,
+            primary_color=getattr(org, "theme_primary_color", None),
+            currency_cols=currency_cols,
+            organization=org,
+        )
+        fname = _safe_export_name(str(payload.get("filename") or title), "xlsx")
+        return Response(
+            content=data,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        )
+    data = build_report_pdf(
+        title=title,
+        headers=headers,
+        rows=rows,
+        org_name=org_name,
+        subtitle=subtitle,
+        organization=org,
+    )
+    fname = _safe_export_name(str(payload.get("filename") or title), "pdf")
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )

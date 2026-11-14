@@ -14,6 +14,7 @@ import {
   hasPermission,
   useAdminAccess,
   v1Get,
+  whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
@@ -24,6 +25,7 @@ import {
   PageHeader,
   Pagination,
   PdfIcon,
+  SmsIcon,
   StatCard,
   TBody,
   THead,
@@ -31,6 +33,7 @@ import {
   Td,
   Th,
   Tr,
+  WhatsAppIcon,
   confirmDialog,
   toast,
 } from '../../../../components/admin/ui'
@@ -507,11 +510,11 @@ export default function AdminDonationsPage() {
                         {formatMoney(r.amount_cents, r.currency)}
                       </Td>
                       <Td className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="inline-flex items-center justify-end gap-2 text-xs">
+                        <div className="inline-flex items-center justify-end gap-1.5 text-xs">
                           <button
                             type="button"
                             onClick={() => setDetailRow(r)}
-                            className="font-semibold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1"
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                             title="Detay"
                           >
                             <Eye className="w-3.5 h-3.5" />
@@ -519,20 +522,38 @@ export default function AdminDonationsPage() {
                           <button
                             type="button"
                             onClick={() => downloadPdf(r)}
-                            className="font-semibold text-emerald-700 hover:underline"
+                            className="inline-flex items-center gap-1 rounded-md border border-[#D32F2F]/30 bg-[#D32F2F]/10 px-2 py-1 text-[11px] font-bold text-[#D32F2F] transition-colors hover:bg-[#D32F2F]/15"
+                            title="Makbuz PDF İndir"
                           >
-                            PDF
+                            <PdfIcon className="h-3.5 w-3.5" /> PDF
                           </button>
                           {r.donor_phone && (
                             <button
                               type="button"
                               onClick={() => setSmsRow(r)}
-                              className="font-semibold text-sky-700 hover:underline"
+                              className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700 transition-colors hover:bg-sky-100"
                               title="SMS Gönder"
                             >
-                              SMS
+                              <SmsIcon className="h-3.5 w-3.5" /> SMS
                             </button>
                           )}
+                          {(() => {
+                            const wa = whatsappUrl(
+                              r.donor_phone,
+                              `Sayın ${r.donor_name}, ${formatMoney(r.amount_cents, r.currency)} tutarındaki ${r.campaign_title || ''} bağışınız için teşekkür ederiz. Makbuz No: ${r.receipt_number}`,
+                            )
+                            return wa ? (
+                              <a
+                                href={wa}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="WhatsApp ile mesaj gönder"
+                                className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-1 text-[11px] font-bold text-[#128C7E] transition-colors hover:bg-[#25D366]/20"
+                              >
+                                <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
+                              </a>
+                            ) : null
+                          })()}
                           {canIssue && r.is_manual && r.status === 'pending' && (
                             <button
                               type="button"
@@ -577,9 +598,15 @@ export default function AdminDonationsPage() {
           onClose={() => setDetailRow(null)}
           footer={
             <div className="flex flex-wrap justify-between gap-2 w-full">
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={() => downloadPdf(detailRow)}>
-                  <FileText className="w-3.5 h-3.5 mr-1.5" />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadPdf(detailRow)}
+                  className="border-[#D32F2F]/30 bg-[#D32F2F]/10 text-[#D32F2F] hover:bg-[#D32F2F]/15"
+                >
+                  <PdfIcon className="w-3.5 h-3.5 mr-1.5" />
                   Makbuz PDF
                 </Button>
                 {detailRow.donor_phone && (
@@ -591,11 +618,29 @@ export default function AdminDonationsPage() {
                       setSmsRow(detailRow)
                       setDetailRow(null)
                     }}
+                    className="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
                   >
-                    <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
+                    <SmsIcon className="w-3.5 h-3.5 mr-1.5" />
                     SMS Gönder
                   </Button>
                 )}
+                {(() => {
+                  const wa = whatsappUrl(
+                    detailRow.donor_phone,
+                    `Sayın ${detailRow.donor_name}, ${formatMoney(detailRow.amount_cents, detailRow.currency)} tutarındaki ${detailRow.campaign_title || ''} bağışınız için teşekkür ederiz. Makbuz No: ${detailRow.receipt_number}`,
+                  )
+                  return wa ? (
+                    <a
+                      href={wa}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#25D366]/40 bg-[#25D366]/10 px-3 py-1.5 text-xs font-bold text-[#128C7E] transition-colors hover:bg-[#25D366]/20"
+                    >
+                      <WhatsAppIcon className="w-3.5 h-3.5" />
+                      WhatsApp
+                    </a>
+                  ) : null
+                })()}
               </div>
               <Button type="button" onClick={() => setDetailRow(null)}>
                 Kapat

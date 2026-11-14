@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
 import { Notice, ghostButton, inputClass } from '../../../../components/admin/FormKit'
 import { SOURCE_LABEL, STATUS_CLASS, STATUS_LABEL, SmsMessage, SmsStatus } from '../../../../lib/sms'
-import { ExportButtons, PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface Account { provider: string | null; own_account: boolean; balance: { text: string; amount: number | null; unit: string } | null }
 interface Listing { items: SmsMessage[]; total: number; counts: Record<SmsStatus, number>; parts_sent: number }
@@ -234,9 +234,25 @@ export default function SmsLogPage() {
                       {m.error && <div className="mt-1 max-w-[220px] text-[10px] text-red-600">{m.error}</div>}
                     </Td>
                     <Td className="whitespace-nowrap text-right">
-                      {canSend && m.source !== 'otp' && (m.status === 'failed' || m.status === 'cancelled') && <button onClick={() => act(m, 'retry')} className="font-bold text-primary-700">Tekrar gönder</button>}
-                      {canSend && m.status === 'scheduled' && <button onClick={() => act(m, 'retry')} className="font-bold text-primary-700">Şimdi gönder</button>}
-                      {canSend && (m.status === 'scheduled' || m.status === 'queued') && <button onClick={() => act(m, 'cancel')} className="ml-3 font-bold text-red-600">İptal</button>}
+                      <div className="inline-flex items-center justify-end gap-2">
+                        {(() => {
+                          const wa = m.source !== 'otp' ? whatsappUrl(m.phone, m.body) : null
+                          return wa ? (
+                            <a
+                              href={wa}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Aynı mesajı WhatsApp ile gönder"
+                              className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-0.5 text-[11px] font-bold text-[#128C7E] hover:bg-[#25D366]/20"
+                            >
+                              <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
+                            </a>
+                          ) : null
+                        })()}
+                        {canSend && m.source !== 'otp' && (m.status === 'failed' || m.status === 'cancelled') && <button onClick={() => act(m, 'retry')} className="font-bold text-primary-700">Tekrar gönder</button>}
+                        {canSend && m.status === 'scheduled' && <button onClick={() => act(m, 'retry')} className="font-bold text-primary-700">Şimdi gönder</button>}
+                        {canSend && (m.status === 'scheduled' || m.status === 'queued') && <button onClick={() => act(m, 'cancel')} className="font-bold text-red-600">İptal</button>}
+                      </div>
                     </Td>
                   </Tr>
                 ))}
