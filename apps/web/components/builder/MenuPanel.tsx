@@ -49,6 +49,8 @@ export function MenuPanel({ onMenuChanged }: { onMenuChanged: (menu: PublicMenu)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ label: '', url: '', open_in_new_tab: false })
   const [saving, setSaving] = useState(false)
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const [dropIdx, setDropIdx] = useState<number | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -90,6 +92,25 @@ export function MenuPanel({ onMenuChanged }: { onMenuChanged: (menu: PublicMenu)
     const target = index + delta
     if (target < 0 || target >= next.length) return
     ;[next[index], next[target]] = [next[target], next[index]]
+    const updated = items.map((item) => {
+      const pos = next.findIndex((n) => n.id === item.id)
+      return pos >= 0 ? { ...item, display_order: pos } : item
+    })
+    setItems(updated)
+    onMenuChanged(toPublicMenu(updated))
+    try {
+      await adminSend('put', '/menu/order', { ids: next.map((n) => n.id) })
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      await load()
+    }
+  }
+
+  const reorder = async (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= list.length || toIndex >= list.length) return
+    const next = [...list]
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
     const updated = items.map((item) => {
       const pos = next.findIndex((n) => n.id === item.id)
       return pos >= 0 ? { ...item, display_order: pos } : item
@@ -160,7 +181,21 @@ export function MenuPanel({ onMenuChanged }: { onMenuChanged: (menu: PublicMenu)
       ) : (
         <ul className="space-y-1.5">
           {list.map((item, i) => (
-            <li key={item.id} className="rounded-lg border bg-white p-2">
+            <li
+              key={item.id}
+              draggable={editingId !== item.id}
+              onDragStart={(e) => { setDragIdx(i); e.dataTransfer.effectAllowed = 'move' }}
+              onDragOver={(e) => { e.preventDefault(); if (dragIdx !== null && dragIdx !== i) setDropIdx(i) }}
+              onDragLeave={() => setDropIdx((d) => (d === i ? null : d))}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (dragIdx !== null) reorder(dragIdx, i)
+                setDragIdx(null)
+                setDropIdx(null)
+              }}
+              onDragEnd={() => { setDragIdx(null); setDropIdx(null) }}
+              className={`rounded-lg border bg-white p-2 transition ${dropIdx === i ? 'border-blue-500 ring-2 ring-blue-100' : ''} ${dragIdx === i ? 'opacity-60' : ''}`}
+            >
               {editingId === item.id ? (
                 <form onSubmit={(e) => saveEdit(e, item)} className="space-y-1.5">
                   <input className="w-full rounded border px-2 py-1 text-xs" placeholder="Başlık" value={editForm.label}

@@ -18,7 +18,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission
+from app.api.deps import ensure_capability, get_current_user, has_capability, mask_phone, require_admin_route_feature, require_admin_route_permission
 from app.core.db import get_db
 from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign
@@ -69,6 +69,12 @@ def _normalize_phone(value: Optional[str]) -> Optional[str]:
     return digits
 
 
+def _ensure_can_see(user: User, donor: Donor) -> None:
+    """Staff without donors.view_all reach only the donors they represent (others look like they don't exist)."""
+    if donor.assigned_user_id != user.id and not has_capability(user, "donors.view_all"):
+        raise HTTPException(status_code=404, detail="Bağışçı bulunamadı")
+
+
 async def _get_donor(db: AsyncSession, org_id: UUID, donor_id: UUID) -> Donor:
     donor = (await db.execute(
         select(Donor).where(Donor.id == donor_id, Donor.organization_id == org_id)
@@ -94,7 +100,7 @@ def _local_date_bounds(start: Optional[date], end: Optional[date]):
     return lower, upper
 
 
-def _donor_summary(donor: Donor, staff_names: dict) -> dict:
+def _donor_summary(donor: Donor, staff_names: dict, viewer: Optional[User] = None) -> dict:
     return {
         "id": str(donor.id),
         "donor_type": donor.donor_type.value if hasattr(donor.donor_type, "value") else donor.donor_type,
@@ -103,7 +109,7 @@ def _donor_summary(donor: Donor, staff_names: dict) -> dict:
         "company_name": donor.company_name,
         "full_name": donor.full_name,
         "email": donor.email,
-        "phone": donor.phone,
+        "phone": mask_phone(donor.phone, viewer) if viewer else donor.phone,
         "city": donor.city,
         "country": donor.country,
         "total_donations": donor.total_donations or 0,
@@ -153,6 +159,8 @@ async def list_donors(
         if len(digits) >= 4:
             search.append(Donor.phone.ilike(f"%{digits}%"))
         conditions.append(or_(*search))
+    if not has_capability(current_user, "donors.view_all"):
+        conditions.append(Donor.assigned_user_id == current_user.id)  # only donors this staff member represents
     if assigned == "me":
         conditions.append(Donor.assigned_user_id == current_user.id)
     elif assigned == "none":
@@ -184,7 +192,7 @@ async def list_donors(
         select(Donor).where(*conditions).order_by(*order).offset((page - 1) * page_size).limit(page_size)
     )).scalars().all()
     names = await _staff_names(db, org_id)
-    return {"total": total, "page": page, "page_size": page_size, "items": [_donor_summary(d, names) for d in rows]}
+    return {"total": total, "page": page, "page_size": page_size, "items": [_donor_summary(d, names, current_user) for d in rows]}
 
 
 class DonorIn(BaseModel):
@@ -253,6 +261,7 @@ async def _ensure_no_duplicate(db: AsyncSession, org_id: UUID, email: Optional[s
 async def create_donor(request: Request, payload: DonorIn, db: AsyncSession = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
+    ensure_capability(current_user, "donors.create", "Bağışçı ekleme yetkiniz yok")
     await _ensure_no_duplicate(db, org_id, payload.email, payload.phone)
     data = payload.model_dump()
     data["donor_type"] = DonorType(data["donor_type"])
@@ -260,9 +269,11 @@ async def create_donor(request: Request, payload: DonorIn, db: AsyncSession = De
     donor = Donor(organization_id=org_id, total_donations=0, total_donated_cents=0, **data)
     db.add(donor)
     await db.flush()
+    if not has_capability(current_user, "donors.view_all") and not donor.assigned_user_id:
+        donor.assigned_user_id = current_user.id  # otherwise its creator could not open the new card
     _audit(db, org_id, current_user, "bagisci_olustur", {"donor_id": str(donor.id)})
     await db.commit()
-    return _donor_summary(donor, {})
+    return _donor_summary(donor, {}, current_user)
 
 
 @router.get("/donors/{donor_id}")
@@ -271,6 +282,7 @@ async def get_donor_card(request: Request, donor_id: UUID, db: AsyncSession = De
     """Bağışçı kartı: kimlik, iletişim, temsilci, tüm bağışlar, notlar ve yıllık özet."""
     org_id = _org_id(request)
     donor = await _get_donor(db, org_id, donor_id)
+    _ensure_can_see(current_user, donor)
     names = await _staff_names(db, org_id)
     donations = (await db.execute(
         select(Donation).options(selectinload(Donation.campaign))
@@ -281,7 +293,7 @@ async def get_donor_card(request: Request, donor_id: UUID, db: AsyncSession = De
     notes = (await db.execute(
         select(DonorNote).options(selectinload(DonorNote.author))
         .where(DonorNote.donor_id == donor.id).order_by(DonorNote.created_at.desc()).limit(200)
-    )).scalars().all()
+    )).scalars().all() if has_capability(current_user, "donors.notes_view") else []
 
     by_year: dict[int, dict] = {}
     for d in donations:
@@ -292,7 +304,7 @@ async def get_donor_card(request: Request, donor_id: UUID, db: AsyncSession = De
         bucket["count"] += 1
         bucket["totals"][d.currency or "TRY"] = bucket["totals"].get(d.currency or "TRY", 0) + d.amount_cents
 
-    card = _donor_summary(donor, names)
+    card = _donor_summary(donor, names, current_user)
     card.update({
         "address": donor.address,
         "tc_no_masked": f"{donor.tc_no[:3]}*****{donor.tc_no[-2:]}" if donor.tc_no else None,
@@ -313,6 +325,9 @@ async def update_donor(request: Request, donor_id: UUID, payload: DonorUpdate, d
                        current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
     donor = await _get_donor(db, org_id, donor_id)
+    ensure_capability(current_user, "donors.update", "Bağışçı güncelleme yetkiniz yok")
+    if donor.assigned_user_id != current_user.id:
+        ensure_capability(current_user, "donors.update_all", "Yalnız temsilcisi olduğunuz bağışçıları güncelleyebilirsiniz")
     await _ensure_no_duplicate(db, org_id, payload.email, payload.phone, exclude_id=donor.id)
     changes = {}
     for key in ("first_name", "last_name", "company_name", "phone", "address", "city", "country", "tax_number", "tags"):
@@ -344,7 +359,7 @@ async def update_donor(request: Request, donor_id: UUID, payload: DonorUpdate, d
         donor.assigned_user_id = payload.assigned_user_id
     _audit(db, org_id, current_user, "bagisci_guncelle", {"donor_id": str(donor.id), "changed": changes})
     await db.commit()
-    return _donor_summary(donor, await _staff_names(db, org_id))
+    return _donor_summary(donor, await _staff_names(db, org_id), current_user)
 
 
 class DonorSms(BaseModel):
@@ -355,7 +370,9 @@ class DonorSms(BaseModel):
 async def send_donor_sms(request: Request, donor_id: UUID, payload: DonorSms, db: AsyncSession = Depends(get_db),
                          current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
+    ensure_capability(current_user, "sms.send", "SMS gönderme yetkiniz yok")
     donor = await _get_donor(db, org_id, donor_id)
+    _ensure_can_see(current_user, donor)
     if not donor.phone:
         raise HTTPException(status_code=409, detail="Bağışçının kayıtlı telefonu yok")
     if not donor.allow_sms:
@@ -425,6 +442,8 @@ async def search_donations(
     org_id = _org_id(request)
     paid = func.coalesce(Donation.paid_at, Donation.created_at)
     conditions = [Donation.organization_id == org_id]
+    if not has_capability(current_user, "receipts.view_all"):
+        conditions.append(Donation.issued_by_id == current_user.id)  # only receipts this staff member wrote
     lower, upper = _local_date_bounds(start, end)
     if lower:
         conditions.append(paid >= lower)
@@ -600,6 +619,9 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
     if existing:
         return _donation_row(existing, await _staff_names(db, org_id))
 
+    ensure_capability(current_user, "receipts.create", "Makbuz kesme yetkiniz yok")
+    if payload.paid_on and payload.paid_on < datetime.now(TZ).date():
+        ensure_capability(current_user, "receipts.backdate", "Makbuz tarihini geriye dönük girme yetkiniz yok")
     receipt_lines = payload.receipt_lines()
     campaigns: dict[UUID, Campaign] = {}
     for line in receipt_lines:
@@ -612,6 +634,7 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
 
     issuer_id = current_user.id
     if payload.issued_by_id and payload.issued_by_id != current_user.id:
+        ensure_capability(current_user, "receipts.for_others", "Başka personel adına makbuz kesme yetkiniz yok")
         staff = (await db.execute(select(User).where(
             User.id == payload.issued_by_id, User.organization_id == org_id, User.is_active.is_(True)))).scalar_one_or_none()
         if not staff:
@@ -725,6 +748,7 @@ async def mark_manual_donation_paid(request: Request, donation_id: UUID, db: Asy
     from app.services.offline_donation import confirm_offline_donation
 
     org_id = _org_id(request)
+    ensure_capability(current_user, "receipts.mark_paid", "Makbuzu ödendi yapma yetkiniz yok")
     donation = (await db.execute(select(Donation).where(
         Donation.id == donation_id, Donation.organization_id == org_id).with_for_update())).scalar_one_or_none()
     if not donation:
@@ -756,6 +780,7 @@ class CancelIn(BaseModel):
 async def cancel_manual_donation(request: Request, donation_id: UUID, payload: CancelIn, db: AsyncSession = Depends(get_db),
                                  current_user: User = Depends(get_current_user)):
     """Yalnız elle kesilmiş makbuzlar iptal edilebilir; online ödemeler iade akışından geçer."""
+    ensure_capability(current_user, "receipts.cancel", "Makbuz iptal yetkiniz yok")
     org_id = _org_id(request)
     donation = (await db.execute(
         select(Donation).options(selectinload(Donation.campaign), selectinload(Donation.donor))

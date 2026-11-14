@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react'
 import { brandCssVariables } from '@e-infak/theme'
 import { adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
 import { ImageField } from '../admin/ImageField'
 import { TranslationEditor, type Translations } from '../admin/TranslationEditor'
+import { confirmDialog } from '../admin/ui'
 import { DEFAULT_DESIGN, siteDesignStyle, type SiteDesign } from '../../lib/site-design'
 
 export interface ThemeAppearance {
@@ -92,7 +93,15 @@ function ColorInput({ label, value, fallback, onChange }: { label: string; value
   )
 }
 
-export function ThemePanel({ onLivePreview }: { onLivePreview: (patch: ThemeLivePatch) => void }) {
+export function ThemePanel({
+  onLivePreview,
+  onDirtyChange,
+  saveRef,
+}: {
+  onLivePreview: (patch: ThemeLivePatch) => void
+  onDirtyChange?: (dirty: boolean) => void
+  saveRef?: MutableRefObject<(() => Promise<boolean>) | null>
+}) {
   const [loaded, setLoaded] = useState<LoadedAppearance | null>(null)
   const [saved, setSaved] = useState<ThemeAppearance | null>(null)
   const [form, setForm] = useState<ThemeAppearance | null>(null)
@@ -131,6 +140,10 @@ export function ThemePanel({ onLivePreview }: { onLivePreview: (patch: ThemeLive
     return JSON.stringify(form) !== JSON.stringify(saved)
   }, [form, saved])
 
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
+
   const design = form?.design || DEFAULT_DESIGN
   const textContrast = useMemo(() => contrastRatio(design.page_color, design.text_color), [design.page_color, design.text_color])
   const btnContrast = useMemo(() => contrastRatio(form?.primary_color || '#166534', '#FFFFFF'), [form?.primary_color])
@@ -156,7 +169,9 @@ export function ThemePanel({ onLivePreview }: { onLivePreview: (patch: ThemeLive
     setMessage(null)
   }
 
-  const save = async () => {
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!form) return true
+    const curDesign = form.design || DEFAULT_DESIGN
     setSaving(true)
     setMessage(null)
     try {
@@ -166,9 +181,9 @@ export function ThemePanel({ onLivePreview }: { onLivePreview: (patch: ThemeLive
         primary_color: safeHex(form.primary_color, saved?.primary_color || '#166534'),
         accent_color: safeHex(form.accent_color, saved?.accent_color || '#C9A227'),
         design: {
-          ...design,
-          page_color: safeHex(design.page_color, DEFAULT_DESIGN.page_color),
-          text_color: safeHex(design.text_color, DEFAULT_DESIGN.text_color),
+          ...curDesign,
+          page_color: safeHex(curDesign.page_color, DEFAULT_DESIGN.page_color),
+          text_color: safeHex(curDesign.text_color, DEFAULT_DESIGN.text_color),
         },
         tagline: form.tagline || null,
         logo_url: form.logo_url || null,
@@ -182,11 +197,23 @@ export function ThemePanel({ onLivePreview }: { onLivePreview: (patch: ThemeLive
       setForm(res.data)
       setSaved(res.data)
       setMessage({ type: 'ok', text: 'Tema kaydedildi' })
+      return true
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Tema kaydedilemedi') })
+      return false
     } finally {
       setSaving(false)
     }
+  }, [form, saved])
+
+  useEffect(() => {
+    if (saveRef) saveRef.current = save
+    return () => { if (saveRef) saveRef.current = null }
+  }, [save, saveRef])
+
+  const resetDefaults = async () => {
+    if (!(await confirmDialog('Renkler ve tipografi varsayılan temaya sıfırlansın mı?'))) return
+    setForm((f) => (f ? { ...f, primary_color: '#166534', accent_color: '#C9A227', design: { ...DEFAULT_DESIGN } } : f))
   }
 
   return (
@@ -323,6 +350,13 @@ export function ThemePanel({ onLivePreview }: { onLivePreview: (patch: ThemeLive
                 {loaded.templates.map((t) => <option key={t.key} value={t.key}>{t.label.split(' — ')[0]}</option>)}
               </select>
             </label>
+            <button
+              type="button"
+              onClick={resetDefaults}
+              className="w-full rounded-md border border-dashed border-gray-300 py-1.5 text-[11px] font-semibold text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+            >
+              Varsayılan temaya sıfırla
+            </button>
           </div>
         </div>
       )}

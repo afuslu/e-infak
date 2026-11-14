@@ -30,6 +30,7 @@ export default function SmsLogPage() {
   const [data, setData] = useState<Listing | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
+  const [retryingAll, setRetryingAll] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const params = { status: status || undefined, source: source || undefined, q: q.trim() || undefined, date_from: dateFrom || undefined, date_to: dateTo || undefined }
   const latest = useRef(params)
@@ -78,9 +79,42 @@ export default function SmsLogPage() {
       const res = await adminGet<Listing>('/sms/messages', { ...params, page: 1, page_size: 200 })
       exportCsv('sms-gonderimleri.csv', ['No', 'Tarih', 'Alıcı', 'Telefon', 'Mesaj', 'Kaynak', 'SMS', 'Durum', 'Hata'],
         res.data.items.map((m) => [m.seq_no, when(m.created_at), m.donor_name, m.phone, m.body, SOURCE_LABEL[m.source] || m.source, m.parts, STATUS_LABEL[m.status], m.error]))
+      if (res.data.total > res.data.items.length) {
+        setMessage({ type: 'ok', text: `İlk ${res.data.items.length} kayıt CSV olarak indirildi (toplam ${res.data.total} kayıt).` })
+      }
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
     }
+  }
+
+  const failedRetryable = (data?.items || []).filter((m) => m.status === 'failed' && m.source !== 'otp')
+  const retryFailed = async () => {
+    if (!failedRetryable.length || retryingAll) return
+    if (!(await confirmDialog(`Bu sayfadaki ${failedRetryable.length} başarısız SMS tekrar kuyruğa alınsın mı?`))) return
+    setRetryingAll(true)
+    setMessage(null)
+    let ok = 0
+    for (const m of failedRetryable) {
+      try {
+        await adminSend('post', `/sms/messages/${m.id}/retry`)
+        ok++
+      } catch {
+        // skip individual error and continue
+      }
+    }
+    setRetryingAll(false)
+    setMessage({ type: 'ok', text: `${ok} / ${failedRetryable.length} SMS yeniden kuyruğa alındı.` })
+    load()
+  }
+
+  const hasFilters = Boolean(status || source || q.trim() || dateFrom || dateTo)
+  const clearFilters = () => {
+    setStatus('')
+    setSource('')
+    setQ('')
+    setDateFrom('')
+    setDateTo('')
+    setPage(1)
   }
 
   const counts = data?.counts
@@ -89,9 +123,11 @@ export default function SmsLogPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="SMS Gönderimleri" description={<>Kurumdan çıkan her SMS burada: elle gönderilenler, makbuz ve havale bildirimleri, zamanlananlar.</>} actions={<div className="flex shrink-0 gap-2 whitespace-nowrap">
+      <PageHeader title="SMS Gönderimleri" description={<>Kurumdan çıkan her SMS burada: elle gönderilenler, makbuz ve havale bildirimleri, zamanlananlar.</>} actions={<div className="flex flex-wrap shrink-0 gap-2 whitespace-nowrap">
+          <Link href="/admin/broadcast" className={ghostButton}>+ Toplu SMS Gönder</Link>
           <Link href="/admin/sms" className={ghostButton}>Şablonlar</Link>
-          <button onClick={download} className={ghostButton}>CSV indir</button>
+          <button type="button" onClick={() => load()} className={ghostButton}>Yenile</button>
+          <button type="button" onClick={download} className={ghostButton}>CSV indir</button>
         </div>} />
 
       <Notice message={message} />
@@ -112,7 +148,7 @@ export default function SmsLogPage() {
           ['Gönderilen', (counts?.sent || 0) + (counts?.delivered || 0), 'text-green-700'],
           ['Bekleyen', (counts?.queued || 0) + (counts?.scheduled || 0), 'text-amber-700'],
           ['Başarısız', counts?.failed || 0, 'text-red-700'],
-          ['Kullanılan SMS (boy)', data?.parts_sent || 0, 'text-gray-900'],
+          ['Toplam SMS Parçası', data?.parts_sent || 0, 'text-gray-900'],
         ] as [string, number, string][]).map(([label, value, cls]) => (
           <div key={label} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
             <div className="text-[10px] font-bold uppercase text-gray-500">{label}</div>
@@ -121,13 +157,19 @@ export default function SmsLogPage() {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {TABS.map(([key, label]) => (
           <button key={key} onClick={() => { setStatus(key); setPage(1) }}
             className={`rounded-full px-4 py-1.5 text-xs font-bold ${status === key ? 'bg-primary-600 text-white' : 'border bg-white text-gray-700'}`}>
             {label} ({key ? counts?.[key] || 0 : all})
           </button>
         ))}
+        {canSend && failedRetryable.length > 0 && (
+          <button type="button" disabled={retryingAll} onClick={retryFailed}
+            className="ml-auto rounded-full border border-red-200 bg-red-50 px-3.5 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50">
+            {retryingAll ? 'Gönderiliyor…' : `Başarısızları tekrar gönder (${failedRetryable.length})`}
+          </button>
+        )}
       </div>
 
       <Card className="space-y-4 border border-gray-100 p-5 shadow-sm">
@@ -140,6 +182,13 @@ export default function SmsLogPage() {
           <input type="date" className={inputClass} value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} aria-label="Başlangıç tarihi" title="Başlangıç tarihi" />
           <input type="date" className={inputClass} value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} aria-label="Bitiş tarihi" title="Bitiş tarihi" />
         </div>
+        {hasFilters && (
+          <div className="flex justify-end">
+            <button type="button" onClick={clearFilters} className="text-xs font-semibold text-primary-700 hover:underline">
+              Filtreleri temizle
+            </button>
+          </div>
+        )}
 
         {!data ? (
           <p className="animate-pulse py-10 text-center text-sm text-gray-400">Yükleniyor…</p>

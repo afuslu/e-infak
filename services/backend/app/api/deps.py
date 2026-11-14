@@ -119,18 +119,65 @@ def effective_permissions(user: User) -> set[Permission]:
         if staff_role is None:
             # Not loaded: fail closed rather than fall back to the built-in role.
             return set()
+        from app.core import capabilities
+
+        stored = list(staff_role.permissions or [])
         granted = set()
-        for value in staff_role.permissions or []:
+        for value in [*stored, *capabilities.permissions_of(set(stored))]:
             try:
                 granted.add(Permission(value))
             except ValueError:
                 continue
-        return granted
+        return granted | ({Permission.ADMIN_READ} if granted else set())
     return set(ROLE_PERMISSIONS.get(user.role, set()))
 
 
 def has_permission(user: User, permission: Permission) -> bool:
     return permission in effective_permissions(user)
+
+
+def effective_capabilities(user: User) -> set[str]:
+    """Fine-grained permissions (app.core.capabilities) of a staff member.
+
+    Built-in roles get every capability of the modules their broad permissions open; a custom role
+    gets exactly what was ticked (older roles that stored broad permissions get the whole module).
+    """
+    from app.core import capabilities
+
+    if user.role in (UserRole.PLATFORM_ADMIN, UserRole.STK_ADMIN) and not user.staff_role_id:
+        return set(capabilities.ALL)
+    if user.staff_role_id:
+        staff_role = user.__dict__.get("staff_role")
+        return capabilities.expand(list(staff_role.permissions or [])) if staff_role is not None else set()
+    return capabilities.expand([p.value for p in ROLE_PERMISSIONS.get(user.role, set())])
+
+
+def has_capability(user: User, key: str) -> bool:
+    return key in effective_capabilities(user)
+
+
+def ensure_capability(user: User, key: str, message: str | None = None) -> None:
+    if not has_capability(user, key):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=message or "Bu işlem için yetkiniz yok")
+
+
+def require_capability(key: str):
+    """Route dependency: the current staff member must have this capability."""
+    async def checker(current_user: User = Depends(get_current_active_user)) -> User:
+        ensure_capability(current_user, key)
+        return current_user
+    return checker
+
+
+def mask_phone(phone: str | None, user: User) -> str | None:
+    """Phone as the staff member may see it: in full with donors.phone, else "0532 *** ** 12"."""
+    if not phone or has_capability(user, "donors.phone"):
+        return phone
+    digits = "".join(ch for ch in str(phone) if ch.isdigit())
+    if len(digits) < 7:
+        return "*" * len(digits)
+    head = digits[:-10] + digits[-10:-7] if len(digits) > 10 else digits[:-7]
+    return f"{head[:-3] or ''}{head[-3:]} *** ** {digits[-2:]}".strip()
 
 
 def require_role(*allowed_roles: UserRole):

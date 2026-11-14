@@ -39,11 +39,22 @@ const STATE: Record<Batch['state'], [string, string]> = {
 const PERSONAL = ['ad_soyad', 'ad', 'kurum', 'kurum_telefon', 'iban']
 const when = (iso: string) => new Date(iso).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })
 const n = (value: number) => value.toLocaleString('tr-TR')
+const localNow = () => {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
 const localSoon = () => {
   const d = new Date(Date.now() + 3_600_000)
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
   return d.toISOString().slice(0, 16)
 }
+const safeIso = (val: string) => {
+  const d = new Date(val)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString()
+}
+const TR_MAP: Record<string, string> = { ç: 'c', Ç: 'C', ğ: 'g', Ğ: 'G', ı: 'i', İ: 'I', ö: 'o', Ö: 'O', ş: 's', Ş: 'S', ü: 'u', Ü: 'U' }
+const toAsciiTr = (text: string) => text.replace(/[çÇğĞıİöÖşŞüÜ]/g, (ch) => TR_MAP[ch] || ch)
 
 export default function BulkSmsPage() {
   const { data: access } = useAdminAccess()
@@ -71,7 +82,10 @@ export default function BulkSmsPage() {
   const [previewError, setPreviewError] = useState('')
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [testPhone, setTestPhone] = useState('')
+  const [testing, setTesting] = useState(false)
   const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const numFileRef = useRef<HTMLInputElement>(null)
 
   const loadBatches = () => adminGet<Batch[]>('/sms/batches').then((r) => setBatches(r.data)).catch(() => {})
   useEffect(() => {
@@ -92,12 +106,13 @@ export default function BulkSmsPage() {
     return () => clearInterval(t)
   }, [active])
 
+  const sendIso = later ? safeIso(sendAt) : null
   const payload = () => ({
     name: name.trim() || null,
     body,
     commercial,
     template_id: templateId || null,
-    send_at: later ? new Date(sendAt).toISOString() : null,
+    send_at: sendIso,
     quiet_hours: quiet,
     audience: {
       kind, months: Number(months) || 6, tag: tag || null, city: city || null, campaign_id: campaignId || null,
@@ -107,6 +122,7 @@ export default function BulkSmsPage() {
   })
 
   const ready = body.trim().length >= 2
+    && (!later || Boolean(sendIso))
     && (kind !== 'tag' || tag) && (kind !== 'city' || city) && (kind !== 'campaign' || campaignId) && (kind !== 'numbers' || numbers.trim())
 
   // Recount whenever the audience or the text changes.
@@ -160,7 +176,54 @@ export default function BulkSmsPage() {
     }
   }
 
+  const sendTest = async () => {
+    const phone = testPhone.trim()
+    if (!phone || body.trim().length < 2 || testing) return
+    setTesting(true)
+    setMessage(null)
+    try {
+      await adminSend<Batch>('post', '/sms/batches', {
+        name: `[TEST] ${name.trim() || 'Toplu SMS'}`,
+        body,
+        commercial: false,
+        template_id: templateId || null,
+        send_at: null,
+        quiet_hours: false,
+        audience: { kind: 'numbers', numbers: phone, include_without_consent: true },
+      })
+      setMessage({ type: 'ok', text: `Test SMS'i ${phone} numarasına kuyruğa alındı.` })
+      loadBatches()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Test SMS gönderilemedi') })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const importNumbersFile = async (file?: File) => {
+    if (!file) return
+    const text = await file.text()
+    const extracted = text
+      .split(/[\r\n,;]+/)
+      .map((s) => s.replace(/^["']|["']$/g, '').trim())
+      .filter((s) => /\d{7,}/.test(s))
+    if (!extracted.length) {
+      setMessage({ type: 'error', text: 'Dosyada geçerli telefon numarası bulunamadı.' })
+      return
+    }
+    setNumbers((prev) => (prev.trim() ? `${prev.trim()}\n${extracted.join('\n')}` : extracted.join('\n')))
+    setMessage({ type: 'ok', text: `${extracted.length} satır numara listeye eklendi.` })
+  }
+
+  const reuseBatch = (b: Batch) => {
+    setName(`${b.name} (Tekrar)`)
+    setBody(b.body)
+    setCommercial(b.commercial)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   const counter = segmentSummary(preview?.sample?.body || body)
+  const liveCounter = segmentSummary(body)
   const skipped = preview ? preview.stats.no_phone + preview.stats.no_consent + preview.stats.invalid + preview.stats.duplicate : 0
 
   return (
@@ -212,9 +275,18 @@ export default function BulkSmsPage() {
               {kind === 'kurban' && <TextInput label="Kurban yılı" type="number" min={2000} max={2100} value={year} onChange={setYear} />}
             </div>
             {kind === 'numbers' && (
-              <Label label="Numaralar" hint="Her satıra bir numara ya da virgülle ayırın. Tekrar edenler ve hatalı numaralar ayıklanır.">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-600">Numaralar</span>
+                  <button type="button" onClick={() => numFileRef.current?.click()} className="text-xs font-semibold text-primary-700 hover:underline">
+                    Dosyadan yükle (.txt / .csv)
+                  </button>
+                  <input ref={numFileRef} type="file" accept=".txt,.csv" className="hidden"
+                    onChange={(e) => { importNumbersFile(e.target.files?.[0]); e.target.value = '' }} />
+                </div>
                 <textarea rows={4} className={`${inputClass} resize-y font-mono`} value={numbers} onChange={(e) => setNumbers(e.target.value)} placeholder={'0532 000 00 00\n0533 000 00 00'} />
-              </Label>
+                <p className="text-[11px] text-gray-400">Her satıra bir numara ya da virgülle ayırın. Tekrar edenler ve hatalı numaralar ayıklanır.</p>
+              </div>
             )}
             <div className="grid gap-2 sm:grid-cols-2">
               {([[false, 'Bilgilendirme', 'Duyuru, hatırlatma, teşekkür. İYS kontrolü yapılmaz.'], [true, 'Ticari / tanıtım', 'Kampanya ve bağış çağrısı. Yalnızca izinlilere, İYS kontrolüyle gider.']] as [boolean, string, string][]).map(([value, title, hint]) => (
@@ -252,6 +324,17 @@ export default function BulkSmsPage() {
             <Label label="Mesaj metni">
               <textarea ref={bodyRef} rows={6} maxLength={1500} className={`${inputClass} resize-y`} value={body} onChange={(e) => setBody(e.target.value)} />
             </Label>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className={liveCounter.info.encoding === 'unicode' ? 'font-semibold text-amber-700' : 'text-gray-500'}>
+                {liveCounter.text}
+                {liveCounter.info.encoding === 'unicode' && ' (Türkçe karakterler nedeniyle 1 SMS 70 karakter sayılır)'}
+              </span>
+              {liveCounter.info.encoding === 'unicode' && (
+                <button type="button" onClick={() => setBody((b) => toAsciiTr(b))} className="font-semibold text-primary-700 hover:underline">
+                  Türkçe karakterleri sadeleştir (ş→s)
+                </button>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-xs font-bold text-gray-600">Kişiye özel:</span>
               {(meta?.variables || []).filter((v) => PERSONAL.includes(v.key)).map((v) => (
@@ -266,7 +349,7 @@ export default function BulkSmsPage() {
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" checked={later} onChange={(e) => setLater(e.target.checked)} /> İleri tarihli gönder
             </label>
-            {later && <input type="datetime-local" className={`${inputClass} sm:w-72`} value={sendAt} onChange={(e) => setSendAt(e.target.value)} />}
+            {later && <input type="datetime-local" min={localNow()} className={`${inputClass} sm:w-72`} value={sendAt} onChange={(e) => setSendAt(e.target.value)} />}
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" checked={quiet} onChange={(e) => setQuiet(e.target.checked)} /> Gece gönderme (21:00–08:00 arası sabah 08:00&apos;e ertelenir)
             </label>
@@ -314,6 +397,17 @@ export default function BulkSmsPage() {
             <button type="button" onClick={send} disabled={!canSend || busy || !preview || !preview.recipients} className={`${primaryButton} w-full`}>
               {busy ? 'Hazırlanıyor…' : preview?.send_at ? 'Gönderimi Zamanla' : 'Gönder'}
             </button>
+            {canSend && body.trim().length >= 2 && (
+              <div className="border-t pt-3">
+                <p className="mb-1.5 text-xs font-bold text-gray-600">Kendinize Test SMS&apos;i Gönderin</p>
+                <div className="flex gap-2">
+                  <input className={inputClass} placeholder="05XX XXX XX XX" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
+                  <button type="button" onClick={sendTest} disabled={testing || !testPhone.trim()} className={`${ghostButton} shrink-0`}>
+                    {testing ? '…' : 'Test Gönder'}
+                  </button>
+                </div>
+              </div>
+            )}
             {!canSend && <p className="text-xs text-gray-400">Toplu SMS göndermek için &quot;Bağışçı ve SMS yönetimi&quot; yetkisi gerekir.</p>}
           </Card>
         </div>
@@ -344,7 +438,10 @@ export default function BulkSmsPage() {
                     </Td>
                     <Td><span className={`whitespace-nowrap rounded border px-1.5 py-0.5 text-[10px] font-bold ${STATE[b.state][1]}`}>{STATE[b.state][0]}</span></Td>
                     <Td className="whitespace-nowrap text-right">
-                      {canSend && b.waiting > 0 && <button onClick={() => cancel(b)} className="font-bold text-red-600">Durdur</button>}
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => reuseBatch(b)} className="font-semibold text-primary-700 hover:underline">Forma kopyala</button>
+                        {canSend && b.waiting > 0 && <button type="button" onClick={() => cancel(b)} className="font-bold text-red-600">Durdur</button>}
+                      </div>
                     </Td>
                   </Tr>
                 ))}

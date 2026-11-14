@@ -14,6 +14,42 @@ type Tab = 'sections' | 'pages' | 'saved' | 'demos'
 
 const subTab = (active: boolean) => `rounded-md px-2 py-1 text-[11px] font-semibold ${active ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`
 
+/** Mini schematic wireframe of a section so users see its layout shape before inserting. */
+function SectionWireframe({ blocks }: { blocks: Block[] }) {
+  const first = blocks[0]
+  if (!first) return null
+  const cols = first.children?.filter((c) => c.type === 'column' || c.type === 'header_slot') || []
+  if (cols.length >= 2) {
+    return (
+      <div className="mt-2 grid gap-1 rounded border border-gray-100 bg-gray-50 p-1.5" style={{ gridTemplateColumns: `repeat(${Math.min(cols.length, 4)}, minmax(0, 1fr))` }}>
+        {cols.slice(0, 4).map((c, idx) => (
+          <div key={idx} className="space-y-1 rounded bg-white p-1 shadow-2xs">
+            <div className="h-1.5 w-3/4 rounded bg-blue-200" />
+            <div className="h-1 w-full rounded bg-gray-200" />
+            <div className="h-1 w-2/3 rounded bg-gray-100" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (first.type === 'hero' || first.type === 'cta_band') {
+    return (
+      <div className="mt-2 flex flex-col items-center justify-center gap-1 rounded border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-2">
+        <div className="h-2 w-1/2 rounded bg-blue-300" />
+        <div className="h-1 w-2/3 rounded bg-blue-200/80" />
+        <div className="mt-0.5 h-2 w-10 rounded-full bg-blue-500/70" />
+      </div>
+    )
+  }
+  return (
+    <div className="mt-2 space-y-1 rounded border border-gray-100 bg-gray-50 p-1.5">
+      <div className="h-1.5 w-1/3 rounded bg-gray-300" />
+      <div className="h-1 w-full rounded bg-gray-200" />
+      <div className="h-1 w-4/5 rounded bg-gray-200" />
+    </div>
+  )
+}
+
 /** Icons of the blocks a section is made of: a quick idea of its layout without rendering it. */
 function Outline({ blocks, catalog }: { blocks: Block[]; catalog: BuilderCatalog }) {
   const flat = blocks.flatMap((b) => (b.type === 'section' || b.type === 'header_row' ? (b.children || []).flatMap((c) => (c.type === 'header_slot' || c.type === 'column' ? c.children || [] : [c])) : [b]))
@@ -144,10 +180,21 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
                 {!isCollapsed && (
                   <div className="space-y-1.5">
                     {items.map((s) => (
-                      <button key={s.key} type="button" onClick={() => (chrome ? onReplace(s.blocks, s.label) : onInsert(s.blocks))}
-                        className="block w-full rounded-lg border bg-white p-2.5 text-start hover:border-blue-500 hover:bg-blue-50">
+                      <button
+                        key={s.key}
+                        type="button"
+                        draggable={!chrome}
+                        onDragStart={(e) => {
+                          if (chrome) return
+                          e.dataTransfer.setData('application/x-new-blocks', JSON.stringify(s.blocks))
+                          e.dataTransfer.effectAllowed = 'copy'
+                        }}
+                        onClick={() => (chrome ? onReplace(s.blocks, s.label) : onInsert(s.blocks))}
+                        className="block w-full rounded-lg border bg-white p-2.5 text-start hover:border-blue-500 hover:bg-blue-50"
+                      >
                         <span className="block text-[12px] font-bold text-gray-800">{s.label}</span>
                         <span className="block text-[11px] text-gray-500">{s.description}</span>
+                        <SectionWireframe blocks={s.blocks} />
                         <Outline blocks={s.blocks} catalog={catalog} />
                       </button>
                     ))}
@@ -185,7 +232,16 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
             </p>
           )}
           {filteredSaved.map((s) => (
-            <div key={s.id} className="flex items-start gap-2 rounded-lg border bg-white p-2.5">
+            <div
+              key={s.id}
+              draggable={!chrome}
+              onDragStart={(e) => {
+                if (chrome || !s.block) return
+                e.dataTransfer.setData('application/x-new-blocks', JSON.stringify([s.block]))
+                e.dataTransfer.effectAllowed = 'copy'
+              }}
+              className="flex items-start gap-2 rounded-lg border bg-white p-2.5"
+            >
               <button type="button" className="min-w-0 flex-1 text-start" onClick={() => onInsertSaved(s)}>
                 <span className="block truncate text-[12px] font-bold text-gray-800">{catalog.blocks[s.block?.type]?.icon} {s.name}</span>
                 <span className="block text-[11px] text-gray-400">{catalog.blocks[s.block?.type]?.label} · {s.created_by || ''}</span>
