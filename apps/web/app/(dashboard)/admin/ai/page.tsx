@@ -56,7 +56,7 @@ export default function AdminAiPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Yapay Zeka (AI) Destekli Tahmin Motoru</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Yapay Zeka (AI) Destekli Tahmin Motoru</h1>
         <button
           onClick={loadAiInsights}
           className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"

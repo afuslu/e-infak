@@ -110,7 +110,7 @@ export default function WellsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Su Kuyusu Yönetimi</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Su Kuyusu Yönetimi</h1>
           <p className="mt-1 text-sm text-gray-500">Kuyuya bağlı bağış kalemine gelen bağışlar fonlamayı ve hisseleri otomatik günceller. Taksitli kuyu taahhütleri Sponsorluk ekranından açılır.</p>
         </div>
         <div className="flex gap-2">

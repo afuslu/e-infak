@@ -7,6 +7,7 @@ import {
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm } from '../../../../components/admin/ManualReceiptForm'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 interface KurbanCampaign {
   id: string
@@ -188,8 +189,8 @@ export default function KurbanAdminPage() {
     run(() => v1Send('post', '/kurban/animals', { campaign_id: selectedId, count }), `${count} hayvan eklendi`)
   }
 
-  const deleteAnimal = (animal: Animal) => {
-    if (!window.confirm(`${animal.animal_number} silinsin mi?`)) return
+  const deleteAnimal = async (animal: Animal) => {
+    if (!(await confirmDialog(`${animal.animal_number} silinsin mi?`))) return
     run(() => v1Send('delete', `/kurban/animals/${animal.id}`), 'Hayvan silindi')
   }
 
@@ -217,7 +218,7 @@ export default function KurbanAdminPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Kurban Organizasyonu</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Kurban Organizasyonu</h1>
           <p className="mt-1 text-sm text-gray-500">Web bağışları ve elden alınan hisseler otomatik olarak hisseye dönüşür; &quot;Hisseleri dağıt&quot; ile hayvanlara yerleştirilir.</p>
         </div>
         <div className="flex gap-2">

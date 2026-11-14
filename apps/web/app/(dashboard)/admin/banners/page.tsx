@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { toast } from '../../../../components/admin/ui'
 
 interface Banner {
   id: string
@@ -81,7 +82,7 @@ export default function AdminBannersPage() {
       setSelectedBanner(res.data)
     } catch (err) {
       console.error('Failed to save banner:', err)
-      alert('Kaydedilemedi.')
+      toast.error('Kaydedilemedi.')
     } finally {
       setSaving(false)
     }
@@ -90,7 +91,7 @@ export default function AdminBannersPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Duyuru & Kampanya Banner Yönetimi</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Duyuru & Kampanya Banner Yönetimi</h1>
       </div>
 
       {successMsg && (

@@ -6,6 +6,7 @@ import {
   adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 type Degree = 'critical' | 'high' | 'medium' | 'low'
 type Review = 'applied' | 'inspecting' | 'approved' | 'rejected'
@@ -198,7 +199,7 @@ export default function PovertyTrackingPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Yoksul Takibi</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Yoksul Takibi</h1>
           <p className="mt-1 text-sm text-gray-500">Hane kartı, yoksulluk puanı, başvuru incelemesi, toplu yardım ve adil dağıtım raporları. Onaylı haneler kumanyada da görünür.</p>
         </div>
         {canEdit && <button className={primaryButton} onClick={() => editHousehold()}>+ Yeni hane</button>}
@@ -366,7 +367,7 @@ export default function PovertyTrackingPage() {
             )}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="text-gray-400"><tr><th className="py-1">Ad</th><th>Yakınlık</th><th>Doğum</th><th>Durum</th><th>Gelir</th><th>Beden / Ayakkabı</th><th /></tr></thead>
+                <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Ad</th><th>Yakınlık</th><th>Doğum</th><th>Durum</th><th>Gelir</th><th>Beden / Ayakkabı</th><th /></tr></thead>
                 <tbody>
                   {detail.members.map((m) => (
                     <tr key={m.id} className="border-t">
@@ -383,7 +384,7 @@ export default function PovertyTrackingPage() {
                             is_disabled: m.is_disabled, has_chronic_illness: m.has_chronic_illness, is_student: m.is_student, school: m.school || '',
                             is_working: m.is_working, income: lira(m.monthly_income_cents), clothing_size: m.clothing_size || '', shoe_size: m.shoe_size || '', notes: m.notes || '',
                           })}>Düzenle</button>
-                          <button className="font-bold text-red-600" onClick={() => window.confirm(`${m.full_name} silinsin mi?`) &&
+                          <button className="font-bold text-red-600" onClick={async () => (await confirmDialog(`${m.full_name} silinsin mi?`)) &&
                             act(() => adminSend('delete', `/households/${detail.id}/members/${m.id}`), 'Birey silindi', detail.id)}>Sil</button>
                         </>}
                       </td>
@@ -398,7 +399,7 @@ export default function PovertyTrackingPage() {
           <div>
             <h3 className="mb-2 text-sm font-bold text-gray-900">Yardım geçmişi</h3>
             <table className="w-full text-left text-xs">
-              <thead className="text-gray-400"><tr><th className="py-1">Paket</th><th>Adet</th><th>Durum</th><th>Plan</th><th>Teslim</th></tr></thead>
+              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Paket</th><th>Adet</th><th>Durum</th><th>Plan</th><th>Teslim</th></tr></thead>
               <tbody>
                 {detail.distributions.map((d) => (
                   <tr key={d.id} className="border-t">
@@ -442,7 +443,7 @@ export default function PovertyTrackingPage() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="text-gray-400"><tr><th className="py-1">Puan</th><th>Ad</th><th>Konum</th><th>Kişi</th><th>Son yardım</th><th>Durum</th><th /></tr></thead>
+              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Puan</th><th>Ad</th><th>Konum</th><th>Kişi</th><th>Son yardım</th><th>Durum</th><th /></tr></thead>
               <tbody>
                 {rows.map((h) => (
                   <tr key={h.id} className={`cursor-pointer border-t hover:bg-gray-50 ${detail?.id === h.id ? 'bg-primary-50/30' : ''}`} onClick={() => openDetail(h.id)}>
@@ -542,7 +543,7 @@ function BulkPlan({ meta, regions, packages, canEdit, onMessage }: {
       <div className="flex gap-2">
         <button className={ghostButton} onClick={() => run(true)}>Önizle</button>
         {canEdit && result && result.households > 0 && result.planned === 0 && (
-          <button className={primaryButton} onClick={() => window.confirm(`${result.households} haneye dağıtım planlansın mı?`) && run(false)}>Planı oluştur</button>
+          <button className={primaryButton} onClick={async () => (await confirmDialog({ title: `${result.households} haneye dağıtım planlansın mı?`, danger: false })) && run(false)}>Planı oluştur</button>
         )}
       </div>
       {result && (
@@ -555,7 +556,7 @@ function BulkPlan({ meta, regions, packages, canEdit, onMessage }: {
           {result.stock_short > 0 && <p className="text-xs font-semibold text-amber-700">Stok {result.stock_short} paket eksik; teslim sırasında stok yetmezse işlem durur.</p>}
           {result.preview.length > 0 && (
             <table className="w-full text-left text-xs">
-              <thead className="text-gray-400"><tr><th className="py-1">Puan</th><th>Ad</th><th>Konum</th><th>Son yardım</th></tr></thead>
+              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Puan</th><th>Ad</th><th>Konum</th><th>Son yardım</th></tr></thead>
               <tbody>{result.preview.map((h) => (
                 <tr key={h.id} className="border-t"><td className="py-1.5"><ScoreBadge h={h} /></td><td>{h.full_name}</td><td>{location(h)}</td><td>{fmtDate(h.last_delivery_at)}</td></tr>
               ))}</tbody>
@@ -600,7 +601,7 @@ function Stats() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="text-gray-400"><tr><th className="py-1">Konum</th><th>Hane</th><th>Ort. puan</th><th>Çok acil</th><th>Yüksek</th><th>Yardım alan</th><th>Paket</th></tr></thead>
+            <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Konum</th><th>Hane</th><th>Ort. puan</th><th>Çok acil</th><th>Yüksek</th><th>Yardım alan</th><th>Paket</th></tr></thead>
             <tbody>{stats.rows.map((r: any) => (
               <tr key={r.label} className="border-t"><td className="py-1.5 font-semibold">{r.label}</td><td>{r.households}</td><td>{r.avg_score}</td>
                 <td className="font-bold text-red-700">{r.critical}</td><td>{r.high}</td><td>{r.helped_12m}</td><td>{r.packages_12m}</td></tr>
@@ -617,7 +618,7 @@ function Stats() {
           </select>
         </div>
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Derece</th><th>Hane</th><th>Yardım alan</th><th>Almayan</th><th>Oran</th><th>Hane başı paket</th></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Derece</th><th>Hane</th><th>Yardım alan</th><th>Almayan</th><th>Oran</th><th>Hane başı paket</th></tr></thead>
           <tbody>{fair.degrees.map((d: any) => (
             <tr key={d.degree} className="border-t"><td className="py-1.5 font-semibold">{d.label}</td><td>{d.households}</td><td>{d.helped}</td><td>{d.not_helped}</td><td>%{d.helped_pct}</td><td>{d.packages_per_household}</td></tr>
           ))}</tbody>

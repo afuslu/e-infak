@@ -6,6 +6,7 @@ import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-acce
 import { Label, Notice, TextInput, ghostButton, primaryButton } from '../../../../components/admin/FormKit'
 import { useExtraLanguages } from '../../../../components/admin/TranslationEditor'
 import { LANGUAGE_NAMES } from '../../../../lib/i18n'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 interface MenuItem {
   id: string
@@ -112,7 +113,7 @@ export default function AdminMenuPage() {
   }
 
   const remove = async (item: MenuItem) => {
-    if (!window.confirm(`"${item.label}" menüden kaldırılsın mı?`)) return
+    if (!(await confirmDialog(`"${item.label}" menüden kaldırılsın mı?`))) return
     try {
       await adminSend('delete', `/menu/${item.id}`)
       await load()
@@ -124,7 +125,7 @@ export default function AdminMenuPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Menü Yönetimi</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Menü Yönetimi</h1>
         <p className="mt-1 text-sm text-gray-500">Üst menü boş bırakılırsa sitenin varsayılan menüsü kullanılır.</p>
       </div>
 

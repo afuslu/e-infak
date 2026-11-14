@@ -97,7 +97,7 @@ export default function AppearancePage() {
   )
 
   if (!form || !loaded) {
-    return <div className="space-y-4"><h1 className="text-3xl font-bold">Görünüm & Tema</h1><Notice message={message} /></div>
+    return <div className="space-y-4"><h1 className="text-2xl font-bold tracking-tight text-gray-900">Görünüm & Tema</h1><Notice message={message} /></div>
   }
 
   const set = <K extends keyof Appearance>(key: K, value: Appearance[K]) => setForm((f) => (f ? { ...f, [key]: value } : f))
@@ -166,7 +166,7 @@ export default function AppearancePage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Görünüm & Tema</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Görünüm & Tema</h1>
           <p className="mt-1 text-sm text-gray-500">{loaded.name} sitesinin şablonu, renkleri, logosu ve ana sayfa düzeni.</p>
         </div>
         <div className="flex gap-2">

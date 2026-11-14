@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { confirmDialog, toast } from '../../../../components/admin/ui'
 
 interface ApiKey {
   id: string
@@ -88,14 +89,14 @@ export default function AdminIntegrationsPage() {
       loadData()
     } catch (err) {
       console.error('Failed to generate key:', err)
-      alert('İşlem başarısız.')
+      toast.error('İşlem başarısız.')
     } finally {
       setGeneratingKey(false)
     }
   }
 
   const handleDeleteKey = async (keyId: string) => {
-    if (!confirm('Bu API anahtarını iptal etmek istediğinize emin misiniz? Dış servislerin erişimi anında kesilecektir.')) return
+    if (!(await confirmDialog('Bu API anahtarını iptal etmek istediğinize emin misiniz? Dış servislerin erişimi anında kesilecektir.'))) return
     try {
       const headers = getAuthHeaders()
       await axios.delete(`${API_BASE}/api/v1/admin-features/integrations/api-keys/${keyId}`, { headers })
@@ -131,7 +132,7 @@ export default function AdminIntegrationsPage() {
   }
 
   const handleDeleteWebhook = async (hookId: string) => {
-    if (!confirm('Bu Webhook kaydını silmek istediğinize emin misiniz?')) return
+    if (!(await confirmDialog('Bu Webhook kaydını silmek istediğinize emin misiniz?'))) return
     try {
       const headers = getAuthHeaders()
       await axios.delete(`${API_BASE}/api/v1/admin-features/integrations/webhooks/${hookId}`, { headers })
@@ -145,7 +146,7 @@ export default function AdminIntegrationsPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Webhook & API Entegrasyonları</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Webhook & API Entegrasyonları</h1>
       </div>
 
       {successMsg && (

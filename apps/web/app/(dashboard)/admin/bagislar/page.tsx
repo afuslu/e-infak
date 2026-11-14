@@ -145,7 +145,7 @@ export default function AdminDonationsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold text-gray-900">Bağışlar</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Bağışlar</h1>
         <div className="flex gap-2">
           <button onClick={exportCsv} className={ghostButton}>⬇ Excel (CSV)</button>
           {canIssue && <button onClick={() => setShowManual((v) => !v)} className={primaryButton}>{showManual ? 'Vazgeç' : '+ Elle Makbuz Kes'}</button>}

@@ -6,6 +6,7 @@ import { apiErrorMessage } from '../../../lib/admin-access'
 import { formatBytes, mediaApi, type MediaAsset, type MediaFolder, type MediaReference } from '../../../lib/media'
 import { TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../FormKit'
 import { CropTool } from './CropTool'
+import { confirmDialog } from '../ui'
 
 /** Side panel of one image: texts, focal point, crop, address, where it is used, delete. */
 export function MediaDetail({ asset, folders, onChanged, onDeleted, onClose }: {
@@ -75,7 +76,7 @@ export function MediaDetail({ asset, folders, onChanged, onDeleted, onClose }: {
     const question = used
       ? `Bu görsel ${refs!.length} yerde kullanılıyor. Silerseniz o yerlerde görsel görünmez. Yine de silinsin mi?`
       : 'Görsel kalıcı olarak silinsin mi?'
-    if (!window.confirm(question)) return
+    if (!(await confirmDialog({ title: question, danger: false }))) return
     setBusy(true)
     try {
       await mediaApi.remove(asset.id, Boolean(used))

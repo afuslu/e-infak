@@ -39,7 +39,7 @@ export default function ChangePasswordPage() {
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Şifremi Değiştir</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Şifremi Değiştir</h1>
         <p className="mt-1 text-sm text-gray-500">Yeni şifre en az 10 karakter olmalı. Değiştirdiğinizde diğer cihazlardaki oturumlarınız kapanır.</p>
       </div>
       {support && (

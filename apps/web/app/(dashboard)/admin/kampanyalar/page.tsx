@@ -5,6 +5,7 @@ import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { apiErrorMessage, v1Send } from '../../../../lib/admin-access'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
+import { toast } from '../../../../components/admin/ui'
 
 const CATEGORIES = [
   ['genel', 'Genel'], ['egitim', 'Eğitim'], ['saglik', 'Sağlık'], ['gida', 'Gıda'], ['su', 'Su'], ['yetim', 'Yetim'],
@@ -145,7 +146,7 @@ export default function AdminCampaignsPage() {
       setCampaigns(prev => prev.map(c => c.id === selectedCampaign.id ? { ...c, gallery_urls: galleryUrls } : c))
     } catch (err) {
       console.error('Failed to save campaign gallery:', err)
-      alert('Galeri güncellenemedi.')
+      toast.error('Galeri güncellenemedi.')
     } finally {
       setSavingGallery(false)
     }
@@ -154,7 +155,7 @@ export default function AdminCampaignsPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Kampanya Yönetimi & Galeriler</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Kampanya Yönetimi & Galeriler</h1>
       </div>
 
       {successMsg && (

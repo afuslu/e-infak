@@ -6,6 +6,7 @@ import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { SegmentInfo, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 interface Options {
   kinds: { key: string; label: string }[]
@@ -133,7 +134,7 @@ export default function BulkSmsPage() {
   const send = async () => {
     if (!preview || !preview.recipients) return
     const timing = preview.send_at ? `${when(preview.send_at)} tarihinde` : 'şimdi'
-    if (!confirm(`${n(preview.recipients)} kişiye, toplam ${n(preview.parts_total)} SMS ${timing} gönderilecek. Onaylıyor musunuz?`)) return
+    if (!(await confirmDialog({ title: `${n(preview.recipients)} kişiye, toplam ${n(preview.parts_total)} SMS ${timing} gönderilecek. Onaylıyor musunuz?`, danger: false }))) return
     setBusy(true)
     setMessage(null)
     try {
@@ -149,7 +150,7 @@ export default function BulkSmsPage() {
   }
 
   const cancel = async (b: Batch) => {
-    if (!confirm(`"${b.name}" gönderimi durdurulsun mu? Henüz gönderilmemiş ${n(b.waiting)} SMS iptal edilir.`)) return
+    if (!(await confirmDialog(`"${b.name}" gönderimi durdurulsun mu? Henüz gönderilmemiş ${n(b.waiting)} SMS iptal edilir.`))) return
     try {
       const res = await adminSend<{ cancelled: number }>('post', `/sms/batches/${b.id}/cancel`)
       setMessage({ type: 'ok', text: `${n(res.data.cancelled)} SMS iptal edildi.` })
@@ -166,7 +167,7 @@ export default function BulkSmsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Toplu SMS Gönder</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Toplu SMS Gönder</h1>
           <p className="mt-1 text-sm text-gray-500">Hedef kitleyi seçin, metni yazın; kime gideceğini ve kaç SMS tutacağını görüp gönderin.</p>
         </div>
         <div className="flex shrink-0 gap-2 whitespace-nowrap">

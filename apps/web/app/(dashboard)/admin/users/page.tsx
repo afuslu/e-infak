@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 interface StaffUser {
   id: string
@@ -97,7 +98,7 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Personel & Yetkiler</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Personel & Yetkiler</h1>
           {access && (
             <p className="mt-1 text-sm text-gray-500">
               {access.plan_label} paket · aktif kullanıcı <strong>{access.usage.users}</strong> / {access.limits.users}
@@ -386,8 +387,8 @@ function DepartmentsTab({ departments, canManage, run }: { departments: Departme
     }
   }
 
-  const remove = (d: Department) => {
-    if (window.confirm(`"${d.name}" birimi silinsin mi? ${d.user_count} personelin birimi boşaltılacak.`)) {
+  const remove = async (d: Department) => {
+    if ((await confirmDialog(`"${d.name}" birimi silinsin mi? ${d.user_count} personelin birimi boşaltılacak.`))) {
       run(() => adminSend('delete', `/departments/${d.id}`), 'Birim silindi')
     }
   }
@@ -467,8 +468,8 @@ function RolesTab({
     if (ok) startEdit(null)
   }
 
-  const remove = (role: StaffRole) => {
-    if (window.confirm(`"${role.name}" rolü silinsin mi?`)) {
+  const remove = async (role: StaffRole) => {
+    if ((await confirmDialog(`"${role.name}" rolü silinsin mi?`))) {
       run(() => adminSend('delete', `/staff-roles/${role.id}`), 'Rol silindi')
     }
   }

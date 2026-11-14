@@ -6,6 +6,7 @@ import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, exportCsv, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Notice, ghostButton, inputClass } from '../../../../components/admin/FormKit'
 import { SOURCE_LABEL, STATUS_CLASS, STATUS_LABEL, SmsMessage, SmsStatus } from '../../../../lib/sms'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 interface Account { provider: string | null; own_account: boolean; balance: { text: string; amount: number | null; unit: string } | null }
 interface Listing { items: SmsMessage[]; total: number; counts: Record<SmsStatus, number>; parts_sent: number }
@@ -62,7 +63,7 @@ export default function SmsLogPage() {
   }, [waiting, page])
 
   const act = async (m: SmsMessage, action: 'retry' | 'cancel') => {
-    if (action === 'cancel' && !confirm(`#${m.seq_no} numaralı SMS iptal edilsin mi?`)) return
+    if (action === 'cancel' && !(await confirmDialog(`#${m.seq_no} numaralı SMS iptal edilsin mi?`))) return
     try {
       await adminSend('post', `/sms/messages/${m.id}/${action}`)
       setMessage({ type: 'ok', text: action === 'cancel' ? `#${m.seq_no} iptal edildi` : `#${m.seq_no} yeniden kuyruğa alındı` })
@@ -90,7 +91,7 @@ export default function SmsLogPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">SMS Gönderimleri</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">SMS Gönderimleri</h1>
           <p className="mt-1 text-sm text-gray-500">Kurumdan çıkan her SMS burada: elle gönderilenler, makbuz ve havale bildirimleri, zamanlananlar.</p>
         </div>
         <div className="flex shrink-0 gap-2 whitespace-nowrap">

@@ -7,6 +7,7 @@ import {
   adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 interface MemberRow {
   id: string; member_no: string; member_type: string; member_type_label: string; status: string; status_label: string
@@ -112,7 +113,7 @@ export default function MembersPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Üyeler & Aidat</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Üyeler & Aidat</h1>
           <p className="mt-1 text-sm text-gray-500">Dernek üye kayıtları, aidat dönemleri, tahsilat ve geciken aidat takibi. Tahsilat makbuzu &quot;Üye Aidatı&quot; kalemine kesilir.</p>
         </div>
         {canEdit && <button className={primaryButton} onClick={() => { setDetail(null); setForm({ ...emptyMember }) }}>+ Yeni üye</button>}
@@ -215,7 +216,7 @@ export default function MembersPage() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="text-gray-400"><tr><th className="py-1">No</th><th>Ad</th><th>Telefon</th><th>Tür</th><th>Durum</th><th>Kayıt</th><th>Açık aidat</th><th>Son ödeme</th></tr></thead>
+              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">No</th><th>Ad</th><th>Telefon</th><th>Tür</th><th>Durum</th><th>Kayıt</th><th>Açık aidat</th><th>Son ödeme</th></tr></thead>
               <tbody>
                 {members.map((m) => (
                   <tr key={m.id} onClick={() => open(m.id)} className={`cursor-pointer border-t hover:bg-gray-50 ${detail?.id === m.id ? 'bg-primary-50/30' : ''}`}>
@@ -336,7 +337,7 @@ function MemberCard({ detail, canEdit, canCollect, onEdit, onClose, onChanged, o
         <CollectForm dues={selected} onError={onError} onDone={(text) => { setCollect(false); setPicked(new Set()); onChanged(text) }} />
       )}
       <table className="w-full text-left text-xs">
-        <thead className="text-gray-400"><tr><th className="py-1" /><th>Dönem</th><th>Son ödeme</th><th>Tutar</th><th>Durum</th><th>Ödeme / not</th></tr></thead>
+        <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1" /><th>Dönem</th><th>Son ödeme</th><th>Tutar</th><th>Durum</th><th>Ödeme / not</th></tr></thead>
         <tbody>
           {detail.dues.map((d) => (
             <tr key={d.id} className="border-t">
@@ -431,7 +432,7 @@ function DuesTab({ canCollect, onMessage, onChanged }: { canCollect: boolean; on
         <p className="text-[11px] text-gray-400">Tahsilat için üyeler sekmesinden üyeyi açıp dönemleri seçin. Gecikenlere hatırlatma için listeyi CSV alıp Toplu SMS ekranını kullanabilirsiniz.</p>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="text-gray-400"><tr><th className="py-1" /><th>Üye no</th><th>Ad</th><th>Telefon</th><th>Dönem</th><th>Son ödeme</th><th>Tutar</th><th>Durum</th></tr></thead>
+            <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1" /><th>Üye no</th><th>Ad</th><th>Telefon</th><th>Dönem</th><th>Son ödeme</th><th>Tutar</th><th>Durum</th></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="border-t">
@@ -458,7 +459,7 @@ function DuplicatesTab({ canEdit, onMessage }: { canEdit: boolean; onMessage: (m
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const merge = async (i: number, members: MemberRow[]) => {
     const target = targets[i] || members[0].id
-    if (!window.confirm('Seçilen kayıt dışındakiler silinecek, aidatları asıl kayda taşınacak. Devam edilsin mi?')) return
+    if (!(await confirmDialog('Seçilen kayıt dışındakiler silinecek, aidatları asıl kayda taşınacak. Devam edilsin mi?'))) return
     try {
       const res = await adminSend<{ moved_dues: number; dropped_dues: number }>('post', '/members/merge', { target_id: target, source_ids: members.filter((m) => m.id !== target).map((m) => m.id) })
       onMessage({ type: 'ok', text: `Üyelikler birleştirildi; ${res.data.moved_dues} aidat taşındı${res.data.dropped_dues ? `, ${res.data.dropped_dues} mükerrer dönem silindi` : ''}` })

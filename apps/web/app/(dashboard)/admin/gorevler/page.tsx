@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 interface Task {
   id: string
@@ -114,7 +115,7 @@ export default function TasksPage() {
   }
 
   const remove = async (t: Task) => {
-    if (!window.confirm(`"${t.title}" silinsin mi?`)) return
+    if (!(await confirmDialog(`"${t.title}" silinsin mi?`))) return
     try {
       await adminSend('delete', `/tasks/${t.id}`)
       setSelected(null)
@@ -149,7 +150,7 @@ export default function TasksPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold text-gray-900">Görevler & Takvim</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Görevler & Takvim</h1>
         <div className="flex gap-2">
           {isManager && <button className={ghostButton} onClick={addTemplate}>+ Şablon</button>}
           <button className={primaryButton} onClick={() => setShowForm((v) => !v)}>{showForm ? 'Vazgeç' : '+ Görev'}</button>

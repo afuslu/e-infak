@@ -7,6 +7,7 @@ import { adminGet, formatMoney, hasPermission, useAdminAccess } from '../../../.
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms } from '../../../../lib/sms'
+import { toast } from '../../../../components/admin/ui'
 
 interface Donation {
   id: string
@@ -87,7 +88,7 @@ export default function AdminReceiptsPage() {
       setReceiptDetail(res.data)
     } catch (err) {
       console.error('Failed to load receipt:', err)
-      alert('Makbuz bilgisi alınamadı.')
+      toast.error('Makbuz bilgisi alınamadı.')
     } finally {
       setReceiptLoadingId(null)
     }
@@ -98,7 +99,7 @@ export default function AdminReceiptsPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Makbuzlar</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Makbuzlar</h1>
         <div className="flex gap-2">
           <button
             onClick={loadDonations}
@@ -219,7 +220,7 @@ export default function AdminReceiptsPage() {
                         {receiptLoadingId === don.id ? 'Yükleniyor...' : 'Doğrulama Linki'}
                       </button>
                       <button
-                        onClick={() => downloadReceiptPdf(don.id, don.receipt_number).catch(() => alert('PDF indirilemedi.'))}
+                        onClick={() => downloadReceiptPdf(don.id, don.receipt_number).catch(() => toast.error('PDF indirilemedi.'))}
                         className="ml-3 text-primary-600 hover:text-primary-700 font-bold"
                       >
                         PDF

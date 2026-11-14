@@ -8,6 +8,7 @@ import {
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 interface Beneficiary {
   id: string
@@ -85,7 +86,7 @@ export default function SponsorshipPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Sponsorluk & Burs</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sponsorluk & Burs</h1>
         <p className="mt-1 text-sm text-gray-500">Talebe, hoca ve yetim kayıtları; bağışçılarla eşleştirme ve aylık taksit takibi.</p>
       </div>
 
@@ -337,7 +338,7 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
   }
 
   const setStatus = async (p: PledgeRow, status: 'active' | 'cancelled') => {
-    if (status === 'cancelled' && !window.confirm('Taahhüt iptal edilsin mi? Ödenmemiş taksitler iptal edilir.')) return
+    if (status === 'cancelled' && !(await confirmDialog('Taahhüt iptal edilsin mi? Ödenmemiş taksitler iptal edilir.'))) return
     try {
       setDetail((await adminSend<PledgeRow>('put', `/pledges/${p.id}/status`, { status })).data)
       onChanged()

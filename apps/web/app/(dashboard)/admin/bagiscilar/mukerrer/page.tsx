@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../../lib/admin-access'
 import { Notice, ghostButton, primaryButton } from '../../../../../components/admin/FormKit'
+import { confirmDialog } from '../../../../../components/admin/ui'
 
 interface DonorBrief {
   id: string; full_name: string; phone: string | null; email: string | null; tc_masked: string | null; city: string | null
@@ -35,7 +36,7 @@ export default function DuplicateDonorsPage() {
     const target = targets[index] || group.donors[0].id
     const sources = group.donors.filter((d) => d.id !== target)
     const targetName = group.donors.find((d) => d.id === target)?.full_name
-    if (!window.confirm(`${sources.length} kart "${targetName}" kartına birleştirilsin mi? Bağışlar, notlar ve sponsorluklar taşınır, diğer kartlar silinir.`)) return
+    if (!(await confirmDialog(`${sources.length} kart "${targetName}" kartına birleştirilsin mi? Bağışlar, notlar ve sponsorluklar taşınır, diğer kartlar silinir.`))) return
     setMessage(null)
     try {
       const res = await adminSend<{ merged: number; moved: Record<string, number> }>('post', '/donors/merge', { target_id: target, source_ids: sources.map((d) => d.id) })
@@ -51,7 +52,7 @@ export default function DuplicateDonorsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Mükerrer Bağışçılar</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Mükerrer Bağışçılar</h1>
           <p className="mt-1 text-sm text-gray-500">Aynı telefon, e-posta veya TC ile açılmış kartlar. Asıl kartı seçip birleştirin; boş alanlar diğer kartlardan doldurulur.</p>
         </div>
         <Link href="/admin/bagiscilar" className={ghostButton}>← Bağışçılar</Link>
@@ -74,7 +75,7 @@ export default function DuplicateDonorsPage() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="text-gray-400"><tr><th className="py-1">Asıl kart</th><th>Ad</th><th>Telefon</th><th>E-posta</th><th>TC</th><th>Şehir</th><th>Bağış</th><th>Son bağış</th><th>Kayıt</th></tr></thead>
+                <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Asıl kart</th><th>Ad</th><th>Telefon</th><th>E-posta</th><th>TC</th><th>Şehir</th><th>Bağış</th><th>Son bağış</th><th>Kayıt</th></tr></thead>
                 <tbody>
                   {g.donors.map((d) => (
                     <tr key={d.id} className={`border-t ${d.id === target ? 'bg-primary-50/40' : ''}`}>

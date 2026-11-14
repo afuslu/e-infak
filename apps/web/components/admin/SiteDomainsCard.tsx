@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { apiErrorMessage } from '../../lib/admin-access'
+import { confirmDialog } from './ui'
 
 interface DnsRecord { type: string; name: string; host: string; value: string }
 interface SiteDomain {
@@ -79,7 +80,7 @@ export function SiteDomainsCard() {
                 </button>
               )}
               <button type="button" disabled={busy === d.id}
-                onClick={() => window.confirm(`${d.domain} kaldırılsın mı? Site bu adreste açılmaz.`) &&
+                onClick={async () => (await confirmDialog(`${d.domain} kaldırılsın mı? Site bu adreste açılmaz.`)) &&
                   run(d.id, () => axios.delete(`${API}/${d.id}`, { headers: headers() }), `${d.domain} kaldırıldı`)}
                 className="rounded border px-3 py-1 text-xs">Kaldır</button>
             </span>

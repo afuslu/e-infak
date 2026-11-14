@@ -102,7 +102,7 @@ export default function ReceiptBooksPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Makbuz Koçanları</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Makbuz Koçanları</h1>
           <p className="mt-1 text-sm text-gray-500">Resmî matbu makbuz koçanları. Kesilen ya da iptal edilen numara bir daha verilmez; elle makbuz keserken koçan seçilir.</p>
         </div>
         {canEdit && <button className={primaryButton} onClick={() => setForm({ series: '', start_no: '1', end_no: '50', branch: '', holder_user_id: '', status: 'active', note: '' })}>+ Yeni koçan</button>}
@@ -143,7 +143,7 @@ export default function ReceiptBooksPage() {
       <Card className="border border-gray-100 p-6 shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="text-gray-400"><tr><th className="py-1">Seri / aralık</th><th>Şube</th><th>Zimmet</th><th>Kesilen</th><th>İptal yaprak</th><th>Kalan</th><th>Sıradaki</th><th>Durum</th><th /></tr></thead>
+            <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Seri / aralık</th><th>Şube</th><th>Zimmet</th><th>Kesilen</th><th>İptal yaprak</th><th>Kalan</th><th>Sıradaki</th><th>Durum</th><th /></tr></thead>
             <tbody>
               {books.map((b) => (
                 <tr key={b.id} className="border-t">
@@ -221,7 +221,7 @@ export default function ReceiptBooksPage() {
           ))}
         </div>
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Kanal</th><th>Makbuz</th><th>Toplam</th></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Kanal</th><th>Makbuz</th><th>Toplam</th></tr></thead>
           <tbody>{channels.map((c) => (
             <tr key={`${c.kind}-${c.label}`} className="border-t"><td className="py-1.5 font-semibold">{c.label}</td><td>{c.count}</td><td>{formatMoney(c.total_cents)}</td></tr>
           ))}</tbody>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { toast } from '../../../../components/admin/ui'
 
 interface Expense {
   id: string
@@ -161,14 +162,14 @@ export default function AdminFinancePage() {
       window.URL.revokeObjectURL(url)
     } catch (err) {
       console.error(err)
-      alert('Rapor indirme sırasında hata oluştu.')
+      toast.error('Rapor indirme sırasında hata oluştu.')
     }
   }
 
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Kasa & Finans Yönetimi</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Kasa & Finans Yönetimi</h1>
         <Button 
           onClick={handleExportDerbis}
           className="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shadow-sm text-xs"

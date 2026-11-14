@@ -6,6 +6,7 @@ import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-acce
 import { BODY_HINT, Notice, StatusPill, TextArea, TextInput, ghostButton, primaryButton } from '../../../../components/admin/FormKit'
 import { ImageField } from '../../../../components/admin/ImageField'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 const PAGE_I18N_FIELDS = [
   { key: 'title', label: 'Sayfa başlığı' }, { key: 'body', label: 'İçerik', long: true },
@@ -77,7 +78,7 @@ export default function AdminPagesPage() {
   }
 
   const remove = async (page: SitePage) => {
-    if (!window.confirm(`"${page.title}" sayfası silinsin mi? Menüdeki bağlantıları ayrıca kaldırmayı unutmayın.`)) return
+    if (!(await confirmDialog(`"${page.title}" sayfası silinsin mi? Menüdeki bağlantıları ayrıca kaldırmayı unutmayın.`))) return
     try {
       await adminSend('delete', `/pages/${page.id}`)
       await load()
@@ -90,7 +91,7 @@ export default function AdminPagesPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Sayfalar</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sayfalar</h1>
           <p className="mt-1 text-sm text-gray-500">Yayındaki sayfalar /sayfa/adres altında açılır. Menüye eklemek için Menü Yönetimi&apos;ni kullanın.</p>
         </div>
         <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : edit(null))}>

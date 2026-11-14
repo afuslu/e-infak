@@ -116,7 +116,7 @@ export default function AdminReconciliationPage() {
     <div className="space-y-8">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Otomatik Banka Mutabakatı</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Otomatik Banka Mutabakatı</h1>
           <p className="text-sm text-gray-500 mt-1">Havale / EFT ekstrelerini aktarın ve bağışlar ile otomatik eşleştirin</p>
         </div>
         <Button onClick={exportCSV} variant="ghost" className="border border-gray-200 text-xs font-bold">

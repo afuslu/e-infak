@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiErrorMessage } from '../../../lib/admin-access'
 import { ACCEPTED_IMAGES, formatBytes, mediaApi, type MediaAsset, type MediaFolders, type MediaUsage } from '../../../lib/media'
 import { ghostButton, inputClass } from '../FormKit'
+import { confirmDialog } from '../ui'
 
 const PAGE_SIZE = 40
 
@@ -121,7 +122,7 @@ export function MediaLibrary({ selectedId, onSelect, onOpen, reloadKey = 0, comp
   }
 
   const deleteFolder = async (id: string, name: string) => {
-    if (!window.confirm(`"${name}" klasörü silinsin mi? İçindeki görseller silinmez, "Klasörsüz" bölümüne taşınır.`)) return
+    if (!(await confirmDialog(`"${name}" klasörü silinsin mi? İçindeki görseller silinmez, "Klasörsüz" bölümüne taşınır.`))) return
     try {
       await mediaApi.deleteFolder(id)
       setFolder('')

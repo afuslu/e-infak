@@ -4,13 +4,14 @@ import { useCurrentUser, useLogout } from '@e-infak/api-client'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Button } from '@e-infak/ui'
+import { ArrowDownToLine, BarChart3, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, ExternalLink, FileText, FileUp, Film, FolderOpen, GraduationCap, HandCoins, HandHelping, HeartHandshake, Home, IdCard, Images, KeyRound, Landmark, LayoutDashboard, Lock, LogOut, MailPlus, Megaphone, Menu, MessagesSquare, Monitor, Moon, Newspaper, Package, PackageCheck, Palette, PiggyBank, Plug, Receipt, Repeat, Scale, Send, Settings, ShieldCheck, Sparkles, Sun, Tags, Users, Wallet, type LucideIcon } from 'lucide-react'
+import { UiHost } from '../../components/admin/ui'
 import { hasFeature, hasPermission, useAdminAccess } from '../../lib/admin-access'
 
 interface NavItem {
   href: string
   label: string
-  icon: string
+  icon: LucideIcon
   feature?: string
   permission?: string
 }
@@ -25,77 +26,77 @@ interface NavGroup {
 const NAV_GROUPS: NavGroup[] = [
   {
     key: 'genel', label: 'Genel', items: [
-      { href: '/admin', label: 'Genel Bakış', icon: '📊' },
-      { href: '/admin/raporlar', label: 'Raporlar', icon: '📈', feature: 'reports_basic', permission: 'report_read' },
-      { href: '/admin/ai', label: 'AI Öngörüleri', icon: '🤖', feature: 'reports_basic', permission: 'report_read' },
-      { href: '/admin/gorevler', label: 'Görevler & Takvim', icon: '🗓️', feature: 'tasks' },
+      { href: '/admin', label: 'Genel Bakış', icon: LayoutDashboard },
+      { href: '/admin/raporlar', label: 'Raporlar', icon: BarChart3, feature: 'reports_basic', permission: 'report_read' },
+      { href: '/admin/ai', label: 'AI Öngörüleri', icon: Sparkles, feature: 'reports_basic', permission: 'report_read' },
+      { href: '/admin/gorevler', label: 'Görevler & Takvim', icon: CalendarDays, feature: 'tasks' },
     ],
   },
   {
     key: 'bagis', label: 'Bağış', items: [
-      { href: '/admin/bagislar', label: 'Bağışlar', icon: '💰' },
-      { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: '📢' },
-      { href: '/admin/bagis-kalemleri', label: 'Bağış Kalemleri', icon: '🗂️' },
-      { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: '💳', feature: 'recurring' },
-      { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: '🧾', feature: 'receipts' },
-      { href: '/admin/makbuz-kocanlari', label: 'Makbuz Koçanları', icon: '📒', feature: 'receipts' },
-      { href: '/admin/zakat', label: 'Zekât Ayarları', icon: '🪙' },
+      { href: '/admin/bagislar', label: 'Bağışlar', icon: HandCoins },
+      { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: Megaphone },
+      { href: '/admin/bagis-kalemleri', label: 'Bağış Kalemleri', icon: Tags },
+      { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: Repeat, feature: 'recurring' },
+      { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: Receipt, feature: 'receipts' },
+      { href: '/admin/makbuz-kocanlari', label: 'Makbuz Koçanları', icon: BookOpen, feature: 'receipts' },
+      { href: '/admin/zakat', label: 'Zekât Ayarları', icon: Coins },
     ],
   },
   {
     key: 'kisiler', label: 'Bağışçılar & Üyeler', items: [
-      { href: '/admin/bagiscilar', label: 'Bağışçılar (CRM)', icon: '👥', feature: 'donor_crm' },
-      { href: '/admin/uyeler', label: 'Üyeler & Aidat', icon: '🪪', feature: 'membership' },
-      { href: '/admin/veri-aktarma', label: "Excel'den Aktarım", icon: '📥', feature: 'donor_crm' },
+      { href: '/admin/bagiscilar', label: 'Bağışçılar (CRM)', icon: Users, feature: 'donor_crm' },
+      { href: '/admin/uyeler', label: 'Üyeler & Aidat', icon: IdCard, feature: 'membership' },
+      { href: '/admin/veri-aktarma', label: "Excel'den Aktarım", icon: FileUp, feature: 'donor_crm' },
     ],
   },
   {
     key: 'finans', label: 'Finans', items: [
-      { href: '/admin/finance', label: 'Kasa & Giderler', icon: '💼' },
-      { href: '/admin/muhasebe', label: 'Muhasebe', icon: '📚', feature: 'accounting' },
-      { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: '📨', feature: 'bank_transactions' },
-      { href: '/admin/banka-hesaplari', label: 'Banka Hesapları', icon: '🏦', feature: 'bank_transactions' },
-      { href: '/admin/reconciliation', label: 'Banka Mutabakatı', icon: '🏛️', feature: 'bank_transactions' },
+      { href: '/admin/finance', label: 'Kasa & Giderler', icon: Wallet },
+      { href: '/admin/muhasebe', label: 'Muhasebe', icon: Calculator, feature: 'accounting' },
+      { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownToLine, feature: 'bank_transactions' },
+      { href: '/admin/banka-hesaplari', label: 'Banka Hesapları', icon: Landmark, feature: 'bank_transactions' },
+      { href: '/admin/reconciliation', label: 'Banka Mutabakatı', icon: Scale, feature: 'bank_transactions' },
     ],
   },
   {
     key: 'saha', label: 'Saha & Organizasyon', items: [
-      { href: '/admin/kurban', label: 'Kurban Organizasyonu', icon: '🐏', feature: 'kurban' },
-      { href: '/admin/sponsorluk', label: 'Sponsorluk & Burs', icon: '🤲', feature: 'sponsorship' },
-      { href: '/admin/students', label: 'Hafızlık Öğrencileri', icon: '🎓', feature: 'education' },
-      { href: '/admin/wells', label: 'Su Kuyuları', icon: '📍', feature: 'water_well' },
-      { href: '/admin/kumbara', label: 'Kumbaralar', icon: '🫙', feature: 'money_box' },
-      { href: '/admin/kumanya', label: 'Kumanya Dağıtım', icon: '📦', feature: 'food_aid' },
-      { href: '/admin/yoksul-takip', label: 'Yoksul Takibi', icon: '🏠', feature: 'poverty_tracking' },
+      { href: '/admin/kurban', label: 'Kurban Organizasyonu', icon: Beef, feature: 'kurban' },
+      { href: '/admin/sponsorluk', label: 'Sponsorluk & Burs', icon: HeartHandshake, feature: 'sponsorship' },
+      { href: '/admin/students', label: 'Hafızlık Öğrencileri', icon: GraduationCap, feature: 'education' },
+      { href: '/admin/wells', label: 'Su Kuyuları', icon: Droplets, feature: 'water_well' },
+      { href: '/admin/kumbara', label: 'Kumbaralar', icon: PiggyBank, feature: 'money_box' },
+      { href: '/admin/kumanya', label: 'Kumanya Dağıtım', icon: Package, feature: 'food_aid' },
+      { href: '/admin/yoksul-takip', label: 'Yoksul Takibi', icon: Home, feature: 'poverty_tracking' },
     ],
   },
   {
     key: 'site', label: 'Web Sitesi', items: [
-      { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: '🧩', permission: 'content_manage' },
-      { href: '/admin/sayfalar', label: 'Sayfalar', icon: '📄', feature: 'website' },
-      { href: '/admin/icerikler', label: 'Haber & Blog', icon: '📰', feature: 'website' },
-      { href: '/admin/menu', label: 'Menü', icon: '🧭', feature: 'website' },
-      { href: '/admin/banners', label: "Slider / Duyuru Banner'ları", icon: '🖼️', feature: 'website' },
-      { href: '/admin/galeri', label: 'Foto & Video Galeri', icon: '🎞️', feature: 'website' },
-      { href: '/admin/medya', label: 'Medya Kütüphanesi', icon: '🗃️', permission: 'content_manage' },
-      { href: '/admin/gorunum', label: 'Görünüm & Tema', icon: '🎨', permission: 'settings_manage' },
-      { href: '/admin/gonulluler', label: 'Gönüllü Başvuruları', icon: '🙋', feature: 'website' },
+      { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: Blocks, permission: 'content_manage' },
+      { href: '/admin/sayfalar', label: 'Sayfalar', icon: FileText, feature: 'website' },
+      { href: '/admin/icerikler', label: 'Haber & Blog', icon: Newspaper, feature: 'website' },
+      { href: '/admin/menu', label: 'Menü', icon: Menu, feature: 'website' },
+      { href: '/admin/banners', label: "Slider / Duyuru Banner'ları", icon: Images, feature: 'website' },
+      { href: '/admin/galeri', label: 'Foto & Video Galeri', icon: Film, feature: 'website' },
+      { href: '/admin/medya', label: 'Medya Kütüphanesi', icon: FolderOpen, permission: 'content_manage' },
+      { href: '/admin/gorunum', label: 'Görünüm & Tema', icon: Palette, permission: 'settings_manage' },
+      { href: '/admin/gonulluler', label: 'Gönüllü Başvuruları', icon: HandHelping, feature: 'website' },
     ],
   },
   {
     key: 'iletisim', label: 'İletişim', items: [
-      { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: '💬', feature: 'sms' },
-      { href: '/admin/sms-gonderimleri', label: 'SMS Gönderimleri', icon: '📨', feature: 'sms' },
-      { href: '/admin/sms', label: 'SMS Şablonları', icon: '✉️', feature: 'sms' },
+      { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: MessagesSquare, feature: 'sms' },
+      { href: '/admin/sms-gonderimleri', label: 'SMS Gönderimleri', icon: Send, feature: 'sms' },
+      { href: '/admin/sms', label: 'SMS Şablonları', icon: MailPlus, feature: 'sms' },
     ],
   },
   {
     key: 'ayarlar', label: 'Ayarlar', items: [
-      { href: '/admin/site-ayarlari', label: 'Site Ayarları', icon: '⚙️', permission: 'settings_manage' },
-      { href: '/admin/odeme-sms', label: 'Ödeme & SMS Hesapları', icon: '🔐', permission: 'settings_manage' },
-      { href: '/admin/integrations', label: 'Ayarlar / POS / API', icon: '🔌', permission: 'settings_manage' },
-      { href: '/admin/users', label: 'Personel & Yetkiler', icon: '🛡️', feature: 'roles' },
-      { href: '/admin/paket', label: 'Paket & Kullanım', icon: '🎁' },
+      { href: '/admin/site-ayarlari', label: 'Site Ayarları', icon: Settings, permission: 'settings_manage' },
+      { href: '/admin/odeme-sms', label: 'Ödeme & SMS Hesapları', icon: KeyRound, permission: 'settings_manage' },
+      { href: '/admin/integrations', label: 'Ayarlar / POS / API', icon: Plug, permission: 'settings_manage' },
+      { href: '/admin/users', label: 'Personel & Yetkiler', icon: ShieldCheck, feature: 'roles' },
+      { href: '/admin/paket', label: 'Paket & Kullanım', icon: PackageCheck },
     ],
   },
 ]
@@ -161,7 +162,7 @@ const ADMIN_PRIMARY_VARS = {
 
 type ThemeChoice = 'light' | 'dark' | 'system'
 const THEME_KEY = 'einfak-admin-tema'
-const THEME_LABELS: Record<ThemeChoice, string> = { light: '☀️ Açık', dark: '🌙 Koyu', system: '🖥️ Sistem' }
+const THEME_LABELS: Record<ThemeChoice, [LucideIcon, string]> = { light: [Sun, 'Açık'], dark: [Moon, 'Koyu'], system: [Monitor, 'Sistem'] }
 
 /** Panel teması: kullanıcının seçimi (tarayıcıda saklanır) ya da işletim sisteminin ayarı. */
 function useAdminTheme() {
@@ -257,6 +258,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }
 
+  const [ThemeIcon, themeLabel] = THEME_LABELS[theme.choice]
   const allowed = (item: NavItem) => hasFeature(access, item.feature) && hasPermission(access, item.permission)
   const groups = NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter(allowed) })).filter((group) => group.items.length)
   const blockedFeature = currentItem && !hasFeature(access, currentItem.feature) ? currentItem : undefined
@@ -279,7 +281,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           active ? 'bg-emerald-500/15 text-white shadow-[inset_3px_0_0_#34D399]' : 'text-[#8FA3B5] hover:bg-white/[0.06] hover:text-white'
         }`}
       >
-        <span className="w-5 flex-shrink-0 text-center">{item.icon}</span>
+        <item.icon className="h-[18px] w-[18px] flex-shrink-0 opacity-90" strokeWidth={1.9} aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
         {hint && <span className="flex-shrink-0 text-[10px] font-medium text-[#5F7488]">{hint}</span>}
       </Link>
@@ -389,11 +391,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <div className="flex flex-shrink-0 items-center gap-2 sm:gap-3">
               <button type="button" onClick={theme.cycle} title="Panel teması (Açık → Koyu → Sistem)"
-                className="text-[13px] font-semibold border border-gray-200 px-3 py-2 rounded-lg text-gray-600 hover:border-primary-600 hover:text-primary-600 transition-colors">
-                {THEME_LABELS[theme.choice].split(' ')[0]}<span className="hidden xl:inline"> {THEME_LABELS[theme.choice].split(' ')[1]}</span>
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-semibold text-gray-600 transition-colors hover:border-primary-600 hover:text-primary-600">
+                <ThemeIcon className="h-4 w-4" aria-hidden="true" /><span className="hidden xl:inline">{themeLabel}</span>
               </button>
-              <Link href="/" className="hidden text-[13px] font-semibold border border-gray-200 px-3.5 py-2 rounded-lg text-gray-600 hover:border-primary-600 hover:text-primary-600 transition-colors sm:block">
-                Siteyi Görüntüle ↗
+              <Link href="/" className="hidden items-center gap-1.5 rounded-lg border border-gray-200 px-3.5 py-2 text-[13px] font-semibold text-gray-600 transition-colors hover:border-primary-600 hover:text-primary-600 sm:flex">
+                Siteyi Görüntüle <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
               <Link href="/admin/sifre" title="Şifremi değiştir" className="flex items-center gap-2 rounded-lg px-1 py-1 hover:bg-gray-50">
                 <div className="h-8 w-8 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-[13px]">
@@ -401,9 +403,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
                 <span className="hidden text-[13px] font-semibold text-gray-900 md:inline">{user.first_name}</span>
               </Link>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                Çıkış
-              </Button>
+              <button type="button" onClick={handleLogout} title="Çıkış"
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-semibold text-gray-600 transition-colors hover:border-red-300 hover:text-red-600">
+                <LogOut className="h-4 w-4" aria-hidden="true" /><span className="hidden md:inline">Çıkış</span>
+              </button>
             </div>
           </div>
         </header>
@@ -412,7 +415,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 p-4 sm:p-6 overflow-x-auto min-w-0">
           {blockedFeature ? (
             <div className="mx-auto mt-16 max-w-lg rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-              <div className="mb-3 text-4xl">{blockedFeature.icon}</div>
+              <blockedFeature.icon className="mx-auto mb-3 h-10 w-10 text-gray-400" aria-hidden="true" />
               <h1 className="mb-2 text-xl font-bold text-gray-900">{blockedFeature.label} paketinizde yok</h1>
               <p className="mb-6 text-sm text-gray-500">
                 Kurumunuz şu anda <strong>{access?.plan_label}</strong> paketini kullanıyor. Bu modülü kullanmak için
@@ -424,7 +427,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           ) : blockedPermission ? (
             <div className="mx-auto mt-16 max-w-lg rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-              <div className="mb-3 text-4xl">🔒</div>
+              <Lock className="mx-auto mb-3 h-10 w-10 text-gray-400" aria-hidden="true" />
               <h1 className="mb-2 text-xl font-bold text-gray-900">Erişim yetkiniz yok</h1>
               <p className="mb-6 text-sm text-gray-500">
                 <strong>{blockedPermission.label}</strong> sayfasını görüntülemek için gerekli personel yetkisine sahip değilsiniz.
@@ -438,6 +441,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
         </main>
       </div>
+      {/* Dialogs and messages render here so they inherit the panel theme. */}
+      <div id="admin-portal" />
+      <UiHost />
     </div>
   )
 }

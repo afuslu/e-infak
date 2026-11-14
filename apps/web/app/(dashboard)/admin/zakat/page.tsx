@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { toast } from '../../../../components/admin/ui'
 
 interface ZakatSetting {
   id: string
@@ -80,7 +81,7 @@ export default function AdminZakatPage() {
       setUpdatedAt(res.data.updated_at)
     } catch (err) {
       console.error('Failed to save zakat settings:', err)
-      alert('Ayarlar kaydedilemedi.')
+      toast.error('Ayarlar kaydedilemedi.')
     } finally {
       setSaving(false)
     }
@@ -89,7 +90,7 @@ export default function AdminZakatPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Zekat & Nisap Ayarları</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Zekat & Nisap Ayarları</h1>
         {updatedAt && (
           <span className="text-xs text-gray-400 font-bold">
             Son Güncelleme: {new Date(updatedAt).toLocaleString('tr-TR')}

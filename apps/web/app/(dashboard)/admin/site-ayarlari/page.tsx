@@ -6,6 +6,7 @@ import { Card, Button } from '@e-infak/ui'
 import { apiErrorMessage, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
 import { LANGUAGE_NAMES } from '../../../../lib/i18n'
 import { SiteDomainsCard } from '../../../../components/admin/SiteDomainsCard'
+import { toast } from '../../../../components/admin/ui'
 
 interface OrgSettings {
   contact_phone: string | null
@@ -103,7 +104,7 @@ export default function AdminSiteSettingsPage() {
       setSuccessMsg('Site ayarları güncellendi!')
     } catch (err) {
       console.error('Failed to save site settings:', err)
-      alert(apiErrorMessage(err, 'Kaydedilemedi.'))
+      toast.error(apiErrorMessage(err, 'Kaydedilemedi.'))
     } finally {
       setSaving(false)
     }
@@ -138,7 +139,7 @@ export default function AdminSiteSettingsPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Site Ayarları</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Site Ayarları</h1>
       </div>
       <p className="text-sm text-gray-500 -mt-6">
         Bu bilgiler web sitenizin İletişim sayfasında ve footer&apos;ında görünür — sahaya çıkmadan önce gerçek bilgilerle güncelleyin.

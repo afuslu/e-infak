@@ -8,6 +8,7 @@ import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from
 import { DonorPicker, PickedDonor } from '../../../../components/admin/DonorPicker'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms, smsAmount } from '../../../../lib/sms'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 interface DonorHit { id?: string; name?: string; phone?: string | null; confidence: number; reason?: string; candidates: { id: string; name: string; phone: string | null }[] }
 interface CampaignHit { id: string; title: string; category: string; confidence: 'high' | 'medium' | 'low'; reason: string }
@@ -117,7 +118,7 @@ export default function IncomingTransfersPage() {
 
   const unmatch = async (t: Transfer) => {
     const numbers = t.receipts.map((r) => `#${r.receipt_number}`).join(', ')
-    if (!confirm(`Hareketin eşleştirmesi kaldırılacak ve eşlenen makbuz (${numbers || 'bağış'}) İPTAL EDİLECEK. Hareket yeniden "Bekleyenler" listesine döner. Devam edilsin mi?`)) return
+    if (!(await confirmDialog(`Hareketin eşleştirmesi kaldırılacak ve eşlenen makbuz (${numbers || 'bağış'}) İPTAL EDİLECEK. Hareket yeniden "Bekleyenler" listesine döner. Devam edilsin mi?`))) return
     try {
       await v1Send('post', `/admin/incoming-transfers/${t.id}/unmatch`)
       setItems((list) => list.filter((x) => x.id !== t.id))
@@ -129,7 +130,7 @@ export default function IncomingTransfersPage() {
   }
 
   const ignore = async (t: Transfer) => {
-    if (!confirm('Bu hareket bağış sayılmayacak ve listeden kalkacak. Devam edilsin mi?')) return
+    if (!(await confirmDialog({ title: 'Bu hareket bağış sayılmayacak ve listeden kalkacak. Devam edilsin mi?', danger: false }))) return
     try {
       await v1Send('post', `/admin/incoming-transfers/${t.id}/ignore`)
       setItems((list) => list.filter((x) => x.id !== t.id))
@@ -143,7 +144,7 @@ export default function IncomingTransfersPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gelen Havaleler</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Gelen Havaleler</h1>
           <p className="mt-1 text-sm text-gray-500">
             Bankadan gelen havale ve EFT&apos;ler bağışçı ve kampanya önerisiyle burada bekler; onayladığınızda bağış ve makbuz oluşur.
           </p>

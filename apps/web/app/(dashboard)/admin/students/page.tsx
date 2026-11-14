@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { toast } from '../../../../components/admin/ui'
 
 interface Student {
   id: string
@@ -139,10 +140,10 @@ export default function AdminStudentsPage() {
       setNewParentName('')
       setNewParentPhone('')
       setNewParentEmail('')
-      alert('Öğrenci kaydı oluşturuldu!')
+      toast.ok('Öğrenci kaydı oluşturuldu')
     } catch (err) {
       console.error(err)
-      alert('Öğrenci eklenemedi.')
+      toast.error('Öğrenci eklenemedi.')
     }
   }
 
@@ -192,7 +193,7 @@ export default function AdminStudentsPage() {
       setSelectedDonorId('')
     } catch (err) {
       console.error(err)
-      alert('Sponsor eklenemedi.')
+      toast.error('Sponsor eklenemedi.')
     } finally {
       setSavingSponsorship(false)
     }
@@ -201,7 +202,7 @@ export default function AdminStudentsPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Medrese Öğrenci & Sponsorluk Paneli</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Medrese Öğrenci & Sponsorluk Paneli</h1>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
           className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs uppercase"

@@ -5,6 +5,7 @@ import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 const accGet = <T,>(path: string, params?: Record<string, unknown>) =>
   axios.get<T>(`${adminApiBase()}/api/v1/admin-features/acc${path}`, { headers: adminAuthHeaders(), params })
@@ -48,7 +49,7 @@ export default function AccountingPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Muhasebe</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Muhasebe</h1>
         <p className="mt-1 text-sm text-gray-500">Kasa / banka hesapları, giderler, cari kartlar, çek-senet ve personel maaşı. Onaylanan bağışlar, ödeme yöntemine göre varsayılan hesaba otomatik işlenir.</p>
       </div>
       <div className="flex gap-1 overflow-x-auto border-b text-sm font-semibold">
@@ -153,7 +154,7 @@ function Accounts({ all, accounts, canEdit, onMessage, reloadAccounts }: Shared 
     } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
   const removeEntry = async (id: string) => {
-    if (!window.confirm('Hareket silinsin mi?')) return
+    if (!(await confirmDialog('Hareket silinsin mi?'))) return
     try { await accSend('delete', `/entries/${id}`); reloadAccounts(); if (statement) openStatement(statement.account.id) } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
   const src = accounts.find((a) => a.id === move?.account_id)
@@ -198,7 +199,7 @@ function Accounts({ all, accounts, canEdit, onMessage, reloadAccounts }: Shared 
       )}
       <Card className="border border-gray-100 p-5 shadow-sm">
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Hesap</th><th>Tür</th><th>Otomatik giriş</th><th>IBAN</th><th className="text-right">Bakiye</th><th /></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Hesap</th><th>Tür</th><th>Otomatik giriş</th><th>IBAN</th><th className="text-right">Bakiye</th><th /></tr></thead>
           <tbody>{all.map((a) => (
             <tr key={a.id} className={`border-t ${a.is_active ? '' : 'text-gray-400'}`}>
               <td className="py-2 font-semibold">{a.name}</td><td>{a.kind_label} · {a.currency}</td><td>{a.default_for ? DEFAULT_FOR[a.default_for] : '—'}</td><td>{a.iban || '—'}</td>
@@ -271,7 +272,7 @@ function Expenses({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
     try { await accSend('post', `/expenses/${row.id}/pay`, { account_id: acc.id }); load(); reloadAccounts() } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
   const remove = async (row: ExpenseRow) => {
-    if (!window.confirm('Gider ve hesap hareketi silinsin mi?')) return
+    if (!(await confirmDialog('Gider ve hesap hareketi silinsin mi?'))) return
     try { await accSend('delete', `/expenses/${row.id}`); load(); reloadAccounts() } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
   const total = rows.reduce((s, r) => ({ ...s, [r.currency]: (s[r.currency] || 0) + r.amount_cents }), {} as Record<string, number>)
@@ -306,7 +307,7 @@ function Expenses({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
           <button className={`${ghostButton} ml-auto`} onClick={() => exportCsv('giderler.csv', ['Tarih', 'Kart', 'Açıklama', 'Cari', 'Belge', 'Tutar', 'Para birimi', 'Hesap'], rows.map((r) => [fmt(r.expense_date), r.card_name, r.description, r.counterparty, r.document_no, r.amount_cents / 100, r.currency, r.account_name || 'Ödenmedi']))}>⬇ CSV</button>
         </div>
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Tarih</th><th>Kart</th><th>Açıklama</th><th>Cari</th><th>Belge</th><th className="text-right">Tutar</th><th>Hesap</th><th /></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Tarih</th><th>Kart</th><th>Açıklama</th><th>Cari</th><th>Belge</th><th className="text-right">Tutar</th><th>Hesap</th><th /></tr></thead>
           <tbody>{rows.map((r) => (
             <tr key={r.id} className="border-t"><td className="py-1.5">{fmt(r.expense_date)}</td><td className="font-semibold">{r.card_name}</td><td>{r.description || '—'}</td><td>{r.counterparty || '—'}</td><td>{r.document_no || '—'}</td>
               <td className="text-right font-semibold">{formatMoney(r.amount_cents, r.currency)}</td>
@@ -349,7 +350,7 @@ function Parties({ parties, canEdit, onMessage, reloadParties }: Shared) {
       )}
       <Card className="border border-gray-100 p-5 shadow-sm">
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Cari</th><th>Tür</th><th>Vergi no</th><th>Telefon</th><th className="text-right">Ödenmemiş gider</th><th /></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Cari</th><th>Tür</th><th>Vergi no</th><th>Telefon</th><th className="text-right">Ödenmemiş gider</th><th /></tr></thead>
           <tbody>{parties.map((p) => (
             <tr key={p.id} className="border-t"><td className="py-1.5 font-semibold">{p.name}</td><td>{p.kind_label}</td><td>{p.tax_no || '—'}</td><td>{p.phone || '—'}</td>
               <td className={`text-right ${p.unpaid_cents ? 'font-bold text-amber-700' : ''}`}>{p.unpaid_cents ? formatMoney(p.unpaid_cents) : '—'}</td>
@@ -367,7 +368,7 @@ function Parties({ parties, canEdit, onMessage, reloadParties }: Shared) {
             </div>
           </div>
           <h3 className="text-xs font-bold text-gray-500">Borç / alacak defteri (TL) · alacak: kurumun borcu artar, borç: azalır</h3>
-          <table className="w-full text-left text-xs"><thead className="text-gray-400"><tr><th className="py-1">Tarih</th><th>Tür</th><th>Açıklama</th><th className="text-right">Borç</th><th className="text-right">Alacak</th><th className="text-right">Bakiye</th></tr></thead>
+          <table className="w-full text-left text-xs"><thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Tarih</th><th>Tür</th><th>Açıklama</th><th className="text-right">Borç</th><th className="text-right">Alacak</th><th className="text-right">Bakiye</th></tr></thead>
             <tbody>{statement.ledger.rows.map((r: any, i: number) => (
               <tr key={i} className="border-t"><td className="py-1">{fmt(r.date)}</td><td>{r.type}</td><td>{r.description || '—'}</td>
                 <td className="text-right">{r.debit_cents ? formatMoney(r.debit_cents) : ''}</td><td className="text-right">{r.credit_cents ? formatMoney(r.credit_cents) : ''}</td>
@@ -426,7 +427,7 @@ function Cheques({ accounts, parties, canEdit, onMessage, reloadAccounts }: Shar
       counterparty_id = parties[Number(pick) - 1]?.id
       if (!counterparty_id) return
     }
-    if (status === 'bounced' && !window.confirm('Karşılıksız olarak işaretlensin mi? Tahsil kaydı varsa geri alınır.')) return
+    if (status === 'bounced' && !(await confirmDialog('Karşılıksız olarak işaretlensin mi? Tahsil kaydı varsa geri alınır.'))) return
     try { await accSend('post', `/cheques/${c.id}/status`, { status, account_id, counterparty_id }); load(); reloadAccounts() } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
   return (
@@ -457,7 +458,7 @@ function Cheques({ accounts, parties, canEdit, onMessage, reloadAccounts }: Shar
           <span className="self-center text-xs text-gray-500">{rows.length} kayıt · {formatMoney(rows.filter((r) => r.currency === 'TRY').reduce((s, r) => s + r.amount_cents, 0))}</span>
         </div>
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Çek / senet</th><th>Keşideci / cari</th><th>Vade</th><th className="text-right">Tutar</th><th>Durum</th><th /></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Çek / senet</th><th>Keşideci / cari</th><th>Vade</th><th className="text-right">Tutar</th><th>Durum</th><th /></tr></thead>
           <tbody>{rows.map((c) => (
             <tr key={c.id} className="border-t"><td className="py-1.5 font-semibold">{c.direction_label} {c.kind_label.toLowerCase()} · {c.number}{c.bank_name ? ` · ${c.bank_name}` : ''}</td><td>{c.drawer || c.counterparty || '—'}</td>
               <td className={c.overdue ? 'font-bold text-red-700' : ''}>{fmt(c.due_date)}{c.days_to_due !== null ? ` (${c.overdue ? 'geçti' : `${c.days_to_due} gün`})` : ''}</td>
@@ -514,7 +515,7 @@ function Payroll({ accounts, canEdit, onMessage, reloadAccounts }: Shared) {
       <Card className="space-y-3 border border-gray-100 p-5 shadow-sm">
         <h2 className="text-sm font-bold">Personel</h2>
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Ad</th><th>Görev</th><th>IBAN</th><th className="text-right">Net maaş</th><th className="text-right">Açık avans</th><th /></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Ad</th><th>Görev</th><th>IBAN</th><th className="text-right">Net maaş</th><th className="text-right">Açık avans</th><th /></tr></thead>
           <tbody>{employees.map((e) => (
             <tr key={e.id} className={`border-t ${e.is_active ? '' : 'text-gray-400'}`}><td className="py-1.5 font-semibold">{e.full_name}</td><td>{e.title || '—'}</td><td>{e.iban || '—'}</td>
               <td className="text-right">{formatMoney(e.monthly_salary_cents)}</td><td className="text-right">{e.open_advance_cents ? formatMoney(e.open_advance_cents) : '—'}</td>
@@ -538,7 +539,7 @@ function Payroll({ accounts, canEdit, onMessage, reloadAccounts }: Shared) {
           {sheet && sheet.items.length > 0 && <button className={`${ghostButton} ml-auto`} onClick={() => exportCsv(`bordro-${period}.csv`, ['Ad', 'IBAN', 'Maaş', 'Mesai', 'Prim', 'Kesinti', 'Avans', 'Net', 'Durum'], sheet.items.map((i) => [i.full_name, i.iban, i.salary_cents / 100, i.overtime_cents / 100, i.bonus_cents / 100, i.deduction_cents / 100, i.advance_cents / 100, i.net_cents / 100, i.status === 'paid' ? 'Ödendi' : 'Bekliyor']))}>⬇ CSV (banka talimatı)</button>}
         </div>
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Personel</th><th className="text-right">Maaş</th><th className="text-right">Mesai</th><th className="text-right">Prim</th><th className="text-right">Kesinti</th><th className="text-right">Avans</th><th className="text-right">Net</th><th>Durum</th><th /></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Personel</th><th className="text-right">Maaş</th><th className="text-right">Mesai</th><th className="text-right">Prim</th><th className="text-right">Kesinti</th><th className="text-right">Avans</th><th className="text-right">Net</th><th>Durum</th><th /></tr></thead>
           <tbody>{sheet?.items.map((i) => {
             const e = edit[i.id]
             return (
@@ -556,7 +557,7 @@ function Payroll({ accounts, canEdit, onMessage, reloadAccounts }: Shared) {
         {canEdit && draft.length > 0 && (
           <div className="flex flex-wrap items-end gap-2 border-t pt-3">
             <div className="w-64"><AccountSelect accounts={accounts} currency="TRY" value={payAccount} onChange={setPayAccount} label="Ödeme hesabı" /></div>
-            <button className={primaryButton} disabled={!payAccount} onClick={() => window.confirm(`${draft.length} personele toplam ${formatMoney(draft.reduce((s, i) => s + i.net_cents, 0))} ödensin mi?`) && act(() => accSend('post', '/payroll/pay', { item_ids: draft.map((i) => i.id), account_id: payAccount }), 'Maaşlar ödendi ve hesaptan düşüldü')}>Bekleyen maaşları öde</button>
+            <button className={primaryButton} disabled={!payAccount} onClick={async () => (await confirmDialog({ title: `${draft.length} personele toplam ${formatMoney(draft.reduce((s, i) => s + i.net_cents, 0))} ödensin mi?`, danger: false })) && act(() => accSend('post', '/payroll/pay', { item_ids: draft.map((i) => i.id), account_id: payAccount }), 'Maaşlar ödendi ve hesaptan düşüldü')}>Bekleyen maaşları öde</button>
           </div>
         )}
       </Card>
@@ -672,7 +673,7 @@ function Stock({ parties, canEdit, onMessage }: Shared) {
         <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold">Stok durumu</h2>
           <button className={ghostButton} onClick={() => exportCsv('stok.csv', ['Kart', 'Kategori', 'Birim', 'Miktar', 'Kritik', 'Tahmini değer'], items.map((i) => [i.name, i.category, i.unit, i.qty, i.min_qty, i.value_cents / 100]))}>⬇ CSV</button></div>
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Kart</th><th>Kategori</th><th>Depolar</th><th className="text-right">Miktar</th><th className="text-right">Tahmini değer</th><th /></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Kart</th><th>Kategori</th><th>Depolar</th><th className="text-right">Miktar</th><th className="text-right">Tahmini değer</th><th /></tr></thead>
           <tbody>{items.map((i) => (
             <tr key={i.id} className="border-t"><td className="py-1.5 font-semibold">{i.name}</td><td>{i.category || '—'}</td>
               <td>{i.by_warehouse.map((w) => `${w.warehouse}: ${w.qty}`).join(' · ') || '—'}</td>
@@ -694,12 +695,12 @@ function Stock({ parties, canEdit, onMessage }: Shared) {
       <Card className="border border-gray-100 p-5 shadow-sm">
         <h2 className="mb-2 text-sm font-bold">Son hareketler</h2>
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Tarih</th><th>Tür</th><th>Kart</th><th>Depo</th><th className="text-right">Miktar</th><th>Kimden / kime</th><th>Not</th><th /></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Tarih</th><th>Tür</th><th>Kart</th><th>Depo</th><th className="text-right">Miktar</th><th>Kimden / kime</th><th>Not</th><th /></tr></thead>
           <tbody>{moves.map((m) => (
             <tr key={m.id} className="border-t"><td className="py-1.5">{fmt(m.move_date)}</td><td>{m.kind_label}</td><td>{m.item}</td><td>{m.warehouse}</td>
               <td className={`text-right font-semibold ${m.direction === 'in' ? 'text-green-700' : 'text-red-700'}`}>{m.direction === 'in' ? '+' : '−'}{m.qty} {m.unit}</td>
               <td>{m.party || '—'}</td><td>{m.note || '—'}</td>
-              <td className="text-right">{canEdit && !m.invoice_id && <button className="font-bold text-red-600" onClick={() => window.confirm('Hareket silinsin mi?') && act(() => accSend('delete', `/stock-moves/${m.id}`), 'Hareket silindi')}>Sil</button>}</td></tr>
+              <td className="text-right">{canEdit && !m.invoice_id && <button className="font-bold text-red-600" onClick={async () => (await confirmDialog('Hareket silinsin mi?')) && act(() => accSend('delete', `/stock-moves/${m.id}`), 'Hareket silindi')}>Sil</button>}</td></tr>
           ))}{!moves.length && <tr><td colSpan={8} className="py-4 text-center text-gray-400">Hareket yok.</td></tr>}</tbody>
         </table>
       </Card>
@@ -768,7 +769,7 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="text-gray-400"><tr><th className="py-1">Stok kartı</th><th>Açıklama</th><th>Miktar</th><th>Birim fiyat</th><th>KDV %</th><th className="text-right">Tutar</th><th /></tr></thead>
+              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Stok kartı</th><th>Açıklama</th><th>Miktar</th><th>Birim fiyat</th><th>KDV %</th><th className="text-right">Tutar</th><th /></tr></thead>
               <tbody>{form.lines.map((l, i) => (
                 <tr key={i} className="border-t">
                   <td className="py-1 pr-2"><select className="w-40 rounded border p-1" value={l.item_id} onChange={(e) => setLine(i, { item_id: e.target.value })}><option value="">Stoksuz</option>{items.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}</select></td>
@@ -795,7 +796,7 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
           <label className="flex items-center gap-1.5 text-xs font-semibold"><input type="checkbox" checked={filters.unpaid} onChange={(e) => setFilters({ ...filters, unpaid: e.target.checked })} /> Yalnız ödenmemiş</label>
         </div>
         <table className="w-full text-left text-xs">
-          <thead className="text-gray-400"><tr><th className="py-1">Tarih</th><th>Tür</th><th>No</th><th>Cari</th><th>Vade</th><th className="text-right">Toplam</th><th className="text-right">Kalan</th><th>Durum</th><th /></tr></thead>
+          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Tarih</th><th>Tür</th><th>No</th><th>Cari</th><th>Vade</th><th className="text-right">Toplam</th><th className="text-right">Kalan</th><th>Durum</th><th /></tr></thead>
           <tbody>{rows.map((r) => (
             <tr key={r.id} className="border-t"><td className="py-1.5">{fmt(r.issue_date)}</td><td>{r.kind_label}</td><td className="font-semibold">{r.number}</td><td>{r.counterparty}</td>
               <td className={r.overdue ? 'font-bold text-red-700' : ''}>{fmt(r.due_date)}</td>
@@ -803,7 +804,7 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
               <td className={PAY_STATUS[r.payment_status][1]}>{PAY_STATUS[r.payment_status][0]}</td>
               <td className="whitespace-nowrap text-right">{canEdit && r.status === 'open' && <>
                 {r.remaining_cents > 0 && <button className="mr-2 font-bold text-primary-700" onClick={() => pay(r)}>{r.kind === 'purchase' ? 'Öde' : 'Tahsil et'}</button>}
-                {r.paid_cents === 0 && <button className="font-bold text-red-600" onClick={() => window.confirm('Fatura iptal edilsin mi? Stok hareketleri geri alınır.') && accSend('post', `/invoices/${r.id}/cancel`).then(load).catch((err) => onMessage({ type: 'error', text: apiErrorMessage(err) }))}>İptal</button>}
+                {r.paid_cents === 0 && <button className="font-bold text-red-600" onClick={async () => (await confirmDialog('Fatura iptal edilsin mi? Stok hareketleri geri alınır.')) && accSend('post', `/invoices/${r.id}/cancel`).then(load).catch((err) => onMessage({ type: 'error', text: apiErrorMessage(err) }))}>İptal</button>}
               </>}</td></tr>
           ))}{!rows.length && <tr><td colSpan={9} className="py-6 text-center text-gray-400">Fatura yok.</td></tr>}</tbody>
         </table>

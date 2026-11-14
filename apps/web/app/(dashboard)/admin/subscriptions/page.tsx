@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { toast } from '../../../../components/admin/ui'
 
 interface Subscription {
   id: string
@@ -58,7 +59,7 @@ export default function AdminSubscriptionsPage() {
       await loadSubscriptions()
     } catch (err) {
       console.error('Failed to retry subscription billing:', err)
-      alert('İşlem başarısız.')
+      toast.error('İşlem başarısız.')
     } finally {
       setRetryingId(null)
     }
@@ -67,7 +68,7 @@ export default function AdminSubscriptionsPage() {
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Düzenli Bağış & Abonelik Yönetimi</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Düzenli Bağış & Abonelik Yönetimi</h1>
         <button
           onClick={loadSubscriptions}
           className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { confirmDialog, toast } from '../../../../components/admin/ui'
 
 interface DonationCategory {
   id: string
@@ -75,28 +76,28 @@ export default function AdminDonationCategoriesPage() {
       cancelEdit()
     } catch (err) {
       console.error('Failed to save donation category:', err)
-      alert('Kaydedilemedi.')
+      toast.error('Kaydedilemedi.')
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Bu bağış kalemini silmek istediğinize emin misiniz?')) return
+    if (!(await confirmDialog('Bu bağış kalemini silmek istediğinize emin misiniz?'))) return
     try {
       await axios.delete(`${API_BASE}/api/v1/admin-features/donation-categories/${id}`, { headers: getAuthHeaders() })
       setCategories((prev) => prev.filter((c) => c.id !== id))
       if (editingId === id) cancelEdit()
     } catch (err) {
       console.error('Failed to delete donation category:', err)
-      alert('Silinemedi.')
+      toast.error('Silinemedi.')
     }
   }
 
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Bağış Kalemleri</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Bağış Kalemleri</h1>
         <button
           onClick={loadCategories}
           className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"

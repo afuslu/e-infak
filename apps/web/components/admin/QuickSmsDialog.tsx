@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
 import { RelatedSms, STATUS_CLASS, STATUS_LABEL, SmsTemplate, segmentSummary } from '../../lib/sms'
 import { ghostButton, inputClass, primaryButton } from './FormKit'
+import { portalRoot } from './ui'
 
 export interface SmsTarget {
   donorId?: string | null
@@ -201,7 +202,7 @@ export function QuickSmsDialog({
         </div>
       </div>
     </div>,
-    document.body,
+    portalRoot(),
   )
 }
 

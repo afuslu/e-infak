@@ -46,7 +46,7 @@ export default function PackagePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Paket & Kullanım</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Paket & Kullanım</h1>
         <p className="mt-1 text-sm text-gray-500">Kurumunuzun paketi, açık modüller ve kullanım sınırları.</p>
       </div>
 

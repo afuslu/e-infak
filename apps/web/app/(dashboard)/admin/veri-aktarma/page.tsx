@@ -5,6 +5,7 @@ import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminSend, apiErrorMessage, formatMoney } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { confirmDialog } from '../../../../components/admin/ui'
 
 type Kind = 'donors' | 'donations'
 interface Intro { headers: string[]; row_count: number; fields: Record<string, string>; sample: (string | null)[][]; suggested_mapping: Record<string, number> }
@@ -76,7 +77,7 @@ export default function DataImportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Excel&apos;den Aktarım</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Excel&apos;den Aktarım</h1>
         <p className="mt-1 text-sm text-gray-500">XLSX veya CSV dosyasını yükleyin, sütunları eşleyin, önce doğrulayın sonra aktarın. En fazla 5000 satır.</p>
       </div>
 
@@ -131,14 +132,14 @@ export default function DataImportPage() {
           <div className="overflow-x-auto">
             <p className="mb-1 text-xs font-bold text-gray-500">Dosyadaki ilk satırlar</p>
             <table className="w-full text-left text-xs">
-              <thead className="text-gray-400"><tr>{intro.headers.map((h, i) => <th key={i} className="whitespace-nowrap py-1 pr-3">{h}</th>)}</tr></thead>
+              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr>{intro.headers.map((h, i) => <th key={i} className="whitespace-nowrap py-1 pr-3">{h}</th>)}</tr></thead>
               <tbody>{intro.sample.map((r, i) => <tr key={i} className="border-t">{intro.headers.map((_, j) => <td key={j} className="whitespace-nowrap py-1 pr-3">{r[j] ?? ''}</td>)}</tr>)}</tbody>
             </table>
           </div>
           <div className="flex gap-2">
             <button className={ghostButton} disabled={busy} onClick={() => send('check')}>2. Doğrula</button>
             {result && !result.committed && result.row_count > result.error_count && (
-              <button className={primaryButton} disabled={busy} onClick={() => window.confirm('Geçerli satırlar aktarılsın mı?') && send('commit')}>3. Aktar</button>
+              <button className={primaryButton} disabled={busy} onClick={async () => (await confirmDialog({ title: 'Geçerli satırlar aktarılsın mı?', danger: false })) && send('commit')}>3. Aktar</button>
             )}
           </div>
         </Card>
@@ -171,7 +172,7 @@ export default function DataImportPage() {
             <div className="overflow-x-auto">
               <p className="mb-1 text-xs font-bold text-gray-500">Örnek</p>
               <table className="w-full text-left text-xs">
-                <thead className="text-gray-400"><tr>{Object.keys(result.preview[0]).map((k) => <th key={k} className="py-1 pr-3">{k}</th>)}</tr></thead>
+                <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr>{Object.keys(result.preview[0]).map((k) => <th key={k} className="py-1 pr-3">{k}</th>)}</tr></thead>
                 <tbody>{result.preview.map((r, i) => (
                   <tr key={i} className="border-t">{Object.entries(r).map(([k, v]) => (
                     <td key={k} className="py-1 pr-3">{k === 'amount_cents' ? (Number(v) / 100).toLocaleString('tr-TR') : Array.isArray(v) ? v.join(', ') : String(v ?? '')}</td>
