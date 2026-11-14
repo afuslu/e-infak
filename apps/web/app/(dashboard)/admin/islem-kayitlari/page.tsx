@@ -19,7 +19,7 @@ const summary = (details: Record<string, unknown>) => Object.entries(details)
 export default function ActivityLogPage() {
   const [data, setData] = useState<{ items: Row[]; total: number; actions: { key: string; label: string }[] } | null>(null)
   const [staff, setStaff] = useState<Staff[]>([])
-  const [filters, setFilters] = useState({ user_id: '', action: '', q: '', date_from: '', date_to: '' })
+  const [filters, setFilters] = useState({ user_id: '', action: '', q: '', date_from: '', date_to: '', requests: '' })
   const [page, setPage] = useState(1)
 
   useEffect(() => {
@@ -40,6 +40,10 @@ export default function ActivityLogPage() {
     <div className="space-y-6">
       <PageHeader title="İşlem Kayıtları" description="Panelde yapılan işlemler: makbuz, bağışçı, SMS, rol ve ayar değişiklikleri." />
       <Card className="space-y-4 border border-gray-100 p-5 shadow-sm">
+        <label className="flex items-center gap-2 text-xs font-semibold text-gray-600">
+          <input type="checkbox" checked={!!filters.requests} onChange={(e) => set('requests', e.target.checked ? 'true' : '')} />
+          Sistem istek kayıtlarını da göster (her POST/PUT isteği)
+        </label>
         <div className="grid gap-2 sm:grid-cols-5">
           <input className={inputClass} placeholder="Ara (makbuz no, ad…)" value={filters.q} onChange={(e) => set('q', e.target.value)} />
           <select className={inputClass} value={filters.action} onChange={(e) => set('action', e.target.value)}>

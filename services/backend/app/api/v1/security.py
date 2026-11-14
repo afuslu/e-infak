@@ -190,6 +190,9 @@ ACTION_LABELS = {
 }
 
 
+REQUEST_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
+
+
 def action_label(action: str) -> str:
     return ACTION_LABELS.get(action) or action.replace("_", " ").capitalize()
 
@@ -201,10 +204,14 @@ async def activity_logs(
     q: Annotated[Optional[str], Query(max_length=100)] = None, donor_id: Optional[UUID] = None,
     date_from: Optional[date] = None, date_to: Optional[date] = None,
     page: Annotated[int, Query(ge=1)] = 1, page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+    requests: bool = False,
 ):
     _ensure_supervisor(current_user)
     org_id = _org_id(request)
     where = [AuditLog.organization_id == org_id]
+    if not requests and not action:
+        # Raw request records ("POST /api/v1/…") written by the audit middleware hide the real work.
+        where += [AuditLog.action.notlike(f"{method} %") for method in REQUEST_METHODS]
     if user_id:
         where.append(AuditLog.user_id == user_id)
     if action:
@@ -221,7 +228,8 @@ async def activity_logs(
     total = (await db.execute(select(func.count()).select_from(AuditLog).where(*where))).scalar_one()
     rows = (await db.execute(select(AuditLog).where(*where).order_by(AuditLog.created_at.desc())
                              .offset((page - 1) * page_size).limit(page_size))).scalars().all()
-    actions = (await db.execute(select(AuditLog.action).where(AuditLog.organization_id == org_id).distinct())).scalars().all()
+    actions = [a for a in (await db.execute(select(AuditLog.action).where(AuditLog.organization_id == org_id).distinct())).scalars().all()
+               if not a.startswith(tuple(f"{m} " for m in REQUEST_METHODS))]
     names = await _staff_names(db, org_id)
     return {
         "total": total,

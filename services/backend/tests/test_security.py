@@ -77,6 +77,7 @@ async def test_sign_in_records_activity_log_and_ending_sessions(db_session):
                                    expires_at=now + timedelta(days=7)))
     db_session.add(AuditLog(organization_id=org.id, user_id=clerk.id, action="makbuz_elle_kes",
                             details={"donor_id": "d-1", "receipt_number": "R-1"}))
+    db_session.add(AuditLog(organization_id=org.id, action="POST /api/v1/auth/login", details={"status_code": 200}))
     await db_session.flush()
 
     logs = await security.login_logs(_request(org), db_session, admin, user_id=None, ip="5.46", date_from=None, date_to=None,
@@ -89,3 +90,9 @@ async def test_sign_in_records_activity_log_and_ending_sessions(db_session):
                                             date_from=None, date_to=None, page=1, page_size=50)
     assert activity["items"][0]["label"] == "Makbuz kesildi" and activity["items"][0]["user"] == "Can Personel"
     assert any(a["key"] == "oturumlari_kapat" for a in activity["actions"])
+    assert not any(a["key"].startswith("POST ") for a in activity["actions"])
+    hidden = await security.activity_logs(_request(org), db_session, admin, user_id=None, action=None, q=None, donor_id=None,
+                                          date_from=None, date_to=None, page=1, page_size=50, requests=False)
+    shown = await security.activity_logs(_request(org), db_session, admin, user_id=None, action=None, q=None, donor_id=None,
+                                         date_from=None, date_to=None, page=1, page_size=50, requests=True)
+    assert shown["total"] == hidden["total"] + 1
