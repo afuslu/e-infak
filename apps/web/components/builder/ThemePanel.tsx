@@ -148,27 +148,6 @@ export function ThemePanel({
   const textContrast = useMemo(() => contrastRatio(design.page_color, design.text_color), [design.page_color, design.text_color])
   const btnContrast = useMemo(() => contrastRatio(form?.primary_color || '#166534', '#FFFFFF'), [form?.primary_color])
 
-  if (!form || !loaded) {
-    return (
-      <div className="space-y-2 p-1 text-xs text-gray-500">
-        {message?.type === 'error' ? <p className="font-semibold text-red-600">{message.text}</p> : 'Tema ayarları yükleniyor…'}
-      </div>
-    )
-  }
-
-  const set = <K extends keyof ThemeAppearance>(key: K, value: ThemeAppearance[K]) => setForm((f) => (f ? { ...f, [key]: value } : f))
-  const setDesign = <K extends keyof SiteDesign>(key: K, value: SiteDesign[K]) => set('design', { ...design, [key]: value })
-
-  const applyKit = (kit: LoadedAppearance['theme_kits'][number]) => {
-    setForm((f) => (f ? { ...f, primary_color: kit.primary_color, accent_color: kit.accent_color, design: { ...kit.design } } : f))
-  }
-
-  const discard = () => {
-    if (!saved) return
-    setForm(saved)
-    setMessage(null)
-  }
-
   const save = useCallback(async (): Promise<boolean> => {
     if (!form) return true
     const curDesign = form.design || DEFAULT_DESIGN
@@ -210,6 +189,27 @@ export function ThemePanel({
     if (saveRef) saveRef.current = save
     return () => { if (saveRef) saveRef.current = null }
   }, [save, saveRef])
+
+  if (!form || !loaded) {
+    return (
+      <div className="space-y-2 p-1 text-xs text-gray-500">
+        {message?.type === 'error' ? <p className="font-semibold text-red-600">{message.text}</p> : 'Tema ayarları yükleniyor…'}
+      </div>
+    )
+  }
+
+  const set = <K extends keyof ThemeAppearance>(key: K, value: ThemeAppearance[K]) => setForm((f) => (f ? { ...f, [key]: value } : f))
+  const setDesign = <K extends keyof SiteDesign>(key: K, value: SiteDesign[K]) => set('design', { ...design, [key]: value })
+
+  const applyKit = (kit: LoadedAppearance['theme_kits'][number]) => {
+    setForm((f) => (f ? { ...f, primary_color: kit.primary_color, accent_color: kit.accent_color, design: { ...kit.design } } : f))
+  }
+
+  const discard = () => {
+    if (!saved) return
+    setForm(saved)
+    setMessage(null)
+  }
 
   const resetDefaults = async () => {
     if (!(await confirmDialog('Renkler ve tipografi varsayılan temaya sıfırlansın mı?'))) return

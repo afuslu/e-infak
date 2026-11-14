@@ -31,27 +31,91 @@ export function adminApiBase() {
 
 export function adminAuthHeaders() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-  return { Authorization: `Bearer ${token}` }
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+let refreshInFlight: Promise<string | null> | null = null
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null
+  if (refreshInFlight) return refreshInFlight
+  const refreshToken = localStorage.getItem('refresh_token')
+  if (!refreshToken) return null
+  refreshInFlight = axios
+    .post<{ access_token: string; refresh_token?: string }>(`${adminApiBase()}/api/v1/auth/refresh`, {
+      refresh_token: refreshToken,
+    })
+    .then((res) => {
+      const nextAccess = res.data?.access_token
+      if (!nextAccess) return null
+      localStorage.setItem('access_token', nextAccess)
+      if (res.data?.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token)
+      return nextAccess
+    })
+    .catch(() => null)
+    .finally(() => {
+      refreshInFlight = null
+    })
+  return refreshInFlight
+}
+
+function redirectToLogin() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  if (!window.location.pathname.startsWith('/giris')) {
+    window.location.assign('/giris')
+  }
+}
+
+async function withAuthRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    if (status === 401) {
+      const nextToken = await refreshAccessToken()
+      if (nextToken) {
+        try {
+          return await fn()
+        } catch (retryErr) {
+          if ((retryErr as { response?: { status?: number } })?.response?.status === 401) {
+            redirectToLogin()
+          }
+          throw retryErr
+        }
+      }
+      redirectToLogin()
+    }
+    throw err
+  }
 }
 
 export function adminGet<T>(path: string, params?: Record<string, unknown>) {
-  return axios.get<T>(`${adminApiBase()}/api/v1/admin-features${path}`, { headers: adminAuthHeaders(), params })
+  return withAuthRetry(() => axios.get<T>(`${adminApiBase()}/api/v1/admin-features${path}`, { headers: adminAuthHeaders(), params }))
 }
 
 export function adminSend<T>(method: 'post' | 'put' | 'delete', path: string, data?: unknown) {
-  return axios.request<T>({
-    method,
-    url: `${adminApiBase()}/api/v1/admin-features${path}`,
-    headers: adminAuthHeaders(),
-    data,
-  })
+  return withAuthRetry(() =>
+    axios.request<T>({
+      method,
+      url: `${adminApiBase()}/api/v1/admin-features${path}`,
+      headers: adminAuthHeaders(),
+      data,
+    }),
+  )
 }
 
 /** Turns FastAPI error payloads (string, object or validation list) into one message. */
 export function apiErrorMessage(err: unknown, fallback = 'İşlem tamamlanamadı') {
   const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
   if (!detail) return fallback
-  if (typeof detail === 'string') return detail
+  if (typeof detail === 'string') {
+    if (detail === 'Invalid authentication credentials' || detail === 'Not authenticated') {
+      return 'Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.'
+    }
+    return detail
+  }
   if (Array.isArray(detail)) return detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join(', ') || fallback
   if (typeof detail === 'object' && 'message' in detail) return String((detail as { message: unknown }).message)
   return fallback
@@ -84,16 +148,16 @@ export const formatMoney = (cents: number, currency = 'TRY') =>
 
 /** Requests to /api/v1/<path> (modules that are not under /admin-features, e.g. /kurban). */
 export function v1Get<T>(path: string, params?: Record<string, unknown>) {
-  return axios.get<T>(`${adminApiBase()}/api/v1${path}`, { headers: adminAuthHeaders(), params })
+  return withAuthRetry(() => axios.get<T>(`${adminApiBase()}/api/v1${path}`, { headers: adminAuthHeaders(), params }))
 }
 
 export function v1Send<T>(method: 'post' | 'put' | 'patch' | 'delete', path: string, data?: unknown) {
-  return axios.request<T>({ method, url: `${adminApiBase()}/api/v1${path}`, headers: adminAuthHeaders(), data })
+  return withAuthRetry(() => axios.request<T>({ method, url: `${adminApiBase()}/api/v1${path}`, headers: adminAuthHeaders(), data }))
 }
 
 /** Downloads an authenticated file (PDF etc.) and saves it under `filename`. */
 export async function downloadFile(path: string, filename: string, params?: Record<string, unknown>) {
-  const res = await axios.get(`${adminApiBase()}/api/v1${path}`, { headers: adminAuthHeaders(), responseType: 'blob', params })
+  const res = await withAuthRetry(() => axios.get(`${adminApiBase()}/api/v1${path}`, { headers: adminAuthHeaders(), responseType: 'blob', params }))
   const url = URL.createObjectURL(res.data)
   const a = document.createElement('a')
   a.href = url
