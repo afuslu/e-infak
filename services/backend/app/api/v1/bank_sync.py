@@ -1,10 +1,12 @@
 """Bank accounts pulled automatically, and the 'Gelen Havaleler' review queue."""
-from typing import Optional
+from datetime import date, datetime, time, timedelta
+from typing import Annotated, Optional
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, literal_column, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import Permission, require_feature, require_permission
@@ -21,6 +23,7 @@ from app.models.donation import Donor, DonorType
 from app.models.user import User
 from app.services.tenant_credentials import CredentialsUnavailable, get_credentials, masked, save_credentials
 
+TZ = ZoneInfo("Europe/Istanbul")
 router = APIRouter(tags=["bank-sync"], dependencies=[Depends(require_feature(Feature.BANK_TRANSACTIONS))])
 finance = require_permission(Permission.FINANCE_MANAGE)
 
@@ -161,16 +164,65 @@ def _transfer_out(t: BankTransaction, donations: Optional[list] = None) -> dict:
             "suggestion": t.suggestion or {}}
 
 
+NO_ACCOUNT = UUID(int=0)
+
+
+def _duplicate_key():
+    """Same account, same day, same amount and same sender: probably the same movement twice."""
+    # literals, not parameters: Postgres must see the GROUP BY expressions as identical to the selected ones
+    # (an uploaded statement has no account: a fixed id keeps NULL out of the comparison)
+    return (func.coalesce(BankTransaction.bank_account_id, literal_column(f"'{NO_ACCOUNT}'::uuid")),
+            func.date(func.timezone(literal_column("'Europe/Istanbul'"), BankTransaction.booked_at)),
+            BankTransaction.amount_cents, func.coalesce(BankTransaction.sender_name, literal_column("''")))
+
+
 @router.get("/admin/incoming-transfers")
-async def list_transfers(request: Request, status: ReconciliationStatus = ReconciliationStatus.UNMATCHED,
+async def list_transfers(request: Request, status: Optional[ReconciliationStatus] = ReconciliationStatus.UNMATCHED,
+                         q: Annotated[Optional[str], Query(max_length=100)] = None, date_from: Optional[date] = None,
+                         date_to: Optional[date] = None, amount_min: Optional[float] = None,
+                         amount_max: Optional[float] = None, account_id: Optional[UUID] = None,
+                         duplicates: bool = False,
                          limit: int = Query(200, le=500), offset: int = Query(0, ge=0),
                          db: AsyncSession = Depends(get_db), _: User = Depends(finance)):
+    """Incoming movements of one status, with search; `duplicates` lists look-alike movements of any status."""
     org_id = _org_id(request)
-    base = select(BankTransaction).where(BankTransaction.organization_id == org_id, BankTransaction.status == status)
+    where = [BankTransaction.organization_id == org_id]
+    if status and not duplicates:
+        where.append(BankTransaction.status == status)
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        where.append(or_(BankTransaction.sender_name.ilike(term), BankTransaction.description.ilike(term),
+                         BankTransaction.external_id.ilike(term)))
+    if date_from:
+        where.append(BankTransaction.booked_at >= datetime.combine(date_from, time.min, TZ))
+    if date_to:
+        where.append(BankTransaction.booked_at < datetime.combine(date_to + timedelta(days=1), time.min, TZ))
+    if amount_min is not None:
+        where.append(BankTransaction.amount_cents >= round(amount_min * 100))
+    if amount_max is not None:
+        where.append(BankTransaction.amount_cents <= round(amount_max * 100))
+    if account_id:
+        where.append(BankTransaction.bank_account_id == account_id)
+    groups = (select(*_duplicate_key()).where(BankTransaction.organization_id == org_id, BankTransaction.amount_cents > 0)
+              .group_by(*_duplicate_key()).having(func.count() > 1))
+    dup_rows = (await db.execute(groups)).all()
+    dup_keys = {tuple(r) for r in dup_rows}
+    if duplicates:
+        if not dup_keys:
+            return {"total": 0, "items": [], "duplicate_groups": 0}
+        where.append(tuple_(*_duplicate_key()).in_(list(dup_keys)))
+    base = select(BankTransaction).where(*where)
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
-    rows = (await db.execute(base.order_by(BankTransaction.booked_at.desc()).limit(limit).offset(offset))).scalars().all()
+    order = [BankTransaction.amount_cents.desc(), BankTransaction.booked_at] if duplicates else [BankTransaction.booked_at.desc()]
+    rows = (await db.execute(base.order_by(*order).limit(limit).offset(offset))).scalars().all()
     donations = await transfer_donations(db, list(rows))
-    return {"total": total, "items": [_transfer_out(t, donations.get(str(t.id))) for t in rows]}
+    items = []
+    for t in rows:
+        row = _transfer_out(t, donations.get(str(t.id)))
+        row["possible_duplicate"] = (t.bank_account_id or NO_ACCOUNT, t.booked_at.astimezone(TZ).date() if t.booked_at else None,
+                                     t.amount_cents, t.sender_name or "") in dup_keys
+        items.append(row)
+    return {"total": total, "items": items, "duplicate_groups": len(dup_keys)}
 
 
 @router.post("/admin/incoming-transfers/reanalyse")

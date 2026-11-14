@@ -361,3 +361,24 @@ async def test_transfer_split_over_campaigns_and_unmatched_again(db_session):
     again = await bank_sync.approve_transfer(tx.id, bank_sync.ApproveIn(donor_id=berna.id, campaign_id=genel.id),
                                              request, db=db_session, current_user=admin)
     assert again["status"] == "matched" and len(again["receipts"]) == 1
+
+
+async def test_transfer_list_filters_and_look_alike_movements(db_session):
+    from app.api.v1 import bank_sync
+
+    org, admin, kurban, gazze, genel, ali, berna = await _bank_setup(db_session)
+    first = _tx(org, "Amir- VELI KAYA Aciklama- bagis", amount=75_000)
+    twin = _tx(org, "Amir- VELI KAYA Aciklama- bagis tekrar", amount=75_000)
+    other = _tx(org, "Amir- AYSE DEMIR Aciklama- zekat", amount=20_000)
+    for tx in (first, twin, other):
+        tx.sender_name = "VELI KAYA" if tx is not other else "AYSE DEMIR"
+        db_session.add(tx)
+    await db_session.flush()
+    request = _request(org)
+    found = await bank_sync.list_transfers(request, q="zekat", limit=200, offset=0, db=db_session, _=admin)
+    assert [i["id"] for i in found["items"]] == [str(other.id)]
+    big = await bank_sync.list_transfers(request, amount_min=500, limit=200, offset=0, db=db_session, _=admin)
+    assert {i["id"] for i in big["items"]} == {str(first.id), str(twin.id)}
+    dups = await bank_sync.list_transfers(request, duplicates=True, limit=200, offset=0, db=db_session, _=admin)
+    assert dups["duplicate_groups"] == 1 and {i["id"] for i in dups["items"]} == {str(first.id), str(twin.id)}
+    assert all(i["possible_duplicate"] for i in dups["items"])

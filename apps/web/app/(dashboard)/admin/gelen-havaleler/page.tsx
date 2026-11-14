@@ -18,12 +18,15 @@ interface Transfer {
   status: 'unmatched' | 'matched' | 'ambiguous' | 'ignored'; source: string; bank_account_id: string | null
   donation_id: string | null; payment_order_id: string | null; suggestion: Suggestion
   donor: { id: string; name: string; phone: string | null } | null
+  possible_duplicate?: boolean
   receipts: { donation_id: string; receipt_number: string; campaign_title: string | null; amount_cents: number }[]
 }
 interface Account { id: string; bank: string; label: string; currency: string }
 interface Book { id: string; series: string; status: string; next_label: string | null }
 
-const STATUS_TABS: [Transfer['status'], string][] = [['unmatched', 'Bekleyenler'], ['matched', 'Bağışa dönüşenler'], ['ignored', 'Yok sayılanlar']]
+type View = Transfer['status'] | 'duplicates'
+const STATUS_TABS: [View, string][] = [['unmatched', 'Bekleyenler'], ['matched', 'Bağışa dönüşenler'], ['ignored', 'Yok sayılanlar'], ['duplicates', 'Mükerrer kayıtlar']]
+const EMPTY_FILTERS = { q: '', date_from: '', date_to: '', amount_min: '', amount_max: '', account_id: '' }
 const KURBAN_TYPES = [['vacip', 'Vacip'], ['adak', 'Adak'], ['akika', 'Akika'], ['sukur', 'Şükür'], ['nafile', 'Nafile'], ['sadaka', 'Sadaka'], ['sifa', 'Şifa']]
 const CONFIDENCE: Record<CampaignHit['confidence'], [string, string]> = {
   high: ['Kesin', 'bg-green-100 text-green-800'], medium: ['Muhtemel', 'bg-amber-100 text-amber-800'], low: ['Tahmin', 'bg-gray-100 text-gray-600'],
@@ -41,7 +44,10 @@ const when = (iso: string) => new Date(iso).toLocaleString('tr-TR', { dateStyle:
 export default function IncomingTransfersPage() {
   const { data: access } = useAdminAccess()
   const canEdit = hasPermission(access, 'finance_manage')
-  const [status, setStatus] = useState<Transfer['status']>('unmatched')
+  const [status, setStatus] = useState<View>('unmatched')
+  const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [duplicateGroups, setDuplicateGroups] = useState(0)
+  const filtered = Object.values(filters).some(Boolean)
   const [items, setItems] = useState<Transfer[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -60,7 +66,11 @@ export default function IncomingTransfersPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const res = await v1Get<{ total: number; items: Transfer[] }>('/admin/incoming-transfers', { status, limit: 200 })
+      const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v).map(([k, v]) => [k, k.startsWith('amount') ? v.replace(',', '.') : v]))
+      const res = await v1Get<{ total: number; items: Transfer[]; duplicate_groups?: number }>('/admin/incoming-transfers', {
+        ...params, ...(status === 'duplicates' ? { duplicates: true } : { status }), limit: 200,
+      })
+      setDuplicateGroups(res.data.duplicate_groups || 0)
       setItems(res.data.items)
       setTotal(res.data.total)
       setSms(await loadRelatedSms('donation', res.data.items.map((t) => t.donation_id).filter((id): id is string => !!id)))
@@ -70,7 +80,10 @@ export default function IncomingTransfersPage() {
       setLoading(false)
     }
   }
-  useEffect(() => { load() }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const t = setTimeout(load, 300)
+    return () => clearTimeout(t)
+  }, [status, filters]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     v1Get<Account[]>('/admin/bank-accounts').then((r) => setAccounts(r.data)).catch(() => {})
     v1Get<{ items: { id: string; title: string; category?: string }[] }>('/campaigns', { page_size: 100 })
@@ -168,13 +181,36 @@ export default function IncomingTransfersPage() {
         {STATUS_TABS.map(([key, label]) => (
           <button key={key} onClick={() => setStatus(key)}
             className={`rounded-full px-4 py-1.5 text-xs font-bold ${status === key ? 'bg-primary-600 text-white' : 'border bg-white text-gray-700'}`}>
-            {label}{status === key ? ` (${total})` : ''}
+            {label}{status === key ? ` (${total})` : key === 'duplicates' && duplicateGroups ? ` (${duplicateGroups} grup)` : ''}
           </button>
         ))}
         {status === 'unmatched' && items.length > 0 && (
           <span className="ml-auto text-xs text-gray-500">Bu sayfadaki bekleyen tutar: <strong>{formatMoney(pendingTotal)}</strong></span>
         )}
       </div>
+
+      <div className="grid gap-2 rounded-xl border border-gray-100 bg-white p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-6">
+        <input className={`${inputClass} lg:col-span-2`} placeholder="Gönderen, açıklama veya işlem no ara…" value={filters.q}
+          onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
+        <input type="date" aria-label="Başlangıç tarihi" title="Başlangıç tarihi" className={inputClass} value={filters.date_from}
+          onChange={(e) => setFilters({ ...filters, date_from: e.target.value })} />
+        <input type="date" aria-label="Bitiş tarihi" title="Bitiş tarihi" className={inputClass} value={filters.date_to}
+          onChange={(e) => setFilters({ ...filters, date_to: e.target.value })} />
+        <div className="flex gap-2">
+          <input inputMode="decimal" placeholder="Min ₺" className={inputClass} value={filters.amount_min} onChange={(e) => setFilters({ ...filters, amount_min: e.target.value })} />
+          <input inputMode="decimal" placeholder="Maks ₺" className={inputClass} value={filters.amount_max} onChange={(e) => setFilters({ ...filters, amount_max: e.target.value })} />
+        </div>
+        <div className="flex gap-2">
+          <select className={inputClass} value={filters.account_id} onChange={(e) => setFilters({ ...filters, account_id: e.target.value })}>
+            <option value="">Tüm hesaplar</option>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.bank} · {a.label}</option>)}
+          </select>
+          {filtered && <button type="button" onClick={() => setFilters(EMPTY_FILTERS)} className={`${ghostButton} whitespace-nowrap`}>Temizle</button>}
+        </div>
+      </div>
+      {status === 'duplicates' && (
+        <p className="text-xs text-gray-500">Aynı hesap, aynı gün, aynı tutar ve aynı gönderenli hareketler. Bankadan iki kez gelmiş olabilir; fazlasını “Yok say” ile listeden çıkarın.</p>
+      )}
 
       <Card className="border border-gray-100 p-0 shadow-sm">
         {loading ? (
@@ -209,6 +245,7 @@ export default function IncomingTransfersPage() {
                       </Td>
                       <Td className="max-w-sm">
                         <div className="font-bold text-gray-900">{s.sender || t.sender_name || '—'}</div>
+                        {t.possible_duplicate && <span className="mt-0.5 inline-block rounded border border-amber-200 bg-amber-50 px-1.5 text-[10px] font-bold text-amber-700">Olası mükerrer</span>}
                         <div className="line-clamp-2 text-gray-500" title={t.description || ''}>{s.note || t.description}</div>
                         {s.ignored && <div className="mt-1 text-[10px] font-bold text-gray-400">{s.ignored}</div>}
                       </Td>
