@@ -5,7 +5,7 @@ import {
   HeartHandshake, Home, IdCard, MessagesSquare, PiggyBank, Receipt, ShieldCheck, Users, type LucideIcon,
 } from 'lucide-react'
 import { DemoForm, PlanCta } from './portal/DemoForm'
-import { MockBuilder, MockBulk, MockDashboard, MockSms, MockTransfer } from './portal/Mocks'
+import { MockBuilder, Screenshot } from './portal/Mocks'
 import { PortalThemeToggle } from './portal/ThemeToggle'
 
 const API_URL = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020').replace(/\/$/, '')
@@ -94,7 +94,11 @@ const container = 'mx-auto w-full max-w-7xl px-4 sm:px-6'
 const sectionTitle = 'text-3xl font-black tracking-tight text-pt-text md:text-4xl'
 const eyebrow = 'mb-3 text-xs font-bold uppercase tracking-[0.18em] text-pt-brand'
 const lead = 'mt-3 max-w-2xl text-pt-muted'
-const MOCKS = { transfer: MockTransfer, sms: MockSms, bulk: MockBulk, builder: MockBuilder }
+const SHOTS: Record<string, { name: string; title: string; alt: string }> = {
+  transfer: { name: 'transfers', title: 'panel · Gelen Havaleler', alt: 'Gelen havalenin bağışçıyla eşleştirilip iki bağış kalemine bölündüğü ekran' },
+  sms: { name: 'sms', title: 'panel · SMS Gönderimleri', alt: 'Makbuz ve havale SMS’lerinin durumlarıyla listelendiği ekran' },
+  bulk: { name: 'bulk', title: 'panel · Toplu SMS Gönder', alt: 'Toplu SMS’te hedef kitle, alıcı sayısı ve ilk iletinin önizlemesi' },
+}
 
 function Tick({ children }: { children: React.ReactNode }) {
   return (
@@ -177,7 +181,7 @@ export async function EInfakPortal() {
                 ))}
               </ul>
             </div>
-            <MockDashboard />
+            <Screenshot name="dashboard" title="panel · Genel Bakış" alt="E-İnfak yönetim paneli Genel Bakış ekranı: bağış toplamları, bekleyen havaleler ve aylık trend" priority />
           </div>
         </section>
 
@@ -198,7 +202,7 @@ export async function EInfakPortal() {
             <h2 className={sectionTitle}>Her gün saatlerinizi alan işler, birkaç tıkla biter</h2>
           </div>
           {SPOTLIGHTS.map((item, index) => {
-            const Mock = MOCKS[item.mock]
+            const shot = SHOTS[item.mock]
             return (
               <div key={item.title} className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
                 <div className={index % 2 ? 'lg:order-2' : ''}>
@@ -207,7 +211,7 @@ export async function EInfakPortal() {
                   <p className="mt-4 text-pt-muted">{item.text}</p>
                   <ul className="mt-5 space-y-2.5 text-sm text-pt-text">{item.points.map((point) => <Tick key={point}>{point}</Tick>)}</ul>
                 </div>
-                <div className={index % 2 ? 'lg:order-1' : ''}><Mock /></div>
+                <div className={index % 2 ? 'lg:order-1' : ''}>{shot ? <Screenshot {...shot} /> : <MockBuilder />}</div>
               </div>
             )
           })}

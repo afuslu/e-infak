@@ -8,7 +8,7 @@ import {
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, Table, Td, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface Beneficiary {
   id: string
@@ -85,10 +85,7 @@ export default function SponsorshipPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sponsorluk & Burs</h1>
-        <p className="mt-1 text-sm text-gray-500">Talebe, hoca ve yetim kayıtları; bağışçılarla eşleştirme ve aylık taksit takibi.</p>
-      </div>
+      <PageHeader title="Sponsorluk & Burs" description={<>Talebe, hoca ve yetim kayıtları; bağışçılarla eşleştirme ve aylık taksit takibi.</>} />
 
       {summary && (
         <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -464,25 +461,25 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged }: {
               </div>
               <button onClick={() => setDetail(null)} className="text-xl text-gray-400">✕</button>
             </div>
-            <table className="w-full text-left text-xs">
-              <tbody className="divide-y divide-gray-100">
+            <Table>
+              <TBody>
                 {(detail.installments || []).map((i) => (
-                  <tr key={i.id}>
-                    <td className="py-1.5">{i.seq}.</td>
-                    <td className="py-1.5">{new Date(i.due_date).toLocaleDateString('tr-TR')}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatMoney(i.amount_cents, detail.currency)}</td>
-                    <td className={`py-1.5 text-right font-semibold ${i.status === 'paid' ? 'text-green-700' : i.status === 'overdue' ? 'text-red-600' : 'text-gray-500'}`}>
+                  <Tr key={i.id}>
+                    <Td>{i.seq}.</Td>
+                    <Td>{new Date(i.due_date).toLocaleDateString('tr-TR')}</Td>
+                    <Td className="text-right tabular-nums">{formatMoney(i.amount_cents, detail.currency)}</Td>
+                    <Td className={`py-1.5 text-right font-semibold ${i.status === 'paid' ? 'text-green-700' : i.status === 'overdue' ? 'text-red-600' : 'text-gray-500'}`}>
                       {STATUS_LABEL[i.status] || i.status}
-                    </td>
-                    <td className="py-1.5 text-right">
+                    </Td>
+                    <Td className="text-right">
                       {canEdit && (i.status === 'pending' || i.status === 'overdue') && detail.status === 'active' && (
                         <button className="font-bold text-primary-700" onClick={() => match(i)}>Eşleştir</button>
                       )}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
             {canEdit && (
               <div className="flex justify-end gap-2 border-t pt-3">
                 {detail.status === 'cancelled'

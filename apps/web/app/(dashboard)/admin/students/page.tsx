@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { toast } from '../../../../components/admin/ui'
+import { PageHeader, toast } from '../../../../components/admin/ui'
 import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface Student {
@@ -197,15 +197,12 @@ export default function AdminStudentsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Medrese Öğrenci & Sponsorluk Paneli</h1>
-        <button
+      <PageHeader title="Medrese Öğrenci & Sponsorluk Paneli" actions={<button
           onClick={() => setShowAddForm(!showAddForm)}
           className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs"
         >
           {showAddForm ? 'İptal Et' : '+ Yeni Öğrenci Ekle'}
-        </button>
-      </div>
+        </button>} />
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">

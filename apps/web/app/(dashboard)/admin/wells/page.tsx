@@ -5,6 +5,7 @@ import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
+import { PageHeader } from '../../../../components/admin/ui'
 
 interface Well {
   id: string
@@ -108,18 +109,12 @@ export default function WellsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Su Kuyusu Yönetimi</h1>
-          <p className="mt-1 text-sm text-gray-500">Kuyuya bağlı bağış kalemine gelen bağışlar fonlamayı ve hisseleri otomatik günceller. Taksitli kuyu taahhütleri Sponsorluk ekranından açılır.</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader title="Su Kuyusu Yönetimi" description={<>Kuyuya bağlı bağış kalemine gelen bağışlar fonlamayı ve hisseleri otomatik günceller. Taksitli kuyu taahhütleri Sponsorluk ekranından açılır.</>} actions={<div className="flex gap-2">
           <select className={`${inputClass} w-44`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">Tüm durumlar</option>{Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
           {canEdit && <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : open(null))}>{showForm ? 'Vazgeç' : '+ Yeni Kuyu'}</button>}
-        </div>
-      </div>
+        </div>} />
 
       <Notice message={message} />
 

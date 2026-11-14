@@ -4,6 +4,7 @@ import { useState } from 'react'
 import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, apiErrorMessage } from '../../../../lib/admin-access'
+import { PageHeader } from '../../../../components/admin/ui'
 
 const inputClass = 'w-full rounded-lg border border-gray-300 p-2 text-sm outline-none focus:border-primary-600 bg-white'
 
@@ -38,10 +39,7 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="max-w-lg space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Şifremi Değiştir</h1>
-        <p className="mt-1 text-sm text-gray-500">Yeni şifre en az 10 karakter olmalı. Değiştirdiğinizde diğer cihazlardaki oturumlarınız kapanır.</p>
-      </div>
+      <PageHeader title="Şifremi Değiştir" description={<>Yeni şifre en az 10 karakter olmalı. Değiştirdiğinizde diğer cihazlardaki oturumlarınız kapanır.</>} />
       {support && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           Destek oturumundasınız. Kurum yöneticisinin şifresini platform konsolundaki “Şifre sıfırla” ile yenileyin.

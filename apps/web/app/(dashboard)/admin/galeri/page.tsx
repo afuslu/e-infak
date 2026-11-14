@@ -6,7 +6,7 @@ import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-acce
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ImageField } from '../../../../components/admin/ImageField'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, confirmDialog } from '../../../../components/admin/ui'
 
 interface GalleryItem {
   id: string
@@ -134,13 +134,7 @@ export default function AdminGalleryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Foto & Video Galeri</h1>
-          <p className="mt-1 text-sm text-gray-500">Galeri sitede /galeri adresinde yayınlanır. Videolar yalnız YouTube veya Vimeo bağlantısıyla eklenir.</p>
-        </div>
-        <a href="/galeri" target="_blank" rel="noreferrer" className={ghostButton}>Galeriyi Görüntüle ↗</a>
-      </div>
+      <PageHeader title="Foto & Video Galeri" description={<>Galeri sitede /galeri adresinde yayınlanır. Videolar yalnız YouTube veya Vimeo bağlantısıyla eklenir.</>} actions={<a href="/galeri" target="_blank" rel="noreferrer" className={ghostButton}>Galeriyi Görüntüle ↗</a>} />
 
       <Notice message={message} />
 

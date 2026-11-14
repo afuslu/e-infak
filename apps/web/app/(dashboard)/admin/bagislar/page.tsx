@@ -7,6 +7,7 @@ import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
+import { PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface Row {
   id: string
@@ -144,13 +145,10 @@ export default function AdminDonationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Bağışlar</h1>
-        <div className="flex gap-2">
+      <PageHeader title="Bağışlar" actions={<div className="flex gap-2">
           <button onClick={exportCsv} className={ghostButton}>⬇ Excel (CSV)</button>
           {canIssue && <button onClick={() => setShowManual((v) => !v)} className={primaryButton}>{showManual ? 'Vazgeç' : '+ Elle Makbuz Kes'}</button>}
-        </div>
-      </div>
+        </div>} />
 
       <Notice message={message} />
 
@@ -241,50 +239,44 @@ export default function AdminDonationsPage() {
           <p className="py-12 text-center text-xs text-gray-400">Bu filtrelerle bağış bulunamadı.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-700">
-              <thead>
-                <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  <th className="pb-2">Tarih</th><th className="pb-2">Bağışçı</th><th className="pb-2">Kampanya</th>
-                  <th className="pb-2">Ödeme</th><th className="pb-2">Durum</th><th className="pb-2 text-right">Tutar</th><th className="pb-2 text-right">İşlem</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table>
+              <THead>
+                <Tr>
+                  <Th>Tarih</Th><Th>Bağışçı</Th><Th>Kampanya</Th>
+                  <Th>Ödeme</Th><Th>Durum</Th><Th className="text-right">Tutar</Th><Th className="text-right">İşlem</Th>
+                </Tr>
+              </THead>
+              <TBody>
                 {result.items.map((r) => (
-                  <tr key={r.id} className={r.status === 'cancelled' || r.status === 'refunded' ? 'opacity-50' : ''}>
-                    <td className="py-2.5 whitespace-nowrap">
+                  <Tr key={r.id} className={r.status === 'cancelled' || r.status === 'refunded' ? 'opacity-50' : ''}>
+                    <Td className="whitespace-nowrap">
                       {new Date(r.paid_at).toLocaleDateString('tr-TR')}
                       <div className="font-mono text-[10px] text-gray-400">{r.receipt_number}</div>
-                    </td>
-                    <td className="py-2.5">
+                    </Td>
+                    <Td>
                       <Link href={`/admin/bagiscilar?donor=${r.donor_id}`} className="font-semibold text-gray-900 hover:text-primary-700">{r.donor_name}</Link>
                       {r.on_behalf_of && <div className="text-[11px] text-primary-700">Adına: {r.on_behalf_of}</div>}
-                    </td>
-                    <td className="py-2.5">{r.campaign_title}</td>
-                    <td className="py-2.5">
+                    </Td>
+                    <Td>{r.campaign_title}</Td>
+                    <Td>
                       {r.payment_method_label}
                       <div className="text-[10px] text-gray-400">{r.issued_by_name ? `${r.is_manual ? 'Elle' : 'Onay'}: ${r.issued_by_name}` : 'Online'}</div>
-                    </td>
-                    <td className="py-2.5">{STATUS_LABELS[r.status] || r.status}</td>
-                    <td className="py-2.5 text-right font-bold tabular-nums">{formatMoney(r.amount_cents, r.currency)}</td>
-                    <td className="py-2.5 text-right whitespace-nowrap">
+                    </Td>
+                    <Td>{STATUS_LABELS[r.status] || r.status}</Td>
+                    <Td className="text-right font-bold tabular-nums">{formatMoney(r.amount_cents, r.currency)}</Td>
+                    <Td className="text-right whitespace-nowrap">
                       <button onClick={() => pdf(r)} className="font-bold text-primary-700 hover:underline">PDF</button>
                       {canIssue && r.is_manual && r.status === 'confirmed' && (
                         <button onClick={() => cancel(r)} className="ml-3 font-bold text-red-600 hover:underline">İptal</button>
                       )}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
         )}
-        {result && pages > 1 && (
-          <div className="mt-4 flex items-center justify-end gap-2 text-sm">
-            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className={ghostButton}>← Önceki</button>
-            <span className="text-gray-500">{page} / {pages}</span>
-            <button disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className={ghostButton}>Sonraki →</button>
-          </div>
-        )}
+        {result && <div className="mt-4"><Pagination page={page} pages={pages} total={result.total} onChange={setPage} /></div>}
       </Card>
     </div>
   )

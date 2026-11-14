@@ -8,6 +8,7 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Inbox, X, XCircle, type LucideIcon } from 'lucide-react'
+import { twMerge } from 'tailwind-merge'
 import { ghostButton, primaryButton } from './FormKit'
 
 /** Dialogs render inside the panel wrapper so they get its theme (dark mode, brand colours). */
@@ -50,15 +51,18 @@ export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon }: {
 
 // --- Table -------------------------------------------------------------------------
 
-const join = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' ')
+/** Later classes win (a page's own padding overrides the default). */
+const join = (...parts: (string | undefined | false)[]) => twMerge(parts.filter(Boolean).join(' '))
 
 /**
  * Table parts with the panel's one table look. Pages write <Table><THead><Tr><Th>… exactly like
  * HTML; spacing, header style and row lines live here.
  */
-export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
-  return <table {...props} className={join('w-full text-left text-[13px] text-gray-700', className)} />
+/** `inset`: the table touches the card edge, so its outer cells keep their padding. */
+export function Table({ className, inset, ...props }: React.TableHTMLAttributes<HTMLTableElement> & { inset?: boolean }) {
+  return <table {...props} className={join('w-full text-left text-[13px] text-gray-700', inset && INSET, className)} />
 }
+const INSET = '[&_td:first-child]:pl-4 [&_th:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:last-child]:pr-4'
 export function THead({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
   return <thead {...props} className={join('border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500', className)} />
 }
@@ -69,10 +73,10 @@ export function Tr({ className, ...props }: React.HTMLAttributes<HTMLTableRowEle
   return <tr {...props} className={className} />
 }
 export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
-  return <th {...props} className={join('px-3 py-2.5 font-bold', className)} />
+  return <th {...props} className={join('px-3 py-2.5 font-bold first:pl-0 last:pr-0', className)} />
 }
 export function Td({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td {...props} className={join('px-3 py-2.5', className)} />
+  return <td {...props} className={join('px-3 py-2.5 first:pl-0 last:pr-0', className)} />
 }
 
 export interface Column<T> {

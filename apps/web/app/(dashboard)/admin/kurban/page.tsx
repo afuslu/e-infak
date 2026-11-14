@@ -7,7 +7,7 @@ import {
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm } from '../../../../components/admin/ManualReceiptForm'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface KurbanCampaign {
   id: string
@@ -216,12 +216,7 @@ export default function KurbanAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Kurban Organizasyonu</h1>
-          <p className="mt-1 text-sm text-gray-500">Web bağışları ve elden alınan hisseler otomatik olarak hisseye dönüşür; &quot;Hisseleri dağıt&quot; ile hayvanlara yerleştirilir.</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader title="Kurban Organizasyonu" description={<>Web bağışları ve elden alınan hisseler otomatik olarak hisseye dönüşür; &quot;Hisseleri dağıt&quot; ile hayvanlara yerleştirilir.</>} actions={<div className="flex gap-2">
           <select className={`${inputClass} w-64`} value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
             {campaigns.length === 0 && <option value="">Kampanya yok</option>}
             {campaigns.map((c) => (
@@ -233,8 +228,7 @@ export default function KurbanAdminPage() {
               {showCreate ? 'Vazgeç' : '+ Kurban Kampanyası'}
             </button>
           )}
-        </div>
-      </div>
+        </div>} />
 
       <Notice message={message} />
 
@@ -358,19 +352,19 @@ export default function KurbanAdminPage() {
                     s.kurban_type_label, s.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor', s.receipt_number]))}>⬇ CSV</button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                      <th className="pb-2">Hissedar</th><th className="pb-2">Bağışçı</th><th className="pb-2">Tür</th><th className="pb-2">Hayvan</th><th className="pb-2">Makbuz</th><th />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
+                <Table>
+                  <THead>
+                    <Tr>
+                      <Th>Hissedar</Th><Th>Bağışçı</Th><Th>Tür</Th><Th>Hayvan</Th><Th>Makbuz</Th><Th />
+                    </Tr>
+                  </THead>
+                  <TBody>
                     {shares.map((s) => (
-                      <tr key={s.id}>
-                        <td className="py-2 font-semibold">{s.on_behalf_of || s.donor_name}</td>
-                        <td className="py-2">{s.donor_name}<div className="text-[10px] text-gray-400">{s.donor_phone}</div></td>
-                        <td className="py-2">{s.kurban_type_label}</td>
-                        <td className="py-2">
+                      <Tr key={s.id}>
+                        <Td className="font-semibold">{s.on_behalf_of || s.donor_name}</Td>
+                        <Td>{s.donor_name}<div className="text-[10px] text-gray-400">{s.donor_phone}</div></Td>
+                        <Td>{s.kurban_type_label}</Td>
+                        <Td>
                           {canWrite && s.status !== 'slaughtered' ? (
                             <select className="rounded border p-1 text-xs" value={s.animal_id || ''} onChange={(e) => moveShare(s, e.target.value)}>
                               <option value="">— Atanmamış</option>
@@ -379,16 +373,16 @@ export default function KurbanAdminPage() {
                           ) : (
                             <span>{s.animal_number || '—'}{s.share_number ? ` / ${s.share_number}` : ''}{s.status === 'slaughtered' ? ' ✓' : ''}</span>
                           )}
-                        </td>
-                        <td className="py-2 font-mono text-[10px] text-gray-500">{s.receipt_number}</td>
-                        <td className="py-2 text-right">
+                        </Td>
+                        <Td className="font-mono text-[10px] text-gray-500">{s.receipt_number}</Td>
+                        <Td className="text-right">
                           {canWrite && s.status !== 'slaughtered' && <button className="font-bold text-primary-700" onClick={() => editShare(s)}>İsim</button>}
-                        </td>
-                      </tr>
+                        </Td>
+                      </Tr>
                     ))}
-                    {shares.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-gray-400">Hisse yok.</td></tr>}
-                  </tbody>
-                </table>
+                    {shares.length === 0 && <Tr><Td colSpan={6} className="text-center text-gray-400">Hisse yok.</Td></Tr>}
+                  </TBody>
+                </Table>
               </div>
             </Card>
           )}

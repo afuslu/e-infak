@@ -8,7 +8,7 @@ import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from
 import { DonorPicker, PickedDonor } from '../../../../components/admin/DonorPicker'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms, smsAmount } from '../../../../lib/sms'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface DonorHit { id?: string; name?: string; phone?: string | null; confidence: number; reason?: string; candidates: { id: string; name: string; phone: string | null }[] }
 interface CampaignHit { id: string; title: string; category: string; confidence: 'high' | 'medium' | 'low'; reason: string }
@@ -142,18 +142,10 @@ export default function IncomingTransfersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Gelen Havaleler</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Bankadan gelen havale ve EFT&apos;ler bağışçı ve kampanya önerisiyle burada bekler; onayladığınızda bağış ve makbuz oluşur.
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader title="Gelen Havaleler" description={<>Bankadan gelen havale ve EFT&apos;ler bağışçı ve kampanya önerisiyle burada bekler; onayladığınızda bağış ve makbuz oluşur.</>} actions={<div className="flex gap-2">
           <Link href="/admin/banka-hesaplari" className={ghostButton}>Banka hesapları ve kurallar</Link>
           {canEdit && <button onClick={reanalyse} disabled={busy} className={ghostButton}>Önerileri yenile</button>}
-        </div>
-      </div>
+        </div>} />
 
       <Notice message={message} />
 
@@ -193,37 +185,37 @@ export default function IncomingTransfersPage() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b bg-gray-50 text-[10px] font-bold uppercase text-gray-500">
-                <tr>
-                  <th className="p-3">Tarih</th>
-                  <th className="p-3">Gönderen / açıklama</th>
-                  <th className="p-3 text-right">Tutar</th>
-                  <th className="p-3">{status === 'matched' ? 'Bağışçı' : 'Önerilen bağışçı'}</th>
-                  <th className="p-3">{status === 'matched' ? 'Makbuz' : 'Önerilen kampanya'}</th>
-                  {status === 'matched' && <th className="p-3">SMS</th>}
-                  <th className="p-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table inset>
+              <THead className="bg-gray-50">
+                <Tr>
+                  <Th>Tarih</Th>
+                  <Th>Gönderen / açıklama</Th>
+                  <Th className="text-right">Tutar</Th>
+                  <Th>{status === 'matched' ? 'Bağışçı' : 'Önerilen bağışçı'}</Th>
+                  <Th>{status === 'matched' ? 'Makbuz' : 'Önerilen kampanya'}</Th>
+                  {status === 'matched' && <Th>SMS</Th>}
+                  <Th />
+                </Tr>
+              </THead>
+              <TBody>
                 {items.map((t) => {
                   const s = t.suggestion || {}
                   const [dLabel, dClass] = donorBadge(s.donor)
                   return (
-                    <tr key={t.id} className="align-top hover:bg-gray-50/60">
-                      <td className="whitespace-nowrap p-3 text-gray-600">
+                    <Tr key={t.id} className="align-top hover:bg-gray-50/60">
+                      <Td className="whitespace-nowrap text-gray-600">
                         {when(t.booked_at)}
                         <div className="text-[10px] text-gray-400">{t.bank_account_id ? accountName[t.bank_account_id] || '' : t.source === 'upload' ? 'Ekstre' : ''}</div>
-                      </td>
-                      <td className="max-w-sm p-3">
+                      </Td>
+                      <Td className="max-w-sm">
                         <div className="font-bold text-gray-900">{s.sender || t.sender_name || '—'}</div>
                         <div className="line-clamp-2 text-gray-500" title={t.description || ''}>{s.note || t.description}</div>
                         {s.ignored && <div className="mt-1 text-[10px] font-bold text-gray-400">{s.ignored}</div>}
-                      </td>
-                      <td className="whitespace-nowrap p-3 text-right font-mono font-bold text-gray-900">
+                      </Td>
+                      <Td className="whitespace-nowrap text-right font-mono font-bold text-gray-900">
                         {(t.amount_cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {t.currency}
-                      </td>
-                      <td className="p-3">
+                      </Td>
+                      <Td>
                         {t.status === 'unmatched' ? (
                           <>
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${dClass}`}>{dLabel}</span>
@@ -238,8 +230,8 @@ export default function IncomingTransfersPage() {
                           </>
                         ) : t.donation_id ? <span className="font-bold text-green-700">Bağış oluşturuldu</span>
                           : t.payment_order_id ? <span className="font-bold text-green-700">Online sipariş ödendi</span> : '—'}
-                      </td>
-                      <td className="p-3">
+                      </Td>
+                      <Td>
                         {t.status === 'unmatched' && s.campaign ? (
                           <>
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${CONFIDENCE[s.campaign.confidence][1]}`}>{CONFIDENCE[s.campaign.confidence][0]}</span>
@@ -254,9 +246,9 @@ export default function IncomingTransfersPage() {
                               {t.receipts.length > 1 && <span className="font-mono text-gray-500"> · {(r.amount_cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>}
                             </div>
                           ))}
-                      </td>
-                      {status === 'matched' && <td className="p-3"><SmsStatusPill sms={t.donation_id ? sms[t.donation_id] : undefined} /></td>}
-                      <td className="whitespace-nowrap p-3 text-right">
+                      </Td>
+                      {status === 'matched' && <Td><SmsStatusPill sms={t.donation_id ? sms[t.donation_id] : undefined} /></Td>}
+                      <Td className="whitespace-nowrap text-right">
                         {t.status === 'matched' && t.donation_id && (
                           <div className="flex justify-end gap-2">
                             {canSms && <button onClick={() => setSmsFor(t)} className={ghostButton}>SMS Gönder</button>}
@@ -269,12 +261,12 @@ export default function IncomingTransfersPage() {
                             <button onClick={() => ignore(t)} className={ghostButton}>Yok say</button>
                           </div>
                         )}
-                      </td>
-                    </tr>
+                      </Td>
+                    </Tr>
                   )
                 })}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
         )}
       </Card>

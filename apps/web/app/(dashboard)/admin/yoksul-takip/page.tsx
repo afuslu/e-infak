@@ -6,7 +6,7 @@ import {
   adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 type Degree = 'critical' | 'high' | 'medium' | 'low'
 type Review = 'applied' | 'inspecting' | 'approved' | 'rejected'
@@ -197,13 +197,11 @@ export default function PovertyTrackingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Yoksul Takibi</h1>
-          <p className="mt-1 text-sm text-gray-500">Hane kartı, yoksulluk puanı, başvuru incelemesi, toplu yardım ve adil dağıtım raporları. Onaylı haneler kumanyada da görünür.</p>
-        </div>
-        {canEdit && <button className={primaryButton} onClick={() => editHousehold()}>+ Yeni hane</button>}
-      </div>
+      <PageHeader
+        title="Yoksul Takibi"
+        description={<>Hane kartı, yoksulluk puanı, başvuru incelemesi, toplu yardım ve adil dağıtım raporları. Onaylı haneler kumanyada da görünür.</>}
+        actions={canEdit && <button className={primaryButton} onClick={() => editHousehold()}>+ Yeni hane</button>}
+      />
 
       <div className="flex gap-1 overflow-x-auto border-b text-sm font-semibold">
         {([['households', 'Haneler'], ['applications', 'Başvurular'], ['bulk', 'Toplu Yardım'], ['stats', 'İstatistik & Adalet'], ['settings', 'Puanlama Ayarı']] as [Tab, string][]).map(([k, l]) => (
@@ -366,18 +364,18 @@ export default function PovertyTrackingPage() {
               </form>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Ad</th><th>Yakınlık</th><th>Doğum</th><th>Durum</th><th>Gelir</th><th>Beden / Ayakkabı</th><th /></tr></thead>
-                <tbody>
+              <Table>
+                <THead><Tr><Th>Ad</Th><Th>Yakınlık</Th><Th>Doğum</Th><Th>Durum</Th><Th>Gelir</Th><Th>Beden / Ayakkabı</Th><Th /></Tr></THead>
+                <TBody>
                   {detail.members.map((m) => (
-                    <tr key={m.id} className="border-t">
-                      <td className="py-1.5 font-semibold">{m.full_name}</td>
-                      <td>{m.relation_label}</td>
-                      <td>{fmtDate(m.birth_date)}</td>
-                      <td>{[m.is_working && 'Çalışıyor', m.is_student && `Öğrenci${m.school ? ` (${m.school})` : ''}`, m.is_disabled && 'Engelli', m.has_chronic_illness && 'Kronik hasta'].filter(Boolean).join(', ') || '—'}</td>
-                      <td>{m.monthly_income_cents ? formatMoney(m.monthly_income_cents) : '—'}</td>
-                      <td>{[m.clothing_size, m.shoe_size].filter(Boolean).join(' / ') || '—'}</td>
-                      <td className="whitespace-nowrap text-right">
+                    <Tr key={m.id} className="border-t">
+                      <Td className="font-semibold">{m.full_name}</Td>
+                      <Td>{m.relation_label}</Td>
+                      <Td>{fmtDate(m.birth_date)}</Td>
+                      <Td>{[m.is_working && 'Çalışıyor', m.is_student && `Öğrenci${m.school ? ` (${m.school})` : ''}`, m.is_disabled && 'Engelli', m.has_chronic_illness && 'Kronik hasta'].filter(Boolean).join(', ') || '—'}</Td>
+                      <Td>{m.monthly_income_cents ? formatMoney(m.monthly_income_cents) : '—'}</Td>
+                      <Td>{[m.clothing_size, m.shoe_size].filter(Boolean).join(' / ') || '—'}</Td>
+                      <Td className="whitespace-nowrap text-right">
                         {canEdit && <>
                           <button className="mr-2 font-bold text-primary-700" onClick={() => setMemberForm({
                             id: m.id, full_name: m.full_name, relation: m.relation, gender: m.gender || '', birth_date: m.birth_date || '',
@@ -387,30 +385,30 @@ export default function PovertyTrackingPage() {
                           <button className="font-bold text-red-600" onClick={async () => (await confirmDialog(`${m.full_name} silinsin mi?`)) &&
                             act(() => adminSend('delete', `/households/${detail.id}/members/${m.id}`), 'Birey silindi', detail.id)}>Sil</button>
                         </>}
-                      </td>
-                    </tr>
+                      </Td>
+                    </Tr>
                   ))}
-                  {!detail.members.length && <tr><td colSpan={7} className="py-3 text-center text-gray-400">Birey eklenmemiş. Puanın doğru hesaplanması için bireyleri girin.</td></tr>}
-                </tbody>
-              </table>
+                  {!detail.members.length && <Tr><Td colSpan={7} className="text-center text-gray-400">Birey eklenmemiş. Puanın doğru hesaplanması için bireyleri girin.</Td></Tr>}
+                </TBody>
+              </Table>
             </div>
           </div>
 
           <div>
             <h3 className="mb-2 text-sm font-bold text-gray-900">Yardım geçmişi</h3>
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Paket</th><th>Adet</th><th>Durum</th><th>Plan</th><th>Teslim</th></tr></thead>
-              <tbody>
+            <Table>
+              <THead><Tr><Th>Paket</Th><Th>Adet</Th><Th>Durum</Th><Th>Plan</Th><Th>Teslim</Th></Tr></THead>
+              <TBody>
                 {detail.distributions.map((d) => (
-                  <tr key={d.id} className="border-t">
-                    <td className="py-1.5">{d.package_name}</td><td>{d.quantity}</td>
-                    <td>{{ planned: 'Planlandı', delivered: 'Teslim edildi', cancelled: 'İptal' }[d.status] || d.status}</td>
-                    <td>{fmtDate(d.planned_date)}</td><td>{fmtDate(d.delivered_at)}</td>
-                  </tr>
+                  <Tr key={d.id} className="border-t">
+                    <Td>{d.package_name}</Td><Td>{d.quantity}</Td>
+                    <Td>{{ planned: 'Planlandı', delivered: 'Teslim edildi', cancelled: 'İptal' }[d.status] || d.status}</Td>
+                    <Td>{fmtDate(d.planned_date)}</Td><Td>{fmtDate(d.delivered_at)}</Td>
+                  </Tr>
                 ))}
-                {!detail.distributions.length && <tr><td colSpan={5} className="py-3 text-center text-gray-400">Henüz yardım yapılmamış.</td></tr>}
-              </tbody>
-            </table>
+                {!detail.distributions.length && <Tr><Td colSpan={5} className="text-center text-gray-400">Henüz yardım yapılmamış.</Td></Tr>}
+              </TBody>
+            </Table>
           </div>
         </Card>
       )}
@@ -442,29 +440,29 @@ export default function PovertyTrackingPage() {
               rows.map((h) => [h.poverty_score, h.degree_label, h.full_name, h.phone, h.city, h.district, h.neighborhood, h.household_size, fmtDate(h.last_delivery_at), h.total_received, h.review_label]))}>⬇ CSV</button>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Puan</th><th>Ad</th><th>Konum</th><th>Kişi</th><th>Son yardım</th><th>Durum</th><th /></tr></thead>
-              <tbody>
+            <Table>
+              <THead><Tr><Th>Puan</Th><Th>Ad</Th><Th>Konum</Th><Th>Kişi</Th><Th>Son yardım</Th><Th>Durum</Th><Th /></Tr></THead>
+              <TBody>
                 {rows.map((h) => (
-                  <tr key={h.id} className={`cursor-pointer border-t hover:bg-gray-50 ${detail?.id === h.id ? 'bg-primary-50/30' : ''}`} onClick={() => openDetail(h.id)}>
-                    <td className="py-2"><ScoreBadge h={h} /></td>
-                    <td className="font-semibold text-gray-900">{h.full_name}{h.source === 'web' && <span className="ml-1 text-[10px] text-gray-400">(web)</span>}</td>
-                    <td>{location(h)}</td>
-                    <td>{h.household_size || '—'}</td>
-                    <td>{fmtDate(h.last_delivery_at)}{h.total_received ? ` (${h.total_received})` : ''}</td>
-                    <td>{h.review_label}</td>
-                    <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                  <Tr key={h.id} className={`cursor-pointer border-t hover:bg-gray-50 ${detail?.id === h.id ? 'bg-primary-50/30' : ''}`} onClick={() => openDetail(h.id)}>
+                    <Td><ScoreBadge h={h} /></Td>
+                    <Td className="font-semibold text-gray-900">{h.full_name}{h.source === 'web' && <span className="ml-1 text-[10px] text-gray-400">(web)</span>}</Td>
+                    <Td>{location(h)}</Td>
+                    <Td>{h.household_size || '—'}</Td>
+                    <Td>{fmtDate(h.last_delivery_at)}{h.total_received ? ` (${h.total_received})` : ''}</Td>
+                    <Td>{h.review_label}</Td>
+                    <Td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       {canEdit && tab === 'applications' && <>
                         {h.review_status === 'applied' && <button className="mr-2 font-bold text-gray-700" onClick={() => review(h, 'inspecting')}>İncele</button>}
                         <button className="mr-2 font-bold text-primary-700" onClick={() => review(h, 'approved')}>Onayla</button>
                         <button className="font-bold text-red-600" onClick={() => review(h, 'rejected')}>Reddet</button>
                       </>}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-                {!rows.length && <tr><td colSpan={7} className="py-6 text-center text-gray-400">Kayıt yok.</td></tr>}
-              </tbody>
-            </table>
+                {!rows.length && <Tr><Td colSpan={7} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}
+              </TBody>
+            </Table>
           </div>
         </Card>
       )}
@@ -555,12 +553,12 @@ function BulkPlan({ meta, regions, packages, canEdit, onMessage }: {
           </div>
           {result.stock_short > 0 && <p className="text-xs font-semibold text-amber-700">Stok {result.stock_short} paket eksik; teslim sırasında stok yetmezse işlem durur.</p>}
           {result.preview.length > 0 && (
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Puan</th><th>Ad</th><th>Konum</th><th>Son yardım</th></tr></thead>
-              <tbody>{result.preview.map((h) => (
-                <tr key={h.id} className="border-t"><td className="py-1.5"><ScoreBadge h={h} /></td><td>{h.full_name}</td><td>{location(h)}</td><td>{fmtDate(h.last_delivery_at)}</td></tr>
-              ))}</tbody>
-            </table>
+            <Table>
+              <THead><Tr><Th>Puan</Th><Th>Ad</Th><Th>Konum</Th><Th>Son yardım</Th></Tr></THead>
+              <TBody>{result.preview.map((h) => (
+                <Tr key={h.id} className="border-t"><Td><ScoreBadge h={h} /></Td><Td>{h.full_name}</Td><Td>{location(h)}</Td><Td>{fmtDate(h.last_delivery_at)}</Td></Tr>
+              ))}</TBody>
+            </Table>
           )}
         </div>
       )}
@@ -600,13 +598,13 @@ function Stats() {
           </select>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Konum</th><th>Hane</th><th>Ort. puan</th><th>Çok acil</th><th>Yüksek</th><th>Yardım alan</th><th>Paket</th></tr></thead>
-            <tbody>{stats.rows.map((r: any) => (
-              <tr key={r.label} className="border-t"><td className="py-1.5 font-semibold">{r.label}</td><td>{r.households}</td><td>{r.avg_score}</td>
-                <td className="font-bold text-red-700">{r.critical}</td><td>{r.high}</td><td>{r.helped_12m}</td><td>{r.packages_12m}</td></tr>
-            ))}</tbody>
-          </table>
+          <Table>
+            <THead><Tr><Th>Konum</Th><Th>Hane</Th><Th>Ort. puan</Th><Th>Çok acil</Th><Th>Yüksek</Th><Th>Yardım alan</Th><Th>Paket</Th></Tr></THead>
+            <TBody>{stats.rows.map((r: any) => (
+              <Tr key={r.label} className="border-t"><Td className="font-semibold">{r.label}</Td><Td>{r.households}</Td><Td>{r.avg_score}</Td>
+                <Td className="font-bold text-red-700">{r.critical}</Td><Td>{r.high}</Td><Td>{r.helped_12m}</Td><Td>{r.packages_12m}</Td></Tr>
+            ))}</TBody>
+          </Table>
         </div>
       </Card>
 
@@ -617,25 +615,25 @@ function Stats() {
             <option value={90}>Son 90 gün</option><option value={180}>Son 180 gün</option><option value={365}>Son 1 yıl</option>
           </select>
         </div>
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Derece</th><th>Hane</th><th>Yardım alan</th><th>Almayan</th><th>Oran</th><th>Hane başı paket</th></tr></thead>
-          <tbody>{fair.degrees.map((d: any) => (
-            <tr key={d.degree} className="border-t"><td className="py-1.5 font-semibold">{d.label}</td><td>{d.households}</td><td>{d.helped}</td><td>{d.not_helped}</td><td>%{d.helped_pct}</td><td>{d.packages_per_household}</td></tr>
-          ))}</tbody>
-        </table>
+        <Table>
+          <THead><Tr><Th>Derece</Th><Th>Hane</Th><Th>Yardım alan</Th><Th>Almayan</Th><Th>Oran</Th><Th>Hane başı paket</Th></Tr></THead>
+          <TBody>{fair.degrees.map((d: any) => (
+            <Tr key={d.degree} className="border-t"><Td className="font-semibold">{d.label}</Td><Td>{d.households}</Td><Td>{d.helped}</Td><Td>{d.not_helped}</Td><Td>%{d.helped_pct}</Td><Td>{d.packages_per_household}</Td></Tr>
+          ))}</TBody>
+        </Table>
         <p className="text-[11px] text-gray-400">Adil bir dağıtımda yardım oranı ve hane başı paket, derece yükseldikçe artmalıdır.</p>
         <div className="grid gap-4 lg:grid-cols-2">
           <div>
             <h3 className="mb-1 text-xs font-bold text-red-700">Gözden kaçanlar: çok acil / yüksek ama bu dönemde yardım almamış ({fair.overlooked.length})</h3>
-            <table className="w-full text-left text-xs"><tbody>{fair.overlooked.map((h: Household) => (
-              <tr key={h.id} className="border-t"><td className="py-1.5"><ScoreBadge h={h} /></td><td>{h.full_name}</td><td>{location(h)}</td><td>son: {fmtDate(h.last_delivery_at)}</td></tr>
-            ))}</tbody></table>
+            <Table><TBody>{fair.overlooked.map((h: Household) => (
+              <Tr key={h.id} className="border-t"><Td><ScoreBadge h={h} /></Td><Td>{h.full_name}</Td><Td>{location(h)}</Td><Td>son: {fmtDate(h.last_delivery_at)}</Td></Tr>
+            ))}</TBody></Table>
           </div>
           <div>
             <h3 className="mb-1 text-xs font-bold text-gray-700">Bu dönemde en çok yardım alanlar</h3>
-            <table className="w-full text-left text-xs"><tbody>{fair.most_helped.map((h: Household) => (
-              <tr key={h.id} className="border-t"><td className="py-1.5"><ScoreBadge h={h} /></td><td>{h.full_name}</td><td>{h.total_received} paket</td></tr>
-            ))}</tbody></table>
+            <Table><TBody>{fair.most_helped.map((h: Household) => (
+              <Tr key={h.id} className="border-t"><Td><ScoreBadge h={h} /></Td><Td>{h.full_name}</Td><Td>{h.total_received} paket</Td></Tr>
+            ))}</TBody></Table>
           </div>
         </div>
       </Card>

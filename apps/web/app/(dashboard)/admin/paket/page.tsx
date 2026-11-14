@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card } from '@e-infak/ui'
 import { adminSend, apiErrorMessage, useAdminAccess } from '../../../../lib/admin-access'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 export default function PackagePage() {
   const queryClient = useQueryClient()
@@ -45,10 +46,7 @@ export default function PackagePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Paket & Kullanım</h1>
-        <p className="mt-1 text-sm text-gray-500">Kurumunuzun paketi, açık modüller ve kullanım sınırları.</p>
-      </div>
+      <PageHeader title="Paket & Kullanım" description={<>Kurumunuzun paketi, açık modüller ve kullanım sınırları.</>} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="border border-gray-100 p-5 shadow-sm">
@@ -75,24 +73,24 @@ export default function PackagePage() {
       )}
 
       <Card className="overflow-x-auto border border-gray-100 p-6 shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b">
-              <th className="pb-3 text-xs font-bold uppercase tracking-wider text-gray-500">Modül</th>
+        <Table>
+          <THead>
+            <Tr className="border-b">
+              <Th className="text-xs uppercase tracking-wider text-gray-500">Modül</Th>
               {access.plans.map((p) => (
-                <th key={p.key} className={`pb-3 text-center ${p.key === access.plan ? 'text-primary-700' : 'text-gray-700'}`}>
+                <Th key={p.key} className={`pb-3 text-center ${p.key === access.plan ? 'text-primary-700' : 'text-gray-700'}`}>
                   {p.label}
                   {p.key === access.plan && <div className="text-[10px] font-semibold">(mevcut)</div>}
-                </th>
+                </Th>
               ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
+            </Tr>
+          </THead>
+          <TBody>
             {access.catalog.map((feature) => (
-              <tr key={feature.key}>
-                <td className="py-2 text-gray-800">{feature.label}</td>
+              <Tr key={feature.key}>
+                <Td className="text-gray-800">{feature.label}</Td>
                 {access.plans.map((p) => (
-                  <td key={p.key} className="py-2 text-center">
+                  <Td key={p.key} className="text-center">
                     {p.features.includes(feature.key) ? (
                       <span className="font-bold text-emerald-600">✓</span>
                     ) : p.addons.includes(feature.key) ? (
@@ -100,16 +98,16 @@ export default function PackagePage() {
                     ) : (
                       <span className="text-gray-300">—</span>
                     )}
-                  </td>
+                  </Td>
                 ))}
-              </tr>
+              </Tr>
             ))}
-            <tr>
-              <td className="py-2 text-gray-800">Kullanıcı sayısı</td>
-              {access.plans.map((p) => <td key={p.key} className="py-2 text-center font-semibold">{p.users}</td>)}
-            </tr>
-          </tbody>
-        </table>
+            <Tr>
+              <Td className="text-gray-800">Kullanıcı sayısı</Td>
+              {access.plans.map((p) => <Td key={p.key} className="text-center font-semibold">{p.users}</Td>)}
+            </Tr>
+          </TBody>
+        </Table>
         {!access.me.is_platform_admin && (
           <p className="mt-4 text-xs text-gray-500">Paket değişikliği ve ek modül talepleri için E-İnfak destek ekibiyle iletişime geçin.</p>
         )}

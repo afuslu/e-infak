@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface StaffUser {
   id: string
@@ -96,31 +96,27 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Personel & Yetkiler</h1>
-          {access && (
-            <p className="mt-1 text-sm text-gray-500">
-              {access.plan_label} paket · aktif kullanıcı <strong>{access.usage.users}</strong> / {access.limits.users}
-            </p>
-          )}
-        </div>
-        <div className="flex rounded-lg border bg-white p-1 text-sm font-semibold">
-          {([
-            ['users', 'Personel'],
-            ['departments', 'Birimler'],
-            ['roles', 'Roller'],
-          ] as [Tab, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`rounded-md px-4 py-1.5 ${tab === key ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Personel & Yetkiler"
+        description={access && <>{access.plan_label} paket · aktif kullanıcı <strong>{access.usage.users}</strong> / {access.limits.users}</>}
+        actions={
+          <div className="flex rounded-lg border bg-white p-1 text-sm font-semibold">
+            {([
+              ['users', 'Personel'],
+              ['departments', 'Birimler'],
+              ['roles', 'Roller'],
+            ] as [Tab, string][]).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`rounded-md px-4 py-1.5 ${tab === key ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {message && (
         <div className={`rounded-lg border p-3 text-sm font-semibold ${message.type === 'ok' ? 'border-green-100 bg-green-50 text-green-700' : 'border-red-100 bg-red-50 text-red-700'}`}>
@@ -265,28 +261,28 @@ function UsersTab({
           <p className="py-6 text-center text-xs text-gray-400">Kayıtlı personel bulunmuyor.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-600">
-              <thead>
-                <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  <th className="pb-3">Ad Soyad</th>
-                  <th className="pb-3">Hazır Rol</th>
-                  <th className="pb-3">Özel Rol</th>
-                  <th className="pb-3">Birim</th>
-                  <th className="pb-3">Durum</th>
-                  {canManage && <th className="pb-3">Şifre</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table>
+              <THead>
+                <Tr>
+                  <Th>Ad Soyad</Th>
+                  <Th>Hazır Rol</Th>
+                  <Th>Özel Rol</Th>
+                  <Th>Birim</Th>
+                  <Th>Durum</Th>
+                  {canManage && <Th>Şifre</Th>}
+                </Tr>
+              </THead>
+              <TBody>
                 {users.map((user) => {
                   const isSelf = user.id === currentUserId
                   const locked = !canManage || user.role === 'platform_admin'
                   return (
-                    <tr key={user.id} className={user.is_active ? '' : 'opacity-60'}>
-                      <td className="py-3">
+                    <Tr key={user.id} className={user.is_active ? '' : 'opacity-60'}>
+                      <Td>
                         <div className="font-semibold text-gray-900">{user.first_name} {user.last_name}{isSelf && ' (siz)'}</div>
                         <div className="font-mono text-[11px] text-gray-500">{user.email}</div>
-                      </td>
-                      <td className="py-3">
+                      </Td>
+                      <Td>
                         <select
                           disabled={locked || isSelf}
                           value={user.role}
@@ -296,8 +292,8 @@ function UsersTab({
                           {user.role === 'platform_admin' && <option value="platform_admin">Sistem Yöneticisi</option>}
                           {builtinRoles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
                         </select>
-                      </td>
-                      <td className="py-3">
+                      </Td>
+                      <Td>
                         <select
                           disabled={locked || isSelf}
                           value={user.staff_role_id || ''}
@@ -311,8 +307,8 @@ function UsersTab({
                           <option value="">— (hazır rol geçerli)</option>
                           {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                         </select>
-                      </td>
-                      <td className="py-3">
+                      </Td>
+                      <Td>
                         <select
                           disabled={locked}
                           value={user.department_id || ''}
@@ -326,8 +322,8 @@ function UsersTab({
                           <option value="">—</option>
                           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                         </select>
-                      </td>
-                      <td className="py-3">
+                      </Td>
+                      <Td>
                         <button
                           disabled={locked || isSelf}
                           onClick={() => update(user, { is_active: !user.is_active }, user.is_active ? 'Hesap pasifleştirildi' : 'Hesap aktifleştirildi')}
@@ -335,9 +331,9 @@ function UsersTab({
                         >
                           {user.is_active ? 'Aktif' : 'Pasif'}
                         </button>
-                      </td>
+                      </Td>
                       {canManage && (
-                        <td className="py-3">
+                        <Td>
                           {isSelf ? (
                             <Link href="/admin/sifre" className="text-[11px] font-semibold text-primary-700 hover:underline">Şifremi değiştir</Link>
                           ) : locked ? null : passwordFor === user.id ? (
@@ -354,13 +350,13 @@ function UsersTab({
                               Şifre belirle
                             </button>
                           )}
-                        </td>
+                        </Td>
                       )}
-                    </tr>
+                    </Tr>
                   )
                 })}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
         )}
       </Card>

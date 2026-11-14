@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface ChurnDonor {
   donor_name: string
@@ -51,15 +52,12 @@ export default function AdminAiPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Yapay Zeka (AI) Destekli Tahmin Motoru</h1>
-        <button
+      <PageHeader title="Yapay Zeka (AI) Destekli Tahmin Motoru" actions={<button
           onClick={loadAiInsights}
           className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
         >
           Yenile
-        </button>
-      </div>
+        </button>} />
 
       {error && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -80,30 +78,30 @@ export default function AdminAiPage() {
                 <span className="text-[10px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded">Riskli Sinyal</span>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-gray-600">
-                  <thead>
-                    <tr className="border-b text-gray-500 uppercase tracking-wider text-[10px] font-bold">
-                      <th className="pb-3">Ad Soyad</th>
-                      <th className="pb-3">Son Bağış Tarihi</th>
-                      <th className="pb-3">Tahmini Churn Riski</th>
-                      <th className="pb-3 text-right">Tavsiye Edilen Aksiyon</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
+                <Table>
+                  <THead>
+                    <Tr>
+                      <Th>Ad Soyad</Th>
+                      <Th>Son Bağış Tarihi</Th>
+                      <Th>Tahmini Churn Riski</Th>
+                      <Th className="text-right">Tavsiye Edilen Aksiyon</Th>
+                    </Tr>
+                  </THead>
+                  <TBody>
                     {churns.map((c, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50/50">
-                        <td className="py-4 font-bold text-gray-900">{c.donor_name}</td>
-                        <td className="py-4 text-gray-400 font-semibold">{c.last_donation_date}</td>
-                        <td className="py-4 font-black">
+                      <Tr key={idx} className="hover:bg-gray-50/50">
+                        <Td className="font-bold text-gray-900">{c.donor_name}</Td>
+                        <Td className="text-gray-400 font-semibold">{c.last_donation_date}</Td>
+                        <Td className="font-black">
                           <span className={`inline-block px-2 py-0.5 rounded text-[10px] ${c.risk_percentage > 80 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
                             %{c.risk_percentage}
                           </span>
-                        </td>
-                        <td className="py-4 text-right font-medium text-primary-600">{c.recommended_action}</td>
-                      </tr>
+                        </Td>
+                        <Td className="text-right font-medium text-primary-600">{c.recommended_action}</Td>
+                      </Tr>
                     ))}
-                  </tbody>
-                </table>
+                  </TBody>
+                </Table>
               </div>
             </Card>
           </div>

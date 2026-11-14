@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
 import { Notice, ghostButton, inputClass } from '../../../../components/admin/FormKit'
+import { PageHeader } from '../../../../components/admin/ui'
 
 interface Application {
   id: string
@@ -77,20 +78,14 @@ export default function AdminVolunteersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Gönüllü Başvuruları</h1>
-          <p className="mt-1 text-sm text-gray-500">Başvurular sitedeki /gonullu formundan gelir.</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader title="Gönüllü Başvuruları" description={<>Başvurular sitedeki /gonullu formundan gelir.</>} actions={<div className="flex gap-2">
           <input className={`${inputClass} w-56`} placeholder="Ad, telefon, şehir ara" value={q} onChange={(e) => setQ(e.target.value)} />
           <select className={`${inputClass} w-40`} value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">Tüm durumlar</option>
             {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <button onClick={exportCsv} className={ghostButton}>⬇ CSV</button>
-        </div>
-      </div>
+        </div>} />
 
       <Notice message={message} />
 

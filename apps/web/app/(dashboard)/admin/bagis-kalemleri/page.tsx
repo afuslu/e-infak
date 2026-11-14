@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { confirmDialog, toast } from '../../../../components/admin/ui'
+import { PageHeader, confirmDialog, toast } from '../../../../components/admin/ui'
 import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface DonationCategory {
@@ -92,15 +92,12 @@ export default function AdminDonationCategoriesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Bağış Kalemleri</h1>
-        <button
+      <PageHeader title="Bağış Kalemleri" actions={<button
           onClick={loadCategories}
           className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
         >
           Yenile
-        </button>
-      </div>
+        </button>} />
       <p className="text-sm text-gray-500 -mt-6">
         Ana sayfadaki &quot;Bağış Kategorileri / Hızlı Bağış&quot; grid&apos;inde görünen kalemler. Sıralama küçükten büyüğe uygulanır.
       </p>

@@ -6,7 +6,7 @@ import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess, v1Get } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { MODE_LABEL, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, confirmDialog } from '../../../../components/admin/ui'
 
 type Draft = { id: string | null; name: string; body: string; event_key: string; campaign_id: string; auto_mode: SmsTemplate['auto_mode']; is_active: boolean }
 const EMPTY: Draft = { id: null, name: '', body: '', event_key: '', campaign_id: '', auto_mode: 'manual', is_active: true }
@@ -97,16 +97,10 @@ export default function SmsTemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">SMS Şablonları</h1>
-          <p className="mt-1 text-sm text-gray-500">Hızlı SMS penceresinde seçilen ve olaylarda otomatik giden metinler. Değişkenler gönderim anında doldurulur.</p>
-        </div>
-        <div className="flex shrink-0 gap-2 whitespace-nowrap">
+      <PageHeader title="SMS Şablonları" description={<>Hızlı SMS penceresinde seçilen ve olaylarda otomatik giden metinler. Değişkenler gönderim anında doldurulur.</>} actions={<div className="flex shrink-0 gap-2 whitespace-nowrap">
           <Link href="/admin/sms-gonderimleri" className={`${ghostButton} flex items-center`}>SMS Gönderimleri</Link>
           {canEdit && <button onClick={() => setDraft({ ...EMPTY })} className={primaryButton}>+ Yeni Şablon</button>}
-        </div>
-      </div>
+        </div>} />
 
       <Notice message={message} />
 

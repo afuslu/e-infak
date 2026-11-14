@@ -6,7 +6,7 @@ import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { SegmentInfo, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface Options {
   kinds: { key: string; label: string }[]
@@ -165,16 +165,10 @@ export default function BulkSmsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Toplu SMS Gönder</h1>
-          <p className="mt-1 text-sm text-gray-500">Hedef kitleyi seçin, metni yazın; kime gideceğini ve kaç SMS tutacağını görüp gönderin.</p>
-        </div>
-        <div className="flex shrink-0 gap-2 whitespace-nowrap">
+      <PageHeader title="Toplu SMS Gönder" description={<>Hedef kitleyi seçin, metni yazın; kime gideceğini ve kaç SMS tutacağını görüp gönderin.</>} actions={<div className="flex shrink-0 gap-2 whitespace-nowrap">
           <Link href="/admin/sms-gonderimleri" className={ghostButton}>SMS Gönderimleri</Link>
           <Link href="/admin/sms" className={ghostButton}>Şablonlar</Link>
-        </div>
-      </div>
+        </div>} />
 
       <Notice message={message} />
 
@@ -331,31 +325,31 @@ export default function BulkSmsPage() {
           <p className="py-6 text-center text-sm text-gray-400">Henüz toplu gönderim yapılmadı.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b text-[10px] font-bold uppercase text-gray-500">
-                <tr><th className="pb-2 pr-3">Gönderim</th><th className="pb-2 pr-3">Hedef kitle</th><th className="pb-2 pr-3">Zaman</th><th className="pb-2 pr-3">İlerleme</th><th className="pb-2 pr-3">Durum</th><th className="pb-2" /></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table>
+              <THead>
+                <Tr><Th>Gönderim</Th><Th>Hedef kitle</Th><Th>Zaman</Th><Th>İlerleme</Th><Th>Durum</Th><Th /></Tr>
+              </THead>
+              <TBody>
                 {batches.map((b) => (
-                  <tr key={b.id} className="align-top">
-                    <td className="max-w-xs py-2.5 pr-3">
+                  <Tr key={b.id} className="align-top">
+                    <Td className="max-w-xs">
                       <div className="font-bold text-gray-900">{b.name}{b.commercial && <span className="ml-2 rounded border px-1 text-[10px] text-gray-500">Ticari</span>}</div>
                       <div className="line-clamp-2 text-gray-500" title={b.body}>{b.body}</div>
-                    </td>
-                    <td className="py-2.5 pr-3 text-gray-600">{b.audience_label}</td>
-                    <td className="whitespace-nowrap py-2.5 pr-3 text-gray-500">{when(b.send_after)}<div className="text-[10px] text-gray-400">{b.created_by}</div></td>
-                    <td className="py-2.5 pr-3">
+                    </Td>
+                    <Td className="text-gray-600">{b.audience_label}</Td>
+                    <Td className="whitespace-nowrap text-gray-500">{when(b.send_after)}<div className="text-[10px] text-gray-400">{b.created_by}</div></Td>
+                    <Td>
                       <div className="h-1.5 w-32 overflow-hidden rounded-full bg-gray-100"><div className="h-full bg-primary-600" style={{ width: `${b.total ? Math.round((b.sent / b.total) * 100) : 0}%` }} /></div>
                       <div className="mt-1 tabular-nums text-gray-600">{n(b.sent)} / {n(b.total)}{b.failed > 0 && <span className="ml-2 font-bold text-red-600">{n(b.failed)} başarısız</span>}</div>
-                    </td>
-                    <td className="py-2.5 pr-3"><span className={`whitespace-nowrap rounded border px-1.5 py-0.5 text-[10px] font-bold ${STATE[b.state][1]}`}>{STATE[b.state][0]}</span></td>
-                    <td className="whitespace-nowrap py-2.5 text-right">
+                    </Td>
+                    <Td><span className={`whitespace-nowrap rounded border px-1.5 py-0.5 text-[10px] font-bold ${STATE[b.state][1]}`}>{STATE[b.state][0]}</span></Td>
+                    <Td className="whitespace-nowrap text-right">
                       {canSend && b.waiting > 0 && <button onClick={() => cancel(b)} className="font-bold text-red-600">Durdur</button>}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
         )}
       </Card>

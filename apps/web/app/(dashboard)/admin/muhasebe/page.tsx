@@ -5,7 +5,7 @@ import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 const accGet = <T,>(path: string, params?: Record<string, unknown>) =>
   axios.get<T>(`${adminApiBase()}/api/v1/admin-features/acc${path}`, { headers: adminAuthHeaders(), params })
@@ -48,10 +48,7 @@ export default function AccountingPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Muhasebe</h1>
-        <p className="mt-1 text-sm text-gray-500">Kasa / banka hesapları, giderler, cari kartlar, çek-senet ve personel maaşı. Onaylanan bağışlar, ödeme yöntemine göre varsayılan hesaba otomatik işlenir.</p>
-      </div>
+      <PageHeader title="Muhasebe" description={<>Kasa / banka hesapları, giderler, cari kartlar, çek-senet ve personel maaşı. Onaylanan bağışlar, ödeme yöntemine göre varsayılan hesaba otomatik işlenir.</>} />
       <div className="flex gap-1 overflow-x-auto border-b text-sm font-semibold">
         {([['summary', 'Özet'], ['accounts', 'Kasa & Banka'], ['expenses', 'Giderler'], ['invoices', 'Faturalar'], ['stock', 'Stok & Depo'], ['parties', 'Cariler'], ['cheques', 'Çek & Senet'], ['payroll', 'Personel & Maaş']] as [Tab, string][]).map(([k, l]) => (
           <button key={k} onClick={() => { setTab(k); setMessage(null) }} className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}>{l}</button>
@@ -109,18 +106,18 @@ function Summary({ onMessage }: { onMessage: (m: Msg) => void }) {
         {[['Gelirler', data.income], ['Giderler', data.expense]].map(([title, rows]: any) => (
           <Card key={title} className="border border-gray-100 p-5 shadow-sm">
             <h2 className="mb-2 text-sm font-bold text-gray-900">{title} (TL, virman hariç)</h2>
-            <table className="w-full text-left text-xs"><tbody>{rows.map((r: any) => (
-              <tr key={r.category} className="border-t"><td className="py-1.5">{r.category}</td><td className="text-right font-semibold">{formatMoney(r.total_cents)}</td></tr>
-            ))}{!rows.length && <tr><td className="py-3 text-center text-gray-400">Hareket yok</td></tr>}</tbody></table>
+            <Table><TBody>{rows.map((r: any) => (
+              <Tr key={r.category} className="border-t"><Td>{r.category}</Td><Td className="text-right font-semibold">{formatMoney(r.total_cents)}</Td></Tr>
+            ))}{!rows.length && <Tr><Td className="text-center text-gray-400">Hareket yok</Td></Tr>}</TBody></Table>
           </Card>
         ))}
       </div>
       <Card className="border border-gray-100 p-5 shadow-sm">
         <h2 className="mb-2 text-sm font-bold text-gray-900">30 gün içinde vadesi gelen çek / senet</h2>
-        <table className="w-full text-left text-xs"><tbody>{data.upcoming_cheques.map((c: ChequeRow) => (
-          <tr key={c.id} className="border-t"><td className="py-1.5">{c.direction_label} {c.kind_label.toLowerCase()} {c.number}</td><td>{c.drawer || c.counterparty || '—'}</td><td>{fmt(c.due_date)}</td>
-            <td className={c.overdue ? 'font-bold text-red-700' : ''}>{c.overdue ? 'vadesi geçti' : `${c.days_to_due} gün`}</td><td className="text-right font-semibold">{formatMoney(c.amount_cents, c.currency)}</td></tr>
-        ))}{!data.upcoming_cheques.length && <tr><td className="py-3 text-center text-gray-400">Yok</td></tr>}</tbody></table>
+        <Table><TBody>{data.upcoming_cheques.map((c: ChequeRow) => (
+          <Tr key={c.id} className="border-t"><Td>{c.direction_label} {c.kind_label.toLowerCase()} {c.number}</Td><Td>{c.drawer || c.counterparty || '—'}</Td><Td>{fmt(c.due_date)}</Td>
+            <Td className={c.overdue ? 'font-bold text-red-700' : ''}>{c.overdue ? 'vadesi geçti' : `${c.days_to_due} gün`}</Td><Td className="text-right font-semibold">{formatMoney(c.amount_cents, c.currency)}</Td></Tr>
+        ))}{!data.upcoming_cheques.length && <Tr><Td className="text-center text-gray-400">Yok</Td></Tr>}</TBody></Table>
       </Card>
     </div>
   )
@@ -198,19 +195,19 @@ function Accounts({ all, accounts, canEdit, onMessage, reloadAccounts }: Shared 
         </form></Card>
       )}
       <Card className="border border-gray-100 p-5 shadow-sm">
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Hesap</th><th>Tür</th><th>Otomatik giriş</th><th>IBAN</th><th className="text-right">Bakiye</th><th /></tr></thead>
-          <tbody>{all.map((a) => (
-            <tr key={a.id} className={`border-t ${a.is_active ? '' : 'text-gray-400'}`}>
-              <td className="py-2 font-semibold">{a.name}</td><td>{a.kind_label} · {a.currency}</td><td>{a.default_for ? DEFAULT_FOR[a.default_for] : '—'}</td><td>{a.iban || '—'}</td>
-              <td className={`text-right font-bold ${a.balance_cents < 0 ? 'text-red-700' : ''}`}>{formatMoney(a.balance_cents, a.currency)}</td>
-              <td className="whitespace-nowrap text-right">
+        <Table>
+          <THead><Tr><Th>Hesap</Th><Th>Tür</Th><Th>Otomatik giriş</Th><Th>IBAN</Th><Th className="text-right">Bakiye</Th><Th /></Tr></THead>
+          <TBody>{all.map((a) => (
+            <Tr key={a.id} className={`border-t ${a.is_active ? '' : 'text-gray-400'}`}>
+              <Td className="font-semibold">{a.name}</Td><Td>{a.kind_label} · {a.currency}</Td><Td>{a.default_for ? DEFAULT_FOR[a.default_for] : '—'}</Td><Td>{a.iban || '—'}</Td>
+              <Td className={`text-right font-bold ${a.balance_cents < 0 ? 'text-red-700' : ''}`}>{formatMoney(a.balance_cents, a.currency)}</Td>
+              <Td className="whitespace-nowrap text-right">
                 <button className="mr-3 font-bold text-primary-700" onClick={() => openStatement(a.id)}>Ekstre</button>
                 {canEdit && <button className="font-bold text-gray-700" onClick={() => setForm({ id: a.id, name: a.name, kind: a.kind, currency: a.currency, bank_name: a.bank_name || '', iban: a.iban || '', opening: String(a.opening_balance_cents / 100), opening_date: a.opening_date || '', default_for: a.default_for || '', is_active: a.is_active })}>Düzenle</button>}
-              </td>
-            </tr>
-          ))}{!all.length && <tr><td colSpan={6} className="py-6 text-center text-gray-400">Henüz hesap yok. Önce kasa ve banka hesaplarını tanımlayın.</td></tr>}</tbody>
-        </table>
+              </Td>
+            </Tr>
+          ))}{!all.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Henüz hesap yok. Önce kasa ve banka hesaplarını tanımlayın.</Td></Tr>}</TBody>
+        </Table>
       </Card>
       {statement && (
         <Card className="space-y-3 border border-gray-100 p-5 shadow-sm">
@@ -226,16 +223,16 @@ function Accounts({ all, accounts, canEdit, onMessage, reloadAccounts }: Shared 
           </div>
           <p className="text-xs text-gray-600">Dönem başı {formatMoney(statement.opening_cents, statement.account.currency)} · Giriş {formatMoney(statement.in_cents, statement.account.currency)} · Çıkış {formatMoney(statement.out_cents, statement.account.currency)} · Dönem sonu <b>{formatMoney(statement.closing_cents, statement.account.currency)}</b></p>
           <div className="max-h-[480px] overflow-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 bg-white text-gray-400"><tr><th className="py-1">Tarih</th><th>Kategori</th><th>Açıklama</th><th className="text-right">Giriş</th><th className="text-right">Çıkış</th><th className="text-right">Bakiye</th><th /></tr></thead>
-              <tbody>{statement.entries.map((e: any) => (
-                <tr key={e.id} className="border-t"><td className="py-1.5">{fmt(e.entry_date)}</td><td>{e.category}</td><td>{[e.description, e.counterparty].filter(Boolean).join(' · ') || '—'}</td>
-                  <td className="text-right text-green-700">{e.direction === 'in' ? formatMoney(e.amount_cents, statement.account.currency) : ''}</td>
-                  <td className="text-right text-red-700">{e.direction === 'out' ? formatMoney(e.amount_cents, statement.account.currency) : ''}</td>
-                  <td className="text-right font-semibold">{formatMoney(e.balance_cents, statement.account.currency)}</td>
-                  <td className="text-right">{canEdit && (e.source_type === 'manual' || e.source_type === 'transfer') && <button className="font-bold text-red-600" onClick={() => removeEntry(e.id)}>Sil</button>}</td></tr>
-              ))}{!statement.entries.length && <tr><td colSpan={7} className="py-4 text-center text-gray-400">Bu aralıkta hareket yok.</td></tr>}</tbody>
-            </table>
+            <Table>
+              <THead className="sticky top-0 bg-white"><Tr><Th>Tarih</Th><Th>Kategori</Th><Th>Açıklama</Th><Th className="text-right">Giriş</Th><Th className="text-right">Çıkış</Th><Th className="text-right">Bakiye</Th><Th /></Tr></THead>
+              <TBody>{statement.entries.map((e: any) => (
+                <Tr key={e.id} className="border-t"><Td>{fmt(e.entry_date)}</Td><Td>{e.category}</Td><Td>{[e.description, e.counterparty].filter(Boolean).join(' · ') || '—'}</Td>
+                  <Td className="text-right text-green-700">{e.direction === 'in' ? formatMoney(e.amount_cents, statement.account.currency) : ''}</Td>
+                  <Td className="text-right text-red-700">{e.direction === 'out' ? formatMoney(e.amount_cents, statement.account.currency) : ''}</Td>
+                  <Td className="text-right font-semibold">{formatMoney(e.balance_cents, statement.account.currency)}</Td>
+                  <Td className="text-right">{canEdit && (e.source_type === 'manual' || e.source_type === 'transfer') && <button className="font-bold text-red-600" onClick={() => removeEntry(e.id)}>Sil</button>}</Td></Tr>
+              ))}{!statement.entries.length && <Tr><Td colSpan={7} className="text-center text-gray-400">Bu aralıkta hareket yok.</Td></Tr>}</TBody>
+            </Table>
           </div>
         </Card>
       )}
@@ -306,15 +303,15 @@ function Expenses({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
           <span className="text-xs text-gray-500">{Object.entries(total).map(([c, v]) => formatMoney(v, c)).join(' · ')}</span>
           <button className={`${ghostButton} ml-auto`} onClick={() => exportCsv('giderler.csv', ['Tarih', 'Kart', 'Açıklama', 'Cari', 'Belge', 'Tutar', 'Para birimi', 'Hesap'], rows.map((r) => [fmt(r.expense_date), r.card_name, r.description, r.counterparty, r.document_no, r.amount_cents / 100, r.currency, r.account_name || 'Ödenmedi']))}>⬇ CSV</button>
         </div>
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Tarih</th><th>Kart</th><th>Açıklama</th><th>Cari</th><th>Belge</th><th className="text-right">Tutar</th><th>Hesap</th><th /></tr></thead>
-          <tbody>{rows.map((r) => (
-            <tr key={r.id} className="border-t"><td className="py-1.5">{fmt(r.expense_date)}</td><td className="font-semibold">{r.card_name}</td><td>{r.description || '—'}</td><td>{r.counterparty || '—'}</td><td>{r.document_no || '—'}</td>
-              <td className="text-right font-semibold">{formatMoney(r.amount_cents, r.currency)}</td>
-              <td className={r.paid ? '' : 'font-bold text-amber-700'}>{r.account_name || 'Ödenmedi'}</td>
-              <td className="whitespace-nowrap text-right">{canEdit && <>{!r.paid && <button className="mr-2 font-bold text-primary-700" onClick={() => pay(r)}>Öde</button>}<button className="font-bold text-red-600" onClick={() => remove(r)}>Sil</button></>}</td></tr>
-          ))}{!rows.length && <tr><td colSpan={8} className="py-6 text-center text-gray-400">Bu aralıkta gider yok.</td></tr>}</tbody>
-        </table>
+        <Table>
+          <THead><Tr><Th>Tarih</Th><Th>Kart</Th><Th>Açıklama</Th><Th>Cari</Th><Th>Belge</Th><Th className="text-right">Tutar</Th><Th>Hesap</Th><Th /></Tr></THead>
+          <TBody>{rows.map((r) => (
+            <Tr key={r.id} className="border-t"><Td>{fmt(r.expense_date)}</Td><Td className="font-semibold">{r.card_name}</Td><Td>{r.description || '—'}</Td><Td>{r.counterparty || '—'}</Td><Td>{r.document_no || '—'}</Td>
+              <Td className="text-right font-semibold">{formatMoney(r.amount_cents, r.currency)}</Td>
+              <Td className={r.paid ? '' : 'font-bold text-amber-700'}>{r.account_name || 'Ödenmedi'}</Td>
+              <Td className="whitespace-nowrap text-right">{canEdit && <>{!r.paid && <button className="mr-2 font-bold text-primary-700" onClick={() => pay(r)}>Öde</button>}<button className="font-bold text-red-600" onClick={() => remove(r)}>Sil</button></>}</Td></Tr>
+          ))}{!rows.length && <Tr><Td colSpan={8} className="text-center text-gray-400">Bu aralıkta gider yok.</Td></Tr>}</TBody>
+        </Table>
       </Card>
     </div>
   )
@@ -349,15 +346,15 @@ function Parties({ parties, canEdit, onMessage, reloadParties }: Shared) {
         </form></Card>
       )}
       <Card className="border border-gray-100 p-5 shadow-sm">
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Cari</th><th>Tür</th><th>Vergi no</th><th>Telefon</th><th className="text-right">Ödenmemiş gider</th><th /></tr></thead>
-          <tbody>{parties.map((p) => (
-            <tr key={p.id} className="border-t"><td className="py-1.5 font-semibold">{p.name}</td><td>{p.kind_label}</td><td>{p.tax_no || '—'}</td><td>{p.phone || '—'}</td>
-              <td className={`text-right ${p.unpaid_cents ? 'font-bold text-amber-700' : ''}`}>{p.unpaid_cents ? formatMoney(p.unpaid_cents) : '—'}</td>
-              <td className="whitespace-nowrap text-right"><button className="mr-3 font-bold text-primary-700" onClick={() => Promise.all([accGet(`/counterparties/${p.id}/statement`), accGet(`/counterparties/${p.id}/ledger`)]).then(([st, lg]) => setStatement({ ...(st.data as object), ledger: lg.data }))}>Ekstre</button>
-                {canEdit && <button className="font-bold text-gray-700" onClick={() => setForm({ ...empty, ...Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v ?? ''])), id: p.id } as any)}>Düzenle</button>}</td></tr>
-          ))}{!parties.length && <tr><td colSpan={6} className="py-6 text-center text-gray-400">Cari kart yok.</td></tr>}</tbody>
-        </table>
+        <Table>
+          <THead><Tr><Th>Cari</Th><Th>Tür</Th><Th>Vergi no</Th><Th>Telefon</Th><Th className="text-right">Ödenmemiş gider</Th><Th /></Tr></THead>
+          <TBody>{parties.map((p) => (
+            <Tr key={p.id} className="border-t"><Td className="font-semibold">{p.name}</Td><Td>{p.kind_label}</Td><Td>{p.tax_no || '—'}</Td><Td>{p.phone || '—'}</Td>
+              <Td className={`text-right ${p.unpaid_cents ? 'font-bold text-amber-700' : ''}`}>{p.unpaid_cents ? formatMoney(p.unpaid_cents) : '—'}</Td>
+              <Td className="whitespace-nowrap text-right"><button className="mr-3 font-bold text-primary-700" onClick={() => Promise.all([accGet(`/counterparties/${p.id}/statement`), accGet(`/counterparties/${p.id}/ledger`)]).then(([st, lg]) => setStatement({ ...(st.data as object), ledger: lg.data }))}>Ekstre</button>
+                {canEdit && <button className="font-bold text-gray-700" onClick={() => setForm({ ...empty, ...Object.fromEntries(Object.entries(p).map(([k, v]) => [k, v ?? ''])), id: p.id } as any)}>Düzenle</button>}</Td></Tr>
+          ))}{!parties.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Cari kart yok.</Td></Tr>}</TBody>
+        </Table>
       </Card>
       {statement && (
         <Card className="space-y-3 border border-gray-100 p-5 shadow-sm">
@@ -368,24 +365,24 @@ function Parties({ parties, canEdit, onMessage, reloadParties }: Shared) {
             </div>
           </div>
           <h3 className="text-xs font-bold text-gray-500">Borç / alacak defteri (TL) · alacak: kurumun borcu artar, borç: azalır</h3>
-          <table className="w-full text-left text-xs"><thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Tarih</th><th>Tür</th><th>Açıklama</th><th className="text-right">Borç</th><th className="text-right">Alacak</th><th className="text-right">Bakiye</th></tr></thead>
-            <tbody>{statement.ledger.rows.map((r: any, i: number) => (
-              <tr key={i} className="border-t"><td className="py-1">{fmt(r.date)}</td><td>{r.type}</td><td>{r.description || '—'}</td>
-                <td className="text-right">{r.debit_cents ? formatMoney(r.debit_cents) : ''}</td><td className="text-right">{r.credit_cents ? formatMoney(r.credit_cents) : ''}</td>
-                <td className="text-right font-semibold">{formatMoney(r.balance_cents)}</td></tr>
-            ))}{!statement.ledger.rows.length && <tr><td colSpan={6} className="py-3 text-center text-gray-400">Hareket yok</td></tr>}</tbody></table>
+          <Table><THead><Tr><Th>Tarih</Th><Th>Tür</Th><Th>Açıklama</Th><Th className="text-right">Borç</Th><Th className="text-right">Alacak</Th><Th className="text-right">Bakiye</Th></Tr></THead>
+            <TBody>{statement.ledger.rows.map((r: any, i: number) => (
+              <Tr key={i} className="border-t"><Td>{fmt(r.date)}</Td><Td>{r.type}</Td><Td>{r.description || '—'}</Td>
+                <Td className="text-right">{r.debit_cents ? formatMoney(r.debit_cents) : ''}</Td><Td className="text-right">{r.credit_cents ? formatMoney(r.credit_cents) : ''}</Td>
+                <Td className="text-right font-semibold">{formatMoney(r.balance_cents)}</Td></Tr>
+            ))}{!statement.ledger.rows.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Hareket yok</Td></Tr>}</TBody></Table>
           <h3 className="text-xs font-bold text-gray-500">Giderler</h3>
-          <table className="w-full text-left text-xs"><tbody>{statement.expenses.map((e: ExpenseRow) => (
-            <tr key={e.id} className="border-t"><td className="py-1">{fmt(e.expense_date)}</td><td>{e.card_name}</td><td>{e.document_no || '—'}</td><td className="text-right">{formatMoney(e.amount_cents, e.currency)}</td><td>{e.account_name || 'Ödenmedi'}</td></tr>
-          ))}</tbody></table>
+          <Table><TBody>{statement.expenses.map((e: ExpenseRow) => (
+            <Tr key={e.id} className="border-t"><Td>{fmt(e.expense_date)}</Td><Td>{e.card_name}</Td><Td>{e.document_no || '—'}</Td><Td className="text-right">{formatMoney(e.amount_cents, e.currency)}</Td><Td>{e.account_name || 'Ödenmedi'}</Td></Tr>
+          ))}</TBody></Table>
           <h3 className="text-xs font-bold text-gray-500">Hesap hareketleri</h3>
-          <table className="w-full text-left text-xs"><tbody>{statement.movements.map((m: any) => (
-            <tr key={m.id} className="border-t"><td className="py-1">{fmt(m.entry_date)}</td><td>{m.account}</td><td>{m.category}</td><td className={`text-right ${m.direction === 'in' ? 'text-green-700' : 'text-red-700'}`}>{m.direction === 'in' ? '+' : '−'}{formatMoney(m.amount_cents, m.currency)}</td></tr>
-          ))}</tbody></table>
+          <Table><TBody>{statement.movements.map((m: any) => (
+            <Tr key={m.id} className="border-t"><Td>{fmt(m.entry_date)}</Td><Td>{m.account}</Td><Td>{m.category}</Td><Td className={`text-right ${m.direction === 'in' ? 'text-green-700' : 'text-red-700'}`}>{m.direction === 'in' ? '+' : '−'}{formatMoney(m.amount_cents, m.currency)}</Td></Tr>
+          ))}</TBody></Table>
           {statement.cheques.length > 0 && <><h3 className="text-xs font-bold text-gray-500">Çek / senet</h3>
-            <table className="w-full text-left text-xs"><tbody>{statement.cheques.map((c: ChequeRow) => (
-              <tr key={c.id} className="border-t"><td className="py-1">{c.direction_label} {c.kind_label} {c.number}</td><td>{fmt(c.due_date)}</td><td>{c.status_label}</td><td className="text-right">{formatMoney(c.amount_cents, c.currency)}</td></tr>
-            ))}</tbody></table></>}
+            <Table><TBody>{statement.cheques.map((c: ChequeRow) => (
+              <Tr key={c.id} className="border-t"><Td>{c.direction_label} {c.kind_label} {c.number}</Td><Td>{fmt(c.due_date)}</Td><Td>{c.status_label}</Td><Td className="text-right">{formatMoney(c.amount_cents, c.currency)}</Td></Tr>
+            ))}</TBody></Table></>}
         </Card>
       )}
     </div>
@@ -457,15 +454,15 @@ function Cheques({ accounts, parties, canEdit, onMessage, reloadAccounts }: Shar
           <select className={`${inputClass} w-44`} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="open">Açık (portföy / bankada)</option><option value="">Tümü</option><option value="collected">Tahsil edildi</option><option value="paid">Ödendi</option><option value="endorsed">Ciro edildi</option><option value="bounced">Karşılıksız</option></select>
           <span className="self-center text-xs text-gray-500">{rows.length} kayıt · {formatMoney(rows.filter((r) => r.currency === 'TRY').reduce((s, r) => s + r.amount_cents, 0))}</span>
         </div>
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Çek / senet</th><th>Keşideci / cari</th><th>Vade</th><th className="text-right">Tutar</th><th>Durum</th><th /></tr></thead>
-          <tbody>{rows.map((c) => (
-            <tr key={c.id} className="border-t"><td className="py-1.5 font-semibold">{c.direction_label} {c.kind_label.toLowerCase()} · {c.number}{c.bank_name ? ` · ${c.bank_name}` : ''}</td><td>{c.drawer || c.counterparty || '—'}</td>
-              <td className={c.overdue ? 'font-bold text-red-700' : ''}>{fmt(c.due_date)}{c.days_to_due !== null ? ` (${c.overdue ? 'geçti' : `${c.days_to_due} gün`})` : ''}</td>
-              <td className="text-right font-semibold">{formatMoney(c.amount_cents, c.currency)}</td><td>{c.status_label}</td>
-              <td className="whitespace-nowrap text-right">{canEdit && (NEXT[c.direction][c.status] || []).map(([s, l]) => <button key={s} className={`ml-2 font-bold ${s === 'bounced' || s === 'cancelled' ? 'text-red-600' : 'text-primary-700'}`} onClick={() => change(c, s)}>{l}</button>)}</td></tr>
-          ))}{!rows.length && <tr><td colSpan={6} className="py-6 text-center text-gray-400">Kayıt yok.</td></tr>}</tbody>
-        </table>
+        <Table>
+          <THead><Tr><Th>Çek / senet</Th><Th>Keşideci / cari</Th><Th>Vade</Th><Th className="text-right">Tutar</Th><Th>Durum</Th><Th /></Tr></THead>
+          <TBody>{rows.map((c) => (
+            <Tr key={c.id} className="border-t"><Td className="font-semibold">{c.direction_label} {c.kind_label.toLowerCase()} · {c.number}{c.bank_name ? ` · ${c.bank_name}` : ''}</Td><Td>{c.drawer || c.counterparty || '—'}</Td>
+              <Td className={c.overdue ? 'font-bold text-red-700' : ''}>{fmt(c.due_date)}{c.days_to_due !== null ? ` (${c.overdue ? 'geçti' : `${c.days_to_due} gün`})` : ''}</Td>
+              <Td className="text-right font-semibold">{formatMoney(c.amount_cents, c.currency)}</Td><Td>{c.status_label}</Td>
+              <Td className="whitespace-nowrap text-right">{canEdit && (NEXT[c.direction][c.status] || []).map(([s, l]) => <button key={s} className={`ml-2 font-bold ${s === 'bounced' || s === 'cancelled' ? 'text-red-600' : 'text-primary-700'}`} onClick={() => change(c, s)}>{l}</button>)}</Td></Tr>
+          ))}{!rows.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}</TBody>
+        </Table>
       </Card>
     </div>
   )
@@ -514,14 +511,14 @@ function Payroll({ accounts, canEdit, onMessage, reloadAccounts }: Shared) {
       )}
       <Card className="space-y-3 border border-gray-100 p-5 shadow-sm">
         <h2 className="text-sm font-bold">Personel</h2>
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Ad</th><th>Görev</th><th>IBAN</th><th className="text-right">Net maaş</th><th className="text-right">Açık avans</th><th /></tr></thead>
-          <tbody>{employees.map((e) => (
-            <tr key={e.id} className={`border-t ${e.is_active ? '' : 'text-gray-400'}`}><td className="py-1.5 font-semibold">{e.full_name}</td><td>{e.title || '—'}</td><td>{e.iban || '—'}</td>
-              <td className="text-right">{formatMoney(e.monthly_salary_cents)}</td><td className="text-right">{e.open_advance_cents ? formatMoney(e.open_advance_cents) : '—'}</td>
-              <td className="text-right">{canEdit && <button className="font-bold text-gray-700" onClick={() => setForm({ id: e.id, full_name: e.full_name, title: e.title || '', national_id: '', iban: e.iban || '', phone: '', salary: String(e.monthly_salary_cents / 100), start_date: '', is_active: e.is_active, note: '' })}>Düzenle</button>}</td></tr>
-          ))}{!employees.length && <tr><td colSpan={6} className="py-4 text-center text-gray-400">Personel yok.</td></tr>}</tbody>
-        </table>
+        <Table>
+          <THead><Tr><Th>Ad</Th><Th>Görev</Th><Th>IBAN</Th><Th className="text-right">Net maaş</Th><Th className="text-right">Açık avans</Th><Th /></Tr></THead>
+          <TBody>{employees.map((e) => (
+            <Tr key={e.id} className={`border-t ${e.is_active ? '' : 'text-gray-400'}`}><Td className="font-semibold">{e.full_name}</Td><Td>{e.title || '—'}</Td><Td>{e.iban || '—'}</Td>
+              <Td className="text-right">{formatMoney(e.monthly_salary_cents)}</Td><Td className="text-right">{e.open_advance_cents ? formatMoney(e.open_advance_cents) : '—'}</Td>
+              <Td className="text-right">{canEdit && <button className="font-bold text-gray-700" onClick={() => setForm({ id: e.id, full_name: e.full_name, title: e.title || '', national_id: '', iban: e.iban || '', phone: '', salary: String(e.monthly_salary_cents / 100), start_date: '', is_active: e.is_active, note: '' })}>Düzenle</button>}</Td></Tr>
+          ))}{!employees.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Personel yok.</Td></Tr>}</TBody>
+        </Table>
         {canEdit && employees.length > 0 && (
           <div className="flex flex-wrap items-end gap-2 border-t pt-3">
             <Label label="Avans ver"><select className={inputClass} value={advance.employee_id} onChange={(e) => setAdvance({ ...advance, employee_id: e.target.value })}><option value="">Personel</option>{employees.filter((e) => e.is_active).map((e) => <option key={e.id} value={e.id}>{e.full_name}</option>)}</select></Label>
@@ -538,22 +535,22 @@ function Payroll({ accounts, canEdit, onMessage, reloadAccounts }: Shared) {
           {sheet && <span className="text-xs text-gray-500">Toplam net {formatMoney(sheet.total_net_cents)} · ödenmemiş {formatMoney(sheet.unpaid_net_cents)}</span>}
           {sheet && sheet.items.length > 0 && <button className={`${ghostButton} ml-auto`} onClick={() => exportCsv(`bordro-${period}.csv`, ['Ad', 'IBAN', 'Maaş', 'Mesai', 'Prim', 'Kesinti', 'Avans', 'Net', 'Durum'], sheet.items.map((i) => [i.full_name, i.iban, i.salary_cents / 100, i.overtime_cents / 100, i.bonus_cents / 100, i.deduction_cents / 100, i.advance_cents / 100, i.net_cents / 100, i.status === 'paid' ? 'Ödendi' : 'Bekliyor']))}>⬇ CSV (banka talimatı)</button>}
         </div>
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Personel</th><th className="text-right">Maaş</th><th className="text-right">Mesai</th><th className="text-right">Prim</th><th className="text-right">Kesinti</th><th className="text-right">Avans</th><th className="text-right">Net</th><th>Durum</th><th /></tr></thead>
-          <tbody>{sheet?.items.map((i) => {
+        <Table>
+          <THead><Tr><Th>Personel</Th><Th className="text-right">Maaş</Th><Th className="text-right">Mesai</Th><Th className="text-right">Prim</Th><Th className="text-right">Kesinti</Th><Th className="text-right">Avans</Th><Th className="text-right">Net</Th><Th>Durum</Th><Th /></Tr></THead>
+          <TBody>{sheet?.items.map((i) => {
             const e = edit[i.id]
             return (
-              <tr key={i.id} className="border-t"><td className="py-1.5 font-semibold">{i.full_name}</td><td className="text-right">{formatMoney(i.salary_cents)}</td>
+              <Tr key={i.id} className="border-t"><Td className="font-semibold">{i.full_name}</Td><Td className="text-right">{formatMoney(i.salary_cents)}</Td>
                 {(['overtime', 'bonus', 'deduction'] as const).map((k) => (
-                  <td key={k} className="text-right">{e ? <input className="w-20 rounded border p-1 text-right" value={e[k]} onChange={(ev) => setEdit({ ...edit, [i.id]: { ...e, [k]: ev.target.value } })} /> : formatMoney(i[`${k}_cents`])}</td>
+                  <Td key={k} className="text-right">{e ? <input className="w-20 rounded border p-1 text-right" value={e[k]} onChange={(ev) => setEdit({ ...edit, [i.id]: { ...e, [k]: ev.target.value } })} /> : formatMoney(i[`${k}_cents`])}</Td>
                 ))}
-                <td className="text-right">{formatMoney(i.advance_cents)}</td><td className="text-right font-bold">{formatMoney(i.net_cents)}</td><td>{i.status === 'paid' ? 'Ödendi' : 'Bekliyor'}</td>
-                <td className="whitespace-nowrap text-right">{canEdit && i.status === 'draft' && (e
+                <Td className="text-right">{formatMoney(i.advance_cents)}</Td><Td className="text-right font-bold">{formatMoney(i.net_cents)}</Td><Td>{i.status === 'paid' ? 'Ödendi' : 'Bekliyor'}</Td>
+                <Td className="whitespace-nowrap text-right">{canEdit && i.status === 'draft' && (e
                   ? <button className="font-bold text-primary-700" onClick={() => act(() => accSend('put', `/payroll/${i.id}`, { salary_cents: i.salary_cents, overtime_cents: cents(e.overtime), bonus_cents: cents(e.bonus), deduction_cents: cents(e.deduction) }), 'Bordro güncellendi').then(() => { const n = { ...edit }; delete n[i.id]; setEdit(n) })}>Kaydet</button>
-                  : <button className="font-bold text-gray-700" onClick={() => setEdit({ ...edit, [i.id]: { overtime: String(i.overtime_cents / 100), bonus: String(i.bonus_cents / 100), deduction: String(i.deduction_cents / 100) } })}>Düzenle</button>)}</td></tr>
+                  : <button className="font-bold text-gray-700" onClick={() => setEdit({ ...edit, [i.id]: { overtime: String(i.overtime_cents / 100), bonus: String(i.bonus_cents / 100), deduction: String(i.deduction_cents / 100) } })}>Düzenle</button>)}</Td></Tr>
             )
-          })}{!sheet?.items.length && <tr><td colSpan={9} className="py-4 text-center text-gray-400">Bu dönem bordrosu açılmamış.</td></tr>}</tbody>
-        </table>
+          })}{!sheet?.items.length && <Tr><Td colSpan={9} className="text-center text-gray-400">Bu dönem bordrosu açılmamış.</Td></Tr>}</TBody>
+        </Table>
         {canEdit && draft.length > 0 && (
           <div className="flex flex-wrap items-end gap-2 border-t pt-3">
             <div className="w-64"><AccountSelect accounts={accounts} currency="TRY" value={payAccount} onChange={setPayAccount} label="Ödeme hesabı" /></div>
@@ -672,37 +669,37 @@ function Stock({ parties, canEdit, onMessage }: Shared) {
       <Card className="border border-gray-100 p-5 shadow-sm">
         <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold">Stok durumu</h2>
           <button className={ghostButton} onClick={() => exportCsv('stok.csv', ['Kart', 'Kategori', 'Birim', 'Miktar', 'Kritik', 'Tahmini değer'], items.map((i) => [i.name, i.category, i.unit, i.qty, i.min_qty, i.value_cents / 100]))}>⬇ CSV</button></div>
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Kart</th><th>Kategori</th><th>Depolar</th><th className="text-right">Miktar</th><th className="text-right">Tahmini değer</th><th /></tr></thead>
-          <tbody>{items.map((i) => (
-            <tr key={i.id} className="border-t"><td className="py-1.5 font-semibold">{i.name}</td><td>{i.category || '—'}</td>
-              <td>{i.by_warehouse.map((w) => `${w.warehouse}: ${w.qty}`).join(' · ') || '—'}</td>
-              <td className={`text-right font-bold ${i.low ? 'text-red-700' : ''}`}>{i.qty} {i.unit}{i.low ? ' ⚠' : ''}</td>
-              <td className="text-right">{i.value_cents ? formatMoney(i.value_cents) : '—'}</td>
-              <td className="text-right">{canEdit && <button className="font-bold text-gray-700" onClick={() => setItemForm({ id: i.id, name: i.name, code: i.code || '', unit: i.unit, category: i.category || '', min_qty: String(i.min_qty), unit_value: String(i.unit_value_cents / 100) })}>Düzenle</button>}</td></tr>
-          ))}{!items.length && <tr><td colSpan={6} className="py-4 text-center text-gray-400">Stok kartı yok. Önce depo ve stok kartı ekleyin.</td></tr>}</tbody>
-        </table>
+        <Table>
+          <THead><Tr><Th>Kart</Th><Th>Kategori</Th><Th>Depolar</Th><Th className="text-right">Miktar</Th><Th className="text-right">Tahmini değer</Th><Th /></Tr></THead>
+          <TBody>{items.map((i) => (
+            <Tr key={i.id} className="border-t"><Td className="font-semibold">{i.name}</Td><Td>{i.category || '—'}</Td>
+              <Td>{i.by_warehouse.map((w) => `${w.warehouse}: ${w.qty}`).join(' · ') || '—'}</Td>
+              <Td className={`text-right font-bold ${i.low ? 'text-red-700' : ''}`}>{i.qty} {i.unit}{i.low ? ' ⚠' : ''}</Td>
+              <Td className="text-right">{i.value_cents ? formatMoney(i.value_cents) : '—'}</Td>
+              <Td className="text-right">{canEdit && <button className="font-bold text-gray-700" onClick={() => setItemForm({ id: i.id, name: i.name, code: i.code || '', unit: i.unit, category: i.category || '', min_qty: String(i.min_qty), unit_value: String(i.unit_value_cents / 100) })}>Düzenle</button>}</Td></Tr>
+          ))}{!items.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Stok kartı yok. Önce depo ve stok kartı ekleyin.</Td></Tr>}</TBody>
+        </Table>
       </Card>
       {inKind && inKind.by_item.length > 0 && (
         <Card className="border border-gray-100 p-5 shadow-sm">
           <h2 className="mb-2 text-sm font-bold">Ayni bağışlar ({new Date(inKind.start).getFullYear()}) · tahmini {formatMoney(inKind.total_value_cents)}</h2>
           <div className="grid gap-4 lg:grid-cols-2">
-            <table className="w-full text-left text-xs"><tbody>{inKind.by_item.map((r: any) => <tr key={r.item} className="border-t"><td className="py-1">{r.item}</td><td>{r.qty} {r.unit}</td><td className="text-right">{formatMoney(r.value_cents)}</td></tr>)}</tbody></table>
-            <table className="w-full text-left text-xs"><tbody>{inKind.by_donor.map((r: any) => <tr key={r.donor_id} className="border-t"><td className="py-1">{r.donor}</td><td>{r.count} kalem</td><td className="text-right">{formatMoney(r.value_cents)}</td></tr>)}</tbody></table>
+            <Table><TBody>{inKind.by_item.map((r: any) => <Tr key={r.item} className="border-t"><Td>{r.item}</Td><Td>{r.qty} {r.unit}</Td><Td className="text-right">{formatMoney(r.value_cents)}</Td></Tr>)}</TBody></Table>
+            <Table><TBody>{inKind.by_donor.map((r: any) => <Tr key={r.donor_id} className="border-t"><Td>{r.donor}</Td><Td>{r.count} kalem</Td><Td className="text-right">{formatMoney(r.value_cents)}</Td></Tr>)}</TBody></Table>
           </div>
         </Card>
       )}
       <Card className="border border-gray-100 p-5 shadow-sm">
         <h2 className="mb-2 text-sm font-bold">Son hareketler</h2>
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Tarih</th><th>Tür</th><th>Kart</th><th>Depo</th><th className="text-right">Miktar</th><th>Kimden / kime</th><th>Not</th><th /></tr></thead>
-          <tbody>{moves.map((m) => (
-            <tr key={m.id} className="border-t"><td className="py-1.5">{fmt(m.move_date)}</td><td>{m.kind_label}</td><td>{m.item}</td><td>{m.warehouse}</td>
-              <td className={`text-right font-semibold ${m.direction === 'in' ? 'text-green-700' : 'text-red-700'}`}>{m.direction === 'in' ? '+' : '−'}{m.qty} {m.unit}</td>
-              <td>{m.party || '—'}</td><td>{m.note || '—'}</td>
-              <td className="text-right">{canEdit && !m.invoice_id && <button className="font-bold text-red-600" onClick={async () => (await confirmDialog('Hareket silinsin mi?')) && act(() => accSend('delete', `/stock-moves/${m.id}`), 'Hareket silindi')}>Sil</button>}</td></tr>
-          ))}{!moves.length && <tr><td colSpan={8} className="py-4 text-center text-gray-400">Hareket yok.</td></tr>}</tbody>
-        </table>
+        <Table>
+          <THead><Tr><Th>Tarih</Th><Th>Tür</Th><Th>Kart</Th><Th>Depo</Th><Th className="text-right">Miktar</Th><Th>Kimden / kime</Th><Th>Not</Th><Th /></Tr></THead>
+          <TBody>{moves.map((m) => (
+            <Tr key={m.id} className="border-t"><Td>{fmt(m.move_date)}</Td><Td>{m.kind_label}</Td><Td>{m.item}</Td><Td>{m.warehouse}</Td>
+              <Td className={`text-right font-semibold ${m.direction === 'in' ? 'text-green-700' : 'text-red-700'}`}>{m.direction === 'in' ? '+' : '−'}{m.qty} {m.unit}</Td>
+              <Td>{m.party || '—'}</Td><Td>{m.note || '—'}</Td>
+              <Td className="text-right">{canEdit && !m.invoice_id && <button className="font-bold text-red-600" onClick={async () => (await confirmDialog('Hareket silinsin mi?')) && act(() => accSend('delete', `/stock-moves/${m.id}`), 'Hareket silindi')}>Sil</button>}</Td></Tr>
+          ))}{!moves.length && <Tr><Td colSpan={8} className="text-center text-gray-400">Hareket yok.</Td></Tr>}</TBody>
+        </Table>
       </Card>
     </div>
   )
@@ -768,20 +765,20 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
             <TextInput label="Not" value={form.note} onChange={(v) => setForm({ ...form, note: v })} />
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Stok kartı</th><th>Açıklama</th><th>Miktar</th><th>Birim fiyat</th><th>KDV %</th><th className="text-right">Tutar</th><th /></tr></thead>
-              <tbody>{form.lines.map((l, i) => (
-                <tr key={i} className="border-t">
-                  <td className="py-1 pr-2"><select className="w-40 rounded border p-1" value={l.item_id} onChange={(e) => setLine(i, { item_id: e.target.value })}><option value="">Stoksuz</option>{items.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}</select></td>
-                  <td className="pr-2"><input className="w-full rounded border p-1" value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder={l.item_id ? 'kart adı' : 'Hizmet / ürün'} /></td>
-                  <td className="pr-2"><input className="w-16 rounded border p-1" value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} /></td>
-                  <td className="pr-2"><input className="w-24 rounded border p-1" value={l.price} onChange={(e) => setLine(i, { price: e.target.value })} /></td>
-                  <td className="pr-2"><select className="rounded border p-1" value={l.vat_rate} onChange={(e) => setLine(i, { vat_rate: e.target.value })}>{[0, 1, 8, 10, 18, 20].map((v) => <option key={v}>{v}</option>)}</select></td>
-                  <td className="text-right">{formatMoney(lineTotal(l), form.currency)}</td>
-                  <td className="text-right">{form.lines.length > 1 && <button type="button" className="font-bold text-red-600" onClick={() => setForm({ ...form, lines: form.lines.filter((_, j) => j !== i) })}>×</button>}</td>
-                </tr>
-              ))}</tbody>
-            </table>
+            <Table>
+              <THead><Tr><Th>Stok kartı</Th><Th>Açıklama</Th><Th>Miktar</Th><Th>Birim fiyat</Th><Th>KDV %</Th><Th className="text-right">Tutar</Th><Th /></Tr></THead>
+              <TBody>{form.lines.map((l, i) => (
+                <Tr key={i} className="border-t">
+                  <Td><select className="w-40 rounded border p-1" value={l.item_id} onChange={(e) => setLine(i, { item_id: e.target.value })}><option value="">Stoksuz</option>{items.map((it) => <option key={it.id} value={it.id}>{it.name}</option>)}</select></Td>
+                  <Td><input className="w-full rounded border p-1" value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder={l.item_id ? 'kart adı' : 'Hizmet / ürün'} /></Td>
+                  <Td><input className="w-16 rounded border p-1" value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} /></Td>
+                  <Td><input className="w-24 rounded border p-1" value={l.price} onChange={(e) => setLine(i, { price: e.target.value })} /></Td>
+                  <Td><select className="rounded border p-1" value={l.vat_rate} onChange={(e) => setLine(i, { vat_rate: e.target.value })}>{[0, 1, 8, 10, 18, 20].map((v) => <option key={v}>{v}</option>)}</select></Td>
+                  <Td className="text-right">{formatMoney(lineTotal(l), form.currency)}</Td>
+                  <Td className="text-right">{form.lines.length > 1 && <button type="button" className="font-bold text-red-600" onClick={() => setForm({ ...form, lines: form.lines.filter((_, j) => j !== i) })}>×</button>}</Td>
+                </Tr>
+              ))}</TBody>
+            </Table>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button type="button" className={ghostButton} onClick={() => setForm({ ...form, lines: [...form.lines, { ...emptyLine }] })}>+ Satır</button>
@@ -795,19 +792,19 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
           <select className={`${inputClass} w-40`} value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })}><option value="">Alış + satış</option><option value="purchase">Alış</option><option value="sales">Satış</option></select>
           <label className="flex items-center gap-1.5 text-xs font-semibold"><input type="checkbox" checked={filters.unpaid} onChange={(e) => setFilters({ ...filters, unpaid: e.target.checked })} /> Yalnız ödenmemiş</label>
         </div>
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Tarih</th><th>Tür</th><th>No</th><th>Cari</th><th>Vade</th><th className="text-right">Toplam</th><th className="text-right">Kalan</th><th>Durum</th><th /></tr></thead>
-          <tbody>{rows.map((r) => (
-            <tr key={r.id} className="border-t"><td className="py-1.5">{fmt(r.issue_date)}</td><td>{r.kind_label}</td><td className="font-semibold">{r.number}</td><td>{r.counterparty}</td>
-              <td className={r.overdue ? 'font-bold text-red-700' : ''}>{fmt(r.due_date)}</td>
-              <td className="text-right">{formatMoney(r.total_cents, r.currency)}</td><td className="text-right font-semibold">{r.remaining_cents ? formatMoney(r.remaining_cents, r.currency) : '—'}</td>
-              <td className={PAY_STATUS[r.payment_status][1]}>{PAY_STATUS[r.payment_status][0]}</td>
-              <td className="whitespace-nowrap text-right">{canEdit && r.status === 'open' && <>
+        <Table>
+          <THead><Tr><Th>Tarih</Th><Th>Tür</Th><Th>No</Th><Th>Cari</Th><Th>Vade</Th><Th className="text-right">Toplam</Th><Th className="text-right">Kalan</Th><Th>Durum</Th><Th /></Tr></THead>
+          <TBody>{rows.map((r) => (
+            <Tr key={r.id} className="border-t"><Td>{fmt(r.issue_date)}</Td><Td>{r.kind_label}</Td><Td className="font-semibold">{r.number}</Td><Td>{r.counterparty}</Td>
+              <Td className={r.overdue ? 'font-bold text-red-700' : ''}>{fmt(r.due_date)}</Td>
+              <Td className="text-right">{formatMoney(r.total_cents, r.currency)}</Td><Td className="text-right font-semibold">{r.remaining_cents ? formatMoney(r.remaining_cents, r.currency) : '—'}</Td>
+              <Td className={PAY_STATUS[r.payment_status][1]}>{PAY_STATUS[r.payment_status][0]}</Td>
+              <Td className="whitespace-nowrap text-right">{canEdit && r.status === 'open' && <>
                 {r.remaining_cents > 0 && <button className="mr-2 font-bold text-primary-700" onClick={() => pay(r)}>{r.kind === 'purchase' ? 'Öde' : 'Tahsil et'}</button>}
                 {r.paid_cents === 0 && <button className="font-bold text-red-600" onClick={async () => (await confirmDialog('Fatura iptal edilsin mi? Stok hareketleri geri alınır.')) && accSend('post', `/invoices/${r.id}/cancel`).then(load).catch((err) => onMessage({ type: 'error', text: apiErrorMessage(err) }))}>İptal</button>}
-              </>}</td></tr>
-          ))}{!rows.length && <tr><td colSpan={9} className="py-6 text-center text-gray-400">Fatura yok.</td></tr>}</tbody>
-        </table>
+              </>}</Td></Tr>
+          ))}{!rows.length && <Tr><Td colSpan={9} className="text-center text-gray-400">Fatura yok.</Td></Tr>}</TBody>
+        </Table>
       </Card>
     </div>
   )

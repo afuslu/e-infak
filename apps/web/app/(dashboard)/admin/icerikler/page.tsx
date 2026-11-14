@@ -8,7 +8,7 @@ import {
 } from '../../../../components/admin/FormKit'
 import { ImageField } from '../../../../components/admin/ImageField'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, confirmDialog } from '../../../../components/admin/ui'
 
 interface Post {
   id: string
@@ -179,15 +179,9 @@ export default function AdminContentPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Haber, Blog & Faaliyetler</h1>
-          <p className="mt-1 text-sm text-gray-500">Yayındaki içerikler sitede /haberler adresinde ve ana sayfada listelenir.</p>
-        </div>
-        <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : startEdit(null))}>
+      <PageHeader title="Haber, Blog & Faaliyetler" description={<>Yayındaki içerikler sitede /haberler adresinde ve ana sayfada listelenir.</>} actions={<button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : startEdit(null))}>
           {showForm ? 'Vazgeç' : '+ Yeni İçerik'}
-        </button>
-      </div>
+        </button>} />
 
       <Notice message={message} />
 

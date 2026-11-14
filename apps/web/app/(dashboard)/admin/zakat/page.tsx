@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { toast } from '../../../../components/admin/ui'
+import { PageHeader, toast } from '../../../../components/admin/ui'
 import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface ZakatSetting {
@@ -85,14 +85,10 @@ export default function AdminZakatPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Zekat & Nisap Ayarları</h1>
-        {updatedAt && (
-          <span className="text-xs text-gray-400 font-bold">
-            Son Güncelleme: {new Date(updatedAt).toLocaleString('tr-TR')}
-          </span>
-        )}
-      </div>
+      <PageHeader
+        title="Zekât & Nisap Ayarları"
+        actions={updatedAt && <span className="text-xs font-bold text-gray-400">Son güncelleme: {new Date(updatedAt).toLocaleString('tr-TR')}</span>}
+      />
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">

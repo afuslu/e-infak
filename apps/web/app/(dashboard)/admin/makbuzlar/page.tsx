@@ -7,7 +7,7 @@ import { adminGet, formatMoney, hasPermission, useAdminAccess, adminApiBase, adm
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms } from '../../../../lib/sms'
-import { toast } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 
 interface Donation {
   id: string
@@ -93,9 +93,7 @@ export default function AdminReceiptsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Makbuzlar</h1>
-        <div className="flex gap-2">
+      <PageHeader title="Makbuzlar" actions={<div className="flex gap-2">
           <button
             onClick={loadDonations}
             className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
@@ -107,8 +105,7 @@ export default function AdminReceiptsPage() {
               {showManual ? 'Vazgeç' : '+ Elle Makbuz Kes'}
             </button>
           )}
-        </div>
-      </div>
+        </div>} />
 
       {smsFor && (
         <QuickSmsDialog
@@ -181,31 +178,31 @@ export default function AdminReceiptsPage() {
           <p className="text-xs text-gray-400 py-6 text-center">Ödemesi tamamlanmış bağış bulunmamaktadır.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-600">
-              <thead>
-                <tr className="border-b text-gray-500 uppercase tracking-wider text-[10px] font-bold">
-                  <th className="pb-3">Makbuz No</th>
-                  <th className="pb-3">Bağışçı</th>
-                  <th className="pb-3">Ödeme Tipi</th>
-                  <th className="pb-3">Tarih</th>
-                  <th className="pb-3 text-right">Tutar</th>
-                  <th className="pb-3 pl-4">SMS</th>
-                  <th className="pb-3 text-right">İşlem</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table inset>
+              <THead>
+                <Tr>
+                  <Th>Makbuz No</Th>
+                  <Th>Bağışçı</Th>
+                  <Th>Ödeme Tipi</Th>
+                  <Th>Tarih</Th>
+                  <Th className="text-right">Tutar</Th>
+                  <Th>SMS</Th>
+                  <Th className="text-right">İşlem</Th>
+                </Tr>
+              </THead>
+              <TBody>
                 {filteredDonations.map((don) => (
-                  <tr key={don.id} className="hover:bg-gray-50/50">
-                    <td className="py-3.5 font-bold text-gray-900">{don.receipt_number}{don.official_receipt_no && <div className="text-[11px] font-semibold text-gray-500">Matbu {don.official_receipt_no}</div>}</td>
-                    <td className="py-3.5">
+                  <Tr key={don.id} className="hover:bg-gray-50/50">
+                    <Td className="font-bold text-gray-900">{don.receipt_number}{don.official_receipt_no && <div className="text-[11px] font-semibold text-gray-500">Matbu {don.official_receipt_no}</div>}</Td>
+                    <Td>
                       {don.donor_name}
                       {don.on_behalf_of && <div className="text-[10px] text-primary-700">Adına: {don.on_behalf_of}</div>}
-                    </td>
-                    <td className="py-3.5">{don.payment_method_label}{don.is_manual && ' (elle)'}</td>
-                    <td className="py-3.5 text-gray-400">{new Date(don.paid_at).toLocaleDateString('tr-TR')}</td>
-                    <td className="py-3.5 text-right font-bold text-emerald-800">{formatMoney(don.amount_cents, don.currency)}</td>
-                    <td className="py-3.5 pl-4"><SmsStatusPill sms={sms[don.id]} /></td>
-                    <td className="py-3.5 text-right">
+                    </Td>
+                    <Td>{don.payment_method_label}{don.is_manual && ' (elle)'}</Td>
+                    <Td className="text-gray-400">{new Date(don.paid_at).toLocaleDateString('tr-TR')}</Td>
+                    <Td className="text-right font-bold text-emerald-800">{formatMoney(don.amount_cents, don.currency)}</Td>
+                    <Td><SmsStatusPill sms={sms[don.id]} /></Td>
+                    <Td className="text-right">
                       {canSms && <button onClick={() => setSmsFor(don)} className="mr-3 font-bold text-primary-600 hover:text-primary-700">SMS</button>}
                       <button
                         onClick={() => viewReceipt(don.id)}
@@ -220,11 +217,11 @@ export default function AdminReceiptsPage() {
                       >
                         PDF
                       </button>
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
         )}
       </Card>

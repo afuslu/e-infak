@@ -5,7 +5,7 @@ import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { apiErrorMessage, v1Send, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
-import { toast } from '../../../../components/admin/ui'
+import { PageHeader, toast } from '../../../../components/admin/ui'
 
 const CATEGORIES = [
   ['genel', 'Genel'], ['egitim', 'Eğitim'], ['saglik', 'Sağlık'], ['gida', 'Gıda'], ['su', 'Su'], ['yetim', 'Yetim'],
@@ -149,9 +149,7 @@ export default function AdminCampaignsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Kampanya Yönetimi & Galeriler</h1>
-      </div>
+      <PageHeader title="Kampanya Yönetimi & Galeriler" />
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">

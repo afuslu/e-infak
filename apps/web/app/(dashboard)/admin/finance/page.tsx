@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { toast } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface Expense {
@@ -164,15 +164,12 @@ export default function AdminFinancePage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Kasa & Finans Yönetimi</h1>
-        <Button 
+      <PageHeader title="Kasa & Finans Yönetimi" actions={<Button 
           onClick={handleExportDerbis}
           className="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shadow-sm text-xs"
         >
           DERBİS Ek-5/A Raporu (Excel/CSV)
-        </Button>
-      </div>
+        </Button>} />
 
       {errorMsg && (
         <div className="rounded-lg bg-red-50 p-4 text-sm text-red-600 font-semibold border border-red-100">
@@ -336,28 +333,28 @@ export default function AdminFinancePage() {
               <p className="text-xs text-gray-400 py-4 text-center">Kayıtlı harcama bulunmamaktadır.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-gray-600">
-                  <thead>
-                    <tr className="border-b text-gray-500 uppercase tracking-wider text-[10px] font-bold">
-                      <th className="pb-3">Harcama</th>
-                      <th className="pb-3">Kategori</th>
-                      <th className="pb-3">Belge No</th>
-                      <th className="pb-3 text-right">Tutar</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
+                <Table>
+                  <THead>
+                    <Tr>
+                      <Th>Harcama</Th>
+                      <Th>Kategori</Th>
+                      <Th>Belge No</Th>
+                      <Th className="text-right">Tutar</Th>
+                    </Tr>
+                  </THead>
+                  <TBody>
                     {expenses.slice(0, 10).map((exp) => (
-                      <tr key={exp.id} className="hover:bg-gray-50/50">
-                        <td className="py-3 font-semibold text-gray-900">{exp.title}</td>
-                        <td className="py-3">{exp.category}</td>
-                        <td className="py-3 font-mono">{exp.receipt_no}</td>
-                        <td className="py-3 text-right font-bold text-red-600">
+                      <Tr key={exp.id} className="hover:bg-gray-50/50">
+                        <Td className="font-semibold text-gray-900">{exp.title}</Td>
+                        <Td>{exp.category}</Td>
+                        <Td className="font-mono">{exp.receipt_no}</Td>
+                        <Td className="text-right font-bold text-red-600">
                           -{(exp.amount_cents / 100).toLocaleString('tr-TR')} ₺
-                        </td>
-                      </tr>
+                        </Td>
+                      </Tr>
                     ))}
-                  </tbody>
-                </table>
+                  </TBody>
+                </Table>
               </div>
             )}
           </Card>

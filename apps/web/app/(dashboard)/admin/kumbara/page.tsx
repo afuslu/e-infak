@@ -7,6 +7,7 @@ import {
   adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface Region { id: string; name: string; description: string | null }
 interface Box {
@@ -160,16 +161,10 @@ export default function KumbaraPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Kumbara Organizasyonu</h1>
-          <p className="mt-1 text-sm text-gray-500">Boşaltılan tutar seçilen bağış kalemine &quot;Kumbara Bağışları&quot; adına işlenir ve raporlara yansır.</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader title="Kumbara Organizasyonu" description={<>Boşaltılan tutar seçilen bağış kalemine &quot;Kumbara Bağışları&quot; adına işlenir ve raporlara yansır.</>} actions={<div className="flex gap-2">
           {canEdit && <button className={ghostButton} onClick={addRegion}>+ Bölge</button>}
           {canEdit && <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : open(null))}>{showForm ? 'Vazgeç' : '+ Kumbara'}</button>}
-        </div>
-      </div>
+        </div>} />
 
       {report && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -261,36 +256,36 @@ export default function KumbaraPage() {
               b.contact_phone, STATUS[b.status], b.last_collected_at ? new Date(b.last_collected_at).toLocaleDateString('tr-TR') : '', b.total_collected_cents / 100]))}>⬇ CSV</button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                <th className="pb-2">Kod</th><th className="pb-2">Yer / adres</th><th className="pb-2">Bölge</th><th className="pb-2">Son boşaltma</th>
-                <th className="pb-2 text-right">Toplam</th><th />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+          <Table>
+            <THead>
+              <Tr>
+                <Th>Kod</Th><Th>Yer / adres</Th><Th>Bölge</Th><Th>Son boşaltma</Th>
+                <Th className="text-right">Toplam</Th><Th />
+              </Tr>
+            </THead>
+            <TBody>
               {boxes.map((b) => (
-                <tr key={b.id} className={b.status !== 'active' ? 'opacity-50' : ''}>
-                  <td className="py-2 font-mono font-bold">{b.code}</td>
-                  <td className="py-2">
+                <Tr key={b.id} className={b.status !== 'active' ? 'opacity-50' : ''}>
+                  <Td className="font-mono font-bold">{b.code}</Td>
+                  <Td>
                     <div className="font-semibold">{b.location_name}</div>
                     <div className="text-[10px] text-gray-500">{[b.address, b.district, b.city].filter(Boolean).join(', ')} {b.contact_phone && `· ${b.contact_phone}`}</div>
-                  </td>
-                  <td className="py-2">{b.region_name || '—'}</td>
-                  <td className={`py-2 ${b.days_since_collection !== null && b.days_since_collection > 90 ? 'font-bold text-red-600' : ''}`}>
+                  </Td>
+                  <Td>{b.region_name || '—'}</Td>
+                  <Td className={`py-2 ${b.days_since_collection !== null && b.days_since_collection > 90 ? 'font-bold text-red-600' : ''}`}>
                     {b.last_collected_at ? `${new Date(b.last_collected_at).toLocaleDateString('tr-TR')} (${b.days_since_collection} gün)` : 'Hiç'}
-                  </td>
-                  <td className="py-2 text-right tabular-nums">{formatMoney(b.total_collected_cents)}<div className="text-[10px] text-gray-400">{b.collection_count} boşaltma</div></td>
-                  <td className="py-2 text-right whitespace-nowrap">
+                  </Td>
+                  <Td className="text-right tabular-nums">{formatMoney(b.total_collected_cents)}<div className="text-[10px] text-gray-400">{b.collection_count} boşaltma</div></Td>
+                  <Td className="text-right whitespace-nowrap">
                     {canEdit && b.status === 'active' && <button className="font-bold text-emerald-700" onClick={() => setCollecting(b)}>Boşalt</button>}
                     <button className="ml-3 font-bold text-primary-700" onClick={() => showHistory(b)}>Geçmiş</button>
                     {canEdit && <button className="ml-3 font-bold text-gray-600" onClick={() => open(b)}>Düzenle</button>}
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               ))}
-              {boxes.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-gray-400">Kumbara yok.</td></tr>}
-            </tbody>
-          </table>
+              {boxes.length === 0 && <Tr><Td colSpan={6} className="text-center text-gray-400">Kumbara yok.</Td></Tr>}
+            </TBody>
+          </Table>
         </div>
       </Card>
 

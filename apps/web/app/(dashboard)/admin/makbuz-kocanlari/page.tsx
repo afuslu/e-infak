@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface Book {
   id: string; series: string; start_no: number; end_no: number; next_no: number; branch: string | null
@@ -100,13 +101,11 @@ export default function ReceiptBooksPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Makbuz Koçanları</h1>
-          <p className="mt-1 text-sm text-gray-500">Resmî matbu makbuz koçanları. Kesilen ya da iptal edilen numara bir daha verilmez; elle makbuz keserken koçan seçilir.</p>
-        </div>
-        {canEdit && <button className={primaryButton} onClick={() => setForm({ series: '', start_no: '1', end_no: '50', branch: '', holder_user_id: '', status: 'active', note: '' })}>+ Yeni koçan</button>}
-      </div>
+      <PageHeader
+        title="Makbuz Koçanları"
+        description={<>Resmî matbu makbuz koçanları. Kesilen ya da iptal edilen numara bir daha verilmez; elle makbuz keserken koçan seçilir.</>}
+        actions={canEdit && <button className={primaryButton} onClick={() => setForm({ series: '', start_no: '1', end_no: '50', branch: '', holder_user_id: '', status: 'active', note: '' })}>+ Yeni koçan</button>}
+      />
       <Notice message={message} />
 
       {form && (
@@ -142,32 +141,32 @@ export default function ReceiptBooksPage() {
 
       <Card className="border border-gray-100 p-6 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Seri / aralık</th><th>Şube</th><th>Zimmet</th><th>Kesilen</th><th>İptal yaprak</th><th>Kalan</th><th>Sıradaki</th><th>Durum</th><th /></tr></thead>
-            <tbody>
+          <Table>
+            <THead><Tr><Th>Seri / aralık</Th><Th>Şube</Th><Th>Zimmet</Th><Th>Kesilen</Th><Th>İptal yaprak</Th><Th>Kalan</Th><Th>Sıradaki</Th><Th>Durum</Th><Th /></Tr></THead>
+            <TBody>
               {books.map((b) => (
-                <tr key={b.id} className="border-t">
-                  <td className="py-2 font-bold text-gray-900">{b.series} <span className="font-normal text-gray-500">{b.start_no}–{b.end_no}</span></td>
-                  <td>{b.branch || 'Merkez'}</td>
-                  <td>{b.holder_name || '—'}</td>
-                  <td>{b.used}</td>
-                  <td>{b.voided}</td>
-                  <td className={b.remaining <= 5 && b.status === 'active' ? 'font-bold text-amber-700' : ''}>{b.remaining}</td>
-                  <td>{b.next_label || '—'}</td>
-                  <td>{b.status === 'active' ? 'Kullanımda' : 'Kapalı'}</td>
-                  <td className="whitespace-nowrap text-right">
+                <Tr key={b.id} className="border-t">
+                  <Td className="font-bold text-gray-900">{b.series} <span className="font-normal text-gray-500">{b.start_no}–{b.end_no}</span></Td>
+                  <Td>{b.branch || 'Merkez'}</Td>
+                  <Td>{b.holder_name || '—'}</Td>
+                  <Td>{b.used}</Td>
+                  <Td>{b.voided}</Td>
+                  <Td className={b.remaining <= 5 && b.status === 'active' ? 'font-bold text-amber-700' : ''}>{b.remaining}</Td>
+                  <Td>{b.next_label || '—'}</Td>
+                  <Td>{b.status === 'active' ? 'Kullanımda' : 'Kapalı'}</Td>
+                  <Td className="whitespace-nowrap text-right">
                     <button className="mr-3 font-bold text-primary-700" onClick={() => openSheets(b.id)}>Yapraklar</button>
                     {canEdit && <button className="mr-3 font-bold text-gray-700" onClick={() => setForm({
                       id: b.id, series: b.series, start_no: String(b.start_no), end_no: String(b.end_no), branch: b.branch || '',
                       holder_user_id: b.holder_user_id || '', status: b.status, note: b.note || '',
                     })}>Düzenle</button>}
                     {canEdit && b.status === 'active' && <button className="font-bold text-red-600" onClick={() => voidSheet(b)}>Yaprak iptal</button>}
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               ))}
-              {!books.length && <tr><td colSpan={9} className="py-6 text-center text-gray-400">Henüz koçan tanımlanmamış.</td></tr>}
-            </tbody>
-          </table>
+              {!books.length && <Tr><Td colSpan={9} className="text-center text-gray-400">Henüz koçan tanımlanmamış.</Td></Tr>}
+            </TBody>
+          </Table>
         </div>
       </Card>
 
@@ -183,22 +182,22 @@ export default function ReceiptBooksPage() {
             </div>
           </div>
           <div className="max-h-[480px] overflow-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 bg-white text-gray-400"><tr><th className="py-1">Yaprak</th><th>Durum</th><th>Sistem no</th><th>Bağışçı</th><th>Tutar</th><th>Tarih / gerekçe</th></tr></thead>
-              <tbody>
+            <Table>
+              <THead className="sticky top-0 bg-white"><Tr><Th>Yaprak</Th><Th>Durum</Th><Th>Sistem no</Th><Th>Bağışçı</Th><Th>Tutar</Th><Th>Tarih / gerekçe</Th></Tr></THead>
+              <TBody>
                 {sheets.sheets.map((s) => (
-                  <tr key={s.no} className="border-t">
-                    <td className="py-1.5 font-semibold">{s.label}</td>
-                    <td className={`font-semibold ${STATE_LABEL[s.state][1]}`}>{STATE_LABEL[s.state][0]}</td>
-                    <td>{s.receipt_number || '—'}</td>
-                    <td>{s.donor_name || '—'}</td>
-                    <td>{s.amount_cents !== undefined ? formatMoney(s.amount_cents, s.currency) : '—'}</td>
-                    <td>{s.paid_at ? new Date(s.paid_at).toLocaleDateString('tr-TR') : s.reason || '—'}</td>
-                  </tr>
+                  <Tr key={s.no} className="border-t">
+                    <Td className="font-semibold">{s.label}</Td>
+                    <Td className={`font-semibold ${STATE_LABEL[s.state][1]}`}>{STATE_LABEL[s.state][0]}</Td>
+                    <Td>{s.receipt_number || '—'}</Td>
+                    <Td>{s.donor_name || '—'}</Td>
+                    <Td>{s.amount_cents !== undefined ? formatMoney(s.amount_cents, s.currency) : '—'}</Td>
+                    <Td>{s.paid_at ? new Date(s.paid_at).toLocaleDateString('tr-TR') : s.reason || '—'}</Td>
+                  </Tr>
                 ))}
-                {!sheets.sheets.length && <tr><td colSpan={6} className="py-4 text-center text-gray-400">Bu koçandan henüz makbuz kesilmemiş.</td></tr>}
-              </tbody>
-            </table>
+                {!sheets.sheets.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Bu koçandan henüz makbuz kesilmemiş.</Td></Tr>}
+              </TBody>
+            </Table>
           </div>
           <p className="text-[11px] text-gray-400">&quot;Atlandı&quot; satırları, sonraki numaralar kullanıldığı hâlde kesilmemiş yapraklardır; matbu koçanla karşılaştırıp gerekirse iptal edin.</p>
         </Card>
@@ -220,12 +219,12 @@ export default function ReceiptBooksPage() {
             </div>
           ))}
         </div>
-        <table className="w-full text-left text-xs">
-          <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Kanal</th><th>Makbuz</th><th>Toplam</th></tr></thead>
-          <tbody>{channels.map((c) => (
-            <tr key={`${c.kind}-${c.label}`} className="border-t"><td className="py-1.5 font-semibold">{c.label}</td><td>{c.count}</td><td>{formatMoney(c.total_cents)}</td></tr>
-          ))}</tbody>
-        </table>
+        <Table>
+          <THead><Tr><Th>Kanal</Th><Th>Makbuz</Th><Th>Toplam</Th></Tr></THead>
+          <TBody>{channels.map((c) => (
+            <Tr key={`${c.kind}-${c.label}`} className="border-t"><Td className="font-semibold">{c.label}</Td><Td>{c.count}</Td><Td>{formatMoney(c.total_cents)}</Td></Tr>
+          ))}</TBody>
+        </Table>
       </Card>
     </div>
   )

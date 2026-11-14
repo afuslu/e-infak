@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface BankTransaction {
   id: string
@@ -110,15 +111,9 @@ export default function AdminReconciliationPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Otomatik Banka Mutabakatı</h1>
-          <p className="text-sm text-gray-500 mt-1">Havale / EFT ekstrelerini aktarın ve bağışlar ile otomatik eşleştirin</p>
-        </div>
-        <Button onClick={exportCSV} variant="ghost" className="border border-gray-200 text-xs font-bold">
+      <PageHeader title="Otomatik Banka Mutabakatı" description={<>Havale / EFT ekstrelerini aktarın ve bağışlar ile otomatik eşleştirin</>} actions={<Button onClick={exportCSV} variant="ghost" className="border border-gray-200 text-xs font-bold">
           CSV Dışa Aktar
-        </Button>
-      </div>
+        </Button>} />
 
       {errorMsg && (
         <div className="rounded-xl bg-red-50 p-4 text-sm text-red-700 font-semibold border border-red-100">
@@ -181,32 +176,32 @@ export default function AdminReconciliationPage() {
           <p className="text-sm text-gray-400 py-8 text-center">Herhangi bir banka hareketi bulunamadı.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b bg-gray-50 text-gray-500 font-bold uppercase text-[10px]">
-                  <th className="p-3">Tarih</th>
-                  <th className="p-3">İşlem No</th>
-                  <th className="p-3">Gönderen</th>
-                  <th className="p-3">Açıklama</th>
-                  <th className="p-3 text-right">Tutar</th>
-                  <th className="p-3 text-center">Durum</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table inset className="border-collapse">
+              <THead>
+                <Tr>
+                  <Th>Tarih</Th>
+                  <Th>İşlem No</Th>
+                  <Th>Gönderen</Th>
+                  <Th>Açıklama</Th>
+                  <Th className="text-right">Tutar</Th>
+                  <Th className="text-center">Durum</Th>
+                </Tr>
+              </THead>
+              <TBody>
                 {transactions.map((t) => (
-                  <tr key={t.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="p-3 text-gray-600 font-medium whitespace-nowrap">
+                  <Tr key={t.id} className="hover:bg-gray-50/50 transition-colors">
+                    <Td className="text-gray-600 font-medium whitespace-nowrap">
                       {new Date(t.booked_at).toLocaleString('tr-TR')}
-                    </td>
-                    <td className="p-3 font-mono text-[11px] text-gray-500">{t.external_id}</td>
-                    <td className="p-3 font-bold text-gray-800">{t.sender_name || 'Bilinmiyor'}</td>
-                    <td className="p-3 text-gray-600 max-w-xs truncate" title={t.description}>
+                    </Td>
+                    <Td className="font-mono text-[11px] text-gray-500">{t.external_id}</Td>
+                    <Td className="font-bold text-gray-800">{t.sender_name || 'Bilinmiyor'}</Td>
+                    <Td className="text-gray-600 max-w-xs truncate" title={t.description}>
                       {t.description || '-'}
-                    </td>
-                    <td className="p-3 text-right font-mono font-bold text-gray-900 whitespace-nowrap">
+                    </Td>
+                    <Td className="text-right font-mono font-bold text-gray-900 whitespace-nowrap">
                       {(t.amount_cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {t.currency}
-                    </td>
-                    <td className="p-3 text-center whitespace-nowrap">
+                    </Td>
+                    <Td className="text-center whitespace-nowrap">
                       <span
                         className={`inline-block font-bold px-2.5 py-1 rounded-full text-[10px] ${
                           t.status === 'matched'
@@ -218,11 +213,11 @@ export default function AdminReconciliationPage() {
                       >
                         {t.status === 'matched' ? '✓ Eşleşti' : t.status === 'ambiguous' ? '⚠ Belirsiz' : '✕ Eşleşmedi'}
                       </span>
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
         )}
       </Card>

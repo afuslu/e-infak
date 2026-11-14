@@ -9,6 +9,7 @@ import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { STATUS_CLASS, STATUS_LABEL, SmsMessage } from '../../../../lib/sms'
+import { PageHeader, TBody, Table, Td, Tr } from '../../../../components/admin/ui'
 
 interface DonorRow {
   id: string
@@ -98,17 +99,11 @@ function DonorsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Bağışçılar</h1>
-          <p className="mt-1 text-sm text-gray-500">{list.total.toLocaleString('tr-TR')} kayıt</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader title="Bağışçılar" description={<>{list.total.toLocaleString('tr-TR')}kayıt</>} actions={<div className="flex flex-wrap gap-2">
           <Link href="/admin/bagiscilar/mukerrer" className={ghostButton}>Mükerrer kayıtlar</Link>
           {canManage && <Link href="/admin/veri-aktarma" className={ghostButton}>Excel&apos;den aktar</Link>}
           {canManage && <button onClick={() => setShowCreate((v) => !v)} className={primaryButton}>{showCreate ? 'Vazgeç' : '+ Yeni Bağışçı'}</button>}
-        </div>
-      </div>
+        </div>} />
 
       <Notice message={message} />
 
@@ -380,24 +375,24 @@ function DonorCardPanel({
             </div>
           )}
           <div className="max-h-[480px] overflow-y-auto">
-            <table className="w-full text-left text-xs">
-              <tbody className="divide-y divide-gray-100">
+            <Table>
+              <TBody>
                 {card.donations.map((d) => (
-                  <tr key={d.id} className={d.status !== 'confirmed' ? 'opacity-50' : ''}>
-                    <td className="py-2">{new Date(d.paid_at).toLocaleDateString('tr-TR')}</td>
-                    <td className="py-2">
+                  <Tr key={d.id} className={d.status !== 'confirmed' ? 'opacity-50' : ''}>
+                    <Td>{new Date(d.paid_at).toLocaleDateString('tr-TR')}</Td>
+                    <Td>
                       <div className="font-semibold">{d.campaign_title}</div>
                       <div className="text-[10px] text-gray-400">{d.payment_method_label}{d.is_manual ? ' · elle' : ''}{d.on_behalf_of ? ` · Adına: ${d.on_behalf_of}` : ''}</div>
-                    </td>
-                    <td className="py-2 text-right font-bold tabular-nums">{formatMoney(d.amount_cents, d.currency)}</td>
-                    <td className="py-2 text-right">
+                    </Td>
+                    <Td className="text-right font-bold tabular-nums">{formatMoney(d.amount_cents, d.currency)}</Td>
+                    <Td className="text-right">
                       <button onClick={() => downloadReceiptPdf(d.id, d.receipt_number).catch(() => setMessage({ type: 'error', text: 'PDF indirilemedi' }))} className="font-bold text-primary-700">PDF</button>
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-                {card.donations.length === 0 && <tr><td className="py-6 text-center text-gray-400">Henüz bağış yok.</td></tr>}
-              </tbody>
-            </table>
+                {card.donations.length === 0 && <Tr><Td className="text-center text-gray-400">Henüz bağış yok.</Td></Tr>}
+              </TBody>
+            </Table>
           </div>
         </div>
       )}

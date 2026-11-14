@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { toast } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface Subscription {
@@ -63,15 +63,12 @@ export default function AdminSubscriptionsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Düzenli Bağış & Abonelik Yönetimi</h1>
-        <button
+      <PageHeader title="Düzenli Bağış & Abonelik Yönetimi" actions={<button
           onClick={loadSubscriptions}
           className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
         >
           Yenile
-        </button>
-      </div>
+        </button>} />
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
@@ -86,36 +83,36 @@ export default function AdminSubscriptionsPage() {
           <p className="text-xs text-gray-400 py-6 text-center">Kayıtlı düzenli bağış talimatı bulunmamaktadır.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-600">
-              <thead>
-                <tr className="border-b text-gray-500 uppercase tracking-wider text-[10px] font-bold">
-                  <th className="pb-3">Bağışçı</th>
-                  <th className="pb-3">Kampanya</th>
-                  <th className="pb-3">Kart Bilgisi</th>
-                  <th className="pb-3">Sonraki Çekim</th>
-                  <th className="pb-3">Durum</th>
-                  <th className="pb-3 text-right">Harcama</th>
-                  <th className="pb-3 text-right">İşlem</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table>
+              <THead>
+                <Tr>
+                  <Th>Bağışçı</Th>
+                  <Th>Kampanya</Th>
+                  <Th>Kart Bilgisi</Th>
+                  <Th>Sonraki Çekim</Th>
+                  <Th>Durum</Th>
+                  <Th className="text-right">Harcama</Th>
+                  <Th className="text-right">İşlem</Th>
+                </Tr>
+              </THead>
+              <TBody>
                 {subscriptions.map((sub) => (
-                  <tr key={sub.id} className="hover:bg-gray-50/50">
-                    <td className="py-4 font-semibold text-gray-900">{sub.donor_name}</td>
-                    <td className="py-4 font-medium text-gray-600">{sub.campaign_title}</td>
-                    <td className="py-4 font-mono text-gray-500 text-[11px]">
+                  <Tr key={sub.id} className="hover:bg-gray-50/50">
+                    <Td className="font-semibold text-gray-900">{sub.donor_name}</Td>
+                    <Td className="font-medium text-gray-600">{sub.campaign_title}</Td>
+                    <Td className="font-mono text-gray-500 text-[11px]">
                       {sub.card_brand} (**** {sub.card_last4})
-                    </td>
-                    <td className="py-4 text-gray-400 font-semibold">{sub.next_billing_date}</td>
-                    <td className="py-4">
+                    </Td>
+                    <Td className="text-gray-400 font-semibold">{sub.next_billing_date}</Td>
+                    <Td>
                       <span className={`inline-block font-bold px-2 py-0.5 rounded text-[10px] ${sub.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {sub.status === 'active' ? 'Aktif' : 'Hatalı Kart'}
                       </span>
-                    </td>
-                    <td className="py-4 text-right font-bold text-gray-950">
+                    </Td>
+                    <Td className="text-right font-bold text-gray-950">
                       {sub.amount_lira.toLocaleString('tr-TR')} ₺/Ay
-                    </td>
-                    <td className="py-4 text-right">
+                    </Td>
+                    <Td className="text-right">
                       {sub.status !== 'active' && (
                         <button
                           onClick={() => handleRetry(sub.id)}
@@ -125,11 +122,11 @@ export default function AdminSubscriptionsPage() {
                           {retryingId === sub.id ? 'Deneniyor...' : 'Çekimi Dene'}
                         </button>
                       )}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
         )}
       </Card>

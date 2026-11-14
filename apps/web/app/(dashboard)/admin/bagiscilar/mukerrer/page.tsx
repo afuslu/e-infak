@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../../lib/admin-access'
 import { Notice, ghostButton, primaryButton } from '../../../../../components/admin/FormKit'
-import { confirmDialog } from '../../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../../components/admin/ui'
 
 interface DonorBrief {
   id: string; full_name: string; phone: string | null; email: string | null; tc_masked: string | null; city: string | null
@@ -50,13 +50,7 @@ export default function DuplicateDonorsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Mükerrer Bağışçılar</h1>
-          <p className="mt-1 text-sm text-gray-500">Aynı telefon, e-posta veya TC ile açılmış kartlar. Asıl kartı seçip birleştirin; boş alanlar diğer kartlardan doldurulur.</p>
-        </div>
-        <Link href="/admin/bagiscilar" className={ghostButton}>← Bağışçılar</Link>
-      </div>
+      <PageHeader title="Mükerrer Bağışçılar" description={<>Aynı telefon, e-posta veya TC ile açılmış kartlar. Asıl kartı seçip birleştirin; boş alanlar diğer kartlardan doldurulur.</>} actions={<Link href="/admin/bagiscilar" className={ghostButton}>← Bağışçılar</Link>} />
       <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
         <input type="checkbox" checked={includeNames} onChange={(e) => setIncludeNames(e.target.checked)} />
         Aynı ad soyadı da mükerrer say (yanlış eşleşme olabilir, dikkatle kontrol edin)
@@ -74,24 +68,24 @@ export default function DuplicateDonorsPage() {
               {canEdit && <button className={primaryButton} onClick={() => merge(index, g)}>Birleştir</button>}
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">Asıl kart</th><th>Ad</th><th>Telefon</th><th>E-posta</th><th>TC</th><th>Şehir</th><th>Bağış</th><th>Son bağış</th><th>Kayıt</th></tr></thead>
-                <tbody>
+              <Table>
+                <THead><Tr><Th>Asıl kart</Th><Th>Ad</Th><Th>Telefon</Th><Th>E-posta</Th><Th>TC</Th><Th>Şehir</Th><Th>Bağış</Th><Th>Son bağış</Th><Th>Kayıt</Th></Tr></THead>
+                <TBody>
                   {g.donors.map((d) => (
-                    <tr key={d.id} className={`border-t ${d.id === target ? 'bg-primary-50/40' : ''}`}>
-                      <td className="py-1.5"><input type="radio" name={`target-${index}`} checked={d.id === target} onChange={() => setTargets({ ...targets, [index]: d.id })} /></td>
-                      <td className="font-semibold text-gray-900">{d.full_name}</td>
-                      <td>{d.phone || '—'}</td>
-                      <td>{d.email || '—'}</td>
-                      <td>{d.tc_masked || '—'}</td>
-                      <td>{d.city || '—'}</td>
-                      <td>{d.total_donations} · {formatMoney(d.total_donated_cents)}</td>
-                      <td>{d.last_donation_at ? new Date(d.last_donation_at).toLocaleDateString('tr-TR') : '—'}</td>
-                      <td>{new Date(d.created_at).toLocaleDateString('tr-TR')}</td>
-                    </tr>
+                    <Tr key={d.id} className={`border-t ${d.id === target ? 'bg-primary-50/40' : ''}`}>
+                      <Td><input type="radio" name={`target-${index}`} checked={d.id === target} onChange={() => setTargets({ ...targets, [index]: d.id })} /></Td>
+                      <Td className="font-semibold text-gray-900">{d.full_name}</Td>
+                      <Td>{d.phone || '—'}</Td>
+                      <Td>{d.email || '—'}</Td>
+                      <Td>{d.tc_masked || '—'}</Td>
+                      <Td>{d.city || '—'}</Td>
+                      <Td>{d.total_donations} · {formatMoney(d.total_donated_cents)}</Td>
+                      <Td>{d.last_donation_at ? new Date(d.last_donation_at).toLocaleDateString('tr-TR') : '—'}</Td>
+                      <Td>{new Date(d.created_at).toLocaleDateString('tr-TR')}</Td>
+                    </Tr>
                   ))}
-                </tbody>
-              </table>
+                </TBody>
+              </Table>
             </div>
           </Card>
         )

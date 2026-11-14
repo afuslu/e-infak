@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import { apiErrorMessage, hasPermission, useAdminAccess, v1Get, v1Send } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface Bank {
   key: string; label: string; ready: boolean; configured: boolean
@@ -117,13 +118,7 @@ export default function BankAccountsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Banka Hesapları</h1>
-          <p className="mt-1 text-sm text-gray-500">Hareketleri otomatik çekilecek hesaplar, bankaların web servis bilgileri ve kampanya kuralları.</p>
-        </div>
-        <Link href="/admin/gelen-havaleler" className={ghostButton}>Gelen havalelere dön</Link>
-      </div>
+      <PageHeader title="Banka Hesapları" description={<>Hareketleri otomatik çekilecek hesaplar, bankaların web servis bilgileri ve kampanya kuralları.</>} actions={<Link href="/admin/gelen-havaleler" className={ghostButton}>Gelen havalelere dön</Link>} />
 
       <Notice message={message} />
 
@@ -161,24 +156,24 @@ export default function BankAccountsPage() {
           <p className="py-6 text-center text-sm text-gray-400">Henüz hesap eklenmedi.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b bg-gray-50 text-[10px] font-bold uppercase text-gray-500">
-                <tr><th className="p-3">Hesap</th><th className="p-3">IBAN</th><th className="p-3">Varsayılan kampanya</th><th className="p-3">Son çekim</th><th className="p-3" /></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table inset>
+              <THead className="bg-gray-50">
+                <Tr><Th>Hesap</Th><Th>IBAN</Th><Th>Varsayılan kampanya</Th><Th>Son çekim</Th><Th /></Tr>
+              </THead>
+              <TBody>
                 {accounts.map((a) => (
-                  <tr key={a.id} className="align-top">
-                    <td className="p-3">
+                  <Tr key={a.id} className="align-top">
+                    <Td>
                       <div className="font-bold text-gray-900">{a.bank} · {a.label}</div>
                       <div className="text-gray-500">{a.currency}{a.enabled ? '' : ' · kapalı'}{a.auto_approve ? ' · otomatik onay açık' : ''}</div>
-                    </td>
-                    <td className="p-3 font-mono text-gray-600">{a.iban || '—'}</td>
-                    <td className="p-3 text-gray-700">{campaignTitle(a.default_campaign_id)}</td>
-                    <td className="p-3 text-gray-600">
+                    </Td>
+                    <Td className="font-mono text-gray-600">{a.iban || '—'}</Td>
+                    <Td className="text-gray-700">{campaignTitle(a.default_campaign_id)}</Td>
+                    <Td className="text-gray-600">
                       {a.last_synced_at ? new Date(a.last_synced_at).toLocaleString('tr-TR') : '—'}
                       {a.last_error && <div className="mt-1 max-w-xs text-[11px] text-red-600">{a.last_error}</div>}
-                    </td>
-                    <td className="whitespace-nowrap p-3 text-right">
+                    </Td>
+                    <Td className="whitespace-nowrap text-right">
                       {canEdit && (
                         <div className="flex justify-end gap-2">
                           {a.ready && <button onClick={() => syncNow(a)} disabled={syncing === a.id} className={ghostButton}>{syncing === a.id ? 'Çekiliyor…' : 'Şimdi çek'}</button>}
@@ -186,11 +181,11 @@ export default function BankAccountsPage() {
                             currency: a.currency, enabled: a.enabled, auto_approve: a.auto_approve, default_campaign_id: a.default_campaign_id })} className={ghostButton}>Düzenle</button>
                         </div>
                       )}
-                    </td>
-                  </tr>
+                    </Td>
+                  </Tr>
                 ))}
-              </tbody>
-            </table>
+              </TBody>
+            </Table>
           </div>
         )}
       </Card>

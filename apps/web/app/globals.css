@@ -257,8 +257,12 @@
   }
   .portal:not([data-theme="light"]) .pt-day { display: none; }
   .portal:not([data-theme="light"]) .pt-night { display: inline-flex; }
+  .portal:not([data-theme="light"]) .pt-light-only { display: none; }
+  .portal:not([data-theme="light"]) .pt-dark-only { display: block; }
 }
-.portal .pt-night { display: none; }
+.portal .pt-night, .portal .pt-dark-only { display: none; }
+.portal[data-theme="dark"] .pt-light-only { display: none; }
+.portal[data-theme="dark"] .pt-dark-only { display: block; }
 .portal[data-theme="dark"] .pt-day { display: none; }
 .portal[data-theme="dark"] .pt-night { display: inline-flex; }
 .portal .pt-shadow { box-shadow: var(--pt-shadow); }

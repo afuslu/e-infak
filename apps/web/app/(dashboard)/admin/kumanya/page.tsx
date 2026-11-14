@@ -7,6 +7,7 @@ import {
   adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface Package {
   id: string; name: string; contents: string | null; unit_cost_cents: number; donation_campaign_id: string | null
@@ -128,10 +129,7 @@ export default function KumanyaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Kumanya Dağıtım</h1>
-        <p className="mt-1 text-sm text-gray-500">Paketin bağış kalemine gelen bağışlar kaç paketin fonlandığını gösterir; teslimde stok düşer.</p>
-      </div>
+      <PageHeader title="Kumanya Dağıtım" description={<>Paketin bağış kalemine gelen bağışlar kaç paketin fonlandığını gösterir; teslimde stok düşer.</>} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1 border-b text-sm font-semibold">
@@ -238,31 +236,31 @@ export default function KumanyaPage() {
             </Card>
           )}
           <Card className="border border-gray-100 p-4 shadow-sm">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  {canEdit && <th className="pb-2"><input type="checkbox" checked={picked.size > 0 && picked.size === recipients.length}
-                    onChange={(e) => setPicked(e.target.checked ? new Set(recipients.map((r) => r.id)) : new Set())} aria-label="Tümünü seç" /></th>}
-                  <th className="pb-2">Hane</th><th className="pb-2">Bölge / adres</th><th className="pb-2">Nüfus</th><th className="pb-2">Son teslim</th><th />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table>
+              <THead>
+                <Tr>
+                  {canEdit && <Th><input type="checkbox" checked={picked.size > 0 && picked.size === recipients.length}
+                    onChange={(e) => setPicked(e.target.checked ? new Set(recipients.map((r) => r.id)) : new Set())} aria-label="Tümünü seç" /></Th>}
+                  <Th>Hane</Th><Th>Bölge / adres</Th><Th>Nüfus</Th><Th>Son teslim</Th><Th />
+                </Tr>
+              </THead>
+              <TBody>
                 {recipients.map((r) => (
-                  <tr key={r.id}>
-                    {canEdit && <td className="py-2"><input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r.id)} /></td>}
-                    <td className="py-2"><div className="font-semibold">{r.full_name}</div><div className="text-[10px] text-gray-500">{r.phone} {r.national_id_masked && `· ${r.national_id_masked}`}</div></td>
-                    <td className="py-2">{r.region_name || '—'}<div className="text-[10px] text-gray-500">{r.address}</div></td>
-                    <td className="py-2">{r.household_size || '—'}</td>
-                    <td className="py-2">{r.last_delivery_at ? new Date(r.last_delivery_at).toLocaleDateString('tr-TR') : 'Hiç'} <span className="text-gray-400">({r.total_received})</span></td>
-                    <td className="py-2 text-right">{canEdit && <button className="font-bold text-primary-700" onClick={() => setRecForm({
+                  <Tr key={r.id}>
+                    {canEdit && <Td><input type="checkbox" checked={picked.has(r.id)} onChange={() => toggle(r.id)} /></Td>}
+                    <Td><div className="font-semibold">{r.full_name}</div><div className="text-[10px] text-gray-500">{r.phone} {r.national_id_masked && `· ${r.national_id_masked}`}</div></Td>
+                    <Td>{r.region_name || '—'}<div className="text-[10px] text-gray-500">{r.address}</div></Td>
+                    <Td>{r.household_size || '—'}</Td>
+                    <Td>{r.last_delivery_at ? new Date(r.last_delivery_at).toLocaleDateString('tr-TR') : 'Hiç'} <span className="text-gray-400">({r.total_received})</span></Td>
+                    <Td className="text-right">{canEdit && <button className="font-bold text-primary-700" onClick={() => setRecForm({
                       id: r.id, full_name: r.full_name, phone: r.phone || '', national_id: '', region_id: r.region_id || '', address: r.address || '',
                       household_size: r.household_size?.toString() || '', needs: r.needs || '',
-                    })}>Düzenle</button>}</td>
-                  </tr>
+                    })}>Düzenle</button>}</Td>
+                  </Tr>
                 ))}
-                {recipients.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-gray-400">Hane kaydı yok.</td></tr>}
-              </tbody>
-            </table>
+                {recipients.length === 0 && <Tr><Td colSpan={6} className="text-center text-gray-400">Hane kaydı yok.</Td></Tr>}
+              </TBody>
+            </Table>
           </Card>
         </div>
       )}
@@ -288,28 +286,28 @@ export default function KumanyaPage() {
                 d.delivered_at ? new Date(d.delivered_at).toLocaleDateString('tr-TR') : d.planned_date || '']))}>⬇ Dağıtım listesi (CSV)</button>
           </div>
           <Card className="border border-gray-100 p-4 shadow-sm">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  {canEdit && <th className="pb-2"><input type="checkbox" checked={picked.size > 0 && picked.size === distributions.length}
-                    onChange={(e) => setPicked(e.target.checked ? new Set(distributions.map((d) => d.id)) : new Set())} aria-label="Tümünü seç" /></th>}
-                  <th className="pb-2">Hane</th><th className="pb-2">Paket</th><th className="pb-2">Bölge</th><th className="pb-2">Tarih</th><th className="pb-2">Durum</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table>
+              <THead>
+                <Tr>
+                  {canEdit && <Th><input type="checkbox" checked={picked.size > 0 && picked.size === distributions.length}
+                    onChange={(e) => setPicked(e.target.checked ? new Set(distributions.map((d) => d.id)) : new Set())} aria-label="Tümünü seç" /></Th>}
+                  <Th>Hane</Th><Th>Paket</Th><Th>Bölge</Th><Th>Tarih</Th><Th>Durum</Th>
+                </Tr>
+              </THead>
+              <TBody>
                 {distributions.map((d) => (
-                  <tr key={d.id}>
-                    {canEdit && <td className="py-2"><input type="checkbox" checked={picked.has(d.id)} onChange={() => toggle(d.id)} /></td>}
-                    <td className="py-2"><div className="font-semibold">{d.recipient_name}</div><div className="text-[10px] text-gray-500">{d.recipient_address}</div></td>
-                    <td className="py-2">{d.package_name} × {d.quantity}</td>
-                    <td className="py-2">{d.region_name || '—'}</td>
-                    <td className="py-2">{d.delivered_at ? new Date(d.delivered_at).toLocaleDateString('tr-TR') : d.planned_date ? new Date(d.planned_date).toLocaleDateString('tr-TR') : '—'}</td>
-                    <td className="py-2">{d.status === 'delivered' ? 'Teslim edildi' : d.status === 'planned' ? 'Planlı' : 'İptal'}</td>
-                  </tr>
+                  <Tr key={d.id}>
+                    {canEdit && <Td><input type="checkbox" checked={picked.has(d.id)} onChange={() => toggle(d.id)} /></Td>}
+                    <Td><div className="font-semibold">{d.recipient_name}</div><div className="text-[10px] text-gray-500">{d.recipient_address}</div></Td>
+                    <Td>{d.package_name} × {d.quantity}</Td>
+                    <Td>{d.region_name || '—'}</Td>
+                    <Td>{d.delivered_at ? new Date(d.delivered_at).toLocaleDateString('tr-TR') : d.planned_date ? new Date(d.planned_date).toLocaleDateString('tr-TR') : '—'}</Td>
+                    <Td>{d.status === 'delivered' ? 'Teslim edildi' : d.status === 'planned' ? 'Planlı' : 'İptal'}</Td>
+                  </Tr>
                 ))}
-                {distributions.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-gray-400">Kayıt yok.</td></tr>}
-              </tbody>
-            </table>
+                {distributions.length === 0 && <Tr><Td colSpan={6} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}
+              </TBody>
+            </Table>
           </Card>
         </div>
       )}

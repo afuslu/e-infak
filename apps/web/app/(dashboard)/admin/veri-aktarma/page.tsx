@@ -5,7 +5,7 @@ import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminSend, apiErrorMessage, formatMoney } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 type Kind = 'donors' | 'donations'
 interface Intro { headers: string[]; row_count: number; fields: Record<string, string>; sample: (string | null)[][]; suggested_mapping: Record<string, number> }
@@ -76,10 +76,7 @@ export default function DataImportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Excel&apos;den Aktarım</h1>
-        <p className="mt-1 text-sm text-gray-500">XLSX veya CSV dosyasını yükleyin, sütunları eşleyin, önce doğrulayın sonra aktarın. En fazla 5000 satır.</p>
-      </div>
+      <PageHeader title="Excel&apos;den Aktarım" description={<>XLSX veya CSV dosyasını yükleyin, sütunları eşleyin, önce doğrulayın sonra aktarın. En fazla 5000 satır.</>} />
 
       <div className="flex gap-1 border-b text-sm font-semibold">
         {(Object.keys(KINDS) as Kind[]).map((k) => (
@@ -131,10 +128,10 @@ export default function DataImportPage() {
           )}
           <div className="overflow-x-auto">
             <p className="mb-1 text-xs font-bold text-gray-500">Dosyadaki ilk satırlar</p>
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr>{intro.headers.map((h, i) => <th key={i} className="whitespace-nowrap py-1 pr-3">{h}</th>)}</tr></thead>
-              <tbody>{intro.sample.map((r, i) => <tr key={i} className="border-t">{intro.headers.map((_, j) => <td key={j} className="whitespace-nowrap py-1 pr-3">{r[j] ?? ''}</td>)}</tr>)}</tbody>
-            </table>
+            <Table>
+              <THead><Tr>{intro.headers.map((h, i) => <Th key={i} className="whitespace-nowrap">{h}</Th>)}</Tr></THead>
+              <TBody>{intro.sample.map((r, i) => <Tr key={i} className="border-t">{intro.headers.map((_, j) => <Td key={j} className="whitespace-nowrap">{r[j] ?? ''}</Td>)}</Tr>)}</TBody>
+            </Table>
           </div>
           <div className="flex gap-2">
             <button className={ghostButton} disabled={busy} onClick={() => send('check')}>2. Doğrula</button>
@@ -171,14 +168,14 @@ export default function DataImportPage() {
           {result.preview.length > 0 && (
             <div className="overflow-x-auto">
               <p className="mb-1 text-xs font-bold text-gray-500">Örnek</p>
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr>{Object.keys(result.preview[0]).map((k) => <th key={k} className="py-1 pr-3">{k}</th>)}</tr></thead>
-                <tbody>{result.preview.map((r, i) => (
-                  <tr key={i} className="border-t">{Object.entries(r).map(([k, v]) => (
-                    <td key={k} className="py-1 pr-3">{k === 'amount_cents' ? (Number(v) / 100).toLocaleString('tr-TR') : Array.isArray(v) ? v.join(', ') : String(v ?? '')}</td>
-                  ))}</tr>
-                ))}</tbody>
-              </table>
+              <Table>
+                <THead><Tr>{Object.keys(result.preview[0]).map((k) => <Th key={k}>{k}</Th>)}</Tr></THead>
+                <TBody>{result.preview.map((r, i) => (
+                  <Tr key={i} className="border-t">{Object.entries(r).map(([k, v]) => (
+                    <Td key={k}>{k === 'amount_cents' ? (Number(v) / 100).toLocaleString('tr-TR') : Array.isArray(v) ? v.join(', ') : String(v ?? '')}</Td>
+                  ))}</Tr>
+                ))}</TBody>
+              </Table>
             </div>
           )}
           {result.committed && <button className={ghostButton} onClick={() => reset()}>Yeni dosya</button>}

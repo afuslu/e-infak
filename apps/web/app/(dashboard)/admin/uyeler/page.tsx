@@ -7,7 +7,7 @@ import {
   adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface MemberRow {
   id: string; member_no: string; member_type: string; member_type_label: string; status: string; status_label: string
@@ -111,13 +111,11 @@ export default function MembersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Üyeler & Aidat</h1>
-          <p className="mt-1 text-sm text-gray-500">Dernek üye kayıtları, aidat dönemleri, tahsilat ve geciken aidat takibi. Tahsilat makbuzu &quot;Üye Aidatı&quot; kalemine kesilir.</p>
-        </div>
-        {canEdit && <button className={primaryButton} onClick={() => { setDetail(null); setForm({ ...emptyMember }) }}>+ Yeni üye</button>}
-      </div>
+      <PageHeader
+        title="Üyeler & Aidat"
+        description={<>Dernek üye kayıtları, aidat dönemleri, tahsilat ve geciken aidat takibi. Tahsilat makbuzu &quot;Üye Aidatı&quot; kalemine kesilir.</>}
+        actions={canEdit && <button className={primaryButton} onClick={() => { setDetail(null); setForm({ ...emptyMember }) }}>+ Yeni üye</button>}
+      />
 
       {summary && (
         <div className="grid gap-3 sm:grid-cols-4">
@@ -215,24 +213,24 @@ export default function MembersPage() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1">No</th><th>Ad</th><th>Telefon</th><th>Tür</th><th>Durum</th><th>Kayıt</th><th>Açık aidat</th><th>Son ödeme</th></tr></thead>
-              <tbody>
+            <Table>
+              <THead><Tr><Th>No</Th><Th>Ad</Th><Th>Telefon</Th><Th>Tür</Th><Th>Durum</Th><Th>Kayıt</Th><Th>Açık aidat</Th><Th>Son ödeme</Th></Tr></THead>
+              <TBody>
                 {members.map((m) => (
-                  <tr key={m.id} onClick={() => open(m.id)} className={`cursor-pointer border-t hover:bg-gray-50 ${detail?.id === m.id ? 'bg-primary-50/30' : ''}`}>
-                    <td className="py-2 font-bold">{m.member_no}</td>
-                    <td className="font-semibold text-gray-900">{m.full_name}</td>
-                    <td>{m.phone || '—'}</td>
-                    <td>{m.member_type_label}</td>
-                    <td>{m.status_label}</td>
-                    <td>{fmt(m.joined_on)}</td>
-                    <td className={m.overdue_count ? 'font-bold text-red-700' : ''}>{m.open_dues_cents ? `${formatMoney(m.open_dues_cents)}${m.overdue_count ? ` (${m.overdue_count} gecikmiş)` : ''}` : '—'}</td>
-                    <td>{fmt(m.last_paid_at)}</td>
-                  </tr>
+                  <Tr key={m.id} onClick={() => open(m.id)} className={`cursor-pointer border-t hover:bg-gray-50 ${detail?.id === m.id ? 'bg-primary-50/30' : ''}`}>
+                    <Td className="font-bold">{m.member_no}</Td>
+                    <Td className="font-semibold text-gray-900">{m.full_name}</Td>
+                    <Td>{m.phone || '—'}</Td>
+                    <Td>{m.member_type_label}</Td>
+                    <Td>{m.status_label}</Td>
+                    <Td>{fmt(m.joined_on)}</Td>
+                    <Td className={m.overdue_count ? 'font-bold text-red-700' : ''}>{m.open_dues_cents ? `${formatMoney(m.open_dues_cents)}${m.overdue_count ? ` (${m.overdue_count} gecikmiş)` : ''}` : '—'}</Td>
+                    <Td>{fmt(m.last_paid_at)}</Td>
+                  </Tr>
                 ))}
-                {!members.length && <tr><td colSpan={8} className="py-6 text-center text-gray-400">Üye yok.</td></tr>}
-              </tbody>
-            </table>
+                {!members.length && <Tr><Td colSpan={8} className="text-center text-gray-400">Üye yok.</Td></Tr>}
+              </TBody>
+            </Table>
           </div>
         </Card>
       )}
@@ -336,24 +334,24 @@ function MemberCard({ detail, canEdit, canCollect, onEdit, onClose, onChanged, o
       {collect && selected.length > 0 && (
         <CollectForm dues={selected} onError={onError} onDone={(text) => { setCollect(false); setPicked(new Set()); onChanged(text) }} />
       )}
-      <table className="w-full text-left text-xs">
-        <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1" /><th>Dönem</th><th>Son ödeme</th><th>Tutar</th><th>Durum</th><th>Ödeme / not</th></tr></thead>
-        <tbody>
+      <Table>
+        <THead><Tr><Th /><Th>Dönem</Th><Th>Son ödeme</Th><Th>Tutar</Th><Th>Durum</Th><Th>Ödeme / not</Th></Tr></THead>
+        <TBody>
           {detail.dues.map((d) => (
-            <tr key={d.id} className="border-t">
-              <td className="py-1.5">{d.status === 'open' && canCollect && (
+            <Tr key={d.id} className="border-t">
+              <Td>{d.status === 'open' && canCollect && (
                 <input type="checkbox" checked={picked.has(d.id)} onChange={() => setPicked((p) => { const n = new Set(p); n.has(d.id) ? n.delete(d.id) : n.add(d.id); return n })} />
-              )}</td>
-              <td className="font-semibold">{d.period}</td>
-              <td>{fmt(d.due_date)}</td>
-              <td>{formatMoney(d.amount_cents)}</td>
-              <td className={d.overdue ? 'font-bold text-red-700' : ''}>{d.overdue ? `${d.days_overdue} gün gecikmiş` : d.status_label}</td>
-              <td>{d.paid_at ? fmt(d.paid_at) : d.waived_reason || '—'}</td>
-            </tr>
+              )}</Td>
+              <Td className="font-semibold">{d.period}</Td>
+              <Td>{fmt(d.due_date)}</Td>
+              <Td>{formatMoney(d.amount_cents)}</Td>
+              <Td className={d.overdue ? 'font-bold text-red-700' : ''}>{d.overdue ? `${d.days_overdue} gün gecikmiş` : d.status_label}</Td>
+              <Td>{d.paid_at ? fmt(d.paid_at) : d.waived_reason || '—'}</Td>
+            </Tr>
           ))}
-          {!detail.dues.length && <tr><td colSpan={6} className="py-3 text-center text-gray-400">Bu üyeye henüz aidat dönemi açılmamış.</td></tr>}
-        </tbody>
-      </table>
+          {!detail.dues.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Bu üyeye henüz aidat dönemi açılmamış.</Td></Tr>}
+        </TBody>
+      </Table>
     </Card>
   )
 }
@@ -431,20 +429,20 @@ function DuesTab({ canCollect, onMessage, onChanged }: { canCollect: boolean; on
         </div>
         <p className="text-[11px] text-gray-400">Tahsilat için üyeler sekmesinden üyeyi açıp dönemleri seçin. Gecikenlere hatırlatma için listeyi CSV alıp Toplu SMS ekranını kullanabilirsiniz.</p>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500"><tr><th className="py-1" /><th>Üye no</th><th>Ad</th><th>Telefon</th><th>Dönem</th><th>Son ödeme</th><th>Tutar</th><th>Durum</th></tr></thead>
-            <tbody>
+          <Table>
+            <THead><Tr><Th /><Th>Üye no</Th><Th>Ad</Th><Th>Telefon</Th><Th>Dönem</Th><Th>Son ödeme</Th><Th>Tutar</Th><Th>Durum</Th></Tr></THead>
+            <TBody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-t">
-                  <td className="py-1.5">{r.status === 'open' && canCollect && <input type="checkbox" checked={picked.has(r.id)} onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })} />}</td>
-                  <td className="font-bold">{r.member_no}</td><td>{r.full_name}</td><td>{r.phone || '—'}</td><td>{r.period}</td><td>{fmt(r.due_date)}</td>
-                  <td>{formatMoney(r.amount_cents)}</td>
-                  <td className={r.overdue ? 'font-bold text-red-700' : ''}>{r.overdue ? `${r.days_overdue} gün gecikmiş` : r.status_label}</td>
-                </tr>
+                <Tr key={r.id} className="border-t">
+                  <Td>{r.status === 'open' && canCollect && <input type="checkbox" checked={picked.has(r.id)} onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })} />}</Td>
+                  <Td className="font-bold">{r.member_no}</Td><Td>{r.full_name}</Td><Td>{r.phone || '—'}</Td><Td>{r.period}</Td><Td>{fmt(r.due_date)}</Td>
+                  <Td>{formatMoney(r.amount_cents)}</Td>
+                  <Td className={r.overdue ? 'font-bold text-red-700' : ''}>{r.overdue ? `${r.days_overdue} gün gecikmiş` : r.status_label}</Td>
+                </Tr>
               ))}
-              {!rows.length && <tr><td colSpan={8} className="py-6 text-center text-gray-400">Kayıt yok.</td></tr>}
-            </tbody>
-          </table>
+              {!rows.length && <Tr><Td colSpan={8} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}
+            </TBody>
+          </Table>
         </div>
       </Card>
     </div>
@@ -479,12 +477,12 @@ function DuplicatesTab({ canEdit, onMessage }: { canEdit: boolean; onMessage: (m
             <p className="text-xs font-bold text-gray-500">Eşleşen: {g.reason}</p>
             {canEdit && <button className={primaryButton} onClick={() => merge(i, g.members)}>Birleştir</button>}
           </div>
-          <table className="w-full text-left text-xs"><tbody>{g.members.map((m) => (
-            <tr key={m.id} className="border-t">
-              <td className="py-1.5"><input type="radio" name={`t-${i}`} checked={(targets[i] || g.members[0].id) === m.id} onChange={() => setTargets({ ...targets, [i]: m.id })} /></td>
-              <td className="font-bold">{m.member_no}</td><td>{m.full_name}</td><td>{m.phone || '—'}</td><td>{m.status_label}</td><td>{fmt(m.joined_on)}</td>
-            </tr>
-          ))}</tbody></table>
+          <Table><TBody>{g.members.map((m) => (
+            <Tr key={m.id} className="border-t">
+              <Td><input type="radio" name={`t-${i}`} checked={(targets[i] || g.members[0].id) === m.id} onChange={() => setTargets({ ...targets, [i]: m.id })} /></Td>
+              <Td className="font-bold">{m.member_no}</Td><Td>{m.full_name}</Td><Td>{m.phone || '—'}</Td><Td>{m.status_label}</Td><Td>{fmt(m.joined_on)}</Td>
+            </Tr>
+          ))}</TBody></Table>
         </Card>
       ))}
     </div>

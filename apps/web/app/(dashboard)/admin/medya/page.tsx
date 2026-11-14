@@ -5,6 +5,7 @@ import { Card } from '@e-infak/ui'
 import { MediaLibrary } from '../../../../components/admin/media/MediaLibrary'
 import { MediaDetail } from '../../../../components/admin/media/MediaDetail'
 import { mediaApi, type MediaAsset, type MediaFolder } from '../../../../lib/media'
+import { PageHeader } from '../../../../components/admin/ui'
 
 export default function AdminMediaPage() {
   const [selected, setSelected] = useState<MediaAsset | null>(null)
@@ -17,12 +18,7 @@ export default function AdminMediaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Medya Kütüphanesi</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Sitede kullandığınız bütün görseller. Yüklenen görseller WebP’ye çevrilir ve her ekran boyutu için küçültülür; alt metin ve odak noktası buradan düzenlenir.
-        </p>
-      </div>
+      <PageHeader title="Medya Kütüphanesi" description={<>Sitede kullandığınız bütün görseller. Yüklenen görseller WebP’ye çevrilir ve her ekran boyutu için küçültülür; alt metin ve odak noktası buradan düzenlenir.</>} />
 
       <div className="flex flex-col gap-6 xl:flex-row">
         <Card className="min-w-0 flex-1 border border-gray-100 p-4 shadow-sm">

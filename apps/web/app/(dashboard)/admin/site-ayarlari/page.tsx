@@ -6,7 +6,7 @@ import { Card, Button } from '@e-infak/ui'
 import { apiErrorMessage, hasFeature, useAdminAccess, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 import { LANGUAGE_NAMES } from '../../../../lib/i18n'
 import { SiteDomainsCard } from '../../../../components/admin/SiteDomainsCard'
-import { toast } from '../../../../components/admin/ui'
+import { PageHeader, toast } from '../../../../components/admin/ui'
 
 interface OrgSettings {
   contact_phone: string | null
@@ -133,9 +133,7 @@ export default function AdminSiteSettingsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Site Ayarları</h1>
-      </div>
+      <PageHeader title="Site Ayarları" />
       <p className="text-sm text-gray-500 -mt-6">
         Bu bilgiler web sitenizin İletişim sayfasında ve footer&apos;ında görünür — sahaya çıkmadan önce gerçek bilgilerle güncelleyin.
       </p>

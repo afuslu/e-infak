@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import { adminGet, apiErrorMessage, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors'
 
@@ -57,25 +58,25 @@ function Bars({ items, currency }: { items: { label: string; value: number; sub?
   )
 }
 
-function Table({ header, rows }: { header: string[]; rows: (string | number)[][] }) {
+function ReportTable({ header, rows }: { header: string[]; rows: (string | number)[][] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-xs text-gray-700">
-        <thead>
-          <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-gray-500">
-            {header.map((h, i) => <th key={h} className={`pb-2 ${i > 0 ? 'text-right' : ''}`}>{h}</th>)}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
+      <Table>
+        <THead>
+          <Tr>
+            {header.map((h, i) => <Th key={h} className={`pb-2 ${i > 0 ? 'text-right' : ''}`}>{h}</Th>)}
+          </Tr>
+        </THead>
+        <TBody>
           {rows.length === 0 ? (
-            <tr><td colSpan={header.length} className="py-6 text-center text-gray-400">Bu aralıkta kayıt yok.</td></tr>
+            <Tr><Td colSpan={header.length} className="text-center text-gray-400">Bu aralıkta kayıt yok.</Td></Tr>
           ) : rows.map((row, i) => (
-            <tr key={i}>
-              {row.map((cell, j) => <td key={j} className={`py-2 ${j > 0 ? 'text-right tabular-nums' : 'font-semibold text-gray-900'}`}>{cell}</td>)}
-            </tr>
+            <Tr key={i}>
+              {row.map((cell, j) => <Td key={j} className={`py-2 ${j > 0 ? 'text-right tabular-nums' : 'font-semibold text-gray-900'}`}>{cell}</Td>)}
+            </Tr>
           ))}
-        </tbody>
-      </table>
+        </TBody>
+      </Table>
     </div>
   )
 }
@@ -129,9 +130,7 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Raporlar</h1>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
+      <PageHeader title="Raporlar" actions={<div className="flex flex-wrap items-center gap-2 text-sm">
           {report === 'monthly' && (
             <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-lg border bg-white p-2 font-semibold">
               {Array.from({ length: 6 }, (_, i) => today.getFullYear() - i).map((y) => <option key={y} value={y}>{y}</option>)}
@@ -149,8 +148,7 @@ export default function ReportsPage() {
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
           </select>
-        </div>
-      </div>
+        </div>} />
 
       <div className="flex flex-wrap gap-2">
         {REPORTS.map((r) => (
@@ -193,11 +191,11 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
         <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
           <Bars currency={currency} items={data.months.map((m: any) => ({ label: m.label.slice(0, 3), value: m.total_cents, sub: `${m.count} bağış` }))} />
           <ExportButton name={`aylik-bagis-${data.year}.csv`} header={['Ay', 'Bağış adedi', 'Bağışçı', 'Toplam']} rows={rows} />
-          <Table header={['Ay', 'Bağış adedi', 'Bağışçı', 'Toplam']} rows={rows} />
+          <ReportTable header={['Ay', 'Bağış adedi', 'Bağışçı', 'Toplam']} rows={rows} />
         </Card>
         <Card className="border border-gray-100 p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-bold text-gray-900">Ödeme kanalları</h2>
-          <Table header={['Kanal', 'Adet', 'Toplam']} rows={data.payment_methods.map((p: any) => [p.label, p.count, money(p.total_cents)])} />
+          <ReportTable header={['Kanal', 'Adet', 'Toplam']} rows={data.payment_methods.map((p: any) => [p.label, p.count, money(p.total_cents)])} />
         </Card>
       </div>
     )
@@ -213,7 +211,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
         </div>
         <Bars currency={currency} items={data.days.map((d: any) => ({ label: d.date.slice(8, 10), value: d.total_cents, sub: d.date }))} />
         <ExportButton name={`gunluk-bagis-${data.start}-${data.end}.csv`} header={['Tarih', 'Adet', 'Toplam']} rows={rows} />
-        <Table header={['Tarih', 'Adet', 'Toplam']} rows={[...rows].reverse()} />
+        <ReportTable header={['Tarih', 'Adet', 'Toplam']} rows={[...rows].reverse()} />
       </Card>
     )
   }
@@ -230,7 +228,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
       <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
         <Bars currency={currency} items={data.years.map((y: any) => ({ label: String(y.year), value: y.total_cents, sub: `${y.count} bağış` }))} />
         <ExportButton name="yillik-karsilastirma.csv" header={header} rows={rows} />
-        <Table header={header} rows={rows} />
+        <ReportTable header={header} rows={rows} />
       </Card>
     )
   }
@@ -247,14 +245,14 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
       <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
         <h2 className="text-sm font-bold text-gray-900">Bağış türlerine göre</h2>
         <ExportButton name={`bagis-turleri-${data.start}-${data.end}.csv`} header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
-        <Table header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
+        <ReportTable header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
       </Card>
       <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
         <Stat label="Aralık toplamı" value={money(data.total_cents)} />
         <h2 className="text-sm font-bold text-gray-900">En çok bağış alan kampanyalar</h2>
         <Bars currency={currency} items={data.campaigns.slice(0, 10).map((c: any) => ({ label: c.title.slice(0, 10), value: c.total_cents, sub: c.title }))} />
         <ExportButton name={`kampanya-raporu-${data.start}-${data.end}.csv`} header={header} rows={rows} />
-        <Table header={header} rows={rows} />
+        <ReportTable header={header} rows={rows} />
       </Card>
       </div>
     )
@@ -272,7 +270,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
           Bu güncellemeden önceki havale onaylarında personel bilgisi tutulmadığı için onlar da online satırında görünür.
         </p>
         <ExportButton name={`personel-makbuz-${data.start}-${data.end}.csv`} header={header} rows={rows} />
-        <Table header={header} rows={rows} />
+        <ReportTable header={header} rows={rows} />
       </Card>
     )
   }
@@ -289,17 +287,17 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="border border-gray-100 p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-bold text-gray-900">Yeni bağışçılar (aylık)</h2>
-          <Table header={['Ay', 'Yeni']} rows={data.new_by_month.map((m: any) => [m.label, m.count])} />
+          <ReportTable header={['Ay', 'Yeni']} rows={data.new_by_month.map((m: any) => [m.label, m.count])} />
         </Card>
         <Card className="border border-gray-100 p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-bold text-gray-900">Ülke (yurt içi / yurt dışı)</h2>
-          <Table header={['Ülke', 'Bağışçı']} rows={data.by_country.map((c: any) => [c.label, c.count])} />
+          <ReportTable header={['Ülke', 'Bağışçı']} rows={data.by_country.map((c: any) => [c.label, c.count])} />
           <h2 className="mb-3 mt-6 text-sm font-bold text-gray-900">Tür</h2>
-          <Table header={['Tür', 'Bağışçı']} rows={data.by_type.map((c: any) => [c.label, c.count])} />
+          <ReportTable header={['Tür', 'Bağışçı']} rows={data.by_type.map((c: any) => [c.label, c.count])} />
         </Card>
         <Card className="border border-gray-100 p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-bold text-gray-900">Şehir (ilk 10)</h2>
-          <Table header={['Şehir', 'Bağışçı']} rows={data.by_city.map((c: any) => [c.label, c.count])} />
+          <ReportTable header={['Şehir', 'Bağışçı']} rows={data.by_city.map((c: any) => [c.label, c.count])} />
         </Card>
       </div>
     </div>

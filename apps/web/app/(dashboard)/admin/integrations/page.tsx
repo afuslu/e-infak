@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { confirmDialog, toast } from '../../../../components/admin/ui'
+import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog, toast } from '../../../../components/admin/ui'
 import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface ApiKey {
@@ -141,9 +141,7 @@ export default function AdminIntegrationsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Webhook & API Entegrasyonları</h1>
-      </div>
+      <PageHeader title="Webhook & API Entegrasyonları" />
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
@@ -215,33 +213,33 @@ export default function AdminIntegrationsPage() {
                 <p className="text-xs text-gray-400 py-4 text-center">Kayıtlı aktif API anahtarı bulunmamaktadır.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-gray-600">
-                    <thead>
-                      <tr className="border-b text-gray-500 uppercase tracking-wider text-[10px] font-bold">
-                        <th className="pb-3">Anahtar İsmi</th>
-                        <th className="pb-3">Oluşturma Tarihi</th>
-                        <th className="pb-3 text-right">İşlem</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
+                  <Table>
+                    <THead>
+                      <Tr>
+                        <Th>Anahtar İsmi</Th>
+                        <Th>Oluşturma Tarihi</Th>
+                        <Th className="text-right">İşlem</Th>
+                      </Tr>
+                    </THead>
+                    <TBody>
                       {keys.map((k) => (
-                        <tr key={k.id} className="hover:bg-gray-50/50">
-                          <td className="py-3 font-semibold text-gray-900">{k.name}</td>
-                          <td className="py-3 text-gray-400 font-bold">
+                        <Tr key={k.id} className="hover:bg-gray-50/50">
+                          <Td className="font-semibold text-gray-900">{k.name}</Td>
+                          <Td className="text-gray-400 font-bold">
                             {new Date(k.created_at).toLocaleDateString('tr-TR')}
-                          </td>
-                          <td className="py-3 text-right">
+                          </Td>
+                          <Td className="text-right">
                             <button
                               onClick={() => handleDeleteKey(k.id)}
                               className="text-red-600 hover:text-red-700 text-xs font-bold"
                             >
                               İptal Et
                             </button>
-                          </td>
-                        </tr>
+                          </Td>
+                        </Tr>
                       ))}
-                    </tbody>
-                  </table>
+                    </TBody>
+                  </Table>
                 </div>
               )}
             </Card>
@@ -293,33 +291,33 @@ export default function AdminIntegrationsPage() {
                 <p className="text-xs text-gray-400 py-4 text-center">Kayıtlı aktif webhook bulunmamaktadır.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-gray-600">
-                    <thead>
-                      <tr className="border-b text-gray-500 uppercase tracking-wider text-[10px] font-bold">
-                        <th className="pb-3">Hedef URL</th>
-                        <th className="pb-3">Secret Referansı</th>
-                        <th className="pb-3 text-right">İşlem</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
+                  <Table>
+                    <THead>
+                      <Tr>
+                        <Th>Hedef URL</Th>
+                        <Th>Secret Referansı</Th>
+                        <Th className="text-right">İşlem</Th>
+                      </Tr>
+                    </THead>
+                    <TBody>
                       {webhooks.map((h) => (
-                        <tr key={h.id} className="hover:bg-gray-50/50">
-                          <td className="py-3 font-semibold text-gray-900 break-all max-w-xs">{h.target_url}</td>
-                          <td className="py-3 font-mono text-gray-400 text-[10px]">
+                        <Tr key={h.id} className="hover:bg-gray-50/50">
+                          <Td className="font-semibold text-gray-900 break-all max-w-xs">{h.target_url}</Td>
+                          <Td className="font-mono text-gray-400 text-[10px]">
                             {h.secret_ref}
-                          </td>
-                          <td className="py-3 text-right">
+                          </Td>
+                          <Td className="text-right">
                             <button
                               onClick={() => handleDeleteWebhook(h.id)}
                               className="text-red-600 hover:text-red-700 text-xs font-bold"
                             >
                               Sil
                             </button>
-                          </td>
-                        </tr>
+                          </Td>
+                        </Tr>
                       ))}
-                    </tbody>
-                  </table>
+                    </TBody>
+                  </Table>
                 </div>
               )}
             </Card>

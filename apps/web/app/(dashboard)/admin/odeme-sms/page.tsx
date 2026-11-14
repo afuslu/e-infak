@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
 import { Label, Notice, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { PageHeader } from '../../../../components/admin/ui'
 
 interface Field { key: string; label: string; secret: boolean; optional: boolean; choices: Record<string, string> | null }
 interface ProviderInfo {
@@ -144,13 +145,8 @@ export default function PaymentSmsAccountsPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Ödeme & SMS Hesapları</h1>
-        <p className="text-sm text-gray-500">
-          Bağışlar kurumunuzun kendi sanal POS / ödeme hesabına, SMS’ler kendi SMS firmanız ve başlığınızla gider.
-          Şifreler şifrelenerek saklanır ve bu ekranda bir daha gösterilmez.
-        </p>
-      </div>
+      <PageHeader title="Ödeme & SMS Hesapları" description={<>Bağışlar kurumunuzun kendi sanal POS / ödeme hesabına, SMS’ler kendi SMS firmanız ve başlığınızla gider.
+          Şifreler şifrelenerek saklanır ve bu ekranda bir daha gösterilmez.</>} />
       <Notice message={message} />
       {!data.encryption_ready && (
         <Notice message={{ type: 'error', text: 'Sunucuda şifreleme anahtarı tanımlı değil; hesap bilgileri kaydedilemez. Platform yöneticisine bildirin.' }} />

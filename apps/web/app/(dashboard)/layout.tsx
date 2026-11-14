@@ -155,6 +155,10 @@ const ADMIN_PRIMARY_VARS = {
   '--brand-primary-900': '#064E3B',
   '--brand-primary-950': '#022C22',
 } as React.CSSProperties
+// In dark mode the light tints (50–200) come from .admin-dark (globals.css); an inline value would win over it.
+const ADMIN_PRIMARY_VARS_DARK = Object.fromEntries(
+  Object.entries(ADMIN_PRIMARY_VARS).filter(([key]) => !/-(50|100|200)$/.test(key)),
+) as React.CSSProperties
 
 type ThemeChoice = 'light' | 'dark' | 'system'
 const THEME_KEY = 'einfak-admin-tema'
@@ -227,7 +231,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (isLoading) {
     return (
-      <div className={`flex min-h-screen items-center justify-center bg-gray-100 ${theme.dark ? 'admin-dark' : ''}`} style={ADMIN_PRIMARY_VARS}>
+      <div className={`flex min-h-screen items-center justify-center bg-gray-100 ${theme.dark ? 'admin-dark' : ''}`} style={theme.dark ? ADMIN_PRIMARY_VARS_DARK : ADMIN_PRIMARY_VARS}>
         <div className="text-center">
           <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary-600/20 border-t-primary-600" />
           <p className="text-gray-600">Yükleniyor...</p>
@@ -285,7 +289,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className={`flex min-h-screen bg-gray-100 ${theme.dark ? 'admin-dark' : ''}`} style={ADMIN_PRIMARY_VARS}>
+    <div className={`flex min-h-screen bg-gray-100 ${theme.dark ? 'admin-dark' : ''}`} style={theme.dark ? ADMIN_PRIMARY_VARS_DARK : ADMIN_PRIMARY_VARS}>
       {drawerOpen && (
         <button type="button" aria-label="Menüyü kapat" onClick={() => setDrawerOpen(false)}
           className="fixed inset-0 z-30 bg-black/50 lg:hidden" />
