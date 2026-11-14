@@ -40,10 +40,12 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
   const [tab, setTab] = useState<Tab>('sections')
   const [query, setQuery] = useState('')
   const [groupFilter, setGroupFilter] = useState<string>('Tümü')
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
   const [demo, setDemo] = useState<LibraryDemo | null>(null)
   const [options, setOptions] = useState<DemoOptions>({ apply_theme: true, include_pages: true, publish: false })
   const [busy, setBusy] = useState(false)
   const chrome = kind === 'header' || kind === 'footer'
+  const activeTab: Tab = chrome && tab === 'pages' ? 'sections' : tab
 
   const allGroups = useMemo(() => {
     const set = new Set<string>()
@@ -54,42 +56,70 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
     return ['Tümü', ...Array.from(set)]
   }, [library, kind, chrome])
 
+  const activeGroupFilter = allGroups.includes(groupFilter) ? groupFilter : 'Tümü'
+
   const groups = useMemo(() => {
     const out: Record<string, LibrarySection[]> = {}
     const q = query.trim().toLocaleLowerCase('tr')
     for (const s of library?.sections || []) {
       if (chrome ? s.kind !== kind : s.kind !== 'content') continue
-      if (groupFilter !== 'Tümü' && s.group !== groupFilter) continue
+      if (activeGroupFilter !== 'Tümü' && s.group !== activeGroupFilter) continue
       if (q && !`${s.label} ${s.description} ${s.group}`.toLocaleLowerCase('tr').includes(q)) continue
       ;(out[s.group] ||= []).push(s)
     }
     return Object.entries(out)
-  }, [library, kind, chrome, query, groupFilter])
+  }, [library, kind, chrome, query, activeGroupFilter])
+
+  const filteredDemos = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('tr')
+    return (library?.demos || []).filter((d) => !q || `${d.label} ${d.description} ${d.kit}`.toLocaleLowerCase('tr').includes(q))
+  }, [library, query])
 
   const filteredPages = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr')
     return (library?.pages || []).filter((p) => !q || `${p.label} ${p.description}`.toLocaleLowerCase('tr').includes(q))
   }, [library, query])
 
+  const filteredSaved = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('tr')
+    return saved.filter((s) => {
+      const zoneOk = chrome ? s.zone === kind : !s.zone || (s.zone !== 'header' && s.zone !== 'footer')
+      if (!zoneOk) return false
+      if (!q) return true
+      const typeLabel = catalog.blocks[s.block?.type]?.label || s.block?.type || ''
+      return `${s.name} ${typeLabel} ${s.created_by || ''}`.toLocaleLowerCase('tr').includes(q)
+    })
+  }, [saved, query, chrome, kind, catalog])
+
   if (!library) return <p className="text-[12px] text-gray-400">Şablonlar yükleniyor…</p>
+
+  const searchBox = (placeholder: string) => (
+    <div className="relative">
+      <input className="w-full rounded-md border px-2 py-1.5 pr-7 text-[12px]" placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)} />
+      {query && (
+        <button type="button" onClick={() => setQuery('')} aria-label="Aramayı temizle"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-700">✕</button>
+      )}
+    </div>
+  )
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1">
-        <button type="button" className={subTab(tab === 'sections')} onClick={() => setTab('sections')}>{chrome ? 'Hazır düzenler' : 'Bölümler'}</button>
-        {!chrome && <button type="button" className={subTab(tab === 'pages')} onClick={() => setTab('pages')}>Sayfa şablonları</button>}
-        <button type="button" className={subTab(tab === 'saved')} onClick={() => setTab('saved')}>Kayıtlılarım ({saved.length})</button>
-        <button type="button" className={subTab(tab === 'demos')} onClick={() => setTab('demos')}>Demolar</button>
+        <button type="button" className={subTab(activeTab === 'sections')} onClick={() => setTab('sections')}>{chrome ? 'Hazır düzenler' : 'Bölümler'}</button>
+        {!chrome && <button type="button" className={subTab(activeTab === 'pages')} onClick={() => setTab('pages')}>Sayfa şablonları</button>}
+        <button type="button" className={subTab(activeTab === 'saved')} onClick={() => setTab('saved')}>Kayıtlılarım ({filteredSaved.length})</button>
+        <button type="button" className={subTab(activeTab === 'demos')} onClick={() => setTab('demos')}>Demolar</button>
       </div>
 
-      {tab === 'sections' && (
+      {activeTab === 'sections' && (
         <>
-          <input className="w-full rounded-md border px-2 py-1.5 text-[12px]" placeholder="Şablon ara (slider, carousel, bağış…)" value={query} onChange={(e) => setQuery(e.target.value)} />
+          {searchBox('Şablon ara (slider, carousel, bağış…)')}
           {!chrome && allGroups.length > 2 && (
             <div className="flex flex-wrap gap-1">
               {allGroups.map((g) => (
                 <button key={g} type="button" onClick={() => setGroupFilter(g)}
-                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${groupFilter === g ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${activeGroupFilter === g ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                   {g}
                 </button>
               ))}
@@ -99,32 +129,43 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
             {chrome ? 'Seçtiğiniz düzen mevcut olanın yerine geçer (yayınlayana kadar taslaktır).' : 'Bölüm, seçili bloğun altına; seçim yoksa sayfanın sonuna eklenir.'}
           </p>
           {groups.length === 0 && <p className="py-4 text-center text-[12px] text-gray-400">Eşleşen şablon bulunamadı.</p>}
-          {groups.map(([group, items]) => (
-            <div key={group}>
-              <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-gray-400">
-                <span>{group}</span><span className="font-normal">{items.length}</span>
+          {groups.map(([group, items]) => {
+            const isCollapsed = !query.trim() && activeGroupFilter === 'Tümü' && !!collapsedGroups[group]
+            return (
+              <div key={group}>
+                <button
+                  type="button"
+                  onClick={() => setCollapsedGroups((prev) => ({ ...prev, [group]: !prev[group] }))}
+                  className="mb-1.5 flex w-full items-center justify-between text-left text-[11px] font-bold uppercase tracking-wide text-gray-400 hover:text-gray-600"
+                >
+                  <span>{group} ({items.length})</span>
+                  <span>{isCollapsed ? '▸' : '▾'}</span>
+                </button>
+                {!isCollapsed && (
+                  <div className="space-y-1.5">
+                    {items.map((s) => (
+                      <button key={s.key} type="button" onClick={() => (chrome ? onReplace(s.blocks, s.label) : onInsert(s.blocks))}
+                        className="block w-full rounded-lg border bg-white p-2.5 text-start hover:border-blue-500 hover:bg-blue-50">
+                        <span className="block text-[12px] font-bold text-gray-800">{s.label}</span>
+                        <span className="block text-[11px] text-gray-500">{s.description}</span>
+                        <Outline blocks={s.blocks} catalog={catalog} />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="space-y-1.5">
-                {items.map((s) => (
-                  <button key={s.key} type="button" onClick={() => (chrome ? onReplace(s.blocks, s.label) : onInsert(s.blocks))}
-                    className="block w-full rounded-lg border bg-white p-2.5 text-start hover:border-blue-500 hover:bg-blue-50">
-                    <span className="block text-[12px] font-bold text-gray-800">{s.label}</span>
-                    <span className="block text-[11px] text-gray-500">{s.description}</span>
-                    <Outline blocks={s.blocks} catalog={catalog} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </>
       )}
 
-      {tab === 'pages' && (
+      {activeTab === 'pages' && (
         <>
-          <input className="w-full rounded-md border px-2 py-1.5 text-[12px]" placeholder="Sayfa şablonu ara…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          {searchBox('Sayfa şablonu ara…')}
           <p className="text-[11px] text-gray-400">Şablon bu sayfanın içeriğinin yerine geçer. Geri almak için Ctrl+Z.</p>
+          {filteredPages.length === 0 && <p className="py-4 text-center text-[12px] text-gray-400">Eşleşen sayfa şablonu bulunamadı.</p>}
           {filteredPages.map((p) => (
-            <button key={p.key} type="button" onClick={() => onReplace(p.blocks, p.label)}
+            <button key={p.key} type="button" onClick={() => { if (window.confirm(`“${p.label}” şablonu mevcut sayfa içeriğinin yerine geçecek. Devam edilsin mi?`)) onReplace(p.blocks, p.label) }}
               className="block w-full rounded-lg border bg-white p-2.5 text-start hover:border-blue-500 hover:bg-blue-50">
               <span className="block text-[12px] font-bold text-gray-800">📄 {p.label}</span>
               <span className="block text-[11px] text-gray-500">{p.description}</span>
@@ -134,26 +175,38 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
         </>
       )}
 
-      {tab === 'saved' && (
+      {activeTab === 'saved' && (
         <>
-          <p className="text-[11px] text-gray-400">Bir bloğu kaydetmek için seçip sağ paneldeki 💾 düğmesine basın. Kayıtlı bloklar tüm sayfalarda kullanılabilir.</p>
-          {saved.length === 0 && <p className="rounded-md border border-dashed p-4 text-center text-[12px] text-gray-400">Henüz kayıtlı blok yok.</p>}
-          {saved.map((s) => (
+          {searchBox('Kayıtlı blok ara…')}
+          <p className="text-[11px] text-gray-400">Bir bloğu kaydetmek için seçip sağ paneldeki 💾 düğmesine basın. Kayıtlı bloklar uyumlu sayfalarda kullanılabilir.</p>
+          {filteredSaved.length === 0 && (
+            <p className="rounded-md border border-dashed p-4 text-center text-[12px] text-gray-400">
+              {saved.length === 0 ? 'Henüz kayıtlı blok yok.' : 'Bu alan için eşleşen kayıtlı blok bulunamadı.'}
+            </p>
+          )}
+          {filteredSaved.map((s) => (
             <div key={s.id} className="flex items-start gap-2 rounded-lg border bg-white p-2.5">
               <button type="button" className="min-w-0 flex-1 text-start" onClick={() => onInsertSaved(s)}>
                 <span className="block truncate text-[12px] font-bold text-gray-800">{catalog.blocks[s.block?.type]?.icon} {s.name}</span>
                 <span className="block text-[11px] text-gray-400">{catalog.blocks[s.block?.type]?.label} · {s.created_by || ''}</span>
               </button>
-              <button type="button" title="Sil" className="text-[12px] text-red-500 hover:text-red-700" onClick={() => onDeleteSaved(s)}>✕</button>
+              <button
+                type="button"
+                title="Sil"
+                className="text-[12px] text-red-500 hover:text-red-700"
+                onClick={() => onDeleteSaved(s)}
+              >✕</button>
             </div>
           ))}
         </>
       )}
 
-      {tab === 'demos' && (
+      {activeTab === 'demos' && (
         <>
+          {searchBox('Demo ara…')}
           <p className="text-[11px] text-gray-400">Demo; ana sayfayı, header&apos;ı, footer&apos;ı ve isterseniz renk-yazı tipi temasını tek seferde kurar. Mevcut sayfalarınız silinmez.</p>
-          {library.demos.map((d) => (
+          {filteredDemos.length === 0 && <p className="py-4 text-center text-[12px] text-gray-400">Eşleşen demo bulunamadı.</p>}
+          {filteredDemos.map((d) => (
             <button key={d.key} type="button" onClick={() => setDemo(d)}
               className="block w-full overflow-hidden rounded-lg border bg-white text-start hover:border-blue-500">
               <img src={d.image} alt="" className="h-24 w-full object-cover" />

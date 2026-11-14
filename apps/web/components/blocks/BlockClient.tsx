@@ -32,13 +32,23 @@ export function Reveal({ animation, delay, duration, children }: { animation: st
 /** The slider lives with the site components; the builder's slider block uses the same one. */
 export { Slider, type SlideView } from '../site/Slider'
 
-export interface NavLinkView { label: string; url?: string; new_tab?: boolean; group?: string }
+export interface NavLinkView { label: string; url?: string; new_tab?: boolean; group?: string; badge?: string }
 export interface NavItemView extends NavLinkView { mega?: boolean; children?: NavLinkView[] }
 
 function MenuAnchor({ link, className, onClick }: { link: NavLinkView; className: string; onClick?: () => void }) {
-  if (!link.url) return <span className={className}>{link.label}</span>
-  if (link.url.startsWith('/') && !link.new_tab) return <Link href={link.url} className={className} onClick={onClick}>{link.label}</Link>
-  return <a href={link.url} className={className} target={link.new_tab ? '_blank' : undefined} rel="noopener noreferrer" onClick={onClick}>{link.label}</a>
+  const label = (
+    <>
+      {link.label}
+      {link.badge && (
+        <span className="ms-1.5 rounded-full bg-accent-500/15 px-1.5 py-0.5 text-[10px] font-bold text-accent-700">
+          {link.badge}
+        </span>
+      )}
+    </>
+  )
+  if (!link.url) return <span className={className}>{label}</span>
+  if (link.url.startsWith('/') && !link.new_tab) return <Link href={link.url} className={className} onClick={onClick}>{label}</Link>
+  return <a href={link.url} className={className} target={link.new_tab ? '_blank' : undefined} rel="noopener noreferrer" onClick={onClick}>{label}</a>
 }
 
 /**

@@ -52,6 +52,7 @@ function reducer(state: State, action: Action): State {
 const DEVICE_WIDTH: Record<Device, string> = { desktop: '100%', tablet: '820px', mobile: '390px' }
 /** The desktop canvas is drawn at least this wide (and scaled down to fit), so desktop rules apply. */
 const DESKTOP_WIDTH = 1280
+const TARGET_WIDTH: Record<Device, number> = { desktop: DESKTOP_WIDTH, tablet: 820, mobile: 390 }
 const DEVICE_LABEL: Record<Device, string> = { desktop: '🖥 Bilgisayar', tablet: '📱 Tablet', mobile: '📱 Telefon' }
 const LANG_LABEL: Record<string, string> = { tr: 'Türkçe', en: 'English', ar: 'العربية', de: 'Deutsch', fr: 'Français', ru: 'Русский' }
 const CLIPBOARD_KEY = 'einfak-builder-clipboard'
@@ -82,12 +83,24 @@ export function SiteBuilderEditor() {
   const [rightTab, setRightTab] = useState<'content' | 'style' | 'advanced'>('content')
   const [mobilePane, setMobilePane] = useState<'left' | 'canvas' | 'right'>('canvas')
   const [search, setSearch] = useState('')
+  const [pageSearch, setPageSearch] = useState('')
+  const [treeSearch, setTreeSearch] = useState('')
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+  const [collapsedTree, setCollapsedTree] = useState<Record<string, boolean>>({})
+  const [treeDrop, setTreeDrop] = useState<{ id: string; pos: 'before' | 'inside' | 'after' } | null>(null)
   const [insertTarget, setInsertTarget] = useState<string | null>(null)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [conflict, setConflict] = useState<string | null>(null)
-  const [modal, setModal] = useState<'publish' | 'versions' | null>(null)
+  const [modal, setModal] = useState<'publish' | 'versions' | 'new-page' | null>(null)
+  const [newPageTitle, setNewPageTitle] = useState('')
+  const [newPageTemplate, setNewPageTemplate] = useState('')
+  const [creatingPage, setCreatingPage] = useState(false)
   const [revisions, setRevisions] = useState<Revision[]>([])
+  const [versionsLoading, setVersionsLoading] = useState(false)
+  const [versionsError, setVersionsError] = useState<string | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const frame = useRef<HTMLIFrameElement>(null)
   const [area, setArea] = useState({ w: 0, h: 0 })
   const observer = useRef<ResizeObserver | null>(null)
@@ -157,6 +170,8 @@ export function SiteBuilderEditor() {
         const res = await adminSend<{ version: number }>('put', `/site-builder/pages/${pageId}/draft`, { blocks: sent, version: versionRef.current })
         versionRef.current = res.data.version
         dispatch({ type: 'saved', blocks: sent })
+        setPage((p) => (p ? { ...p, has_draft: true } : p))
+        loadPages().catch(() => undefined)
         setSaveState('saved')
         return true
       } catch (err) {
@@ -201,6 +216,7 @@ export function SiteBuilderEditor() {
   const addBlock = (type: string) => {
     if (!catalog) return
     placeBlock(newBlock(type, catalog.blocks[type]))
+    if (mobilePane === 'left') setMobilePane('canvas')
   }
 
   /** Puts a new block where the user expects it: into the chosen slot/container, after the selection, or at the end. */
@@ -416,7 +432,7 @@ export function SiteBuilderEditor() {
       if (msg.type === 'select') { dispatch({ type: 'select', id: msg.id }); setInsertTarget(null) }
       if (msg.type === 'action') blockAction(msg.id, msg.action)
       if (msg.type === 'move') move(msg.id, msg.targetId, msg.position)
-      if (msg.type === 'add-into') { setInsertTarget(msg.parentId); dispatch({ type: 'select', id: msg.parentId }); setLeftTab('blocks') }
+      if (msg.type === 'add-into') { setInsertTarget(msg.parentId); dispatch({ type: 'select', id: msg.parentId }); setLeftTab('blocks'); setMobilePane('left') }
       if (msg.type === 'key') onKey(msg.key, msg.ctrl, msg.shift)
     }
     window.addEventListener('message', onMessage)
@@ -430,15 +446,33 @@ export function SiteBuilderEditor() {
     setPageId(id)
   }
 
-  const createPage = async () => {
-    const title = window.prompt('Yeni sayfanın adı (ör. Kurban 2027):')
-    if (!title?.trim()) return
+  const openCreatePage = () => {
+    setNewPageTitle('')
+    setNewPageTemplate('')
+    setModal('new-page')
+  }
+
+  const submitCreatePage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newPageTitle.trim() || creatingPage) return
+    if (state.dirty && !(await save())) return
+    setCreatingPage(true)
     try {
-      const res = await adminSend<PageSummary>('post', '/site-builder/pages', { title: title.trim() })
+      const res = await adminSend<PageSummary & { version?: number }>('post', '/site-builder/pages', { title: newPageTitle.trim() })
+      const tpl = newPageTemplate ? library?.pages.find((p) => p.key === newPageTemplate) : undefined
+      if (tpl?.blocks?.length) {
+        await adminSend('put', `/site-builder/pages/${res.data.id}/draft`, {
+          blocks: tpl.blocks.map(cloneBlock),
+          version: res.data.version ?? 0,
+        })
+      }
+      setModal(null)
       await loadPages()
       await switchPage(res.data.id)
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Sayfa oluşturulamadı') })
+    } finally {
+      setCreatingPage(false)
     }
   }
 
@@ -457,27 +491,53 @@ export function SiteBuilderEditor() {
   }
 
   const openPreview = async () => {
-    if (state.dirty && !(await save())) return
+    if (previewing) return
+    setPreviewing(true)
+    setPreviewUrl(null)
+    const win = window.open('', '_blank')
     try {
+      if (state.dirty && !(await save())) {
+        win?.close()
+        return
+      }
       const res = await adminSend<{ path: string }>('post', `/site-builder/pages/${pageId}/preview-link`)
-      window.open(res.data.path, '_blank', 'noopener')
+      if (win && !win.closed) {
+        win.opener = null
+        win.location.href = res.data.path
+      } else {
+        setPreviewUrl(res.data.path)
+        setMessage({ type: 'error', text: 'Tarayıcı yeni sekmeyi engelledi.' })
+      }
     } catch (err) {
+      win?.close()
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Önizleme bağlantısı oluşturulamadı') })
+    } finally {
+      setPreviewing(false)
     }
   }
 
   const showVersions = async () => {
     setModal('versions')
-    try { setRevisions((await adminGet<Revision[]>(`/site-builder/pages/${pageId}/revisions`)).data) } catch { setRevisions([]) }
+    setRevisions([])
+    setVersionsError(null)
+    setVersionsLoading(true)
+    try {
+      setRevisions((await adminGet<Revision[]>(`/site-builder/pages/${pageId}/revisions`)).data)
+    } catch (err) {
+      setVersionsError(apiErrorMessage(err, 'Sürümler yüklenemedi'))
+    } finally {
+      setVersionsLoading(false)
+    }
   }
 
   const restore = async (id: string) => {
     if (!window.confirm('Bu sürüm taslak olarak geri yüklensin mi? Yayınlayana kadar ziyaretçiler etkilenmez.')) return
-    if (state.dirty) await save()
     try {
       const res = await adminSend<{ version: number; blocks: Block[] }>('post', `/site-builder/pages/${pageId}/revisions/${id}/restore`)
       versionRef.current = res.data.version
       dispatch({ type: 'load', blocks: res.data.blocks })
+      setPage((p) => (p ? { ...p, has_draft: true } : p))
+      loadPages()
       setModal(null)
       setMessage({ type: 'ok', text: 'Sürüm taslak olarak geri yüklendi.' })
     } catch (err) {
@@ -502,9 +562,10 @@ export function SiteBuilderEditor() {
   const discard = async () => {
     if (!window.confirm('Yayınlanmamış değişiklikler silinsin mi? Sayfa yayındaki haline döner.')) return
     try {
-      await adminSend('post', `/site-builder/pages/${pageId}/discard`)
+      if (page?.has_draft) await adminSend('post', `/site-builder/pages/${pageId}/discard`)
       await loadPage(pageId)
       loadPages()
+      setMessage({ type: 'ok', text: 'Taslak değişiklikleri atıldı, yayındaki haline dönüldü.' })
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
     }
@@ -531,7 +592,7 @@ export function SiteBuilderEditor() {
       : (spec.zones || catalog.content_zones).includes(kind)
     for (const [key, spec] of Object.entries(catalog.blocks)) {
       if (spec.hidden || !fits(key, spec)) continue
-      if (search && !`${spec.label} ${spec.group}`.toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr'))) continue
+      if (search && !`${spec.label} ${spec.group} ${key} ${spec.help || ''}`.toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr'))) continue
       ;(out[spec.group] ||= []).push([key, spec])
     }
     return Object.entries(out)
@@ -539,42 +600,146 @@ export function SiteBuilderEditor() {
 
   // --- Tree ------------------------------------------------------------------------
   const dragTree = useRef<string | null>(null)
-  const Tree = ({ blocks, depth }: { blocks: Block[]; depth: number }) => (
-    <ul className={depth ? 'ms-3 border-s ps-1.5' : ''}>
-      {blocks.map((b) => {
-        const spec = catalog?.blocks[b.type]
+  const treeLabel = (b: Block, label?: string) => {
+    const tr = b.translations?.[lang]
+    const raw = tr?.title ?? tr?.label ?? tr?.text ?? b.props?.title ?? b.props?.label ?? b.props?.text
+    const cleaned = typeof raw === 'string' ? raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : ''
+    return (cleaned || label || b.type).slice(0, 40)
+  }
+  const treeMatches = (b: Block, q: string): boolean => {
+    if (!q) return true
+    const spec = catalog?.blocks[b.type]
+    const hay = `${treeLabel(b, spec?.label)} ${spec?.label || ''} ${b.type}`.toLocaleLowerCase('tr')
+    if (hay.includes(q)) return true
+    return !!(b.children && b.children.some((c) => treeMatches(c, q)))
+  }
+  const collectContainerIds = (blocks: Block[]): string[] =>
+    blocks.flatMap((b) => (b.children?.length ? [b.id, ...collectContainerIds(b.children)] : []))
+  const Tree = ({ blocks, depth }: { blocks: Block[]; depth: number }) => {
+    const tq = treeSearch.trim().toLocaleLowerCase('tr')
+    const visible = tq ? blocks.filter((b) => treeMatches(b, tq)) : blocks
+    return (
+      <ul className={depth ? 'ms-3 border-s ps-1.5' : ''}>
+        {visible.map((b) => {
+          const spec = catalog?.blocks[b.type]
+          const hasChildren = !!(b.children && b.children.length > 0)
+          const isCollapsed = !tq && !!collapsedTree[b.id]
+        const hiddenDevices = [b.advanced?.hide_desktop && 'M', b.advanced?.hide_tablet && 'T', b.advanced?.hide_mobile && 'C'].filter(Boolean)
+        const dropHere = treeDrop?.id === b.id ? treeDrop.pos : null
+        const dropCls = dropHere === 'before'
+          ? 'border-t-2 border-t-blue-500'
+          : dropHere === 'after'
+            ? 'border-b-2 border-b-blue-500'
+            : dropHere === 'inside'
+              ? 'ring-2 ring-blue-500 bg-blue-50'
+              : ''
         return (
           <li key={b.id}>
-            <div draggable={!FIXED_CHILD.has(b.type)}
+            <div
+              draggable={!FIXED_CHILD.has(b.type)}
               onDragStart={(e) => { dragTree.current = b.id; e.dataTransfer.setData('text/plain', b.id) }}
-              onDragOver={(e) => e.preventDefault()}
+              onDragEnd={() => { dragTree.current = null; setTreeDrop(null) }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                if (!dragTree.current || dragTree.current === b.id) return
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                const y = (e.clientY - rect.top) / rect.height
+                const inside = !!(spec?.container && !FIXED_PARENT.has(b.type) && y > 0.3 && y < 0.7)
+                const pos: 'before' | 'inside' | 'after' = inside ? 'inside' : y < 0.5 ? 'before' : 'after'
+                setTreeDrop((prev) => (prev?.id === b.id && prev.pos === pos ? prev : { id: b.id, pos }))
+              }}
+              onDragLeave={() => setTreeDrop((prev) => (prev?.id === b.id ? null : prev))}
               onDrop={(e) => {
                 e.preventDefault()
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                 const y = (e.clientY - rect.top) / rect.height
-                const inside = spec?.container && !FIXED_PARENT.has(b.type) && y > 0.3 && y < 0.7
-                if (dragTree.current) move(dragTree.current, b.id, inside ? 'inside' : y < 0.5 ? 'before' : 'after')
+                const inside = !!(spec?.container && !FIXED_PARENT.has(b.type) && y > 0.3 && y < 0.7)
+                if (dragTree.current) {
+                  move(dragTree.current, b.id, inside ? 'inside' : y < 0.5 ? 'before' : 'after')
+                  if (inside) setCollapsedTree((prev) => ({ ...prev, [b.id]: false }))
+                }
                 dragTree.current = null
+                setTreeDrop(null)
               }}
-              onClick={() => { dispatch({ type: 'select', id: b.id }); frame.current?.contentWindow?.postMessage({ source: 'einfak-builder', type: 'scroll-to', id: b.id }, window.location.origin) }}
-              className={`flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-1 text-[12px] ${state.selectedId === b.id ? 'bg-blue-100 font-semibold text-blue-800' : 'hover:bg-gray-100'}`}>
+              onClick={() => {
+                dispatch({ type: 'select', id: b.id })
+                frame.current?.contentWindow?.postMessage({ source: 'einfak-builder', type: 'scroll-to', id: b.id }, window.location.origin)
+                if (mobilePane === 'left') setMobilePane('right')
+              }}
+              className={`group flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[12px] ${state.selectedId === b.id ? 'bg-blue-100 font-semibold text-blue-800' : 'hover:bg-gray-100'} ${dropCls}`}
+            >
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setCollapsedTree((prev) => ({ ...prev, [b.id]: !prev[b.id] })) }}
+                  className="w-3.5 shrink-0 text-[10px] text-gray-400 hover:text-gray-700"
+                  aria-label={isCollapsed ? 'Genişlet' : 'Daralt'}
+                >
+                  {isCollapsed ? '▸' : '▾'}
+                </button>
+              ) : (
+                <span className="w-3.5 shrink-0" />
+              )}
               <span>{spec?.icon}</span>
-              <span className="truncate">{(b.props?.title || b.props?.text || spec?.label || b.type).toString().slice(0, 40)}</span>
-              {b.advanced?.hide_desktop && <span className="ms-auto text-[10px] text-amber-600">gizli</span>}
+              <span className="min-w-0 flex-1 truncate">{treeLabel(b, spec?.label)}</span>
+              {hasChildren && <span className="text-[10px] text-gray-400">({b.children!.length})</span>}
+              {hiddenDevices.length > 0 && <span className="text-[10px] text-amber-600" title="Bazı cihazlarda gizli">gizli</span>}
+              <span className="hidden items-center gap-0.5 group-hover:flex">
+                {!FIXED_CHILD.has(b.type) && (
+                  <>
+                    <button
+                      type="button"
+                      title="Yukarı taşı"
+                      onClick={(e) => { e.stopPropagation(); blockAction(b.id, 'up') }}
+                      className="rounded px-1 text-[11px] text-gray-400 hover:bg-white hover:text-gray-700"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      title="Aşağı taşı"
+                      onClick={(e) => { e.stopPropagation(); blockAction(b.id, 'down') }}
+                      className="rounded px-1 text-[11px] text-gray-400 hover:bg-white hover:text-gray-700"
+                    >
+                      ↓
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  title="Çoğalt"
+                  onClick={(e) => { e.stopPropagation(); blockAction(b.id, 'duplicate') }}
+                  className="rounded px-1 text-[11px] text-gray-400 hover:bg-white hover:text-gray-700"
+                >
+                  ⧉
+                </button>
+                {!FIXED_CHILD.has(b.type) && (
+                  <button
+                    type="button"
+                    title="Sil"
+                    onClick={(e) => { e.stopPropagation(); blockAction(b.id, 'delete') }}
+                    className="rounded px-1 text-[11px] text-gray-400 hover:bg-white hover:text-red-600"
+                  >
+                    ✕
+                  </button>
+                )}
+              </span>
             </div>
-            {b.children && b.children.length > 0 && <Tree blocks={b.children} depth={depth + 1} />}
+            {hasChildren && !isCollapsed && <Tree blocks={b.children!} depth={depth + 1} />}
           </li>
         )
       })}
-    </ul>
-  )
+      </ul>
+    )
+  }
 
   if (!catalog || !data) {
     return <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-100 text-sm text-gray-500">{message?.text || 'Site Yapıcı yükleniyor…'}</div>
   }
 
   const translating = lang !== 'tr'
-  const scale = device === 'desktop' && area.w > 0 && area.w < DESKTOP_WIDTH ? area.w / DESKTOP_WIDTH : 1
+  const targetW = TARGET_WIDTH[device]
+  const scale = area.w > 0 && area.w < targetW ? area.w / targetW : 1
   const styleValues = (selected?.style?.[device] || {}) as Record<string, any>
 
   return (
@@ -601,9 +766,9 @@ export function SiteBuilderEditor() {
           </select>
         )}
         <button type="button" className={smallBtn} onClick={showVersions}>Sürümler</button>
-        {!CHROME.has(page?.kind || '') && <button type="button" className={smallBtn} onClick={openPreview}>Önizle ↗</button>}
+        {!CHROME.has(page?.kind || '') && <button type="button" className={smallBtn} disabled={previewing} onClick={openPreview}>{previewing ? 'Açılıyor…' : 'Önizle ↗'}</button>}
         {CHROME.has(page?.kind || '') && page?.is_published && <button type="button" className={smallBtn} onClick={unpublish}>Yerleşik tasarıma dön</button>}
-        {page?.has_draft && <button type="button" className={smallBtn} onClick={discard}>Değişiklikleri at</button>}
+        {(page?.has_draft || state.dirty) && <button type="button" className={smallBtn} onClick={discard}>Değişiklikleri at</button>}
         <button type="button" className="rounded-md bg-blue-600 px-3.5 py-1.5 text-[12px] font-bold text-white hover:bg-blue-700" onClick={() => setModal('publish')}>Yayınla</button>
       </header>
 
@@ -614,8 +779,16 @@ export function SiteBuilderEditor() {
         </div>
       )}
       {message && (
-        <div className={`flex items-center justify-between px-4 py-1.5 text-[12px] font-semibold ${message.type === 'ok' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'}`}>
-          {message.text}<button type="button" onClick={() => setMessage(null)}>✕</button>
+        <div className={`flex items-center justify-between gap-2 px-4 py-1.5 text-[12px] font-semibold ${message.type === 'ok' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-700'}`}>
+          <span className="flex items-center gap-2">
+            {message.text}
+            {previewUrl && (
+              <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                Önizlemeyi aç ↗
+              </a>
+            )}
+          </span>
+          <button type="button" onClick={() => { setMessage(null); setPreviewUrl(null) }}>✕</button>
         </div>
       )}
 
@@ -629,21 +802,74 @@ export function SiteBuilderEditor() {
             <button type="button" className={tabBtn(leftTab === 'tree')} onClick={() => setLeftTab('tree')}>Yapı ({countBlocks(state.blocks)})</button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            {leftTab === 'pages' && (
-              <div className="space-y-1">
-                {pages.map((p) => (
-                  <button key={p.id} type="button" onClick={() => switchPage(p.id)}
-                    className={`block w-full rounded-md px-2 py-2 text-start text-[13px] ${p.id === pageId ? 'bg-blue-50 font-semibold text-blue-800' : 'hover:bg-gray-50'}`}>
-                    {KIND_ICON[p.kind]} {p.title}
-                    <span className="mt-0.5 block text-[11px] font-normal text-gray-400">
-                      {KIND_PATH[p.kind] ?? `/sayfa/${p.slug}`} · {p.has_draft ? 'taslak var' : p.is_published ? 'yayında' : CHROME.has(p.kind) ? 'yerleşik tasarım' : 'yayınlanmadı'}{p.kind === 'page' && !p.uses_blocks && !p.has_draft ? ' · klasik' : ''}
-                    </span>
-                  </button>
-                ))}
-                <button type="button" onClick={createPage} className="mt-2 w-full rounded-md border border-dashed py-2 text-[12px] font-semibold text-blue-600 hover:bg-blue-50">+ Yeni sayfa</button>
-                <p className="pt-2 text-[11px] text-gray-400">Sayfa adresi, SEO başlığı ve menü bağlantıları <Link href="/admin/sayfalar" className="underline">Sayfalar</Link> ve <Link href="/admin/menu" className="underline">Menü</Link> ekranlarından düzenlenir.</p>
-              </div>
-            )}
+            {leftTab === 'pages' && (() => {
+              const pq = pageSearch.trim().toLocaleLowerCase('tr')
+              const filtered = pages.filter((p) => !pq || `${p.title} ${p.slug || ''} ${KIND_PATH[p.kind] || ''}`.toLocaleLowerCase('tr').includes(pq))
+              const systemPages = filtered.filter((p) => p.kind !== 'page')
+              const customPages = filtered.filter((p) => p.kind === 'page')
+              const renderPageBtn = (p: PageSummary) => {
+                const dotCls = p.has_draft ? 'bg-amber-400' : p.is_published ? 'bg-emerald-500' : 'bg-gray-300'
+                const publicPath = p.kind === 'home' ? '/' : p.kind === 'page' && p.slug ? `/sayfa/${p.slug}` : null
+                return (
+                  <div key={p.id} className={`group flex items-start gap-1 rounded-md px-2 py-2 ${p.id === pageId ? 'bg-blue-50 text-blue-800' : 'hover:bg-gray-50'}`}>
+                    <button type="button" onClick={() => switchPage(p.id)} className="min-w-0 flex-1 text-start text-[13px]">
+                      <span className={`flex items-center gap-1.5 ${p.id === pageId ? 'font-semibold' : ''}`}>
+                        <span>{KIND_ICON[p.kind]}</span>
+                        <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${dotCls}`} title={p.has_draft ? 'Taslak var' : p.is_published ? 'Yayında' : 'Yayınlanmadı'} />
+                      </span>
+                      <span className="mt-0.5 block text-[11px] font-normal text-gray-400">
+                        {KIND_PATH[p.kind] ?? `/sayfa/${p.slug}`} · {p.has_draft ? 'taslak var' : p.is_published ? 'yayında' : CHROME.has(p.kind) ? 'yerleşik tasarım' : 'yayınlanmadı'}{p.kind === 'page' && !p.uses_blocks && !p.has_draft ? ' · klasik' : ''}
+                      </span>
+                    </button>
+                    {publicPath && p.is_published && (
+                      <a
+                        href={publicPath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Canlı sayfayı aç"
+                        className="mt-0.5 hidden shrink-0 rounded px-1 text-[11px] text-gray-400 hover:bg-white hover:text-blue-600 group-hover:inline-block"
+                      >
+                        ↗
+                      </a>
+                    )}
+                  </div>
+                )
+              }
+              return (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <input className="w-full rounded-md border px-2 py-1.5 pr-7 text-[13px]" placeholder="Sayfa ara…" value={pageSearch} onChange={(e) => setPageSearch(e.target.value)} />
+                    {pageSearch && (
+                      <button type="button" onClick={() => setPageSearch('')} aria-label="Aramayı temizle"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-700">✕</button>
+                    )}
+                  </div>
+                  {filtered.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-gray-200 px-3 py-5 text-center text-xs text-gray-500">
+                      Aradığınız sayfa bulunamadı.
+                    </div>
+                  ) : (
+                    <>
+                      {systemPages.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Genel Düzen</div>
+                          {systemPages.map(renderPageBtn)}
+                        </div>
+                      )}
+                      {customPages.length > 0 && (
+                        <div className="space-y-1 pt-1">
+                          <div className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Özel Sayfalar ({customPages.length})</div>
+                          {customPages.map(renderPageBtn)}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <button type="button" onClick={openCreatePage} className="mt-2 w-full rounded-md border border-dashed py-2 text-[12px] font-semibold text-blue-600 hover:bg-blue-50">+ Yeni sayfa</button>
+                  <p className="pt-1 text-[11px] text-gray-400">Sayfa adresi, SEO başlığı ve menü bağlantıları <Link href="/admin/sayfalar" className="underline">Sayfalar</Link> ve <Link href="/admin/menu" className="underline">Menü</Link> ekranlarından düzenlenir.</p>
+                </div>
+              )
+            })()}
             {leftTab === 'library' && (
               <LibraryPanel library={library} catalog={catalog} kind={page?.kind || 'home'} saved={saved}
                 onInsert={insertSection} onReplace={replacePage} onInsertSaved={insertSaved} onDeleteSaved={deleteSaved} onApplyDemo={applyDemo} />
@@ -655,38 +881,137 @@ export function SiteBuilderEditor() {
                     Seçilen bloğun içine eklenecek <button type="button" onClick={() => setInsertTarget(null)}>✕</button>
                   </div>
                 )}
-                <input className="w-full rounded-md border px-2 py-1.5 text-[13px]" placeholder="Blok ara…" value={search} onChange={(e) => setSearch(e.target.value)} />
-                {groups.map(([group, items]) => (
-                  <div key={group}>
-                    <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">{group}</div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {items.map(([key, spec]) => (
-                        <button key={key} type="button" onClick={() => addBlock(key)}
-                          className="flex flex-col items-center gap-1 rounded-lg border bg-white px-1 py-2.5 text-[11px] font-semibold text-gray-700 hover:border-blue-500 hover:bg-blue-50">
-                          <span className="text-lg">{spec.icon}</span>{spec.label}
-                        </button>
-                      ))}
-                    </div>
+                <div className="relative">
+                  <input className="w-full rounded-md border px-2 py-1.5 pr-7 text-[13px]" placeholder="Blok ara…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch('')}
+                      aria-label="Aramayı temizle"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-700"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {groups.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-200 px-3 py-6 text-center text-xs text-gray-500">
+                    Aradığınız blok bulunamadı.
                   </div>
-                ))}
+                ) : groups.map(([group, items]) => {
+                  const isCollapsed = !search && !!collapsedGroups[group]
+                  return (
+                    <div key={group}>
+                      <button
+                        type="button"
+                        onClick={() => setCollapsedGroups((prev) => ({ ...prev, [group]: !prev[group] }))}
+                        className="mb-1.5 flex w-full items-center justify-between text-left text-[11px] font-bold uppercase tracking-wide text-gray-400 hover:text-gray-600"
+                      >
+                        <span>{group} ({items.length})</span>
+                        <span>{isCollapsed ? '▸' : '▾'}</span>
+                      </button>
+                      {!isCollapsed && (
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {items.map(([key, spec]) => (
+                            <button
+                              key={key}
+                              type="button"
+                              title={spec.help || spec.label}
+                              onClick={() => addBlock(key)}
+                              className="flex flex-col items-center gap-1 rounded-lg border bg-white px-1 py-2.5 text-[11px] font-semibold text-gray-700 hover:border-blue-500 hover:bg-blue-50"
+                            >
+                              <span className="text-lg">{spec.icon}</span>{spec.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
                 <p className="text-[11px] text-gray-400">Blok, seçili bloğun altına eklenir. Önizlemede blokları sürükleyerek taşıyabilirsiniz.</p>
               </div>
             )}
-            {leftTab === 'tree' && (
-              <div>
-                {state.blocks.length ? <Tree blocks={state.blocks} depth={0} /> : <p className="text-[12px] text-gray-400">Sayfa boş</p>}
-                <p className="mt-3 text-[11px] text-gray-400">Sürükleyip bırakarak sıralayın; bir bölümün ortasına bırakırsanız içine taşınır.</p>
-              </div>
-            )}
+            {leftTab === 'tree' && (() => {
+              const containerIds = collectContainerIds(state.blocks)
+              const allCollapsed = containerIds.length > 0 && containerIds.every((id) => collapsedTree[id])
+              const tq = treeSearch.trim().toLocaleLowerCase('tr')
+              const hasMatches = !tq || state.blocks.some((b) => treeMatches(b, tq))
+              return (
+                <div className="space-y-2">
+                  {state.blocks.length > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative flex-1">
+                        <input
+                          className="w-full rounded-md border px-2 py-1 pr-6 text-[12px]"
+                          placeholder="Ağaçta ara…"
+                          value={treeSearch}
+                          onChange={(e) => setTreeSearch(e.target.value)}
+                        />
+                        {treeSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setTreeSearch('')}
+                            aria-label="Aramayı temizle"
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-700"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      {containerIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next: Record<string, boolean> = {}
+                            if (!allCollapsed) containerIds.forEach((id) => { next[id] = true })
+                            setCollapsedTree(next)
+                          }}
+                          className="shrink-0 rounded-md border px-2 py-1 text-[11px] font-semibold text-gray-600 hover:bg-gray-50"
+                          title={allCollapsed ? 'Tümünü genişlet' : 'Tümünü daralt'}
+                        >
+                          {allCollapsed ? '▾ Aç' : '▸ Daralt'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {!state.blocks.length ? (
+                    <p className="text-[12px] text-gray-400">Sayfa boş</p>
+                  ) : !hasMatches ? (
+                    <div className="rounded-lg border border-dashed border-gray-200 px-3 py-5 text-center text-xs text-gray-500">
+                      Eşleşen blok bulunamadı.
+                    </div>
+                  ) : (
+                    <Tree blocks={state.blocks} depth={0} />
+                  )}
+                  <p className="mt-2 text-[11px] text-gray-400">Sürükleyip bırakarak sıralayın; bir bölümün ortasına bırakırsanız içine taşınır.</p>
+                </div>
+              )
+            })()}
           </div>
         </aside>
 
         {/* Canvas */}
-        <main className={`${mobilePane === 'canvas' ? 'block' : 'hidden'} min-w-0 flex-1 overflow-auto p-2 sm:p-4 lg:block`} onClick={() => dispatch({ type: 'select', id: null })}>
-          <div ref={canvasArea} className="mx-auto h-full overflow-hidden rounded-lg bg-white shadow-sm transition-[width] duration-300" style={{ width: DEVICE_WIDTH[device], maxWidth: '100%' }}>
-            {/* The canvas posts "ready" whenever it (re)loads; messages sent while it loads are simply dropped. */}
-            <iframe ref={frame} src="/site-yapici-cerceve" title="Sayfa önizlemesi" className="h-full w-full border-0"
-              style={scale < 1 ? { width: DESKTOP_WIDTH, height: area.h / scale, transform: `scale(${scale})`, transformOrigin: '0 0' } : undefined} />
+        <main className={`${mobilePane === 'canvas' ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col overflow-hidden p-2 sm:p-4 lg:flex`} onClick={() => dispatch({ type: 'select', id: null })}>
+          <div className="mb-1.5 flex items-center justify-between gap-2 sm:justify-center" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1 rounded-md border bg-white p-0.5 sm:hidden">
+              {(['desktop', 'tablet', 'mobile'] as Device[]).map((d) => (
+                <button key={d} type="button" onClick={() => setDevice(d)}
+                  className={`rounded px-2 py-1 text-[11px] font-semibold ${device === d ? 'bg-gray-900 text-white' : 'text-gray-600'}`}>{DEVICE_LABEL[d]}</button>
+              ))}
+            </div>
+            {(device !== 'desktop' || scale < 1) && (
+              <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
+                {targetW}px{scale < 1 ? ` · %${Math.round(scale * 100)}` : ''}
+              </span>
+            )}
+          </div>
+          <div ref={canvasArea} className="min-h-0 w-full flex-1">
+            <div className="mx-auto h-full overflow-hidden rounded-lg bg-white shadow-sm transition-[width] duration-300"
+              style={{ width: device === 'desktop' ? '100%' : Math.min(targetW, area.w || targetW), maxWidth: '100%' }}>
+              {/* The canvas posts "ready" whenever it (re)loads; messages sent while it loads are simply dropped. */}
+              <iframe ref={frame} src="/site-yapici-cerceve" title="Sayfa önizlemesi" className="h-full w-full border-0"
+                style={scale < 1 ? { width: targetW, height: area.h > 0 ? area.h / scale : '100%', transform: `scale(${scale})`, transformOrigin: '0 0' } : undefined} />
+            </div>
           </div>
         </main>
 
@@ -724,7 +1049,7 @@ export function SiteBuilderEditor() {
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
                 {rightTab === 'content' && (
                   Object.keys(selectedSpec.fields).length === 0
-                    ? <p className="text-[12px] text-gray-400">Bu bloğun içerik ayarı yok; stil ve gelişmiş ayarları kullanın. İçine blok eklemek için önizlemedeki “+ Buraya blok ekle”ye tıklayın.</p>
+                    ? <p className="text-[12px] text-gray-400">Bu bloğun içerik ayarı yok; stil ve gelişmiş ayarları kullanın.{selectedSpec.container ? ' İçine blok eklemek için önizlemedeki “+ Buraya blok ekle”ye tıklayın.' : ''}</p>
                     : translating ? (
                       <>
                         <p className="rounded-md bg-amber-50 p-2 text-[11px] text-amber-800">{LANG_LABEL[lang] || lang} metinleri düzenleniyor. Boş bırakılan alanlarda Türkçe metin gösterilir.</p>
@@ -751,40 +1076,116 @@ export function SiteBuilderEditor() {
                 {rightTab === 'style' && (
                   <>
                     <div className="flex gap-1 rounded-md bg-gray-100 p-1">
-                      {(['desktop', 'tablet', 'mobile'] as Device[]).map((d) => (
-                        <button key={d} type="button" onClick={() => setDevice(d)}
-                          className={`flex-1 rounded px-1 py-1 text-[11px] font-semibold ${device === d ? 'bg-white shadow-sm' : 'text-gray-500'}`}>{DEVICE_LABEL[d]}</button>
-                      ))}
+                      {(['desktop', 'tablet', 'mobile'] as Device[]).map((d) => {
+                        const hasOverride = Object.keys(selected.style?.[d] || {}).length > 0
+                        return (
+                          <button key={d} type="button" onClick={() => setDevice(d)}
+                            className={`flex flex-1 items-center justify-center gap-1 rounded px-1 py-1 text-[11px] font-semibold ${device === d ? 'bg-white shadow-sm' : 'text-gray-500'}`}>
+                            <span>{DEVICE_LABEL[d]}</span>
+                            {hasOverride && <span className="h-1.5 w-1.5 rounded-full bg-blue-600" title="Bu cihazda özel stil var" />}
+                          </button>
+                        )
+                      })}
                     </div>
                     <p className="text-[11px] text-gray-400">
                       {device === 'desktop' ? 'Bilgisayar ayarları tablet ve telefonda da geçerlidir; gerekirse orada ayrıca değiştirin.' : `Yalnızca ${device === 'tablet' ? 'tablet ve telefon' : 'telefon'} görünümünü değiştirir.`}
                     </p>
-                    {Object.entries(catalog.style_groups).map(([group, specs]) => (
-                      <details key={group} className="rounded-md border" open={group === 'Boşluk & boyut' || group === 'Arka plan'}>
-                        <summary className="cursor-pointer px-2.5 py-2 text-[12px] font-bold">{group}</summary>
-                        <div className="space-y-2.5 border-t p-2.5">
-                          <Fields specs={specs} values={styleValues} ctx={{ campaigns: data.campaigns }}
-                            onChange={(values) => setSelected((b) => {
-                              const merged = { ...styleValues }
-                              for (const key of Object.keys(specs)) delete merged[key]
-                              Object.assign(merged, values)
-                              return { ...b, style: { ...b.style, [device]: merged } }
-                            })} />
-                        </div>
-                      </details>
-                    ))}
-                    {Object.keys(styleValues).length > 0 && (
-                      <button type="button" className="w-full rounded-md border py-1.5 text-[12px] text-gray-600 hover:bg-gray-50"
-                        onClick={() => setSelected((b) => { const style = { ...b.style }; delete style[device]; return { ...b, style } })}>
-                        Bu cihazın stillerini sıfırla
-                      </button>
+                    {Object.entries(catalog.style_groups).map(([group, specs]) => {
+                      const activeCount = Object.keys(specs).filter((k) => styleValues[k] !== undefined && styleValues[k] !== '').length
+                      return (
+                        <details key={group} className="rounded-md border" open={group === 'Boşluk & boyut' || group === 'Arka plan'}>
+                          <summary className="flex cursor-pointer items-center justify-between px-2.5 py-2 text-[12px] font-bold">
+                            <span>{group}</span>
+                            {activeCount > 0 && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">{activeCount}</span>}
+                          </summary>
+                          <div className="space-y-2.5 border-t p-2.5">
+                            <Fields specs={specs} values={styleValues} ctx={{ campaigns: data.campaigns }}
+                              onChange={(values) => setSelected((b) => {
+                                const merged = { ...styleValues }
+                                for (const key of Object.keys(specs)) delete merged[key]
+                                Object.assign(merged, values)
+                                return { ...b, style: { ...b.style, [device]: merged } }
+                              })} />
+                          </div>
+                        </details>
+                      )
+                    })}
+                    {(Object.keys(styleValues).length > 0 || Object.values(selected.style || {}).some((v) => v && Object.keys(v).length > 0)) && (
+                      <div className="flex gap-1.5">
+                        {Object.keys(styleValues).length > 0 && (
+                          <button type="button" className="flex-1 rounded-md border py-1.5 text-[12px] text-gray-600 hover:bg-gray-50"
+                            onClick={() => setSelected((b) => { const style = { ...b.style }; delete style[device]; return { ...b, style } })}>
+                            Bu cihazı sıfırla
+                          </button>
+                        )}
+                        <button type="button" className="flex-1 rounded-md border py-1.5 text-[12px] text-red-600 hover:bg-red-50"
+                          onClick={() => setSelected((b) => ({ ...b, style: {} }))}>
+                          Tüm stilleri sıfırla
+                        </button>
+                      </div>
                     )}
                   </>
                 )}
-                {rightTab === 'advanced' && (
-                  <Fields specs={catalog.advanced} values={selected.advanced || {}} ctx={{ campaigns: data.campaigns }}
-                    onChange={(values) => setSelected((b) => ({ ...b, advanced: values }))} />
-                )}
+                {rightTab === 'advanced' && (() => {
+                  const adv = selected.advanced || {}
+                  const advGroups: [string, string[], boolean][] = [
+                    ['Animasyon', ['animation', 'animation_delay', 'animation_duration'], true],
+                    ['Görünürlük & Zamanlama', ['hide_desktop', 'hide_tablet', 'hide_mobile', 'starts_at', 'ends_at', 'langs'], true],
+                    ['Teknik & Erişilebilirlik', ['anchor', 'aria_label', 'css_class', 'z_index'], false],
+                  ]
+                  const badDates = !!(adv.starts_at && adv.ends_at && new Date(adv.starts_at) > new Date(adv.ends_at))
+                  return (
+                    <>
+                      {advGroups.map(([group, keys, defaultOpen]) => {
+                        const specs = Object.fromEntries(
+                          keys
+                            .filter((k) => catalog.advanced[k] && (adv.animation || (k !== 'animation_delay' && k !== 'animation_duration')))
+                            .map((k) => [k, catalog.advanced[k]])
+                        )
+                        const activeCount = Object.keys(specs).filter((k) => adv[k] !== undefined && adv[k] !== '' && adv[k] !== false).length
+                        return (
+                          <details key={group} className="rounded-md border" open={defaultOpen || activeCount > 0}>
+                            <summary className="flex cursor-pointer items-center justify-between px-2.5 py-2 text-[12px] font-bold">
+                              <span>{group}</span>
+                              {activeCount > 0 && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">{activeCount}</span>}
+                            </summary>
+                            <div className="space-y-2.5 border-t p-2.5">
+                              {group === 'Görünürlük & Zamanlama' && badDates && (
+                                <p className="rounded bg-red-50 px-2 py-1.5 text-[11px] font-semibold text-red-700">
+                                  Yayın bitiş tarihi, başlangıç tarihinden önce olamaz.
+                                </p>
+                              )}
+                              <Fields
+                                specs={specs}
+                                values={adv}
+                                ctx={{ campaigns: data.campaigns }}
+                                onChange={(values) => setSelected((b) => {
+                                  const merged = { ...adv }
+                                  for (const key of Object.keys(specs)) delete merged[key]
+                                  Object.assign(merged, values)
+                                  if (!merged.animation) {
+                                    delete merged.animation_delay
+                                    delete merged.animation_duration
+                                  }
+                                  return { ...b, advanced: merged }
+                                })}
+                              />
+                            </div>
+                          </details>
+                        )
+                      })}
+                      {Object.keys(adv).length > 0 && (
+                        <button
+                          type="button"
+                          className="w-full rounded-md border py-1.5 text-[12px] text-red-600 hover:bg-red-50"
+                          onClick={() => setSelected((b) => ({ ...b, advanced: {} }))}
+                        >
+                          Gelişmiş ayarları sıfırla
+                        </button>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             </>
           )}
@@ -827,7 +1228,11 @@ export function SiteBuilderEditor() {
             {modal === 'versions' && (
               <>
                 <h2 className="mb-3 text-lg font-bold">Yayınlanmış sürümler</h2>
-                {revisions.length === 0 ? <p className="text-sm text-gray-500">Henüz yayınlanmış sürüm yok.</p> : (
+                {versionsLoading ? (
+                  <p className="text-sm text-gray-500">Sürümler yükleniyor…</p>
+                ) : versionsError ? (
+                  <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{versionsError}</p>
+                ) : revisions.length === 0 ? <p className="text-sm text-gray-500">Henüz yayınlanmış sürüm yok.</p> : (
                   <ul className="divide-y rounded-lg border">
                     {revisions.map((r, i) => (
                       <li key={r.id} className="flex items-center justify-between gap-3 p-3 text-sm">
@@ -842,6 +1247,43 @@ export function SiteBuilderEditor() {
                 )}
                 <div className="mt-3 text-end"><button type="button" className={smallBtn} onClick={() => setModal(null)}>Kapat</button></div>
               </>
+            )}
+            {modal === 'new-page' && (
+              <form onSubmit={submitCreatePage} className="space-y-4">
+                <h2 className="text-lg font-bold">Yeni sayfa oluştur</h2>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-700">Sayfa adı</label>
+                  <input
+                    autoFocus
+                    required
+                    value={newPageTitle}
+                    onChange={(e) => setNewPageTitle(e.target.value)}
+                    placeholder="ör. Kurban 2027, KVKK Politikası…"
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                  />
+                </div>
+                {library && library.pages.length > 0 && (
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">Başlangıç şablonu (opsiyonel)</label>
+                    <select
+                      value={newPageTemplate}
+                      onChange={(e) => setNewPageTemplate(e.target.value)}
+                      className="w-full rounded-md border bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">Boş sayfa ile başla</option>
+                      {library.pages.map((p) => (
+                        <option key={p.key} value={p.key}>{p.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2 pt-1">
+                  <button type="button" disabled={creatingPage} className={smallBtn} onClick={() => setModal(null)}>Vazgeç</button>
+                  <button type="submit" disabled={creatingPage || !newPageTitle.trim()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+                    {creatingPage ? 'Oluşturuluyor…' : 'Sayfayı oluştur'}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         </div>

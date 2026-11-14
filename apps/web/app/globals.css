@@ -95,24 +95,37 @@
   from { transform: scale(1); }
   to { transform: scale(1.08); }
 }
+@keyframes slider-kenburns-slow {
+  from { transform: scale(1) translate3d(0, 0, 0); }
+  to { transform: scale(1.12) translate3d(-1.5%, -1%, 0); }
+}
 @keyframes slider-progress {
   from { width: 0; }
   to { width: 100%; }
 }
+@keyframes slider-ring {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
 .slider-kenburns { animation: slider-kenburns 8s ease-out both; }
+.slider-kenburns-slow { animation: slider-kenburns-slow 12s ease-out both; }
 .slider-progress { animation: slider-progress 6s linear both; }
+.slider-ring { animation: slider-ring 6s linear both; }
 
 @keyframes marquee {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
 .marquee-track { animation: marquee 60s linear infinite; }
-.marquee-track:hover { animation-play-state: paused; }
+.marquee-track-reverse { animation: marquee 60s linear infinite reverse; }
+.marquee-track:hover, .marquee-track-reverse:hover { animation-play-state: paused; }
 [dir="rtl"] .marquee-track { animation-direction: reverse; }
+[dir="rtl"] .marquee-track-reverse { animation-direction: normal; }
 
 @media (prefers-reduced-motion: reduce) {
-  .slider-kenburns, .marquee-track { animation: none; }
+  .slider-kenburns, .slider-kenburns-slow, .marquee-track, .marquee-track-reverse { animation: none; }
   .slider-progress { animation: none; width: 100%; }
+  .slider-ring { animation: none; stroke-dashoffset: 0; }
 }
 
 

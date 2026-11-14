@@ -44,6 +44,7 @@ export interface BlockSpec {
   label: string
   group: string
   icon: string
+  help?: string
   container?: boolean
   child_type?: string
   child_count?: number
@@ -120,6 +121,8 @@ function declarations(s: StyleValues): { outer: string[]; inner: string[]; hover
   if (s.font_family === 'sans') outer.push('font-family:var(--font-sans)')
   px('font_size', 'font-size')
   if (typeof s.font_weight === 'string' && /^[1-9]00$/.test(s.font_weight)) outer.push(`font-weight:${s.font_weight}`)
+  if (s.font_style === 'italic') outer.push('font-style:italic')
+  if (['underline', 'line-through'].includes(String(s.text_decoration))) outer.push(`text-decoration:${s.text_decoration}`)
   if (num(s.line_height) !== null) outer.push(`line-height:${s.line_height}`)
   px('letter_spacing', 'letter-spacing')
   if (['uppercase', 'lowercase', 'capitalize'].includes(String(s.text_transform))) outer.push(`text-transform:${s.text_transform}`)
@@ -142,6 +145,8 @@ function declarations(s: StyleValues): { outer: string[]; inner: string[]; hover
   if (safeHex(s.bg_color)) outer.push(`background-color:${s.bg_color}`)
   const overlayColor = safeHex(s.overlay_color)
   if (overlayColor) overlay.push(`background:${hexToRgba(overlayColor, (num(s.overlay_opacity) ?? 50) / 100)}`)
+  const blur = num(s.backdrop_blur)
+  if (blur !== null && blur > 0) outer.push(`backdrop-filter:blur(${blur}px)`, `-webkit-backdrop-filter:blur(${blur}px)`)
 
   px('padding_top', 'padding-top'); px('padding_bottom', 'padding-bottom')
   px('padding_left', 'padding-left'); px('padding_right', 'padding-right')
@@ -160,6 +165,9 @@ function declarations(s: StyleValues): { outer: string[]; inner: string[]; hover
   if (typeof s.shadow === 'string' && SHADOWS[s.shadow]) outer.push(`box-shadow:${SHADOWS[s.shadow]}`)
   if (typeof s.hover_shadow === 'string' && SHADOWS[s.hover_shadow]) hover.push(`box-shadow:${SHADOWS[s.hover_shadow]}`)
   if (num(s.hover_scale) !== null && s.hover_scale !== 100) hover.push(`transform:scale(${(s.hover_scale as number) / 100})`)
+  if (hover.length) outer.push('transition:box-shadow .2s ease,transform .2s ease')
+  const opacity = num(s.opacity)
+  if (opacity !== null && opacity >= 0 && opacity <= 100) outer.push(`opacity:${opacity / 100}`)
   return { outer, inner, hover, overlay }
 }
 
@@ -180,6 +188,8 @@ function blockCss(block: Block, out: string[], editing = false) {
     }
     if (rules.length) out.push(BREAKPOINTS[device] ? `@media ${BREAKPOINTS[device]}{${rules.join('')}}` : rules.join(''))
   }
+  const z = num(block.advanced?.z_index)
+  if (z !== null) out.push(`${sel}{position:relative;z-index:${z}}`)
   block.children?.forEach((child) => blockCss(child, out, editing))
 }
 

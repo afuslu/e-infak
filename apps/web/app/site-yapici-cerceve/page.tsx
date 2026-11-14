@@ -49,8 +49,9 @@ export default function BuilderCanvas() {
       const el = (e.target as HTMLElement).closest('a, form button[type=submit]')
       if (el) e.preventDefault()
     }
+    const stopSubmit = (e: Event) => e.preventDefault()
     document.addEventListener('click', stop, true)
-    document.addEventListener('submit', (e) => e.preventDefault(), true)
+    document.addEventListener('submit', stopSubmit, true)
     const keys = (e: KeyboardEvent) => {
       const typing = (e.target as HTMLElement).closest('input, textarea, select')
       if (typing) return
@@ -63,6 +64,7 @@ export default function BuilderCanvas() {
     return () => {
       window.removeEventListener('message', onMessage)
       document.removeEventListener('click', stop, true)
+      document.removeEventListener('submit', stopSubmit, true)
       window.removeEventListener('keydown', keys)
     }
   }, [])

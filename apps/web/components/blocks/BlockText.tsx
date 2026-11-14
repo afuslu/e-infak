@@ -8,7 +8,7 @@ import type { ReactNode } from 'react'
  */
 function inline(text: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = []
-  const pattern = /(\*\*([^*]+)\*\*|\*([^*]+)\*|\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\))/g
+  const pattern = /(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`|\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\))/g
   let last = 0
   let match: RegExpExecArray | null
   let i = 0
@@ -17,11 +17,12 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
     const key = `${keyPrefix}-${i++}`
     if (match[2]) out.push(<strong key={key}>{match[2]}</strong>)
     else if (match[3]) out.push(<em key={key}>{match[3]}</em>)
-    else if (match[4] && match[5]) {
-      const href = match[5]
+    else if (match[4]) out.push(<code key={key} className="rounded bg-black/5 px-1.5 py-0.5 font-mono text-[0.9em]">{match[4]}</code>)
+    else if (match[5] && match[6]) {
+      const href = match[6]
       out.push(href.startsWith('/')
-        ? <Link key={key} href={href} className="font-semibold text-primary-700 underline">{match[4]}</Link>
-        : <a key={key} href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary-700 underline">{match[4]}</a>)
+        ? <Link key={key} href={href} className="font-semibold text-primary-700 underline">{match[5]}</Link>
+        : <a key={key} href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary-700 underline">{match[5]}</a>)
     }
     last = match.index + match[0].length
   }
@@ -37,6 +38,8 @@ export function BlockText({ text, className = '' }: { text?: string | null; clas
       {chunks.map((chunk, i) => {
         const lines = chunk.split('\n')
         const key = `t${i}`
+        if (lines.length === 1 && chunk === '---') return <hr key={key} className="my-4 border-gray-200" />
+        if (lines.length === 1 && chunk.startsWith('#### ')) return <h4 key={key} className="pt-1 font-heading text-lg font-bold">{inline(chunk.slice(5), key)}</h4>
         if (lines.length === 1 && chunk.startsWith('### ')) return <h3 key={key} className="pt-1 font-heading text-xl font-bold">{inline(chunk.slice(4), key)}</h3>
         if (lines.length === 1 && chunk.startsWith('## ')) return <h2 key={key} className="pt-2 font-heading text-2xl font-bold">{inline(chunk.slice(3), key)}</h2>
         if (lines.every((l) => /^[-•] /.test(l))) {
