@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { apiErrorMessage, v1Send } from '../../../../lib/admin-access'
+import { apiErrorMessage, v1Send, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
 import { toast } from '../../../../components/admin/ui'
 
@@ -85,14 +85,9 @@ export default function AdminCampaignsPage() {
   const [savingGallery, setSavingGallery] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadCampaigns = async () => {
     setLoading(true)
@@ -160,7 +155,7 @@ export default function AdminCampaignsPage() {
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
-          ✨ {successMsg}
+          {successMsg}
         </div>
       )}
 
@@ -188,7 +183,7 @@ export default function AdminCampaignsPage() {
                         {((c.collected_cents || 0) / 100).toLocaleString('tr-TR')} {CURRENCY_SYMBOL[c.currency || 'TRY']} / {(c.target_cents / 100).toLocaleString('tr-TR')} {CURRENCY_SYMBOL[c.currency || 'TRY']}
                       </div>
                       <Button size="sm" variant="ghost" className="text-primary-600 font-bold text-[11px] mt-1">
-                        Galeri Düzenle ➔
+                        Galeri Düzenle →
                       </Button>
                     </div>
                   </div>
@@ -205,11 +200,11 @@ export default function AdminCampaignsPage() {
                   onClick={() => setSelectedCampaign(null)}
                   className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-sm font-bold"
                 >
-                  ✕ Kapat
+                  Kapat
                 </button>
 
                 <div>
-                  <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-2 py-0.5 rounded uppercase tracking-wider">Kampanya Görsel Galerisi</span>
+                  <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-2 py-0.5 rounded">Kampanya Görsel Galerisi</span>
                   <h2 className="text-xl font-bold text-gray-900 mt-2">{selectedCampaign.title}</h2>
                 </div>
 
@@ -222,7 +217,7 @@ export default function AdminCampaignsPage() {
                 <form onSubmit={handleSaveGallery} className="space-y-4">
                   {/* Add URL Field */}
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-gray-500 uppercase">Görsel Resim URL&apos;si Ekle</label>
+                    <label className="mb-1 block text-xs font-bold text-gray-600">Görsel Resim URL&apos;si Ekle</label>
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -243,7 +238,7 @@ export default function AdminCampaignsPage() {
 
                   {/* Visual List of URLs */}
                   <div className="space-y-3">
-                    <label className="block text-xs font-bold text-gray-500 uppercase border-b pb-1">Kayıtlı Galeri Görselleri ({galleryUrls.length})</label>
+                    <label className="mb-1 block text-xs font-bold text-gray-600">Kayıtlı Galeri Görselleri ({galleryUrls.length})</label>
                     {galleryUrls.length === 0 ? (
                       <p className="text-xs text-gray-400 py-2">Galeride görsel bulunmamaktadır.</p>
                     ) : (
@@ -269,7 +264,7 @@ export default function AdminCampaignsPage() {
                     <Button
                       type="submit"
                       disabled={savingGallery}
-                      className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs uppercase"
+                      className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs"
                     >
                       {savingGallery ? 'Kaydediliyor...' : 'Galeriyi Kaydet'}
                     </Button>

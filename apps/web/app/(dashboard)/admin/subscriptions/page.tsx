@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { toast } from '../../../../components/admin/ui'
+import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface Subscription {
   id: string
@@ -22,14 +23,9 @@ export default function AdminSubscriptionsPage() {
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadSubscriptions = async () => {
     setLoading(true)
@@ -73,13 +69,13 @@ export default function AdminSubscriptionsPage() {
           onClick={loadSubscriptions}
           className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
         >
-          🔄 Yenile
+          Yenile
         </button>
       </div>
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
-          ✨ {successMsg}
+          {successMsg}
         </div>
       )}
 
@@ -108,7 +104,7 @@ export default function AdminSubscriptionsPage() {
                     <td className="py-4 font-semibold text-gray-900">{sub.donor_name}</td>
                     <td className="py-4 font-medium text-gray-600">{sub.campaign_title}</td>
                     <td className="py-4 font-mono text-gray-500 text-[11px]">
-                      💳 {sub.card_brand} (**** {sub.card_last4})
+                      {sub.card_brand} (**** {sub.card_last4})
                     </td>
                     <td className="py-4 text-gray-400 font-semibold">{sub.next_billing_date}</td>
                     <td className="py-4">

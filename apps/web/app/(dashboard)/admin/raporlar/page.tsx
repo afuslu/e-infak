@@ -159,7 +159,7 @@ export default function ReportsPage() {
             onClick={() => setReport(r.key)}
             className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${report === r.key ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white text-gray-700 hover:border-primary-600'}`}
           >
-            {r.label}{r.advanced && !advancedEnabled ? ' 🔒' : ''}
+            {r.label}{r.advanced && !advancedEnabled ? ' (üst pakette)' : ''}
           </button>
         ))}
       </div>

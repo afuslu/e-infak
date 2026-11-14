@@ -259,7 +259,7 @@ export default function IncomingTransfersPage() {
                       <td className="whitespace-nowrap p-3 text-right">
                         {t.status === 'matched' && t.donation_id && (
                           <div className="flex justify-end gap-2">
-                            {canSms && <button onClick={() => setSmsFor(t)} className={ghostButton}>💬 SMS Gönder</button>}
+                            {canSms && <button onClick={() => setSmsFor(t)} className={ghostButton}>SMS Gönder</button>}
                             {canEdit && <button onClick={() => unmatch(t)} className={`${ghostButton} text-red-600 hover:border-red-400`}>Eşleştirmeyi kaldır</button>}
                           </div>
                         )}
@@ -493,7 +493,7 @@ function ApproveDialog({ transfer, campaigns, books, onClose, onDone }: {
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" disabled={!smsPhone} onClick={() => setSmsOpen(true)} className={`${ghostButton} mr-auto`}
             title={smsPhone ? undefined : 'Bağışçının telefonu yok'}>
-            💬 {smsBody ? 'SMS metnini düzenle' : 'SMS Gönder'}
+            {smsBody ? 'SMS metnini düzenle' : 'SMS Gönder'}
           </button>
           <button type="button" onClick={onClose} className={ghostButton}>Vazgeç</button>
           <button type="submit" disabled={saving} className={primaryButton}>{saving ? 'Kaydediliyor…' : 'Bağışı kaydet'}</button>

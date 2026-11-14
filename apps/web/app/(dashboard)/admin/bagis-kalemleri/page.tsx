@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { confirmDialog, toast } from '../../../../components/admin/ui'
+import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface DonationCategory {
   id: string
@@ -23,14 +24,9 @@ export default function AdminDonationCategoriesPage() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadCategories = async () => {
     setLoading(true)
@@ -102,7 +98,7 @@ export default function AdminDonationCategoriesPage() {
           onClick={loadCategories}
           className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
         >
-          🔄 Yenile
+          Yenile
         </button>
       </div>
       <p className="text-sm text-gray-500 -mt-6">
@@ -151,7 +147,7 @@ export default function AdminDonationCategoriesPage() {
             <form onSubmit={handleSave} className="space-y-3">
               <div className="grid grid-cols-[80px_1fr] gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">İkon</label>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">İkon</label>
                   <input
                     type="text"
                     value={form.icon}
@@ -160,7 +156,7 @@ export default function AdminDonationCategoriesPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Başlık *</label>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Başlık *</label>
                   <input
                     type="text"
                     value={form.title}
@@ -171,7 +167,7 @@ export default function AdminDonationCategoriesPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Açıklama *</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Açıklama *</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -182,7 +178,7 @@ export default function AdminDonationCategoriesPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Sıra</label>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Sıra</label>
                   <input
                     type="number"
                     value={form.display_order}
@@ -211,7 +207,7 @@ export default function AdminDonationCategoriesPage() {
                 <Button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 text-xs uppercase"
+                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 text-xs"
                 >
                   {saving ? 'Kaydediliyor...' : editingId ? 'Güncelle' : 'Ekle'}
                 </Button>

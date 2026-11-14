@@ -336,7 +336,7 @@ function DonorCardPanel({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          {canManage && <button onClick={() => setSmsOpen(true)} className={primaryButton}>💬 SMS Gönder</button>}
+          {canManage && <button onClick={() => setSmsOpen(true)} className={primaryButton}>SMS Gönder</button>}
           <button onClick={onClose} className="text-xl leading-none text-gray-400 hover:text-gray-700" aria-label="Kapat">✕</button>
         </div>
       </div>

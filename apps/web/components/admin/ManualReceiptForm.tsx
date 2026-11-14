@@ -268,7 +268,7 @@ export function ManualReceiptForm({
         <div className="flex gap-2">
           <button type="button" disabled={!smsPhone} onClick={() => setSmsOpen(true)} className={`${ghostButton} whitespace-nowrap`}
             title={smsPhone ? undefined : 'Bağışçının telefonu yok'}>
-            💬 {smsBody ? 'SMS metnini düzenle' : 'SMS Gönder'}
+            {smsBody ? 'SMS metnini düzenle' : 'SMS Gönder'}
           </button>
           <button type="submit" disabled={saving} className={`${primaryButton} flex-1`}>{saving ? 'Kesiliyor...' : 'Makbuzu Kes'}</button>
         </div>

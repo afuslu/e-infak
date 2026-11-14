@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
+import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface BankTransaction {
   id: string
@@ -27,14 +28,9 @@ export default function AdminReconciliationPage() {
   const [importResult, setImportResult] = useState<any>(null)
   const [errorMsg, setErrorMsg] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadTransactions = async () => {
     setLoading(true)
@@ -120,19 +116,19 @@ export default function AdminReconciliationPage() {
           <p className="text-sm text-gray-500 mt-1">Havale / EFT ekstrelerini aktarın ve bağışlar ile otomatik eşleştirin</p>
         </div>
         <Button onClick={exportCSV} variant="ghost" className="border border-gray-200 text-xs font-bold">
-          📥 CSV Dışa Aktar
+          CSV Dışa Aktar
         </Button>
       </div>
 
       {errorMsg && (
         <div className="rounded-xl bg-red-50 p-4 text-sm text-red-700 font-semibold border border-red-100">
-          ⚠️ {errorMsg}
+          {errorMsg}
         </div>
       )}
 
       {importResult && (
         <div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800 font-semibold border border-emerald-100 space-y-1">
-          <div>✨ Ekstre Başarıyla Aktarıldı!</div>
+          <div>Ekstre Başarıyla Aktarıldı!</div>
           <div className="text-xs text-emerald-700 font-normal">
             Toplam Satır: {importResult.row_count} | Eşleşen/İçe Aktarılan: {importResult.imported_count} | Atlanan: {importResult.skipped_count}
           </div>
@@ -141,7 +137,7 @@ export default function AdminReconciliationPage() {
 
       {/* Upload Section */}
       <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-        <h2 className="text-lg font-bold text-gray-900 border-b pb-2">📂 Banka Ekstresi Yükle (CSV / XLSX)</h2>
+        <h2 className="text-lg font-bold text-gray-900 border-b pb-2">Banka Ekstresi Yükle (CSV / XLSX)</h2>
         <form onSubmit={handleFileUpload} className="flex flex-col sm:flex-row gap-4 items-center">
           <input
             type="file"
@@ -152,7 +148,7 @@ export default function AdminReconciliationPage() {
           <Button
             type="submit"
             disabled={!file || uploading}
-            className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs uppercase whitespace-nowrap"
+            className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-xl text-xs whitespace-nowrap"
           >
             {uploading ? 'Aktarılıyor...' : 'Ekstreyi İçe Aktar'}
           </Button>

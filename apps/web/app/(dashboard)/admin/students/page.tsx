@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { toast } from '../../../../components/admin/ui'
+import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface Student {
   id: string
@@ -70,14 +71,9 @@ export default function AdminStudentsPage() {
   const [savingSponsorship, setSavingSponsorship] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadStudents = async () => {
     setLoading(true)
@@ -205,26 +201,26 @@ export default function AdminStudentsPage() {
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">Medrese Öğrenci & Sponsorluk Paneli</h1>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs uppercase"
+          className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-5 rounded-lg text-xs"
         >
-          {showAddForm ? '✕ İptal Et' : '➕ Yeni Öğrenci Ekle'}
+          {showAddForm ? 'İptal Et' : '+ Yeni Öğrenci Ekle'}
         </button>
       </div>
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
-          ✨ {successMsg}
+          {successMsg}
         </div>
       )}
 
       {/* Add Student Collapse Form */}
       {showAddForm && (
         <Card className="p-6 border border-gray-100 shadow-sm space-y-4 max-w-2xl animate-fade-in">
-          <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-gray-400">Yeni Öğrenci Bilgileri</h2>
+          <h2 className="border-b pb-2 text-base font-bold text-gray-900">Yeni Öğrenci Bilgileri</h2>
           <form onSubmit={handleAddStudent} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Ad *</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Ad *</label>
                 <input
                   type="text"
                   placeholder="Örn: Ömer"
@@ -235,7 +231,7 @@ export default function AdminStudentsPage() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Soyad *</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Soyad *</label>
                 <input
                   type="text"
                   placeholder="Örn: Yılmaz"
@@ -248,7 +244,7 @@ export default function AdminStudentsPage() {
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Veli Adı Soyadı *</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Veli Adı Soyadı *</label>
                 <input
                   type="text"
                   placeholder="Örn: Ahmet Yılmaz"
@@ -259,7 +255,7 @@ export default function AdminStudentsPage() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Veli Telefonu *</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Veli Telefonu *</label>
                 <input
                   type="text"
                   placeholder="Örn: +90 555..."
@@ -270,7 +266,7 @@ export default function AdminStudentsPage() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Veli E-Postası</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Veli E-Postası</label>
                 <input
                   type="email"
                   placeholder="Örn: veli@gmail.com"
@@ -281,7 +277,7 @@ export default function AdminStudentsPage() {
               </div>
             </div>
             <div className="flex justify-end">
-              <Button type="submit" className="bg-primary-600 text-white font-bold py-2 px-5 text-xs rounded-lg uppercase">
+              <Button type="submit" className="bg-primary-600 text-white font-bold py-2 px-5 text-xs rounded-lg">
                 Öğrenci Kaydet
               </Button>
             </div>
@@ -305,11 +301,11 @@ export default function AdminStudentsPage() {
                     className={`flex justify-between items-center p-4 bg-gray-50 rounded-2xl border transition-all cursor-pointer ${selectedStudent?.id === st.id ? 'border-primary-600 bg-primary-50/20' : 'border-gray-100 hover:bg-gray-100/50'}`}
                   >
                     <div>
-                      <div className="font-bold text-gray-900 text-sm">🎓 {st.first_name} {st.last_name}</div>
+                      <div className="font-bold text-gray-900 text-sm">{st.first_name} {st.last_name}</div>
                       <div className="text-[10px] text-gray-400 font-bold uppercase mt-1">Veli: {st.parent_name} | {st.parent_phone}</div>
                     </div>
                     <Button size="sm" variant="ghost" className="text-primary-600 font-bold text-[11px]">
-                      Yönet ➔
+                      Yönet →
                     </Button>
                   </div>
                 ))}
@@ -325,13 +321,13 @@ export default function AdminStudentsPage() {
                   onClick={() => setSelectedStudent(null)}
                   className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-sm font-bold"
                 >
-                  ✕ Kapat
+                  Kapat
                 </button>
 
                 {/* Header */}
                 <div>
-                  <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-2 py-0.5 rounded uppercase tracking-wider">Talebe Eğitim & Sponsor Profili</span>
-                  <h2 className="text-xl font-bold text-gray-900 mt-2">🎓 {selectedStudent.first_name} {selectedStudent.last_name}</h2>
+                  <span className="text-[10px] bg-primary-100 text-primary-800 font-bold px-2 py-0.5 rounded">Talebe Eğitim & Sponsor Profili</span>
+                  <h2 className="text-xl font-bold text-gray-900 mt-2">{selectedStudent.first_name} {selectedStudent.last_name}</h2>
                 </div>
 
                 {/* Sponsors Match Panel */}
@@ -347,7 +343,7 @@ export default function AdminStudentsPage() {
                         {sponsors.map(sp => (
                           <div key={sp.id} className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex justify-between items-center text-xs">
                             <div>
-                              <span className="font-bold text-gray-900">👤 {sp.donor_name}</span>
+                              <span className="font-bold text-gray-900">{sp.donor_name}</span>
                               <span className="text-[9px] text-gray-400 block font-mono">{sp.donor_phone}</span>
                             </div>
                             <span className="font-bold text-emerald-700">{(sp.amount_cents / 100)} ₺/Ay</span>
@@ -360,7 +356,7 @@ export default function AdminStudentsPage() {
                   {/* Add Sponsor Form */}
                   <form onSubmit={handleLinkSponsor} className="flex gap-2 items-end pt-2">
                     <div className="flex-1">
-                      <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Sponsor Bağışçı Seçin</label>
+                      <label className="mb-1 block text-xs font-bold text-gray-600">Sponsor Bağışçı Seçin</label>
                       <select
                         value={selectedDonorId}
                         onChange={(e) => setSelectedDonorId(e.target.value)}
@@ -374,7 +370,7 @@ export default function AdminStudentsPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Sponsorluk Tutarı</label>
+                      <label className="mb-1 block text-xs font-bold text-gray-600">Sponsorluk Tutarı</label>
                       <input
                         type="number"
                         value={sponsorshipAmount}
@@ -402,7 +398,7 @@ export default function AdminStudentsPage() {
                     <span className="text-[10px] font-bold text-amber-800 uppercase block tracking-wider">Hoca Ders Girişi</span>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Ezberlenen Sure *</label>
+                        <label className="mb-1 block text-xs font-bold text-gray-600">Ezberlenen Sure *</label>
                         <input
                           type="text"
                           placeholder="Örn: Yasin Suresi"
@@ -413,7 +409,7 @@ export default function AdminStudentsPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Sayfa Sayısı *</label>
+                        <label className="mb-1 block text-xs font-bold text-gray-600">Sayfa Sayısı *</label>
                         <input
                           type="number"
                           value={newPages}
@@ -424,7 +420,7 @@ export default function AdminStudentsPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[9px] font-bold text-gray-500 uppercase mb-1">Eğitmen Notları</label>
+                      <label className="mb-1 block text-xs font-bold text-gray-600">Eğitmen Notları</label>
                       <textarea
                         placeholder="Örn: Tecvid kurallarına dikkat etmesi gerekiyor, ezberi zayıf..."
                         value={instructorNotes}
@@ -453,7 +449,7 @@ export default function AdminStudentsPage() {
                         {progressLogs.map(log => (
                           <div key={log.id} className="p-3 bg-white border border-gray-200 rounded-xl space-y-1.5">
                             <div className="flex justify-between items-center text-xs">
-                              <span className="font-bold text-gray-900">📖 {log.current_surah} ({log.memorized_pages} Sayfa)</span>
+                              <span className="font-bold text-gray-900">{log.current_surah} ({log.memorized_pages} Sayfa)</span>
                               <span className="text-[10px] text-gray-400">{new Date(log.check_date).toLocaleDateString('tr-TR')}</span>
                             </div>
                             {log.instructor_notes && (

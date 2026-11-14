@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { toast } from '../../../../components/admin/ui'
+import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface Banner {
   id: string
@@ -28,14 +29,9 @@ export default function AdminBannersPage() {
   const [saving, setSaving] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadBanners = async () => {
     setLoading(true)
@@ -96,7 +92,7 @@ export default function AdminBannersPage() {
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
-          ✨ {successMsg}
+          {successMsg}
         </div>
       )}
 
@@ -122,7 +118,7 @@ export default function AdminBannersPage() {
                   className={`w-full text-left p-3.5 rounded-xl border text-xs font-bold transition-all block ${selectedBanner?.id === b.id ? 'border-primary-600 bg-primary-50/50 text-primary-900' : 'border-gray-200 hover:bg-gray-50 text-gray-600'}`}
                 >
                   <div className="flex justify-between items-center">
-                    <span>📢 Üst Duyuru Şeridi</span>
+                    <span>Üst Duyuru Şeridi</span>
                     <span className={`h-2 w-2 rounded-full ${b.is_active ? 'bg-green-600' : 'bg-gray-300'}`} />
                   </div>
                 </button>
@@ -148,14 +144,14 @@ export default function AdminBannersPage() {
                     style={{ backgroundColor: bgColor }}
                     className="p-3.5 rounded-xl text-xs font-bold text-white text-center leading-relaxed shadow-sm transition-all duration-300"
                   >
-                    {text || 'Duyuru metni buraya gelecek...'} {linkUrl && <span className="underline ml-2 cursor-pointer font-bold">Detay ➔</span>}
+                    {text || 'Duyuru metni buraya gelecek...'} {linkUrl && <span className="underline ml-2 cursor-pointer font-bold">Detay →</span>}
                   </div>
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-4 pt-4 border-t">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Duyuru Metni *</label>
+                      <label className="mb-1 block text-xs font-bold text-gray-600">Duyuru Metni *</label>
                       <input
                         type="text"
                         value={text}
@@ -166,7 +162,7 @@ export default function AdminBannersPage() {
                     </div>
                     
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Arka Plan Rengi (Hex/CSS) *</label>
+                      <label className="mb-1 block text-xs font-bold text-gray-600">Arka Plan Rengi (Hex/CSS) *</label>
                       <div className="flex gap-2">
                         <input
                           type="color"
@@ -185,7 +181,7 @@ export default function AdminBannersPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Duyuru Yönlendirme Linki (URL)</label>
+                      <label className="mb-1 block text-xs font-bold text-gray-600">Duyuru Yönlendirme Linki (URL)</label>
                       <input
                         type="text"
                         placeholder="Örn: /kampanyalar/afrika-su-kuyusu"
@@ -213,7 +209,7 @@ export default function AdminBannersPage() {
                     <Button
                       type="submit"
                       disabled={saving}
-                      className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs uppercase"
+                      className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs"
                     >
                       {saving ? 'Kaydediliyor...' : 'Yayınla / Kaydet'}
                     </Button>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card } from '@e-infak/ui'
-import { adminGet, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, formatMoney, hasPermission, useAdminAccess, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms } from '../../../../lib/sms'
@@ -50,14 +50,9 @@ export default function AdminReceiptsPage() {
   const canIssue = hasPermission(access, 'finance_manage')
   const canSms = hasPermission(access, 'donor_manage')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadDonations = async () => {
     setLoading(true)
@@ -105,7 +100,7 @@ export default function AdminReceiptsPage() {
             onClick={loadDonations}
             className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
           >
-            🔄 Yenile
+            Yenile
           </button>
           {canIssue && (
             <button onClick={() => setShowManual((v) => !v)} className="text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 px-3 py-1.5 rounded-lg shadow-sm">

@@ -132,8 +132,8 @@ export function MediaDetail({ asset, folders, onChanged, onDeleted, onClose }: {
             Odak noktası: görsel farklı oranlarda kesildiğinde bu nokta hep görünür. Değiştirmek için görsele tıklayın.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {canCrop && <button type="button" className={ghostButton} onClick={() => setCropping(true)}>✂️ Kırp</button>}
-            <button type="button" className={ghostButton} onClick={copy}>🔗 Adresi kopyala</button>
+            {canCrop && <button type="button" className={ghostButton} onClick={() => setCropping(true)}>Kırp</button>}
+            <button type="button" className={ghostButton} onClick={copy}>Adresi kopyala</button>
             <a href={asset.url} target="_blank" rel="noreferrer" className={ghostButton}>↗ Aç</a>
           </div>
         </div>

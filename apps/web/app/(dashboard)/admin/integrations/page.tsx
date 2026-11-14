@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { confirmDialog, toast } from '../../../../components/admin/ui'
+import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface ApiKey {
   id: string
@@ -38,14 +39,9 @@ export default function AdminIntegrationsPage() {
   const [loading, setLoading] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadData = async () => {
     setLoading(true)
@@ -151,7 +147,7 @@ export default function AdminIntegrationsPage() {
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
-          ✨ {successMsg}
+          {successMsg}
         </div>
       )}
 
@@ -161,13 +157,13 @@ export default function AdminIntegrationsPage() {
           onClick={() => setActiveTab('keys')}
           className={`pb-4 px-6 font-bold text-xs uppercase tracking-wider border-b-2 transition-all ${activeTab === 'keys' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
         >
-          🔑 API Anahtarları (Keys)
+          API Anahtarları (Keys)
         </button>
         <button
           onClick={() => setActiveTab('webhooks')}
           className={`pb-4 px-6 font-bold text-xs uppercase tracking-wider border-b-2 transition-all ${activeTab === 'webhooks' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
         >
-          🔌 Webhook Ayarları
+          Webhook Ayarları
         </button>
       </div>
 
@@ -176,10 +172,10 @@ export default function AdminIntegrationsPage() {
           {/* Left: Create Form & Token display */}
           <div className="lg:col-span-5 space-y-6">
             <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-gray-400">Yeni API Anahtarı Oluştur</h2>
+              <h2 className="border-b pb-2 text-base font-bold text-gray-900">Yeni API Anahtarı Oluştur</h2>
               <form onSubmit={handleGenerateKey} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Anahtar Tanımlayıcı İsmi *</label>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Anahtar Tanımlayıcı İsmi *</label>
                   <input
                     type="text"
                     placeholder="Örn: Mobil Uygulama Servisi"
@@ -189,7 +185,7 @@ export default function AdminIntegrationsPage() {
                     required
                   />
                 </div>
-                <Button type="submit" disabled={generatingKey} className="w-full bg-primary-600 text-white font-bold py-2.5 rounded-lg text-xs uppercase">
+                <Button type="submit" disabled={generatingKey} className="w-full bg-primary-600 text-white font-bold py-2.5 rounded-lg text-xs">
                   {generatingKey ? 'Üretiliyor...' : 'Anahtar Oluştur'}
                 </Button>
               </form>
@@ -212,7 +208,7 @@ export default function AdminIntegrationsPage() {
           {/* Right: Keys list */}
           <div className="lg:col-span-7">
             <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-gray-400">Kayıtlı API Anahtarları</h2>
+              <h2 className="border-b pb-2 text-base font-bold text-gray-900">Kayıtlı API Anahtarları</h2>
               {loading ? (
                 <p className="text-xs text-gray-400 py-4 text-center">Yükleniyor...</p>
               ) : keys.length === 0 ? (
@@ -230,7 +226,7 @@ export default function AdminIntegrationsPage() {
                     <tbody className="divide-y divide-gray-100">
                       {keys.map((k) => (
                         <tr key={k.id} className="hover:bg-gray-50/50">
-                          <td className="py-3 font-semibold text-gray-900">🔑 {k.name}</td>
+                          <td className="py-3 font-semibold text-gray-900">{k.name}</td>
                           <td className="py-3 text-gray-400 font-bold">
                             {new Date(k.created_at).toLocaleDateString('tr-TR')}
                           </td>
@@ -256,10 +252,10 @@ export default function AdminIntegrationsPage() {
           {/* Left: Create webhook form */}
           <div className="lg:col-span-5">
             <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-gray-400">Yeni Webhook Ekle</h2>
+              <h2 className="border-b pb-2 text-base font-bold text-gray-900">Yeni Webhook Ekle</h2>
               <form onSubmit={handleCreateWebhook} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Hedef URL (Target HTTP POST) *</label>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Hedef URL (Target HTTP POST) *</label>
                   <input
                     type="url"
                     placeholder="https://api.sisteminiz.com/infak-receiver"
@@ -270,7 +266,7 @@ export default function AdminIntegrationsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Secret Store Referansı *</label>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Secret Store Referansı *</label>
                   <input
                     type="text"
                     placeholder="Örn: env:EINFAK_WEBHOOK_KURUM"
@@ -280,7 +276,7 @@ export default function AdminIntegrationsPage() {
                     required
                   />
                 </div>
-                <Button type="submit" disabled={creatingWebhook} className="w-full bg-primary-600 text-white font-bold py-2.5 rounded-lg text-xs uppercase">
+                <Button type="submit" disabled={creatingWebhook} className="w-full bg-primary-600 text-white font-bold py-2.5 rounded-lg text-xs">
                   {creatingWebhook ? 'Ekleniyor...' : 'Webhook Kaydet'}
                 </Button>
               </form>
@@ -290,7 +286,7 @@ export default function AdminIntegrationsPage() {
           {/* Right: Webhooks list */}
           <div className="lg:col-span-7">
             <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-gray-400">Aktif Webhook Hedefleri</h2>
+              <h2 className="border-b pb-2 text-base font-bold text-gray-900">Aktif Webhook Hedefleri</h2>
               {loading ? (
                 <p className="text-xs text-gray-400 py-4 text-center">Yükleniyor...</p>
               ) : webhooks.length === 0 ? (
@@ -308,7 +304,7 @@ export default function AdminIntegrationsPage() {
                     <tbody className="divide-y divide-gray-100">
                       {webhooks.map((h) => (
                         <tr key={h.id} className="hover:bg-gray-50/50">
-                          <td className="py-3 font-semibold text-gray-900 break-all max-w-xs">🔌 {h.target_url}</td>
+                          <td className="py-3 font-semibold text-gray-900 break-all max-w-xs">{h.target_url}</td>
                           <td className="py-3 font-mono text-gray-400 text-[10px]">
                             {h.secret_ref}
                           </td>

@@ -5,6 +5,7 @@ import { apiErrorMessage } from '../../../lib/admin-access'
 import { ACCEPTED_IMAGES, formatBytes, mediaApi, type MediaAsset, type MediaFolders, type MediaUsage } from '../../../lib/media'
 import { ghostButton, inputClass } from '../FormKit'
 import { confirmDialog } from '../ui'
+import { Pencil, Trash2 } from 'lucide-react'
 
 const PAGE_SIZE = 40
 
@@ -150,13 +151,13 @@ export function MediaLibrary({ selectedId, onSelect, onOpen, reloadKey = 0, comp
       onDragOver={(e) => key !== '' && e.preventDefault()}
       onDrop={(e) => key !== '' && dropOnFolder(e, key === 'root' ? null : key)}>
       <button type="button" onClick={() => setFolder(key)} className="flex flex-1 items-center justify-between px-3 py-1.5 text-left text-sm font-semibold">
-        <span className="truncate">{key === '' ? '🗂️' : key === 'root' ? '📄' : '📁'} {label}</span>
+        <span className="truncate">{label}</span>
         <span className="ml-2 text-xs text-gray-400">{count}</span>
       </button>
       {folderId && (
         <span className="hidden pr-1 group-hover:flex">
-          <button type="button" title="Yeniden adlandır" onClick={() => renameFolder(folderId, label)} className="px-1 text-xs">✏️</button>
-          <button type="button" title="Klasörü sil" onClick={() => deleteFolder(folderId, label)} className="px-1 text-xs">🗑️</button>
+          <button type="button" title="Yeniden adlandır" onClick={() => renameFolder(folderId, label)} className="px-1 text-xs"><Pencil className="h-3.5 w-3.5" aria-hidden="true" /></button>
+          <button type="button" title="Klasörü sil" onClick={() => deleteFolder(folderId, label)} className="px-1 text-xs"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /></button>
         </span>
       )}
     </div>

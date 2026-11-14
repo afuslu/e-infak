@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { toast } from '../../../../components/admin/ui'
+import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface Expense {
   id: string
@@ -52,14 +53,9 @@ export default function AdminFinancePage() {
   const [errorMsg, setErrorMsg] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadData = async () => {
     try {
@@ -174,19 +170,19 @@ export default function AdminFinancePage() {
           onClick={handleExportDerbis}
           className="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shadow-sm text-xs"
         >
-          📥 DERBİS Ek-5/A Raporu (Excel/CSV)
+          DERBİS Ek-5/A Raporu (Excel/CSV)
         </Button>
       </div>
 
       {errorMsg && (
         <div className="rounded-lg bg-red-50 p-4 text-sm text-red-600 font-semibold border border-red-100">
-          ⚠️ {errorMsg}
+          {errorMsg}
         </div>
       )}
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100">
-          ✨ {successMsg}
+          {successMsg}
         </div>
       )}
 
@@ -242,7 +238,7 @@ export default function AdminFinancePage() {
             <h2 className="text-lg font-bold text-gray-900 border-b pb-2">Yeni Gider Kaydı Girişi</h2>
             <form onSubmit={handleSubmitExpense} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Açıklama / Başlık *</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Açıklama / Başlık *</label>
                 <input
                   type="text"
                   placeholder="Örn: Medrese Kira Ödemesi"
@@ -255,7 +251,7 @@ export default function AdminFinancePage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Kategori *</label>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Kategori *</label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
@@ -269,7 +265,7 @@ export default function AdminFinancePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tutar (TL) *</label>
+                  <label className="mb-1 block text-xs font-bold text-gray-600">Tutar (TL) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -283,7 +279,7 @@ export default function AdminFinancePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Fatura / Belge Numarası *</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Fatura / Belge Numarası *</label>
                 <input
                   type="text"
                   placeholder="Örn: FTR-12345678"
@@ -297,7 +293,7 @@ export default function AdminFinancePage() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 rounded-lg text-xs uppercase"
+                className="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-3 rounded-lg text-xs"
               >
                 {loading ? 'Kaydediliyor...' : 'Gider Kaydet'}
               </Button>

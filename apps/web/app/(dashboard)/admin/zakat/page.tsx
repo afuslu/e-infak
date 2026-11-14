@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { toast } from '../../../../components/admin/ui'
+import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 
 interface ZakatSetting {
   id: string
@@ -23,14 +24,9 @@ export default function AdminZakatPage() {
   const [saving, setSaving] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadSettings = async () => {
     setLoading(true)
@@ -100,7 +96,7 @@ export default function AdminZakatPage() {
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">
-          ✨ {successMsg}
+          {successMsg}
         </div>
       )}
 
@@ -129,7 +125,7 @@ export default function AdminZakatPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Gram Altın Fiyatı (TL) *</label>
+                    <label className="mb-1 block text-xs font-bold text-gray-600">Gram Altın Fiyatı (TL) *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -142,7 +138,7 @@ export default function AdminZakatPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Zekat Nisap Sınırı (TL) *</label>
+                    <label className="mb-1 block text-xs font-bold text-gray-600">Zekat Nisap Sınırı (TL) *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -160,7 +156,7 @@ export default function AdminZakatPage() {
                   <Button
                     type="submit"
                     disabled={saving}
-                    className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs uppercase"
+                    className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs"
                   >
                     {saving ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
                   </Button>

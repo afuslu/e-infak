@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { apiErrorMessage, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
+import { apiErrorMessage, hasFeature, useAdminAccess, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 import { LANGUAGE_NAMES } from '../../../../lib/i18n'
 import { SiteDomainsCard } from '../../../../components/admin/SiteDomainsCard'
 import { toast } from '../../../../components/admin/ui'
@@ -68,14 +68,9 @@ export default function AdminSiteSettingsPage() {
   const multiLanguage = hasFeature(access, 'multi_language')
   const [customLang, setCustomLang] = useState('')
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
+  const API_BASE = adminApiBase()
 
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const getAuthHeaders = adminAuthHeaders
 
   const loadSettings = async () => {
     setLoading(true)
@@ -112,7 +107,7 @@ export default function AdminSiteSettingsPage() {
 
   const field = (key: keyof OrgSettings, label: string, placeholder = '') => (
     <div>
-      <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">{label}</label>
+      <label className="mb-1 block text-xs font-bold text-gray-600">{label}</label>
       <input
         type="text"
         value={form[key] || ''}
@@ -125,7 +120,7 @@ export default function AdminSiteSettingsPage() {
 
   const textArea = (key: keyof OrgSettings, label: string, placeholder = '') => (
     <div>
-      <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">{label}</label>
+      <label className="mb-1 block text-xs font-bold text-gray-600">{label}</label>
       <textarea
         value={form[key] || ''}
         onChange={(e) => setForm({ ...form, [key]: e.target.value })}
@@ -147,7 +142,7 @@ export default function AdminSiteSettingsPage() {
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100">
-          ✨ {successMsg}
+          {successMsg}
         </div>
       )}
 
@@ -194,7 +189,7 @@ export default function AdminSiteSettingsPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Canlı Destek</label>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Canlı Destek</label>
                 <select
                   value={form.live_chat_provider || ''}
                   onChange={(e) => setForm({ ...form, live_chat_provider: e.target.value })}
@@ -271,7 +266,7 @@ export default function AdminSiteSettingsPage() {
             <Button
               type="submit"
               disabled={saving}
-              className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs uppercase"
+              className="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-lg text-xs"
             >
               {saving ? 'Kaydediliyor...' : 'Kaydet'}
             </Button>
