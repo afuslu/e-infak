@@ -141,6 +141,7 @@ async def list_donors(
     region: Optional[Literal["yurtici", "yurtdisi"]] = None,
     donor_type: Optional[Literal["individual", "corporate"]] = None,
     has_donation: Optional[bool] = None,
+    tag: Optional[str] = Query(default=None, max_length=40),
     sort: Literal["name", "recent", "total"] = "recent",
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
@@ -154,11 +155,14 @@ async def list_donors(
         digits = re.sub(r"\D", "", q)
         search = [
             Donor.first_name.ilike(like), Donor.last_name.ilike(like), Donor.company_name.ilike(like),
-            Donor.email.ilike(like), (Donor.first_name + " " + func.coalesce(Donor.last_name, "")).ilike(like),
+            Donor.email.ilike(like), Donor.city.ilike(like),
+            (Donor.first_name + " " + func.coalesce(Donor.last_name, "")).ilike(like),
         ]
         if len(digits) >= 4:
             search.append(Donor.phone.ilike(f"%{digits}%"))
         conditions.append(or_(*search))
+    if tag and tag.strip():
+        conditions.append(Donor.tags.contains([tag.strip()]))
     if not has_capability(current_user, "donors.view_all"):
         conditions.append(Donor.assigned_user_id == current_user.id)  # only donors this staff member represents
     if assigned == "me":
@@ -208,6 +212,9 @@ class DonorIn(BaseModel):
     tc_no: Optional[str] = Field(default=None, pattern=r"^\d{11}$")
     tax_number: Optional[str] = Field(default=None, max_length=20)
     tags: List[str] = Field(default_factory=list, max_length=20)
+    allow_sms: bool = False
+    allow_email: bool = False
+    assigned_user_id: Optional[UUID] = None
 
     @field_validator("phone", mode="before")
     @classmethod
@@ -263,6 +270,8 @@ async def create_donor(request: Request, payload: DonorIn, db: AsyncSession = De
     org_id = _org_id(request)
     ensure_capability(current_user, "donors.create", "Bağışçı ekleme yetkiniz yok")
     await _ensure_no_duplicate(db, org_id, payload.email, payload.phone)
+    if payload.assigned_user_id:
+        await _ensure_staff(db, org_id, payload.assigned_user_id)
     data = payload.model_dump()
     data["donor_type"] = DonorType(data["donor_type"])
     data["email"] = str(payload.email) if payload.email else None
@@ -330,7 +339,7 @@ async def update_donor(request: Request, donor_id: UUID, payload: DonorUpdate, d
         ensure_capability(current_user, "donors.update_all", "Yalnız temsilcisi olduğunuz bağışçıları güncelleyebilirsiniz")
     await _ensure_no_duplicate(db, org_id, payload.email, payload.phone, exclude_id=donor.id)
     changes = {}
-    for key in ("first_name", "last_name", "company_name", "phone", "address", "city", "country", "tax_number", "tags"):
+    for key in ("first_name", "last_name", "company_name", "phone", "address", "city", "country", "tax_number", "tags", "allow_sms", "allow_email"):
         value = getattr(payload, key)
         if getattr(donor, key) != value:
             changes[key] = True
@@ -360,6 +369,27 @@ async def update_donor(request: Request, donor_id: UUID, payload: DonorUpdate, d
     _audit(db, org_id, current_user, "bagisci_guncelle", {"donor_id": str(donor.id), "changed": changes})
     await db.commit()
     return _donor_summary(donor, await _staff_names(db, org_id), current_user)
+
+
+@router.delete("/donors/{donor_id}")
+async def delete_donor(request: Request, donor_id: UUID, db: AsyncSession = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    """Bağışı ve üyeliği bulunmayan hatalı/test bağışçı kaydını KVKK kapsamında siler."""
+    from app.models.membership import Member
+
+    org_id = _org_id(request)
+    donor = await _get_donor(db, org_id, donor_id)
+    ensure_capability(current_user, "donors.delete", "Bağışçı silme yetkiniz yok")
+    if donor.assigned_user_id != current_user.id:
+        ensure_capability(current_user, "donors.update_all", "Yalnız temsilcisi olduğunuz bağışçıları silebilirsiniz")
+    if (await db.execute(select(Donation.id).where(Donation.donor_id == donor.id).limit(1))).first():
+        raise HTTPException(status_code=409, detail="Bağış kaydı bulunan bağışçı silinemez")
+    if (await db.execute(select(Member.id).where(Member.donor_id == donor.id).limit(1))).first():
+        raise HTTPException(status_code=409, detail="Üyelik kaydı bulunan bağışçı silinemez")
+    _audit(db, org_id, current_user, "bagisci_sil", {"donor_id": str(donor.id), "full_name": donor.full_name})
+    await db.delete(donor)
+    await db.commit()
+    return {"deleted": True}
 
 
 class DonorSms(BaseModel):

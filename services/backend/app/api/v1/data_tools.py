@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission
+from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability
 from app.api.v1.crm import _normalize_phone
 from app.api.v1.reconciliation import _amount_to_cents
 from app.core.db import Base, get_db
@@ -122,16 +122,37 @@ def _cell(value) -> Optional[str]:
     return text or None
 
 
-def _read_table(content: bytes, filename: str) -> tuple[list[str], list[list]]:
+def _decode_csv(content: bytes) -> str:
+    for enc in ("utf-8-sig", "utf-8", "cp1254", "latin-1"):
+        try:
+            return content.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError("CSV karakter kodlaması çözülemedi (UTF-8 veya Windows-1254 olmalı)")
+
+
+def _read_table(content: bytes, filename: str, sheet_name: Optional[str] = None) -> tuple[list[str], list[list], list[str], Optional[str]]:
     name = filename.lower()
+    sheet_names: list[str] = []
+    active_sheet: Optional[str] = None
     if name.endswith(".xlsx"):
         from openpyxl import load_workbook
-        sheet = load_workbook(io.BytesIO(content), read_only=True, data_only=True).active
-        rows = [list(r) for r in sheet.iter_rows(values_only=True)]
+        wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+        sheet_names = list(wb.sheetnames)
+        sheet = wb[sheet_name] if sheet_name and sheet_name in sheet_names else wb.active
+        active_sheet = sheet.title if sheet else None
+        rows = [list(r) for r in sheet.iter_rows(values_only=True)] if sheet else []
+        wb.close()
     elif name.endswith(".csv"):
-        text = content.decode("utf-8-sig")
-        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
-        rows = [list(r) for r in csv.reader(io.StringIO(text), dialect)]
+        text = _decode_csv(content)
+        sample = text[:4096]
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=";,\t")
+            rows = [list(r) for r in csv.reader(io.StringIO(text), dialect)]
+        except csv.Error:
+            first_line = sample.splitlines()[0] if sample.splitlines() else ""
+            delim = ";" if ";" in first_line else ("\t" if "\t" in first_line else ",")
+            rows = [list(r) for r in csv.reader(io.StringIO(text), delimiter=delim)]
     else:
         raise HTTPException(status_code=400, detail="Yalnız XLSX veya CSV yüklenebilir")
     rows = [r for r in rows if any(_cell(v) for v in r)]
@@ -141,7 +162,7 @@ def _read_table(content: bytes, filename: str) -> tuple[list[str], list[list]]:
     data = rows[1:]
     if len(data) > MAX_ROWS:
         raise HTTPException(status_code=413, detail=f"Bir seferde en fazla {MAX_ROWS} satır aktarılabilir")
-    return headers, data
+    return headers, data, sheet_names, active_sheet
 
 
 def _suggest(headers: list[str], fields: dict) -> dict:
@@ -157,15 +178,15 @@ def _suggest(headers: list[str], fields: dict) -> dict:
     return mapping
 
 
-async def _load(file: UploadFile) -> tuple[bytes, list[str], list[list]]:
+async def _load(file: UploadFile, sheet_name: Optional[str] = None) -> tuple[bytes, list[str], list[list], list[str], Optional[str]]:
     content = await file.read()
     if len(content) > MAX_FILE_BYTES:
         raise HTTPException(status_code=413, detail="Dosya en fazla 10 MB olabilir")
     try:
-        headers, rows = _read_table(content, file.filename or "")
+        headers, rows, sheet_names, active_sheet = _read_table(content, file.filename or "", sheet_name=sheet_name)
     except (UnicodeDecodeError, csv.Error, StopIteration, ValueError) as exc:
         raise HTTPException(status_code=422, detail=f"Dosya okunamadı: {exc}") from exc
-    return content, headers, rows
+    return content, headers, rows, sheet_names, active_sheet
 
 
 def _mapping(raw: Optional[str], headers: list[str], fields: dict) -> Optional[dict]:
@@ -288,31 +309,34 @@ class DonorResolver:
         return donor, True
 
 
-def _intro(headers: list[str], rows: list[list], fields: dict) -> dict:
+def _intro(headers: list[str], rows: list[list], fields: dict, sheet_names: list[str], active_sheet: Optional[str]) -> dict:
     return {
         "headers": headers, "row_count": len(rows), "fields": fields,
         "sample": [[_cell(v) for v in r] for r in rows[:10]],
         "suggested_mapping": _suggest(headers, fields),
+        "sheet_names": sheet_names,
+        "active_sheet": active_sheet,
     }
 
 
 # --- Donor import --------------------------------------------------------------------------
 
-@router.post("/donors/import")
+@router.post("/donors/import", dependencies=[Depends(require_capability("donors.import"))])
 async def import_donors(
     request: Request,
     file: UploadFile = File(...),
     mapping: Optional[str] = Form(default=None),
     dry_run: bool = Form(default=True),
     extra_tag: Optional[str] = Form(default=None, max_length=40),
+    sheet_name: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)
-    _, headers, rows = await _load(file)
+    _, headers, rows, sheet_names, active_sheet = await _load(file, sheet_name=sheet_name)
     columns = _mapping(mapping, headers, DONOR_FIELDS)
     if columns is None:
-        return _intro(headers, rows, DONOR_FIELDS)
+        return _intro(headers, rows, DONOR_FIELDS, sheet_names, active_sheet)
     if not {"first_name", "full_name", "company_name"} & set(columns):
         raise HTTPException(status_code=422, detail="Ad, ad soyad veya kurum adı sütunu eşlenmeli")
     resolver = DonorResolver(db, org_id)
@@ -364,22 +388,23 @@ def _method(value: Optional[str]) -> PaymentMethod:
     raise ValueError(f"Bilinmeyen ödeme yöntemi: {value}")
 
 
-@router.post("/donations/import")
+@router.post("/donations/import", dependencies=[Depends(require_capability("donors.import"))])
 async def import_receipts(
     request: Request,
     file: UploadFile = File(...),
     mapping: Optional[str] = Form(default=None),
     dry_run: bool = Form(default=True),
     default_campaign_id: Optional[UUID] = Form(default=None),
+    sheet_name: Optional[str] = Form(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Geçmiş makbuzları aktarır: her satır onaylı bir bağış olur; makbuz e-postası gönderilmez."""
     org_id = _org_id(request)
-    content, headers, rows = await _load(file)
+    content, headers, rows, sheet_names, active_sheet = await _load(file, sheet_name=sheet_name)
     columns = _mapping(mapping, headers, RECEIPT_FIELDS)
     if columns is None:
-        return _intro(headers, rows, RECEIPT_FIELDS)
+        return _intro(headers, rows, RECEIPT_FIELDS, sheet_names, active_sheet)
     if "amount" not in columns or not {"first_name", "full_name", "company_name"} & set(columns):
         raise HTTPException(status_code=422, detail="Tutar ve bağışçı adı sütunları eşlenmeli")
     campaigns = (await db.execute(select(Campaign).where(Campaign.organization_id == org_id))).scalars().all()
@@ -411,7 +436,7 @@ async def import_receipts(
             if amount <= 0:
                 raise ValueError("Tutar sıfırdan büyük olmalı")
             currency = (values.get("currency") or "TRY").upper().replace("TL", "TRY")
-            if currency not in ("TRY", "USD", "EUR"):
+            if currency not in ("TRY", "USD", "EUR", "GBP", "SAR", "CHF"):
                 raise ValueError(f"Desteklenmeyen para birimi: {values.get('currency')}")
             paid_on = _parse_day(values.get("paid_on")) if "paid_on" in columns else datetime.now(TZ).date()
             if paid_on > datetime.now(TZ).date():
@@ -469,7 +494,7 @@ def _donor_brief(d: Donor) -> dict:
     }
 
 
-@router.get("/donors/duplicates")
+@router.get("/donors/duplicates", dependencies=[Depends(require_capability("donors.merge"))])
 async def find_duplicates(request: Request, include_names: bool = False, db: AsyncSession = Depends(get_db),
                           current_user: User = Depends(get_current_user)):
     """Aynı telefon, e-posta veya TC'ye sahip bağışçıları gruplar; include_names ile aynı ad soyad da."""
@@ -530,7 +555,7 @@ def _donor_fk_columns():
                 yield table, column
 
 
-@router.post("/donors/merge")
+@router.post("/donors/merge", dependencies=[Depends(require_capability("donors.merge"))])
 async def merge_donors(request: Request, payload: MergeIn, db: AsyncSession = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
     """Kaynak kartları hedef karta birleştirir: bağış, not, sponsorluk vb. tüm kayıtlar taşınır, kaynaklar silinir."""

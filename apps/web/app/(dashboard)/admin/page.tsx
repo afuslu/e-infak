@@ -154,13 +154,142 @@ export default function AdminDashboardPage() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Bugün toplanan" icon={HandCoins} value={kpis ? money(kpis.today_cents) : '—'}
-          hint={kpis && <Change current={kpis.today_cents} previous={kpis.yesterday_cents} label="dünden" />} />
-        <StatCard label="Bu ay toplanan" icon={TrendingUp} tone="brand" value={kpis ? money(kpis.month_cents) : '—'}
-          hint={kpis && <Change current={kpis.month_cents} previous={kpis.last_month_to_date_cents} label="geçen ayın aynı dönemine göre" />} />
-        <StatCard label="Bağış yapan bağışçı" icon={UserPlus} value={kpis ? kpis.donor_count.toLocaleString('tr-TR') : '—'}
-          hint={kpis && `Bu ay ${kpis.new_donors_this_month} yeni bağışçı`} />
-        <StatCard label="Aktif kampanya" icon={Megaphone} value={kpis ? kpis.active_campaigns : '—'} hint={`Toplam ${campaigns.length} kampanya`} />
+        <StatCard
+          label="Bugün toplanan"
+          icon={HandCoins}
+          value={kpis ? money(kpis.today_cents) : '—'}
+          hint={kpis && <Change current={kpis.today_cents} previous={kpis.yesterday_cents} label="dünden" />}
+          detail={kpis ? {
+            title: 'Bugün Toplanan Bağış Özeti',
+            description: `Bugün: ${money(kpis.today_cents)} · Dün: ${money(kpis.yesterday_cents)}`,
+            content: () => (
+              <div className="space-y-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b text-[11px] font-bold uppercase text-gray-500">
+                      <tr><th className="py-2">Ödeme Yöntemi</th><th className="py-2 text-right">Adet</th><th className="py-2 text-right">Toplam</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {payments.map((p) => (
+                        <tr key={p.method}>
+                          <td className="py-2 font-semibold">{p.method}</td>
+                          <td className="py-2 text-right tabular-nums">{p.count}</td>
+                          <td className="py-2 text-right font-semibold tabular-nums">{p.total_lira.toLocaleString('tr-TR')} ₺</td>
+                        </tr>
+                      ))}
+                      {payments.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-gray-400">Kayıt yok.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end">
+                  <Link href="/admin/makbuzlar" className="text-xs font-bold text-primary-700 hover:underline">Tüm makbuzlara git →</Link>
+                </div>
+              </div>
+            ),
+          } : undefined}
+        />
+        <StatCard
+          label="Bu ay toplanan"
+          icon={TrendingUp}
+          tone="brand"
+          value={kpis ? money(kpis.month_cents) : '—'}
+          hint={kpis && <Change current={kpis.month_cents} previous={kpis.last_month_to_date_cents} label="geçen ayın aynı dönemine göre" />}
+          detail={kpis ? {
+            title: 'Aylık Bağış Trendi (Son 6 Ay)',
+            description: `Bu ay: ${money(kpis.month_cents)} · Geçen ay aynı dönem: ${money(kpis.last_month_to_date_cents)}`,
+            content: () => (
+              <div className="space-y-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b text-[11px] font-bold uppercase text-gray-500">
+                      <tr><th className="py-2">Dönem</th><th className="py-2 text-right">Toplam Bağış</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {trends.map((t, i) => (
+                        <tr key={i}>
+                          <td className="py-2 font-semibold">{t.month}</td>
+                          <td className="py-2 text-right font-semibold tabular-nums">{t.total_lira.toLocaleString('tr-TR')} ₺</td>
+                        </tr>
+                      ))}
+                      {trends.length === 0 && <tr><td colSpan={2} className="py-6 text-center text-gray-400">Trend verisi yok.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end">
+                  <Link href="/admin/raporlar" className="text-xs font-bold text-primary-700 hover:underline">Detaylı raporlara git →</Link>
+                </div>
+              </div>
+            ),
+          } : undefined}
+        />
+        <StatCard
+          label="Bağış yapan bağışçı"
+          icon={UserPlus}
+          value={kpis ? kpis.donor_count.toLocaleString('tr-TR') : '—'}
+          hint={kpis && `Bu ay ${kpis.new_donors_this_month} yeni bağışçı`}
+          detail={kpis ? {
+            title: 'Bağışçı & Kanal Dağılımı',
+            description: `Toplam ${kpis.donor_count.toLocaleString('tr-TR')} bağışçı · Bu ay ${kpis.new_donors_this_month} yeni`,
+            content: () => (
+              <div className="space-y-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b text-[11px] font-bold uppercase text-gray-500">
+                      <tr><th className="py-2">Ödeme Kanalı</th><th className="py-2 text-right">İşlem Adedi</th><th className="py-2 text-right">Tutar</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {payments.map((p) => (
+                        <tr key={p.method}>
+                          <td className="py-2 font-semibold">{p.method}</td>
+                          <td className="py-2 text-right tabular-nums">{p.count}</td>
+                          <td className="py-2 text-right font-semibold tabular-nums">{p.total_lira.toLocaleString('tr-TR')} ₺</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end">
+                  <Link href="/admin/bagiscilar" className="text-xs font-bold text-primary-700 hover:underline">Bağışçı listesine git →</Link>
+                </div>
+              </div>
+            ),
+          } : undefined}
+        />
+        <StatCard
+          label="Aktif kampanya"
+          icon={Megaphone}
+          value={kpis ? kpis.active_campaigns : '—'}
+          hint={`Toplam ${campaigns.length} kampanya`}
+          detail={kpis ? {
+            title: 'Kampanya İlerleme Listesi',
+            description: `${kpis.active_campaigns} aktif · Toplam ${campaigns.length} kampanya`,
+            content: () => (
+              <div className="space-y-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b text-[11px] font-bold uppercase text-gray-500">
+                      <tr><th className="py-2">Kampanya</th><th className="py-2 text-right">Toplanan</th><th className="py-2 text-right">Hedef</th><th className="py-2 text-right">Oran</th></tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {campaigns.map((c, i) => (
+                        <tr key={i}>
+                          <td className="py-2 font-semibold">{c.title}</td>
+                          <td className="py-2 text-right tabular-nums">{c.collected_lira.toLocaleString('tr-TR')} ₺</td>
+                          <td className="py-2 text-right tabular-nums text-gray-500">{c.target_lira ? `${c.target_lira.toLocaleString('tr-TR')} ₺` : '—'}</td>
+                          <td className="py-2 text-right font-bold tabular-nums text-primary-700">%{Math.round(c.progress)}</td>
+                        </tr>
+                      ))}
+                      {campaigns.length === 0 && <tr><td colSpan={4} className="py-6 text-center text-gray-400">Kampanya yok.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end">
+                  <Link href="/admin/kampanyalar" className="text-xs font-bold text-primary-700 hover:underline">Kampanyaları yönet →</Link>
+                </div>
+              </div>
+            ),
+          } : undefined}
+        />
       </div>
 
       {loading ? (

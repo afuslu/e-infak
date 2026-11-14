@@ -7,7 +7,7 @@ export function PortalThemeToggle() {
   const toggle = () => {
     const root = document.querySelector<HTMLElement>('.portal')
     if (!root) return
-    const current = root.dataset.theme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    const current = root.dataset.theme || 'light'
     const next = current === 'dark' ? 'light' : 'dark'
     root.dataset.theme = next
     document.cookie = `einfak_tema=${next}; path=/; max-age=31536000; samesite=lax`

@@ -1,6 +1,6 @@
 import logging
 from uuid import UUID
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from typing import Optional, List
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -11,6 +11,7 @@ from sqlalchemy import func
 import io
 
 from app.core.db import get_db
+from app.models.audit_log import AuditLog
 from app.models.expense import Expense
 from app.models.donation import Donation, DonationStatus, Donor
 from app.api.deps import get_current_user, require_admin_route_permission
@@ -27,6 +28,7 @@ class ExpenseCreate(BaseModel):
     title: str
     category: str
     amount_cents: int
+    currency: str = "TRY"
     receipt_no: str
     expense_date: Optional[datetime] = None
 
@@ -35,6 +37,7 @@ class ExpenseResponse(BaseModel):
     title: str
     category: str
     amount_cents: int
+    currency: str = "TRY"
     receipt_no: str
     expense_date: datetime
 
@@ -48,18 +51,21 @@ async def create_expense(
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    organization_id = request.state.organization_id
+    organization_id = UUID(request.state.organization_id)
     
     expense = Expense(
-        organization_id=UUID(organization_id),
+        organization_id=organization_id,
         title=payload.title,
         category=payload.category,
         amount_cents=payload.amount_cents,
+        currency=(payload.currency or "TRY").upper()[:3],
         receipt_no=payload.receipt_no,
-        expense_date=payload.expense_date or datetime.utcnow()
+        expense_date=payload.expense_date or datetime.utcnow(),
+        created_by_id=current_user.id,
     )
     
     db.add(expense)
+    db.add(AuditLog(organization_id=organization_id, user_id=current_user.id, action="gider_ekle", details={"title": payload.title, "amount_cents": payload.amount_cents}))
     await db.commit()
     await db.refresh(expense)
     return expense
@@ -80,6 +86,51 @@ async def list_expenses(
     query = query.order_by(Expense.expense_date.desc())
     result = await db.execute(query)
     return result.scalars().all()
+
+
+@router.put("/expenses/{expense_id}", response_model=ExpenseResponse)
+async def update_expense(
+    request: Request,
+    expense_id: UUID,
+    payload: ExpenseCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    org_id = UUID(request.state.organization_id)
+    expense = (await db.execute(
+        select(Expense).where(Expense.id == expense_id, Expense.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Harcama kaydı bulunamadı")
+    expense.title = payload.title
+    expense.category = payload.category
+    expense.amount_cents = payload.amount_cents
+    expense.currency = (payload.currency or expense.currency or "TRY").upper()[:3]
+    expense.receipt_no = payload.receipt_no
+    if payload.expense_date:
+        expense.expense_date = payload.expense_date
+    db.add(AuditLog(organization_id=org_id, user_id=current_user.id, action="gider_guncelle", details={"id": str(expense.id), "title": payload.title}))
+    await db.commit()
+    await db.refresh(expense)
+    return expense
+
+
+@router.delete("/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_expense(
+    request: Request,
+    expense_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    org_id = UUID(request.state.organization_id)
+    expense = (await db.execute(
+        select(Expense).where(Expense.id == expense_id, Expense.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not expense:
+        raise HTTPException(status_code=404, detail="Harcama kaydı bulunamadı")
+    db.add(AuditLog(organization_id=org_id, user_id=current_user.id, action="gider_sil", details={"id": str(expense.id), "title": expense.title}))
+    await db.delete(expense)
+    await db.commit()
 
 @router.get("/stats")
 async def get_finance_stats(
@@ -121,6 +172,8 @@ async def get_finance_stats(
 @router.get("/derbis-export")
 async def export_derbis_report(
     request: Request,
+    start: Optional[date] = None,
+    end: Optional[date] = None,
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -132,8 +185,12 @@ async def export_derbis_report(
         .join(Donor, Donation.donor_id == Donor.id)
         .where(Donation.organization_id == organization_id)
         .where(Donation.status == DonationStatus.CONFIRMED)
-        .order_by(Donation.created_at.asc())
     )
+    if start:
+        query = query.where(Donation.created_at >= datetime.combine(start, time.min))
+    if end:
+        query = query.where(Donation.created_at < datetime.combine(end + timedelta(days=1), time.min))
+    query = query.order_by(Donation.created_at.asc())
     result = await db.execute(query)
     rows = result.all()
     
@@ -145,12 +202,14 @@ async def export_derbis_report(
     # Headers
     output.write("Sıra No;Makbuz No;Bağışçı Ad Soyadı;T.C. Kimlik / Vergi No;Bağış Tarihi;Bağış Tutarı (TL);Ödeme Yöntemi;Açıklama\n")
     
+    method_map = {"credit_card": "Kredi Kartı", "cash": "Nakit", "bank_transfer": "Havale/EFT"}
     for idx, (donation, donor) in enumerate(rows, 1):
         full_name = f"{donor.first_name} {donor.last_name or ''}".strip().replace(";", " ")
         tc_no = donor.tc_no or donor.tax_number or "Bilinmiyor"
         date_str = donation.created_at.strftime('%Y-%m-%d') if donation.created_at else ""
         amount = f"{donation.amount_lira:.2f}".replace(".", ",") # Turkish excel format uses comma for decimals
-        payment_method = "Kredi Kartı" if donation.payment_method == "credit_card" else "Havale/EFT"
+        pm_val = donation.payment_method.value if hasattr(donation.payment_method, "value") else str(donation.payment_method)
+        payment_method = method_map.get(pm_val, pm_val)
         msg = (donation.donor_message or "Bağış").replace(";", " ").replace("\n", " ")
         
         output.write(f"{idx};{donation.receipt_number};{full_name};{tc_no};{date_str};{amount};{payment_method};{msg}\n")

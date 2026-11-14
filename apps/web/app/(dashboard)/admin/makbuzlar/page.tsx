@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
+import { Download } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, formatMoney, hasPermission, useAdminAccess, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
+import { adminGet, exportCsv, formatMoney, hasPermission, useAdminAccess, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms } from '../../../../lib/sms'
@@ -164,13 +165,25 @@ export default function AdminReceiptsPage() {
       )}
 
       <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-        <input
-          type="text"
-          placeholder="Makbuz no, bağışçı adı veya telefon ile ara..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full max-w-md rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <input
+            type="text"
+            placeholder="Makbuz no, bağışçı adı veya telefon ile ara..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full max-w-md rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
+          />
+          {donations.length > 0 && (
+            <button
+              type="button"
+              onClick={() => exportCsv('makbuzlar.csv', ['Makbuz No', 'Matbu No', 'Bağışçı', 'Kimin Adına', 'Ödeme Yöntemi', 'Tutar', 'Para Birimi', 'Durum', 'Tarih'],
+                donations.map((d) => [d.receipt_number, d.official_receipt_no || '', d.donor_name, d.on_behalf_of || '', d.payment_method_label, d.amount_cents / 100, d.currency, d.status, d.paid_at ? new Date(d.paid_at).toLocaleDateString('tr-TR') : '']))}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <Download className="h-3.5 w-3.5" /> CSV İndir
+            </button>
+          )}
+        </div>
 
         {loading ? (
           <p className="text-sm text-gray-500 animate-pulse py-6 text-center">Makbuzlar yükleniyor...</p>

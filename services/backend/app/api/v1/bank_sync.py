@@ -7,9 +7,10 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, literal_column, or_, select, tuple_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import Permission, require_feature, require_permission
+from app.api.deps import Permission, mask_phone, require_capability, require_feature, require_permission
 from app.banking import CONNECTORS, credential_key
 from app.banking.matching import Matcher, analyse, approve, transfer_donations, unmatch
 from app.banking.parsers import fold
@@ -78,10 +79,25 @@ class AccountIn(BaseModel):
     label: str = Field(min_length=2, max_length=120)
     iban: Optional[str] = Field(default=None, max_length=34)
     account_no: Optional[str] = Field(default=None, max_length=40)
-    currency: str = Field(default="TRY", pattern="^(TRY|USD|EUR)$")
+    currency: str = Field(default="TRY", pattern="^(TRY|USD|EUR|GBP|SAR|CHF)$")
     enabled: bool = True
     auto_approve: bool = False
     default_campaign_id: Optional[UUID] = None
+
+
+def _normalize_validate_iban(raw: Optional[str]) -> Optional[str]:
+    iban = (raw or "").replace(" ", "").upper()
+    if not iban:
+        return None
+    if not iban.isalnum() or len(iban) < 15 or len(iban) > 34:
+        raise HTTPException(status_code=422, detail="Geçersiz IBAN uzunluğu veya biçimi")
+    if iban.startswith("TR") and (len(iban) != 26 or not iban[2:].isdigit()):
+        raise HTTPException(status_code=422, detail="Türkiye IBAN'ı TR ile başlamalı ve toplam 26 karakter olmalıdır")
+    rearranged = iban[4:] + iban[:4]
+    digits = "".join(ch if ch.isdigit() else str(ord(ch) - 55) for ch in rearranged)
+    if int(digits) % 97 != 1:
+        raise HTTPException(status_code=422, detail="IBAN kontrol basamağı (MOD-97) hatalı")
+    return iban
 
 
 def _account_out(a: BankAccount) -> dict:
@@ -115,10 +131,14 @@ async def create_account(payload: AccountIn, request: Request, db: AsyncSession 
     if payload.bank_key not in CONNECTORS:
         raise HTTPException(status_code=404, detail="Bilinmeyen banka")
     await _campaign(db, org_id, payload.default_campaign_id)
-    iban = (payload.iban or "").replace(" ", "").upper() or None
+    iban = _normalize_validate_iban(payload.iban)
     account = BankAccount(organization_id=org_id, **payload.model_dump(exclude={"iban"}), iban=iban)
     db.add(account)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Bu banka ve IBAN ile kayıtlı bir hesap zaten var") from exc
     return _account_out(account)
 
 
@@ -132,9 +152,38 @@ async def update_account(account_id: UUID, payload: AccountIn, request: Request,
     await _campaign(db, org_id, payload.default_campaign_id)
     for key, value in payload.model_dump(exclude={"iban", "bank_key"}).items():
         setattr(account, key, value)
-    account.iban = (payload.iban or "").replace(" ", "").upper() or None
-    await db.commit()
+    account.iban = _normalize_validate_iban(payload.iban)
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Bu banka ve IBAN ile kayıtlı bir hesap zaten var") from exc
     return _account_out(account)
+
+
+@router.delete("/admin/bank-accounts/{account_id}")
+async def delete_account(account_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
+                         _: User = Depends(finance)):
+    org_id = _org_id(request)
+    account = await db.get(BankAccount, account_id)
+    if not account or account.organization_id != org_id:
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+    tx_count = (
+        await db.execute(
+            select(func.count(BankTransaction.id)).where(
+                BankTransaction.organization_id == org_id,
+                BankTransaction.bank_account_id == account_id,
+            )
+        )
+    ).scalar_one()
+    if tx_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Bu hesaba bağlı {tx_count} hareket kaydı var; silmek yerine düzenleyip kapatabilirsiniz.",
+        )
+    await db.delete(account)
+    await db.commit()
+    return {"deleted": True}
 
 
 @router.post("/admin/bank-accounts/{account_id}/sync")
@@ -150,9 +199,10 @@ async def sync_now(account_id: UUID, request: Request, db: AsyncSession = Depend
 
 # --- Incoming transfers queue -----------------------------------------------------------------
 
-def _transfer_out(t: BankTransaction, donations: Optional[list] = None) -> dict:
+def _transfer_out(t: BankTransaction, donations: Optional[list] = None, viewer: Optional[User] = None) -> dict:
     donor = donations[0].donor if donations else None
-    return {"donor": {"id": str(donor.id), "name": donor.full_name, "phone": donor.phone} if donor else None,
+    phone = mask_phone(donor.phone, viewer) if donor and viewer else (donor.phone if donor else None)
+    return {"donor": {"id": str(donor.id), "name": donor.full_name, "phone": phone} if donor else None,
             "receipts": [{"donation_id": str(d.id), "receipt_number": d.official_receipt_no or d.receipt_number,
                           "campaign_title": d.campaign.title if d.campaign else None, "amount_cents": d.amount_cents}
                          for d in donations or []],
@@ -218,7 +268,7 @@ async def list_transfers(request: Request, status: Optional[ReconciliationStatus
     donations = await transfer_donations(db, list(rows))
     items = []
     for t in rows:
-        row = _transfer_out(t, donations.get(str(t.id)))
+        row = _transfer_out(t, donations.get(str(t.id)), _)
         row["possible_duplicate"] = (t.bank_account_id or NO_ACCOUNT, t.booked_at.astimezone(TZ).date() if t.booked_at else None,
                                      t.amount_cents, t.sender_name or "") in dup_keys
         items.append(row)
@@ -274,7 +324,7 @@ async def _transfer(db: AsyncSession, org_id: UUID, transfer_id: UUID) -> BankTr
     return transfer
 
 
-@router.post("/admin/incoming-transfers/{transfer_id}/approve")
+@router.post("/admin/incoming-transfers/{transfer_id}/approve", dependencies=[Depends(require_capability("bank.approve"))])
 async def approve_transfer(transfer_id: UUID, payload: ApproveIn, request: Request, db: AsyncSession = Depends(get_db),
                            current_user: User = Depends(finance)):
     org_id = _org_id(request)
@@ -343,7 +393,7 @@ class UnmatchIn(BaseModel):
     reason: str = Field(default="Eşleştirme kaldırıldı", min_length=3, max_length=500)
 
 
-@router.post("/admin/incoming-transfers/{transfer_id}/unmatch")
+@router.post("/admin/incoming-transfers/{transfer_id}/unmatch", dependencies=[Depends(require_capability("bank.unmatch"))])
 async def unmatch_transfer(transfer_id: UUID, request: Request, payload: Optional[UnmatchIn] = None,
                            db: AsyncSession = Depends(get_db), current_user: User = Depends(finance)):
     """Undo a wrong match: the receipts made from the transfer are cancelled and it waits again."""
@@ -364,7 +414,7 @@ async def unmatch_transfer(transfer_id: UUID, request: Request, payload: Optiona
     return {"status": "unmatched", "cancelled_receipts": [d.official_receipt_no or d.receipt_number for d in cancelled]}
 
 
-@router.post("/admin/incoming-transfers/{transfer_id}/ignore")
+@router.post("/admin/incoming-transfers/{transfer_id}/ignore", dependencies=[Depends(require_capability("bank.ignore"))])
 async def ignore_transfer(transfer_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
                           current_user: User = Depends(finance)):
     transfer = await _transfer(db, _org_id(request), transfer_id)
@@ -386,12 +436,25 @@ class RuleIn(BaseModel):
 @router.get("/admin/bank-match-rules")
 async def list_rules(request: Request, kind: str = Query("keyword", pattern="^(keyword|sender)$"),
                      db: AsyncSession = Depends(get_db), _: User = Depends(finance)):
+    org_id = _org_id(request)
     rows = (await db.execute(select(BankMatchRule).where(
-        BankMatchRule.organization_id == _org_id(request), BankMatchRule.kind == kind)
+        BankMatchRule.organization_id == org_id, BankMatchRule.kind == kind)
         .order_by(BankMatchRule.hits.desc(), BankMatchRule.pattern).limit(1000))).scalars().all()
+    donor_ids = {r.donor_id for r in rows if r.donor_id}
+    campaign_ids = {r.campaign_id for r in rows if r.campaign_id}
+    donor_names: dict[UUID, str] = {}
+    if donor_ids:
+        for d in (await db.execute(select(Donor).where(Donor.id.in_(donor_ids)))).scalars().all():
+            donor_names[d.id] = d.full_name or ""
+    campaign_titles: dict[UUID, str] = {}
+    if campaign_ids:
+        for c in (await db.execute(select(Campaign).where(Campaign.id.in_(campaign_ids)))).scalars().all():
+            campaign_titles[c.id] = c.title
     return [{"id": str(r.id), "kind": r.kind, "pattern": r.pattern, "hits": r.hits, "source": r.source,
              "donor_id": str(r.donor_id) if r.donor_id else None,
-             "campaign_id": str(r.campaign_id) if r.campaign_id else None} for r in rows]
+             "donor_name": donor_names.get(r.donor_id) if r.donor_id else None,
+             "campaign_id": str(r.campaign_id) if r.campaign_id else None,
+             "campaign_title": campaign_titles.get(r.campaign_id) if r.campaign_id else None} for r in rows]
 
 
 @router.post("/admin/bank-match-rules")

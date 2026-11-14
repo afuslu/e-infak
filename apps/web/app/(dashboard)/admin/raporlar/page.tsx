@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import { adminGet, apiErrorMessage, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors'
 
@@ -81,13 +81,8 @@ function ReportTable({ header, rows }: { header: string[]; rows: (string | numbe
   )
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <Card className="border border-gray-100 p-4 shadow-sm">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{label}</div>
-      <div className="mt-1 text-2xl font-black text-gray-950">{value}</div>
-    </Card>
-  )
+function Stat({ label, value, detail }: { label: string; value: string | number; detail?: StatCardDetail }) {
+  return <StatCard label={label} value={value} detail={detail} />
 }
 
 export default function ReportsPage() {
@@ -148,6 +143,9 @@ export default function ReportsPage() {
             <option value="USD">USD</option>
             <option value="EUR">EUR</option>
           </select>
+          <button type="button" onClick={() => window.print()} className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+            Yazdır / PDF
+          </button>
         </div>} />
 
       <div className="flex flex-wrap gap-2">
@@ -184,9 +182,35 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
     return (
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
-          <Stat label={`${data.year} toplam`} value={money(data.total_cents)} />
-          <Stat label="Bağış adedi" value={data.count.toLocaleString('tr-TR')} />
-          <Stat label="Ortalama bağış" value={data.count ? money(Math.round(data.total_cents / data.count)) : '—'} />
+          <Stat
+            label={`${data.year} toplam`}
+            value={money(data.total_cents)}
+            detail={{
+              title: `${data.year} Aylık Bağış Dökümü`,
+              content: () => <ReportTable header={['Ay', 'Bağış adedi', 'Bağışçı', 'Toplam']} rows={rows} />,
+            }}
+          />
+          <Stat
+            label="Bağış adedi"
+            value={data.count.toLocaleString('tr-TR')}
+            detail={{
+              title: `${data.year} Ödeme Kanalları`,
+              content: () => <ReportTable header={['Kanal', 'Adet', 'Toplam']} rows={data.payment_methods.map((p: any) => [p.label, p.count, money(p.total_cents)])} />,
+            }}
+          />
+          <Stat
+            label="Ortalama bağış"
+            value={data.count ? money(Math.round(data.total_cents / data.count)) : '—'}
+            detail={{
+              title: `${data.year} Ay Bazlı Ortalamalar`,
+              content: () => (
+                <ReportTable
+                  header={['Ay', 'Bağış adedi', 'Ortalama']}
+                  rows={data.months.map((m: any) => [m.label, m.count, m.count ? money(Math.round(m.total_cents / m.count)) : '—'])}
+                />
+              ),
+            }}
+          />
         </div>
         <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
           <Bars currency={currency} items={data.months.map((m: any) => ({ label: m.label.slice(0, 3), value: m.total_cents, sub: `${m.count} bağış` }))} />
@@ -206,8 +230,22 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
     return (
       <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Stat label="Aralık toplamı" value={money(data.total_cents)} />
-          <Stat label="Bağış adedi" value={data.count.toLocaleString('tr-TR')} />
+          <Stat
+            label="Aralık toplamı"
+            value={money(data.total_cents)}
+            detail={{
+              title: 'Günlük Bağış Dökümü',
+              content: () => <ReportTable header={['Tarih', 'Adet', 'Toplam']} rows={[...rows].reverse()} />,
+            }}
+          />
+          <Stat
+            label="Bağış adedi"
+            value={data.count.toLocaleString('tr-TR')}
+            detail={{
+              title: 'Günlük Bağış Adetleri',
+              content: () => <ReportTable header={['Tarih', 'Adet', 'Toplam']} rows={[...rows].reverse().filter((r) => Number(r[1]) > 0)} />,
+            }}
+          />
         </div>
         <Bars currency={currency} items={data.days.map((d: any) => ({ label: d.date.slice(8, 10), value: d.total_cents, sub: d.date }))} />
         <ExportButton name={`gunluk-bagis-${data.start}-${data.end}.csv`} header={['Tarih', 'Adet', 'Toplam']} rows={rows} />
@@ -248,7 +286,14 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
         <ReportTable header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
       </Card>
       <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
-        <Stat label="Aralık toplamı" value={money(data.total_cents)} />
+        <Stat
+          label="Aralık toplamı"
+          value={money(data.total_cents)}
+          detail={{
+            title: 'Kampanya Dağılımı',
+            content: () => <ReportTable header={header} rows={rows} />,
+          }}
+        />
         <h2 className="text-sm font-bold text-gray-900">En çok bağış alan kampanyalar</h2>
         <Bars currency={currency} items={data.campaigns.slice(0, 10).map((c: any) => ({ label: c.title.slice(0, 10), value: c.total_cents, sub: c.title }))} />
         <ExportButton name={`kampanya-raporu-${data.start}-${data.end}.csv`} header={header} rows={rows} />
@@ -279,10 +324,53 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Kayıtlı bağışçı (toplam)" value={data.total_donors.toLocaleString('tr-TR')} />
-        <Stat label="Aralıkta bağış yapan" value={data.active_donors.toLocaleString('tr-TR')} />
-        <Stat label="İlk kez bağış yapan" value={data.new_donors.toLocaleString('tr-TR')} />
-        <Stat label="Tekrar bağış yapan" value={data.returning_donors.toLocaleString('tr-TR')} />
+        <Stat
+          label="Kayıtlı bağışçı (toplam)"
+          value={data.total_donors.toLocaleString('tr-TR')}
+          detail={{
+            title: 'Ülke ve Tür Dağılımı',
+            content: () => (
+              <div className="space-y-4">
+                <ReportTable header={['Ülke', 'Bağışçı']} rows={data.by_country.map((c: any) => [c.label, c.count])} />
+                <ReportTable header={['Tür', 'Bağışçı']} rows={data.by_type.map((c: any) => [c.label, c.count])} />
+              </div>
+            ),
+          }}
+        />
+        <Stat
+          label="Aralıkta bağış yapan"
+          value={data.active_donors.toLocaleString('tr-TR')}
+          detail={{
+            title: 'Şehir Bazlı Bağışçılar (İlk 10)',
+            content: () => <ReportTable header={['Şehir', 'Bağışçı']} rows={data.by_city.map((c: any) => [c.label, c.count])} />,
+          }}
+        />
+        <Stat
+          label="İlk kez bağış yapan"
+          value={data.new_donors.toLocaleString('tr-TR')}
+          detail={{
+            title: 'Aylık Yeni Bağışçılar',
+            content: () => <ReportTable header={['Ay', 'Yeni']} rows={data.new_by_month.map((m: any) => [m.label, m.count])} />,
+          }}
+        />
+        <Stat
+          label="Tekrar bağış yapan"
+          value={data.returning_donors.toLocaleString('tr-TR')}
+          detail={{
+            title: 'Bağışçı Özeti',
+            content: () => (
+              <ReportTable
+                header={['Metrik', 'Sayı']}
+                rows={[
+                  ['Toplam kayıtlı bağışçı', data.total_donors.toLocaleString('tr-TR')],
+                  ['Aralıkta aktif', data.active_donors.toLocaleString('tr-TR')],
+                  ['İlk kez bağış yapan', data.new_donors.toLocaleString('tr-TR')],
+                  ['Tekrar bağış yapan', data.returning_donors.toLocaleString('tr-TR')],
+                ]}
+              />
+            ),
+          }}
+        />
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="border border-gray-100 p-6 shadow-sm">

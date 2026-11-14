@@ -81,6 +81,11 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user account",
         )
+
+    from app.services.ip_rules import denial
+    reason = await denial(db, user, request.client.host if request.client else None)
+    if reason:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
     
     # Create tokens
     access_token = create_access_token({"sub": str(user.id)})

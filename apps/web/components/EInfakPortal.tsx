@@ -117,7 +117,7 @@ export async function EInfakPortal() {
     cookies(),
   ])
   const saved = jar.get('einfak_tema')?.value
-  const theme = saved === 'dark' || saved === 'light' ? saved : undefined
+  const theme = saved === 'dark' ? 'dark' : 'light'
   const planList = (plans.length ? plans : Object.keys(PLAN_COPY).map((key) => ({ key, label: PLAN_LABELS[key], users: PLAN_COPY[key].users })))
     .filter((plan) => PLAN_COPY[plan.key])
   const nav = [

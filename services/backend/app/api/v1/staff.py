@@ -13,8 +13,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.capabilities import catalog as capability_catalog
 from app.api.deps import (
     PERMISSION_LABELS,
+    effective_capabilities,
     ROLE_PERMISSIONS,
     Permission,
     effective_permissions,
@@ -79,7 +81,25 @@ class DepartmentOut(BaseModel):
 class StaffRoleIn(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     description: Optional[str] = Field(default=None, max_length=500)
-    permissions: List[Permission]
+    # Modules without ticks (reports-only roles etc.); with capabilities the modules follow from the ticks.
+    permissions: List[Permission] = Field(default_factory=list)
+    capabilities: List[str] = Field(default_factory=list)
+
+    @field_validator("capabilities")
+    @classmethod
+    def known_capabilities(cls, value: List[str]) -> List[str]:
+        from app.core.capabilities import ALL
+        unknown = sorted(set(value) - ALL)
+        if unknown:
+            raise ValueError("Bilinmeyen yetki: " + ", ".join(unknown))
+        return sorted(set(value))
+
+    def stored(self) -> list[str]:
+        """What StaffRole.permissions keeps: the ticks; a broad permission sent alone opens its whole module."""
+        from app.core.capabilities import BY_PERMISSION, expand
+        broad = [p.value for p in self.permissions if p.value not in BY_PERMISSION]
+        return sorted(set(broad) | set(self.capabilities) | expand([p.value for p in self.permissions])
+                      | {Permission.ADMIN_READ.value})
 
     @field_validator("permissions")
     @classmethod
@@ -93,6 +113,7 @@ class StaffRoleOut(BaseModel):
     name: str
     description: Optional[str] = None
     permissions: List[str]
+    capabilities: List[str] = []
     user_count: int = 0
 
 
@@ -198,8 +219,10 @@ async def _get_staff_role(db: AsyncSession, org_id: UUID, role_id: UUID) -> Staf
 
 
 def _role_permissions(role: StaffRole) -> set[Permission]:
+    from app.core.capabilities import permissions_of
     granted = set()
-    for value in role.permissions or []:
+    stored = list(role.permissions or [])
+    for value in [*stored, *permissions_of(set(stored))]:
         try:
             granted.add(Permission(value))
         except ValueError:
@@ -295,8 +318,10 @@ async def get_access(
             "role": current_user.role.value,
             "is_platform_admin": current_user.role == UserRole.PLATFORM_ADMIN,
             "permissions": sorted(p.value for p in effective_permissions(current_user)),
+            "capabilities": sorted(effective_capabilities(current_user)),
         },
         "permission_catalog": [{"key": p.value, "label": PERMISSION_LABELS[p]} for p in Permission],
+        "capability_catalog": capability_catalog(),
         "builtin_roles": [
             {
                 "key": r.value,
@@ -596,10 +621,21 @@ async def _role_user_counts(db: AsyncSession, org_id: UUID) -> dict:
 
 
 def _role_out(role: StaffRole, user_count: int = 0) -> StaffRoleOut:
+    from app.core.capabilities import expand, permissions_of
+    stored = list(role.permissions or [])
+    capabilities = expand(stored)
+    broad = {v for v in stored if v in {p.value for p in Permission}} | permissions_of(capabilities)
     return StaffRoleOut(
         id=role.id, name=role.name, description=role.description,
-        permissions=sorted(role.permissions or []), user_count=user_count,
+        permissions=sorted(broad), capabilities=sorted(capabilities), user_count=user_count,
     )
+
+
+def _ensure_capabilities_grantable(actor: User, wanted: set[str]) -> None:
+    missing = wanted - effective_capabilities(actor)
+    if missing:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Sahip olmadığınız yetkileri veremezsiniz: " + ", ".join(sorted(missing)))
 
 
 @router.get("/staff-roles", response_model=List[StaffRoleOut])
@@ -622,12 +658,14 @@ async def create_staff_role(
     current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)
-    _ensure_grantable(current_user, set(payload.permissions))
+    from app.core.capabilities import permissions_of
+    _ensure_grantable(current_user, set(payload.permissions) | {Permission(p) for p in permissions_of(set(payload.capabilities))})
+    _ensure_capabilities_grantable(current_user, set(payload.capabilities))
     name = payload.name.strip()
     await _ensure_unique_name(db, StaffRole, org_id, name)
     role = StaffRole(
         organization_id=org_id, name=name, description=payload.description,
-        permissions=[p.value for p in payload.permissions],
+        permissions=payload.stored(),
     )
     db.add(role)
     await db.flush()
@@ -648,13 +686,16 @@ async def update_staff_role(
     role = await _get_staff_role(db, org_id, role_id)
     if current_user.staff_role_id == role.id and current_user.role != UserRole.PLATFORM_ADMIN:
         raise HTTPException(status_code=403, detail="Kendi rolünüzü düzenleyemezsiniz")
-    _ensure_grantable(current_user, _role_permissions(role) | set(payload.permissions))
+    from app.core.capabilities import expand, permissions_of
+    _ensure_grantable(current_user, _role_permissions(role) | set(payload.permissions)
+                      | {Permission(p) for p in permissions_of(set(payload.capabilities))})
+    _ensure_capabilities_grantable(current_user, expand(list(role.permissions or [])) | set(payload.capabilities))
     name = payload.name.strip()
     await _ensure_unique_name(db, StaffRole, org_id, name, exclude_id=role.id)
     old_permissions = role.permissions
     role.name = name
     role.description = payload.description
-    role.permissions = [p.value for p in payload.permissions]
+    role.permissions = payload.stored()
     _audit(db, org_id, current_user, "rol_guncelle", {
         "staff_role_id": str(role.id), "name": name,
         "old_permissions": old_permissions, "new_permissions": role.permissions,

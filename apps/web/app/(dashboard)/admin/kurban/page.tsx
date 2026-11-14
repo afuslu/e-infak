@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import {
-  Calculator, CheckCircle2, Clock, Coins, FileText, MessageSquare, Search, Users, Video, X,
+  Calculator, CheckCircle2, Clock, Coins, FileText, MessageCircle, MessageSquare, Search, Users, Video, X,
 } from 'lucide-react'
 import {
-  apiErrorMessage, downloadFile, exportCsv, formatMoney, hasPermission, useAdminAccess, v1Get, v1Send,
+  apiErrorMessage, downloadFile, exportCsv, formatMoney, hasPermission, useAdminAccess, v1Get, v1Send, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm } from '../../../../components/admin/ManualReceiptForm'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface KurbanCampaign {
   id: string
@@ -284,57 +284,157 @@ export default function KurbanAdminPage() {
       {selected && summary && (
         <>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Card className="border border-gray-100 p-4 shadow-sm">
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                <span>Hisse bedeli</span>
-                <Coins className="h-3.5 w-3.5 text-primary-600" />
-              </div>
-              <div className="mt-1 text-xl font-black text-gray-950">{formatMoney(selected.price_per_share_cents)}</div>
-            </Card>
-            <Card
-              onClick={() => { setTab('shares'); setShareFilter(''); setShareKurbanType(''); setShareStatus('') }}
-              className="cursor-pointer border border-gray-100 p-4 shadow-sm transition hover:border-primary-200 hover:bg-primary-50/30"
-            >
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                <span>Toplam hisse</span>
-                <Users className="h-3.5 w-3.5 text-primary-600" />
-              </div>
-              <div className="mt-1 text-xl font-black text-gray-950">{summary.shares}</div>
-            </Card>
-            <Card
-              onClick={() => { setTab('shares'); setShareFilter('false') }}
-              className={`cursor-pointer border p-4 shadow-sm transition ${summary.unassigned_shares > 0 ? 'border-amber-200 bg-amber-50/40 hover:border-amber-300' : 'border-gray-100 hover:border-primary-200'}`}
-            >
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                <span>Dağıtılmayı bekleyen</span>
-                <Clock className="h-3.5 w-3.5 text-amber-600" />
-              </div>
-              <div className={`mt-1 text-xl font-black ${summary.unassigned_shares > 0 ? 'text-amber-700' : 'text-gray-950'}`}>{summary.unassigned_shares}</div>
-            </Card>
-            <Card
-              onClick={() => setTab('animals')}
-              className="cursor-pointer border border-gray-100 p-4 shadow-sm transition hover:border-primary-200 hover:bg-primary-50/30"
-            >
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                <span>Hayvan (bekleyen / kesilen)</span>
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-              </div>
-              <div className="mt-1 text-xl font-black text-gray-950">{summary.animals_waiting} / {summary.animals_slaughtered}</div>
-            </Card>
-            <Card className="border border-gray-100 p-4 shadow-sm">
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                <span>Gereken hayvan</span>
-                <Calculator className="h-3.5 w-3.5 text-gray-400" />
-              </div>
-              <div className="mt-1 text-xl font-black text-gray-950">{summary.expected_animals}</div>
-            </Card>
-            <Card className="border border-gray-100 p-4 shadow-sm">
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                <span>SMS gönderilen hisse</span>
-                <MessageSquare className="h-3.5 w-3.5 text-primary-600" />
-              </div>
-              <div className="mt-1 text-xl font-black text-gray-950">{summary.notified_shares}</div>
-            </Card>
+            <StatCard
+              label="Hisse bedeli"
+              icon={Coins}
+              value={formatMoney(selected.price_per_share_cents)}
+              detail={{
+                title: 'Niyet Türüne Göre Hisse Dağılımı',
+                size: 'md',
+                content: () => (
+                  <Table>
+                    <THead><Tr><Th>Niyet Türü</Th><Th className="text-right">Hisse Adedi</Th><Th className="text-right">Toplam Tutar</Th></Tr></THead>
+                    <TBody>
+                      {summary.by_kurban_type.map((t) => (
+                        <Tr key={t.key}>
+                          <Td className="font-semibold">{t.label}</Td>
+                          <Td className="text-right tabular-nums">{t.count}</Td>
+                          <Td className="text-right font-bold tabular-nums">{formatMoney(t.count * selected.price_per_share_cents)}</Td>
+                        </Tr>
+                      ))}
+                      {summary.by_kurban_type.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Hisse yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                ),
+              }}
+            />
+            <StatCard
+              label="Toplam hisse"
+              icon={Users}
+              value={summary.shares}
+              detail={{
+                title: 'Kampanya Hisseleri',
+                description: `Toplam ${shares.length} hisse listeleniyor`,
+                content: () => (
+                  <Table>
+                    <THead><Tr><Th>Hissedar</Th><Th>Bağışçı</Th><Th>Niyet</Th><Th>Hayvan</Th><Th className="text-right">Durum</Th></Tr></THead>
+                    <TBody>
+                      {shares.map((s) => (
+                        <Tr key={s.id}>
+                          <Td className="font-semibold">{s.on_behalf_of || s.donor_name}</Td>
+                          <Td className="text-xs text-gray-500">{s.donor_name}</Td>
+                          <Td className="text-xs">{s.kurban_type_label}</Td>
+                          <Td className="font-mono text-xs">{s.animal_number ? `${s.animal_number}/${s.share_number}` : 'Atanmadı'}</Td>
+                          <Td className="text-right text-xs font-semibold">{s.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor'}</Td>
+                        </Tr>
+                      ))}
+                      {shares.length === 0 && <Tr><Td colSpan={5} className="text-center text-gray-400">Hisse yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                ),
+              }}
+            />
+            <StatCard
+              label="Dağıtılmayı bekleyen"
+              icon={Clock}
+              tone={summary.unassigned_shares > 0 ? 'warn' : 'neutral'}
+              className={summary.unassigned_shares > 0 ? 'border-amber-200 bg-amber-50/40' : undefined}
+              value={summary.unassigned_shares}
+              detail={{
+                title: 'Hayvana Atanmayı Bekleyen Hisseler',
+                content: () => {
+                  const unassigned = shares.filter((s) => !s.animal_id)
+                  return (
+                    <Table>
+                      <THead><Tr><Th>Hissedar</Th><Th>Bağışçı</Th><Th>Telefon</Th><Th>Niyet</Th></Tr></THead>
+                      <TBody>
+                        {unassigned.map((s) => (
+                          <Tr key={s.id}>
+                            <Td className="font-semibold">{s.on_behalf_of || s.donor_name}</Td>
+                            <Td className="text-xs">{s.donor_name}</Td>
+                            <Td className="text-xs text-gray-500">{s.donor_phone}</Td>
+                            <Td className="text-xs">{s.kurban_type_label}</Td>
+                          </Tr>
+                        ))}
+                        {unassigned.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Dağıtılmayı bekleyen hisse yok.</Td></Tr>}
+                      </TBody>
+                    </Table>
+                  )
+                },
+              }}
+            />
+            <StatCard
+              label="Hayvan (bekleyen / kesilen)"
+              icon={CheckCircle2}
+              value={`${summary.animals_waiting} / ${summary.animals_slaughtered}`}
+              detail={{
+                title: 'Kurban Hayvanları',
+                content: () => (
+                  <Table>
+                    <THead><Tr><Th>Hayvan No</Th><Th>Doluluk</Th><Th>Durum</Th><Th className="text-right">Video</Th></Tr></THead>
+                    <TBody>
+                      {animals.map((a) => (
+                        <Tr key={a.id}>
+                          <Td className="font-mono font-bold">{a.animal_number}</Td>
+                          <Td className="tabular-nums">{a.shares.length} / {a.capacity}</Td>
+                          <Td className={`text-xs font-semibold ${a.status === 'slaughtered' ? 'text-green-700' : 'text-amber-700'}`}>
+                            {a.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor'}
+                          </Td>
+                          <Td className="text-right text-xs">{a.video_url ? 'Var' : '—'}</Td>
+                        </Tr>
+                      ))}
+                      {animals.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Hayvan yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                ),
+              }}
+            />
+            <StatCard
+              label="Gereken hayvan"
+              icon={Calculator}
+              value={summary.expected_animals}
+              detail={{
+                title: 'Kapasite & Hayvan Planlaması',
+                size: 'md',
+                content: () => (
+                  <Table>
+                    <TBody>
+                      <Tr><Td className="font-semibold">Hayvan Türü</Td><Td className="text-right font-bold">{selected.animal_type_label}</Td></Tr>
+                      <Tr><Td className="font-semibold">Toplam Hisse</Td><Td className="text-right font-bold tabular-nums">{summary.shares}</Td></Tr>
+                      <Tr><Td className="font-semibold">Gereken Hayvan</Td><Td className="text-right font-bold tabular-nums">{summary.expected_animals}</Td></Tr>
+                      <Tr><Td className="font-semibold">Mevcut Hayvan (Bekleyen + Kesilen)</Td><Td className="text-right font-bold tabular-nums">{summary.animals_waiting + summary.animals_slaughtered}</Td></Tr>
+                    </TBody>
+                  </Table>
+                ),
+              }}
+            />
+            <StatCard
+              label="SMS gönderilen hisse"
+              icon={MessageSquare}
+              value={summary.notified_shares}
+              detail={{
+                title: 'Kesim SMS Bildirimi Gönderilen Hisseler',
+                content: () => {
+                  const notified = shares.filter((s) => s.notified)
+                  return (
+                    <Table>
+                      <THead><Tr><Th>Hissedar</Th><Th>Bağışçı</Th><Th>Telefon</Th><Th>Hayvan</Th></Tr></THead>
+                      <TBody>
+                        {notified.map((s) => (
+                          <Tr key={s.id}>
+                            <Td className="font-semibold">{s.on_behalf_of || s.donor_name}</Td>
+                            <Td className="text-xs">{s.donor_name}</Td>
+                            <Td className="text-xs text-gray-500">{s.donor_phone}</Td>
+                            <Td className="font-mono text-xs">{s.animal_number || '—'}</Td>
+                          </Tr>
+                        ))}
+                        {notified.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">SMS gönderilen hisse yok.</Td></Tr>}
+                      </TBody>
+                    </Table>
+                  )
+                },
+              }}
+            />
           </div>
           {summary.by_kurban_type.length > 0 && (
             <div className="flex flex-wrap gap-2 text-xs">
@@ -483,7 +583,17 @@ export default function KurbanAdminPage() {
                         </Td>
                         <Td className="font-mono text-[10px] text-gray-500">{s.receipt_number}</Td>
                         <Td className="text-right">
-                          {canWrite && s.status !== 'slaughtered' && <button className="font-bold text-primary-700" onClick={() => editShare(s)}>Düzenle</button>}
+                          <div className="inline-flex items-center gap-2">
+                            {(() => {
+                              const wa = whatsappUrl(s.donor_phone, `Merhaba ${s.donor_name}, ${s.on_behalf_of || s.donor_name} adına alınan ${s.kurban_type_label} kurban hisseniz${s.animal_number ? ` (${s.animal_number})` : ''} ${s.status === 'slaughtered' ? 'kesilmiştir. Allah kabul etsin.' : 'kayıt altına alınmıştır.'}`)
+                              return wa ? (
+                                <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp ile mesaj gönder" className="text-emerald-600 hover:text-emerald-700">
+                                  <MessageCircle className="h-4 w-4" />
+                                </a>
+                              ) : null
+                            })()}
+                            {canWrite && s.status !== 'slaughtered' && <button className="font-bold text-primary-700" onClick={() => editShare(s)}>Düzenle</button>}
+                          </div>
                         </Td>
                       </Tr>
                     ))}

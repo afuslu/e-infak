@@ -6,7 +6,7 @@ import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { PageHeader } from '../../../../components/admin/ui'
+import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface Well {
   id: string
@@ -173,34 +173,110 @@ export default function WellsPage() {
         </div>} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Toplam Kuyu</span>
-            <Droplets className="h-4 w-4 text-sky-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-gray-950">{kpi.total}</div>
-        </Card>
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Fonlanan / Sondaj</span>
-            <Users className="h-4 w-4 text-amber-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{kpi.active}</div>
-        </Card>
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Tamamlanan</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{kpi.completed}</div>
-        </Card>
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Toplanan Bağış</span>
-            <Wallet className="h-4 w-4 text-primary-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-primary-700">{formatMoney(kpi.collectedCents)}</div>
-        </Card>
+        <StatCard
+          label="Toplam Kuyu"
+          icon={Droplets}
+          value={kpi.total}
+          detail={{
+            title: 'Tüm Su Kuyuları',
+            content: () => (
+              <Table>
+                <THead><Tr><Th>Kuyu Adı</Th><Th>Konum</Th><Th>Durum</Th><Th className="text-right">Toplanan</Th></Tr></THead>
+                <TBody>
+                  {wells.map((w) => (
+                    <Tr key={w.id}>
+                      <Td className="font-semibold">{w.name}</Td>
+                      <Td className="text-xs text-gray-500">{[w.location_name, w.country].filter(Boolean).join(', ')}</Td>
+                      <Td className="text-xs">{STATUS[w.status]}</Td>
+                      <Td className="text-right font-semibold tabular-nums">{formatMoney(w.collected_cents)}</Td>
+                    </Tr>
+                  ))}
+                  {wells.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Kuyu yok.</Td></Tr>}
+                </TBody>
+              </Table>
+            ),
+          }}
+        />
+        <StatCard
+          label="Fonlanan / Sondaj"
+          icon={Users}
+          tone="warn"
+          value={kpi.active}
+          detail={{
+            title: 'Devam Eden Su Kuyuları',
+            content: () => {
+              const active = wells.filter((w) => w.status === 'planned' || w.status === 'funding' || w.status === 'drilling')
+              return (
+                <Table>
+                  <THead><Tr><Th>Kuyu Adı</Th><Th>Konum</Th><Th>Aşama</Th><Th className="text-right">Hedef</Th></Tr></THead>
+                  <TBody>
+                    {active.map((w) => (
+                      <Tr key={w.id}>
+                        <Td className="font-semibold">{w.name}</Td>
+                        <Td className="text-xs text-gray-500">{[w.location_name, w.country].filter(Boolean).join(', ')}</Td>
+                        <Td className="text-xs font-semibold text-amber-700">{STATUS[w.status]}</Td>
+                        <Td className="text-right tabular-nums">{formatMoney(w.target_cents)}</Td>
+                      </Tr>
+                    ))}
+                    {active.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Devam eden kuyu yok.</Td></Tr>}
+                  </TBody>
+                </Table>
+              )
+            },
+          }}
+        />
+        <StatCard
+          label="Tamamlanan"
+          icon={CheckCircle2}
+          tone="good"
+          value={kpi.completed}
+          detail={{
+            title: 'Açılan / Tamamlanan Kuyular',
+            content: () => {
+              const done = wells.filter((w) => w.status === 'completed')
+              return (
+                <Table>
+                  <THead><Tr><Th>Kuyu Adı</Th><Th>Konum</Th><Th>Model</Th><Th className="text-right">Toplanan</Th></Tr></THead>
+                  <TBody>
+                    {done.map((w) => (
+                      <Tr key={w.id}>
+                        <Td className="font-semibold">{w.name}</Td>
+                        <Td className="text-xs text-gray-500">{[w.location_name, w.country].filter(Boolean).join(', ')}</Td>
+                        <Td className="text-xs">{w.funding_model}</Td>
+                        <Td className="text-right font-semibold tabular-nums text-emerald-700">{formatMoney(w.collected_cents)}</Td>
+                      </Tr>
+                    ))}
+                    {done.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Tamamlanan kuyu yok.</Td></Tr>}
+                  </TBody>
+                </Table>
+              )
+            },
+          }}
+        />
+        <StatCard
+          label="Toplanan Bağış"
+          icon={Wallet}
+          tone="brand"
+          value={formatMoney(kpi.collectedCents)}
+          detail={{
+            title: 'Kuyu Bazlı Bağış Dökümü',
+            content: () => (
+              <Table>
+                <THead><Tr><Th>Kuyu Adı</Th><Th className="text-right">Hedef</Th><Th className="text-right">Toplanan</Th></Tr></THead>
+                <TBody>
+                  {wells.map((w) => (
+                    <Tr key={w.id}>
+                      <Td className="font-semibold">{w.name}</Td>
+                      <Td className="text-right tabular-nums text-gray-500">{formatMoney(w.target_cents)}</Td>
+                      <Td className="text-right font-bold tabular-nums text-primary-700">{formatMoney(w.collected_cents)}</Td>
+                    </Tr>
+                  ))}
+                  {wells.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}
+                </TBody>
+              </Table>
+            ),
+          }}
+        />
       </div>
 
       <Notice message={message} />

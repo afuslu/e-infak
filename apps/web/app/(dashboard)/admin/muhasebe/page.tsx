@@ -5,7 +5,7 @@ import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 const accGet = <T,>(path: string, params?: Record<string, unknown>) =>
   axios.get<T>(`${adminApiBase()}/api/v1/admin-features/acc${path}`, { headers: adminAuthHeaders(), params })
@@ -32,6 +32,7 @@ const cents = (v: string) => {
 const monthStart = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` }
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 const DEFAULT_FOR: Record<string, string> = { cash: 'Nakit bağışlar', bank_transfer: 'Havale bağışları', credit_card: 'Kartlı bağışlar' }
+const CURRENCIES = ['TRY', 'USD', 'EUR', 'GBP', 'SAR', 'CHF']
 
 export default function AccountingPage() {
   const { data: access } = useAdminAccess()
@@ -48,7 +49,11 @@ export default function AccountingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Muhasebe" description={<>Kasa / banka hesapları, giderler, cari kartlar, çek-senet ve personel maaşı. Onaylanan bağışlar, ödeme yöntemine göre varsayılan hesaba otomatik işlenir.</>} />
+      <PageHeader
+        title="Muhasebe"
+        description={<>Kasa / banka hesapları, giderler, cari kartlar, çek-senet ve personel maaşı. Onaylanan bağışlar, ödeme yöntemine göre varsayılan hesaba otomatik işlenir.</>}
+        actions={<button type="button" onClick={() => window.print()} className={ghostButton}>🖨️ Yazdır / PDF</button>}
+      />
       <div className="flex gap-1 overflow-x-auto border-b text-sm font-semibold">
         {([['summary', 'Özet'], ['accounts', 'Kasa & Banka'], ['expenses', 'Giderler'], ['invoices', 'Faturalar'], ['stock', 'Stok & Depo'], ['parties', 'Cariler'], ['cheques', 'Çek & Senet'], ['payroll', 'Personel & Maaş']] as [Tab, string][]).map(([k, l]) => (
           <button key={k} onClick={() => { setTab(k); setMessage(null) }} className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}>{l}</button>
@@ -80,27 +85,88 @@ function AccountSelect({ accounts, value, onChange, currency, label = 'Hesap', o
   )
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
-  return <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm"><p className="text-xs font-bold text-gray-400">{label}</p><p className={`mt-1 text-lg font-bold ${tone || 'text-gray-900'}`}>{value}</p></div>
-}
-
 function Summary({ onMessage }: { onMessage: (m: Msg) => void }) {
   const [range, setRange] = useState({ start: monthStart(), end: today() })
   const [data, setData] = useState<any>(null)
   useEffect(() => { accGet('/summary', range).then((r) => setData(r.data)).catch((err) => onMessage({ type: 'error', text: apiErrorMessage(err) })) }, [range]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!data) return <p className="text-sm text-gray-400">Yükleniyor…</p>
+  const nonTryIn = Object.entries((data.income_by_currency || {}) as Record<string, number>).filter(([c]) => c !== 'TRY')
+  const nonTryOut = Object.entries((data.expense_by_currency || {}) as Record<string, number>).filter(([c]) => c !== 'TRY')
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <input type="date" className={`${inputClass} w-40`} value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })} />
         <input type="date" className={`${inputClass} w-40`} value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} />
       </div>
-      <div className="grid gap-3 sm:grid-cols-4">
-        {Object.entries(data.totals_by_currency as Record<string, number>).map(([cur, v]) => <Stat key={cur} label={`Toplam bakiye (${cur})`} value={formatMoney(v, cur)} />)}
-        <Stat label="Dönem geliri (TL)" value={formatMoney(data.income_cents)} tone="text-green-700" />
-        <Stat label="Dönem gideri (TL)" value={formatMoney(data.expense_cents)} tone="text-red-700" />
-        <Stat label="Ödenmemiş gider" value={formatMoney(data.unpaid_expense_cents)} />
-        <Stat label="Ödenmemiş maaş" value={formatMoney(data.draft_payroll_cents)} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {Object.entries(data.totals_by_currency as Record<string, number>).map(([cur, v]) => (
+          <StatCard
+            key={cur}
+            label={`Toplam bakiye (${cur})`}
+            value={formatMoney(v, cur)}
+            detail={{
+              title: `${cur} Hesap Bakiyeleri`,
+              content: () => (
+                <Table inset>
+                  <THead><Tr><Th>Hesap</Th><Th>Tür</Th><Th className="text-right">Bakiye</Th></Tr></THead>
+                  <TBody>
+                    {(data.accounts || []).filter((a: Account) => a.currency === cur && a.is_active).map((a: Account) => (
+                      <Tr key={a.id}><Td>{a.name}</Td><Td>{a.kind_label}</Td><Td className="text-right font-mono">{formatMoney(a.balance_cents, cur)}</Td></Tr>
+                    ))}
+                  </TBody>
+                </Table>
+              ),
+            }}
+          />
+        ))}
+        <StatCard
+          label="Dönem geliri (TL)"
+          value={formatMoney(data.income_cents)}
+          hint={nonTryIn.length ? nonTryIn.map(([c, v]) => formatMoney(v, c)).join(' · ') : undefined}
+          tone="good"
+          detail={{
+            title: 'Dönem Gelir Kırılımı',
+            content: () => (
+              <Table inset>
+                <THead><Tr><Th>Kategori</Th><Th className="text-right">Tutar (TL)</Th></Tr></THead>
+                <TBody>
+                  {(data.income || []).map((r: any) => (
+                    <Tr key={r.category}><Td>{r.category}</Td><Td className="text-right font-mono">{formatMoney(r.total_cents)}</Td></Tr>
+                  ))}
+                </TBody>
+              </Table>
+            ),
+          }}
+        />
+        <StatCard
+          label="Dönem gideri (TL)"
+          value={formatMoney(data.expense_cents)}
+          hint={nonTryOut.length ? nonTryOut.map(([c, v]) => formatMoney(v, c)).join(' · ') : undefined}
+          tone="bad"
+          detail={{
+            title: 'Dönem Gider Kırılımı',
+            content: () => (
+              <Table inset>
+                <THead><Tr><Th>Kategori</Th><Th className="text-right">Tutar (TL)</Th></Tr></THead>
+                <TBody>
+                  {(data.expense || []).map((r: any) => (
+                    <Tr key={r.category}><Td>{r.category}</Td><Td className="text-right font-mono">{formatMoney(r.total_cents)}</Td></Tr>
+                  ))}
+                </TBody>
+              </Table>
+            ),
+          }}
+        />
+        <StatCard
+          label="Ödenmemiş gider"
+          value={formatMoney(data.unpaid_expense_cents)}
+          tone={data.unpaid_expense_cents > 0 ? 'warn' : 'neutral'}
+        />
+        <StatCard
+          label="Ödenmemiş maaş"
+          value={formatMoney(data.draft_payroll_cents)}
+          tone={data.draft_payroll_cents > 0 ? 'warn' : 'neutral'}
+        />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         {[['Gelirler', data.income], ['Giderler', data.expense]].map(([title, rows]: any) => (
@@ -157,17 +223,20 @@ function Accounts({ all, accounts, canEdit, onMessage, reloadAccounts }: Shared 
   const src = accounts.find((a) => a.id === move?.account_id)
   return (
     <div className="space-y-4">
-      {canEdit && <div className="flex flex-wrap gap-2">
-        <button className={primaryButton} onClick={() => setForm({ ...empty })}>+ Hesap</button>
-        <button className={ghostButton} onClick={() => setMove({ mode: 'entry', account_id: '', to: '', direction: 'out', amount: '', category: '', description: '', date: '' })}>+ Elle hareket</button>
-        <button className={ghostButton} onClick={() => setMove({ mode: 'transfer', account_id: '', to: '', direction: 'out', amount: '', category: 'Virman', description: '', date: '' })}>⇄ Virman</button>
-      </div>}
+      <div className="flex flex-wrap gap-2">
+        {canEdit && <>
+          <button className={primaryButton} onClick={() => setForm({ ...empty })}>+ Hesap</button>
+          <button className={ghostButton} onClick={() => setMove({ mode: 'entry', account_id: '', to: '', direction: 'out', amount: '', category: '', description: '', date: '' })}>+ Elle hareket</button>
+          <button className={ghostButton} onClick={() => setMove({ mode: 'transfer', account_id: '', to: '', direction: 'out', amount: '', category: 'Virman', description: '', date: '' })}>⇄ Virman</button>
+        </>}
+        {all.length > 0 && <button type="button" className={`${ghostButton} ml-auto`} onClick={() => exportCsv('kasa-banka-hesaplari.csv', ['Hesap', 'Tür', 'Para Birimi', 'IBAN', 'Bakiye'], all.map((a) => [a.name, a.kind_label, a.currency, a.iban || '', a.balance_cents / 100]))}>⬇ CSV</button>}
+      </div>
       {form && (
         <Card className="border border-gray-100 p-5 shadow-sm"><form onSubmit={save} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-4">
             <TextInput label="Hesap adı" required value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <Label label="Tür"><select className={inputClass} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}><option value="cash">Kasa</option><option value="bank">Banka</option><option value="pos">POS / sanal POS</option></select></Label>
-            <Label label="Para birimi"><select className={inputClass} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>{['TRY', 'USD', 'EUR', 'GBP'].map((c) => <option key={c}>{c}</option>)}</select></Label>
+            <Label label="Para birimi"><select className={inputClass} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Label>
             <Label label="Otomatik bağış girişi"><select className={inputClass} value={form.default_for} onChange={(e) => setForm({ ...form, default_for: e.target.value })}><option value="">Yok</option>{Object.entries(DEFAULT_FOR).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Label>
             <TextInput label="Banka" value={form.bank_name} onChange={(v) => setForm({ ...form, bank_name: v })} />
             <TextInput label="IBAN" value={form.iban} onChange={(v) => setForm({ ...form, iban: v })} />
@@ -261,12 +330,22 @@ function Expenses({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
       setForm({ ...form, amount: '', description: '', document_no: '' }); onMessage({ type: 'ok', text: form.account_id ? 'Gider kaydedildi ve hesaptan düşüldü' : 'Ödenmemiş gider (borç) kaydedildi' }); load(); reloadAccounts()
     } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
-  const pay = async (row: ExpenseRow) => {
-    const options = accounts.filter((a) => a.currency === row.currency)
-    const name = window.prompt(`Hangi hesaptan ödendi?\n${options.map((a, i) => `${i + 1}) ${a.name}`).join('\n')}`, '1')
-    const acc = options[Number(name) - 1]
-    if (!acc) return
-    try { await accSend('post', `/expenses/${row.id}/pay`, { account_id: acc.id }); load(); reloadAccounts() } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
+  const [payRow, setPayRow] = useState<ExpenseRow | null>(null)
+  const [payAccId, setPayAccId] = useState('')
+  const pay = (row: ExpenseRow) => {
+    const first = accounts.find((a) => a.currency === row.currency)?.id || ''
+    setPayAccId(first)
+    setPayRow(row)
+  }
+  const submitPay = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!payRow || !payAccId) return
+    try {
+      await accSend('post', `/expenses/${payRow.id}/pay`, { account_id: payAccId })
+      setPayRow(null)
+      onMessage({ type: 'ok', text: 'Gider ödendi ve hesaptan düşüldü' })
+      load(); reloadAccounts()
+    } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
   const remove = async (row: ExpenseRow) => {
     if (!(await confirmDialog('Gider ve hesap hareketi silinsin mi?'))) return
@@ -313,6 +392,19 @@ function Expenses({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
           ))}{!rows.length && <Tr><Td colSpan={8} className="text-center text-gray-400">Bu aralıkta gider yok.</Td></Tr>}</TBody>
         </Table>
       </Card>
+      {payRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPayRow(null)}>
+          <form onSubmit={submitPay} onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-bold text-gray-900">Gider Öde — {payRow.card_name}</h3>
+            <p className="text-xs text-gray-500">Tutar: <b>{formatMoney(payRow.amount_cents, payRow.currency)}</b></p>
+            <AccountSelect accounts={accounts} currency={payRow.currency} value={payAccId} onChange={setPayAccId} label="Ödendiği hesap" />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setPayRow(null)} className={ghostButton}>Vazgeç</button>
+              <button type="submit" disabled={!payAccId} className={primaryButton}>Ödemeyi Kaydet</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }
@@ -329,7 +421,10 @@ function Parties({ parties, canEdit, onMessage, reloadParties }: Shared) {
   }
   return (
     <div className="space-y-4">
-      {canEdit && <button className={primaryButton} onClick={() => setForm({ ...empty })}>+ Cari kart</button>}
+      <div className="flex flex-wrap gap-2">
+        {canEdit && <button className={primaryButton} onClick={() => setForm({ ...empty })}>+ Cari kart</button>}
+        {parties.length > 0 && <button type="button" className={`${ghostButton} ml-auto`} onClick={() => exportCsv('cariler.csv', ['Ünvan', 'Tür', 'Vergi No', 'Telefon', 'IBAN', 'Ödenmemiş Gider'], parties.map((p) => [p.name, p.kind_label, p.tax_no || '', p.phone || '', p.iban || '', (p.unpaid_cents || 0) / 100]))}>⬇ CSV</button>}
+      </div>
       {form && (
         <Card className="border border-gray-100 p-5 shadow-sm"><form onSubmit={save} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-4">
@@ -409,23 +504,34 @@ function Cheques({ accounts, parties, canEdit, onMessage, reloadAccounts }: Shar
       setForm(null); onMessage({ type: 'ok', text: 'Çek / senet kaydedildi' }); load()
     } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
+  const [actionModal, setActionModal] = useState<{ cheque: ChequeRow; status: string; accountId: string; partyId: string } | null>(null)
   const change = async (c: ChequeRow, status: string) => {
-    let account_id: string | undefined
-    let counterparty_id: string | undefined
     if (status === 'collected' || status === 'paid' || status === 'deposited') {
-      const options = accounts.filter((a) => a.currency === c.currency && (status !== 'deposited' || a.kind === 'bank'))
-      const pick = window.prompt(`${status === 'paid' ? 'Ödendiği' : 'Tahsil edildiği / verildiği'} hesap:\n${options.map((a, i) => `${i + 1}) ${a.name}`).join('\n')}`, '1')
-      if (!pick) return
-      account_id = options[Number(pick) - 1]?.id
-      if (!account_id && status !== 'deposited') return
+      const first = accounts.find((a) => a.currency === c.currency && (status !== 'deposited' || a.kind === 'bank'))?.id || ''
+      setActionModal({ cheque: c, status, accountId: first, partyId: '' })
+      return
     }
     if (status === 'endorsed') {
-      const pick = window.prompt(`Ciro edilen cari:\n${parties.map((p, i) => `${i + 1}) ${p.name}`).join('\n')}`, '1')
-      counterparty_id = parties[Number(pick) - 1]?.id
-      if (!counterparty_id) return
+      setActionModal({ cheque: c, status, accountId: '', partyId: parties[0]?.id || '' })
+      return
     }
     if (status === 'bounced' && !(await confirmDialog('Karşılıksız olarak işaretlensin mi? Tahsil kaydı varsa geri alınır.'))) return
-    try { await accSend('post', `/cheques/${c.id}/status`, { status, account_id, counterparty_id }); load(); reloadAccounts() } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
+    try { await accSend('post', `/cheques/${c.id}/status`, { status }); load(); reloadAccounts() } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
+  }
+  const submitAction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!actionModal) return
+    const { cheque, status, accountId, partyId } = actionModal
+    try {
+      await accSend('post', `/cheques/${cheque.id}/status`, {
+        status,
+        account_id: accountId || undefined,
+        counterparty_id: partyId || undefined,
+      })
+      setActionModal(null)
+      onMessage({ type: 'ok', text: 'Çek / senet durumu güncellendi' })
+      load(); reloadAccounts()
+    } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
   return (
     <div className="space-y-4">
@@ -440,7 +546,7 @@ function Cheques({ accounts, parties, canEdit, onMessage, reloadAccounts }: Shar
             <TextInput label="Keşideci / borçlu" value={form.drawer} onChange={(v) => setForm({ ...form, drawer: v })} />
             <Label label="Cari"><select className={inputClass} value={form.counterparty_id} onChange={(e) => setForm({ ...form, counterparty_id: e.target.value })}><option value="">—</option>{parties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Label>
             <TextInput label="Tutar" required inputMode="decimal" value={form.amount} onChange={(v) => setForm({ ...form, amount: v })} />
-            <Label label="Para birimi"><select className={inputClass} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>{['TRY', 'USD', 'EUR', 'GBP'].map((c) => <option key={c}>{c}</option>)}</select></Label>
+            <Label label="Para birimi"><select className={inputClass} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Label>
             <TextInput label="Düzenleme tarihi" type="date" value={form.issue_date} onChange={(v) => setForm({ ...form, issue_date: v })} />
             <TextInput label="Vade" required type="date" value={form.due_date} onChange={(v) => setForm({ ...form, due_date: v })} />
             <div className="sm:col-span-2"><TextInput label="Not" value={form.note} onChange={(v) => setForm({ ...form, note: v })} /></div>
@@ -453,6 +559,7 @@ function Cheques({ accounts, parties, canEdit, onMessage, reloadAccounts }: Shar
           <select className={`${inputClass} w-40`} value={filters.direction} onChange={(e) => setFilters({ ...filters, direction: e.target.value })}><option value="">Alınan + verilen</option><option value="received">Alınan</option><option value="issued">Verilen</option></select>
           <select className={`${inputClass} w-44`} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="open">Açık (portföy / bankada)</option><option value="">Tümü</option><option value="collected">Tahsil edildi</option><option value="paid">Ödendi</option><option value="endorsed">Ciro edildi</option><option value="bounced">Karşılıksız</option></select>
           <span className="self-center text-xs text-gray-500">{rows.length} kayıt · {formatMoney(rows.filter((r) => r.currency === 'TRY').reduce((s, r) => s + r.amount_cents, 0))}</span>
+          {rows.length > 0 && <button type="button" className={`${ghostButton} ml-auto`} onClick={() => exportCsv('cek-senet.csv', ['Yön', 'Tür', 'No', 'Banka', 'Keşideci/Cari', 'Vade', 'Tutar', 'Para Birimi', 'Durum'], rows.map((r) => [r.direction_label, r.kind_label, r.number, r.bank_name || '', r.drawer || r.counterparty || '', fmt(r.due_date), r.amount_cents / 100, r.currency, r.status_label]))}>⬇ CSV</button>}
         </div>
         <Table>
           <THead><Tr><Th>Çek / senet</Th><Th>Keşideci / cari</Th><Th>Vade</Th><Th className="text-right">Tutar</Th><Th>Durum</Th><Th /></Tr></THead>
@@ -464,6 +571,36 @@ function Cheques({ accounts, parties, canEdit, onMessage, reloadAccounts }: Shar
           ))}{!rows.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}</TBody>
         </Table>
       </Card>
+      {actionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setActionModal(null)}>
+          <form onSubmit={submitAction} onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-bold text-gray-900">
+              {actionModal.cheque.kind_label} #{actionModal.cheque.number} — {actionModal.status === 'endorsed' ? 'Cariye Ciro Et' : actionModal.status === 'paid' ? 'Ödeme Hesabı Seç' : 'Tahsilat / Banka Hesabı Seç'}
+            </h3>
+            <p className="text-xs text-gray-500">Tutar: <b>{formatMoney(actionModal.cheque.amount_cents, actionModal.cheque.currency)}</b></p>
+            {actionModal.status === 'endorsed' ? (
+              <Label label="Ciro edilen cari">
+                <select className={inputClass} required value={actionModal.partyId} onChange={(e) => setActionModal({ ...actionModal, partyId: e.target.value })}>
+                  <option value="">Seçin</option>
+                  {parties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </Label>
+            ) : (
+              <AccountSelect
+                accounts={actionModal.status === 'deposited' ? accounts.filter((a) => a.kind === 'bank') : accounts}
+                currency={actionModal.cheque.currency}
+                value={actionModal.accountId}
+                onChange={(v) => setActionModal({ ...actionModal, accountId: v })}
+                label={actionModal.status === 'paid' ? 'Ödendiği hesap' : 'Tahsil edildiği / verildiği hesap'}
+              />
+            )}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setActionModal(null)} className={ghostButton}>Vazgeç</button>
+              <button type="submit" className={primaryButton}>Onayla</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }
@@ -739,14 +876,23 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
       setForm(null); onMessage({ type: 'ok', text: 'Fatura kaydedildi' }); load()
     } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
-  const pay = async (r: InvoiceRow) => {
-    const options = accounts.filter((a) => a.currency === r.currency)
-    const pick = window.prompt(`${r.kind === 'purchase' ? 'Ödendiği' : 'Tahsil edildiği'} hesap:\n${options.map((a, i) => `${i + 1}) ${a.name}`).join('\n')}`, '1')
-    const acc = options[Number(pick) - 1]
-    if (!acc) return
-    const amount = window.prompt('Tutar (boşsa kalanın tamamı)', String(r.remaining_cents / 100))
-    if (amount === null) return
-    try { await accSend('post', `/invoices/${r.id}/pay`, { account_id: acc.id, amount_cents: amount ? cents(amount) : null }); load(); reloadAccounts() } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
+  const [payInv, setPayInv] = useState<{ row: InvoiceRow; accountId: string; amount: string } | null>(null)
+  const pay = (r: InvoiceRow) => {
+    const first = accounts.find((a) => a.currency === r.currency)?.id || ''
+    setPayInv({ row: r, accountId: first, amount: String(r.remaining_cents / 100) })
+  }
+  const submitPayInv = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!payInv || !payInv.accountId) return
+    try {
+      await accSend('post', `/invoices/${payInv.row.id}/pay`, {
+        account_id: payInv.accountId,
+        amount_cents: payInv.amount.trim() ? cents(payInv.amount) : null,
+      })
+      setPayInv(null)
+      onMessage({ type: 'ok', text: 'Fatura ödemesi kaydedildi' })
+      load(); reloadAccounts()
+    } catch (err) { onMessage({ type: 'error', text: apiErrorMessage(err) }) }
   }
   const setLine = (i: number, patch: Partial<Line>) => form && setForm({ ...form, lines: form.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) })
   return (
@@ -758,7 +904,7 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
             <Label label="Tür"><select className={inputClass} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}><option value="purchase">Alış faturası</option><option value="sales">Satış faturası</option></select></Label>
             <TextInput label="Fatura no" required value={form.number} onChange={(v) => setForm({ ...form, number: v })} />
             <Label label="Cari"><select required className={inputClass} value={form.counterparty_id} onChange={(e) => setForm({ ...form, counterparty_id: e.target.value })}><option value="">Seçin</option>{parties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Label>
-            <Label label="Para birimi"><select className={inputClass} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>{['TRY', 'USD', 'EUR', 'GBP'].map((c) => <option key={c}>{c}</option>)}</select></Label>
+            <Label label="Para birimi"><select className={inputClass} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Label>
             <TextInput label="Fatura tarihi" type="date" max={today()} value={form.issue_date} onChange={(v) => setForm({ ...form, issue_date: v })} />
             <TextInput label="Vade" type="date" value={form.due_date} onChange={(v) => setForm({ ...form, due_date: v })} />
             <Label label="Depo (stoklu satırlar için)"><select className={inputClass} value={form.warehouse_id} onChange={(e) => setForm({ ...form, warehouse_id: e.target.value })}><option value="">—</option>{warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select></Label>
@@ -791,6 +937,7 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
         <div className="flex flex-wrap items-center gap-2">
           <select className={`${inputClass} w-40`} value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })}><option value="">Alış + satış</option><option value="purchase">Alış</option><option value="sales">Satış</option></select>
           <label className="flex items-center gap-1.5 text-xs font-semibold"><input type="checkbox" checked={filters.unpaid} onChange={(e) => setFilters({ ...filters, unpaid: e.target.checked })} /> Yalnız ödenmemiş</label>
+          {rows.length > 0 && <button type="button" className={`${ghostButton} ml-auto`} onClick={() => exportCsv('faturalar.csv', ['Tarih', 'Tür', 'No', 'Cari', 'Vade', 'Toplam', 'Kalan', 'Para Birimi', 'Durum'], rows.map((r) => [fmt(r.issue_date), r.kind_label, r.number, r.counterparty, fmt(r.due_date), r.total_cents / 100, r.remaining_cents / 100, r.currency, PAY_STATUS[r.payment_status][0]]))}>⬇ CSV</button>}
         </div>
         <Table>
           <THead><Tr><Th>Tarih</Th><Th>Tür</Th><Th>No</Th><Th>Cari</Th><Th>Vade</Th><Th className="text-right">Toplam</Th><Th className="text-right">Kalan</Th><Th>Durum</Th><Th /></Tr></THead>
@@ -806,6 +953,35 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
           ))}{!rows.length && <Tr><Td colSpan={9} className="text-center text-gray-400">Fatura yok.</Td></Tr>}</TBody>
         </Table>
       </Card>
+      {payInv && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPayInv(null)}>
+          <form onSubmit={submitPayInv} onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-bold text-gray-900">
+              Fatura #{payInv.row.number} — {payInv.row.kind === 'purchase' ? 'Ödeme Yap' : 'Tahsilat Al'}
+            </h3>
+            <p className="text-xs text-gray-500">
+              {payInv.row.counterparty} · Kalan: <b>{formatMoney(payInv.row.remaining_cents, payInv.row.currency)}</b>
+            </p>
+            <AccountSelect
+              accounts={accounts}
+              currency={payInv.row.currency}
+              value={payInv.accountId}
+              onChange={(v) => setPayInv({ ...payInv, accountId: v })}
+              label={payInv.row.kind === 'purchase' ? 'Ödendiği hesap' : 'Tahsil edildiği hesap'}
+            />
+            <TextInput
+              label={`Tutar (${payInv.row.currency})`}
+              inputMode="decimal"
+              value={payInv.amount}
+              onChange={(v) => setPayInv({ ...payInv, amount: v })}
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setPayInv(null)} className={ghostButton}>Vazgeç</button>
+              <button type="submit" disabled={!payInv.accountId} className={primaryButton}>Kaydet</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

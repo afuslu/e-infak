@@ -140,6 +140,15 @@ export default function CampaignDetailClient({ slug, locale = 'tr' }: { slug: st
                 </Button>
               </Link>
 
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`${campaign.title} kampanyasına destek olun: ${typeof window !== 'undefined' ? window.location.href : `/kampanyalar/${campaign.slug}`}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800 transition-colors hover:bg-green-100"
+              >
+                WhatsApp&apos;ta Paylaş
+              </a>
+
               <div className="mt-4 rounded-lg bg-gray-50 p-4">
                 <p className="text-xs text-gray-600">
                   {taxDeduction && <>Bağışlarınız vergi indirimi kapsamındadır.{' '}</>}

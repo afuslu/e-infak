@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
 import { PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
-import { adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
+import { adminApiBase, adminAuthHeaders, exportCsv } from '../../../../lib/admin-access'
 
 interface Subscription {
   id: string
@@ -63,12 +63,24 @@ export default function AdminSubscriptionsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Düzenli Bağış & Abonelik Yönetimi" actions={<button
-          onClick={loadSubscriptions}
-          className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
-        >
-          Yenile
-        </button>} />
+      <PageHeader title="Düzenli Bağış & Abonelik Yönetimi" actions={<div className="flex gap-2">
+          {subscriptions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => exportCsv('duzenli-bagislar.csv', ['Bağışçı', 'Kampanya', 'Kart', 'Sonraki Çekim', 'Durum', 'Tutar (TL)'],
+                subscriptions.map((s) => [s.donor_name, s.campaign_title, `${s.card_brand} **** ${s.card_last4}`, s.next_billing_date ? new Date(s.next_billing_date).toLocaleDateString('tr-TR') : '', s.status, s.amount_lira]))}
+              className="text-xs font-bold text-gray-700 hover:bg-gray-50 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
+            >
+              ⬇ CSV
+            </button>
+          )}
+          <button
+            onClick={loadSubscriptions}
+            className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
+          >
+            Yenile
+          </button>
+        </div>} />
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">

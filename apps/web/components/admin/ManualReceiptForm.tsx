@@ -175,52 +175,56 @@ export function ManualReceiptForm({
     }
   }
 
+  const compact = Boolean(presetDonor && !kurban)
+
   return (
-    <form onSubmit={submit} className="grid gap-4 lg:grid-cols-2">
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-gray-900">Bağışçı</h3>
-        {donor ? (
-          <div className="flex items-center justify-between rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm">
-            <div>
-              <div className="font-semibold">{donor.full_name}</div>
-              <div className="text-xs text-gray-500">{[donor.phone, donor.email].filter(Boolean).join(' · ')}</div>
+    <form onSubmit={submit} className={compact ? 'space-y-3' : 'grid gap-4 lg:grid-cols-2'}>
+      {!compact && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-gray-900">Bağışçı</h3>
+          {donor ? (
+            <div className="flex items-center justify-between rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm">
+              <div>
+                <div className="font-semibold">{donor.full_name}</div>
+                <div className="text-xs text-gray-500">{[donor.phone, donor.email].filter(Boolean).join(' · ')}</div>
+              </div>
+              {!presetDonor && <button type="button" onClick={() => setDonor(null)} className="text-xs font-bold text-primary-700">Değiştir</button>}
             </div>
-            {!presetDonor && <button type="button" onClick={() => setDonor(null)} className="text-xs font-bold text-primary-700">Değiştir</button>}
-          </div>
-        ) : (
-          <>
-            <div className="relative">
-              <TextInput label="Kayıtlı bağışçı ara" placeholder="Ad, telefon veya e-posta" value={donorQuery} onChange={setDonorQuery} />
-              {donorResults.length > 0 && (
-                <ul className="absolute z-10 mt-1 w-full rounded-lg border bg-white shadow-lg">
-                  {donorResults.map((d) => (
-                    <li key={d.id}>
-                      <button type="button" onClick={() => { setDonor(d); setDonorQuery('') }} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50">
-                        <span className="font-semibold">{d.full_name}</span>
-                        <span className="ml-2 text-xs text-gray-500">{d.phone || d.email}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div className="text-xs font-semibold text-gray-400">veya yeni bağışçı (aynı telefon/e-posta varsa mevcut kayda bağlanır)</div>
-            <div className="grid grid-cols-2 gap-3">
-              <TextInput label="Ad" value={newDonor.first_name} onChange={(v) => setNewDonor({ ...newDonor, first_name: v })} />
-              <TextInput label="Soyad" value={newDonor.last_name} onChange={(v) => setNewDonor({ ...newDonor, last_name: v })} />
-              <TextInput label="Telefon" value={newDonor.phone} onChange={(v) => setNewDonor({ ...newDonor, phone: v })} />
-              <TextInput label="E-posta" type="email" value={newDonor.email} onChange={(v) => setNewDonor({ ...newDonor, email: v })} />
-            </div>
-          </>
-        )}
-        {kurban && (
-          <TextInput label="Kimin adına (isteğe bağlı)" placeholder="ör. Rahmetli babam Ahmet Yılmaz" maxLength={200}
-            value={form.on_behalf_of} onChange={(v) => setForm({ ...form, on_behalf_of: v })} />
-        )}
-      </div>
+          ) : (
+            <>
+              <div className="relative">
+                <TextInput label="Kayıtlı bağışçı ara" placeholder="Ad, telefon veya e-posta" value={donorQuery} onChange={setDonorQuery} />
+                {donorResults.length > 0 && (
+                  <ul className="absolute z-10 mt-1 w-full rounded-lg border bg-white shadow-lg">
+                    {donorResults.map((d) => (
+                      <li key={d.id}>
+                        <button type="button" onClick={() => { setDonor(d); setDonorQuery('') }} className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50">
+                          <span className="font-semibold">{d.full_name}</span>
+                          <span className="ml-2 text-xs text-gray-500">{d.phone || d.email}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="text-xs font-semibold text-gray-400">veya yeni bağışçı (aynı telefon/e-posta varsa mevcut kayda bağlanır)</div>
+              <div className="grid grid-cols-2 gap-3">
+                <TextInput label="Ad" value={newDonor.first_name} onChange={(v) => setNewDonor({ ...newDonor, first_name: v })} />
+                <TextInput label="Soyad" value={newDonor.last_name} onChange={(v) => setNewDonor({ ...newDonor, last_name: v })} />
+                <TextInput label="Telefon" value={newDonor.phone} onChange={(v) => setNewDonor({ ...newDonor, phone: v })} />
+                <TextInput label="E-posta" type="email" value={newDonor.email} onChange={(v) => setNewDonor({ ...newDonor, email: v })} />
+              </div>
+            </>
+          )}
+          {kurban && (
+            <TextInput label="Kimin adına (isteğe bağlı)" placeholder="ör. Rahmetli babam Ahmet Yılmaz" maxLength={200}
+              value={form.on_behalf_of} onChange={(v) => setForm({ ...form, on_behalf_of: v })} />
+          )}
+        </div>
+      )}
 
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-gray-900">Bağış</h3>
+        {!compact && <h3 className="text-sm font-bold text-gray-900">Bağış</h3>}
         {kurban ? (
           <>
             <div className="grid grid-cols-2 gap-3">
@@ -244,16 +248,16 @@ export function ManualReceiptForm({
             <div className="text-xs font-bold text-gray-600">Makbuz detayı</div>
             {lines.map((line, index) => (
               <div key={index} className="grid grid-cols-12 gap-2">
-                <select required aria-label="Bağış kalemi" className={`${inputClass} col-span-12 sm:col-span-5`} value={line.campaign_id}
+                <select required aria-label="Bağış kalemi" className={`${inputClass} col-span-12 sm:col-span-4`} value={line.campaign_id}
                   onChange={(e) => setLine(index, { campaign_id: e.target.value })}>
                   <option value="">Bağış kalemi seçin</option>
                   {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                 </select>
-                <input aria-label="Adet" inputMode="numeric" className={`${inputClass} col-span-2 sm:col-span-1 text-center`} value={line.quantity}
+                <input aria-label="Adet" inputMode="numeric" className={`${inputClass} col-span-3 sm:col-span-2 text-center`} value={line.quantity}
                   onChange={(e) => setLine(index, { quantity: e.target.value.replace(/\D/g, '') })} />
                 <input aria-label="Tutar" required inputMode="decimal" placeholder="Tutar" className={`${inputClass} col-span-5 sm:col-span-3 text-right font-mono`} value={line.amount}
                   onChange={(e) => setLine(index, { amount: e.target.value })} />
-                <select aria-label="Döviz" className={`${inputClass} col-span-4 sm:col-span-2`} value={line.currency} onChange={(e) => setLine(index, { currency: e.target.value })}>
+                <select aria-label="Döviz" className={`${inputClass} col-span-3 sm:col-span-2`} value={line.currency} onChange={(e) => setLine(index, { currency: e.target.value })}>
                   <option value="TRY">TL</option><option value="USD">USD</option><option value="EUR">EUR</option>
                 </select>
                 <button type="button" aria-label="Satırı sil" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, i) => i !== index))}

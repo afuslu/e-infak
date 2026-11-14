@@ -91,7 +91,11 @@ async def get_current_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User does not belong to this organization",
             )
-    
+
+    from app.services.ip_rules import denial
+    reason = await denial(db, user, request.client.host if request.client else None)
+    if reason:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
     return user
 
 

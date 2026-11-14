@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
-import { Copy, KeyRound, Pencil, Plus, Search, Shield, X } from 'lucide-react'
+import { Copy, Download, KeyRound, Pencil, Plus, Search, Shield, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, exportCsv, hasPermission, useAdminAccess, type CapabilityGroup } from '../../../../lib/admin-access'
 import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface StaffUser {
@@ -37,6 +37,7 @@ interface StaffRole {
   name: string
   description: string | null
   permissions: string[]
+  capabilities?: string[]
   user_count: number
 }
 
@@ -144,9 +145,8 @@ export default function AdminUsersPage() {
         <RolesTab
           roles={roles}
           canManage={canManage}
-          permissionCatalog={access?.permission_catalog || []}
-          myPermissions={access?.me.permissions || []}
-          permissionLabel={permissionLabel}
+          catalog={access?.capability_catalog || []}
+          mine={access?.me.capabilities || []}
           run={run}
         />
       )}
@@ -286,6 +286,14 @@ function UsersTab({
               Kullanıcı sınırına ulaşıldı. Yeni hesap için paketi yükseltin veya bir hesabı pasifleştirin.
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => exportCsv('personeller.csv', ['Ad', 'Soyad', 'E-posta', 'Telefon', 'Rol', 'Birim', 'Durum'],
+              users.map((u) => [u.first_name, u.last_name, u.email, u.phone || '', u.staff_role_name || u.role_label, u.department_name || '', u.is_active ? 'Aktif' : 'Pasif']))}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <Download className="h-3.5 w-3.5" /> CSV
+          </button>
           <button className={`inline-flex items-center gap-1.5 ${buttonClass}`} disabled={seatsFull} onClick={() => setShowForm((v) => !v)}>
             {showForm ? <><X className="h-4 w-4" /> Vazgeç</> : <><Plus className="h-4 w-4" /> Personel Ekle</>}
           </button>
@@ -682,189 +690,127 @@ function DepartmentsTab({ departments, canManage, run }: { departments: Departme
   )
 }
 
-const PERMISSION_GROUPS: { title: string; keys: string[] }[] = [
-  { title: 'Genel & Raporlama', keys: ['admin_read', 'report_read'] },
-  { title: 'Operasyon & İçerik', keys: ['donor_manage', 'content_manage', 'operations_manage'] },
-  { title: 'Finans & Yönetim', keys: ['finance_manage', 'settings_manage', 'user_manage'] },
-]
-
-function RolesTab({
-  roles, canManage, permissionCatalog, myPermissions, permissionLabel, run,
-}: {
+/**
+ * STK PRO style role editor: role tabs, then one card per module. The card switch turns the whole
+ * module on or off; ticks are single rules. Red ticks widen what the person sees beyond their own records.
+ */
+function RolesTab({ roles, canManage, catalog, mine, run }: {
   roles: StaffRole[]
   canManage: boolean
-  permissionCatalog: { key: string; label: string }[]
-  myPermissions: string[]
-  permissionLabel: (key: string) => string
+  catalog: CapabilityGroup[]
+  mine: string[]
   run: Run
 }) {
-  const [editing, setEditing] = useState<StaffRole | null>(null)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [permissions, setPermissions] = useState<string[]>(['admin_read'])
+  const [selectedId, setSelectedId] = useState<string | null>(roles[0]?.id || null)
+  const [ticks, setTicks] = useState<string[]>([])
+  const [dirty, setDirty] = useState(false)
+  const [newName, setNewName] = useState<string | null>(null)
+  const selected = roles.find((r) => r.id === selectedId) || null
 
-  const groupedCatalog = useMemo(() => {
-    const byKey = new Map(permissionCatalog.map((p) => [p.key, p]))
-    const used = new Set<string>()
-    const groups = PERMISSION_GROUPS.map((g) => {
-      const items = g.keys
-        .map((k) => byKey.get(k))
-        .filter((item): item is { key: string; label: string } => Boolean(item))
-      items.forEach((i) => used.add(i.key))
-      return { title: g.title, items }
-    }).filter((g) => g.items.length > 0)
+  useEffect(() => {
+    if (!selectedId && roles[0]) setSelectedId(roles[0].id)
+  }, [roles, selectedId])
+  useEffect(() => {
+    setTicks(selected?.capabilities || [])
+    setDirty(false)
+  }, [selected])
 
-    const rest = permissionCatalog.filter((p) => !used.has(p.key))
-    if (rest.length > 0) {
-      groups.push({ title: 'Diğer Yetkiler', items: rest })
-    }
-    return groups
-  }, [permissionCatalog])
-
-  const grantableKeys = useMemo(
-    () => permissionCatalog.map((p) => p.key).filter((k) => myPermissions.includes(k)),
-    [permissionCatalog, myPermissions],
-  )
-
-  const startEdit = (role: StaffRole | null) => {
-    setEditing(role)
-    setName(role?.name || '')
-    setDescription(role?.description || '')
-    setPermissions(role?.permissions || ['admin_read'])
+  const grantable = (key: string) => mine.includes(key)
+  const setGroup = (group: CapabilityGroup, on: boolean) => {
+    const keys = group.capabilities.map((c) => c.key).filter(grantable)
+    setTicks((t) => (on ? Array.from(new Set([...t, ...keys])) : t.filter((k) => !keys.includes(k))))
+    setDirty(true)
+  }
+  const toggle = (key: string) => {
+    setTicks((t) => (t.includes(key) ? t.filter((k) => k !== key) : [...t, key]))
+    setDirty(true)
   }
 
-  const copyFromRole = (role: StaffRole) => {
-    setEditing(null)
-    setName(`${role.name} (Kopya)`)
-    setDescription(role.description || '')
-    const allowed = role.permissions.filter((p) => p === 'admin_read' || myPermissions.includes(p))
-    setPermissions(Array.from(new Set(['admin_read', ...allowed])))
+  const save = async () => {
+    if (!selected) return
+    const ok = await run(() => adminSend('put', `/staff-roles/${selected.id}`, {
+      name: selected.name, description: selected.description, permissions: [], capabilities: ticks,
+    }), `"${selected.name}" rolü kaydedildi`)
+    if (ok) setDirty(false)
   }
-
-  const toggle = (key: string) =>
-    setPermissions((prev) => (prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]))
-
-  const selectAllGrantable = () => {
-    setPermissions(Array.from(new Set(['admin_read', ...grantableKeys])))
+  const create = async () => {
+    const name = (newName || '').trim()
+    if (name.length < 2) return
+    const ok = await run(() => adminSend('post', '/staff-roles', { name, permissions: [], capabilities: [] }), 'Rol eklendi')
+    if (ok) setNewName(null)
   }
-
-  const clearGrantable = () => {
-    setPermissions(['admin_read'])
-  }
-
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const body = { name, description: description || null, permissions }
-    const ok = editing
-      ? await run(() => adminSend('put', `/staff-roles/${editing.id}`, body), 'Rol güncellendi')
-      : await run(() => adminSend('post', '/staff-roles', body), 'Rol oluşturuldu')
-    if (ok) startEdit(null)
-  }
-
-  const remove = async (role: StaffRole) => {
-    if ((await confirmDialog(`"${role.name}" rolü silinsin mi?`))) {
-      run(() => adminSend('delete', `/staff-roles/${role.id}`), 'Rol silindi')
-    }
+  const remove = async () => {
+    if (!selected) return
+    if (!(await confirmDialog({ title: `"${selected.name}" rolü kaldırılsın mı?`,
+      text: selected.user_count ? `${selected.user_count} personelin rolü boşalır; hazır rollerinden yetki alırlar.` : undefined }))) return
+    const ok = await run(() => adminSend('delete', `/staff-roles/${selected.id}`), 'Rol kaldırıldı')
+    if (ok) setSelectedId(null)
   }
 
   return (
-    <div className="grid items-start gap-6 lg:grid-cols-12">
-      <Card className="border border-gray-100 p-6 shadow-sm lg:col-span-7">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900">
-            <Shield className="h-4 w-4 text-primary-600" /> Kuruma özel roller
-          </h2>
-          <span className="text-xs text-gray-500">{roles.length} rol</span>
-        </div>
-        {roles.length === 0 ? (
-          <p className="py-6 text-center text-xs text-gray-400">Henüz özel rol yok. Hazır roller yetmiyorsa sağdan yeni rol oluşturun.</p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {roles.map((role) => (
+          <button key={role.id} type="button" onClick={() => setSelectedId(role.id)}
+            className={`rounded-lg px-3.5 py-2 text-sm font-semibold ${role.id === selectedId ? 'bg-primary-600 text-white' : 'border border-gray-200 bg-white text-gray-700 hover:border-primary-600'}`}>
+            {role.name}<span className="ml-1.5 text-xs opacity-70">{role.user_count}</span>
+          </button>
+        ))}
+        {canManage && (newName === null ? (
+          <button type="button" onClick={() => setNewName('')} className="inline-flex items-center gap-1 rounded-lg border border-dashed border-primary-400 px-3.5 py-2 text-sm font-semibold text-primary-700">
+            <Plus className="h-4 w-4" /> Yeni Rol Ekle
+          </button>
         ) : (
-          <ul className="divide-y divide-gray-100">
-            {roles.map((role) => {
-              const isEditing = editing?.id === role.id
+          <span className="flex items-center gap-2">
+            <input autoFocus className={`${inputClass} w-48`} placeholder="Rol adı" value={newName}
+              onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') create() }} />
+            <button type="button" onClick={create} className={buttonClass}>Ekle</button>
+            <button type="button" onClick={() => setNewName(null)} className="text-sm text-gray-500">İptal</button>
+          </span>
+        ))}
+      </div>
+
+      {!selected ? (
+        <p className="py-10 text-center text-sm text-gray-400">Henüz kuruma özel rol yok. “Yeni Rol Ekle” ile başlayın; hazır roller (Muhasebe, Çağrı Merkezi…) kullanıcı düzenlemede seçilebilir.</p>
+      ) : (
+        <Card className="space-y-4 border border-gray-100 p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900">
+              <Shield className="h-4 w-4 text-primary-600" /> “{selected.name}” rolü için yetki ve görev tanımlama
+            </h2>
+            {canManage && (
+              <div className="flex gap-2">
+                <button type="button" onClick={remove} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Bu rolü kaldır</button>
+                <button type="button" disabled={!dirty} onClick={save} className={buttonClass}>Bu Rolü Kaydet</button>
+              </div>
+            )}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {catalog.map((group) => {
+              const on = group.capabilities.some((c) => ticks.includes(c.key))
               return (
-                <li key={role.id} className={`py-3 transition ${isEditing ? '-mx-3 rounded-lg bg-primary-50/50 px-3' : ''}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-semibold text-gray-900">
-                      {role.name}
-                      <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">{role.user_count} personel</span>
-                    </div>
-                    {canManage && (
-                      <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
-                        <button type="button" onClick={() => copyFromRole(role)} className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-0.5 text-gray-600 hover:bg-gray-50" title="Bu rolün yetkilerini kopyalayarak yeni rol oluştur">
-                          <Copy className="h-3 w-3" /> Kopyala
-                        </button>
-                        <button type="button" onClick={() => startEdit(role)} className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-0.5 text-primary-700 hover:bg-primary-50">
-                          <Pencil className="h-3 w-3" /> Düzenle
-                        </button>
-                        <button type="button" onClick={() => remove(role)} className="rounded border border-red-200 px-2 py-0.5 text-red-600 hover:bg-red-50">
-                          Sil
-                        </button>
-                      </div>
-                    )}
+                <div key={group.key} className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-gray-900">{group.label}</span>
+                    <button type="button" role="switch" aria-checked={on} aria-label={`${group.label} modülü`} disabled={!canManage}
+                      onClick={() => setGroup(group, !on)}
+                      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${on ? 'bg-primary-600' : 'bg-gray-300'} disabled:opacity-50`}>
+                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
+                    </button>
                   </div>
-                  {role.description && <div className="mt-0.5 text-xs text-gray-500">{role.description}</div>}
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {role.permissions.map((p) => (
-                      <span key={p} className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] font-semibold text-gray-700">{permissionLabel(p)}</span>
+                  <div className="space-y-2">
+                    {group.capabilities.map((cap) => (
+                      <label key={cap.key} className={`flex items-start gap-2 text-[13px] leading-snug ${!grantable(cap.key) ? 'text-gray-400' : cap.rule ? 'text-red-600' : 'text-gray-700'}`}>
+                        <input type="checkbox" className="mt-0.5" checked={ticks.includes(cap.key)} disabled={!canManage || !grantable(cap.key)} onChange={() => toggle(cap.key)} />
+                        <span>{cap.label}{!grantable(cap.key) && <span className="text-[10px]"> (sizde yok)</span>}</span>
+                      </label>
                     ))}
                   </div>
-                </li>
+                </div>
               )
             })}
-          </ul>
-        )}
-      </Card>
-
-      {canManage && (
-        <Card className="border border-gray-100 p-6 shadow-sm lg:col-span-5">
-          <form onSubmit={save} className="space-y-4">
-            <h2 className="text-sm font-bold text-gray-900">{editing ? `"${editing.name}" rolünü düzenle` : 'Yeni özel rol'}</h2>
-            <label className="block text-xs font-semibold text-gray-600">Rol adı
-              <input required minLength={2} className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="ör. Bölge Temsilcisi" />
-            </label>
-            <label className="block text-xs font-semibold text-gray-600">Açıklama
-              <input className={inputClass} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="ör. Yalnızca kendi bölgesinin raporlarını görür" />
-            </label>
-            <fieldset className="space-y-3">
-              <div className="flex items-center justify-between">
-                <legend className="text-xs font-semibold text-gray-600">Yetkiler</legend>
-                <div className="flex gap-2 text-[11px] font-semibold">
-                  <button type="button" onClick={selectAllGrantable} className="text-primary-700 hover:underline">Tümünü seç</button>
-                  <span className="text-gray-300">·</span>
-                  <button type="button" onClick={clearGrantable} className="text-gray-500 hover:underline">Temizle</button>
-                </div>
-              </div>
-              {groupedCatalog.map((group) => (
-                <div key={group.title} className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-gray-500">{group.title}</div>
-                  <div className="space-y-1.5">
-                    {group.items.map((p) => {
-                      const grantable = myPermissions.includes(p.key)
-                      const required = p.key === 'admin_read'
-                      return (
-                        <label key={p.key} className={`flex items-center gap-2 text-sm ${grantable ? 'text-gray-800' : 'text-gray-400'}`}>
-                          <input
-                            type="checkbox"
-                            checked={required || permissions.includes(p.key)}
-                            disabled={required || !grantable}
-                            onChange={() => toggle(p.key)}
-                          />
-                          <span>{p.label}</span>
-                          {required && <span className="text-[10px] text-gray-400">(zorunlu)</span>}
-                          {!grantable && <span className="text-[10px]">(sizde yok)</span>}
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </fieldset>
-            <div className="flex justify-end gap-2">
-              {editing && <button type="button" onClick={() => startEdit(null)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">Vazgeç</button>}
-              <button type="submit" className={buttonClass}>{editing ? 'Kaydet' : 'Rol Oluştur'}</button>
-            </div>
-          </form>
+          </div>
+          <p className="text-xs text-gray-500">Kırmızı yetkiler kapalıyken personel yalnızca temsilcisi olduğu bağışçıları ve kendi kestiği makbuzları görür. Telefon yetkisi kapalıysa numaralar <span className="font-mono">0532 *** ** 12</span> biçiminde görünür.</p>
         </Card>
       )}
     </div>

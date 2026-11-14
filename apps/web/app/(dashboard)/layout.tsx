@@ -4,7 +4,7 @@ import { useCurrentUser, useLogout } from '@e-infak/api-client'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDownToLine, BarChart3, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, ExternalLink, FileUp, Film, FolderOpen, GraduationCap, HandCoins, HandHelping, HeartHandshake, Home, IdCard, Images, KeyRound, Landmark, LayoutDashboard, Lock, LogOut, MailPlus, Megaphone, MessagesSquare, Monitor, Moon, Newspaper, Package, PackageCheck, PiggyBank, Plug, Receipt, Repeat, Scale, Send, Settings, ShieldCheck, Sparkles, Sun, Tags, Users, Wallet, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, BarChart3, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, ExternalLink, FileUp, Film, FolderOpen, Globe2, GraduationCap, HandCoins, HandHelping, HeartHandshake, History, Home, IdCard, Images, KeyRound, Landmark, LayoutDashboard, Lock, LogIn, LogOut, type LucideIcon, MailPlus, Megaphone, MessagesSquare, Monitor, Moon, Newspaper, Package, PackageCheck, PiggyBank, Plug, Receipt, Repeat, Scale, Send, Settings, ShieldCheck, Sparkles, Sun, Tags, Users, Wallet } from 'lucide-react'
 import { UiHost } from '../../components/admin/ui'
 import { hasFeature, hasPermission, useAdminAccess } from '../../lib/admin-access'
 
@@ -92,6 +92,10 @@ const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/odeme-sms', label: 'Ödeme & SMS Hesapları', icon: KeyRound, permission: 'settings_manage' },
       { href: '/admin/integrations', label: 'API & Webhook', icon: Plug, permission: 'settings_manage' },
       { href: '/admin/users', label: 'Personel & Yetkiler', icon: ShieldCheck, feature: 'roles' },
+      { href: '/admin/ip-kurallari', label: 'IP İzinleri & Engelleri', icon: Globe2, permission: 'settings_manage' },
+      { href: '/admin/giris-kayitlari', label: 'Giriş Kayıtları', icon: LogIn, permission: 'settings_manage' },
+      { href: '/admin/islem-kayitlari', label: 'İşlem Kayıtları', icon: History, permission: 'settings_manage' },
+      { href: '/admin/kurlar', label: 'Döviz & Altın Kurları', icon: Coins },
       { href: '/admin/paket', label: 'Paket & Kullanım', icon: PackageCheck },
     ],
   },

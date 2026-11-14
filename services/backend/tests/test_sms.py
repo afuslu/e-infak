@@ -207,7 +207,7 @@ async def test_quick_send_needs_consent_or_informational_and_can_be_scheduled(db
 
     listing = await sms_api.list_messages(_request(org, "GET"), db_session, status=None, source=None, q="bozkurt",
                                           donor_id=None, related_type=None, related_id=None, date_from=None,
-                                          date_to=None, page=1, page_size=50)
+                                          date_to=None, page=1, page_size=50, current_user=admin)
     assert listing["total"] == 2 and listing["counts"]["scheduled"] == 1
     assert listing["items"][0]["donor_name"] == "Seçkin Bozkurt"
 
@@ -247,7 +247,8 @@ async def test_templates_crud_preview_and_validation(db_session):
         db_session, admin)
     preview = await sms_api.preview_sms(
         _request(org, "GET"), uuid.UUID(created["id"]), donor_id=donor.id, donation_id=None, transfer_id=None,
-        variables='{"tutar": "4.000,00", "bagis_kalemi": "VACİP KURBAN HİSSE", "olmayan": "x"}', db=db_session)
+        variables='{"tutar": "4.000,00", "bagis_kalemi": "VACİP KURBAN HİSSE", "olmayan": "x"}', db=db_session,
+        current_user=admin)
     assert preview["body"] == "Değerli bağışçımız, 4.000,00 TL tutarındaki VACİP KURBAN HİSSE bağışınız ulaşmıştır."
     assert preview["segments"]["encoding"] == "tr" and preview["allow_sms"] is True
 

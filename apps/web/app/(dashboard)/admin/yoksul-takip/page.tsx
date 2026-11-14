@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { MessageCircle } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
-  adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
+  adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
@@ -514,6 +515,14 @@ export default function PovertyTrackingPage() {
                     <Td>{fmtDate(h.last_delivery_at)}{h.total_received ? ` (${h.total_received})` : ''}</Td>
                     <Td>{h.review_label}</Td>
                     <Td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                      {(() => {
+                        const wa = whatsappUrl(h.phone, `Merhaba ${h.full_name}, yardım başvurunuz / durumunuz hakkında iletişime geçiyoruz.`)
+                        return wa ? (
+                          <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp ile mesaj gönder" className="mr-2 inline-flex align-middle text-emerald-600 hover:text-emerald-700">
+                            <MessageCircle className="h-4 w-4" />
+                          </a>
+                        ) : null
+                      })()}
                       {canEdit && tab === 'applications' && <>
                         {h.review_status === 'applied' && <button className="mr-2 font-bold text-gray-700" onClick={() => review(h, 'inspecting')}>İncele</button>}
                         <button className="mr-2 font-bold text-primary-700" onClick={() => review(h, 'approved')}>Onayla</button>

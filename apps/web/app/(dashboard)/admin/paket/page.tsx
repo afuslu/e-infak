@@ -1,11 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Check, HardDrive, Landmark, PackageCheck, Sparkles, Users } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminSend, apiErrorMessage, useAdminAccess } from '../../../../lib/admin-access'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 const FEATURE_CATEGORIES: { title: string; keys: string[] }[] = [
   {
@@ -120,64 +121,132 @@ export default function PackagePage() {
       <PageHeader title="Paket & Kullanım" description={<>Kurumunuzun paketi, açık modüller ve kullanım kotaları.</>} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Mevcut Paket</span>
-            <PackageCheck className="h-4 w-4 text-primary-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-primary-700">{access.plan_label}</div>
-          <div className="mt-2 text-xs text-gray-500">
-            {access.features.length} / {access.catalog.length} modül aktif
-          </div>
-          {access.addons.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {access.addons.map((a) => (
-                <span key={a} className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                  <Sparkles className="h-2.5 w-2.5" /> {labelOf(a)}
-                </span>
-              ))}
+        <StatCard
+          label="Mevcut Paket"
+          icon={PackageCheck}
+          tone="brand"
+          value={access.plan_label}
+          hint={
+            <div className="space-y-1.5">
+              <div>{access.features.length} / {access.catalog.length} modül aktif</div>
+              {access.addons.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {access.addons.map((a) => (
+                    <span key={a} className="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                      <Sparkles className="h-2.5 w-2.5" /> {labelOf(a)}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </Card>
+          }
+          detail={{
+            title: `${access.plan_label} · Aktif Modüller`,
+            description: `${access.features.length} / ${access.catalog.length} modül aktif`,
+            content: () => (
+              <Table>
+                <THead><Tr><Th>Modül</Th><Th className="text-right">Durum</Th></Tr></THead>
+                <TBody>
+                  {access.catalog.map((m) => {
+                    const active = access.features.includes(m.key)
+                    return (
+                      <Tr key={m.key}>
+                        <Td className="font-semibold">{m.label}</Td>
+                        <Td className={`text-right text-xs font-bold ${active ? 'text-green-700' : 'text-gray-400'}`}>
+                          {active ? 'Aktif' : 'Kapalı'}
+                        </Td>
+                      </Tr>
+                    )
+                  })}
+                </TBody>
+              </Table>
+            ),
+          }}
+        />
 
-        <Card className="border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Aktif Kullanıcı</span>
-            <Users className="h-4 w-4 text-gray-400" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-gray-950">{access.usage.users} / {access.limits.users}</div>
-          {access.limits.extra_user_seats > 0 && (
-            <div className="text-[11px] text-gray-500">{access.limits.extra_user_seats} ek koltuk dahil</div>
-          )}
-          <UsageBar used={access.usage.users} limit={access.limits.users} />
-        </Card>
+        <StatCard
+          label="Aktif Kullanıcı"
+          icon={Users}
+          value={`${access.usage.users} / ${access.limits.users}`}
+          hint={
+            <div>
+              {access.limits.extra_user_seats > 0 && <div className="text-[11px] text-gray-500">{access.limits.extra_user_seats} ek koltuk dahil</div>}
+              <UsageBar used={access.usage.users} limit={access.limits.users} />
+            </div>
+          }
+          detail={{
+            title: 'Kullanıcı Kotası Özeti',
+            size: 'md',
+            content: () => (
+              <div className="space-y-4">
+                <Table>
+                  <TBody>
+                    <Tr><Td className="font-semibold">Kullanılan Kullanıcı</Td><Td className="text-right font-bold tabular-nums">{access.usage.users}</Td></Tr>
+                    <Tr><Td className="font-semibold">Toplam Kota</Td><Td className="text-right font-bold tabular-nums">{access.limits.users}</Td></Tr>
+                    <Tr><Td className="font-semibold">Ek Koltuk Eklentisi</Td><Td className="text-right font-bold tabular-nums">{access.limits.extra_user_seats}</Td></Tr>
+                  </TBody>
+                </Table>
+                <div className="flex justify-end">
+                  <Link href="/admin/users" className="text-xs font-bold text-primary-700 hover:underline">Personel listesine git →</Link>
+                </div>
+              </div>
+            ),
+          }}
+        />
 
-        <Card className="border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Banka Hesapları</span>
-            <Landmark className="h-4 w-4 text-gray-400" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-gray-950">
-            {access.usage.bank_accounts} / {access.limits.bank_accounts}
-          </div>
-          {access.limits.bank_accounts === 0 ? (
-            <div className="mt-2.5 text-xs text-gray-500">Otomatik banka entegrasyonu Orta ve İleri paketlerde açılır.</div>
-          ) : (
-            <UsageBar used={access.usage.bank_accounts} limit={access.limits.bank_accounts} />
-          )}
-        </Card>
+        <StatCard
+          label="Banka Hesapları"
+          icon={Landmark}
+          value={`${access.usage.bank_accounts} / ${access.limits.bank_accounts}`}
+          hint={access.limits.bank_accounts === 0 ? 'Otomatik banka entegrasyonu Orta ve İleri paketlerde açılır.' : <UsageBar used={access.usage.bank_accounts} limit={access.limits.bank_accounts} />}
+          detail={{
+            title: 'Banka Hesabı Kotası',
+            size: 'md',
+            content: () => (
+              <div className="space-y-4">
+                <Table>
+                  <TBody>
+                    <Tr><Td className="font-semibold">Tanımlı Banka Hesabı</Td><Td className="text-right font-bold tabular-nums">{access.usage.bank_accounts}</Td></Tr>
+                    <Tr><Td className="font-semibold">Paket Limiti</Td><Td className="text-right font-bold tabular-nums">{access.limits.bank_accounts}</Td></Tr>
+                  </TBody>
+                </Table>
+                <div className="flex justify-end">
+                  <Link href="/admin/gelen-havaleler" className="text-xs font-bold text-primary-700 hover:underline">Gelen havalelere git →</Link>
+                </div>
+              </div>
+            ),
+          }}
+        />
 
-        <Card className="border border-gray-100 p-5 shadow-sm">
-          <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Medya Depolama</span>
-            <HardDrive className="h-4 w-4 text-gray-400" />
-          </div>
-          <div className="mt-1 text-xl font-black text-gray-950">
-            {formatBytes(access.usage.storage_bytes)} <span className="text-sm font-semibold text-gray-400">/ {formatBytes(access.limits.storage_bytes)}</span>
-          </div>
-          <div className="text-[11px] text-gray-500">{access.usage.media_count} medya dosyası</div>
-          <UsageBar used={access.usage.storage_bytes} limit={access.limits.storage_bytes} />
-        </Card>
+        <StatCard
+          label="Medya Depolama"
+          icon={HardDrive}
+          value={<span>{formatBytes(access.usage.storage_bytes)} <span className="text-sm font-semibold text-gray-400">/ {formatBytes(access.limits.storage_bytes)}</span></span>}
+          hint={
+            <div>
+              <div className="text-[11px] text-gray-500">{access.usage.media_count} medya dosyası</div>
+              <UsageBar used={access.usage.storage_bytes} limit={access.limits.storage_bytes} />
+            </div>
+          }
+          detail={{
+            title: 'Depolama & Medya Kullanımı',
+            size: 'md',
+            content: () => (
+              <div className="space-y-4">
+                <Table>
+                  <TBody>
+                    <Tr><Td className="font-semibold">Kullanılan Alan</Td><Td className="text-right font-bold tabular-nums">{formatBytes(access.usage.storage_bytes)}</Td></Tr>
+                    <Tr><Td className="font-semibold">Toplam Kota</Td><Td className="text-right font-bold tabular-nums">{formatBytes(access.limits.storage_bytes)}</Td></Tr>
+                    <Tr><Td className="font-semibold">Toplam Medya Dosyası</Td><Td className="text-right font-bold tabular-nums">{access.usage.media_count}</Td></Tr>
+                  </TBody>
+                </Table>
+                <div className="flex justify-end">
+                  <Link href="/admin/icerikler" className="text-xs font-bold text-primary-700 hover:underline">Medya / içeriklere git →</Link>
+                </div>
+              </div>
+            ),
+          }}
+        />
       </div>
 
       {message && (

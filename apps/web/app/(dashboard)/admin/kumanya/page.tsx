@@ -8,7 +8,7 @@ import {
   adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface Package {
   id: string; name: string; contents: string | null; unit_cost_cents: number; donation_campaign_id: string | null
@@ -172,34 +172,108 @@ export default function KumanyaPage() {
       <PageHeader title="Kumanya Dağıtım" description={<>Paketin bağış kalemine gelen bağışlar kaç paketin fonlandığını gösterir; teslimde stok düşer.</>} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Hazır Stok</span>
-            <Boxes className="h-4 w-4 text-primary-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-gray-950">{kpi.stock} <span className="text-xs font-semibold text-gray-500">paket</span></div>
-        </Card>
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Planlı Dağıtım</span>
-            <Truck className="h-4 w-4 text-amber-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-amber-700">{kpi.planned} <span className="text-xs font-semibold text-gray-500">paket</span></div>
-        </Card>
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Teslim Edilen</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">{kpi.delivered} <span className="text-xs font-semibold text-gray-500">paket</span></div>
-        </Card>
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Fonlanan Bağış</span>
-            <Wallet className="h-4 w-4 text-gray-400" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-gray-950">{formatMoney(kpi.fundedCents)}</div>
-        </Card>
+        <StatCard
+          label="Hazır Stok"
+          icon={Boxes}
+          value={<span>{kpi.stock} <span className="text-xs font-semibold text-gray-500">paket</span></span>}
+          detail={{
+            title: 'Kumanya Paket Stokları',
+            content: () => (
+              <Table>
+                <THead><Tr><Th>Paket</Th><Th className="text-right">Stok</Th><Th className="text-right">Planlı</Th><Th className="text-right">Teslim</Th></Tr></THead>
+                <TBody>
+                  {packages.map((p) => (
+                    <Tr key={p.id}>
+                      <Td className="font-semibold">{p.name}</Td>
+                      <Td className={`text-right font-bold tabular-nums ${p.stock <= 5 ? 'text-red-600' : ''}`}>{p.stock}</Td>
+                      <Td className="text-right tabular-nums text-amber-700">{p.planned}</Td>
+                      <Td className="text-right tabular-nums text-emerald-700">{p.delivered}</Td>
+                    </Tr>
+                  ))}
+                  {packages.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Paket yok.</Td></Tr>}
+                </TBody>
+              </Table>
+            ),
+          }}
+        />
+        <StatCard
+          label="Planlı Dağıtım"
+          icon={Truck}
+          tone="warn"
+          value={<span>{kpi.planned} <span className="text-xs font-semibold text-gray-500">paket</span></span>}
+          detail={{
+            title: 'Planlı Dağıtım Kayıtları',
+            content: () => {
+              const plannedRows = distributions.filter((d) => d.status === 'planned')
+              return (
+                <Table>
+                  <THead><Tr><Th>Hane / Alıcı</Th><Th>Paket</Th><Th className="text-right">Adet</Th></Tr></THead>
+                  <TBody>
+                    {plannedRows.map((d) => (
+                      <Tr key={d.id}>
+                        <Td className="font-semibold">{d.recipient_name}</Td>
+                        <Td>{d.package_name}</Td>
+                        <Td className="text-right font-bold tabular-nums">{d.quantity}</Td>
+                      </Tr>
+                    ))}
+                    {plannedRows.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Planlı dağıtım yok.</Td></Tr>}
+                  </TBody>
+                </Table>
+              )
+            },
+          }}
+        />
+        <StatCard
+          label="Teslim Edilen"
+          icon={CheckCircle2}
+          tone="good"
+          value={<span>{kpi.delivered} <span className="text-xs font-semibold text-gray-500">paket</span></span>}
+          detail={{
+            title: 'Teslim Edilen Dağıtımlar',
+            content: () => {
+              const deliveredRows = distributions.filter((d) => d.status === 'delivered')
+              return (
+                <Table>
+                  <THead><Tr><Th>Hane / Alıcı</Th><Th>Paket</Th><Th className="text-right">Adet</Th></Tr></THead>
+                  <TBody>
+                    {deliveredRows.map((d) => (
+                      <Tr key={d.id}>
+                        <Td className="font-semibold">{d.recipient_name}</Td>
+                        <Td>{d.package_name}</Td>
+                        <Td className="text-right font-bold tabular-nums text-emerald-700">{d.quantity}</Td>
+                      </Tr>
+                    ))}
+                    {deliveredRows.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Teslim edilen kayıt yok.</Td></Tr>}
+                  </TBody>
+                </Table>
+              )
+            },
+          }}
+        />
+        <StatCard
+          label="Fonlanan Bağış"
+          icon={Wallet}
+          value={formatMoney(kpi.fundedCents)}
+          detail={{
+            title: 'Paket Bazlı Fonlama Durumu',
+            content: () => (
+              <Table>
+                <THead><Tr><Th>Paket</Th><Th className="text-right">Birim Maliyet</Th><Th className="text-right">Fonlanan Paket</Th><Th className="text-right">Toplam Bağış</Th></Tr></THead>
+                <TBody>
+                  {packages.map((p) => (
+                    <Tr key={p.id}>
+                      <Td className="font-semibold">{p.name}</Td>
+                      <Td className="text-right tabular-nums">{formatMoney(p.unit_cost_cents)}</Td>
+                      <Td className="text-right tabular-nums">{p.funded_packages}</Td>
+                      <Td className="text-right font-bold tabular-nums">{formatMoney(p.funded_cents)}</Td>
+                    </Tr>
+                  ))}
+                  {packages.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Paket yok.</Td></Tr>}
+                </TBody>
+              </Table>
+            ),
+          }}
+        />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">

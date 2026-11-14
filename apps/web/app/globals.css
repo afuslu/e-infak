@@ -232,7 +232,7 @@
 
 
 /* ----- e-infak.org ana sayfası: gündüz ve gece görünümü -----
- * Varsayılan cihazın ayarıdır; ziyaretçi üstteki düğmeyle değiştirirse data-theme yazılır. */
+ * Varsayılan gündüz görünümüdür; ziyaretçi üstteki düğmeyle değiştirirse data-theme yazılır. */
 .portal {
   color-scheme: light;
   --pt-bg: #FFFFFF; --pt-soft: #F6F8F7; --pt-card: #FFFFFF; --pt-line: #E3E8E6;
@@ -246,19 +246,6 @@
   --pt-text: #EEF5F2; --pt-muted: #A5B8B1; --pt-faint: #6F857D;
   --pt-brand: #34D399; --pt-brand-strong: #6EE7B7; --pt-brand-soft: rgb(52 211 153 / .12);
   --pt-shadow: 0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -16px rgb(0 0 0 / .7);
-}
-@media (prefers-color-scheme: dark) {
-  .portal:not([data-theme="light"]) {
-    color-scheme: dark;
-    --pt-bg: #0A1211; --pt-soft: #0F1A18; --pt-card: #121F1C; --pt-line: #213531;
-    --pt-text: #EEF5F2; --pt-muted: #A5B8B1; --pt-faint: #6F857D;
-    --pt-brand: #34D399; --pt-brand-strong: #6EE7B7; --pt-brand-soft: rgb(52 211 153 / .12);
-    --pt-shadow: 0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -16px rgb(0 0 0 / .7);
-  }
-  .portal:not([data-theme="light"]) .pt-day { display: none; }
-  .portal:not([data-theme="light"]) .pt-night { display: inline-flex; }
-  .portal:not([data-theme="light"]) .pt-light-only { display: none; }
-  .portal:not([data-theme="light"]) .pt-dark-only { display: block; }
 }
 .portal .pt-night, .portal .pt-dark-only { display: none; }
 .portal[data-theme="dark"] .pt-light-only { display: none; }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
+import { exportCsv } from '../../lib/admin-access'
 
 interface Donation {
   id: string
@@ -518,10 +519,28 @@ export function PortalClient({ siteName }: { siteName: string }) {
         <div className="flex items-center justify-between gap-4 sm:justify-end">
           <span className="text-lg font-black text-slate-900">{money(d.amount_lira, d.currency)}</span>
           {d.status === 'confirmed' && (
-            <button type="button" onClick={() => printReceipt(d)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">
-              Makbuz
-            </button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button type="button" onClick={() => printReceipt(d)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50">
+                Makbuz
+              </button>
+              <a
+                href={`${apiBase()}/api/v1/public/receipts/${encodeURIComponent(d.receipt_number)}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+              >
+                PDF
+              </a>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`${siteName} üzerinden ${money(d.amount_lira, d.currency)} bağış makbuzum (#${d.receipt_number}): ${typeof window !== 'undefined' ? window.location.origin : ''}/verify/receipt/${encodeURIComponent(d.receipt_number)}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700 hover:bg-green-100"
+              >
+                WhatsApp
+              </a>
+            </div>
           )}
         </div>
       </div>
@@ -765,7 +784,30 @@ export function PortalClient({ siteName }: { siteName: string }) {
   )
 
   const donationList = (
-    <Panel title="Bağış geçmişim">
+    <Panel
+      title="Bağış geçmişim"
+      action={donations.length > 0 && (
+        <button
+          type="button"
+          onClick={() => exportCsv(
+            'bagislarim.csv',
+            ['Makbuz No', 'Tarih', 'Tutar', 'Para Birimi', 'Ödeme Yöntemi', 'Durum', 'Not'],
+            donations.map((d) => [
+              d.receipt_number,
+              date(d.created_at),
+              d.amount_lira,
+              d.currency,
+              METHOD_LABELS[d.payment_method] || d.payment_method,
+              (DONATION_STATUS[d.status] || [d.status])[0],
+              d.donor_message || '',
+            ]),
+          )}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+        >
+          ⬇ CSV İndir
+        </button>
+      )}
+    >
       {donations.length === 0
         ? <Empty icon="🤲" cta={donateLink}>Henüz bağış kaydınız bulunmuyor.</Empty>
         : <div className="divide-y divide-slate-100">{donations.map(donationRow)}</div>}

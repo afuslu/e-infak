@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, exportCsv, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { PageHeader, confirmDialog } from '../../../../components/admin/ui'
 
@@ -150,6 +150,16 @@ export default function TasksPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Görevler & Takvim" actions={<div className="flex gap-2">
+          {tasks.length > 0 && (
+            <button
+              type="button"
+              onClick={() => exportCsv('gorevler.csv', ['Başlık', 'Öncelik', 'Durum', 'Sorumlu', 'Son Tarih'],
+                tasks.map((t) => [t.title, PRIORITY[t.priority].label, STATUS[t.status], t.assigned_to_name || '', t.due_date ? new Date(t.due_date).toLocaleDateString('tr-TR') : '']))}
+              className={ghostButton}
+            >
+              ⬇ CSV
+            </button>
+          )}
           {isManager && <button className={ghostButton} onClick={addTemplate}>+ Şablon</button>}
           <button className={primaryButton} onClick={() => setShowForm((v) => !v)}>{showForm ? 'Vazgeç' : '+ Görev'}</button>
         </div>} />

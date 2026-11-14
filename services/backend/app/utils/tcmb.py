@@ -1,16 +1,27 @@
 import logging
+import time
 import xml.etree.ElementTree as ET
 import requests
 
 logger = logging.getLogger(__name__)
 
 TCMB_URL = "https://www.tcmb.gov.tr/kurlar/today.xml"
+_CACHE_TTL_SECONDS = 900
+_cached_rates: dict | None = None
+_cached_at: float = 0.0
 
-def fetch_tcmb_rates() -> dict:
+
+def fetch_tcmb_rates(force_refresh: bool = False) -> dict:
     """
     Fetches USD, EUR rates and calculates estimated gold price per gram in TRY from TCMB XML.
+    Uses a 15-minute in-memory TTL cache for live responses.
     Returns dict: {"USD": float, "EUR": float, "GOLD_GRAM": float, "NISAP_LIRA": float}
     """
+    global _cached_rates, _cached_at
+    now = time.monotonic()
+    if not force_refresh and _cached_rates is not None and (now - _cached_at) < _CACHE_TTL_SECONDS:
+        return _cached_rates
+
     try:
         res = requests.get(TCMB_URL, timeout=10)
         res.raise_for_status()
@@ -35,12 +46,15 @@ def fetch_tcmb_rates() -> dict:
         # 85 grams of gold nisap amount
         nisap_lira = round(85.0 * gold_gram_try, 2)
         
-        return {
+        data = {
             "USD": usd_rate,
             "EUR": eur_rate,
             "GOLD_GRAM": gold_gram_try,
             "NISAP_LIRA": nisap_lira
         }
+        _cached_rates = data
+        _cached_at = now
+        return data
     except Exception as e:
         logger.error(f"Failed to fetch TCMB rates: {e}")
         return {

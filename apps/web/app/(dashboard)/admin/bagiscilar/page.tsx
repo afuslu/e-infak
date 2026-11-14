@@ -3,13 +3,14 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Download, MessageCircle, Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { STATUS_CLASS, STATUS_LABEL, SmsMessage } from '../../../../lib/sms'
-import { PageHeader, TBody, Table, Td, Tr } from '../../../../components/admin/ui'
+import { PageHeader, TBody, Table, Td, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface DonorRow {
   id: string
@@ -64,7 +65,7 @@ function DonorsPage() {
   const canManage = hasPermission(access, 'donor_manage')
   const canIssue = hasPermission(access, 'finance_manage')
 
-  const [filters, setFilters] = useState({ q: '', assigned: '', region: '', donor_type: '', sort: 'recent' })
+  const [filters, setFilters] = useState({ q: '', assigned: '', region: '', donor_type: '', has_donation: '', tag: '', sort: 'recent' })
   const [page, setPage] = useState(1)
   const [list, setList] = useState<{ total: number; items: DonorRow[] }>({ total: 0, items: [] })
   const [staff, setStaff] = useState<Staff[]>([])
@@ -75,7 +76,10 @@ function DonorsPage() {
     try {
       const res = await adminGet<{ total: number; items: DonorRow[] }>('/donors', {
         q: filters.q || undefined, assigned: filters.assigned || undefined, region: filters.region || undefined,
-        donor_type: filters.donor_type || undefined, sort: filters.sort, page, page_size: PAGE_SIZE,
+        donor_type: filters.donor_type || undefined,
+        has_donation: filters.has_donation === '' ? undefined : filters.has_donation === 'true',
+        tag: filters.tag || undefined,
+        sort: filters.sort, page, page_size: PAGE_SIZE,
       })
       setList(res.data)
     } catch (err) {
@@ -99,7 +103,7 @@ function DonorsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Bağışçılar" description={<>{list.total.toLocaleString('tr-TR')}kayıt</>} actions={<div className="flex flex-wrap gap-2">
+      <PageHeader title="Bağışçılar" description={<>{list.total.toLocaleString('tr-TR')} kayıt</>} actions={<div className="flex flex-wrap gap-2">
           <Link href="/admin/bagiscilar/mukerrer" className={ghostButton}>Mükerrer kayıtlar</Link>
           {canManage && <Link href="/admin/veri-aktarma" className={ghostButton}>Excel&apos;den aktar</Link>}
           {canManage && <button onClick={() => setShowCreate((v) => !v)} className={primaryButton}>{showCreate ? 'Vazgeç' : '+ Yeni Bağışçı'}</button>}
@@ -114,9 +118,9 @@ function DonorsPage() {
       )}
 
       <Card className="border border-gray-100 p-4 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div className="lg:col-span-2">
-            <input className={inputClass} placeholder="Ad, telefon, e-posta ara" value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
+            <input className={inputClass} placeholder="Ad, telefon, e-posta, şehir ara" value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
           </div>
           <select className={inputClass} value={filters.assigned} onChange={(e) => setFilter('assigned', e.target.value)}>
             <option value="">Tüm temsilciler</option>
@@ -129,13 +133,28 @@ function DonorsPage() {
             <option value="yurtici">Yurt içi</option>
             <option value="yurtdisi">Yurt dışı</option>
           </select>
-          <div className="flex gap-2">
-            <select className={inputClass} value={filters.donor_type} onChange={(e) => setFilter('donor_type', e.target.value)}>
+          <select className={inputClass} value={filters.has_donation} onChange={(e) => setFilter('has_donation', e.target.value)}>
+            <option value="">Tüm bağış durumları</option>
+            <option value="true">Bağış yapanlar</option>
+            <option value="false">Hiç bağışı olmayanlar</option>
+          </select>
+          <input className={inputClass} placeholder="Etiket (ör. vip)" value={filters.tag} onChange={(e) => setFilter('tag', e.target.value)} />
+          <div className="flex gap-2 sm:col-span-2 lg:col-span-6">
+            <select className={`${inputClass} w-40`} value={filters.donor_type} onChange={(e) => setFilter('donor_type', e.target.value)}>
               <option value="">Tüm türler</option><option value="individual">Bireysel</option><option value="corporate">Kurumsal</option>
             </select>
-            <select className={inputClass} value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
+            <select className={`${inputClass} w-40`} value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
               <option value="recent">Son bağış</option><option value="total">Toplam bağış</option><option value="name">Ad</option>
             </select>
+            <button
+              type="button"
+              onClick={() => exportCsv('bagiscilar.csv', ['Ad Soyad', 'Tür', 'Telefon', 'E-posta', 'Şehir', 'Ülke', 'Bağış Sayısı', 'Toplam (TL)', 'Temsilci'],
+                list.items.map((d) => [d.full_name, d.donor_type === 'corporate' ? 'Kurumsal' : 'Bireysel', d.phone || '', d.email || '', d.city || '', d.country || '', d.total_donations, d.total_donated_cents / 100, d.assigned_user_name || '']))}
+              className={`${ghostButton} ml-auto inline-flex shrink-0 items-center gap-1`}
+              title="Mevcut sayfadaki listeyi CSV olarak indir"
+            >
+              <Download className="h-3.5 w-3.5" /> CSV (Sayfa)
+            </button>
           </div>
         </div>
       </Card>
@@ -153,10 +172,23 @@ function DonorsPage() {
                       {d.full_name?.[0]?.toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-semibold text-gray-900">{d.full_name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-semibold text-gray-900">{d.full_name}</span>
+                        {d.donor_type === 'corporate' && (
+                          <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Kurumsal</span>
+                        )}
+                      </div>
                       <div className="truncate text-xs text-gray-500">
                         {[d.phone, d.city, d.country && d.country !== 'Türkiye' ? d.country : null].filter(Boolean).join(' · ') || '—'}
                       </div>
+                      {d.tags?.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {d.tags.slice(0, 2).map((t) => (
+                            <span key={t} className="rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700">{t}</span>
+                          ))}
+                          {d.tags.length > 2 && <span className="text-[10px] text-gray-400">+{d.tags.length - 2}</span>}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right text-xs">
                       <div className="font-bold text-gray-900">{formatMoney(d.total_donated_cents)}</div>
@@ -185,6 +217,11 @@ function DonorsPage() {
               canIssue={canIssue}
               onClose={() => select(null)}
               onChanged={load}
+              onDeleted={() => {
+                select(null)
+                load()
+                setMessage({ type: 'ok', text: 'Bağışçı kaydı silindi' })
+              }}
             />
           </div>
         )}
@@ -208,6 +245,8 @@ function DonorForm({ donor, staff, onSaved }: { donor?: DonorCard; staff: Staff[
     tc_no: '',
     tags: (donor?.tags || []).join(', '),
     assigned_user_id: donor?.assigned_user_id || '',
+    allow_sms: donor?.allow_sms ?? false,
+    allow_email: donor?.allow_email ?? false,
   })
   const [error, setError] = useState('')
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }))
@@ -228,7 +267,15 @@ function DonorForm({ donor, staff, onSaved }: { donor?: DonorCard; staff: Staff[
       tax_number: form.tax_number || null,
       tc_no: form.tc_no || null,
       tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
-      ...(donor ? (form.assigned_user_id ? { assigned_user_id: form.assigned_user_id } : { clear_assignment: true }) : {}),
+      allow_sms: form.allow_sms,
+      allow_email: form.allow_email,
+      ...(donor
+        ? form.assigned_user_id
+          ? { assigned_user_id: form.assigned_user_id }
+          : { clear_assignment: true }
+        : form.assigned_user_id
+        ? { assigned_user_id: form.assigned_user_id }
+        : {}),
     }
     try {
       const res = donor
@@ -259,14 +306,20 @@ function DonorForm({ donor, staff, onSaved }: { donor?: DonorCard; staff: Staff[
       <div className="sm:col-span-2"><TextInput label="Adres" value={form.address} onChange={(v) => set('address', v)} /></div>
       <TextInput label="Vergi No" value={form.tax_number} onChange={(v) => set('tax_number', v)} />
       <TextInput label="Etiketler (virgülle)" placeholder="vip, kurban" value={form.tags} onChange={(v) => set('tags', v)} />
-      {donor && (
-        <Label label="Temsilci (sorumlu personel)">
-          <select className={inputClass} value={form.assigned_user_id} onChange={(e) => set('assigned_user_id', e.target.value)}>
-            <option value="">— Atanmamış</option>
-            {staff.map((s) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
-          </select>
-        </Label>
-      )}
+      <Label label="Temsilci (sorumlu personel)">
+        <select className={inputClass} value={form.assigned_user_id} onChange={(e) => set('assigned_user_id', e.target.value)}>
+          <option value="">— Atanmamış</option>
+          {staff.map((s) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+        </select>
+      </Label>
+      <div className="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-4">
+        <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+          <input type="checkbox" checked={form.allow_sms} onChange={(e) => setForm((f) => ({ ...f, allow_sms: e.target.checked }))} /> SMS İzni (İYS)
+        </label>
+        <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+          <input type="checkbox" checked={form.allow_email} onChange={(e) => setForm((f) => ({ ...f, allow_email: e.target.checked }))} /> E-posta İzni (İYS)
+        </label>
+      </div>
       <div className="flex items-end justify-end sm:col-span-2 lg:col-span-4">
         {error && <span className="mr-3 text-sm font-semibold text-red-600">{error}</span>}
         <button type="submit" className={primaryButton}>{donor ? 'Kaydet' : 'Bağışçıyı Ekle'}</button>
@@ -276,9 +329,9 @@ function DonorForm({ donor, staff, onSaved }: { donor?: DonorCard; staff: Staff[
 }
 
 function DonorCardPanel({
-  donorId, staff, canManage, canIssue, onClose, onChanged,
+  donorId, staff, canManage, canIssue, onClose, onChanged, onDeleted,
 }: {
-  donorId: string; staff: Staff[]; canManage: boolean; canIssue: boolean; onClose: () => void; onChanged: () => void
+  donorId: string; staff: Staff[]; canManage: boolean; canIssue: boolean; onClose: () => void; onChanged: () => void; onDeleted: () => void
 }) {
   const [card, setCard] = useState<DonorCard | null>(null)
   const [tab, setTab] = useState<'donations' | 'notes' | 'edit' | 'receipt'>('donations')
@@ -330,8 +383,39 @@ function DonorCardPanel({
             {card.tags.map((t) => <span key={t} className="rounded border border-primary-200 bg-primary-50 px-1.5 py-0.5 text-primary-800">{t}</span>)}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2">
+          {(() => {
+            const wa = whatsappUrl(card.phone, `Merhaba ${card.full_name}, bağışlarınız ve desteğiniz için teşekkür ederiz.`)
+            return wa ? (
+              <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              </a>
+            ) : null
+          })()}
           {canManage && <button onClick={() => setSmsOpen(true)} className={primaryButton}>SMS Gönder</button>}
+          {canManage && card.total_donations === 0 && (
+            <button
+              type="button"
+              title="Bağışı olmayan kaydı sil"
+              onClick={async () => {
+                const ok = await confirmDialog({
+                  title: `"${card.full_name}" silinsin mi?`,
+                  text: 'Bu bağışçının hiç bağışı bulunmuyor. Kayıt kalıcı olarak silinecek.',
+                  danger: true,
+                })
+                if (!ok) return
+                try {
+                  await adminSend('delete', `/donors/${card.id}`)
+                  onDeleted()
+                } catch (err) {
+                  setMessage({ type: 'error', text: apiErrorMessage(err, 'Bağışçı silinemedi') })
+                }
+              }}
+              className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
           <button onClick={onClose} className="text-xl leading-none text-gray-400 hover:text-gray-700" aria-label="Kapat">✕</button>
         </div>
       </div>

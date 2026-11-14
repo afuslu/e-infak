@@ -34,7 +34,7 @@ router = APIRouter(
 )
 
 TZ = ZoneInfo("Europe/Istanbul")
-Currency = Literal["TRY", "USD", "EUR", "GBP"]
+Currency = Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"]
 
 
 def _org_id(request: Request) -> UUID:
@@ -864,11 +864,22 @@ async def accounting_summary(request: Request, start: Optional[date] = None, end
         Expense.expense_card_id.isnot(None)))).scalar_one()
     draft_payroll = (await db.execute(select(PayrollItem).where(
         PayrollItem.organization_id == org_id, PayrollItem.status == "draft"))).scalars().all()
+    by_cur_rows = (await db.execute(
+        select(FinanceAccount.currency, LedgerEntry.direction, func.sum(LedgerEntry.amount_cents))
+        .join(FinanceAccount, FinanceAccount.id == LedgerEntry.account_id)
+        .where(LedgerEntry.organization_id == org_id, LedgerEntry.entry_date >= start, LedgerEntry.entry_date <= end,
+               LedgerEntry.source_type != "transfer")
+        .group_by(FinanceAccount.currency, LedgerEntry.direction)
+    )).all()
+    income_by_currency = {cur: int(t) for cur, d, t in by_cur_rows if d == "in"}
+    expense_by_currency = {cur: int(t) for cur, d, t in by_cur_rows if d == "out"}
     return {
         "start": start, "end": end, "accounts": accounts,
         "totals_by_currency": {cur: sum(a["balance_cents"] for a in accounts if a["currency"] == cur and a["is_active"])
                                for cur in sorted({a["currency"] for a in accounts})},
         "income": income, "expense": expense,
+        "income_by_currency": income_by_currency,
+        "expense_by_currency": expense_by_currency,
         "income_cents": sum(i["total_cents"] for i in income), "expense_cents": sum(i["total_cents"] for i in expense),
         "upcoming_cheques": upcoming,
         "unpaid_expense_cents": int(unpaid_expenses),

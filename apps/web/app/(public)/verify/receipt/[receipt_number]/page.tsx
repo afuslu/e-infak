@@ -130,6 +130,24 @@ export default function PublicVerifyReceiptPage() {
                 <span>⬇</span> Resmi Makbuzu PDF İndir
               </a>
 
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold py-2.5 transition-colors"
+                >
+                  <span>🖨️</span> Yazdır
+                </button>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Bağış Makbuzu Doğrulama (#${data.receipt_number} - ${data.amount_lira.toLocaleString('tr-TR')} ₺): ${typeof window !== 'undefined' ? window.location.href : ''}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-green-50 hover:bg-green-100 text-green-800 text-xs font-bold py-2.5 transition-colors"
+                >
+                  WhatsApp&apos;ta Paylaş
+                </a>
+              </div>
+
               {/* Legal Note */}
               <p className="text-[10px] text-gray-400 text-center leading-relaxed italic">
                 * Bu belge, dernek muhasebe sistemindeki resmi kayıtlar esas alınarak dijital olarak imzalanmış ve doğrulanmıştır.

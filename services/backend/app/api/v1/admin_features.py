@@ -29,7 +29,7 @@ from app.models.organization import Organization
 from app.models.organization_settings import OrganizationSettings
 from app.models.content_post import ContentPost
 from app.models.subscription import Subscription
-from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission
+from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability
 from app.utils.content import sanitize_public_text
 
 logger = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ async def write_audit_log(
 
 # --- Donor Listing (STK CRM) ---
 # --- Donor Notes (STK CRM) ---
-@router.post("/donors/{donor_id}/notes", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/donors/{donor_id}/notes", response_model=NoteResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_capability("donors.notes_write"))])
 async def add_donor_note(
     request: Request,
     donor_id: UUID,
@@ -133,7 +133,7 @@ async def add_donor_note(
         author_email=current_user.email
     )
 
-@router.get("/donors/{donor_id}/notes", response_model=List[NoteResponse])
+@router.get("/donors/{donor_id}/notes", response_model=List[NoteResponse], dependencies=[Depends(require_capability("donors.notes_view"))])
 async def list_donor_notes(
     request: Request,
     donor_id: UUID,
@@ -221,17 +221,20 @@ async def update_campaign_gallery(
 
 # --- Phase 3 Pydantic Schemas ---
 class ZakatSettingUpdate(BaseModel):
-    gold_price_per_gram: float
-    nisap_amount_lira: float
+    gold_price_per_gram: float = Field(gt=0, le=1_000_000)
+    nisap_amount_lira: float = Field(gt=0, le=1_000_000_000)
     is_auto_sync: bool
 
 # --- Phase 3: Zakat Settings Manager ---
 @router.get("/zakat-settings")
 async def get_zakat_settings(
     request: Request,
+    refresh: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    from app.utils.tcmb import fetch_tcmb_rates
+
     org_id = UUID(request.state.organization_id)
     query = select(ZakatSetting).where(ZakatSetting.organization_id == org_id)
     res = await db.execute(query)
@@ -247,8 +250,21 @@ async def get_zakat_settings(
         db.add(setting)
         await db.commit()
         await db.refresh(setting)
-        
-    return setting
+
+    tcmb_data = fetch_tcmb_rates(force_refresh=refresh)
+    return {
+        "id": str(setting.id),
+        "gold_price_per_gram": setting.gold_price_per_gram,
+        "nisap_amount_lira": setting.nisap_amount_lira,
+        "is_auto_sync": setting.is_auto_sync,
+        "updated_at": setting.updated_at,
+        "live_tcmb": {
+            "usd_rate": tcmb_data.get("USD", 33.0),
+            "eur_rate": tcmb_data.get("EUR", 36.0),
+            "gold_price_per_gram": tcmb_data.get("GOLD_GRAM", 3000.0),
+            "nisap_amount_lira": tcmb_data.get("NISAP_LIRA", 255000.0),
+        },
+    }
 
 @router.put("/zakat-settings")
 async def update_zakat_settings(
@@ -531,6 +547,61 @@ async def update_student(
         details={"student_id": str(student.id), "full_name": student.full_name},
     )
     return student
+
+
+@router.delete("/students/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_student(
+    request: Request,
+    student_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = UUID(request.state.organization_id)
+    student = (await db.execute(
+        select(Student).where(Student.id == student_id, Student.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Öğrenci bulunamadı")
+    full_name = student.full_name
+    for row in (await db.execute(select(StudentProgress).where(StudentProgress.student_id == student_id))).scalars().all():
+        await db.delete(row)
+    for row in (await db.execute(select(StudentSponsorship).where(StudentSponsorship.student_id == student_id))).scalars().all():
+        await db.delete(row)
+    await db.delete(student)
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="ogrenci_sil",
+        details={"student_id": str(student_id), "full_name": full_name},
+    )
+    await db.commit()
+
+
+@router.delete("/students/{student_id}/progress/{progress_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_student_progress(
+    request: Request,
+    student_id: UUID,
+    progress_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = UUID(request.state.organization_id)
+    student = (await db.execute(
+        select(Student.id).where(Student.id == student_id, Student.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Öğrenci bulunamadı")
+    prog = (await db.execute(
+        select(StudentProgress).where(StudentProgress.id == progress_id, StudentProgress.student_id == student_id)
+    )).scalar_one_or_none()
+    if not prog:
+        raise HTTPException(status_code=404, detail="Ders kaydı bulunamadı")
+    await db.delete(prog)
+    await write_audit_log(
+        db, org_id, current_user.id,
+        action="ogrenci_ders_sil",
+        details={"student_id": str(student_id), "progress_id": str(progress_id)},
+    )
+    await db.commit()
 
 
 @router.get("/students/{student_id}/progress")

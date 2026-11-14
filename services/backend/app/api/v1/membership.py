@@ -18,7 +18,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission
+from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability
 from app.api.v1.crm import _normalize_phone
 from app.core.db import get_db
 from app.models.audit_log import AuditLog
@@ -134,7 +134,7 @@ async def get_member_settings(request: Request, db: AsyncSession = Depends(get_d
     }
 
 
-@router.put("/members-settings")
+@router.put("/members-settings", dependencies=[Depends(require_capability("members.manage"))])
 async def update_member_settings(request: Request, payload: DuesSettingsIn, db: AsyncSession = Depends(get_db),
                                  current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
@@ -259,7 +259,7 @@ async def list_members(
     return [_member_out(m, int(oc or 0), int(od or 0), lp) for m, oc, od, lp in rows]
 
 
-@router.post("/members", status_code=status.HTTP_201_CREATED)
+@router.post("/members", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_capability("members.manage"))])
 async def create_member(request: Request, payload: MemberCreate, db: AsyncSession = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
@@ -335,7 +335,7 @@ class MemberMergeIn(BaseModel):
     source_ids: List[UUID] = Field(min_length=1, max_length=20)
 
 
-@router.post("/members/merge")
+@router.post("/members/merge", dependencies=[Depends(require_capability("members.manage"))])
 async def merge_members(request: Request, payload: MemberMergeIn, db: AsyncSession = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     """Kaynak üye kayıtlarının aidatlarını hedefe taşır ve kaynakları siler.
@@ -424,7 +424,7 @@ async def get_member(request: Request, member_id: UUID, db: AsyncSession = Depen
     return out
 
 
-@router.put("/members/{member_id}")
+@router.put("/members/{member_id}", dependencies=[Depends(require_capability("members.manage"))])
 async def update_member(request: Request, member_id: UUID, payload: MemberIn, db: AsyncSession = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
@@ -453,7 +453,7 @@ class GenerateIn(BaseModel):
     dry_run: bool = False
 
 
-@router.post("/member-dues/generate")
+@router.post("/member-dues/generate", dependencies=[Depends(require_capability("members.manage"))])
 async def generate_dues(request: Request, payload: GenerateIn, db: AsyncSession = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     """Aktif üyelere dönem aidatı açar; o dönemi zaten olan üye atlanır (tekrar çalıştırmak güvenlidir).
@@ -509,17 +509,28 @@ async def list_dues(
     request: Request,
     status_filter: Optional[Literal["open", "overdue", "paid", "waived"]] = Query(default="overdue", alias="status"),
     period: Optional[str] = Query(default=None, max_length=7),
+    q: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)
     query = (select(MemberDue, Member).join(Member, Member.id == MemberDue.member_id)
+             .join(Donor, Donor.id == Member.donor_id)
              .options(selectinload(Member.donor)).where(MemberDue.organization_id == org_id))
     if status_filter == "overdue":
         query = query.where(MemberDue.status == "open", MemberDue.due_date < _today())
     elif status_filter:
         query = query.where(MemberDue.status == status_filter)
-    if period:
-        query = query.where(MemberDue.period == period)
+    if period and period.strip():
+        query = query.where(MemberDue.period == period.strip())
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        query = query.where(or_(
+            Member.member_no.ilike(like),
+            Donor.first_name.ilike(like),
+            Donor.last_name.ilike(like),
+            Donor.phone.ilike(like),
+            (Donor.first_name + " " + func.coalesce(Donor.last_name, "")).ilike(like),
+        ))
     rows = (await db.execute(query.order_by(MemberDue.due_date, Member.member_no).limit(10000))).all()
     return [_due_out(d, m) for d, m in rows]
 
@@ -537,7 +548,7 @@ class DuesPaymentIn(BaseModel):
     empty_to_none = field_validator("receipt_book_id", "bank_reference", mode="before")(lambda cls, v: v or None)
 
 
-@router.post("/member-dues/pay", status_code=status.HTTP_201_CREATED)
+@router.post("/member-dues/pay", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_capability("members.manage"))])
 async def pay_dues(request: Request, payload: DuesPaymentIn, db: AsyncSession = Depends(get_db),
                    current_user: User = Depends(get_current_user)):
     """Bir üyenin seçili açık aidatlarını tek makbuzla tahsil eder (nakit / havale)."""
@@ -593,7 +604,7 @@ class WaiveIn(BaseModel):
     clean_text = field_validator("reason", mode="before")(lambda cls, v: _clean(v))
 
 
-@router.post("/member-dues/waive")
+@router.post("/member-dues/waive", dependencies=[Depends(require_capability("members.manage"))])
 async def waive_dues(request: Request, payload: WaiveIn, db: AsyncSession = Depends(get_db),
                      current_user: User = Depends(get_current_user)):
     """Açık aidatları muaf tutar / siler (yönetim kurulu kararı vb.); ödenmiş aidata dokunulmaz."""
@@ -605,6 +616,23 @@ async def waive_dues(request: Request, payload: WaiveIn, db: AsyncSession = Depe
     _audit(db, org_id, current_user, "aidat_muaf", {"count": len(dues), "reason": payload.reason})
     await db.commit()
     return {"waived": len(dues)}
+
+
+@router.delete("/member-dues/{due_id}")
+async def delete_due(request: Request, due_id: UUID, db: AsyncSession = Depends(get_db),
+                     current_user: User = Depends(get_current_user)):
+    """Yanlışlıkla açılmış açık durumdaki tekil aidat kaydını siler."""
+    org_id = _org_id(request)
+    due = (await db.execute(select(MemberDue).where(
+        MemberDue.id == due_id, MemberDue.organization_id == org_id))).scalar_one_or_none()
+    if not due:
+        raise HTTPException(status_code=404, detail="Aidat kaydı bulunamadı")
+    if due.status != "open":
+        raise HTTPException(status_code=409, detail="Yalnız açık durumdaki aidatlar silinebilir")
+    _audit(db, org_id, current_user, "aidat_sil", {"due_id": str(due.id), "period": due.period, "amount_cents": due.amount_cents})
+    await db.delete(due)
+    await db.commit()
+    return {"deleted": True}
 
 
 @router.get("/member-dues-summary")

@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
-import { AlertCircle, CalendarClock, CheckCircle2, HeartHandshake, Search, Users, Wallet, X } from 'lucide-react'
+import { AlertCircle, CalendarClock, CheckCircle2, HeartHandshake, MessageCircle, Search, Users, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
+  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface Beneficiary {
   id: string
@@ -78,12 +78,18 @@ export default function SponsorshipPage() {
   const canDonor = hasPermission(access, 'donor_manage')
   const [tab, setTab] = useState<Tab>('beneficiaries')
   const [summary, setSummary] = useState<Summary | null>(null)
+  const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([])
+  const [allPledges, setAllPledges] = useState<PledgeRow[]>([])
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [pledgeFor, setPledgeFor] = useState<Beneficiary | null>(null)
   const [onlyWaiting, setOnlyWaiting] = useState(false)
   const [onlyOverdue, setOnlyOverdue] = useState(false)
 
-  const loadSummary = () => adminGet<Summary>('/pledges/summary').then((r) => setSummary(r.data)).catch(() => {})
+  const loadSummary = () => {
+    adminGet<Summary>('/pledges/summary').then((r) => setSummary(r.data)).catch(() => {})
+    adminGet<Beneficiary[]>('/beneficiaries').then((r) => setAllBeneficiaries(r.data)).catch(() => {})
+    adminGet<PledgeRow[]>('/pledges', { status: 'active' }).then((r) => setAllPledges(r.data)).catch(() => {})
+  }
   useEffect(() => { loadSummary() }, [])
 
   return (
@@ -92,56 +98,172 @@ export default function SponsorshipPage() {
 
       {summary && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <Card className="border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>Aktif taahhüt</span>
-              <HeartHandshake className="h-3.5 w-3.5 text-primary-600" />
-            </div>
-            <div className="mt-1 text-xl font-black text-gray-950">{summary.active_pledges}</div>
-          </Card>
-          <Card className="border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>Sponsorlu kişi</span>
-              <Users className="h-3.5 w-3.5 text-emerald-600" />
-            </div>
-            <div className="mt-1 text-xl font-black text-emerald-700">{summary.sponsored_beneficiaries}</div>
-          </Card>
-          <Card
-            onClick={() => { setOnlyWaiting(true); setTab('beneficiaries') }}
-            className={`cursor-pointer border p-4 shadow-sm transition ${summary.waiting_beneficiaries > 0 ? 'border-amber-200 bg-amber-50/40 hover:bg-amber-50' : 'border-gray-100 hover:bg-gray-50'}`}
-          >
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>Sponsor bekleyen</span>
-              <CalendarClock className="h-3.5 w-3.5 text-amber-600" />
-            </div>
-            <div className={`mt-1 text-xl font-black ${summary.waiting_beneficiaries > 0 ? 'text-amber-700' : 'text-gray-950'}`}>{summary.waiting_beneficiaries}</div>
-          </Card>
-          <Card className="border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>Bu ay beklenen</span>
-              <Wallet className="h-3.5 w-3.5 text-gray-400" />
-            </div>
-            <div className="mt-1 text-xl font-black text-gray-950">{formatMoney(summary.due_this_month.amount_cents)}</div>
-          </Card>
-          <Card className="border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>Bu ay ödenen</span>
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-            </div>
-            <div className="mt-1 text-xl font-black text-emerald-700">{formatMoney(summary.paid_this_month.amount_cents)}</div>
-          </Card>
-          <Card
-            onClick={() => { setOnlyOverdue(true); setPledgeFor(null); setTab('pledges') }}
-            className={`cursor-pointer border p-4 shadow-sm transition ${summary.overdue.count > 0 ? 'border-red-200 bg-red-50/40 hover:bg-red-50' : 'border-gray-100 hover:bg-gray-50'}`}
-          >
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>Gecikmiş</span>
-              <AlertCircle className={`h-3.5 w-3.5 ${summary.overdue.count > 0 ? 'text-red-600' : 'text-gray-400'}`} />
-            </div>
-            <div className={`mt-1 text-lg font-black ${summary.overdue.count > 0 ? 'text-red-700' : 'text-gray-950'}`}>
-              {summary.overdue.count} · {formatMoney(summary.overdue.amount_cents)}
-            </div>
-          </Card>
+          <StatCard
+            label="Aktif taahhüt"
+            icon={HeartHandshake}
+            value={summary.active_pledges}
+            detail={{
+              title: 'Aktif Taahhütler',
+              content: () => (
+                <Table>
+                  <THead><Tr><Th>Bağışçı</Th><Th>Yararlanıcı / Kalem</Th><Th className="text-right">Aylık</Th><Th className="text-right">İlerleme</Th></Tr></THead>
+                  <TBody>
+                    {allPledges.map((p) => (
+                      <Tr key={p.id}>
+                        <Td className="font-semibold">{p.donor_name}</Td>
+                        <Td className="text-xs">{p.title || p.beneficiary_name || p.campaign_title}</Td>
+                        <Td className="text-right tabular-nums">{formatMoney(p.installment_amount_cents, p.currency)}</Td>
+                        <Td className="text-right text-xs font-bold tabular-nums">{p.paid_count}/{p.installment_count}</Td>
+                      </Tr>
+                    ))}
+                    {allPledges.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Aktif taahhüt yok.</Td></Tr>}
+                  </TBody>
+                </Table>
+              ),
+            }}
+          />
+          <StatCard
+            label="Sponsorlu kişi"
+            icon={Users}
+            tone="good"
+            value={summary.sponsored_beneficiaries}
+            detail={{
+              title: 'Sponsorlu Yararlanıcılar',
+              content: () => {
+                const sponsored = allBeneficiaries.filter((b) => b.active_pledges > 0)
+                return (
+                  <Table>
+                    <THead><Tr><Th>Ad Soyad</Th><Th>Tür</Th><Th>Sponsorlar</Th></Tr></THead>
+                    <TBody>
+                      {sponsored.map((b) => (
+                        <Tr key={b.id}>
+                          <Td className="font-semibold">{b.full_name}</Td>
+                          <Td className="text-xs text-gray-500">{b.kind_label}</Td>
+                          <Td className="text-xs text-green-700">{b.sponsors.join(', ')}</Td>
+                        </Tr>
+                      ))}
+                      {sponsored.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Sponsorlu kayıt yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                )
+              },
+            }}
+          />
+          <StatCard
+            label="Sponsor bekleyen"
+            icon={CalendarClock}
+            tone={summary.waiting_beneficiaries > 0 ? 'warn' : 'neutral'}
+            className={summary.waiting_beneficiaries > 0 ? 'border-amber-200 bg-amber-50/40' : undefined}
+            value={summary.waiting_beneficiaries}
+            detail={{
+              title: 'Sponsor Bekleyen Yararlanıcılar',
+              content: () => {
+                const waiting = allBeneficiaries.filter((b) => b.status === 'active' && b.active_pledges === 0)
+                return (
+                  <Table>
+                    <THead><Tr><Th>Ad Soyad</Th><Th>Tür</Th><Th>Şehir / Ülke</Th><Th className="text-right">Aylık İhtiyaç</Th></Tr></THead>
+                    <TBody>
+                      {waiting.map((b) => (
+                        <Tr key={b.id}>
+                          <Td className="font-semibold">{b.full_name}</Td>
+                          <Td className="text-xs text-gray-500">{b.kind_label}</Td>
+                          <Td className="text-xs text-gray-500">{[b.city, b.country].filter(Boolean).join(', ') || '—'}</Td>
+                          <Td className="text-right font-semibold tabular-nums">{b.monthly_need_cents ? formatMoney(b.monthly_need_cents) : '—'}</Td>
+                        </Tr>
+                      ))}
+                      {waiting.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Sponsor bekleyen kayıt yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                )
+              },
+            }}
+          />
+          <StatCard
+            label="Bu ay beklenen"
+            icon={Wallet}
+            value={formatMoney(summary.due_this_month.amount_cents)}
+            hint={`${summary.due_this_month.count} taksit`}
+            detail={{
+              title: 'Bu Ay Beklenen Taksitler',
+              description: `${summary.due_this_month.count} taksit · Toplam ${formatMoney(summary.due_this_month.amount_cents)}`,
+              content: () => (
+                <Table>
+                  <THead><Tr><Th>Bağışçı</Th><Th>Kalem</Th><Th className="text-right">Sonraki Vade</Th><Th className="text-right">Tutar</Th></Tr></THead>
+                  <TBody>
+                    {allPledges.filter((p) => p.next_due_date).map((p) => (
+                      <Tr key={p.id}>
+                        <Td className="font-semibold">{p.donor_name}</Td>
+                        <Td className="text-xs">{p.title || p.beneficiary_name || p.campaign_title}</Td>
+                        <Td className="text-right text-xs">{p.next_due_date ? new Date(p.next_due_date).toLocaleDateString('tr-TR') : '—'}</Td>
+                        <Td className="text-right font-bold tabular-nums">{formatMoney(p.installment_amount_cents, p.currency)}</Td>
+                      </Tr>
+                    ))}
+                    {allPledges.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Beklenen taksit yok.</Td></Tr>}
+                  </TBody>
+                </Table>
+              ),
+            }}
+          />
+          <StatCard
+            label="Bu ay ödenen"
+            icon={CheckCircle2}
+            tone="good"
+            value={formatMoney(summary.paid_this_month.amount_cents)}
+            hint={`${summary.paid_this_month.count} taksit`}
+            detail={{
+              title: 'Ödemesi Alınan Taahhütler',
+              description: `Bu ay ${summary.paid_this_month.count} taksit · ${formatMoney(summary.paid_this_month.amount_cents)}`,
+              content: () => {
+                const paidOnes = allPledges.filter((p) => p.paid_count > 0)
+                return (
+                  <Table>
+                    <THead><Tr><Th>Bağışçı</Th><Th>Kalem</Th><Th className="text-right">Ödenen Taksit</Th><Th className="text-right">Aylık</Th></Tr></THead>
+                    <TBody>
+                      {paidOnes.map((p) => (
+                        <Tr key={p.id}>
+                          <Td className="font-semibold">{p.donor_name}</Td>
+                          <Td className="text-xs">{p.title || p.beneficiary_name || p.campaign_title}</Td>
+                          <Td className="text-right font-bold tabular-nums text-green-700">{p.paid_count}/{p.installment_count}</Td>
+                          <Td className="text-right tabular-nums">{formatMoney(p.installment_amount_cents, p.currency)}</Td>
+                        </Tr>
+                      ))}
+                      {paidOnes.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Ödenen taksit yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                )
+              },
+            }}
+          />
+          <StatCard
+            label="Gecikmiş"
+            icon={AlertCircle}
+            tone={summary.overdue.count > 0 ? 'bad' : 'neutral'}
+            className={summary.overdue.count > 0 ? 'border-red-200 bg-red-50/40' : undefined}
+            value={`${summary.overdue.count} · ${formatMoney(summary.overdue.amount_cents)}`}
+            detail={{
+              title: 'Gecikmiş Taahhütler',
+              description: `${summary.overdue.count} taksit · ${formatMoney(summary.overdue.amount_cents)}`,
+              content: () => {
+                const overdueRows = allPledges.filter((p) => p.overdue_count > 0)
+                return (
+                  <Table>
+                    <THead><Tr><Th>Bağışçı</Th><Th>Telefon</Th><Th className="text-right">Geciken</Th><Th className="text-right">Tutar</Th></Tr></THead>
+                    <TBody>
+                      {overdueRows.map((p) => (
+                        <Tr key={p.id}>
+                          <Td className="font-semibold">{p.donor_name}</Td>
+                          <Td className="text-xs text-gray-500">{p.donor_phone || '—'}</Td>
+                          <Td className="text-right font-bold tabular-nums text-red-600">{p.overdue_count}</Td>
+                          <Td className="text-right font-bold tabular-nums text-red-600">{formatMoney(p.overdue_cents, p.currency)}</Td>
+                        </Tr>
+                      ))}
+                      {overdueRows.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Gecikmiş taksit yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                )
+              },
+            }}
+          />
         </div>
       )}
 
@@ -589,7 +711,17 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-bold">{detail.title || detail.beneficiary_name}</div>
-                <div className="text-sm text-gray-500">{detail.donor_name} · {detail.donor_phone} · {detail.campaign_title}</div>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
+                  <span>{detail.donor_name} · {detail.donor_phone} · {detail.campaign_title}</span>
+                  {(() => {
+                    const wa = whatsappUrl(detail.donor_phone, `Merhaba ${detail.donor_name}, ${detail.title || detail.beneficiary_name || 'sponsorluk'} taahhüdünüz${detail.overdue_count > 0 ? ` (${detail.overdue_count} geciken taksit: ${formatMoney(detail.overdue_cents, detail.currency)})` : ''} hakkında bilgilendirmek isteriz.`)
+                    return wa ? (
+                      <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                        <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                      </a>
+                    ) : null
+                  })()}
+                </div>
               </div>
               <button onClick={() => setDetail(null)} className="text-xl text-gray-400">✕</button>
             </div>

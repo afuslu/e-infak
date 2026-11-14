@@ -11,6 +11,14 @@ export interface FeatureInfo {
   addon_available: boolean
 }
 
+/** One module card of the role screen (services/backend/app/core/capabilities.py). */
+export interface CapabilityGroup {
+  key: string
+  label: string
+  permission: string
+  capabilities: { key: string; label: string; rule: boolean }[]
+}
+
 export interface AdminAccess {
   plan: string
   plan_label: string
@@ -20,8 +28,9 @@ export interface AdminAccess {
   plans: { key: string; label: string; features: string[]; addons: string[]; users: number; bank_accounts: number; storage_mb: number }[]
   limits: { users: number; extra_user_seats: number; bank_accounts: number; storage_bytes: number }
   usage: { users: number; bank_accounts: number; storage_bytes: number; media_count: number }
-  me: { id: string; role: string; is_platform_admin: boolean; permissions: string[] }
+  me: { id: string; role: string; is_platform_admin: boolean; permissions: string[]; capabilities?: string[] }
   permission_catalog: { key: string; label: string }[]
+  capability_catalog?: CapabilityGroup[]
   builtin_roles: { key: string; label: string; permissions: string[] }[]
 }
 
@@ -143,6 +152,12 @@ export function hasPermission(access: AdminAccess | undefined, permission?: stri
   return access.me.permissions.includes(permission)
 }
 
+/** Fine-grained permission (e.g. "donors.phone"). Unknown until loaded: allowed, the API enforces it. */
+export function can(access: AdminAccess | undefined, capability: string) {
+  if (!access || !access.me.capabilities) return true
+  return access.me.capabilities.includes(capability)
+}
+
 export const formatMoney = (cents: number, currency = 'TRY') =>
   (cents / 100).toLocaleString('tr-TR', { style: 'currency', currency, maximumFractionDigits: 0 })
 
@@ -168,11 +183,25 @@ export async function downloadFile(path: string, filename: string, params?: Reco
 
 export function exportCsv(filename: string, header: string[], rows: (string | number | null | undefined)[][]) {
   const escape = (v: string | number | null | undefined) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const csv = '﻿' + [header, ...rows].map((r) => r.map(escape).join(';')).join('\n')
+  const csv = '\uFEFF' + [header, ...rows].map((r) => r.map(escape).join(';')).join('\n')
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
   const a = document.createElement('a')
   a.href = url
   a.download = filename
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/** Builds a WhatsApp (`wa.me`) link for Turkish/international phone numbers. */
+export function whatsappUrl(phone: string | null | undefined, text: string): string | null {
+  const digits = (phone || '').replace(/\D/g, '')
+  if (digits.length < 10) return null
+  const normalized = digits.startsWith('00')
+    ? digits.slice(2)
+    : digits.startsWith('0')
+      ? `90${digits.slice(1)}`
+      : digits.length === 10 && digits.startsWith('5')
+        ? `90${digits}`
+        : digits
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(text)}`
 }

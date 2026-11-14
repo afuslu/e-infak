@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission
+from app.api.deps import get_current_user, mask_phone, require_admin_route_feature, require_admin_route_permission, require_capability
 from app.core.db import get_db
 from app.models.audit_log import AuditLog
 from app.models.automation import BankTransaction
@@ -133,7 +133,7 @@ async def list_templates(request: Request, db: AsyncSession = Depends(get_db)):
     return [_template_row(t) for t in templates]
 
 
-@router.post("/templates", status_code=201)
+@router.post("/templates", status_code=201, dependencies=[Depends(require_capability("sms.templates"))])
 async def create_template(request: Request, payload: TemplateIn, db: AsyncSession = Depends(get_db),
                           current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
@@ -151,7 +151,7 @@ async def create_template(request: Request, payload: TemplateIn, db: AsyncSessio
     return _template_row(template)
 
 
-@router.put("/templates/{template_id}")
+@router.put("/templates/{template_id}", dependencies=[Depends(require_capability("sms.templates"))])
 async def update_template(request: Request, template_id: UUID, payload: TemplateIn,
                           db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
@@ -163,7 +163,7 @@ async def update_template(request: Request, template_id: UUID, payload: Template
     return _template_row(template)
 
 
-@router.delete("/templates/{template_id}")
+@router.delete("/templates/{template_id}", dependencies=[Depends(require_capability("sms.templates"))])
 async def delete_template(request: Request, template_id: UUID, db: AsyncSession = Depends(get_db),
                           current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
@@ -224,7 +224,7 @@ async def _records(db: AsyncSession, org_id: UUID, target: SmsTarget):
 async def preview_sms(
     request: Request, template_id: UUID, donor_id: Optional[UUID] = None, donation_id: Optional[UUID] = None,
     transfer_id: Optional[UUID] = None, variables: Optional[str] = Query(default=None, max_length=2000),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(get_current_user),
 ):
     """A template filled in for a donor / receipt / transfer, with its length.
 
@@ -247,16 +247,19 @@ async def preview_sms(
     rendered = render_template(template.body, context)
     return {
         "body": rendered, "segments": segment_info(rendered),
-        "phone": donor.phone if donor else None, "allow_sms": bool(donor.allow_sms) if donor else None,
+        "phone": (mask_phone(donor.phone, current_user) if current_user else donor.phone) if donor else None,
+        "allow_sms": bool(donor.allow_sms) if donor else None,
     }
 
 
-@router.post("/send")
+@router.post("/send", dependencies=[Depends(require_capability("sms.send"))])
 async def send_sms(request: Request, payload: SendIn, db: AsyncSession = Depends(get_db),
                    current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
     donor, donation, transfer = await _records(db, org_id, payload)
-    phone = (payload.phone or "").strip() or (donor.phone if donor else None)
+    typed = (payload.phone or "").strip()
+    # A masked number ("0532 *** ** 12") means "the donor's own number".
+    phone = (typed if typed and "*" not in typed else None) or (donor.phone if donor else None)
     if not phone:
         raise HTTPException(status_code=409, detail="Gönderilecek telefon numarası yok")
     # A message about the donor's own receipt or transfer is information, not promotion.
@@ -302,9 +305,10 @@ async def send_sms(request: Request, payload: SendIn, db: AsyncSession = Depends
 # --- Log -----------------------------------------------------------------------------
 
 def _message_row(message: SmsMessage, donor_name: Optional[str], template_name: Optional[str],
-                 sender: Optional[str]) -> dict:
+                 sender: Optional[str], viewer: Optional[User] = None) -> dict:
     return {
-        "id": str(message.id), "seq_no": message.seq_no, "phone": message.phone,
+        "id": str(message.id), "seq_no": message.seq_no,
+        "phone": mask_phone(message.phone, viewer) if viewer else message.phone,
         "donor_id": str(message.donor_id) if message.donor_id else None, "donor_name": donor_name,
         "body": message.body, "status": message.status, "source": message.source,
         "related_type": message.related_type,
@@ -323,6 +327,7 @@ async def list_messages(
     donor_id: Optional[UUID] = None, related_type: Optional[str] = None, related_id: Optional[UUID] = None,
     date_from: Optional[date] = None, date_to: Optional[date] = None,
     page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200),
+    current_user: Optional[User] = Depends(get_current_user),
 ):
     org_id = _org_id(request)
     scope = [SmsMessage.organization_id == org_id]
@@ -361,7 +366,7 @@ async def list_messages(
         .offset((page - 1) * page_size).limit(page_size)
     )).all()
     return {
-        "items": [_message_row(m, d.full_name if d else None, t, u) for m, d, t, u in rows],
+        "items": [_message_row(m, d.full_name if d else None, t, u, current_user) for m, d, t, u in rows],
         "total": counts.get(status, 0) if status else sum(counts.values()),
         "counts": {key: counts.get(key, 0) for key in SMS_STATUSES},
         "parts_sent": (await db.execute(
@@ -400,7 +405,7 @@ async def _message(db: AsyncSession, org_id: UUID, message_id: UUID) -> SmsMessa
     return message
 
 
-@router.post("/messages/{message_id}/retry")
+@router.post("/messages/{message_id}/retry", dependencies=[Depends(require_capability("sms.send"))])
 async def retry_message(request: Request, message_id: UUID, db: AsyncSession = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
     """Send a failed or cancelled message again, or a scheduled one right now."""
@@ -418,7 +423,7 @@ async def retry_message(request: Request, message_id: UUID, db: AsyncSession = D
     return {"status": message.status}
 
 
-@router.post("/messages/{message_id}/cancel")
+@router.post("/messages/{message_id}/cancel", dependencies=[Depends(require_capability("sms.send"))])
 async def cancel_message(request: Request, message_id: UUID, db: AsyncSession = Depends(get_db),
                          current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
@@ -502,7 +507,7 @@ def _batch_row(batch: SmsBatch, counts: dict, sender: Optional[str]) -> dict:
     }
 
 
-@router.post("/batches", status_code=201)
+@router.post("/batches", status_code=201, dependencies=[Depends(require_capability("sms.bulk"))])
 async def send_batch(request: Request, payload: BatchIn, db: AsyncSession = Depends(get_db),
                      current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
@@ -546,7 +551,7 @@ async def list_batches(request: Request, db: AsyncSession = Depends(get_db), lim
     return [_batch_row(batch, counts.get(batch.id, {}), email) for batch, email in rows]
 
 
-@router.post("/batches/{batch_id}/cancel")
+@router.post("/batches/{batch_id}/cancel", dependencies=[Depends(require_capability("sms.bulk"))])
 async def cancel_bulk(request: Request, batch_id: UUID, db: AsyncSession = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)

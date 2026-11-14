@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { apiErrorMessage, v1Send, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
+import { apiErrorMessage, exportCsv, v1Send, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
 import { PageHeader, toast } from '../../../../components/admin/ui'
 
@@ -149,7 +149,19 @@ export default function AdminCampaignsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Kampanya Yönetimi & Galeriler" />
+      <PageHeader
+        title="Kampanya Yönetimi & Galeriler"
+        actions={campaigns.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => exportCsv('kampanyalar.csv', ['Kampanya', 'Slug', 'Kategori', 'Para Birimi', 'Hedef', 'Toplanan', 'Durum'],
+              campaigns.map((c) => [c.title, c.slug, c.category || '', c.currency || 'TRY', c.target_cents / 100, (c.collected_cents || 0) / 100, c.status]))}
+            className="rounded-lg border bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            ⬇ CSV
+          </button>
+        ) : undefined}
+      />
 
       {successMsg && (
         <div className="rounded-lg bg-green-50 p-4 text-sm text-green-600 font-semibold border border-green-100 animate-fade-in">

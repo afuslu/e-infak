@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import Permission, require_feature, require_permission
+from app.api.deps import Permission, require_capability, require_feature, require_permission
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.plans import Feature
@@ -194,7 +194,7 @@ async def list_campaigns(request: Request, db: AsyncSession = Depends(get_db), _
     return [_campaign_out(c, stats.get(c.id, empty)) for c in campaigns]
 
 
-@router.post("/campaigns", status_code=status.HTTP_201_CREATED)
+@router.post("/campaigns", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_capability("kurban.manage"))])
 async def create_campaign(request: Request, payload: KurbanCampaignIn, db: AsyncSession = Depends(get_db),
                           current_user: User = WRITE):
     org_id = _org_id(request)
@@ -212,7 +212,7 @@ async def create_campaign(request: Request, payload: KurbanCampaignIn, db: Async
     return _campaign_out(kc)
 
 
-@router.put("/campaigns/{campaign_id}")
+@router.put("/campaigns/{campaign_id}", dependencies=[Depends(require_capability("kurban.manage"))])
 async def update_campaign(request: Request, campaign_id: UUID, payload: KurbanCampaignIn,
                           db: AsyncSession = Depends(get_db), current_user: User = WRITE):
     org_id = _org_id(request)
@@ -286,7 +286,7 @@ def _free_numbers(taken: set[int], capacity: int) -> list[int]:
     return [n for n in range(1, capacity + 1) if n not in taken]
 
 
-@router.post("/campaigns/{campaign_id}/distribute")
+@router.post("/campaigns/{campaign_id}/distribute", dependencies=[Depends(require_capability("kurban.manage"))])
 async def distribute_shares(request: Request, campaign_id: UUID, db: AsyncSession = Depends(get_db),
                             current_user: User = WRITE):
     """Atanmamış hisseleri hayvanlara dağıtır; gerekirse yeni hayvan oluşturur."""
@@ -428,7 +428,7 @@ class AnimalCreate(BaseModel):
     animal_number: Optional[str] = Field(default=None, max_length=50)
 
 
-@router.post("/animals", status_code=status.HTTP_201_CREATED)
+@router.post("/animals", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_capability("kurban.manage"))])
 async def create_animals(request: Request, payload: AnimalCreate, db: AsyncSession = Depends(get_db),
                          current_user: User = WRITE):
     """Elle hayvan ekleme; numara verilmezse otomatik numaralanır."""
@@ -469,7 +469,7 @@ class AnimalUpdate(BaseModel):
         return str(value).strip()
 
 
-@router.put("/animals/{animal_id}")
+@router.put("/animals/{animal_id}", dependencies=[Depends(require_capability("kurban.manage"))])
 async def update_animal(request: Request, animal_id: UUID, payload: AnimalUpdate, db: AsyncSession = Depends(get_db),
                         current_user: User = WRITE):
     org_id = _org_id(request)
@@ -482,7 +482,7 @@ async def update_animal(request: Request, animal_id: UUID, payload: AnimalUpdate
     return _animal_out(animal, shares)
 
 
-@router.delete("/animals/{animal_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/animals/{animal_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_capability("kurban.delete"))])
 async def delete_animal(request: Request, animal_id: UUID, db: AsyncSession = Depends(get_db), current_user: User = WRITE):
     org_id = _org_id(request)
     animal = await _animal(db, org_id, animal_id)
@@ -515,7 +515,7 @@ def _portal_url(organization) -> str:
     return f"{settings.PUBLIC_WEB_URL.rstrip('/')}/portal"
 
 
-@router.post("/animals/slaughter")
+@router.post("/animals/slaughter", dependencies=[Depends(require_capability("kurban.slaughter"))])
 async def slaughter_animals(request: Request, payload: SlaughterRequest, db: AsyncSession = Depends(get_db),
                             current_user: User = WRITE):
     """Kesildi işaretleme (tekli veya toplu) ve hissedarlara bir kez 'kesildi' SMS'i."""
@@ -603,7 +603,7 @@ async def animal_paper(request: Request, animal_id: UUID, db: AsyncSession = Dep
     return await _papers(db, org_id, [animal], getattr(org, "name", ""))
 
 
-@router.get("/campaigns/{campaign_id}/papers.pdf")
+@router.get("/campaigns/{campaign_id}/papers.pdf", dependencies=[Depends(require_capability("kurban.pdf"))])
 async def campaign_papers(
     request: Request,
     campaign_id: UUID,
@@ -691,7 +691,7 @@ class ShareUpdate(BaseModel):
         return sanitize_public_text(value) if value else value
 
 
-@router.put("/shares/{share_id}")
+@router.put("/shares/{share_id}", dependencies=[Depends(require_capability("kurban.manage"))])
 async def update_share(request: Request, share_id: UUID, payload: ShareUpdate, db: AsyncSession = Depends(get_db),
                        current_user: User = WRITE):
     """Hissedar adını / türünü düzeltme veya hisseyi elle başka hayvana taşıma."""

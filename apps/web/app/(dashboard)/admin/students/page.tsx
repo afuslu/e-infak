@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, GraduationCap, HeartHandshake, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react'
+import { BookOpen, Download, GraduationCap, HeartHandshake, MessageCircle, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react'
 import { Card, Button } from '@e-infak/ui'
-import { PageHeader, confirmDialog, toast } from '../../../../components/admin/ui'
+import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog, toast } from '../../../../components/admin/ui'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
 
 interface Student {
   id: string
@@ -248,32 +248,78 @@ export default function AdminStudentsPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Kayıtlı Öğrenci</span>
-            <Users className="h-4 w-4 text-primary-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-gray-950">{students.length}</div>
-        </Card>
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Seçili Talebe İlerlemesi</span>
-            <BookOpen className="h-4 w-4 text-amber-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-gray-950">
-            {selectedStudent ? `${totalPages} / ${TOTAL_QURAN_PAGES} sayfa` : '—'}
-          </div>
-          {selectedStudent && <div className="text-[11px] text-gray-500">Yaklaşık {estimatedJuz}. Cüz · %{progressPct}</div>}
-        </Card>
-        <Card className="border border-gray-100 p-4 shadow-sm">
-          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-gray-500">
-            <span>Seçili Talebe Aylık Sponsorluk</span>
-            <HeartHandshake className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div className="mt-1 text-2xl font-black text-emerald-700">
-            {selectedStudent ? formatMoney(totalSponsorCents) : '—'}
-          </div>
-        </Card>
+        <StatCard
+          label="Kayıtlı Öğrenci"
+          icon={Users}
+          value={students.length}
+          detail={{
+            title: 'Hafızlık Öğrenci Listesi',
+            content: () => (
+              <Table>
+                <THead><Tr><Th>Öğrenci</Th><Th>Veli</Th><Th className="text-right">Telefon</Th></Tr></THead>
+                <TBody>
+                  {students.map((st) => (
+                    <Tr key={st.id}>
+                      <Td className="font-semibold">{st.first_name} {st.last_name}</Td>
+                      <Td className="text-xs text-gray-500">{st.parent_name || '—'}</Td>
+                      <Td className="text-right font-mono text-xs text-gray-500">{st.parent_phone || '—'}</Td>
+                    </Tr>
+                  ))}
+                  {students.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Öğrenci yok.</Td></Tr>}
+                </TBody>
+              </Table>
+            ),
+          }}
+        />
+        <StatCard
+          label="Seçili Talebe İlerlemesi"
+          icon={BookOpen}
+          value={selectedStudent ? `${totalPages} / ${TOTAL_QURAN_PAGES} sayfa` : '—'}
+          hint={selectedStudent && `Yaklaşık ${estimatedJuz}. Cüz · %${progressPct}`}
+          detail={selectedStudent ? {
+            title: `${selectedStudent.first_name} ${selectedStudent.last_name} · Ders Geçmişi`,
+            description: `${totalPages} / ${TOTAL_QURAN_PAGES} sayfa · Yaklaşık ${estimatedJuz}. Cüz`,
+            content: () => (
+              <Table>
+                <THead><Tr><Th>Tarih</Th><Th>Ders / Not</Th><Th className="text-right">Sayfa</Th></Tr></THead>
+                <TBody>
+                  {progressLogs.map((log: any, idx: number) => (
+                    <Tr key={log.id || idx}>
+                      <Td className="text-xs">{log.created_at ? new Date(log.created_at).toLocaleDateString('tr-TR') : '—'}</Td>
+                      <Td className="text-xs">{log.notes || log.surah_name || '—'}</Td>
+                      <Td className="text-right font-semibold tabular-nums">{log.pages_memorized ?? log.pages_count ?? 0}</Td>
+                    </Tr>
+                  ))}
+                  {progressLogs.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Ders kaydı yok.</Td></Tr>}
+                </TBody>
+              </Table>
+            ),
+          } : undefined}
+        />
+        <StatCard
+          label="Seçili Talebe Aylık Sponsorluk"
+          icon={HeartHandshake}
+          tone="good"
+          value={selectedStudent ? formatMoney(totalSponsorCents) : '—'}
+          detail={selectedStudent ? {
+            title: `${selectedStudent.first_name} ${selectedStudent.last_name} · Sponsorlar`,
+            content: () => (
+              <Table>
+                <THead><Tr><Th>Sponsor</Th><Th>Telefon</Th><Th className="text-right">Aylık Tutar</Th></Tr></THead>
+                <TBody>
+                  {sponsors.map((sp: any, idx: number) => (
+                    <Tr key={sp.id || idx}>
+                      <Td className="font-semibold">{sp.donor_name || sp.full_name || '—'}</Td>
+                      <Td className="text-xs text-gray-500">{sp.donor_phone || '—'}</Td>
+                      <Td className="text-right font-bold tabular-nums text-emerald-700">{formatMoney(sp.monthly_amount_cents || 0)}</Td>
+                    </Tr>
+                  ))}
+                  {sponsors.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Sponsor kaydı yok.</Td></Tr>}
+                </TBody>
+              </Table>
+            ),
+          } : undefined}
+        />
       </div>
 
       {message && (
@@ -365,15 +411,27 @@ export default function AdminStudentsPage() {
                 <h2 className="flex items-center gap-2 text-base font-bold text-gray-900">
                   <GraduationCap className="h-4 w-4 text-primary-600" /> Kayıtlı Medrese Talebeleri
                 </h2>
-                <div className="relative w-full sm:w-56">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Öğrenci veya veli ara..."
-                    className="w-full rounded-lg border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-primary-500"
-                  />
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative w-full sm:w-56">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="search"
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Öğrenci veya veli ara..."
+                      className="w-full rounded-lg border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-xs outline-none focus:border-primary-500"
+                    />
+                  </div>
+                  {students.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => exportCsv('hafizlik-ogrencileri.csv', ['Ad', 'Soyad', 'Veli', 'Telefon', 'E-posta'],
+                        filteredStudents.map((s) => [s.first_name, s.last_name, s.parent_name, s.parent_phone, s.parent_email || '']))}
+                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      <Download className="h-3.5 w-3.5" /> CSV
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="space-y-2.5">
@@ -416,15 +474,42 @@ export default function AdminStudentsPage() {
                       {selectedStudent.parent_email ? ` · ${selectedStudent.parent_email}` : ''}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(() => {
+                      const wa = whatsappUrl(selectedStudent.parent_phone, `Merhaba ${selectedStudent.parent_name}, ${selectedStudent.first_name} ${selectedStudent.last_name} öğrencimizin güncel hafızlık durumu: ${totalPages}/${TOTAL_QURAN_PAGES} sayfa (${estimatedJuz}. cüz).`)
+                      return wa ? (
+                        <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                          <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                        </a>
+                      ) : null
+                    })()}
                     {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => openEditStudent(selectedStudent)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                      >
-                        <Pencil className="h-3 w-3" /> Düzenle
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openEditStudent(selectedStudent)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                          <Pencil className="h-3 w-3" /> Düzenle
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!(await confirmDialog(`${selectedStudent.first_name} ${selectedStudent.last_name} kaydı silinsin mi?`))) return
+                            try {
+                              await adminSend('delete', `/students/${selectedStudent.id}`)
+                              toast.ok('Öğrenci silindi')
+                              setSelectedStudent(null)
+                              await loadStudents()
+                            } catch (err) {
+                              toast.error(apiErrorMessage(err, 'Öğrenci silinemedi'))
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3 w-3" /> Sil
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => setSelectedStudent(null)}
@@ -569,7 +654,28 @@ export default function AdminStudentsPage() {
                           <div key={log.id} className="space-y-1.5 rounded-xl border border-gray-200 bg-white p-3">
                             <div className="flex items-center justify-between text-xs">
                               <span className="font-bold text-gray-900">{log.current_surah} ({log.memorized_pages} Sayfa)</span>
-                              <span className="text-[10px] text-gray-400">{new Date(log.check_date).toLocaleDateString('tr-TR')}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-400">{new Date(log.check_date).toLocaleDateString('tr-TR')}</span>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    title="Ders kaydını sil"
+                                    onClick={async () => {
+                                      if (!(await confirmDialog('Bu ders kaydı silinsin mi?'))) return
+                                      try {
+                                        await adminSend('delete', `/students/${selectedStudent.id}/progress/${log.id}`)
+                                        toast.ok('Ders kaydı silindi')
+                                        await handleSelectStudent(selectedStudent)
+                                      } catch (err) {
+                                        toast.error(apiErrorMessage(err, 'Ders kaydı silinemedi'))
+                                      }
+                                    }}
+                                    className="text-gray-400 hover:text-red-600"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                             {log.instructor_notes && (
                               <p className="rounded-lg bg-gray-50 p-2 text-[11px] italic leading-relaxed text-gray-500">

@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import axios from 'axios'
+import { MessageCircle, Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
+  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface MemberRow {
   id: string; member_no: string; member_type: string; member_type_label: string; status: string; status_label: string
@@ -29,6 +30,14 @@ interface Summary {
 interface BookRef { id: string; series: string; branch: string | null; status: string; next_label: string | null }
 
 type Tab = 'members' | 'dues' | 'duplicates' | 'settings'
+const PAGE_SIZE = 20
+const STATUS_BADGE: Record<string, string> = {
+  active: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  passive: 'border-gray-200 bg-gray-100 text-gray-600',
+  resigned: 'border-amber-200 bg-amber-50 text-amber-700',
+  expelled: 'border-red-200 bg-red-50 text-red-700',
+  deceased: 'border-slate-200 bg-slate-100 text-slate-600',
+}
 const fmt = (v: string | null | undefined) => (v ? new Date(v).toLocaleDateString('tr-TR') : '—')
 const key = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID().replace(/-/g, '') : `${Date.now()}${Math.random()}`.replace('.', '').padEnd(16, '0'))
 const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }
@@ -44,6 +53,7 @@ export default function MembersPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [members, setMembers] = useState<MemberRow[]>([])
   const [filters, setFilters] = useState({ status: 'active', member_type: '', overdue_only: false, q: '' })
+  const [page, setPage] = useState(1)
   const [detail, setDetail] = useState<MemberDetail | null>(null)
   const [form, setForm] = useState<(typeof emptyMember & { id?: string }) | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
@@ -185,7 +195,7 @@ export default function MembersPage() {
       )}
 
       {detail && !form && (
-        <MemberCard detail={detail} canEdit={canEdit} canCollect={canCollect} onEdit={() => setForm({
+        <MemberCard key={detail.id} detail={detail} canEdit={canEdit} canCollect={canCollect} onEdit={() => setForm({
           id: detail.id, member_no: detail.member_no, member_type: detail.member_type, status: detail.status,
           joined_on: detail.joined_on || '', left_on: detail.left_on || '', dues: detail.dues_cents !== null ? String(detail.dues_cents / 100) : '',
           dues_period: detail.dues_period || '', notes: detail.notes || '', first_name: '', last_name: '', phone: '', email: '', tc_no: '', city: '',
@@ -196,15 +206,15 @@ export default function MembersPage() {
       {tab === 'members' && settings && (
         <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <select className={`${inputClass} w-40`} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+            <select className={`${inputClass} w-40`} value={filters.status} onChange={(e) => { setFilters({ ...filters, status: e.target.value }); setPage(1) }}>
               <option value="">Tüm durumlar</option>{Object.entries(settings.statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            <select className={`${inputClass} w-40`} value={filters.member_type} onChange={(e) => setFilters({ ...filters, member_type: e.target.value })}>
+            <select className={`${inputClass} w-40`} value={filters.member_type} onChange={(e) => { setFilters({ ...filters, member_type: e.target.value }); setPage(1) }}>
               <option value="">Tüm türler</option>{Object.entries(settings.types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
-            <input className={`${inputClass} w-56`} placeholder="Üye no, ad, telefon…" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
+            <input className={`${inputClass} w-56`} placeholder="Üye no, ad, telefon…" value={filters.q} onChange={(e) => { setFilters({ ...filters, q: e.target.value }); setPage(1) }} />
             <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-              <input type="checkbox" checked={filters.overdue_only} onChange={(e) => setFilters({ ...filters, overdue_only: e.target.checked })} /> Yalnız aidatı gecikenler
+              <input type="checkbox" checked={filters.overdue_only} onChange={(e) => { setFilters({ ...filters, overdue_only: e.target.checked }); setPage(1) }} /> Yalnız aidatı gecikenler
             </label>
             <div className="ml-auto flex gap-2">
               <button className={ghostButton} onClick={() => exportCsv('uyeler.csv', ['Üye no', 'Ad', 'Telefon', 'E-posta', 'Tür', 'Durum', 'Kayıt', 'Açık aidat', 'Geciken dönem'],
@@ -216,13 +226,17 @@ export default function MembersPage() {
             <Table>
               <THead><Tr><Th>No</Th><Th>Ad</Th><Th>Telefon</Th><Th>Tür</Th><Th>Durum</Th><Th>Kayıt</Th><Th>Açık aidat</Th><Th>Son ödeme</Th></Tr></THead>
               <TBody>
-                {members.map((m) => (
+                {members.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((m) => (
                   <Tr key={m.id} onClick={() => open(m.id)} className={`cursor-pointer border-t hover:bg-gray-50 ${detail?.id === m.id ? 'bg-primary-50/30' : ''}`}>
                     <Td className="font-bold">{m.member_no}</Td>
                     <Td className="font-semibold text-gray-900">{m.full_name}</Td>
                     <Td>{m.phone || '—'}</Td>
                     <Td>{m.member_type_label}</Td>
-                    <Td>{m.status_label}</Td>
+                    <Td>
+                      <span className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE[m.status] || 'border-gray-200 bg-gray-100 text-gray-700'}`}>
+                        {m.status_label}
+                      </span>
+                    </Td>
                     <Td>{fmt(m.joined_on)}</Td>
                     <Td className={m.overdue_count ? 'font-bold text-red-700' : ''}>{m.open_dues_cents ? `${formatMoney(m.open_dues_cents)}${m.overdue_count ? ` (${m.overdue_count} gecikmiş)` : ''}` : '—'}</Td>
                     <Td>{fmt(m.last_paid_at)}</Td>
@@ -232,10 +246,21 @@ export default function MembersPage() {
               </TBody>
             </Table>
           </div>
+          {members.length > PAGE_SIZE && (
+            <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
+              <span>Sayfa {page} / {Math.ceil(members.length / PAGE_SIZE)} ({members.length} üye)</span>
+              <div className="flex gap-2">
+                <button type="button" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="rounded-lg border border-gray-200 px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">Önceki</button>
+                <button type="button" disabled={page >= Math.ceil(members.length / PAGE_SIZE)} onClick={() => setPage((p) => p + 1)}
+                  className="rounded-lg border border-gray-200 px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">Sonraki</button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
-      {tab === 'dues' && <DuesTab canCollect={canCollect} onMessage={setMessage} onChanged={refreshSummary} />}
+      {tab === 'dues' && <DuesTab canCollect={canCollect} onMessage={setMessage} onChanged={refreshSummary} onOpenMember={async (memberId) => { setTab('members'); await open(memberId) }} />}
       {tab === 'duplicates' && <DuplicatesTab canEdit={canEdit} onMessage={setMessage} />}
       {tab === 'settings' && settings && <SettingsTab settings={settings} canEdit={canEdit} onSaved={(v) => setSettings({ ...settings, ...v })} onMessage={setMessage} />}
     </div>
@@ -307,13 +332,42 @@ function MemberCard({ detail, canEdit, canCollect, onEdit, onClose, onChanged, o
   const [collect, setCollect] = useState(false)
   const openDues = detail.dues.filter((d) => d.status === 'open')
   const selected = openDues.filter((d) => picked.has(d.id))
+  const wa = whatsappUrl(detail.phone, `Merhaba ${detail.full_name}, dernek üyeliğiniz hakkında iletişime geçiyoruz.`)
+  const deleteDue = async (due: Due) => {
+    const ok = await confirmDialog({
+      title: `${due.period} dönemi aidat borcu silinsin mi?`,
+      text: `${formatMoney(due.amount_cents)} tutarındaki açık aidat kaydı kalıcı olarak silinecek.`,
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await adminSend('delete', `/member-dues/${due.id}`)
+      onChanged(`${due.period} dönemi aidatı silindi`)
+    } catch (err) {
+      onError(apiErrorMessage(err, 'Aidat silinemedi'))
+    }
+  }
   return (
     <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">{detail.full_name} <span className="text-sm font-semibold text-gray-500">· Üye no {detail.member_no}</span></h2>
-          <p className="mt-1 text-sm text-gray-500">{[detail.member_type_label, detail.status_label, detail.phone, detail.email, detail.city].filter(Boolean).join(' · ')}</p>
-          <p className="text-xs text-gray-400">Kayıt {fmt(detail.joined_on)}{detail.left_on ? ` · Ayrılış ${fmt(detail.left_on)}` : ''}{detail.dues_cents !== null ? ` · Özel aidat ${formatMoney(detail.dues_cents)}` : ''}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-bold text-gray-900">{detail.full_name} <span className="text-sm font-semibold text-gray-500">· Üye no {detail.member_no}</span></h2>
+            <span className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE[detail.status] || 'border-gray-200 bg-gray-100 text-gray-700'}`}>
+              {detail.status_label}
+            </span>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+            <span>{[detail.member_type_label, detail.city].filter(Boolean).join(' · ')}</span>
+            {detail.phone && <a href={`tel:${detail.phone}`} className="font-semibold text-primary-700 hover:underline">{detail.phone}</a>}
+            {detail.email && <a href={`mailto:${detail.email}`} className="text-primary-700 hover:underline">{detail.email}</a>}
+            {wa && (
+              <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              </a>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-gray-400">Kayıt {fmt(detail.joined_on)}{detail.left_on ? ` · Ayrılış ${fmt(detail.left_on)}` : ''}{detail.dues_cents !== null ? ` · Özel aidat ${formatMoney(detail.dues_cents)}` : ''}</p>
         </div>
         <div className="flex gap-2">
           {canEdit && <button className={ghostButton} onClick={onEdit}>Düzenle</button>}
@@ -335,7 +389,7 @@ function MemberCard({ detail, canEdit, canCollect, onEdit, onClose, onChanged, o
         <CollectForm dues={selected} onError={onError} onDone={(text) => { setCollect(false); setPicked(new Set()); onChanged(text) }} />
       )}
       <Table>
-        <THead><Tr><Th /><Th>Dönem</Th><Th>Son ödeme</Th><Th>Tutar</Th><Th>Durum</Th><Th>Ödeme / not</Th></Tr></THead>
+        <THead><Tr><Th /><Th>Dönem</Th><Th>Son ödeme</Th><Th>Tutar</Th><Th>Durum</Th><Th>Ödeme / not</Th><Th /></Tr></THead>
         <TBody>
           {detail.dues.map((d) => (
             <Tr key={d.id} className="border-t">
@@ -347,23 +401,42 @@ function MemberCard({ detail, canEdit, canCollect, onEdit, onClose, onChanged, o
               <Td>{formatMoney(d.amount_cents)}</Td>
               <Td className={d.overdue ? 'font-bold text-red-700' : ''}>{d.overdue ? `${d.days_overdue} gün gecikmiş` : d.status_label}</Td>
               <Td>{d.paid_at ? fmt(d.paid_at) : d.waived_reason || '—'}</Td>
+              <Td className="text-right">
+                {d.status === 'open' && canCollect && (
+                  <button type="button" title="Açık aidatı sil" onClick={() => deleteDue(d)} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </Td>
             </Tr>
           ))}
-          {!detail.dues.length && <Tr><Td colSpan={6} className="text-center text-gray-400">Bu üyeye henüz aidat dönemi açılmamış.</Td></Tr>}
+          {!detail.dues.length && <Tr><Td colSpan={7} className="text-center text-gray-400">Bu üyeye henüz aidat dönemi açılmamış.</Td></Tr>}
         </TBody>
       </Table>
     </Card>
   )
 }
 
-function DuesTab({ canCollect, onMessage, onChanged }: { canCollect: boolean; onMessage: (m: { type: 'ok' | 'error'; text: string } | null) => void; onChanged: () => void }) {
+function DuesTab({ canCollect, onMessage, onChanged, onOpenMember }: {
+  canCollect: boolean; onMessage: (m: { type: 'ok' | 'error'; text: string } | null) => void; onChanged: () => void; onOpenMember: (memberId: string) => void
+}) {
   const [status, setStatus] = useState<'overdue' | 'open' | 'paid' | 'waived'>('overdue')
+  const [periodFilter, setPeriodFilter] = useState('')
+  const [q, setQ] = useState('')
+  const [page, setPage] = useState(1)
   const [rows, setRows] = useState<Due[]>([])
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [waiveModal, setWaiveModal] = useState(false)
+  const [waiveReason, setWaiveReason] = useState('Yönetim kurulu kararı')
   const [gen, setGen] = useState({ period: thisMonth(), due_date: '', amount: '' })
   const [preview, setPreview] = useState<{ created: number; total_cents: number; already_had: number; no_amount: number; other_period: number } | null>(null)
-  const load = () => adminGet<Due[]>('/member-dues', { status }).then((r) => { setRows(r.data); setPicked(new Set()) }).catch((err) => onMessage({ type: 'error', text: apiErrorMessage(err) }))
-  useEffect(() => { load() }, [status]) // eslint-disable-line react-hooks/exhaustive-deps
+  const load = () => adminGet<Due[]>('/member-dues', { status, period: periodFilter.trim() || undefined, q: q.trim() || undefined })
+    .then((r) => { setRows(r.data); setPicked(new Set()) }).catch((err) => onMessage({ type: 'error', text: apiErrorMessage(err) }))
+  useEffect(() => {
+    const t = setTimeout(load, 250)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, periodFilter, q])
 
   const generate = async (dryRun: boolean) => {
     onMessage(null)
@@ -382,16 +455,33 @@ function DuesTab({ canCollect, onMessage, onChanged }: { canCollect: boolean; on
       onMessage({ type: 'error', text: apiErrorMessage(err) })
     }
   }
-  const waive = async () => {
-    const reason = window.prompt('Muafiyet / silme gerekçesi', 'Yönetim kurulu kararı')
-    if (!reason) return
+  const submitWaive = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!waiveReason.trim()) return
     try {
-      const res = await adminSend<{ waived: number }>('post', '/member-dues/waive', { due_ids: [...picked], reason })
+      const res = await adminSend<{ waived: number }>('post', '/member-dues/waive', { due_ids: [...picked], reason: waiveReason.trim() })
+      setWaiveModal(false)
       onMessage({ type: 'ok', text: `${res.data.waived} aidat muaf tutuldu` })
       load()
       onChanged()
     } catch (err) {
       onMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+  const deleteDue = async (due: Due) => {
+    const ok = await confirmDialog({
+      title: `${due.full_name || due.member_no} — ${due.period} aidatı silinsin mi?`,
+      text: `${formatMoney(due.amount_cents)} tutarındaki açık aidat kaydı kalıcı olarak silinecek.`,
+      danger: true,
+    })
+    if (!ok) return
+    try {
+      await adminSend('delete', `/member-dues/${due.id}`)
+      onMessage({ type: 'ok', text: `${due.period} dönemi aidatı silindi` })
+      load()
+      onChanged()
+    } catch (err) {
+      onMessage({ type: 'error', text: apiErrorMessage(err, 'Aidat silinemedi') })
     }
   }
   return (
@@ -418,33 +508,85 @@ function DuesTab({ canCollect, onMessage, onChanged }: { canCollect: boolean; on
       <Card className="space-y-3 border border-gray-100 p-6 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           {([['overdue', 'Gecikmiş'], ['open', 'Tüm açık'], ['paid', 'Ödenmiş'], ['waived', 'Muaf']] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setStatus(k)} className={`rounded-full border px-3 py-1 text-xs font-semibold ${status === k ? 'border-primary-600 bg-primary-50 text-primary-700' : 'bg-white text-gray-600'}`}>{l}</button>
+            <button key={k} onClick={() => { setStatus(k); setPage(1) }} className={`rounded-full border px-3 py-1 text-xs font-semibold ${status === k ? 'border-primary-600 bg-primary-50 text-primary-700' : 'bg-white text-gray-600'}`}>{l}</button>
           ))}
+          <input className={`${inputClass} w-48`} placeholder="Üye no, ad, telefon…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <input className={`${inputClass} w-32`} placeholder="Dönem (2026-11)" value={periodFilter} onChange={(e) => { setPeriodFilter(e.target.value); setPage(1) }} />
           <span className="text-xs text-gray-500">{rows.length} kayıt · {formatMoney(rows.reduce((s, r) => s + r.amount_cents, 0))}</span>
           <div className="ml-auto flex gap-2">
-            {canCollect && (status === 'overdue' || status === 'open') && picked.size > 0 && <button className={ghostButton} onClick={waive}>Seçilenleri muaf tut</button>}
+            {canCollect && (status === 'overdue' || status === 'open') && picked.size > 0 && <button className={ghostButton} onClick={() => setWaiveModal(true)}>Seçilenleri muaf tut</button>}
             <button className={ghostButton} onClick={() => exportCsv(`aidat-${status}.csv`, ['Üye no', 'Ad', 'Telefon', 'Dönem', 'Son ödeme', 'Tutar', 'Gecikme (gün)', 'Durum'],
               rows.map((r) => [r.member_no, r.full_name, r.phone, r.period, fmt(r.due_date), r.amount_cents / 100, r.days_overdue, r.status_label]))}>⬇ CSV</button>
           </div>
         </div>
-        <p className="text-[11px] text-gray-400">Tahsilat için üyeler sekmesinden üyeyi açıp dönemleri seçin. Gecikenlere hatırlatma için listeyi CSV alıp Toplu SMS ekranını kullanabilirsiniz.</p>
+        <p className="text-[11px] text-gray-400">Tahsilat için üye adına veya &quot;Tahsilat&quot; butonuna tıklayarak üye kartını açabilirsiniz. Gecikenlere hatırlatma için listeyi CSV alıp Toplu SMS ekranını kullanabilirsiniz.</p>
         <div className="overflow-x-auto">
           <Table>
-            <THead><Tr><Th /><Th>Üye no</Th><Th>Ad</Th><Th>Telefon</Th><Th>Dönem</Th><Th>Son ödeme</Th><Th>Tutar</Th><Th>Durum</Th></Tr></THead>
+            <THead><Tr><Th /><Th>Üye no</Th><Th>Ad</Th><Th>Telefon</Th><Th>Dönem</Th><Th>Son ödeme</Th><Th>Tutar</Th><Th>Durum</Th><Th className="text-right">İşlem</Th></Tr></THead>
             <TBody>
-              {rows.map((r) => (
-                <Tr key={r.id} className="border-t">
-                  <Td>{r.status === 'open' && canCollect && <input type="checkbox" checked={picked.has(r.id)} onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })} />}</Td>
-                  <Td className="font-bold">{r.member_no}</Td><Td>{r.full_name}</Td><Td>{r.phone || '—'}</Td><Td>{r.period}</Td><Td>{fmt(r.due_date)}</Td>
-                  <Td>{formatMoney(r.amount_cents)}</Td>
-                  <Td className={r.overdue ? 'font-bold text-red-700' : ''}>{r.overdue ? `${r.days_overdue} gün gecikmiş` : r.status_label}</Td>
-                </Tr>
-              ))}
-              {!rows.length && <Tr><Td colSpan={8} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}
+              {rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => {
+                const wa = whatsappUrl(r.phone, `Merhaba ${r.full_name}, ${r.period} dönemi (${formatMoney(r.amount_cents)}) aidatınız hakkında bilgilendirmek isteriz.`)
+                return (
+                  <Tr key={r.id} className="border-t hover:bg-gray-50">
+                    <Td>{r.status === 'open' && canCollect && <input type="checkbox" checked={picked.has(r.id)} onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })} />}</Td>
+                    <Td className="font-bold">{r.member_no}</Td>
+                    <Td>
+                      <button type="button" onClick={() => onOpenMember(r.member_id)} className="font-semibold text-primary-700 hover:underline text-left">
+                        {r.full_name}
+                      </button>
+                    </Td>
+                    <Td>{r.phone || '—'}</Td><Td>{r.period}</Td><Td>{fmt(r.due_date)}</Td>
+                    <Td>{formatMoney(r.amount_cents)}</Td>
+                    <Td className={r.overdue ? 'font-bold text-red-700' : ''}>{r.overdue ? `${r.days_overdue} gün gecikmiş` : r.status_label}</Td>
+                    <Td className="text-right">
+                      <div className="inline-flex items-center gap-2">
+                        {r.status === 'open' && canCollect && (
+                          <button type="button" onClick={() => onOpenMember(r.member_id)} className="rounded border border-primary-200 bg-primary-50 px-2 py-0.5 text-[11px] font-semibold text-primary-700 hover:bg-primary-100">
+                            Tahsilat
+                          </button>
+                        )}
+                        {wa && (
+                          <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp hatırlatma" className="inline-flex text-emerald-600 hover:text-emerald-700">
+                            <MessageCircle className="h-4 w-4" />
+                          </a>
+                        )}
+                        {r.status === 'open' && canCollect && (
+                          <button type="button" title="Açık aidatı sil" onClick={() => deleteDue(r)} className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </Td>
+                  </Tr>
+                )
+              })}
+              {!rows.length && <Tr><Td colSpan={9} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}
             </TBody>
           </Table>
         </div>
+        {rows.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
+            <span>Sayfa {page} / {Math.ceil(rows.length / PAGE_SIZE)} ({rows.length} kayıt)</span>
+            <div className="flex gap-2">
+              <button type="button" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-lg border border-gray-200 px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">Önceki</button>
+              <button type="button" disabled={page >= Math.ceil(rows.length / PAGE_SIZE)} onClick={() => setPage((p) => p + 1)}
+                className="rounded-lg border border-gray-200 px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40">Sonraki</button>
+            </div>
+          </div>
+        )}
       </Card>
+      {waiveModal && (
+        <Modal title={`${picked.size} Aidatı Muaf Tut`} size="sm" onClose={() => setWaiveModal(false)}>
+          <form onSubmit={submitWaive} className="space-y-3">
+            <TextInput label="Muafiyet / silme gerekçesi *" required value={waiveReason} onChange={setWaiveReason} />
+            <div className="flex justify-end gap-2">
+              <button type="button" className={ghostButton} onClick={() => setWaiveModal(false)}>Vazgeç</button>
+              <button type="submit" className={primaryButton}>Onayla ve Muaf Tut</button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }

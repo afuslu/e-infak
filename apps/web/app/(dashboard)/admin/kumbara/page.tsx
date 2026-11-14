@@ -8,7 +8,7 @@ import {
   adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface Region { id: string; name: string; description: string | null }
 interface Box {
@@ -192,43 +192,135 @@ export default function KumbaraPage() {
 
       {report && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Card className="border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>Bu yıl toplanan</span>
-              <Wallet className="h-4 w-4 text-primary-600" />
-            </div>
-            <div className="mt-1 text-xl font-black text-primary-700">{formatMoney(report.total_cents)}</div>
-          </Card>
-          <Card className="border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>Boşaltma</span>
-              <History className="h-4 w-4 text-gray-400" />
-            </div>
-            <div className="mt-1 text-xl font-black text-gray-950">{report.collections}</div>
-          </Card>
-          <Card className="border border-gray-100 p-4 shadow-sm">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>Aktif kumbara</span>
-              <PiggyBank className="h-4 w-4 text-emerald-600" />
-            </div>
-            <div className="mt-1 text-xl font-black text-emerald-700">{report.boxes.active}</div>
-          </Card>
-          <Card className="border border-gray-100 p-4 shadow-sm">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Kayıp / Pasif</div>
-            <div className="mt-1 text-xl font-black text-gray-700">{report.boxes.lost} / {report.boxes.passive}</div>
-          </Card>
-          <Card
-            onClick={() => report.not_collected_90_days > 0 && setFilters((f) => ({ ...f, status: 'active', stale: f.stale === '90' ? '' : '90' }))}
-            className={`border p-4 shadow-sm transition ${report.not_collected_90_days > 0 ? 'cursor-pointer border-red-200 bg-red-50/40 hover:bg-red-50' : 'border-gray-100'}`}
-          >
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              <span>90+ gün boşaltılmayan</span>
-              <AlertCircle className={`h-4 w-4 ${report.not_collected_90_days > 0 ? 'text-red-600' : 'text-gray-400'}`} />
-            </div>
-            <div className={`mt-1 text-xl font-black ${report.not_collected_90_days > 0 ? 'text-red-700' : 'text-gray-950'}`}>
-              {report.not_collected_90_days}
-            </div>
-          </Card>
+          <StatCard
+            label="Bu yıl toplanan"
+            icon={Wallet}
+            tone="brand"
+            value={formatMoney(report.total_cents)}
+            detail={{
+              title: 'Kumbara Tahsilat Özeti',
+              content: () => (
+                <Table>
+                  <THead><Tr><Th>Kod</Th><Th>Yer / Sorumlu</Th><Th className="text-right">Son Boşaltma</Th><Th className="text-right">Toplam</Th></Tr></THead>
+                  <TBody>
+                    {[...boxes].sort((a, b) => b.total_collected_cents - a.total_collected_cents).map((b) => (
+                      <Tr key={b.id}>
+                        <Td className="font-mono font-bold">{b.code}</Td>
+                        <Td>{b.location_name}</Td>
+                        <Td className="text-right text-xs">{b.last_collected_at ? new Date(b.last_collected_at).toLocaleDateString('tr-TR') : '—'}</Td>
+                        <Td className="text-right font-bold tabular-nums">{formatMoney(b.total_collected_cents)}</Td>
+                      </Tr>
+                    ))}
+                    {boxes.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Kumbara yok.</Td></Tr>}
+                  </TBody>
+                </Table>
+              ),
+            }}
+          />
+          <StatCard
+            label="Boşaltma"
+            icon={History}
+            value={report.collections}
+            detail={{
+              title: 'Kumbara Boşaltma Sayıları',
+              content: () => (
+                <Table>
+                  <THead><Tr><Th>Kod</Th><Th>Yer</Th><Th className="text-right">Boşaltma</Th><Th className="text-right">Son Tarih</Th></Tr></THead>
+                  <TBody>
+                    {boxes.map((b) => (
+                      <Tr key={b.id}>
+                        <Td className="font-mono font-bold">{b.code}</Td>
+                        <Td>{b.location_name}</Td>
+                        <Td className="text-right tabular-nums">{b.collection_count}</Td>
+                        <Td className="text-right text-xs">{b.last_collected_at ? new Date(b.last_collected_at).toLocaleDateString('tr-TR') : '—'}</Td>
+                      </Tr>
+                    ))}
+                  </TBody>
+                </Table>
+              ),
+            }}
+          />
+          <StatCard
+            label="Aktif kumbara"
+            icon={PiggyBank}
+            tone="good"
+            value={report.boxes.active}
+            detail={{
+              title: 'Aktif Kumbaralar',
+              content: () => {
+                const activeBoxes = boxes.filter((b) => b.status === 'active')
+                return (
+                  <Table>
+                    <THead><Tr><Th>Kod</Th><Th>Yer</Th><Th>Bölge</Th><Th className="text-right">Toplam</Th></Tr></THead>
+                    <TBody>
+                      {activeBoxes.map((b) => (
+                        <Tr key={b.id}>
+                          <Td className="font-mono font-bold">{b.code}</Td>
+                          <Td>{b.location_name}</Td>
+                          <Td className="text-xs text-gray-500">{b.region_name || '—'}</Td>
+                          <Td className="text-right font-semibold tabular-nums">{formatMoney(b.total_collected_cents)}</Td>
+                        </Tr>
+                      ))}
+                      {activeBoxes.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Aktif kumbara yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                )
+              },
+            }}
+          />
+          <StatCard
+            label="Kayıp / Pasif"
+            value={`${report.boxes.lost} / ${report.boxes.passive}`}
+            detail={{
+              title: 'Kayıp ve Pasif Kumbaralar',
+              content: () => {
+                const inactiveBoxes = boxes.filter((b) => b.status === 'lost' || b.status === 'passive')
+                return (
+                  <Table>
+                    <THead><Tr><Th>Kod</Th><Th>Yer</Th><Th className="text-right">Durum</Th></Tr></THead>
+                    <TBody>
+                      {inactiveBoxes.map((b) => (
+                        <Tr key={b.id}>
+                          <Td className="font-mono font-bold">{b.code}</Td>
+                          <Td>{b.location_name}</Td>
+                          <Td className="text-right text-xs font-semibold">{b.status === 'lost' ? 'Kayıp' : 'Pasif'}</Td>
+                        </Tr>
+                      ))}
+                      {inactiveBoxes.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Kayıp veya pasif kumbara yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                )
+              },
+            }}
+          />
+          <StatCard
+            label="90+ gün boşaltılmayan"
+            icon={AlertCircle}
+            tone={report.not_collected_90_days > 0 ? 'bad' : 'neutral'}
+            className={report.not_collected_90_days > 0 ? 'border-red-200 bg-red-50/40' : undefined}
+            value={report.not_collected_90_days}
+            detail={{
+              title: '90+ Gündür Boşaltılmayan Kumbaralar',
+              content: () => {
+                const stale = boxes.filter((b) => b.status === 'active' && (!b.last_collected_at || (Date.now() - new Date(b.last_collected_at).getTime()) > 90 * 86400000))
+                return (
+                  <Table>
+                    <THead><Tr><Th>Kod</Th><Th>Yer</Th><Th className="text-right">Son Boşaltma</Th></Tr></THead>
+                    <TBody>
+                      {stale.map((b) => (
+                        <Tr key={b.id}>
+                          <Td className="font-mono font-bold">{b.code}</Td>
+                          <Td>{b.location_name}</Td>
+                          <Td className="text-right text-xs text-red-600">{b.last_collected_at ? new Date(b.last_collected_at).toLocaleDateString('tr-TR') : 'Hiç boşaltılmadı'}</Td>
+                        </Tr>
+                      ))}
+                      {stale.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Gecikmiş kumbara yok.</Td></Tr>}
+                    </TBody>
+                  </Table>
+                )
+              },
+            }}
+          />
         </div>
       )}
 

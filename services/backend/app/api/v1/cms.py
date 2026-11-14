@@ -655,6 +655,7 @@ def _volunteer_out(app: VolunteerApplication) -> dict:
 async def admin_list_volunteers(
     request: Request,
     status_filter: Optional[str] = Query(default=None, alias="status"),
+    area: Optional[str] = Query(default=None, max_length=60),
     q: Optional[str] = Query(default=None, max_length=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -662,11 +663,14 @@ async def admin_list_volunteers(
     query = select(VolunteerApplication).where(VolunteerApplication.organization_id == _org_id(request))
     if status_filter in VOLUNTEER_STATUSES:
         query = query.where(VolunteerApplication.status == status_filter)
+    if area and area.strip():
+        query = query.where(VolunteerApplication.areas.contains([area.strip()]))
     if q:
         like = f"%{q.strip()}%"
         query = query.where(or_(
             VolunteerApplication.full_name.ilike(like),
             VolunteerApplication.phone.ilike(like),
+            VolunteerApplication.email.ilike(like),
             VolunteerApplication.city.ilike(like),
         ))
     rows = (await db.execute(query.order_by(VolunteerApplication.created_at.desc()).limit(1000))).scalars().all()
@@ -684,6 +688,86 @@ async def admin_update_volunteer(request: Request, application_id: UUID, payload
     _audit(db, org_id, current_user, "gonullu_guncelle", {"application_id": str(app.id), "old": old_status, "new": app.status})
     await db.commit()
     return _volunteer_out(app)
+
+
+@admin_router.delete("/volunteers/{application_id}")
+async def admin_delete_volunteer(
+    request: Request,
+    application_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = _org_id(request)
+    app = await _get_owned(db, VolunteerApplication, org_id, application_id, "Başvuru")
+    _audit(db, org_id, current_user, "gonullu_sil", {"application_id": str(app.id), "full_name": app.full_name})
+    await db.delete(app)
+    await db.commit()
+    return {"deleted": True}
+
+
+@admin_router.post("/volunteers/{application_id}/to-crm")
+async def admin_volunteer_to_crm(
+    request: Request,
+    application_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Kabul edilen gönüllüyü CRM'e 'Gönüllü' etiketiyle aktarır veya mevcut kişiyle eşleştirir."""
+    from app.api.v1.crm import _normalize_phone
+    from app.models.donation import Donor, DonorType
+
+    org_id = _org_id(request)
+    app = await _get_owned(db, VolunteerApplication, org_id, application_id, "Başvuru")
+    phone = _normalize_phone(app.phone)
+    if phone and len(phone) == 10:
+        phone = "0" + phone
+    email = (app.email or "").strip().lower() or None
+
+    checks = []
+    if phone:
+        checks.append(Donor.phone == phone)
+    if email:
+        checks.append(func.lower(Donor.email) == email)
+
+    donor = None
+    if checks:
+        donor = (await db.execute(
+            select(Donor).where(Donor.organization_id == org_id, or_(*checks)).order_by(Donor.created_at)
+        )).scalars().first()
+
+    created = False
+    if donor is None:
+        parts = (app.full_name or "").split()
+        first_name, last_name = (" ".join(parts[:-1]), parts[-1]) if len(parts) > 1 else (app.full_name, None)
+        donor = Donor(
+            organization_id=org_id,
+            donor_type=DonorType.INDIVIDUAL,
+            first_name=first_name[:100],
+            last_name=last_name[:100] if last_name else None,
+            phone=phone,
+            email=email,
+            city=app.city,
+            country="Türkiye",
+            tags=["Gönüllü"],
+            notes=f"Gönüllü başvurusu ({', '.join(app.areas or [])})" if app.areas else "Gönüllü başvurusu",
+            total_donations=0,
+            total_donated_cents=0,
+        )
+        db.add(donor)
+        await db.flush()
+        created = True
+    else:
+        donor.tags = sorted(set(donor.tags or []) | {"Gönüllü"})
+        if not donor.city and app.city:
+            donor.city = app.city
+
+    _audit(db, org_id, current_user, "gonullu_crm_aktar", {
+        "application_id": str(app.id),
+        "donor_id": str(donor.id),
+        "created": created,
+    })
+    await db.commit()
+    return {"donor_id": str(donor.id), "created": created}
 
 
 # --- Public ------------------------------------------------------------------

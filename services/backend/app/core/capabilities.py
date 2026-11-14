@@ -29,6 +29,7 @@ GROUPS: tuple[CapabilityGroup, ...] = (
     CapabilityGroup("donors", "Bağışçılar", "donor_manage", (
         Capability("donors.create", "Bağışçı ekleyebilsin"),
         Capability("donors.update", "Bağışçı güncelleyebilsin"),
+        Capability("donors.delete", "Bağışçıları silebilsin (bağışı ve üyeliği olmayanları)"),
         Capability("donors.view_all", "Tüm bağışçıların kartına erişsin (kapalıysa yalnız temsilcisi olduğu bağışçılar)", rule=True),
         Capability("donors.update_all", "Tüm bağışçıları güncelleyebilsin (kapalıysa yalnız temsilcisi olduğu bağışçılar)", rule=True),
         Capability("donors.phone", "Cep telefonunu yıldızsız görsün"),

@@ -5,10 +5,11 @@
  * table, dialogs and messages. Colours use the gray / primary scales, which the panel's
  * dark theme (.admin-dark in globals.css) already flips.
  */
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Inbox, X, XCircle, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, Eye, Inbox, Printer, X, XCircle, type LucideIcon } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
+import { exportCsv } from '../../lib/admin-access'
 import { ghostButton, primaryButton } from './FormKit'
 
 /** Dialogs render inside the panel wrapper so they get its theme (dark mode, brand colours). */
@@ -34,18 +35,93 @@ const TONES = {
   neutral: 'text-gray-900', good: 'text-green-700', warn: 'text-amber-700', bad: 'text-red-700', brand: 'text-primary-700',
 } as const
 
-export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon }: {
+export interface StatCardDetail {
+  title: string
+  description?: ReactNode
+  size?: 'sm' | 'md' | 'lg'
+  content: () => ReactNode
+}
+
+export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, detail, className }: {
   label: string; value: ReactNode; hint?: ReactNode; tone?: keyof typeof TONES; icon?: LucideIcon
+  detail?: StatCardDetail; className?: string
 }) {
+  const [open, setOpen] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const clickable = !!detail
+
+  const exportModalTable = () => {
+    const table = contentRef.current?.querySelector('table')
+    if (!table || !detail) return
+    const headCells = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent?.trim() || '')
+    const bodyRows = Array.from(table.querySelectorAll('tbody tr')).map((tr) =>
+      Array.from(tr.querySelectorAll('td')).map((td) => td.textContent?.trim() || ''),
+    )
+    const header = headCells.length ? headCells : ['Bilgi', 'Değer']
+    const slug = detail.title.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'detay'
+    exportCsv(`${slug}.csv`, header, bodyRows)
+  }
+
+  const printModalContent = () => {
+    if (!contentRef.current || !detail) return
+    const win = window.open('', '_blank', 'width=900,height=700')
+    if (!win) return
+    win.document.write(`<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>${detail.title}</title>
+      <style>body{font-family:system-ui,-apple-system,sans-serif;padding:24px;color:#111827}h1{font-size:18px;margin:0 0 4px}p{font-size:12px;color:#6b7280;margin:0 0 16px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border-bottom:1px solid #e5e7eb;padding:8px 6px;text-align:left}th{font-size:11px;text-transform:uppercase;color:#6b7280}@media print{body{padding:0}}</style>
+      </head><body><h1>${detail.title}</h1>${typeof detail.description === 'string' ? `<p>${detail.description}</p>` : ''}${contentRef.current.innerHTML}</body></html>`)
+    win.document.close()
+    win.focus()
+    win.print()
+  }
+
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</div>
-        {Icon && <Icon className="h-4 w-4 text-gray-400" aria-hidden="true" />}
+    <>
+      <div
+        role={clickable ? 'button' : undefined}
+        tabIndex={clickable ? 0 : undefined}
+        onClick={clickable ? () => setOpen(true) : undefined}
+        onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true) } } : undefined}
+        className={join(
+          'rounded-xl border border-gray-100 bg-white p-4 shadow-sm',
+          clickable && 'group cursor-pointer transition hover:border-primary-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500/40',
+          className,
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</div>
+          <div className="flex items-center gap-1.5">
+            {clickable && (
+              <span className="inline-flex items-center gap-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 transition group-hover:bg-primary-50 group-hover:text-primary-700">
+                <Eye className="h-3 w-3" aria-hidden="true" /> Detay
+              </span>
+            )}
+            {Icon && <Icon className="h-4 w-4 text-gray-400" aria-hidden="true" />}
+          </div>
+        </div>
+        <div className={`mt-1 text-2xl font-black tabular-nums ${TONES[tone]}`}>{value}</div>
+        {hint && <div className="mt-0.5 text-xs text-gray-500">{hint}</div>}
       </div>
-      <div className={`mt-1 text-2xl font-black tabular-nums ${TONES[tone]}`}>{value}</div>
-      {hint && <div className="mt-0.5 text-xs text-gray-500">{hint}</div>}
-    </div>
+      {open && detail && (
+        <Modal
+          title={detail.title}
+          description={detail.description}
+          size={detail.size ?? 'lg'}
+          onClose={() => setOpen(false)}
+          footer={
+            <>
+              <button type="button" onClick={exportModalTable} className={`${ghostButton} inline-flex items-center gap-1.5`}>
+                <Download className="h-3.5 w-3.5" aria-hidden="true" /> CSV İndir
+              </button>
+              <button type="button" onClick={printModalContent} className={`${ghostButton} inline-flex items-center gap-1.5`}>
+                <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır / PDF
+              </button>
+            </>
+          }
+        >
+          <div ref={contentRef} className="max-h-[65vh] overflow-y-auto pr-1">{detail.content()}</div>
+        </Modal>
+      )}
+    </>
   )
 }
 
