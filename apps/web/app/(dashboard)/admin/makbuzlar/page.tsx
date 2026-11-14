@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
-import { Copy, Download, ExternalLink, XCircle } from 'lucide-react'
+import { Copy, Download, ExternalLink, FileDown, MessageSquare, ShieldCheck, XCircle } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
   adminApiBase,
@@ -16,7 +16,7 @@ import {
   hasPermission,
   useAdminAccess,
 } from '../../../../lib/admin-access'
-import { Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { Notice, TextInput, compactInputClass, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms } from '../../../../lib/sms'
@@ -352,7 +352,7 @@ export default function AdminReceiptsPage() {
             <input
               type="date"
               aria-label="Başlangıç tarihi"
-              className={`${inputClass} w-40`}
+              className={`${compactInputClass} w-40`}
               value={filters.start}
               onChange={(e) => setFilter('start', e.target.value)}
             />
@@ -360,7 +360,7 @@ export default function AdminReceiptsPage() {
             <input
               type="date"
               aria-label="Bitiş tarihi"
-              className={`${inputClass} w-40`}
+              className={`${compactInputClass} w-40`}
               value={filters.end}
               onChange={(e) => setFilter('end', e.target.value)}
             />
@@ -456,36 +456,48 @@ export default function AdminReceiptsPage() {
                           <SmsStatusPill sms={sms[don.id]} />
                         </Td>
                         <Td className="whitespace-nowrap text-right text-xs">
-                          {canSms && don.status === 'confirmed' && (
-                            <button onClick={() => setSmsFor(don)} className="mr-2 font-bold text-primary-600 hover:text-primary-700">
-                              SMS
-                            </button>
-                          )}
-                          <button
-                            onClick={() => viewReceipt(don.id)}
-                            disabled={receiptLoadingId === don.id}
-                            className="font-bold text-primary-600 hover:text-primary-700"
-                          >
-                            {receiptLoadingId === don.id ? '…' : 'Doğrula'}
-                          </button>
-                          <button
-                            onClick={() =>
-                              downloadReceiptPdf(don.id, don.receipt_number).catch(() => toast.error('PDF indirilemedi.'))
-                            }
-                            className="ml-2 font-bold text-primary-600 hover:text-primary-700"
-                          >
-                            PDF
-                          </button>
-                          {canIssue && don.is_manual && don.status === 'confirmed' && (
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            {canSms && don.status === 'confirmed' && (
+                              <button
+                                type="button"
+                                onClick={() => setSmsFor(don)}
+                                className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                              >
+                                <MessageSquare className="h-3 w-3" aria-hidden="true" />
+                                SMS
+                              </button>
+                            )}
                             <button
                               type="button"
-                              title="Elle kesilen makbuzu iptal et"
-                              onClick={() => setCancelTarget({ donation: don, reason: 'Hatalı makbuz girişi' })}
-                              className="ml-2 inline-flex items-center gap-0.5 font-bold text-red-600 hover:text-red-700"
+                              onClick={() => viewReceipt(don.id)}
+                              disabled={receiptLoadingId === don.id}
+                              className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
                             >
-                              <XCircle className="h-3.5 w-3.5" /> İptal
+                              <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                              {receiptLoadingId === don.id ? '…' : 'Doğrula'}
                             </button>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                downloadReceiptPdf(don.id, don.receipt_number).catch(() => toast.error('PDF indirilemedi.'))
+                              }
+                              className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700 transition-colors hover:bg-rose-100"
+                            >
+                              <FileDown className="h-3 w-3" aria-hidden="true" />
+                              PDF
+                            </button>
+                            {canIssue && don.is_manual && don.status === 'confirmed' && (
+                              <button
+                                type="button"
+                                title="Elle kesilen makbuzu iptal et"
+                                onClick={() => setCancelTarget({ donation: don, reason: 'Hatalı makbuz girişi' })}
+                                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 transition-colors hover:bg-red-100"
+                              >
+                                <XCircle className="h-3 w-3" aria-hidden="true" />
+                                İptal
+                              </button>
+                            )}
+                          </div>
                         </Td>
                       </Tr>
                     )

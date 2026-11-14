@@ -2,7 +2,8 @@
 
 import type { ReactNode } from 'react'
 
-export const inputClass = 'w-full rounded-lg border border-gray-300 bg-white p-2.5 text-sm outline-none focus:border-primary-600'
+export const compactInputClass = 'rounded-lg border border-gray-300 bg-white p-2.5 text-sm outline-none focus:border-primary-600'
+export const inputClass = `w-full ${compactInputClass}`
 export const primaryButton = 'rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50'
 export const ghostButton = 'rounded-lg border bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:border-primary-600'
 

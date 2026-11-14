@@ -1,6 +1,7 @@
 'use client'
 
 import { useCurrentUser, useLogout } from '@e-infak/api-client'
+import { useQuery } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useState } from 'react'
 import Link from 'next/link'
@@ -8,7 +9,7 @@ import { ExternalLink, Lock, type LucideIcon, Monitor, Moon, PanelLeftClose, Pan
 import { UiHost } from '../../components/admin/ui'
 import { groupOf, NAV_GROUPS, navItemFor, type NavItem, searchKey } from '../../components/admin/admin-nav'
 import { AdminCommandPalette, AdminNotificationsBell, AdminProfileMenu } from '../../components/admin/AdminShellWidgets'
-import { hasFeature, hasPermission, useAdminAccess } from '../../lib/admin-access'
+import { hasFeature, hasPermission, useAdminAccess, v1Get } from '../../lib/admin-access'
 
 const MENU_KEY = 'einfak-admin-menu'
 const COLLAPSE_KEY = 'einfak-admin-sidebar-collapsed'
@@ -94,6 +95,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const { data: user, isLoading } = useCurrentUser()
   const { data: access } = useAdminAccess()
+  const { data: siteBrandRes } = useQuery({
+    queryKey: ['admin-site-brand'],
+    queryFn: () => v1Get<{ name?: string; logo_url?: string | null }>('/public/site'),
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+  const siteBrand = siteBrandRes?.data
   const logout = useLogout()
   const theme = useAdminTheme()
   const currentItem = navItemFor(pathname)
@@ -228,12 +236,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       } ${theme.dark ? 'bg-[#0B1220] border-e border-white/[0.06]' : 'bg-[#12202E]'}`}>
         <div className={`flex items-center justify-between border-b border-white/[0.08] py-4 ${collapsed ? 'px-4 lg:justify-center lg:px-2' : 'px-4'}`}>
           <Link href="/admin" className="flex items-center gap-2.5 min-w-0">
-            <div className="h-9 w-9 shrink-0 rounded-[9px] flex items-center justify-center text-white font-extrabold text-base" style={{ background: 'linear-gradient(135deg,#059669,#34D399)' }}>
-              e
-            </div>
-            <div className={collapsed ? 'lg:hidden' : ''}>
-              <div className="text-white font-extrabold text-[16px] tracking-wide">E-İNFAK</div>
-              <div className="text-[10px] tracking-[1.5px] text-[#5F7488]">DERNEK OTOMASYONU</div>
+            <img
+              src={siteBrand?.logo_url || '/images/e-infak/mark.png'}
+              alt={siteBrand?.name || 'E-İnfak'}
+              className="h-9 w-9 shrink-0 rounded-[9px] bg-white object-contain p-1 ring-1 ring-white/15"
+            />
+            <div className={`min-w-0 ${collapsed ? 'lg:hidden' : ''}`}>
+              <div className="truncate text-white font-extrabold text-[15px] tracking-wide">{siteBrand?.name || 'E-İNFAK'}</div>
+              <div className="text-[10px] tracking-[1.2px] text-[#5F7488]">E-İNFAK OTOMASYONU</div>
             </div>
           </Link>
           <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Menüyü kapat"
@@ -365,6 +375,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 lastName={user.last_name}
                 email={user.email}
                 roleLabel={roleLabel}
+                logoUrl={siteBrand?.logo_url}
                 onLogout={handleLogout}
               />
             </div>

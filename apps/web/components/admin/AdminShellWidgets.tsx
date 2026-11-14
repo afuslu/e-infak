@@ -280,12 +280,14 @@ export function AdminProfileMenu({
   lastName,
   email,
   roleLabel,
+  logoUrl,
   onLogout,
 }: {
   firstName?: string
   lastName?: string
   email?: string
   roleLabel?: string
+  logoUrl?: string | null
   onLogout: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -307,9 +309,13 @@ export function AdminProfileMenu({
     <div ref={containerRef} className="relative">
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
         className="flex items-center gap-2 rounded-lg border border-transparent px-1.5 py-1 transition-colors hover:border-gray-200 hover:bg-gray-50">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 text-[13px] font-bold text-white">
-          {initial}
-        </div>
+        {logoUrl ? (
+          <img src={logoUrl} alt={fullName} className="h-8 w-8 rounded-full bg-white object-contain p-0.5 ring-1 ring-gray-200" />
+        ) : (
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 text-[13px] font-bold text-white">
+            {initial}
+          </div>
+        )}
         <span className="hidden text-[13px] font-semibold text-gray-900 md:inline">{firstName}</span>
         <ChevronDown className="hidden h-3.5 w-3.5 text-gray-400 md:inline" aria-hidden="true" />
       </button>

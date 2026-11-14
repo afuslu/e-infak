@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
-import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { Label, Notice, TextInput, compactInputClass, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface Book {
@@ -289,14 +289,14 @@ export default function ReceiptBooksPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <input
-              className={`${inputClass} w-56`}
+              className={`${compactInputClass} w-56`}
               placeholder="Seri, şube veya zimmet ara..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
             <select
               aria-label="Koçan durumu"
-              className={`${inputClass} w-40`}
+              className={`${compactInputClass} w-40`}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'closed')}
             >
@@ -499,12 +499,12 @@ export default function ReceiptBooksPage() {
       )}
 
       <Card className="space-y-3 border border-gray-100 p-6 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-bold text-gray-900">Online ve şube makbuzları ({summaryCurrency})</h2>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               aria-label="Para birimi"
-              className={`${inputClass} w-24`}
+              className={`${compactInputClass} w-24`}
               value={summaryCurrency}
               onChange={(e) => setSummaryCurrency(e.target.value)}
             >
@@ -516,13 +516,16 @@ export default function ReceiptBooksPage() {
             </select>
             <input
               type="date"
-              className={`${inputClass} w-40`}
+              aria-label="Başlangıç tarihi"
+              className={`${compactInputClass} w-40`}
               value={range.start}
               onChange={(e) => setRange({ ...range, start: e.target.value })}
             />
+            <span className="text-xs text-gray-400">—</span>
             <input
               type="date"
-              className={`${inputClass} w-40`}
+              aria-label="Bitiş tarihi"
+              className={`${compactInputClass} w-40`}
               value={range.end}
               onChange={(e) => setRange({ ...range, end: e.target.value })}
             />
