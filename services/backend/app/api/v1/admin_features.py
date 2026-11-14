@@ -353,6 +353,21 @@ async def download_donation_receipt_pdf(
     if donation.donor:
         donor_name = donation.donor.full_name
 
+    # A receipt with several donation items prints all of them with the total.
+    group = (donation.payment_details or {}).get("receipt_group")
+    lines = None
+    amount_cents = donation.amount_cents
+    if group:
+        members = (await db.execute(
+            select(Donation).options(selectinload(Donation.campaign)).where(
+                Donation.organization_id == org_id, Donation.payment_details["receipt_group"].astext == group)
+            .order_by(Donation.created_at)
+        )).scalars().all()
+        if len(members) > 1:
+            lines = [(m.campaign.title if m.campaign else "-", m.amount_cents, m.currency or "TRY", m.on_behalf_of) for m in members]
+            if len({m.currency for m in members}) == 1:
+                amount_cents = sum(m.amount_cents for m in members)
+
     org = request.state.organization
     verify_base = (
         f"https://{org.primary_domain}"
@@ -364,7 +379,7 @@ async def download_donation_receipt_pdf(
         campaign=donation.campaign,
         donor_name=donor_name,
         receipt_number=donation.receipt_number,
-        amount_cents=donation.amount_cents,
+        amount_cents=amount_cents,
         currency=donation.currency or "TRY",
         payment_method=donation.payment_method.value if hasattr(donation.payment_method, "value") else str(donation.payment_method),
         paid_at=donation.paid_at or donation.created_at,
@@ -372,6 +387,8 @@ async def download_donation_receipt_pdf(
         on_behalf_of=donation.on_behalf_of,
         official_receipt_no=donation.official_receipt_no,
         verify_base_url=verify_base,
+        lines=lines,
+        status_label="Beklemede (ödeme alınmadı)" if donation.status == DonationStatus.PENDING else None,
     )
     return Response(
         content=pdf_bytes,

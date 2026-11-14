@@ -7,7 +7,7 @@ import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
-import { PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface Row {
   id: string
@@ -33,7 +33,7 @@ interface SearchResult {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  confirmed: 'Onaylı', pending: 'Bekliyor', failed: 'Başarısız', refunded: 'İade', cancelled: 'İptal',
+  confirmed: 'Onaylı', pending: 'Beklemede', failed: 'Başarısız', refunded: 'İade', cancelled: 'İptal',
 }
 
 const emptyFilters = {
@@ -126,6 +126,17 @@ export default function AdminDonationsPage() {
     try {
       await adminSend('post', `/donations/${row.id}/cancel`, { reason })
       setMessage({ type: 'ok', text: 'Makbuz iptal edildi' })
+      await load()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const markPaid = async (row: Row) => {
+    if (!(await confirmDialog({ title: `${row.receipt_number} numaralı makbuzun ödemesi alındı mı?`, text: 'Makbuz onaylanır, kampanya toplamına eklenir ve bağışçıya makbuz bildirimi gider.', confirmLabel: 'Ödendi', danger: false }))) return
+    try {
+      const res = await adminSend<{ lines: number }>('post', `/donations/${row.id}/mark-paid`)
+      setMessage({ type: 'ok', text: res.data.lines > 1 ? `Makbuz ödendi (${res.data.lines} kalem)` : 'Makbuz ödendi' })
       await load()
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
@@ -266,7 +277,10 @@ export default function AdminDonationsPage() {
                     <Td className="text-right font-bold tabular-nums">{formatMoney(r.amount_cents, r.currency)}</Td>
                     <Td className="text-right whitespace-nowrap">
                       <button onClick={() => pdf(r)} className="font-bold text-primary-700 hover:underline">PDF</button>
-                      {canIssue && r.is_manual && r.status === 'confirmed' && (
+                      {canIssue && r.is_manual && r.status === 'pending' && (
+                        <button onClick={() => markPaid(r)} className="ml-3 font-bold text-green-700 hover:underline">Ödendi</button>
+                      )}
+                      {canIssue && r.is_manual && (r.status === 'confirmed' || r.status === 'pending') && (
                         <button onClick={() => cancel(r)} className="ml-3 font-bold text-red-600 hover:underline">İptal</button>
                       )}
                     </Td>

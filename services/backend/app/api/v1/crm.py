@@ -388,7 +388,9 @@ def _donation_row(d: Donation, names: dict) -> dict:
         "currency": d.currency,
         "status": d.status.value,
         "payment_method": d.payment_method.value,
-        "payment_method_label": METHOD_LABELS.get(d.payment_method, d.payment_method.value),
+        "payment_method_label": (d.payment_details or {}).get("bank_account_label")
+        or METHOD_LABELS.get(d.payment_method, d.payment_method.value),
+        "receipt_group": (d.payment_details or {}).get("receipt_group"),
         "is_manual": d.payment_provider in OFFLINE_PROVIDERS,
         "source": d.payment_provider,
         "paid_at": d.paid_at or d.created_at,
@@ -516,15 +518,39 @@ class ManualDonor(BaseModel):
         return _normalize_phone(value)
 
 
+class ReceiptLine(BaseModel):
+    """One donation item on a receipt (the video's "Makbuz Detay" row)."""
+    campaign_id: UUID
+    amount_cents: int = Field(gt=0, le=1_000_000_000)
+    currency: Literal["TRY", "USD", "EUR"] = "TRY"
+    quantity: int = Field(default=1, ge=1, le=700)
+    on_behalf_of: Optional[str] = Field(default=None, max_length=200)
+    metadata: dict = Field(default_factory=dict)
+
+    @field_validator("on_behalf_of", mode="before")
+    @classmethod
+    def clean(cls, value):
+        return sanitize_public_text(value) or None if value else None
+
+
 class ManualDonationIn(BaseModel):
     idempotency_key: str = Field(min_length=16, max_length=100)
     donor_id: Optional[UUID] = None
     donor: Optional[ManualDonor] = None
-    campaign_id: UUID
-    amount_cents: int = Field(gt=0, le=1_000_000_000)
+    # One item: campaign_id + amount_cents (kept for older callers). Several: lines.
+    campaign_id: Optional[UUID] = None
+    amount_cents: Optional[int] = Field(default=None, gt=0, le=1_000_000_000)
+    lines: Optional[list[ReceiptLine]] = Field(default=None, max_length=30)
     currency: Literal["TRY", "USD", "EUR"] = "TRY"
-    payment_method: Literal["cash", "bank_transfer"] = "cash"
+    # cash | bank_transfer | credit_card (POS / card at the office); bank_account_id names the account
+    payment_method: Literal["cash", "bank_transfer", "credit_card"] = "cash"
+    bank_account_id: Optional[UUID] = None
     paid_on: Optional[date] = None
+    paid_time: Optional[str] = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    # paid: money received · pending: written now, paid later ("Beklemede")
+    status: Literal["paid", "pending"] = "paid"
+    # Staff member the receipt belongs to (defaults to whoever writes it)
+    issued_by_id: Optional[UUID] = None
     bank_reference: Optional[str] = Field(default=None, max_length=100)
     on_behalf_of: Optional[str] = Field(default=None, max_length=200)
     note: Optional[str] = Field(default=None, max_length=1000)
@@ -548,10 +574,17 @@ class ManualDonationIn(BaseModel):
     def donor_required(self):
         if not self.donor_id and not self.donor:
             raise ValueError("Mevcut bir bağışçı seçin veya yeni bağışçı bilgisi girin")
+        if not self.lines and (not self.campaign_id or not self.amount_cents):
+            raise ValueError("En az bir bağış kalemi ve tutar girin")
         today = datetime.now(TZ).date()
         if self.paid_on and (self.paid_on > today or self.paid_on < today - timedelta(days=366)):
             raise ValueError("Bağış tarihi bugünden ileri veya bir yıldan eski olamaz")
         return self
+
+    def receipt_lines(self) -> list[ReceiptLine]:
+        """The items of the receipt; the single-item fields when no lines were sent."""
+        return self.lines or [ReceiptLine(campaign_id=self.campaign_id, amount_cents=self.amount_cents, currency=self.currency,
+                                          quantity=self.quantity, on_behalf_of=self.on_behalf_of, metadata=self.metadata)]
 
 
 @router.post("/donations/manual", status_code=status.HTTP_201_CREATED)
@@ -567,11 +600,30 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
     if existing:
         return _donation_row(existing, await _staff_names(db, org_id))
 
-    campaign = (await db.execute(
-        select(Campaign).where(Campaign.id == payload.campaign_id, Campaign.organization_id == org_id).with_for_update()
-    )).scalar_one_or_none()
-    if not campaign:
-        raise HTTPException(status_code=404, detail="Kampanya bulunamadı")
+    receipt_lines = payload.receipt_lines()
+    campaigns: dict[UUID, Campaign] = {}
+    for line in receipt_lines:
+        if line.campaign_id not in campaigns:
+            found = (await db.execute(select(Campaign).where(
+                Campaign.id == line.campaign_id, Campaign.organization_id == org_id).with_for_update())).scalar_one_or_none()
+            if not found:
+                raise HTTPException(status_code=404, detail="Kampanya bulunamadı")
+            campaigns[line.campaign_id] = found
+
+    issuer_id = current_user.id
+    if payload.issued_by_id and payload.issued_by_id != current_user.id:
+        staff = (await db.execute(select(User).where(
+            User.id == payload.issued_by_id, User.organization_id == org_id, User.is_active.is_(True)))).scalar_one_or_none()
+        if not staff:
+            raise HTTPException(status_code=404, detail="Personel bulunamadı")
+        issuer_id = staff.id
+    bank_account = None
+    if payload.bank_account_id:
+        from app.models.automation import BankAccount
+        bank_account = (await db.execute(select(BankAccount).where(
+            BankAccount.id == payload.bank_account_id, BankAccount.organization_id == org_id))).scalar_one_or_none()
+        if not bank_account:
+            raise HTTPException(status_code=404, detail="Banka hesabı bulunamadı")
 
     if payload.donor_id:
         donor = await _get_donor(db, org_id, payload.donor_id)
@@ -605,34 +657,95 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
         raise HTTPException(status_code=422, detail="Yaprak numarası için koçan seçin")
 
     now = datetime.now(timezone.utc)
-    paid_at = datetime.combine(payload.paid_on, time(12, 0), TZ) if payload.paid_on else now
-    method = PaymentMethod.CASH if payload.payment_method == "cash" else PaymentMethod.BANK_TRANSFER
-    donation, module_effects = await record_offline_donation(
-        db,
-        organization_id=org_id, campaign=campaign, donor=donor,
-        amount_cents=payload.amount_cents, currency=payload.currency, method=method, paid_at=paid_at,
-        issued_by_id=current_user.id, provider=MANUAL_PROVIDER, idempotency_key=idempotency_key,
-        details={"note": payload.note, "bank_reference": payload.bank_reference},
-        note=payload.note, on_behalf_of=payload.on_behalf_of, is_anonymous=payload.is_anonymous,
-        transaction_id=payload.bank_reference, send_receipt=payload.send_receipt,
-        quantity=payload.quantity, metadata=payload.metadata,
-    )
+    clock = time(*map(int, payload.paid_time.split(":"))) if payload.paid_time else None
+    if payload.paid_on:
+        paid_at = datetime.combine(payload.paid_on, clock or time(12, 0), TZ)
+    elif clock:
+        paid_at = datetime.combine(datetime.now(TZ).date(), clock, TZ)
+    else:
+        paid_at = now
+    method = {"cash": PaymentMethod.CASH, "credit_card": PaymentMethod.CREDIT_CARD}.get(payload.payment_method, PaymentMethod.BANK_TRANSFER)
+    if bank_account:
+        method = PaymentMethod.BANK_TRANSFER
+    details = {"note": payload.note, "bank_reference": payload.bank_reference}
+    if bank_account:
+        details.update(bank_account_id=str(bank_account.id), bank_account_label=bank_account.label)
+    if issuer_id != current_user.id:
+        details["written_by"] = str(current_user.id)
+
+    donations, effects = [], {}
+    for index, line in enumerate(receipt_lines):
+        donation, line_effects = await record_offline_donation(
+            db,
+            organization_id=org_id, campaign=campaigns[line.campaign_id], donor=donor,
+            amount_cents=line.amount_cents, currency=line.currency, method=method, paid_at=paid_at,
+            issued_by_id=issuer_id, provider=MANUAL_PROVIDER,
+            idempotency_key=idempotency_key + (f":{index}" if index else ""),
+            details={**details, **({"receipt_group": str(donations[0].id), "line": index} if donations else {})},
+            note=payload.note, on_behalf_of=line.on_behalf_of, is_anonymous=payload.is_anonymous,
+            transaction_id=payload.bank_reference,
+            # one e-mail/SMS for the whole receipt
+            send_receipt=payload.send_receipt and index == 0,
+            quantity=line.quantity, metadata=line.metadata, pending=payload.status == "pending",
+        )
+        if not donations and len(receipt_lines) > 1:
+            donation.payment_details = {**donation.payment_details, "receipt_group": str(donation.id), "line": 0}
+        donations.append(donation)
+        for key, value in line_effects.items():
+            effects[key] = effects.get(key, 0) + value if isinstance(value, int) else value
     if book:
-        donation.receipt_book_id, donation.official_receipt_no = book.id, official_no
-    from app.services.sms_service import queue_receipt_sms
-    from app.sms import SmsError
-    try:
-        await queue_receipt_sms(db, donation, donor, payload.sms_body, current_user.id)
-    except SmsError as exc:
-        raise HTTPException(status_code=422, detail=f"SMS: {exc}") from exc
+        for donation in donations:
+            donation.receipt_book_id, donation.official_receipt_no = book.id, official_no
+    first = donations[0]
+    if payload.status == "paid":
+        from app.services.sms_service import queue_receipt_sms
+        from app.sms import SmsError
+        try:
+            await queue_receipt_sms(db, first, donor, payload.sms_body, current_user.id)
+        except SmsError as exc:
+            raise HTTPException(status_code=422, detail=f"SMS: {exc}") from exc
     _audit(db, org_id, current_user, "makbuz_elle_kes", {
-        "donation_id": str(donation.id), "receipt_number": donation.receipt_number, "official_receipt_no": official_no,
-        "amount_cents": payload.amount_cents, "currency": payload.currency, "method": payload.payment_method,
-        **module_effects,
+        "donation_id": str(first.id), "receipt_number": first.receipt_number, "official_receipt_no": official_no,
+        "donor_id": str(donor.id), "lines": len(donations), "amount_cents": sum(d.amount_cents for d in donations),
+        "currency": first.currency, "method": payload.payment_method, "status": payload.status,
+        "bank_account": bank_account.label if bank_account else None, **effects,
     })
     await db.commit()
-    donation.campaign = campaign
-    return _donation_row(donation, await _staff_names(db, org_id))
+    first.campaign = campaigns[receipt_lines[0].campaign_id]
+    row = _donation_row(first, await _staff_names(db, org_id))
+    row["receipt_numbers"] = [d.receipt_number for d in donations]
+    row["total_cents"] = sum(d.amount_cents for d in donations)
+    return row
+
+
+@router.post("/donations/{donation_id}/mark-paid")
+async def mark_manual_donation_paid(request: Request, donation_id: UUID, db: AsyncSession = Depends(get_db),
+                                    current_user: User = Depends(get_current_user)):
+    """A pending receipt was paid: every line of its receipt becomes confirmed."""
+    from app.services.offline_donation import confirm_offline_donation
+
+    org_id = _org_id(request)
+    donation = (await db.execute(select(Donation).where(
+        Donation.id == donation_id, Donation.organization_id == org_id).with_for_update())).scalar_one_or_none()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Bağış bulunamadı")
+    group = (donation.payment_details or {}).get("receipt_group")
+    rows = [donation]
+    if group:
+        rows = (await db.execute(select(Donation).options(selectinload(Donation.campaign), selectinload(Donation.donor)).where(
+            Donation.organization_id == org_id, Donation.payment_details["receipt_group"].astext == group,
+            Donation.status == DonationStatus.PENDING).with_for_update())).scalars().all()
+    else:
+        await db.refresh(donation, ["campaign", "donor"])
+    if not rows or any(r.status != DonationStatus.PENDING for r in rows):
+        raise HTTPException(status_code=409, detail="Yalnız bekleyen makbuz ödendi olarak işaretlenebilir")
+    now = datetime.now(timezone.utc)
+    for row in rows:
+        await confirm_offline_donation(db, row, row.campaign, row.donor, paid_at=now)
+    _audit(db, org_id, current_user, "makbuz_odendi", {"donation_id": str(rows[0].id), "lines": len(rows),
+                                                        "donor_id": str(rows[0].donor_id)})
+    await db.commit()
+    return {"status": "confirmed", "lines": len(rows)}
 
 
 class CancelIn(BaseModel):
@@ -652,23 +765,36 @@ async def cancel_manual_donation(request: Request, donation_id: UUID, payload: C
         raise HTTPException(status_code=404, detail="Bağış bulunamadı")
     if donation.payment_provider not in OFFLINE_PROVIDERS:
         raise HTTPException(status_code=409, detail="Online ödemeler iptal edilemez; iade işlemi kullanılmalıdır")
-    if donation.status != DonationStatus.CONFIRMED:
+    if donation.status not in (DonationStatus.CONFIRMED, DonationStatus.PENDING):
         raise HTTPException(status_code=409, detail="Makbuz zaten iptal edilmiş")
-    try:
-        undone = await on_donation_cancelled(db, donation)
-    except DonationEffectsLocked as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    donation.status = DonationStatus.CANCELLED
-    donation.payment_details = {**(donation.payment_details or {}), "cancel_reason": sanitize_public_text(payload.reason),
-                                "cancelled_by": str(current_user.id)}
-    if donation.campaign:
-        remove_from_campaign(donation, donation.campaign)
-    if donation.donor:
-        donation.donor.total_donations = max(0, (donation.donor.total_donations or 0) - 1)
-        donation.donor.total_donated_cents = max(0, (donation.donor.total_donated_cents or 0) - donation.amount_cents)
+    # A receipt with several items is cancelled as a whole.
+    group = (donation.payment_details or {}).get("receipt_group")
+    lines = [donation]
+    if group:
+        lines = (await db.execute(
+            select(Donation).options(selectinload(Donation.campaign), selectinload(Donation.donor)).where(
+                Donation.organization_id == org_id, Donation.payment_details["receipt_group"].astext == group,
+                Donation.status.in_([DonationStatus.CONFIRMED, DonationStatus.PENDING])).with_for_update()
+        )).scalars().all()
+    undone: dict = {}
+    reason = sanitize_public_text(payload.reason)
+    for line in lines:
+        if line.status == DonationStatus.CONFIRMED:
+            try:
+                for key, value in (await on_donation_cancelled(db, line)).items():
+                    undone[key] = undone.get(key, 0) + value if isinstance(value, int) else value
+            except DonationEffectsLocked as exc:
+                raise HTTPException(status_code=409, detail=str(exc))
+            if line.campaign:
+                remove_from_campaign(line, line.campaign)
+            if line.donor:
+                line.donor.total_donations = max(0, (line.donor.total_donations or 0) - 1)
+                line.donor.total_donated_cents = max(0, (line.donor.total_donated_cents or 0) - line.amount_cents)
+        line.status = DonationStatus.CANCELLED
+        line.payment_details = {**(line.payment_details or {}), "cancel_reason": reason, "cancelled_by": str(current_user.id)}
     _audit(db, org_id, current_user, "makbuz_iptal", {
         "donation_id": str(donation.id), "receipt_number": donation.receipt_number, "reason": payload.reason,
-        **undone,
+        "donor_id": str(donation.donor_id), "lines": len(lines), **undone,
     })
     await db.commit()
     return _donation_row(donation, await _staff_names(db, org_id))

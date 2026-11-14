@@ -82,6 +82,8 @@ def build_receipt_pdf(
     verify_base_url: str,
     on_behalf_of: str | None = None,
     official_receipt_no: str | None = None,
+    lines: list[tuple[str, int, str, str | None]] | None = None,
+    status_label: str | None = None,
 ) -> bytes:
     """Tek sayfalık resmi görünümlü bağış makbuzu üretir ve PDF bayt dizisi döner."""
     buffer = BytesIO()
@@ -143,14 +145,14 @@ def build_receipt_pdf(
         ("Makbuz No", receipt_number),
         *([("Koçan / Yaprak No", official_receipt_no)] if official_receipt_no else []),
         ("Bağışçı", donor_name or "Anonim Bağışçı"),
-        *([("Adına Bağış", on_behalf_of[:80])] if on_behalf_of else []),
-        ("Kampanya", (getattr(campaign, "title", None) or "-")[:80]),
+        *([("Adına Bağış", on_behalf_of[:80])] if on_behalf_of and not lines else []),
+        *([] if lines else [("Kampanya", (getattr(campaign, "title", None) or "-")[:80])]),
         ("Ödeme Yöntemi", _PAYMENT_LABEL.get(payment_method, payment_method)),
         (
             "Tarih",
             (paid_at or datetime.now()).strftime("%d.%m.%Y %H:%M"),
         ),
-        ("Durum", {"refunded": "İade edildi", "cancelled": "İptal edildi"}.get(status, "Geçerli / Onaylandı")),
+        ("Durum", status_label or {"refunded": "İade edildi", "cancelled": "İptal edildi"}.get(status, "Geçerli / Onaylandı")),
     ]
     y -= 12 * mm
     pdf.setFont(FONT,11)
@@ -162,6 +164,29 @@ def build_receipt_pdf(
         pdf.setFont(FONT_BOLD,11)
         pdf.drawString(margin + 45 * mm, y, str(value))
         y -= 9 * mm
+
+    # --- Kalemler (birden çok bağış kalemi olan makbuz) ---
+    if lines:
+        y -= 2 * mm
+        pdf.setFillColor(muted)
+        pdf.setFont(FONT_BOLD, 9)
+        pdf.drawString(margin, y, "BAĞIŞ KALEMİ")
+        pdf.drawString(margin + 95 * mm, y, "ADINA")
+        pdf.drawRightString(width - margin, y, "TUTAR")
+        y -= 3 * mm
+        pdf.setStrokeColor(line)
+        pdf.line(margin, y, width - margin, y)
+        y -= 6 * mm
+        for title_, cents, cur, behalf in lines[:14]:
+            pdf.setFillColor(ink)
+            pdf.setFont(FONT, 10)
+            pdf.drawString(margin, y, (title_ or "-")[:52])
+            pdf.setFillColor(muted)
+            pdf.drawString(margin + 95 * mm, y, (behalf or "")[:28])
+            pdf.setFillColor(ink)
+            pdf.setFont(FONT_BOLD, 10)
+            pdf.drawRightString(width - margin, y, _fmt_amount(cents, cur))
+            y -= 7 * mm
 
     # --- Tutar kutusu ---
     y -= 4 * mm

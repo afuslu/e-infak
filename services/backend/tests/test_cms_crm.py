@@ -263,3 +263,46 @@ async def test_cms_routes_are_gated_by_website_feature():
     org.id = uuid.uuid4()
     await require_admin_route_feature(_request(org, path="/api/v1/admin-features/pages"))
     await require_admin_route_feature(_request(org, path="/api/v1/admin-features/donors/x"))
+
+
+async def test_receipt_with_several_items_pending_then_paid_and_cancelled_as_one(db_session):
+    from app.models.donation import Donation, DonationStatus
+    org, admin, campaign = await _setup(db_session)
+    second_campaign = Campaign(organization_id=org.id, slug="kurban", title="Kurban", summary="s",
+                               target_cents=1_000_000, collected_cents=0)
+    db_session.add(second_campaign)
+    await db_session.flush()
+    payload = crm.ManualDonationIn(
+        idempotency_key=uuid.uuid4().hex, donor=crm.ManualDonor(first_name="Hızır", last_name="Peçe", phone="0544 854 41 12"),
+        lines=[crm.ReceiptLine(campaign_id=campaign.id, amount_cents=60_000, on_behalf_of="Annem"),
+               crm.ReceiptLine(campaign_id=second_campaign.id, amount_cents=40_000)],
+        payment_method="bank_transfer", paid_on=datetime.now(crm.TZ).date(), paid_time="14:20", status="pending",
+    )
+    row = await crm.create_manual_donation(_request(org, "POST"), payload, db_session, admin)
+    assert row["total_cents"] == 100_000 and len(row["receipt_numbers"]) == 2
+    assert row["status"] == "pending" and row["receipt_group"]
+    paid_at = datetime.fromisoformat(str(row["paid_at"])) if not isinstance(row["paid_at"], datetime) else row["paid_at"]
+    assert paid_at.astimezone(crm.TZ).strftime("%H:%M") == "14:20"
+    await db_session.refresh(campaign)
+    assert campaign.collected_cents == 0  # pending: not counted yet
+
+    paid = await crm.mark_manual_donation_paid(_request(org, "POST"), uuid.UUID(row["id"]), db_session, admin)
+    assert paid == {"status": "confirmed", "lines": 2}
+    await db_session.refresh(campaign)
+    await db_session.refresh(second_campaign)
+    assert (campaign.collected_cents, second_campaign.collected_cents) == (60_000, 40_000)
+
+    await crm.cancel_manual_donation(_request(org, "POST"), uuid.UUID(row["id"]), crm.CancelIn(reason="Yanlış kayıt"), db_session, admin)
+    group = (await db_session.execute(select_group(row["receipt_group"], org.id))).scalars().all()
+    assert len(group) == 2 and all(d.status == DonationStatus.CANCELLED for d in group)
+    await db_session.refresh(campaign)
+    assert campaign.collected_cents == 0
+
+    with pytest.raises(ValidationError):  # no item at all
+        crm.ManualDonationIn(idempotency_key=uuid.uuid4().hex, donor=crm.ManualDonor(first_name="A"))
+
+
+def select_group(group, org_id):
+    from sqlalchemy import select
+    from app.models.donation import Donation
+    return select(Donation).where(Donation.organization_id == org_id, Donation.payment_details["receipt_group"].astext == group)
