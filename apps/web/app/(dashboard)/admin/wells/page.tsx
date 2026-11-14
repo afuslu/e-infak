@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Droplets, ExternalLink, MapPin, Plus, Search, Users, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 interface Well {
   id: string
@@ -151,20 +151,26 @@ export default function WellsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Su Kuyusu Yönetimi" description={<>Kuyuya bağlı bağış kalemine gelen bağışlar fonlamayı ve hisseleri otomatik günceller. Taksitli kuyu taahhütleri Sponsorluk ekranından açılır.</>} actions={<div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={ghostButton}
-            onClick={() => exportCsv(
-              'su-kuyulari.csv',
-              ['Kuyu Adı', 'Ülke', 'Konum', 'Durum', 'Model', 'Hedef (TL)', 'Toplanan (TL)', 'Hisse', 'Satılan Hisse'],
-              filteredWells.map((w) => [
-                w.name, w.country, w.location_name, STATUS[w.status], MODELS[w.funding_model],
-                w.target_cents / 100, w.collected_cents / 100, w.share_count ?? '', w.shares_sold,
+          <ExportButtons
+            filename="su-kuyulari"
+            title="Su Kuyuları"
+            subtitle={`${filteredWells.length} kuyu`}
+            currencyCols={[5, 6]}
+            getData={() => ({
+              headers: ['Kuyu Adı', 'Ülke', 'Konum', 'Durum', 'Model', 'Hedef (TL)', 'Toplanan (TL)', 'Hisse', 'Satılan Hisse'],
+              rows: filteredWells.map((w) => [
+                w.name,
+                w.country,
+                w.location_name,
+                STATUS[w.status],
+                MODELS[w.funding_model],
+                w.target_cents / 100,
+                w.collected_cents / 100,
+                w.share_count ?? '',
+                w.shares_sold,
               ]),
-            )}
-          >
-            ⬇ CSV
-          </button>
+            })}
+          />
           {canEdit && (
             <button className={`inline-flex items-center gap-1.5 ${primaryButton}`} onClick={() => (showForm ? setShowForm(false) : open(null))}>
               <Plus className="h-4 w-4" /> {showForm ? 'Vazgeç' : 'Yeni Kuyu'}

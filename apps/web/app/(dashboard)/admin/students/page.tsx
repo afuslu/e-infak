@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Download, GraduationCap, HeartHandshake, MessageCircle, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react'
+import { BookOpen, GraduationCap, HeartHandshake, Pencil, Plus, Search, Trash2, Users, X } from 'lucide-react'
 import { Card, Button } from '@e-infak/ui'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog, toast } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
 
 interface Student {
   id: string
@@ -423,14 +423,15 @@ export default function AdminStudentsPage() {
                     />
                   </div>
                   {students.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => exportCsv('hafizlik-ogrencileri.csv', ['Ad', 'Soyad', 'Veli', 'Telefon', 'E-posta'],
-                        filteredStudents.map((s) => [s.first_name, s.last_name, s.parent_name, s.parent_phone, s.parent_email || '']))}
-                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                      <Download className="h-3.5 w-3.5" /> CSV
-                    </button>
+                    <ExportButtons
+                      filename="hafizlik-ogrencileri"
+                      title="Hafızlık Öğrencileri"
+                      subtitle={`${filteredStudents.length} öğrenci`}
+                      getData={() => ({
+                        headers: ['Ad', 'Soyad', 'Veli', 'Telefon', 'E-posta'],
+                        rows: filteredStudents.map((s) => [s.first_name, s.last_name, s.parent_name, s.parent_phone, s.parent_email || '']),
+                      })}
+                    />
                   )}
                 </div>
               </div>
@@ -478,8 +479,8 @@ export default function AdminStudentsPage() {
                     {(() => {
                       const wa = whatsappUrl(selectedStudent.parent_phone, `Merhaba ${selectedStudent.parent_name}, ${selectedStudent.first_name} ${selectedStudent.last_name} öğrencimizin güncel hafızlık durumu: ${totalPages}/${TOTAL_QURAN_PAGES} sayfa (${estimatedJuz}. cüz).`)
                       return wa ? (
-                        <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                          <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                        <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-[#25D366]/40 bg-[#25D366]/10 px-2.5 py-1 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20">
+                          <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
                         </a>
                       ) : null
                     })()}

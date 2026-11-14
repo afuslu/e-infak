@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, compactInputClass, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface Book {
   id: string
@@ -421,25 +421,23 @@ export default function ReceiptBooksPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-gray-900">{sheets.book.series} koçanı yaprak dökümü</h2>
             <div className="flex gap-2">
-              <button
-                className={ghostButton}
-                onClick={() =>
-                  exportCsv(
-                    `kocan-${sheets.book.series}.csv`,
-                    ['Yaprak', 'Durum', 'Sistem makbuz no', 'Bağışçı', 'Tutar', 'Tarih / gerekçe'],
-                    sheets.sheets.map((s) => [
-                      s.label,
-                      STATE_LABEL[s.state][0],
-                      s.receipt_number,
-                      s.donor_name,
-                      s.amount_cents !== undefined ? s.amount_cents / 100 : '',
-                      s.paid_at ? new Date(s.paid_at).toLocaleDateString('tr-TR') : s.reason,
-                    ])
-                  )
-                }
-              >
-                ⬇ CSV
-              </button>
+              <ExportButtons
+                filename={`kocan-${sheets.book.series}`}
+                title={`${sheets.book.series} Koçanı Yaprak Dökümü`}
+                subtitle={`${sheets.sheets.length} yaprak`}
+                currencyCols={[4]}
+                getData={() => ({
+                  headers: ['Yaprak', 'Durum', 'Sistem makbuz no', 'Bağışçı', 'Tutar', 'Tarih / gerekçe'],
+                  rows: sheets.sheets.map((s) => [
+                    s.label,
+                    STATE_LABEL[s.state][0],
+                    s.receipt_number,
+                    s.donor_name,
+                    s.amount_cents !== undefined ? s.amount_cents / 100 : '',
+                    s.paid_at ? new Date(s.paid_at).toLocaleDateString('tr-TR') : s.reason,
+                  ]),
+                })}
+              />
               <button className={ghostButton} onClick={() => setSheets(null)}>
                 Kapat
               </button>

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import axios from 'axios'
+import { Printer } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminApiBase, adminAuthHeaders, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminApiBase, adminAuthHeaders, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 const accGet = <T,>(path: string, params?: Record<string, unknown>) =>
   axios.get<T>(`${adminApiBase()}/api/v1/admin-features/acc${path}`, { headers: adminAuthHeaders(), params })
@@ -52,7 +53,11 @@ export default function AccountingPage() {
       <PageHeader
         title="Muhasebe"
         description={<>Kasa / banka hesapları, giderler, cari kartlar, çek-senet ve personel maaşı. Onaylanan bağışlar, ödeme yöntemine göre varsayılan hesaba otomatik işlenir.</>}
-        actions={<button type="button" onClick={() => window.print()} className={ghostButton}>🖨️ Yazdır / PDF</button>}
+        actions={
+          <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-100">
+            <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
+          </button>
+        }
       />
       <div className="flex gap-1 overflow-x-auto border-b text-sm font-semibold">
         {([['summary', 'Özet'], ['accounts', 'Kasa & Banka'], ['expenses', 'Giderler'], ['invoices', 'Faturalar'], ['stock', 'Stok & Depo'], ['parties', 'Cariler'], ['cheques', 'Çek & Senet'], ['payroll', 'Personel & Maaş']] as [Tab, string][]).map(([k, l]) => (
@@ -229,7 +234,20 @@ function Accounts({ all, accounts, canEdit, onMessage, reloadAccounts }: Shared 
           <button className={ghostButton} onClick={() => setMove({ mode: 'entry', account_id: '', to: '', direction: 'out', amount: '', category: '', description: '', date: '' })}>+ Elle hareket</button>
           <button className={ghostButton} onClick={() => setMove({ mode: 'transfer', account_id: '', to: '', direction: 'out', amount: '', category: 'Virman', description: '', date: '' })}>⇄ Virman</button>
         </>}
-        {all.length > 0 && <button type="button" className={`${ghostButton} ml-auto`} onClick={() => exportCsv('kasa-banka-hesaplari.csv', ['Hesap', 'Tür', 'Para Birimi', 'IBAN', 'Bakiye'], all.map((a) => [a.name, a.kind_label, a.currency, a.iban || '', a.balance_cents / 100]))}>⬇ CSV</button>}
+        {all.length > 0 && (
+          <div className="ml-auto">
+            <ExportButtons
+              filename="kasa-banka-hesaplari"
+              title="Kasa ve Banka Hesapları"
+              subtitle={`${all.length} hesap`}
+              currencyCols={[4]}
+              getData={() => ({
+                headers: ['Hesap', 'Tür', 'Para Birimi', 'IBAN', 'Bakiye'],
+                rows: all.map((a) => [a.name, a.kind_label, a.currency, a.iban || '', a.balance_cents / 100]),
+              })}
+            />
+          </div>
+        )}
       </div>
       {form && (
         <Card className="border border-gray-100 p-5 shadow-sm"><form onSubmit={save} className="space-y-3">
@@ -285,8 +303,30 @@ function Accounts({ all, accounts, canEdit, onMessage, reloadAccounts }: Shared 
             <div className="flex gap-2">
               <input type="date" className={`${inputClass} w-40`} value={range.start} onChange={(e) => { const r = { ...range, start: e.target.value }; setRange(r); openStatement(statement.account.id, r) }} />
               <input type="date" className={`${inputClass} w-40`} value={range.end} onChange={(e) => { const r = { ...range, end: e.target.value }; setRange(r); openStatement(statement.account.id, r) }} />
-              <button className={ghostButton} onClick={() => exportCsv(`ekstre-${statement.account.name}.csv`, ['Tarih', 'Kategori', 'Açıklama', 'Cari', 'Giriş', 'Çıkış', 'Bakiye'],
-                statement.entries.map((e: any) => [fmt(e.entry_date), e.category, e.description, e.counterparty, e.direction === 'in' ? e.amount_cents / 100 : '', e.direction === 'out' ? e.amount_cents / 100 : '', e.balance_cents / 100]))}>⬇ CSV</button>
+              <ExportButtons
+                filename={`ekstre-${statement.account.name}`}
+                title={`${statement.account.name} Hesap Ekstresi`}
+                subtitle={`${range.start || 'Başlangıç'} — ${range.end || 'Bugün'}`}
+                currencyCols={[4, 5, 6]}
+                summary={[
+                  ['Dönem Başı', formatMoney(statement.opening_cents, statement.account.currency)],
+                  ['Giriş', formatMoney(statement.in_cents, statement.account.currency)],
+                  ['Çıkış', formatMoney(statement.out_cents, statement.account.currency)],
+                  ['Dönem Sonu', formatMoney(statement.closing_cents, statement.account.currency)],
+                ]}
+                getData={() => ({
+                  headers: ['Tarih', 'Kategori', 'Açıklama', 'Cari', 'Giriş', 'Çıkış', 'Bakiye'],
+                  rows: statement.entries.map((e: any) => [
+                    fmt(e.entry_date),
+                    e.category,
+                    e.description,
+                    e.counterparty,
+                    e.direction === 'in' ? e.amount_cents / 100 : '',
+                    e.direction === 'out' ? e.amount_cents / 100 : '',
+                    e.balance_cents / 100,
+                  ]),
+                })}
+              />
               <button className={ghostButton} onClick={() => setStatement(null)}>Kapat</button>
             </div>
           </div>
@@ -380,7 +420,18 @@ function Expenses({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
           <select className={`${inputClass} w-44`} value={filters.card_id} onChange={(e) => setFilters({ ...filters, card_id: e.target.value })}><option value="">Tüm kartlar</option>{cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
           <label className="flex items-center gap-1.5 text-xs font-semibold"><input type="checkbox" checked={filters.unpaid} onChange={(e) => setFilters({ ...filters, unpaid: e.target.checked })} /> Yalnız ödenmemiş</label>
           <span className="text-xs text-gray-500">{Object.entries(total).map(([c, v]) => formatMoney(v, c)).join(' · ')}</span>
-          <button className={`${ghostButton} ml-auto`} onClick={() => exportCsv('giderler.csv', ['Tarih', 'Kart', 'Açıklama', 'Cari', 'Belge', 'Tutar', 'Para birimi', 'Hesap'], rows.map((r) => [fmt(r.expense_date), r.card_name, r.description, r.counterparty, r.document_no, r.amount_cents / 100, r.currency, r.account_name || 'Ödenmedi']))}>⬇ CSV</button>
+          <div className="ml-auto">
+            <ExportButtons
+              filename="giderler"
+              title="Muhasebe Giderleri"
+              subtitle={`${rows.length} kayıt`}
+              currencyCols={[5]}
+              getData={() => ({
+                headers: ['Tarih', 'Kart', 'Açıklama', 'Cari', 'Belge', 'Tutar', 'Para birimi', 'Hesap'],
+                rows: rows.map((r) => [fmt(r.expense_date), r.card_name, r.description, r.counterparty, r.document_no, r.amount_cents / 100, r.currency, r.account_name || 'Ödenmedi']),
+              })}
+            />
+          </div>
         </div>
         <Table>
           <THead><Tr><Th>Tarih</Th><Th>Kart</Th><Th>Açıklama</Th><Th>Cari</Th><Th>Belge</Th><Th className="text-right">Tutar</Th><Th>Hesap</Th><Th /></Tr></THead>
@@ -423,7 +474,20 @@ function Parties({ parties, canEdit, onMessage, reloadParties }: Shared) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         {canEdit && <button className={primaryButton} onClick={() => setForm({ ...empty })}>+ Cari kart</button>}
-        {parties.length > 0 && <button type="button" className={`${ghostButton} ml-auto`} onClick={() => exportCsv('cariler.csv', ['Ünvan', 'Tür', 'Vergi No', 'Telefon', 'IBAN', 'Ödenmemiş Gider'], parties.map((p) => [p.name, p.kind_label, p.tax_no || '', p.phone || '', p.iban || '', (p.unpaid_cents || 0) / 100]))}>⬇ CSV</button>}
+        {parties.length > 0 && (
+          <div className="ml-auto">
+            <ExportButtons
+              filename="cariler"
+              title="Cari Kartlar"
+              subtitle={`${parties.length} cari`}
+              currencyCols={[5]}
+              getData={() => ({
+                headers: ['Ünvan', 'Tür', 'Vergi No', 'Telefon', 'IBAN', 'Ödenmemiş Gider'],
+                rows: parties.map((p) => [p.name, p.kind_label, p.tax_no || '', p.phone || '', p.iban || '', (p.unpaid_cents || 0) / 100]),
+              })}
+            />
+          </div>
+        )}
       </div>
       {form && (
         <Card className="border border-gray-100 p-5 shadow-sm"><form onSubmit={save} className="space-y-3">
@@ -455,7 +519,16 @@ function Parties({ parties, canEdit, onMessage, reloadParties }: Shared) {
         <Card className="space-y-3 border border-gray-100 p-5 shadow-sm">
           <div className="flex items-center justify-between"><h2 className="text-sm font-bold">{statement.counterparty.name} · bakiye {formatMoney(Math.abs(statement.ledger.balance_cents))} ({statement.ledger.status})</h2>
             <div className="flex gap-2">
-              <button className={ghostButton} onClick={() => exportCsv(`cari-${statement.counterparty.name}.csv`, ['Tarih', 'Tür', 'Açıklama', 'Borç', 'Alacak', 'Bakiye'], statement.ledger.rows.map((r: any) => [fmt(r.date), r.type, r.description, r.debit_cents / 100, r.credit_cents / 100, r.balance_cents / 100]))}>⬇ CSV</button>
+              <ExportButtons
+                filename={`cari-${statement.counterparty.name}`}
+                title={`${statement.counterparty.name} Cari Ekstresi`}
+                subtitle={`Bakiye: ${formatMoney(Math.abs(statement.ledger.balance_cents))} (${statement.ledger.status})`}
+                currencyCols={[3, 4, 5]}
+                getData={() => ({
+                  headers: ['Tarih', 'Tür', 'Açıklama', 'Borç', 'Alacak', 'Bakiye'],
+                  rows: statement.ledger.rows.map((r: any) => [fmt(r.date), r.type, r.description, r.debit_cents / 100, r.credit_cents / 100, r.balance_cents / 100]),
+                })}
+              />
               <button className={ghostButton} onClick={() => setStatement(null)}>Kapat</button>
             </div>
           </div>
@@ -559,7 +632,20 @@ function Cheques({ accounts, parties, canEdit, onMessage, reloadAccounts }: Shar
           <select className={`${inputClass} w-40`} value={filters.direction} onChange={(e) => setFilters({ ...filters, direction: e.target.value })}><option value="">Alınan + verilen</option><option value="received">Alınan</option><option value="issued">Verilen</option></select>
           <select className={`${inputClass} w-44`} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="open">Açık (portföy / bankada)</option><option value="">Tümü</option><option value="collected">Tahsil edildi</option><option value="paid">Ödendi</option><option value="endorsed">Ciro edildi</option><option value="bounced">Karşılıksız</option></select>
           <span className="self-center text-xs text-gray-500">{rows.length} kayıt · {formatMoney(rows.filter((r) => r.currency === 'TRY').reduce((s, r) => s + r.amount_cents, 0))}</span>
-          {rows.length > 0 && <button type="button" className={`${ghostButton} ml-auto`} onClick={() => exportCsv('cek-senet.csv', ['Yön', 'Tür', 'No', 'Banka', 'Keşideci/Cari', 'Vade', 'Tutar', 'Para Birimi', 'Durum'], rows.map((r) => [r.direction_label, r.kind_label, r.number, r.bank_name || '', r.drawer || r.counterparty || '', fmt(r.due_date), r.amount_cents / 100, r.currency, r.status_label]))}>⬇ CSV</button>}
+          {rows.length > 0 && (
+            <div className="ml-auto">
+              <ExportButtons
+                filename="cek-senet"
+                title="Çek ve Senet Listesi"
+                subtitle={`${rows.length} kayıt`}
+                currencyCols={[6]}
+                getData={() => ({
+                  headers: ['Yön', 'Tür', 'No', 'Banka', 'Keşideci/Cari', 'Vade', 'Tutar', 'Para Birimi', 'Durum'],
+                  rows: rows.map((r) => [r.direction_label, r.kind_label, r.number, r.bank_name || '', r.drawer || r.counterparty || '', fmt(r.due_date), r.amount_cents / 100, r.currency, r.status_label]),
+                })}
+              />
+            </div>
+          )}
         </div>
         <Table>
           <THead><Tr><Th>Çek / senet</Th><Th>Keşideci / cari</Th><Th>Vade</Th><Th className="text-right">Tutar</Th><Th>Durum</Th><Th /></Tr></THead>
@@ -670,7 +756,24 @@ function Payroll({ accounts, canEdit, onMessage, reloadAccounts }: Shared) {
           <div className="w-40"><TextInput label="Bordro dönemi" type="month" value={period} onChange={setPeriod} /></div>
           {canEdit && <button className={ghostButton} onClick={() => act(() => accSend('post', '/payroll/generate', { period }), 'Bordro açıldı; açık avanslar mahsup edildi')}>Maaşları aç</button>}
           {sheet && <span className="text-xs text-gray-500">Toplam net {formatMoney(sheet.total_net_cents)} · ödenmemiş {formatMoney(sheet.unpaid_net_cents)}</span>}
-          {sheet && sheet.items.length > 0 && <button className={`${ghostButton} ml-auto`} onClick={() => exportCsv(`bordro-${period}.csv`, ['Ad', 'IBAN', 'Maaş', 'Mesai', 'Prim', 'Kesinti', 'Avans', 'Net', 'Durum'], sheet.items.map((i) => [i.full_name, i.iban, i.salary_cents / 100, i.overtime_cents / 100, i.bonus_cents / 100, i.deduction_cents / 100, i.advance_cents / 100, i.net_cents / 100, i.status === 'paid' ? 'Ödendi' : 'Bekliyor']))}>⬇ CSV (banka talimatı)</button>}
+          {sheet && sheet.items.length > 0 && (
+            <div className="ml-auto">
+              <ExportButtons
+                filename={`bordro-${period}`}
+                title={`Personel Bordrosu (${period})`}
+                subtitle="Banka ödeme talimatı ve bordro dökümü"
+                currencyCols={[2, 3, 4, 5, 6, 7]}
+                summary={[
+                  ['Toplam Net', formatMoney(sheet.total_net_cents)],
+                  ['Ödenmemiş Net', formatMoney(sheet.unpaid_net_cents)],
+                ]}
+                getData={() => ({
+                  headers: ['Ad', 'IBAN', 'Maaş', 'Mesai', 'Prim', 'Kesinti', 'Avans', 'Net', 'Durum'],
+                  rows: sheet.items.map((i) => [i.full_name, i.iban, i.salary_cents / 100, i.overtime_cents / 100, i.bonus_cents / 100, i.deduction_cents / 100, i.advance_cents / 100, i.net_cents / 100, i.status === 'paid' ? 'Ödendi' : 'Bekliyor']),
+                })}
+              />
+            </div>
+          )}
         </div>
         <Table>
           <THead><Tr><Th>Personel</Th><Th className="text-right">Maaş</Th><Th className="text-right">Mesai</Th><Th className="text-right">Prim</Th><Th className="text-right">Kesinti</Th><Th className="text-right">Avans</Th><Th className="text-right">Net</Th><Th>Durum</Th><Th /></Tr></THead>
@@ -805,7 +908,16 @@ function Stock({ parties, canEdit, onMessage }: Shared) {
       )}
       <Card className="border border-gray-100 p-5 shadow-sm">
         <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold">Stok durumu</h2>
-          <button className={ghostButton} onClick={() => exportCsv('stok.csv', ['Kart', 'Kategori', 'Birim', 'Miktar', 'Kritik', 'Tahmini değer'], items.map((i) => [i.name, i.category, i.unit, i.qty, i.min_qty, i.value_cents / 100]))}>⬇ CSV</button></div>
+          <ExportButtons
+            filename="stok"
+            title="Stok Durum Raporu"
+            subtitle={`${items.length} stok kalemi`}
+            currencyCols={[5]}
+            getData={() => ({
+              headers: ['Kart', 'Kategori', 'Birim', 'Miktar', 'Kritik', 'Tahmini değer'],
+              rows: items.map((i) => [i.name, i.category, i.unit, i.qty, i.min_qty, i.value_cents / 100]),
+            })}
+          /></div>
         <Table>
           <THead><Tr><Th>Kart</Th><Th>Kategori</Th><Th>Depolar</Th><Th className="text-right">Miktar</Th><Th className="text-right">Tahmini değer</Th><Th /></Tr></THead>
           <TBody>{items.map((i) => (
@@ -937,7 +1049,20 @@ function Invoices({ accounts, parties, canEdit, onMessage, reloadAccounts }: Sha
         <div className="flex flex-wrap items-center gap-2">
           <select className={`${inputClass} w-40`} value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })}><option value="">Alış + satış</option><option value="purchase">Alış</option><option value="sales">Satış</option></select>
           <label className="flex items-center gap-1.5 text-xs font-semibold"><input type="checkbox" checked={filters.unpaid} onChange={(e) => setFilters({ ...filters, unpaid: e.target.checked })} /> Yalnız ödenmemiş</label>
-          {rows.length > 0 && <button type="button" className={`${ghostButton} ml-auto`} onClick={() => exportCsv('faturalar.csv', ['Tarih', 'Tür', 'No', 'Cari', 'Vade', 'Toplam', 'Kalan', 'Para Birimi', 'Durum'], rows.map((r) => [fmt(r.issue_date), r.kind_label, r.number, r.counterparty, fmt(r.due_date), r.total_cents / 100, r.remaining_cents / 100, r.currency, PAY_STATUS[r.payment_status][0]]))}>⬇ CSV</button>}
+          {rows.length > 0 && (
+            <div className="ml-auto">
+              <ExportButtons
+                filename="faturalar"
+                title="Fatura Listesi"
+                subtitle={`${rows.length} fatura`}
+                currencyCols={[5, 6]}
+                getData={() => ({
+                  headers: ['Tarih', 'Tür', 'No', 'Cari', 'Vade', 'Toplam', 'Kalan', 'Para Birimi', 'Durum'],
+                  rows: rows.map((r) => [fmt(r.issue_date), r.kind_label, r.number, r.counterparty, fmt(r.due_date), r.total_cents / 100, r.remaining_cents / 100, r.currency, PAY_STATUS[r.payment_status][0]]),
+                })}
+              />
+            </div>
+          )}
         </div>
         <Table>
           <THead><Tr><Th>Tarih</Th><Th>Tür</Th><Th>No</Th><Th>Cari</Th><Th>Vade</Th><Th className="text-right">Toplam</Th><Th className="text-right">Kalan</Th><Th>Durum</Th><Th /></Tr></THead>

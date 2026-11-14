@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
 import { Card, Button } from '@e-infak/ui'
-import { Banknote, Download, Pencil, Trash2, TrendingDown, Wallet } from 'lucide-react'
-import { Modal, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog, toast } from '../../../../components/admin/ui'
-import { adminApiBase, adminAuthHeaders, exportCsv, formatMoney } from '../../../../lib/admin-access'
+import { Banknote, Pencil, Printer, Trash2, TrendingDown, Wallet } from 'lucide-react'
+import { ExportButtons, Modal, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog, toast } from '../../../../components/admin/ui'
+import { adminApiBase, adminAuthHeaders, formatMoney } from '../../../../lib/admin-access'
 
 interface Expense {
   id: string
@@ -236,8 +236,8 @@ export default function AdminFinancePage() {
             <Link href="/admin/muhasebe" className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50">
               Muhasebe Modülü →
             </Link>
-            <button type="button" onClick={() => window.print()} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50">
-              🖨️ Yazdır / PDF
+            <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-bold text-primary-700 hover:bg-primary-100">
+              <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
             </button>
             <Button
               onClick={() => handleExportDerbis('xlsx')}
@@ -525,14 +525,23 @@ export default function AdminFinancePage() {
                   ))}
                 </select>
                 {filteredExpenses.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => exportCsv('kasa-harcamalari.csv', ['Tarih', 'Harcama', 'Kategori', 'Belge No', 'Para Birimi', 'Tutar'],
-                      filteredExpenses.map((ex) => [new Date(ex.expense_date).toLocaleDateString('tr-TR'), ex.title, ex.category, ex.receipt_no, ex.currency || 'TRY', ex.amount_cents / 100]))}
-                    className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                  >
-                    <Download className="h-3.5 w-3.5" /> CSV
-                  </button>
+                  <ExportButtons
+                    filename="kasa-harcamalari"
+                    title="Kasa Harcamaları"
+                    subtitle={`Toplam ${filteredExpenses.length} harcama kaydı`}
+                    currencyCols={[5]}
+                    getData={() => ({
+                      headers: ['Tarih', 'Harcama', 'Kategori', 'Belge No', 'Para Birimi', 'Tutar'],
+                      rows: filteredExpenses.map((ex) => [
+                        new Date(ex.expense_date).toLocaleDateString('tr-TR'),
+                        ex.title,
+                        ex.category,
+                        ex.receipt_no,
+                        ex.currency || 'TRY',
+                        ex.amount_cents / 100,
+                      ]),
+                    })}
+                  />
                 )}
               </div>
             </div>

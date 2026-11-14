@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CheckCircle2,
-  Download,
   ExternalLink,
   ImagePlus,
   Megaphone,
@@ -17,6 +16,7 @@ import {
 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
 import {
+  ExportButtons,
   FilterBar,
   Modal,
   PageHeader,
@@ -30,7 +30,6 @@ import { TranslationEditor, type Translations } from '../../../../components/adm
 import {
   adminSend,
   apiErrorMessage,
-  exportCsv,
   formatMoney,
   v1Get,
   v1Send,
@@ -368,29 +367,24 @@ export default function AdminCampaignsPage() {
         actions={
           <div className="flex items-center gap-2">
             {campaigns.length > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  exportCsv(
-                    'kampanyalar.csv',
-                    ['Kampanya', 'Slug', 'Kategori', 'Para Birimi', 'Hedef', 'Toplanan', 'Durum'],
-                    campaigns.map((c) => [
-                      c.title,
-                      c.slug,
-                      CATEGORY_LABEL[c.category] || c.category || '',
-                      c.currency || 'TRY',
-                      (c.target_cents / 100).toFixed(2),
-                      ((c.collected_cents || 0) / 100).toFixed(2),
-                      STATUS_META[c.status]?.label || c.status,
-                    ]),
-                  )
-                }
-              >
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                CSV
-              </Button>
+              <ExportButtons
+                filename="kampanyalar"
+                title="Kampanyalar"
+                subtitle={`${campaigns.length} kampanya`}
+                currencyCols={[4, 5]}
+                getData={() => ({
+                  headers: ['Kampanya', 'Slug', 'Kategori', 'Para Birimi', 'Hedef', 'Toplanan', 'Durum'],
+                  rows: campaigns.map((c) => [
+                    c.title,
+                    c.slug,
+                    CATEGORY_LABEL[c.category] || c.category || '',
+                    c.currency || 'TRY',
+                    c.target_cents / 100,
+                    (c.collected_cents || 0) / 100,
+                    STATUS_META[c.status]?.label || c.status,
+                  ]),
+                })}
+              />
             )}
             <Button
               type="button"

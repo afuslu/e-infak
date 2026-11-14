@@ -6,11 +6,13 @@ import { Button, Input } from '@e-infak/ui'
 import {
   Column,
   DataTable,
+  ExportButtons,
   FilterBar,
   Modal,
   PageHeader,
   Pagination,
   StatCard,
+  WhatsAppIcon,
   confirmDialog,
   toast,
 } from '../../../../components/admin/ui'
@@ -20,6 +22,7 @@ import {
   apiErrorMessage,
   exportCsv,
   formatMoney,
+  whatsappUrl,
 } from '../../../../lib/admin-access'
 
 type SubscriptionStatus = 'active' | 'paused' | 'past_due' | 'cancelled'
@@ -298,6 +301,24 @@ export default function AdminSubscriptionsPage() {
         const isBusy = busyId === sub.id
         return (
           <div className="inline-flex items-center justify-end gap-1.5">
+            {(() => {
+              const wa = whatsappUrl(
+                sub.donor_phone,
+                `Merhaba ${sub.donor_name}, ${sub.campaign_title} için aylık ${formatMoney(sub.amount_cents, sub.currency)} düzenli bağış talimatınız hakkında bilgilendirmek isteriz.`,
+              )
+              return wa ? (
+                <a
+                  href={wa}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="WhatsApp ile mesaj gönder"
+                  className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-1 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20"
+                >
+                  <WhatsAppIcon className="w-3.5 h-3.5" />
+                  WhatsApp
+                </a>
+              ) : null
+            })()}
             {sub.status === 'active' && (
               <button
                 type="button"
@@ -369,31 +390,26 @@ export default function AdminSubscriptionsPage() {
         actions={
           <div className="flex items-center gap-2">
             {items.length > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  exportCsv(
-                    'duzenli-odemeler.csv',
-                    ['Bağışçı', 'E-posta', 'Telefon', 'Kampanya', 'Ödeme Aracı', 'Sonraki Çekim', 'Durum', 'Tutar', 'Para Birimi'],
-                    items.map((s) => [
-                      s.donor_name,
-                      s.donor_email || '',
-                      s.donor_phone || '',
-                      s.campaign_title,
-                      formatCardInfo(s),
-                      formatDateTr(s.next_billing_date),
-                      statusInfo(s.status).label,
-                      (s.amount_cents / 100).toFixed(2),
-                      s.currency,
-                    ]),
-                  )
-                }
-              >
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                CSV
-              </Button>
+              <ExportButtons
+                filename="duzenli-odemeler"
+                title="Düzenli Ödeme Talimatları"
+                subtitle={`${items.length} kayıt`}
+                currencyCols={[8]}
+                getData={() => ({
+                  headers: ['Bağışçı', 'E-posta', 'Telefon', 'Kampanya', 'Ödeme Aracı', 'Sonraki Çekim', 'Durum', 'Tutar', 'Para Birimi'],
+                  rows: items.map((s) => [
+                    s.donor_name,
+                    s.donor_email || '',
+                    s.donor_phone || '',
+                    s.campaign_title,
+                    formatCardInfo(s),
+                    formatDateTr(s.next_billing_date),
+                    statusInfo(s.status).label,
+                    Number((s.amount_cents / 100).toFixed(2)),
+                    s.currency,
+                  ]),
+                })}
+              />
             )}
             <Button
               type="button"

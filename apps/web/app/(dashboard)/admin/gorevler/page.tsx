@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock,
-  Download,
   FileText,
   Kanban,
   ListTodo,
@@ -18,9 +17,9 @@ import {
   X,
 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, exportCsv, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, TextArea, TextInput, inputClass } from '../../../../components/admin/FormKit'
-import { Modal, PageHeader, StatCard, confirmDialog, toast } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, PageHeader, StatCard, confirmDialog, toast } from '../../../../components/admin/ui'
 
 interface Task {
   id: string
@@ -344,29 +343,23 @@ export default function TasksPage() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {filteredTasks.length > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  exportCsv(
-                    'gorevler.csv',
-                    ['Başlık', 'Kategori', 'Öncelik', 'Durum', 'Sorumlu', 'Başlangıç', 'Son Tarih'],
-                    filteredTasks.map((t) => [
-                      t.title,
-                      t.category || '',
-                      PRIORITY[t.priority].label,
-                      STATUS_META[t.status].label,
-                      t.assigned_to_name || '',
-                      t.start_date ? new Date(t.start_date).toLocaleDateString('tr-TR') : '',
-                      t.due_date ? new Date(t.due_date).toLocaleDateString('tr-TR') : '',
-                    ]),
-                  )
-                }
-              >
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                CSV
-              </Button>
+              <ExportButtons
+                filename="gorevler"
+                title="Görev Listesi"
+                subtitle={`${filteredTasks.length} görev`}
+                getData={() => ({
+                  headers: ['Başlık', 'Kategori', 'Öncelik', 'Durum', 'Sorumlu', 'Başlangıç', 'Son Tarih'],
+                  rows: filteredTasks.map((t) => [
+                    t.title,
+                    t.category || '',
+                    PRIORITY[t.priority].label,
+                    STATUS_META[t.status].label,
+                    t.assigned_to_name || '',
+                    t.start_date ? new Date(t.start_date).toLocaleDateString('tr-TR') : '',
+                    t.due_date ? new Date(t.due_date).toLocaleDateString('tr-TR') : '',
+                  ]),
+                })}
+              />
             )}
             <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading}>
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />

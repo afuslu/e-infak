@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
-import { AlertCircle, CalendarClock, CheckCircle2, HeartHandshake, MessageCircle, Search, Users, Wallet, X } from 'lucide-react'
+import { AlertCircle, CalendarClock, CheckCircle2, HeartHandshake, Search, Users, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
+  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface Beneficiary {
   id: string
@@ -394,8 +394,15 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
         <select className={`${inputClass} w-36`} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
           <option value="">Tüm durumlar</option><option value="active">Aktif</option><option value="passive">Pasif</option>
         </select>
-        <button className={ghostButton} onClick={() => exportCsv('yararlanicilar.csv', ['Tür', 'Kod', 'Ad Soyad', 'Ülke', 'Şehir', 'Okul', 'Sponsorlar'],
-          rows.map((r) => [r.kind_label, r.code, r.full_name, r.country, r.city, r.school, r.sponsors.join(', ')]))}>⬇ CSV</button>
+        <ExportButtons
+          filename="yararlanicilar"
+          title="Sponsorluk Yararlanıcıları"
+          subtitle={`${rows.length} kayıt`}
+          getData={() => ({
+            headers: ['Tür', 'Kod', 'Ad Soyad', 'Ülke', 'Şehir', 'Okul', 'Sponsorlar'],
+            rows: rows.map((r) => [r.kind_label, r.code, r.full_name, r.country, r.city, r.school, r.sponsors.join(', ')]),
+          })}
+        />
         <div className="flex-1" />
         {canEdit && <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : open(null))}>{showForm ? 'Vazgeç' : '+ Yeni Kayıt'}</button>}
       </div>
@@ -613,10 +620,26 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
         <label className="flex items-center gap-2 text-sm font-semibold">
           <input type="checkbox" checked={filters.overdue === 'true'} onChange={(e) => setFilters({ ...filters, overdue: e.target.checked ? 'true' : '' })} /> Yalnız gecikenler
         </label>
-        <button className={ghostButton} onClick={() => exportCsv('taahhutler.csv',
-          ['Bağışçı', 'Telefon', 'Tür', 'Kime', 'Taksit', 'Ödenen', 'Geciken', 'Geciken tutar', 'Sonraki vade'],
-          rows.map((r) => [r.donor_name, r.donor_phone, r.kind_label, r.title, `${r.installment_count} × ${r.installment_amount_cents / 100} ${r.currency}`,
-            r.paid_count, r.overdue_count, r.overdue_cents / 100, r.next_due_date]))}>⬇ CSV</button>
+        <ExportButtons
+          filename="taahhutler"
+          title="Sponsorluk Taahhütleri"
+          subtitle={`${rows.length} taahhüt`}
+          currencyCols={[7]}
+          getData={() => ({
+            headers: ['Bağışçı', 'Telefon', 'Tür', 'Kime', 'Taksit', 'Ödenen', 'Geciken', 'Geciken tutar', 'Sonraki vade'],
+            rows: rows.map((r) => [
+              r.donor_name,
+              r.donor_phone,
+              r.kind_label,
+              r.title,
+              `${r.installment_count} × ${r.installment_amount_cents / 100} ${r.currency}`,
+              r.paid_count,
+              r.overdue_count,
+              r.overdue_cents / 100,
+              r.next_due_date,
+            ]),
+          })}
+        />
         <div className="flex-1" />
         {canEdit && (
           <button
@@ -716,8 +739,8 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
                   {(() => {
                     const wa = whatsappUrl(detail.donor_phone, `Merhaba ${detail.donor_name}, ${detail.title || detail.beneficiary_name || 'sponsorluk'} taahhüdünüz${detail.overdue_count > 0 ? ` (${detail.overdue_count} geciken taksit: ${formatMoney(detail.overdue_cents, detail.currency)})` : ''} hakkında bilgilendirmek isteriz.`)
                     return wa ? (
-                      <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                        <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                      <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-0.5 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20">
+                        <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
                       </a>
                     ) : null
                   })()}

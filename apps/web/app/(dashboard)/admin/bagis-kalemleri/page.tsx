@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, CheckCircle2, Eye, EyeOff, Layers, Link2, Pencil, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import { FilterBar, PageHeader, StatCard, confirmDialog, toast } from '../../../../components/admin/ui'
+import { ExportButtons, FilterBar, PageHeader, StatCard, confirmDialog, toast } from '../../../../components/admin/ui'
 import { adminGet, adminSend, apiErrorMessage, v1Get } from '../../../../lib/admin-access'
 
 interface DonationCategory {
@@ -236,10 +236,29 @@ export default function AdminDonationCategoriesPage() {
         title="Bağış Kalemleri"
         description="Ana sayfadaki hızlı bağış kartlarını yönetin, kampanyalara bağlayın ve gösterim sırasını düzenleyin."
         actions={
-          <Button type="button" variant="outline" size="sm" onClick={loadCategories} disabled={loading}>
-            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
-            Yenile
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {filtered.length > 0 && (
+              <ExportButtons
+                filename="bagis-kalemleri"
+                title="Bağış Kalemleri"
+                subtitle={`${filtered.length} kalem`}
+                getData={() => ({
+                  headers: ['Sıra', 'Başlık', 'Açıklama', 'Bağlı Kampanya', 'Durum'],
+                  rows: filtered.map((c) => [
+                    c.display_order,
+                    c.title,
+                    c.description,
+                    c.campaign_title || '—',
+                    c.is_active ? 'Aktif' : 'Pasif',
+                  ]),
+                })}
+              />
+            )}
+            <Button type="button" variant="outline" size="sm" onClick={loadCategories} disabled={loading}>
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
+          </div>
         }
       />
 

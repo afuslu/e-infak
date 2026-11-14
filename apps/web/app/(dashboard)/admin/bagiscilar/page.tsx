@@ -3,14 +3,14 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Download, MessageCircle, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { STATUS_CLASS, STATUS_LABEL, SmsMessage } from '../../../../lib/sms'
-import { PageHeader, TBody, Table, Td, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, TBody, Table, Td, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface DonorRow {
   id: string
@@ -146,15 +146,28 @@ function DonorsPage() {
             <select className={`${inputClass} w-40`} value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
               <option value="recent">Son bağış</option><option value="total">Toplam bağış</option><option value="name">Ad</option>
             </select>
-            <button
-              type="button"
-              onClick={() => exportCsv('bagiscilar.csv', ['Ad Soyad', 'Tür', 'Telefon', 'E-posta', 'Şehir', 'Ülke', 'Bağış Sayısı', 'Toplam (TL)', 'Temsilci'],
-                list.items.map((d) => [d.full_name, d.donor_type === 'corporate' ? 'Kurumsal' : 'Bireysel', d.phone || '', d.email || '', d.city || '', d.country || '', d.total_donations, d.total_donated_cents / 100, d.assigned_user_name || '']))}
-              className={`${ghostButton} ml-auto inline-flex shrink-0 items-center gap-1`}
-              title="Mevcut sayfadaki listeyi CSV olarak indir"
-            >
-              <Download className="h-3.5 w-3.5" /> CSV (Sayfa)
-            </button>
+            <div className="ml-auto shrink-0">
+              <ExportButtons
+                filename="bagiscilar"
+                title="Bağışçı Listesi"
+                subtitle={`${list.items.length} bağışçı (sayfa görünümü)`}
+                currencyCols={[7]}
+                getData={() => ({
+                  headers: ['Ad Soyad', 'Tür', 'Telefon', 'E-posta', 'Şehir', 'Ülke', 'Bağış Sayısı', 'Toplam (TL)', 'Temsilci'],
+                  rows: list.items.map((d) => [
+                    d.full_name,
+                    d.donor_type === 'corporate' ? 'Kurumsal' : 'Bireysel',
+                    d.phone || '',
+                    d.email || '',
+                    d.city || '',
+                    d.country || '',
+                    d.total_donations,
+                    d.total_donated_cents / 100,
+                    d.assigned_user_name || '',
+                  ]),
+                })}
+              />
+            </div>
           </div>
         </div>
       </Card>
@@ -387,8 +400,8 @@ function DonorCardPanel({
           {(() => {
             const wa = whatsappUrl(card.phone, `Merhaba ${card.full_name}, bağışlarınız ve desteğiniz için teşekkür ederiz.`)
             return wa ? (
-              <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-[#25D366]/40 bg-[#25D366]/10 px-3 py-2 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20">
+                <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
               </a>
             ) : null
           })()}

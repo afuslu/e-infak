@@ -1,13 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MessageCircle } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
-  adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
+  adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 type Degree = 'critical' | 'high' | 'medium' | 'low'
 type Review = 'applied' | 'inspecting' | 'approved' | 'rejected'
@@ -499,8 +498,15 @@ export default function PovertyTrackingPage() {
           )}
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-gray-500">{rows.length} hane · en yüksek puan üstte</p>
-            <button className={ghostButton} onClick={() => exportCsv('haneler.csv', ['Puan', 'Derece', 'Ad', 'Telefon', 'İl', 'İlçe', 'Mahalle', 'Kişi', 'Son yardım', 'Alınan paket', 'Durum'],
-              rows.map((h) => [h.poverty_score, h.degree_label, h.full_name, h.phone, h.city, h.district, h.neighborhood, h.household_size, fmtDate(h.last_delivery_at), h.total_received, h.review_label]))}>⬇ CSV</button>
+            <ExportButtons
+              filename="haneler"
+              title="İhtiyaç Sahibi Haneler"
+              subtitle={`${rows.length} hane`}
+              getData={() => ({
+                headers: ['Puan', 'Derece', 'Ad', 'Telefon', 'İl', 'İlçe', 'Mahalle', 'Kişi', 'Son yardım', 'Alınan paket', 'Durum'],
+                rows: rows.map((h) => [h.poverty_score, h.degree_label, h.full_name, h.phone, h.city, h.district, h.neighborhood, h.household_size, fmtDate(h.last_delivery_at), h.total_received, h.review_label]),
+              })}
+            />
           </div>
           <div className="overflow-x-auto">
             <Table>
@@ -518,8 +524,8 @@ export default function PovertyTrackingPage() {
                       {(() => {
                         const wa = whatsappUrl(h.phone, `Merhaba ${h.full_name}, yardım başvurunuz / durumunuz hakkında iletişime geçiyoruz.`)
                         return wa ? (
-                          <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp ile mesaj gönder" className="mr-2 inline-flex align-middle text-emerald-600 hover:text-emerald-700">
-                            <MessageCircle className="h-4 w-4" />
+                          <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp ile mesaj gönder" className="mr-2 inline-flex align-middle hover:opacity-80">
+                            <WhatsAppIcon className="h-4 w-4" />
                           </a>
                         ) : null
                       })()}

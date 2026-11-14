@@ -20,7 +20,7 @@ import { Notice, TextInput, compactInputClass, ghostButton, inputClass, primaryB
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms } from '../../../../lib/sms'
-import { Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 
 interface Donation {
   id: string
@@ -373,30 +373,27 @@ export default function AdminReceiptsPage() {
           </div>
 
           {donations.length > 0 && (
-            <button
-              type="button"
-              onClick={() =>
-                exportCsv(
-                  'makbuzlar.csv',
-                  ['Makbuz No', 'Matbu No', 'Bağışçı', 'Kampanya', 'Kimin Adına', 'Ödeme Yöntemi', 'Tutar', 'Para Birimi', 'Durum', 'Tarih'],
-                  donations.map((d) => [
-                    d.receipt_number,
-                    d.official_receipt_no || '',
-                    d.donor_name,
-                    d.campaign_title || '',
-                    d.on_behalf_of || '',
-                    d.payment_method_label,
-                    d.amount_cents / 100,
-                    d.currency,
-                    STATUS_BADGE[d.status]?.label || d.status,
-                    d.paid_at ? new Date(d.paid_at).toLocaleDateString('tr-TR') : '',
-                  ])
-                )
-              }
-              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              <Download className="h-3.5 w-3.5" /> CSV İndir (Sayfa)
-            </button>
+            <ExportButtons
+              filename="makbuzlar"
+              title="Makbuz Listesi"
+              subtitle={`Toplam ${total.toLocaleString('tr-TR')} makbuz`}
+              currencyCols={[7]}
+              getData={() => ({
+                headers: ['Makbuz No', 'Matbu No', 'Bağışçı', 'Kampanya', 'Kimin Adına', 'Ödeme Yöntemi', 'Tutar', 'Para Birimi', 'Durum', 'Tarih'],
+                rows: donations.map((d) => [
+                  d.receipt_number,
+                  d.official_receipt_no || '',
+                  d.donor_name,
+                  d.campaign_title || '',
+                  d.on_behalf_of || '',
+                  d.payment_method_label,
+                  d.amount_cents / 100,
+                  d.currency,
+                  STATUS_BADGE[d.status]?.label || d.status,
+                  d.paid_at ? new Date(d.paid_at).toLocaleDateString('tr-TR') : '',
+                ]),
+              })}
+            />
           )}
         </div>
 

@@ -8,7 +8,7 @@ import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from
 import { DonorPicker, PickedDonor } from '../../../../components/admin/DonorPicker'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms, smsAmount } from '../../../../lib/sms'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface DonorHit { id?: string; name?: string; phone?: string | null; confidence: number; reason?: string; candidates: { id: string; name: string; phone: string | null }[] }
 interface CampaignHit { id: string; title: string; category: string; confidence: 'high' | 'medium' | 'low'; reason: string }
@@ -240,12 +240,24 @@ export default function IncomingTransfersPage() {
       <PageHeader title="Gelen Havaleler" description={<>Bankadan gelen havale ve EFT&apos;ler bağışçı ve kampanya önerisiyle burada bekler; onayladığınızda bağış ve makbuz oluşur.</>} actions={<div className="flex flex-wrap gap-2">
           <Link href="/admin/banka-hesaplari" className={ghostButton}>Banka hesapları ve kurallar</Link>
           <Link href="/admin/reconciliation" className={ghostButton}>Banka mutabakatı</Link>
-          <button type="button" onClick={() => window.print()} className={ghostButton}>🖨️ Yazdır / PDF</button>
           {items.length > 0 && (
-            <button type="button" onClick={() => exportCsv(`gelen-havaleler-${status}.csv`, ['Tarih', 'Gönderen', 'Açıklama', 'Tutar', 'Para Birimi', 'Durum'],
-              items.map((t) => [new Date(t.booked_at).toLocaleDateString('tr-TR'), t.sender_name || '', t.description || '', t.amount_cents / 100, t.currency, t.status]))} className={ghostButton}>
-              ⬇ CSV
-            </button>
+            <ExportButtons
+              filename={`gelen-havaleler-${status}`}
+              title="Gelen Havaleler"
+              subtitle={`Durum: ${status} · ${items.length} kayıt`}
+              currencyCols={[4]}
+              getData={() => ({
+                headers: ['Tarih', 'Gönderen', 'Açıklama', 'Tutar', 'Para Birimi', 'Durum'],
+                rows: items.map((t) => [
+                  new Date(t.booked_at).toLocaleDateString('tr-TR'),
+                  t.sender_name || '',
+                  t.description || '',
+                  t.amount_cents / 100,
+                  t.currency,
+                  t.status,
+                ]),
+              })}
+            />
           )}
           {canEdit && <button onClick={reanalyse} disabled={busy} className={ghostButton}>Önerileri yenile</button>}
         </div>} />
@@ -527,9 +539,9 @@ export default function IncomingTransfersPage() {
                                     ) || '#'}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-bold text-green-700 hover:bg-green-100"
+                                    className="inline-flex items-center gap-1 rounded border border-[#25D366]/40 bg-[#25D366]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#128C7E] hover:bg-[#25D366]/20"
                                   >
-                                    WhatsApp
+                                    <WhatsAppIcon className="h-3 w-3" /> WhatsApp
                                   </a>
                                 )}
                               </div>

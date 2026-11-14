@@ -1746,3 +1746,77 @@ async def update_org_settings(
     )
     return _org_settings_out(settings, organization)
 
+
+class TableExportIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    subtitle: Optional[str] = Field(default=None, max_length=200)
+    filename: Optional[str] = Field(default=None, max_length=120)
+    headers: List[str] = Field(min_length=1, max_length=30)
+    rows: List[List[Any]] = Field(default_factory=list, max_length=5000)
+    summary: Optional[List[List[str]]] = Field(default=None, max_length=6)
+    currency_cols: Optional[List[int]] = None
+
+
+def _safe_export_name(raw: Optional[str], ext: str) -> str:
+    import re
+    base = re.sub(r"[^a-zA-Z0-9._-]+", "-", (raw or "rapor").strip()).strip("-.") or "rapor"
+    base = re.sub(r"\.(csv|xlsx|pdf)$", "", base, flags=re.IGNORECASE)
+    return f"{base}.{ext}"
+
+
+@router.post("/export/xlsx")
+async def export_table_xlsx(
+    payload: TableExportIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from fastapi.responses import Response
+    from app.utils.excel_export import build_corporate_xlsx
+
+    org = await db.get(Organization, UUID(request.state.organization_id))
+    data = build_corporate_xlsx(
+        title=payload.title,
+        headers=payload.headers,
+        rows=payload.rows,
+        org_name=getattr(org, "name", "") or "",
+        subtitle=payload.subtitle or "",
+        primary_color=getattr(org, "theme_primary_color", None),
+        currency_cols=set(payload.currency_cols or []),
+        organization=org,
+    )
+    fname = _safe_export_name(payload.filename or payload.title, "xlsx")
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@router.post("/export/pdf")
+async def export_table_pdf(
+    payload: TableExportIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from fastapi.responses import Response
+    from app.utils.report_pdf import build_report_pdf
+
+    org = await db.get(Organization, UUID(request.state.organization_id))
+    data = build_report_pdf(
+        title=payload.title,
+        headers=payload.headers,
+        rows=payload.rows,
+        org_name=getattr(org, "name", "") or "",
+        subtitle=payload.subtitle or "",
+        organization=org,
+        summary=payload.summary,
+    )
+    fname = _safe_export_name(payload.filename or payload.title, "pdf")
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+

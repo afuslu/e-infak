@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
 import { ghostButton, inputClass } from '../../../../components/admin/FormKit'
-import { PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, confirmDialog, toast } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, confirmDialog, toast } from '../../../../components/admin/ui'
 
 interface Row { id: string; user_id: string; name: string; email: string; ip: string | null; user_agent: string | null; created_at: string; active: boolean }
 interface Staff { id: string; first_name: string; last_name: string }
@@ -46,8 +46,31 @@ export default function LoginLogsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Giriş Kayıtları" description="Personelin panele girdiği zaman, IP adresi ve cihaz."
-        actions={<button onClick={() => endSessions()} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700">
-          Kayıtlı oturumları kapat{data ? ` (${data.open_sessions})` : ''}</button>} />
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {data && data.items.length > 0 && (
+              <ExportButtons
+                filename="giris-kayitlari"
+                title="Giriş Kayıtları"
+                subtitle={`Toplam ${data.total} kayıt (sayfa ${page})`}
+                getData={() => ({
+                  headers: ['Personel', 'E-posta', 'Zaman', 'IP', 'Cihaz', 'Oturum'],
+                  rows: data.items.map((r) => [
+                    r.name,
+                    r.email,
+                    when(r.created_at),
+                    r.ip || '—',
+                    device(r.user_agent),
+                    r.active ? 'Açık' : 'Kapalı',
+                  ]),
+                })}
+              />
+            )}
+            <button onClick={() => endSessions()} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700">
+              Kayıtlı oturumları kapat{data ? ` (${data.open_sessions})` : ''}
+            </button>
+          </div>
+        } />
       <Card className="space-y-4 border border-gray-100 p-5 shadow-sm">
         <div className="grid gap-2 sm:grid-cols-4">
           <select className={inputClass} value={filters.user_id} onChange={(e) => set('user_id', e.target.value)}>

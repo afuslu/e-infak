@@ -8,7 +8,8 @@ import {
   adminGet,
   adminSend,
   apiErrorMessage,
-  exportCsv as downloadCsv,
+  exportPdf,
+  exportXlsx,
   formatMoney,
   hasPermission,
   useAdminAccess,
@@ -18,9 +19,11 @@ import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import {
+  ExcelIcon,
   Modal,
   PageHeader,
   Pagination,
+  PdfIcon,
   StatCard,
   TBody,
   THead,
@@ -159,7 +162,7 @@ export default function AdminDonationsPage() {
     setFilters((f) => ({ ...f, [key]: value }))
   }
 
-  const handleExportCsv = async () => {
+  const handleExport = async (fmt: 'xlsx' | 'pdf') => {
     setExporting(true)
     try {
       const all: Row[] = []
@@ -168,25 +171,27 @@ export default function AdminDonationsPage() {
         all.push(...res.data.items)
         if (res.data.items.length < 500) break
       }
-      downloadCsv(
-        'bagislar.csv',
-        ['Makbuz No', 'Resmi Koçan No', 'Tarih', 'Bağışçı', 'Telefon', 'Kampanya', 'Adına', 'Ödeme', 'Personel', 'Durum', 'Tutar', 'Para Birimi'],
-        all.map((r) => [
-          r.receipt_number,
-          r.official_receipt_no || '',
-          new Date(r.paid_at).toLocaleString('tr-TR'),
-          r.donor_name,
-          r.donor_phone || '',
-          r.campaign_title || '',
-          r.on_behalf_of || '',
-          r.payment_method_label,
-          r.issued_by_name || 'Online',
-          STATUS_META[r.status]?.label || r.status,
-          (r.amount_cents / 100).toFixed(2),
-          r.currency,
-        ]),
-      )
-      toast.ok(`${all.length} kayıt CSV olarak indirildi.`)
+      const headers = ['Makbuz No', 'Resmi Koçan No', 'Tarih', 'Bağışçı', 'Telefon', 'Kampanya', 'Adına', 'Ödeme', 'Personel', 'Durum', 'Tutar', 'Para Birimi']
+      const rows = all.map((r) => [
+        r.receipt_number,
+        r.official_receipt_no || '',
+        new Date(r.paid_at).toLocaleString('tr-TR'),
+        r.donor_name,
+        r.donor_phone || '',
+        r.campaign_title || '',
+        r.on_behalf_of || '',
+        r.payment_method_label,
+        r.issued_by_name || 'Online',
+        STATUS_META[r.status]?.label || r.status,
+        Number((r.amount_cents / 100).toFixed(2)),
+        r.currency,
+      ])
+      if (fmt === 'xlsx') {
+        await exportXlsx('bagislar', 'Bağış Listesi', headers, rows, { subtitle: `${all.length} kayıt`, currencyCols: [11] })
+      } else {
+        await exportPdf('bagislar', 'Bağış Listesi', headers, rows, { subtitle: `${all.length} kayıt` })
+      }
+      toast.ok(`${all.length} kayıt ${fmt.toUpperCase()} olarak indirildi.`)
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Dışa aktarılamadı'))
     } finally {
@@ -251,9 +256,27 @@ export default function AdminDonationsPage() {
         description="Tüm online ve elle kesilen bağışları arayın, filtreleyin, makbuz PDF'i indirin ve tahsilat durumlarını yönetin."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={handleExportCsv} disabled={exporting}>
-              <Download className="w-3.5 h-3.5 mr-1.5" />
-              {exporting ? 'Hazırlanıyor...' : 'CSV'}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport('xlsx')}
+              disabled={exporting}
+              className="border-[#1D6F42]/30 bg-[#1D6F42]/10 text-[#1D6F42] hover:bg-[#1D6F42]/15"
+            >
+              <ExcelIcon className="w-3.5 h-3.5 mr-1.5" />
+              {exporting ? 'Hazırlanıyor...' : 'Excel'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport('pdf')}
+              disabled={exporting}
+              className="border-[#D32F2F]/30 bg-[#D32F2F]/10 text-[#D32F2F] hover:bg-[#D32F2F]/15"
+            >
+              <PdfIcon className="w-3.5 h-3.5 mr-1.5" />
+              PDF
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading}>
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />

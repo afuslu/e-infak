@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { RefreshCw } from 'lucide-react'
+import { Printer, RefreshCw } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminGet, apiErrorMessage, exportCsv, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
-import { PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors'
 
@@ -169,8 +169,8 @@ export default function ReportsPage() {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             Yenile
           </button>
-          <button type="button" onClick={() => window.print()} className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-            Yazdır / PDF
+          <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-bold text-primary-700 hover:bg-primary-100">
+            <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
           </button>
         </div>} />
 
@@ -451,11 +451,14 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
 }
 
 function ExportButton({ name, header, rows }: { name: string; header: string[]; rows: (string | number)[][] }) {
+  const cleanTitle = name.replace(/\.csv$/i, '').replace(/[-_]+/g, ' ').toUpperCase()
   return (
     <div className="flex justify-end print:hidden">
-      <button onClick={() => exportCsv(name, header, rows)} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:border-primary-600">
-        ⬇ Excel (CSV) indir
-      </button>
+      <ExportButtons
+        filename={name}
+        title={cleanTitle}
+        getData={() => ({ headers: header, rows })}
+      />
     </div>
   )
 }

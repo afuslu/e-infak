@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import axios from 'axios'
-import { MessageCircle, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
+  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface MemberRow {
   id: string; member_no: string; member_type: string; member_type_label: string; status: string; status_label: string
@@ -217,8 +217,16 @@ export default function MembersPage() {
               <input type="checkbox" checked={filters.overdue_only} onChange={(e) => { setFilters({ ...filters, overdue_only: e.target.checked }); setPage(1) }} /> Yalnız aidatı gecikenler
             </label>
             <div className="ml-auto flex gap-2">
-              <button className={ghostButton} onClick={() => exportCsv('uyeler.csv', ['Üye no', 'Ad', 'Telefon', 'E-posta', 'Tür', 'Durum', 'Kayıt', 'Açık aidat', 'Geciken dönem'],
-                members.map((m) => [m.member_no, m.full_name, m.phone, m.email, m.member_type_label, m.status_label, fmt(m.joined_on), m.open_dues_cents / 100, m.overdue_count]))}>⬇ CSV</button>
+              <ExportButtons
+                filename="uyeler"
+                title="Üye Listesi"
+                subtitle={`${members.length} üye`}
+                currencyCols={[7]}
+                getData={() => ({
+                  headers: ['Üye no', 'Ad', 'Telefon', 'E-posta', 'Tür', 'Durum', 'Kayıt', 'Açık aidat', 'Geciken dönem'],
+                  rows: members.map((m) => [m.member_no, m.full_name, m.phone, m.email, m.member_type_label, m.status_label, fmt(m.joined_on), m.open_dues_cents / 100, m.overdue_count]),
+                })}
+              />
               <button className={ghostButton} onClick={() => downloadVcard(members.map((m) => m.id)).catch(() => setMessage({ type: 'error', text: 'vCard indirilemedi' }))}>⬇ vCard</button>
             </div>
           </div>
@@ -362,8 +370,8 @@ function MemberCard({ detail, canEdit, canCollect, onEdit, onClose, onChanged, o
             {detail.phone && <a href={`tel:${detail.phone}`} className="font-semibold text-primary-700 hover:underline">{detail.phone}</a>}
             {detail.email && <a href={`mailto:${detail.email}`} className="text-primary-700 hover:underline">{detail.email}</a>}
             {wa && (
-              <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+              <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-0.5 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20">
+                <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
               </a>
             )}
           </div>
@@ -515,8 +523,16 @@ function DuesTab({ canCollect, onMessage, onChanged, onOpenMember }: {
           <span className="text-xs text-gray-500">{rows.length} kayıt · {formatMoney(rows.reduce((s, r) => s + r.amount_cents, 0))}</span>
           <div className="ml-auto flex gap-2">
             {canCollect && (status === 'overdue' || status === 'open') && picked.size > 0 && <button className={ghostButton} onClick={() => setWaiveModal(true)}>Seçilenleri muaf tut</button>}
-            <button className={ghostButton} onClick={() => exportCsv(`aidat-${status}.csv`, ['Üye no', 'Ad', 'Telefon', 'Dönem', 'Son ödeme', 'Tutar', 'Gecikme (gün)', 'Durum'],
-              rows.map((r) => [r.member_no, r.full_name, r.phone, r.period, fmt(r.due_date), r.amount_cents / 100, r.days_overdue, r.status_label]))}>⬇ CSV</button>
+            <ExportButtons
+              filename={`aidat-${status}`}
+              title={`Üye Aidatları (${status})`}
+              subtitle={`${rows.length} kayıt`}
+              currencyCols={[5]}
+              getData={() => ({
+                headers: ['Üye no', 'Ad', 'Telefon', 'Dönem', 'Son ödeme', 'Tutar', 'Gecikme (gün)', 'Durum'],
+                rows: rows.map((r) => [r.member_no, r.full_name, r.phone, r.period, fmt(r.due_date), r.amount_cents / 100, r.days_overdue, r.status_label]),
+              })}
+            />
           </div>
         </div>
         <p className="text-[11px] text-gray-400">Tahsilat için üye adına veya &quot;Tahsilat&quot; butonuna tıklayarak üye kartını açabilirsiniz. Gecikenlere hatırlatma için listeyi CSV alıp Toplu SMS ekranını kullanabilirsiniz.</p>
@@ -546,8 +562,8 @@ function DuesTab({ canCollect, onMessage, onChanged, onOpenMember }: {
                           </button>
                         )}
                         {wa && (
-                          <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp hatırlatma" className="inline-flex text-emerald-600 hover:text-emerald-700">
-                            <MessageCircle className="h-4 w-4" />
+                          <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp hatırlatma" className="inline-flex hover:opacity-80">
+                            <WhatsAppIcon className="h-4 w-4" />
                           </a>
                         )}
                         {r.status === 'open' && canCollect && (

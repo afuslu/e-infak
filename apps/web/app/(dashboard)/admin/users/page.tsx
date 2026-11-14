@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
-import { Copy, Download, KeyRound, Pencil, Plus, Search, Shield, X } from 'lucide-react'
+import { Copy, KeyRound, Pencil, Plus, Search, Shield, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, exportCsv, hasPermission, useAdminAccess, type CapabilityGroup } from '../../../../lib/admin-access'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess, type CapabilityGroup } from '../../../../lib/admin-access'
+import { ExportButtons, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface StaffUser {
   id: string
@@ -286,14 +286,15 @@ function UsersTab({
               Kullanıcı sınırına ulaşıldı. Yeni hesap için paketi yükseltin veya bir hesabı pasifleştirin.
             </span>
           )}
-          <button
-            type="button"
-            onClick={() => exportCsv('personeller.csv', ['Ad', 'Soyad', 'E-posta', 'Telefon', 'Rol', 'Birim', 'Durum'],
-              users.map((u) => [u.first_name, u.last_name, u.email, u.phone || '', u.staff_role_name || u.role_label, u.department_name || '', u.is_active ? 'Aktif' : 'Pasif']))}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <Download className="h-3.5 w-3.5" /> CSV
-          </button>
+          <ExportButtons
+            filename="personeller"
+            title="Personel Listesi"
+            subtitle={`${users.length} personel`}
+            getData={() => ({
+              headers: ['Ad', 'Soyad', 'E-posta', 'Telefon', 'Rol', 'Birim', 'Durum'],
+              rows: users.map((u) => [u.first_name, u.last_name, u.email, u.phone || '', u.staff_role_name || u.role_label, u.department_name || '', u.is_active ? 'Aktif' : 'Pasif']),
+            })}
+          />
           <button className={`inline-flex items-center gap-1.5 ${buttonClass}`} disabled={seatsFull} onClick={() => setShowForm((v) => !v)}>
             {showForm ? <><X className="h-4 w-4" /> Vazgeç</> : <><Plus className="h-4 w-4" /> Personel Ekle</>}
           </button>

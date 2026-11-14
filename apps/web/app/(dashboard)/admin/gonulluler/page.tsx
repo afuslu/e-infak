@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Download, MessageCircle, Save, Trash2, UserPlus, Users } from 'lucide-react'
+import { Save, Trash2, UserPlus, Users } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, whatsappUrl } from '../../../../lib/admin-access'
 import { Notice, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface Application {
   id: string
@@ -140,29 +140,6 @@ export default function AdminVolunteersPage() {
     }
   }
 
-  const exportCsv = () => {
-    const header = ['Ad Soyad', 'Telefon', 'E-posta', 'Şehir', 'Alanlar', 'Uygunluk', 'Mesaj', 'Durum', 'Personel Notu', 'Tarih']
-    const rows = filtered.map((a) => [
-      a.full_name,
-      a.phone,
-      a.email || '',
-      a.city || '',
-      a.areas.join(', '),
-      a.availability || '',
-      a.message || '',
-      STATUS[a.status].label,
-      a.staff_notes || '',
-      new Date(a.created_at).toLocaleDateString('tr-TR'),
-    ])
-    const csv = '\uFEFF' + [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\r\n')
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'gonullu-basvurulari.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -197,9 +174,28 @@ export default function AdminVolunteersPage() {
                 ))}
               </select>
             )}
-            <button onClick={exportCsv} disabled={filtered.length === 0} className={ghostButton}>
-              <Download className="mr-1 inline h-3.5 w-3.5" /> CSV
-            </button>
+            {filtered.length > 0 && (
+              <ExportButtons
+                filename="gonullu-basvurulari"
+                title="Gönüllü Başvuruları"
+                subtitle={`${filtered.length} başvuru`}
+                getData={() => ({
+                  headers: ['Ad Soyad', 'Telefon', 'E-posta', 'Şehir', 'Alanlar', 'Uygunluk', 'Mesaj', 'Durum', 'Personel Notu', 'Tarih'],
+                  rows: filtered.map((a) => [
+                    a.full_name,
+                    a.phone,
+                    a.email || '',
+                    a.city || '',
+                    a.areas.join(', '),
+                    a.availability || '',
+                    a.message || '',
+                    STATUS[a.status].label,
+                    a.staff_notes || '',
+                    new Date(a.created_at).toLocaleDateString('tr-TR'),
+                  ]),
+                })}
+              />
+            )}
             <Link
               href="/admin/crm"
               className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-50"
@@ -342,9 +338,9 @@ export default function AdminVolunteersPage() {
                     href={wa}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                    className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-0.5 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20"
                   >
-                    <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                    <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
                   </a>
                 ) : null
               })()}

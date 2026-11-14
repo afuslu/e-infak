@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import {
-  Calculator, CheckCircle2, Clock, Coins, FileText, MessageCircle, MessageSquare, Search, Users, Video, X,
+  Calculator, CheckCircle2, Clock, Coins, FileText, MessageSquare, Search, Users, Video, X,
 } from 'lucide-react'
 import {
-  apiErrorMessage, downloadFile, exportCsv, formatMoney, hasPermission, useAdminAccess, v1Get, v1Send, whatsappUrl,
+  apiErrorMessage, downloadFile, formatMoney, hasPermission, useAdminAccess, v1Get, v1Send, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm } from '../../../../components/admin/ManualReceiptForm'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface KurbanCampaign {
   id: string
@@ -553,10 +553,24 @@ export default function KurbanAdminPage() {
                 <select className={`${inputClass} w-40`} value={shareStatus} onChange={(e) => setShareStatus(e.target.value as typeof shareStatus)}>
                   <option value="">Tüm durumlar</option><option value="waiting">Bekliyor</option><option value="slaughtered">Kesildi</option>
                 </select>
-                <button className={ghostButton} onClick={() => exportCsv('kurban-hisseleri.csv',
-                  ['Hayvan', 'Hisse', 'Hissedar', 'Bağışçı', 'Telefon', 'Tür', 'Durum', 'Makbuz'],
-                  shares.map((s) => [s.animal_number || '', s.share_number || '', s.on_behalf_of || s.donor_name, s.donor_name, s.donor_phone,
-                    s.kurban_type_label, s.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor', s.receipt_number]))}>⬇ CSV</button>
+                <ExportButtons
+                  filename="kurban-hisseleri"
+                  title="Kurban Hisseleri"
+                  subtitle={`${shares.length} hisse`}
+                  getData={() => ({
+                    headers: ['Hayvan', 'Hisse', 'Hissedar', 'Bağışçı', 'Telefon', 'Tür', 'Durum', 'Makbuz'],
+                    rows: shares.map((s) => [
+                      s.animal_number || '',
+                      s.share_number || '',
+                      s.on_behalf_of || s.donor_name,
+                      s.donor_name,
+                      s.donor_phone,
+                      s.kurban_type_label,
+                      s.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor',
+                      s.receipt_number,
+                    ]),
+                  })}
+                />
               </div>
               <div className="overflow-x-auto">
                 <Table>
@@ -587,8 +601,8 @@ export default function KurbanAdminPage() {
                             {(() => {
                               const wa = whatsappUrl(s.donor_phone, `Merhaba ${s.donor_name}, ${s.on_behalf_of || s.donor_name} adına alınan ${s.kurban_type_label} kurban hisseniz${s.animal_number ? ` (${s.animal_number})` : ''} ${s.status === 'slaughtered' ? 'kesilmiştir. Allah kabul etsin.' : 'kayıt altına alınmıştır.'}`)
                               return wa ? (
-                                <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp ile mesaj gönder" className="text-emerald-600 hover:text-emerald-700">
-                                  <MessageCircle className="h-4 w-4" />
+                                <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp ile mesaj gönder" className="inline-flex hover:opacity-80">
+                                  <WhatsAppIcon className="h-4 w-4" />
                                 </a>
                               ) : null
                             })()}

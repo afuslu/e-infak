@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Download, MessageSquare, RefreshCw, Sparkles, TrendingUp, Users } from 'lucide-react'
+import { AlertTriangle, MessageSquare, RefreshCw, Sparkles, TrendingUp, Users } from 'lucide-react'
 import { Button, Card } from '@e-infak/ui'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
-import { EmptyState, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
-import { adminGet, apiErrorMessage, exportCsv, formatMoney } from '../../../../lib/admin-access'
+import { EmptyState, ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
+import { adminGet, apiErrorMessage, formatMoney } from '../../../../lib/admin-access'
 
 interface ChurnDonor {
   donor_id: string
@@ -82,30 +82,25 @@ export default function AdminAiPage() {
         actions={
           <div className="flex items-center gap-2">
             {churns.length > 0 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  exportCsv(
-                    'bagisci-risk-analizi.csv',
-                    ['Bağışçı', 'Telefon', 'Son Bağış', 'Geçen Gün', 'Bağış Sayısı', 'Toplam Katkı (TL)', 'Risk (%)', 'Önerilen Aksiyon'],
-                    churns.map((c) => [
-                      c.donor_name,
-                      c.donor_phone || '',
-                      new Date(c.last_donation_date).toLocaleDateString('tr-TR'),
-                      c.days_since_last,
-                      c.donation_count,
-                      (c.total_donated_cents / 100).toFixed(2),
-                      c.risk_percentage,
-                      c.recommended_action,
-                    ]),
-                  )
-                }
-              >
-                <Download className="w-3.5 h-3.5 mr-1.5" />
-                CSV
-              </Button>
+              <ExportButtons
+                filename="bagisci-risk-analizi"
+                title="Bağışçı Kayıp Riski (Churn) Analizi"
+                subtitle={`${churns.length} bağışçı`}
+                currencyCols={[5]}
+                getData={() => ({
+                  headers: ['Bağışçı', 'Telefon', 'Son Bağış', 'Geçen Gün', 'Bağış Sayısı', 'Toplam Katkı (TL)', 'Risk (%)', 'Önerilen Aksiyon'],
+                  rows: churns.map((c) => [
+                    c.donor_name,
+                    c.donor_phone || '',
+                    new Date(c.last_donation_date).toLocaleDateString('tr-TR'),
+                    c.days_since_last,
+                    c.donation_count,
+                    c.total_donated_cents / 100,
+                    c.risk_percentage,
+                    c.recommended_action,
+                  ]),
+                })}
+              />
             )}
             <Button type="button" variant="outline" size="sm" onClick={loadAiInsights} disabled={loading}>
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />

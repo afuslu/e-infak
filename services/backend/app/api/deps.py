@@ -224,8 +224,8 @@ async def require_admin_route_permission(
     if request.method == "GET":
         required = Permission.REPORT_READ if "/reports" in path else Permission.ADMIN_READ
     else:
-        if "/tasks" in path:
-            # Every staff member works on tasks; ownership is checked per task.
+        if "/tasks" in path or "/admin-features/export/" in path:
+            # Every staff member works on tasks or exports tables they can read.
             required = Permission.ADMIN_READ
         elif any(part in path for part in ("/users", "/departments", "/staff-roles")):
             required = Permission.USER_MANAGE

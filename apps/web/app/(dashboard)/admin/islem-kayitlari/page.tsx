@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import { adminGet, apiErrorMessage } from '../../../../lib/admin-access'
 import { inputClass } from '../../../../components/admin/FormKit'
-import { PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 
 interface Row { id: string; action: string; label: string; details: Record<string, unknown>; user: string; created_at: string; donor_id: string | null }
 interface Staff { id: string; first_name: string; last_name: string }
@@ -38,7 +38,28 @@ export default function ActivityLogPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="İşlem Kayıtları" description="Panelde yapılan işlemler: makbuz, bağışçı, SMS, rol ve ayar değişiklikleri." />
+      <PageHeader
+        title="İşlem Kayıtları"
+        description="Panelde yapılan işlemler: makbuz, bağışçı, SMS, rol ve ayar değişiklikleri."
+        actions={
+          data && data.items.length > 0 ? (
+            <ExportButtons
+              filename="islem-kayitlari"
+              title="İşlem Kayıtları"
+              subtitle={`Toplam ${data.total} kayıt (sayfa ${page})`}
+              getData={() => ({
+                headers: ['Tarih', 'İşlem', 'Ayrıntı', 'Yapan'],
+                rows: data.items.map((r) => [
+                  new Date(r.created_at).toLocaleString('tr-TR'),
+                  r.label,
+                  summary(r.details) || '—',
+                  r.user,
+                ]),
+              })}
+            />
+          ) : undefined
+        }
+      />
       <Card className="space-y-4 border border-gray-100 p-5 shadow-sm">
         <label className="flex items-center gap-2 text-xs font-semibold text-gray-600">
           <input type="checkbox" checked={!!filters.requests} onChange={(e) => set('requests', e.target.checked ? 'true' : '')} />

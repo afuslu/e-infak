@@ -5,10 +5,10 @@ import axios from 'axios'
 import { AlertTriangle, Boxes, CheckCircle2, Package, Search, Truck, Wallet } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
+  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon } from '../../../../components/admin/ui'
 
 interface Package {
   id: string; name: string; contents: string | null; unit_cost_cents: number; donation_campaign_id: string | null
@@ -483,10 +483,24 @@ export default function KumanyaPage() {
                 {packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
-            <button className={ghostButton} onClick={() => exportCsv('kumanya-dagitim-listesi.csv', ['Hane', 'Telefon', 'Adres', 'Bölge', 'Paket', 'Adet', 'Durum', 'Tarih'],
-              filteredDistributions.map((d) => [d.recipient_name, d.recipient_phone, d.recipient_address, d.region_name, d.package_name, d.quantity,
-                d.status === 'delivered' ? 'Teslim' : d.status === 'planned' ? 'Planlı' : 'İptal',
-                d.delivered_at ? new Date(d.delivered_at).toLocaleDateString('tr-TR') : d.planned_date || '']))}>⬇ Dağıtım listesi (CSV)</button>
+            <ExportButtons
+              filename="kumanya-dagitim-listesi"
+              title="Kumanya Dağıtım Listesi"
+              subtitle={`${filteredDistributions.length} kayıt`}
+              getData={() => ({
+                headers: ['Hane', 'Telefon', 'Adres', 'Bölge', 'Paket', 'Adet', 'Durum', 'Tarih'],
+                rows: filteredDistributions.map((d) => [
+                  d.recipient_name,
+                  d.recipient_phone,
+                  d.recipient_address,
+                  d.region_name,
+                  d.package_name,
+                  d.quantity,
+                  d.status === 'delivered' ? 'Teslim' : d.status === 'planned' ? 'Planlı' : 'İptal',
+                  d.delivered_at ? new Date(d.delivered_at).toLocaleDateString('tr-TR') : d.planned_date || '',
+                ]),
+              })}
+            />
           </div>
           {canEdit && picked.size > 0 && (
             <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/70 p-3">
@@ -523,7 +537,19 @@ export default function KumanyaPage() {
                     {canEdit && <Td><input type="checkbox" checked={picked.has(d.id)} onChange={() => toggle(d.id)} /></Td>}
                     <Td>
                       <div className="font-semibold text-gray-900">{d.recipient_name}</div>
-                      {d.recipient_phone && <div className="text-[11px] text-gray-500">{d.recipient_phone}</div>}
+                      {d.recipient_phone && (
+                        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                          <span>{d.recipient_phone}</span>
+                          {(() => {
+                            const wa = whatsappUrl(d.recipient_phone, `Merhaba ${d.recipient_name}, ${d.package_name} kumanya dağıtımınız hakkında bilgilendirmek isteriz.`)
+                            return wa ? (
+                              <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-[#128C7E] hover:underline">
+                                <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
+                              </a>
+                            ) : null
+                          })()}
+                        </div>
+                      )}
                       {d.recipient_address && <div className="text-[10px] text-gray-400">{d.recipient_address}</div>}
                     </Td>
                     <Td className="font-medium">{d.package_name} × {d.quantity}</Td>

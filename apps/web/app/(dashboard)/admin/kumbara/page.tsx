@@ -5,10 +5,10 @@ import axios from 'axios'
 import { AlertCircle, History, MapPin, PiggyBank, Plus, Search, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess,
+  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon } from '../../../../components/admin/ui'
 
 interface Region { id: string; name: string; description: string | null }
 interface Box {
@@ -391,9 +391,27 @@ export default function KumbaraPage() {
               Temizle
             </button>
           )}
-          <button className={ghostButton} onClick={() => exportCsv('kumbaralar.csv', ['Kod', 'Yer', 'Bölge', 'Adres', 'Yetkili', 'Telefon', 'Sorumlu', 'Durum', 'Son boşaltma', 'Toplam'],
-            boxes.map((b) => [b.code, b.location_name, b.region_name, [b.address, b.district, b.city].filter(Boolean).join(', '), b.contact_name,
-              b.contact_phone, b.responsible_user_id ? staffMap.get(b.responsible_user_id) || '' : '', STATUS[b.status], b.last_collected_at ? new Date(b.last_collected_at).toLocaleDateString('tr-TR') : '', b.total_collected_cents / 100]))}>⬇ CSV</button>
+          <ExportButtons
+            filename="kumbaralar"
+            title="Kumbara Listesi"
+            subtitle={`${boxes.length} kumbara`}
+            currencyCols={[10]}
+            getData={() => ({
+              headers: ['Kod', 'Yer', 'Bölge', 'Adres', 'Yetkili', 'Telefon', 'Sorumlu', 'Durum', 'Son boşaltma', 'Toplam'],
+              rows: boxes.map((b) => [
+                b.code,
+                b.location_name,
+                b.region_name,
+                [b.address, b.district, b.city].filter(Boolean).join(', '),
+                b.contact_name,
+                b.contact_phone,
+                b.responsible_user_id ? staffMap.get(b.responsible_user_id) || '' : '',
+                STATUS[b.status],
+                b.last_collected_at ? new Date(b.last_collected_at).toLocaleDateString('tr-TR') : '',
+                b.total_collected_cents / 100,
+              ]),
+            })}
+          />
         </div>
         <div className="overflow-x-auto">
           <Table>
@@ -428,6 +446,15 @@ export default function KumbaraPage() {
                   </Td>
                   <Td className="text-right tabular-nums">{formatMoney(b.total_collected_cents)}<div className="text-[10px] text-gray-400">{b.collection_count} boşaltma</div></Td>
                   <Td className="text-right whitespace-nowrap">
+                    {(() => {
+                      const wa = whatsappUrl(b.contact_phone, `Merhaba${b.contact_name ? ` ${b.contact_name}` : ''}, ${b.location_name} (${b.code}) kumbarası hakkında iletişime geçiyoruz.`)
+                      return wa ? (
+                        <a href={wa} target="_blank" rel="noopener noreferrer" title="WhatsApp ile mesaj gönder"
+                          className="mr-3 inline-flex items-center gap-1 font-bold text-[#128C7E] hover:underline">
+                          <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
+                        </a>
+                      ) : null
+                    })()}
                     {canEdit && b.status === 'active' && <button className="font-bold text-emerald-700 hover:underline" onClick={() => setCollecting(b)}>Boşalt</button>}
                     <button className="ml-3 font-bold text-primary-700 hover:underline" onClick={() => showHistory(b)}>Geçmiş</button>
                     {canEdit && <button className="ml-3 font-bold text-gray-600 hover:underline" onClick={() => open(b)}>Düzenle</button>}

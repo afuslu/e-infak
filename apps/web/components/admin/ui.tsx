@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, Eye, Inbox, Printer, X, XCircle, type LucideIcon } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
-import { exportCsv } from '../../lib/admin-access'
+import { exportPdf, exportXlsx } from '../../lib/admin-access'
 import { ghostButton, primaryButton } from './FormKit'
 
 /** Dialogs render inside the panel wrapper so they get its theme (dark mode, brand colours). */
@@ -50,16 +50,21 @@ export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, det
   const contentRef = useRef<HTMLDivElement>(null)
   const clickable = !!detail
 
-  const exportModalTable = () => {
+  const exportModalTable = (fmt: 'xlsx' | 'pdf') => {
     const table = contentRef.current?.querySelector('table')
     if (!table || !detail) return
     const headCells = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent?.trim() || '')
     const bodyRows = Array.from(table.querySelectorAll('tbody tr')).map((tr) =>
       Array.from(tr.querySelectorAll('td')).map((td) => td.textContent?.trim() || ''),
     )
-    const header = headCells.length ? headCells : ['Bilgi', 'Değer']
+    const headers = headCells.length ? headCells : ['Bilgi', 'Değer']
     const slug = detail.title.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'detay'
-    exportCsv(`${slug}.csv`, header, bodyRows)
+    const subtitle = typeof detail.description === 'string' ? detail.description : undefined
+    if (fmt === 'xlsx') {
+      void exportXlsx(`${slug}.xlsx`, detail.title, headers, bodyRows, { subtitle })
+    } else {
+      void exportPdf(`${slug}.pdf`, detail.title, headers, bodyRows, { subtitle })
+    }
   }
 
   const printModalContent = () => {
@@ -109,11 +114,26 @@ export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, det
           onClose={() => setOpen(false)}
           footer={
             <>
-              <button type="button" onClick={exportModalTable} className={`${ghostButton} inline-flex items-center gap-1.5`}>
-                <Download className="h-3.5 w-3.5" aria-hidden="true" /> CSV İndir
+              <button
+                type="button"
+                onClick={() => exportModalTable('xlsx')}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#1D6F42]/30 bg-[#1D6F42]/10 px-3 py-1.5 text-xs font-bold text-[#1D6F42] transition-colors hover:bg-[#1D6F42]/15"
+              >
+                <ExcelIcon className="h-3.5 w-3.5" /> Excel İndir
               </button>
-              <button type="button" onClick={printModalContent} className={`${ghostButton} inline-flex items-center gap-1.5`}>
-                <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır / PDF
+              <button
+                type="button"
+                onClick={() => exportModalTable('pdf')}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#D32F2F]/30 bg-[#D32F2F]/10 px-3 py-1.5 text-xs font-bold text-[#D32F2F] transition-colors hover:bg-[#D32F2F]/15"
+              >
+                <PdfIcon className="h-3.5 w-3.5" /> PDF İndir
+              </button>
+              <button
+                type="button"
+                onClick={printModalContent}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:bg-primary-100"
+              >
+                <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
               </button>
             </>
           }
@@ -347,5 +367,100 @@ export function UiHost() {
       </div>
     </>,
     portalRoot(),
+  )
+}
+
+export function ExcelIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none">
+      <rect x="7" y="3" width="14" height="18" rx="2" fill="#21A366" />
+      <path d="M14 3v18M7 9h14M7 15h14" stroke="#E6F4EA" strokeWidth="1.2" opacity="0.7" />
+      <rect x="2" y="6" width="12" height="12" rx="2" fill="#185C37" />
+      <path d="M5.6 9.5L8 12l2.4-2.5M5.6 14.5L8 12l2.4 2.5" stroke="#FFFFFF" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export function PdfIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none">
+      <path d="M6 2h8l5 5v15a1 1 0 0 1-1 1H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="#FDECEC" stroke="#D32F2F" strokeWidth="1.5" />
+      <path d="M14 2v5h5" stroke="#D32F2F" strokeWidth="1.5" strokeLinejoin="round" />
+      <rect x="4" y="12.5" width="16" height="7" rx="1.5" fill="#D32F2F" />
+      <text x="12" y="17.8" textAnchor="middle" fill="#FFFFFF" fontSize="5.4" fontWeight="800" fontFamily="sans-serif">PDF</text>
+    </svg>
+  )
+}
+
+export function WhatsAppIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none">
+      <path
+        d="M12 2.25c-5.38 0-9.75 4.37-9.75 9.75 0 1.88.53 3.63 1.46 5.12L2.5 21.75l4.78-1.25A9.71 9.71 0 0 0 12 21.75c5.38 0 9.75-4.37 9.75-9.75S17.38 2.25 12 2.25Z"
+        fill="#25D366"
+      />
+      <path
+        d="M16.43 14.48c-.24-.12-1.4-.69-1.62-.77-.22-.08-.38-.12-.54.12-.16.24-.62.77-.76.93-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.93-1.19-.71-.63-1.19-1.41-1.33-1.65-.14-.24-.01-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.46-.39-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.51.58.18 1.1.15 1.52.09.46-.07 1.4-.57 1.6-1.12.2-.55.2-1.02.14-1.12-.06-.1-.22-.16-.46-.28Z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  )
+}
+
+/** Kurum logolu ve marka renkli kurumsal Excel (.xlsx) + PDF dışa aktarım butonları. */
+export function ExportButtons({
+  filename,
+  title,
+  subtitle,
+  getData,
+  summary,
+  currencyCols,
+}: {
+  filename: string
+  title: string
+  subtitle?: string
+  getData: () => { headers: string[]; rows: (string | number | null | undefined)[][] }
+  summary?: [string, string][]
+  currencyCols?: number[]
+}) {
+  const [busy, setBusy] = useState<'xlsx' | 'pdf' | null>(null)
+
+  const run = async (type: 'xlsx' | 'pdf') => {
+    setBusy(type)
+    try {
+      const { headers, rows } = getData()
+      if (type === 'xlsx') {
+        await exportXlsx(filename, title, headers, rows, { subtitle, currencyCols })
+      } else {
+        await exportPdf(filename, title, headers, rows, { subtitle, summary })
+      }
+    } catch {
+      toast.error(`${type.toUpperCase()} oluşturulamadı.`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <button
+        type="button"
+        disabled={busy !== null}
+        onClick={() => run('xlsx')}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-[#1D6F42]/30 bg-[#1D6F42]/10 px-3 py-1.5 text-xs font-bold text-[#1D6F42] transition-colors hover:bg-[#1D6F42]/15 disabled:opacity-50"
+      >
+        <ExcelIcon className="h-3.5 w-3.5" />
+        {busy === 'xlsx' ? 'Hazırlanıyor…' : 'Excel'}
+      </button>
+      <button
+        type="button"
+        disabled={busy !== null}
+        onClick={() => run('pdf')}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-[#D32F2F]/30 bg-[#D32F2F]/10 px-3 py-1.5 text-xs font-bold text-[#D32F2F] transition-colors hover:bg-[#D32F2F]/15 disabled:opacity-50"
+      >
+        <PdfIcon className="h-3.5 w-3.5" />
+        {busy === 'pdf' ? 'Hazırlanıyor…' : 'PDF'}
+      </button>
+    </div>
   )
 }

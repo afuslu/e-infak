@@ -192,6 +192,61 @@ export function exportCsv(filename: string, header: string[], rows: (string | nu
   URL.revokeObjectURL(url)
 }
 
+async function downloadPostExport(
+  format: 'xlsx' | 'pdf',
+  filename: string,
+  title: string,
+  header: string[],
+  rows: (string | number | null | undefined)[][],
+  options?: { subtitle?: string; summary?: [string, string][]; currencyCols?: number[] },
+) {
+  const res = await withAuthRetry(() =>
+    axios.post(
+      `${adminApiBase()}/api/v1/admin-features/export/${format}`,
+      {
+        title,
+        subtitle: options?.subtitle,
+        filename,
+        headers: header,
+        rows,
+        summary: options?.summary,
+        currency_cols: options?.currencyCols,
+      },
+      { headers: adminAuthHeaders(), responseType: 'blob' },
+    ),
+  )
+  const url = URL.createObjectURL(res.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename.replace(/\.(csv|xlsx|pdf)$/i, '') + `.${format}`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function exportXlsx(
+  filename: string,
+  title: string,
+  header: string[],
+  rows: (string | number | null | undefined)[][],
+  options?: { subtitle?: string; currencyCols?: number[] },
+) {
+  try {
+    await downloadPostExport('xlsx', filename, title, header, rows, options)
+  } catch {
+    exportCsv(filename.replace(/\.(xlsx|pdf)$/i, '.csv'), header, rows)
+  }
+}
+
+export async function exportPdf(
+  filename: string,
+  title: string,
+  header: string[],
+  rows: (string | number | null | undefined)[][],
+  options?: { subtitle?: string; summary?: [string, string][] },
+) {
+  await downloadPostExport('pdf', filename, title, header, rows, options)
+}
+
 /** Builds a WhatsApp (`wa.me`) link for Turkish/international phone numbers. */
 export function whatsappUrl(phone: string | null | undefined, text: string): string | null {
   const digits = (phone || '').replace(/\D/g, '')

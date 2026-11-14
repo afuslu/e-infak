@@ -2,16 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { Printer } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
   apiErrorMessage,
-  exportCsv,
   formatMoney,
   v1Get,
   v1Send,
 } from '../../../../lib/admin-access'
 import { Notice, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface BankTransaction {
   id: string
@@ -268,31 +268,28 @@ export default function AdminReconciliationPage() {
             <button type="button" onClick={() => setShowImports((v) => !v)} className={ghostButton}>
               Ekstre Geçmişi ({imports.length})
             </button>
-            <button type="button" onClick={() => window.print()} className={ghostButton}>
-              🖨️ Yazdır / PDF
+            <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-100">
+              <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
             </button>
             {filteredTransactions.length > 0 && (
-              <button
-                type="button"
-                onClick={() =>
-                  exportCsv(
-                    `banka_mutabakat_${new Date().toISOString().slice(0, 10)}.csv`,
-                    ['Tarih', 'İşlem No', 'Gönderen', 'Açıklama', 'Tutar', 'Para Birimi', 'Durum'],
-                    filteredTransactions.map((t) => [
-                      new Date(t.booked_at).toLocaleString('tr-TR'),
-                      t.external_id,
-                      t.sender_name || '',
-                      t.description || '',
-                      (t.amount_cents / 100).toFixed(2),
-                      t.currency,
-                      t.status,
-                    ]),
-                  )
-                }
-                className={ghostButton}
-              >
-                ⬇ CSV İndir
-              </button>
+              <ExportButtons
+                filename={`banka-mutabakat-${new Date().toISOString().slice(0, 10)}`}
+                title="Banka Mutabakat Raporu"
+                subtitle={`${filteredTransactions.length} hareket`}
+                currencyCols={[4]}
+                getData={() => ({
+                  headers: ['Tarih', 'İşlem No', 'Gönderen', 'Açıklama', 'Tutar', 'Para Birimi', 'Durum'],
+                  rows: filteredTransactions.map((t) => [
+                    new Date(t.booked_at).toLocaleString('tr-TR'),
+                    t.external_id,
+                    t.sender_name || '',
+                    t.description || '',
+                    t.amount_cents / 100,
+                    t.currency,
+                    t.status,
+                  ]),
+                })}
+              />
             )}
           </div>
         }

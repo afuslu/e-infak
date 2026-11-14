@@ -226,6 +226,7 @@ async def export_derbis_report(
             subtitle=subtitle,
             primary_color=getattr(org, "theme_primary_color", None),
             currency_cols={6},
+            organization=org,
         )
         return Response(
             content=xlsx_bytes,

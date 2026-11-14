@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, exportCsv, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
 import { Notice, ghostButton, inputClass } from '../../../../components/admin/FormKit'
 import { SOURCE_LABEL, STATUS_CLASS, STATUS_LABEL, SmsMessage, SmsStatus } from '../../../../lib/sms'
-import { PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface Account { provider: string | null; own_account: boolean; balance: { text: string; amount: number | null; unit: string } | null }
 interface Listing { items: SmsMessage[]; total: number; counts: Record<SmsStatus, number>; parts_sent: number }
@@ -74,19 +74,6 @@ export default function SmsLogPage() {
     }
   }
 
-  const download = async () => {
-    try {
-      const res = await adminGet<Listing>('/sms/messages', { ...params, page: 1, page_size: 200 })
-      exportCsv('sms-gonderimleri.csv', ['No', 'Tarih', 'Alıcı', 'Telefon', 'Mesaj', 'Kaynak', 'SMS', 'Durum', 'Hata'],
-        res.data.items.map((m) => [m.seq_no, when(m.created_at), m.donor_name, m.phone, m.body, SOURCE_LABEL[m.source] || m.source, m.parts, STATUS_LABEL[m.status], m.error]))
-      if (res.data.total > res.data.items.length) {
-        setMessage({ type: 'ok', text: `İlk ${res.data.items.length} kayıt CSV olarak indirildi (toplam ${res.data.total} kayıt).` })
-      }
-    } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
-    }
-  }
-
   const failedRetryable = (data?.items || []).filter((m) => m.status === 'failed' && m.source !== 'otp')
   const retryFailed = async () => {
     if (!failedRetryable.length || retryingAll) return
@@ -127,7 +114,27 @@ export default function SmsLogPage() {
           <Link href="/admin/broadcast" className={ghostButton}>+ Toplu SMS Gönder</Link>
           <Link href="/admin/sms" className={ghostButton}>Şablonlar</Link>
           <button type="button" onClick={() => load()} className={ghostButton}>Yenile</button>
-          <button type="button" onClick={download} className={ghostButton}>CSV indir</button>
+          {(data?.items.length ?? 0) > 0 && (
+            <ExportButtons
+              filename="sms-gonderimleri"
+              title="SMS Gönderim Kayıtları"
+              subtitle={`Toplam ${data?.total ?? 0} kayıt (sayfa görünümü)`}
+              getData={() => ({
+                headers: ['No', 'Tarih', 'Alıcı', 'Telefon', 'Mesaj', 'Kaynak', 'SMS', 'Durum', 'Hata'],
+                rows: (data?.items || []).map((m) => [
+                  m.seq_no,
+                  when(m.created_at),
+                  m.donor_name,
+                  m.phone,
+                  m.body,
+                  SOURCE_LABEL[m.source] || m.source,
+                  m.parts,
+                  STATUS_LABEL[m.status],
+                  m.error,
+                ]),
+              })}
+            />
+          )}
         </div>} />
 
       <Notice message={message} />

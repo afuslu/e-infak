@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Printer } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import {
   apiErrorMessage,
-  exportCsv,
   hasPermission,
   useAdminAccess,
   v1Get,
   v1Send,
 } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
 interface Bank {
   key: string
@@ -212,29 +212,27 @@ export default function BankAccountsPage() {
           <div className="flex flex-wrap gap-2">
             <Link href="/admin/gelen-havaleler" className={ghostButton}>Gelen havaleler</Link>
             <Link href="/admin/reconciliation" className={ghostButton}>Banka mutabakatı</Link>
-            <button type="button" onClick={() => window.print()} className={ghostButton}>🖨️ Yazdır / PDF</button>
+            <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-100">
+              <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
+            </button>
             {accounts.length > 0 && (
-              <button
-                type="button"
-                onClick={() =>
-                  exportCsv(
-                    'banka-hesaplari.csv',
-                    ['Banka', 'Hesap Adı', 'IBAN', 'Para Birimi', 'Durum', 'Otomatik Onay', 'Varsayılan Kampanya'],
-                    accounts.map((a) => [
-                      a.bank,
-                      a.label,
-                      a.iban || '',
-                      a.currency,
-                      a.enabled ? 'Aktif' : 'Kapalı',
-                      a.auto_approve ? 'Evet' : 'Hayır',
-                      campaignTitle(a.default_campaign_id),
-                    ]),
-                  )
-                }
-                className={ghostButton}
-              >
-                ⬇ CSV İndir
-              </button>
+              <ExportButtons
+                filename="banka-hesaplari"
+                title="Banka Hesapları"
+                subtitle={`${accounts.length} hesap`}
+                getData={() => ({
+                  headers: ['Banka', 'Hesap Adı', 'IBAN', 'Para Birimi', 'Durum', 'Otomatik Onay', 'Varsayılan Kampanya'],
+                  rows: accounts.map((a) => [
+                    a.bank,
+                    a.label,
+                    a.iban || '',
+                    a.currency,
+                    a.enabled ? 'Aktif' : 'Kapalı',
+                    a.auto_approve ? 'Evet' : 'Hayır',
+                    campaignTitle(a.default_campaign_id),
+                  ]),
+                })}
+              />
             )}
           </div>
         }
