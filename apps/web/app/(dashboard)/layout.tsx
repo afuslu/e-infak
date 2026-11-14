@@ -4,7 +4,7 @@ import { useCurrentUser, useLogout } from '@e-infak/api-client'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowDownToLine, BarChart3, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, ExternalLink, FileText, FileUp, Film, FolderOpen, GraduationCap, HandCoins, HandHelping, HeartHandshake, Home, IdCard, Images, KeyRound, Landmark, LayoutDashboard, Lock, LogOut, MailPlus, Megaphone, Menu, MessagesSquare, Monitor, Moon, Newspaper, Package, PackageCheck, Palette, PiggyBank, Plug, Receipt, Repeat, Scale, Send, Settings, ShieldCheck, Sparkles, Sun, Tags, Users, Wallet, type LucideIcon } from 'lucide-react'
+import { ArrowDownToLine, BarChart3, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, ExternalLink, FileUp, Film, FolderOpen, GraduationCap, HandCoins, HandHelping, HeartHandshake, Home, IdCard, Images, KeyRound, Landmark, LayoutDashboard, Lock, LogOut, MailPlus, Megaphone, MessagesSquare, Monitor, Moon, Newspaper, Package, PackageCheck, PiggyBank, Plug, Receipt, Repeat, Scale, Send, Settings, ShieldCheck, Sparkles, Sun, Tags, Users, Wallet, type LucideIcon } from 'lucide-react'
 import { UiHost } from '../../components/admin/ui'
 import { hasFeature, hasPermission, useAdminAccess } from '../../lib/admin-access'
 
@@ -47,6 +47,7 @@ const NAV_GROUPS: NavGroup[] = [
     key: 'kisiler', label: 'Bağışçılar & Üyeler', items: [
       { href: '/admin/bagiscilar', label: 'Bağışçılar (CRM)', icon: Users, feature: 'donor_crm' },
       { href: '/admin/uyeler', label: 'Üyeler & Aidat', icon: IdCard, feature: 'membership' },
+      { href: '/admin/gonulluler', label: 'Gönüllü Başvuruları', icon: HandHelping, feature: 'website' },
       { href: '/admin/veri-aktarma', label: "Excel'den Aktarım", icon: FileUp, feature: 'donor_crm' },
     ],
   },
@@ -73,14 +74,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     key: 'site', label: 'Web Sitesi', items: [
       { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: Blocks, permission: 'content_manage' },
-      { href: '/admin/sayfalar', label: 'Sayfalar', icon: FileText, feature: 'website' },
       { href: '/admin/icerikler', label: 'Haber & Blog', icon: Newspaper, feature: 'website' },
-      { href: '/admin/menu', label: 'Menü', icon: Menu, feature: 'website' },
-      { href: '/admin/banners', label: "Slider / Duyuru Banner'ları", icon: Images, feature: 'website' },
       { href: '/admin/galeri', label: 'Foto & Video Galeri', icon: Film, feature: 'website' },
       { href: '/admin/medya', label: 'Medya Kütüphanesi', icon: FolderOpen, permission: 'content_manage' },
-      { href: '/admin/gorunum', label: 'Görünüm & Tema', icon: Palette, permission: 'settings_manage' },
-      { href: '/admin/gonulluler', label: 'Gönüllü Başvuruları', icon: HandHelping, feature: 'website' },
     ],
   },
   {

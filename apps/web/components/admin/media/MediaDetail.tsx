@@ -38,6 +38,15 @@ export function MediaDetail({ asset, folders, onChanged, onDeleted, onClose }: {
 
   const absoluteUrl = typeof window !== 'undefined' ? `${window.location.origin}${asset.url}` : asset.url
   const canCrop = asset.mime !== 'image/gif' && asset.mime !== 'image/x-icon'
+  const isDirty =
+    form.original_name !== asset.original_name ||
+    form.alt_text !== asset.alt_text ||
+    form.caption !== asset.caption ||
+    form.credit !== asset.credit ||
+    form.focal_x !== asset.focal_x ||
+    form.focal_y !== asset.focal_y ||
+    (form.folder_id || null) !== (asset.folder_id || null) ||
+    tagText !== asset.tags.join(', ')
 
   const save = async () => {
     setBusy(true)
@@ -94,7 +103,7 @@ export function MediaDetail({ asset, folders, onChanged, onDeleted, onClose }: {
       await navigator.clipboard.writeText(absoluteUrl)
       setMessage({ type: 'ok', text: 'Adres kopyalandı' })
     } catch {
-      window.prompt('Görsel adresi', absoluteUrl)
+      setMessage({ type: 'error', text: 'Panoya kopyalanamadı. Adresi seçip kopyalayın: ' + absoluteUrl })
     }
   }
 
@@ -134,6 +143,7 @@ export function MediaDetail({ asset, folders, onChanged, onDeleted, onClose }: {
           <div className="mt-2 flex flex-wrap gap-2">
             {canCrop && <button type="button" className={ghostButton} onClick={() => setCropping(true)}>Kırp</button>}
             <button type="button" className={ghostButton} onClick={copy}>Adresi kopyala</button>
+            <a href={asset.url} download={asset.original_name || 'gorsel'} className={ghostButton}>İndir</a>
             <a href={asset.url} target="_blank" rel="noreferrer" className={ghostButton}>↗ Aç</a>
           </div>
         </div>
@@ -162,8 +172,9 @@ export function MediaDetail({ asset, folders, onChanged, onDeleted, onClose }: {
         <TextInput label="Dosya adı" value={form.original_name} maxLength={255} onChange={(v) => setForm({ ...form, original_name: v })} />
       </div>
 
+      {isDirty && <p className="text-xs font-semibold text-amber-600">Kaydedilmemiş değişiklikler var.</p>}
       {message && <p className={`text-xs font-semibold ${message.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>{message.text}</p>}
-      <button type="button" disabled={busy} className={`${primaryButton} w-full`} onClick={save}>Kaydet</button>
+      <button type="button" disabled={busy} className={`${primaryButton} w-full`} onClick={save}>{busy ? 'Kaydediliyor…' : 'Kaydet'}</button>
 
       <div>
         <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-gray-500">Nerede kullanılıyor</h3>

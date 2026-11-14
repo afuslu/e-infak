@@ -55,6 +55,8 @@ const emptyForm = {
 export default function AdminContentPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [filter, setFilter] = useState<'' | Post['kind']>('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'draft'>('all')
+  const [query, setQuery] = useState('')
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -117,7 +119,12 @@ export default function AdminContentPage() {
     try {
       if (editingId) await adminSend('put', `/content-posts/${editingId}`, body)
       else await adminSend('post', '/content-posts', body)
-      setMessage({ type: 'ok', text: editingId ? 'İçerik güncellendi' : 'İçerik yayınlandı' })
+      setMessage({
+        type: 'ok',
+        text: editingId
+          ? 'İçerik güncellendi'
+          : form.is_active ? 'İçerik yayınlandı' : 'İçerik taslak olarak kaydedildi',
+      })
       setShowForm(false)
       setEditingId(null)
       await load()
@@ -128,17 +135,47 @@ export default function AdminContentPage() {
     }
   }
 
+  const duplicate = (post: Post) => {
+    setEditingId(null)
+    setShowForm(true)
+    setForm({
+      kind: post.kind,
+      title: `${post.title} (Kopya)`,
+      slug: '',
+      summary: post.summary || '',
+      body: post.body || '',
+      image_url: post.image_url || '',
+      gallery: (post.gallery_urls || []).join('\n'),
+      video_url: post.video_url || '',
+      published_at: post.published_at ? post.published_at.slice(0, 10) : '',
+      display_order: post.display_order,
+      is_active: false,
+      seo_title: post.seo_title || '',
+      seo_description: post.seo_description || '',
+      translations: post.translations || {},
+    })
+  }
+
   const remove = async (post: Post) => {
     if (!(await confirmDialog(`"${post.title}" silinsin mi?`))) return
     try {
       await adminSend('delete', `/content-posts/${post.id}`)
+      setMessage({ type: 'ok', text: 'İçerik silindi' })
       await load()
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
     }
   }
 
-  const visible = filter ? posts.filter((p) => p.kind === filter) : posts
+  const q = query.trim().toLocaleLowerCase('tr')
+  const visible = posts.filter((p) => {
+    if (filter && p.kind !== filter) return false
+    if (statusFilter === 'active' && !p.is_active) return false
+    if (statusFilter === 'draft' && p.is_active) return false
+    return !q || `${p.title} ${p.summary || ''} ${p.slug || ''}`.toLocaleLowerCase('tr').includes(q)
+  })
+  const wordCount = form.body.replace(/<[^>]+>/g, ' ').trim().split(/\s+/).filter(Boolean).length
+  const readMins = Math.max(1, Math.ceil(wordCount / 200))
 
   return (
     <div className="space-y-6">
@@ -168,8 +205,13 @@ export default function AdminContentPage() {
                   <TextInput label="Başlık" required minLength={2} value={form.title} onChange={(v) => set('title', v)} />
                 </div>
               </div>
-              <TextArea label="Kısa özet (liste ve paylaşımlarda görünür)" rows={2} maxLength={500} value={form.summary} onChange={(v) => set('summary', v)} />
-              <TextArea label="İçerik" rows={14} hint={BODY_HINT} value={form.body} onChange={(v) => set('body', v)} />
+              <TextArea label={`Kısa özet (${form.summary.length}/500 · liste ve paylaşımlarda görünür)`} rows={2} maxLength={500} value={form.summary} onChange={(v) => set('summary', v)} />
+              <div>
+                <TextArea label="İçerik" rows={14} hint={BODY_HINT} value={form.body} onChange={(v) => set('body', v)} />
+                {wordCount > 0 && (
+                  <div className="mt-1 text-end text-[11px] text-gray-400">{wordCount} kelime · ~{readMins} dk okuma</div>
+                )}
+              </div>
             </div>
             <div className="space-y-4">
               <ImageField label="Kapak görseli" value={form.image_url} onChange={(v) => set('image_url', v)} />
@@ -183,8 +225,14 @@ export default function AdminContentPage() {
                 <summary className="cursor-pointer text-xs font-bold text-gray-600">Adres & SEO</summary>
                 <div className="mt-3 space-y-3">
                   <TextInput label="Adres (slug)" hint="Boş bırakılırsa başlıktan üretilir" placeholder="kis-yardimi" value={form.slug} onChange={(v) => set('slug', v)} />
-                  <TextInput label="SEO başlığı" maxLength={160} value={form.seo_title} onChange={(v) => set('seo_title', v)} />
-                  <TextArea label="SEO açıklaması" rows={3} maxLength={320} value={form.seo_description} onChange={(v) => set('seo_description', v)} />
+                  <TextInput label={`SEO başlığı (${form.seo_title.length}/60 önerilen)`} maxLength={160} value={form.seo_title} onChange={(v) => set('seo_title', v)} />
+                  <TextArea label={`SEO açıklaması (${form.seo_description.length}/155 önerilen)`} rows={3} maxLength={320} value={form.seo_description} onChange={(v) => set('seo_description', v)} />
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                    <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">Google Önizleme</div>
+                    <div className="truncate text-sm font-medium text-blue-700">{form.seo_title || form.title || 'İçerik Başlığı'}</div>
+                    <div className="truncate text-[11px] text-emerald-700">/haberler/{form.slug || 'icerik-adresi'}</div>
+                    <div className="mt-0.5 line-clamp-2 text-xs text-gray-600">{form.seo_description || form.summary || 'İçerik özeti arama sonuçlarında burada görünür.'}</div>
+                  </div>
                 </div>
               </details>
               <TranslationEditor fields={POST_I18N_FIELDS} value={form.translations} onChange={(v) => set('translations', v)} />
@@ -199,21 +247,45 @@ export default function AdminContentPage() {
         </Card>
       )}
 
-      <div className="flex gap-2">
-        {([['', 'Tümü'], ['haber', 'Haber'], ['blog', 'Blog'], ['faaliyet', 'Faaliyet']] as const).map(([k, l]) => (
-          <button key={k} onClick={() => setFilter(k)} className={`rounded-full border px-3 py-1 text-xs font-semibold ${filter === k ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white text-gray-700'}`}>
-            {l}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {([['', 'Tümü'], ['haber', 'Haber'], ['blog', 'Blog'], ['faaliyet', 'Faaliyet']] as const).map(([k, l]) => {
+            const count = k ? posts.filter((p) => p.kind === k).length : posts.length
+            return (
+              <button key={k} onClick={() => setFilter(k)} className={`rounded-full border px-3 py-1 text-xs font-semibold ${filter === k ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white text-gray-700'}`}>
+                {l} ({count})
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Başlık veya özet ara…"
+            className="w-52 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-primary-500"
+          />
+          <div className="flex gap-1 rounded-lg bg-gray-100 p-0.5 text-xs font-semibold">
+            {([['all', 'Tümü'], ['active', 'Yayında'], ['draft', 'Taslak']] as const).map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setStatusFilter(k)}
+                className={`rounded-md px-2.5 py-1 ${statusFilter === k ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <Card className="border border-gray-100 p-6 shadow-sm">
-        {visible.length === 0 ? (
+        {posts.length === 0 ? (
           <p className="py-6 text-center text-xs text-gray-400">Henüz içerik yok.</p>
+        ) : visible.length === 0 ? (
+          <p className="py-6 text-center text-xs text-gray-400">Arama kriterine uyan içerik bulunamadı.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {visible.map((post) => (
-              <li key={post.id} className="flex items-center gap-4 py-3">
+              <li key={post.id} className="flex flex-wrap items-center gap-4 py-3">
                 {post.image_url
                   ? <img src={post.image_url} alt="" className="h-12 w-16 flex-shrink-0 rounded object-cover" />
                   : <div className="h-12 w-16 flex-shrink-0 rounded bg-gray-100" />}
@@ -225,9 +297,13 @@ export default function AdminContentPage() {
                   </div>
                 </div>
                 <StatusPill active={post.is_active} />
-                <div className="flex gap-2">
-                  <button onClick={() => startEdit(post)} className={ghostButton}>Düzenle</button>
-                  <button onClick={() => remove(post)} className={`${ghostButton} text-red-600`}>Sil</button>
+                <div className="flex flex-wrap gap-2">
+                  {post.is_active && post.slug && (
+                    <a href={`/haberler/${post.slug}`} target="_blank" rel="noreferrer" className={ghostButton}>Görüntüle ↗</a>
+                  )}
+                  <button type="button" onClick={() => duplicate(post)} className={ghostButton}>Çoğalt</button>
+                  <button type="button" onClick={() => startEdit(post)} className={ghostButton}>Düzenle</button>
+                  <button type="button" onClick={() => remove(post)} className={`${ghostButton} text-red-600`}>Sil</button>
                 </div>
               </li>
             ))}

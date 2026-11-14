@@ -8,7 +8,7 @@ import {
   Campaigns, Categories, CtaBand, FeaturedCampaign, GalleryStrip, Hero, News, Stats, Steps, Testimonials, Trust, ZakatBand, type HomeData,
 } from '../sections/HomeSections'
 import { BlockText } from './BlockText'
-import { MobileMenu, type NavItemView, type NavLinkView, Reveal, Slider, StickyShrink, type SlideView } from './BlockClient'
+import { MobileMenu, NavAnchor, type NavItemView, type NavLinkView, Reveal, SiteSearchBox, Slider, StickyShrink, type SlideView } from './BlockClient'
 import { LanguageSwitcher } from '../site/LanguageSwitcher'
 import { CountUp } from '../site/Carousel'
 import { AnnouncementBar, CartButton, ContactFormBlock, CurrencySwitcher, DonationCards, MobileTabBar, type DonationCardView } from './DonationBlocks'
@@ -62,7 +62,7 @@ const BASE_CSS = `
 .bmq-nopause:hover{animation-play-state:running}
 @keyframes bmq{to{transform:translateX(-50%)}}
 @media (prefers-reduced-motion:reduce){.bmq{animation:none;flex-wrap:wrap;width:auto}}
-.hrow{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto);align-items:center;column-gap:24px;min-height:var(--hrow-h,76px);transition:min-height .2s}
+.hrow{position:relative;display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) minmax(0,auto);align-items:center;column-gap:24px;min-height:var(--hrow-h,76px);transition:min-height .2s}
 .hrow>*{min-width:0}
 .hslot{display:flex;align-items:center;gap:16px;min-width:0}
 @media (max-width:767px){.hrow{grid-template-columns:minmax(0,1fr) auto auto;column-gap:10px}.hslot{gap:8px}}
@@ -171,17 +171,20 @@ const BUTTON_VARIANT: Record<string, string> = {
 }
 
 function Anchor({ link, className, children }: { link: NavLinkView; className: string; children?: ReactNode }) {
-  const body = children ?? (link.badge ? (
-    <span className="inline-flex items-center gap-1.5">
-      {link.label}
-      <span className="rounded-full bg-accent-500/15 px-1.5 py-0.5 text-[10px] font-bold leading-none text-accent-600">
-        {link.badge}
+  const body = children ?? (
+    <span className="flex flex-col">
+      <span className="inline-flex items-center gap-1.5">
+        {link.label}
+        {link.badge && (
+          <span className="rounded-full bg-accent-500/15 px-1.5 py-0.5 text-[10px] font-bold leading-none text-accent-600">
+            {link.badge}
+          </span>
+        )}
       </span>
+      {link.description && <span className="mt-0.5 text-[11px] font-normal text-gray-500">{link.description}</span>}
     </span>
-  ) : link.label)
-  if (!link.url) return <span className={className}>{body}</span>
-  if (link.url.startsWith('/') && !link.new_tab) return <Link href={link.url} className={className}>{body}</Link>
-  return <a href={link.url} className={className} target={link.new_tab ? '_blank' : undefined} rel="noopener noreferrer">{body}</a>
+  )
+  return <NavAnchor link={link} className={className}>{body}</NavAnchor>
 }
 
 /** Links of a Menü block: its own items, or the Menü screen's header/footer links. */
@@ -212,7 +215,7 @@ function groupLinks(links: NavLinkView[]): [string, NavLinkView[]][] {
 function Dropdown({ item, locale, itemCls = 'py-2 transition-opacity hover:opacity-70' }: { item: NavItemView; locale: string; itemCls?: string }) {
   const children = item.children || []
   return (
-    <div className="group relative">
+    <div className={item.mega ? 'group lg:static' : 'group relative'}>
       {item.url ? (
         <Anchor link={item} className={`inline-flex items-center gap-1 ${itemCls}`}>
           {item.label}
@@ -235,7 +238,7 @@ function Dropdown({ item, locale, itemCls = 'py-2 transition-opacity hover:opaci
           <span aria-hidden className="text-[10px] opacity-60 transition-transform group-hover:rotate-180">▾</span>
         </button>
       )}
-      <div className={`invisible absolute top-full z-50 pt-2 opacity-0 transition duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 ${item.mega ? 'left-1/2 w-[min(92vw,880px)] -translate-x-1/2' : 'start-0 min-w-56'}`}>
+      <div className={`invisible absolute top-full z-50 pt-2 opacity-0 transition duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 ${item.mega ? 'inset-x-0 mx-auto w-[min(92vw,880px)]' : 'start-0 min-w-56'}`}>
         <div className="rounded-xl border border-black/5 bg-white p-3 text-start text-[14px] font-normal text-gray-800 shadow-xl">
           {item.mega ? (
             <div className="grid gap-5 p-2" style={{ gridTemplateColumns: `repeat(${Math.min(groupLinks(children).length, 4)}, minmax(0, 1fr))` }}>
@@ -1828,7 +1831,10 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                 items={items}
                 label={t('nav.menu')}
                 extra={hasMultiLang ? <LanguageSwitcher /> : undefined}
-                donate={o.drawer_donate !== false ? { label: t('nav.donate'), url: '/kampanyalar' } : null}
+                donate={o.drawer_donate !== false ? {
+                  label: (typeof o.drawer_donate_label === 'string' && o.drawer_donate_label.trim()) || t('nav.donate'),
+                  url: (typeof o.drawer_donate_url === 'string' && o.drawer_donate_url.trim()) || '/kampanyalar',
+                } : null}
               />
             </div>
           )}
@@ -1882,6 +1888,16 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
     }
+    case 'site_search':
+      return (
+        <div className={depth === 0 ? container : ''}>
+          <SiteSearchBox
+            target={o.target === 'news' ? 'news' : 'campaigns'}
+            look={o.look === 'input' ? 'input' : 'icon'}
+            placeholder={typeof o.placeholder === 'string' && o.placeholder.trim() ? o.placeholder : 'Kampanya veya konu ara…'}
+          />
+        </div>
+      )
     case 'social_icons': {
       const customItems = Array.isArray(o.items)
         ? (o.items as { network?: string; url?: string }[])
@@ -2391,9 +2407,16 @@ export function renderBlock(block: Block, opts: RenderOptions, depth = 0): React
   const hasOverlay = Object.values(block.style || {}).some((s) => s && s.overlay_color)
   const bleed = FULL_BLEED.has(block.type) || (block.type === 'counters' && o.look === 'band')
   const padded = !bleed && !['section', 'column', 'spacer', 'divider'].includes(block.type) && depth === 0
-  const tone = (block.type === 'section' || block.type === 'header_row') ? TONE[o.tone || (block.type === 'header_row' ? 'light' : '')] : ''
+  const isTransparentHeader = block.type === 'header_row' && Boolean(o.transparent)
+  const tone = isTransparentHeader
+    ? (opts.editing
+      ? (o.tone === 'light' ? 'bg-white/80 text-gray-900' : 'bg-gray-900/75 text-white')
+      : (o.tone === 'light' ? 'bg-transparent text-gray-900' : 'bg-transparent text-white'))
+    : (block.type === 'section' || block.type === 'header_row')
+      ? TONE[o.tone || (block.type === 'header_row' ? 'light' : '')]
+      : ''
   const row = block.type === 'header_row'
-    ? `${o.border !== false ? ' border-b border-black/5' : ''}${o.sticky && !opts.editing ? ` hrow-sticky${o.shrink !== false ? ' is-shrink' : ''}` : ''}`
+    ? `${isTransparentHeader && !opts.editing ? ' absolute inset-x-0 top-0 z-40' : ''}${o.border !== false && !isTransparentHeader ? ' border-b border-black/5' : ''}${o.sticky && !opts.editing ? ` hrow-sticky${o.shrink !== false ? ' is-shrink' : ''}` : ''}`
     : ''
   let node: ReactNode = (
     <div key={block.id} id={advanced.anchor || undefined} aria-label={advanced.aria_label || undefined}

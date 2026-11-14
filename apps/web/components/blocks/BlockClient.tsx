@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -32,11 +33,20 @@ export function Reveal({ animation, delay, duration, children }: { animation: st
 /** The slider lives with the site components; the builder's slider block uses the same one. */
 export { Slider, type SlideView } from '../site/Slider'
 
-export interface NavLinkView { label: string; url?: string; new_tab?: boolean; group?: string; badge?: string }
+export interface NavLinkView { label: string; url?: string; new_tab?: boolean; group?: string; badge?: string; description?: string }
 export interface NavItemView extends NavLinkView { mega?: boolean; children?: NavLinkView[] }
 
-function MenuAnchor({ link, className, onClick }: { link: NavLinkView; className: string; onClick?: () => void }) {
-  const label = (
+export function NavAnchor({ link, className, children, onClick }: {
+  link: NavLinkView
+  className: string
+  children?: React.ReactNode
+  onClick?: () => void
+}) {
+  const pathname = usePathname()
+  const cleanUrl = link.url ? link.url.split('?')[0] : ''
+  const isActive = Boolean(cleanUrl && cleanUrl.startsWith('/') && (cleanUrl === '/' ? pathname === '/' : pathname === cleanUrl || pathname?.startsWith(`${cleanUrl}/`)))
+  const mergedCls = `${className}${isActive ? ' text-primary-600 font-bold' : ''}`
+  const content = children ?? (
     <>
       {link.label}
       {link.badge && (
@@ -46,9 +56,19 @@ function MenuAnchor({ link, className, onClick }: { link: NavLinkView; className
       )}
     </>
   )
-  if (!link.url) return <span className={className}>{label}</span>
-  if (link.url.startsWith('/') && !link.new_tab) return <Link href={link.url} className={className} onClick={onClick}>{label}</Link>
-  return <a href={link.url} className={className} target={link.new_tab ? '_blank' : undefined} rel="noopener noreferrer" onClick={onClick}>{label}</a>
+  if (!link.url) return <span className={mergedCls}>{content}</span>
+  if (link.url.startsWith('/') && !link.new_tab) {
+    return (
+      <Link href={link.url} className={mergedCls} aria-current={isActive ? 'page' : undefined} onClick={onClick}>
+        {content}
+      </Link>
+    )
+  }
+  return (
+    <a href={link.url} className={mergedCls} target={link.new_tab ? '_blank' : undefined} rel="noopener noreferrer" onClick={onClick}>
+      {content}
+    </a>
+  )
 }
 
 /**
@@ -86,16 +106,16 @@ export function MobileMenu({ items, label, donate, extra }: {
                   {item.label}<span className="text-xs transition-transform group-open:rotate-180">▾</span>
                 </summary>
                 <div className="ms-3 flex flex-col border-s ps-2">
-                  {item.url && <MenuAnchor link={item} onClick={close} className="rounded-md px-3 py-2 text-sm font-semibold hover:bg-gray-50" />}
-                  {item.children.map((child, j) => <MenuAnchor key={j} link={child} onClick={close} className="rounded-md px-3 py-2 text-sm hover:bg-gray-50" />)}
+                  {item.url && <NavAnchor link={item} onClick={close} className="rounded-md px-3 py-2 text-sm font-semibold hover:bg-gray-50" />}
+                  {item.children.map((child, j) => <NavAnchor key={j} link={child} onClick={close} className="rounded-md px-3 py-2 text-sm hover:bg-gray-50" />)}
                 </div>
               </details>
             ) : (
-              <MenuAnchor key={i} link={item} onClick={close} className="rounded-lg px-3 py-2.5 font-semibold hover:bg-gray-50" />
+              <NavAnchor key={i} link={item} onClick={close} className="rounded-lg px-3 py-2.5 font-semibold hover:bg-gray-50" />
             ))}
             {extra && <div className="px-3 py-2">{extra}</div>}
             {donate && (
-              <MenuAnchor link={{ label: donate.label, url: donate.url }} onClick={close}
+              <NavAnchor link={{ label: donate.label, url: donate.url }} onClick={close}
                 className="mt-3 rounded-lg bg-primary-600 px-4 py-3 text-center font-bold text-white hover:bg-primary-700" />
             )}
           </nav>
@@ -118,4 +138,50 @@ export function StickyShrink() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
   return <span ref={ref} hidden />
+}
+
+export function SiteSearchBox({ target = 'campaigns', look = 'icon', placeholder = 'Ara…' }: {
+  target?: 'campaigns' | 'news'
+  look?: 'icon' | 'input'
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(look === 'input')
+  const [query, setQuery] = useState('')
+  const action = target === 'news' ? '/haberler' : '/kampanyalar'
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const q = query.trim()
+    window.location.href = q ? `${action}?q=${encodeURIComponent(q)}` : action
+  }
+
+  if (look === 'icon' && !open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Ara"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-current/15 text-sm transition hover:bg-current/10"
+      >
+        🔍
+      </button>
+    )
+  }
+
+  return (
+    <form onSubmit={submit} className="flex items-center gap-1 rounded-full border border-current/20 bg-white/90 px-3 py-1 text-gray-900 shadow-sm">
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={placeholder}
+        className="w-36 bg-transparent text-xs outline-none sm:w-44"
+        autoFocus={look === 'icon'}
+      />
+      <button type="submit" className="text-xs font-bold text-primary-700" aria-label="Ara">🔍</button>
+      {look === 'icon' && (
+        <button type="button" onClick={() => setOpen(false)} className="ml-0.5 text-xs text-gray-400 hover:text-gray-700" aria-label="Kapat">✕</button>
+      )}
+    </form>
+  )
 }

@@ -8,8 +8,12 @@ import { type Block, type BuilderCatalog, type Device, FIXED_CHILD, FIXED_PARENT
 import { type PlaceRule, checklist, countBlocks, duplicateBlock, findBlock, insertBlock, locate, moveBlock, placedOk, placementRule, removeBlock, shiftBlock, updateBlock } from '../../lib/builder-tree'
 import type { HomeData } from '../sections/HomeSections'
 import type { SiteData } from '../../lib/public-content'
+import type { PublicMenu } from '../../lib/default-links'
 import { Fields } from './FieldInput'
 import { type DemoOptions, type Library, type LibraryDemo, LibraryPanel, type SavedBlock } from './LibraryPanel'
+import { MenuPanel } from './MenuPanel'
+import { PageSettingsModal } from './PageSettingsModal'
+import { type ThemeLivePatch, ThemePanel } from './ThemePanel'
 
 interface PageSummary { id: string; kind: 'home' | 'page' | 'header' | 'footer'; slug: string | null; title: string; is_published: boolean; uses_blocks: boolean; has_draft: boolean; published_at: string | null; draft_updated_at: string | null }
 interface Revision { id: string; created_at: string; created_by: string | null; blocks: number }
@@ -68,6 +72,10 @@ export function SiteBuilderEditor() {
   const [catalog, setCatalog] = useState<BuilderCatalog | null>(null)
   const [pages, setPages] = useState<PageSummary[]>([])
   const [pageId, setPageId] = useState<string>('home')
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('page')
+    if (q) setPageId(q)
+  }, [])
   const [page, setPage] = useState<PageSummary | null>(null)
   const [state, dispatch] = useReducer(reducer, { blocks: [], past: [], future: [], selectedId: null, dirty: false })
   /** Page version the next save must match; a ref so queued saves always send the latest one. */
@@ -77,7 +85,18 @@ export function SiteBuilderEditor() {
   const [data, setData] = useState<HomeData | null>(null)
   const [device, setDevice] = useState<Device>('desktop')
   const [lang, setLang] = useState('tr')
-  const [leftTab, setLeftTab] = useState<'pages' | 'blocks' | 'library' | 'tree'>('blocks')
+  const [leftTab, setLeftTab] = useState<'pages' | 'blocks' | 'library' | 'tree' | 'theme'>(() => {
+    if (typeof window === 'undefined') return 'blocks'
+    const t = new URLSearchParams(window.location.search).get('tab')
+    if (t === 'theme') return 'theme'
+    if (t === 'pages' || t === 'menu') return 'pages'
+    return 'blocks'
+  })
+  const [pagesSubTab, setPagesSubTab] = useState<'pages' | 'menu'>(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'menu') return 'menu'
+    return 'pages'
+  })
+  const [settingsPageId, setSettingsPageId] = useState<string | null>(null)
   const [library, setLibrary] = useState<Library | null>(null)
   const [saved, setSaved] = useState<SavedBlock[]>([])
   const [rightTab, setRightTab] = useState<'content' | 'style' | 'advanced'>('content')
@@ -412,6 +431,13 @@ export function SiteBuilderEditor() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onKey])
+
+  const applyThemePreview = useCallback((patch: ThemeLivePatch) => {
+    setData((prev) => (prev ? { ...prev, site: { ...prev.site, ...patch } } : prev))
+  }, [])
+  const applyMenuPreview = useCallback((menu: PublicMenu) => {
+    setData((prev) => (prev ? { ...prev, menu } : prev))
+  }, [])
 
   // --- Canvas messaging ------------------------------------------------------------
   const sendRender = useCallback(() => {
@@ -795,81 +821,115 @@ export function SiteBuilderEditor() {
       <div className="flex min-h-0 flex-1">
         {/* Left panel */}
         <aside className={`${mobilePane === 'left' ? 'flex w-full' : 'hidden'} flex-none flex-col border-e bg-white lg:flex lg:w-72`}>
-          <div className="flex border-b">
-            <button type="button" className={tabBtn(leftTab === 'pages')} onClick={() => setLeftTab('pages')}>Sayfalar</button>
+          <div className="flex overflow-x-auto border-b">
+            <button type="button" className={tabBtn(leftTab === 'pages')} onClick={() => setLeftTab('pages')}>Sayfa &amp; Menü</button>
             <button type="button" className={tabBtn(leftTab === 'blocks')} onClick={() => setLeftTab('blocks')}>Bloklar</button>
             <button type="button" className={tabBtn(leftTab === 'library')} onClick={() => setLeftTab('library')}>Şablonlar</button>
             <button type="button" className={tabBtn(leftTab === 'tree')} onClick={() => setLeftTab('tree')}>Yapı ({countBlocks(state.blocks)})</button>
+            <button type="button" className={tabBtn(leftTab === 'theme')} onClick={() => setLeftTab('theme')}>Tema</button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
-            {leftTab === 'pages' && (() => {
-              const pq = pageSearch.trim().toLocaleLowerCase('tr')
-              const filtered = pages.filter((p) => !pq || `${p.title} ${p.slug || ''} ${KIND_PATH[p.kind] || ''}`.toLocaleLowerCase('tr').includes(pq))
-              const systemPages = filtered.filter((p) => p.kind !== 'page')
-              const customPages = filtered.filter((p) => p.kind === 'page')
-              const renderPageBtn = (p: PageSummary) => {
-                const dotCls = p.has_draft ? 'bg-amber-400' : p.is_published ? 'bg-emerald-500' : 'bg-gray-300'
-                const publicPath = p.kind === 'home' ? '/' : p.kind === 'page' && p.slug ? `/sayfa/${p.slug}` : null
-                return (
-                  <div key={p.id} className={`group flex items-start gap-1 rounded-md px-2 py-2 ${p.id === pageId ? 'bg-blue-50 text-blue-800' : 'hover:bg-gray-50'}`}>
-                    <button type="button" onClick={() => switchPage(p.id)} className="min-w-0 flex-1 text-start text-[13px]">
-                      <span className={`flex items-center gap-1.5 ${p.id === pageId ? 'font-semibold' : ''}`}>
-                        <span>{KIND_ICON[p.kind]}</span>
-                        <span className="min-w-0 flex-1 truncate">{p.title}</span>
-                        <span className={`h-2 w-2 shrink-0 rounded-full ${dotCls}`} title={p.has_draft ? 'Taslak var' : p.is_published ? 'Yayında' : 'Yayınlanmadı'} />
-                      </span>
-                      <span className="mt-0.5 block text-[11px] font-normal text-gray-400">
-                        {KIND_PATH[p.kind] ?? `/sayfa/${p.slug}`} · {p.has_draft ? 'taslak var' : p.is_published ? 'yayında' : CHROME.has(p.kind) ? 'yerleşik tasarım' : 'yayınlanmadı'}{p.kind === 'page' && !p.uses_blocks && !p.has_draft ? ' · klasik' : ''}
-                      </span>
-                    </button>
-                    {publicPath && p.is_published && (
-                      <a
-                        href={publicPath}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Canlı sayfayı aç"
-                        className="mt-0.5 hidden shrink-0 rounded px-1 text-[11px] text-gray-400 hover:bg-white hover:text-blue-600 group-hover:inline-block"
-                      >
-                        ↗
-                      </a>
-                    )}
-                  </div>
-                )
-              }
-              return (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <input className="w-full rounded-md border px-2 py-1.5 pr-7 text-[13px]" placeholder="Sayfa ara…" value={pageSearch} onChange={(e) => setPageSearch(e.target.value)} />
-                    {pageSearch && (
-                      <button type="button" onClick={() => setPageSearch('')} aria-label="Aramayı temizle"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-700">✕</button>
-                    )}
-                  </div>
-                  {filtered.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-gray-200 px-3 py-5 text-center text-xs text-gray-500">
-                      Aradığınız sayfa bulunamadı.
-                    </div>
-                  ) : (
-                    <>
-                      {systemPages.length > 0 && (
-                        <div className="space-y-1">
-                          <div className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Genel Düzen</div>
-                          {systemPages.map(renderPageBtn)}
-                        </div>
-                      )}
-                      {customPages.length > 0 && (
-                        <div className="space-y-1 pt-1">
-                          <div className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Özel Sayfalar ({customPages.length})</div>
-                          {customPages.map(renderPageBtn)}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <button type="button" onClick={openCreatePage} className="mt-2 w-full rounded-md border border-dashed py-2 text-[12px] font-semibold text-blue-600 hover:bg-blue-50">+ Yeni sayfa</button>
-                  <p className="pt-1 text-[11px] text-gray-400">Sayfa adresi, SEO başlığı ve menü bağlantıları <Link href="/admin/sayfalar" className="underline">Sayfalar</Link> ve <Link href="/admin/menu" className="underline">Menü</Link> ekranlarından düzenlenir.</p>
+            {leftTab === 'theme' && <ThemePanel onLivePreview={applyThemePreview} />}
+            {leftTab === 'pages' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 rounded-lg border bg-gray-50 p-0.5 text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setPagesSubTab('pages')}
+                    className={`rounded-md py-1.5 transition ${pagesSubTab === 'pages' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                    Sayfalar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPagesSubTab('menu')}
+                    className={`rounded-md py-1.5 transition ${pagesSubTab === 'menu' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                    Menü
+                  </button>
                 </div>
-              )
-            })()}
+
+                {pagesSubTab === 'menu' ? (
+                  <MenuPanel onMenuChanged={applyMenuPreview} />
+                ) : (() => {
+                  const pq = pageSearch.trim().toLocaleLowerCase('tr')
+                  const filtered = pages.filter((p) => !pq || `${p.title} ${p.slug || ''} ${KIND_PATH[p.kind] || ''}`.toLocaleLowerCase('tr').includes(pq))
+                  const systemPages = filtered.filter((p) => p.kind !== 'page')
+                  const customPages = filtered.filter((p) => p.kind === 'page')
+                  const renderPageBtn = (p: PageSummary) => {
+                    const dotCls = p.has_draft ? 'bg-amber-400' : p.is_published ? 'bg-emerald-500' : 'bg-gray-300'
+                    const publicPath = p.kind === 'home' ? '/' : p.kind === 'page' && p.slug ? `/sayfa/${p.slug}` : null
+                    return (
+                      <div key={p.id} className={`group flex items-start gap-1 rounded-md px-2 py-2 ${p.id === pageId ? 'bg-blue-50 text-blue-800' : 'hover:bg-gray-50'}`}>
+                        <button type="button" onClick={() => switchPage(p.id)} className="min-w-0 flex-1 text-start text-[13px]">
+                          <span className={`flex items-center gap-1.5 ${p.id === pageId ? 'font-semibold' : ''}`}>
+                            <span>{KIND_ICON[p.kind]}</span>
+                            <span className="min-w-0 flex-1 truncate">{p.title}</span>
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${dotCls}`} title={p.has_draft ? 'Taslak var' : p.is_published ? 'Yayında' : 'Yayınlanmadı'} />
+                          </span>
+                          <span className="mt-0.5 block text-[11px] font-normal text-gray-400">
+                            {KIND_PATH[p.kind] ?? `/sayfa/${p.slug}`} · {p.has_draft ? 'taslak var' : p.is_published ? 'yayında' : CHROME.has(p.kind) ? 'yerleşik tasarım' : 'yayınlanmadı'}{p.kind === 'page' && !p.uses_blocks && !p.has_draft ? ' · klasik' : ''}
+                          </span>
+                        </button>
+                        {p.kind === 'page' && (
+                          <button
+                            type="button"
+                            title="Sayfa ayarları ve SEO"
+                            onClick={() => setSettingsPageId(p.id)}
+                            className="mt-0.5 hidden shrink-0 rounded px-1 text-[11px] text-gray-400 hover:bg-white hover:text-gray-800 group-hover:inline-block"
+                          >
+                            ⚙
+                          </button>
+                        )}
+                        {publicPath && p.is_published && (
+                          <a
+                            href={publicPath}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Canlı sayfayı aç"
+                            className="mt-0.5 hidden shrink-0 rounded px-1 text-[11px] text-gray-400 hover:bg-white hover:text-blue-600 group-hover:inline-block"
+                          >
+                            ↗
+                          </a>
+                        )}
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <input className="w-full rounded-md border px-2 py-1.5 pr-7 text-[13px]" placeholder="Sayfa ara…" value={pageSearch} onChange={(e) => setPageSearch(e.target.value)} />
+                        {pageSearch && (
+                          <button type="button" onClick={() => setPageSearch('')} aria-label="Aramayı temizle"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-700">✕</button>
+                        )}
+                      </div>
+                      {filtered.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-gray-200 px-3 py-5 text-center text-xs text-gray-500">
+                          Aradığınız sayfa bulunamadı.
+                        </div>
+                      ) : (
+                        <>
+                          {systemPages.length > 0 && (
+                            <div className="space-y-1">
+                              <div className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Genel Düzen</div>
+                              {systemPages.map(renderPageBtn)}
+                            </div>
+                          )}
+                          {customPages.length > 0 && (
+                            <div className="space-y-1 pt-1">
+                              <div className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Özel Sayfalar ({customPages.length})</div>
+                              {customPages.map(renderPageBtn)}
+                            </div>
+                          )}
+                        </>
+                      )}
+                      <button type="button" onClick={openCreatePage} className="mt-2 w-full rounded-md border border-dashed py-2 text-[12px] font-semibold text-blue-600 hover:bg-blue-50">+ Yeni sayfa</button>
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
             {leftTab === 'library' && (
               <LibraryPanel library={library} catalog={catalog} kind={page?.kind || 'home'} saved={saved}
                 onInsert={insertSection} onReplace={replacePage} onInsertSaved={insertSaved} onDeleteSaved={deleteSaved} onApplyDemo={applyDemo} />
@@ -1287,6 +1347,20 @@ export function SiteBuilderEditor() {
             )}
           </div>
         </div>
+      )}
+      {settingsPageId && (
+        <PageSettingsModal
+          pageId={settingsPageId}
+          onClose={() => setSettingsPageId(null)}
+          onSaved={() => {
+            loadPages().catch(() => undefined)
+            if (settingsPageId === pageId) loadPage(pageId).catch(() => undefined)
+          }}
+          onDeleted={() => {
+            loadPages().catch(() => undefined)
+            if (settingsPageId === pageId) setPageId('home')
+          }}
+        />
       )}
     </div>
   )

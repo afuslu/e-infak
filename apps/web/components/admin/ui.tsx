@@ -15,14 +15,14 @@ export const portalRoot = () => document.getElementById('admin-portal') || docum
 
 // --- Page header -------------------------------------------------------------------
 
-export function PageHeader({ title, description, actions }: { title: string; description?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         <h1 className="text-2xl font-bold tracking-tight text-gray-900">{title}</h1>
-        {description && <p className="mt-1 max-w-3xl text-sm text-gray-500">{description}</p>}
+        {description && <div className="mt-1 max-w-3xl text-sm text-gray-500">{description}</div>}
       </div>
-      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2 whitespace-nowrap">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   )
 }
@@ -50,10 +50,30 @@ export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon }: {
 
 // --- Table -------------------------------------------------------------------------
 
-export const tableClass = 'w-full text-left text-sm'
-export const theadClass = 'border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500'
-export const thClass = 'px-3 py-2.5 first:pl-0 last:pr-0'
-export const tdClass = 'px-3 py-3 first:pl-0 last:pr-0'
+const join = (...parts: (string | undefined | false)[]) => parts.filter(Boolean).join(' ')
+
+/**
+ * Table parts with the panel's one table look. Pages write <Table><THead><Tr><Th>… exactly like
+ * HTML; spacing, header style and row lines live here.
+ */
+export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
+  return <table {...props} className={join('w-full text-left text-[13px] text-gray-700', className)} />
+}
+export function THead({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
+  return <thead {...props} className={join('border-b border-gray-200 text-[11px] font-bold uppercase tracking-wide text-gray-500', className)} />
+}
+export function TBody({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
+  return <tbody {...props} className={join('divide-y divide-gray-100', className)} />
+}
+export function Tr({ className, ...props }: React.HTMLAttributes<HTMLTableRowElement>) {
+  return <tr {...props} className={className} />
+}
+export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
+  return <th {...props} className={join('px-3 py-2.5 font-bold', className)} />
+}
+export function Td({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
+  return <td {...props} className={join('px-3 py-2.5', className)} />
+}
 
 export interface Column<T> {
   key: string
@@ -88,19 +108,19 @@ export function DataTable<T>({ columns, rows, rowKey, loading, empty = 'Kayıt y
   const align = (a?: Column<T>['align']) => (a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : '')
   return (
     <div className="overflow-x-auto">
-      <table className={tableClass}>
-        <thead className={theadClass}>
-          <tr>{columns.map((c) => <th key={c.key} className={`${thClass} ${align(c.align)} ${c.className || ''}`}>{c.header}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
+      <Table>
+        <THead>
+          <Tr>{columns.map((c) => <Th key={c.key} className={join(align(c.align), c.className)}>{c.header}</Th>)}</Tr>
+        </THead>
+        <TBody>
           {rows.map((row) => (
-            <tr key={rowKey(row)} onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={`align-top ${onRowClick ? 'cursor-pointer' : ''} hover:bg-gray-50/60 ${rowClassName?.(row) || ''}`}>
-              {columns.map((c) => <td key={c.key} className={`${tdClass} ${align(c.align)} ${c.className || ''}`}>{c.render(row)}</td>)}
-            </tr>
+            <Tr key={rowKey(row)} onClick={onRowClick ? () => onRowClick(row) : undefined}
+              className={join('align-top hover:bg-gray-50/60', onRowClick && 'cursor-pointer', rowClassName?.(row))}>
+              {columns.map((c) => <Td key={c.key} className={join(align(c.align), c.className)}>{c.render(row)}</Td>)}
+            </Tr>
           ))}
-        </tbody>
-      </table>
+        </TBody>
+      </Table>
     </div>
   )
 }

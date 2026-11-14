@@ -7,6 +7,7 @@
  * toolbar actions and drag-and-drop moves back. Messages from other origins are ignored.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { brandCssVariables } from '@e-infak/theme'
 import { BlockStyles, renderBlock, type RenderOptions } from '../../components/blocks/BlockRenderer'
 import type { HomeData } from '../../components/sections/HomeSections'
 import { type Block, type BlockSpec, FIXED_CHILD, FIXED_PARENT } from '../../lib/blocks'
@@ -160,8 +161,15 @@ export default function BuilderCanvas() {
     ),
   }
 
+  const rootStyle = {
+    ...(state.data.site?.primary_color
+      ? (brandCssVariables(state.data.site.primary_color, state.data.site.accent_color || '#C9A227') as React.CSSProperties)
+      : {}),
+    ...siteDesignStyle(state.data.site?.design),
+  }
+
   return (
-    <div onMouseLeave={() => setHovered(null)} className="site-design min-h-screen pb-24 font-sans" style={siteDesignStyle(state.data.site?.design)}>
+    <div onMouseLeave={() => setHovered(null)} className="site-design min-h-screen pb-24 font-sans" style={rootStyle}>
       {state.blocks.length === 0 && (
         <div className="m-10 rounded-2xl border-2 border-dashed p-16 text-center text-gray-400">Sayfa boş. Soldaki “Bloklar” sekmesinden blok ekleyin.</div>
       )}

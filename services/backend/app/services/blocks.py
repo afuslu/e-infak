@@ -1101,6 +1101,7 @@ BLOCKS: dict[str, dict] = {
 MENU_LINK_FIELDS = {
     "label": F("text", "Yazı", max=60),
     "url": F("url", "Bağlantı"),
+    "description": F("text", "Kısa açıklama (mega menüde)", max=80, translatable=True),
     "group": F("text", "Sütun başlığı (mega menü)", max=40, help="Aynı başlığı taşıyan bağlantılar bir sütunda toplanır"),
     "badge": F("text", "Rozet (ör. Yeni)", max=16, translatable=True),
     "new_tab": F("bool", "Yeni sekmede aç"),
@@ -1115,6 +1116,7 @@ SITE_BLOCKS: dict[str, dict] = {
             "height": F("number", "Yükseklik", min=32, max=160, default=76, unit="px"),
             "sticky": F("bool", "Kaydırınca üstte sabit kalsın", default=False),
             "shrink": F("bool", "Sabitken küçülsün ve gölge alsın", default=True, show_if={"sticky": True}),
+            "transparent": F("bool", "Şeffaf kapak üstü (sayfa başına biner)", default=False),
             "center_align": F("select", "Orta alan hizası", choices=ALIGN, default="center"),
             "border": F("bool", "Alt çizgi", default=True),
         },
@@ -1141,7 +1143,7 @@ SITE_BLOCKS: dict[str, dict] = {
             "show_tagline": F("bool", "Sloganı göster", default=True, show_if={"show_name": True}),
             "custom_tagline": F("text", "Özel slogan (boşsa site ayarı)", max=140, translatable=True, show_if={"show_name": True, "show_tagline": True}),
             "light": F("bool", "Koyu zemin için açık renk logo/yazı", default=False),
-            "show_about": F("bool", "Altında kurum tanıtım metni (Görünüm › alt bilgi metni)", default=False),
+            "show_about": F("bool", "Altında kurum tanıtım metni (Tema › Alt Bilgi)", default=False),
             "url": F("url", "Bağlantı (boşsa ana sayfa /)"),
         },
     },
@@ -1149,7 +1151,7 @@ SITE_BLOCKS: dict[str, dict] = {
         "label": "Menü", "group": "Site öğeleri", "icon": "☰", "zones": SITE_ZONES,
         "fields": {
             "title": F("text", "Başlık (dikey menüde)", max=60, translatable=True),
-            "source": F("select", "Bağlantılar", choices={"header": "Menü ekranı › üst menü", "footer": "Menü ekranı › alt menü", "custom": "Burada tanımla (alt menü ve mega menü)"}, default="header"),
+            "source": F("select", "Bağlantılar", choices={"header": "Sayfa & Menü › Üst menü", "footer": "Sayfa & Menü › Alt menü", "custom": "Burada tanımla (alt menü ve mega menü)"}, default="header"),
             "items": F("list", "Menü öğeleri", max_items=12, item_label="label", show_if={"source": "custom"}, fields={
                 "label": F("text", "Yazı", max=60, translatable=True),
                 "url": F("url", "Bağlantı", help="Alt bağlantısı olan öğede boş bırakılabilir"),
@@ -1176,6 +1178,8 @@ SITE_BLOCKS: dict[str, dict] = {
             "align": F("select", "Hizalama (yatay)", choices=ALIGN, default="left", show_if={"layout": "horizontal"}),
             "mobile": F("select", "Tablet ve telefonda", choices={"drawer": "☰ açılır menüye dönüşsün", "inline": "Olduğu gibi görünsün", "hidden": "Gizlensin"}, default="drawer"),
             "drawer_donate": F("bool", "Açılır menüde bağış butonu", default=True, show_if={"mobile": "drawer"}),
+            "drawer_donate_label": F("text", "Açılır menü buton yazısı (boşsa Bağış Yap)", max=40, translatable=True, show_if={"mobile": "drawer", "drawer_donate": True}),
+            "drawer_donate_url": F("url", "Açılır menü buton adresi (boşsa /kampanyalar)", show_if={"mobile": "drawer", "drawer_donate": True}),
         },
     },
     "donate_button": {
@@ -1196,7 +1200,7 @@ SITE_BLOCKS: dict[str, dict] = {
                 "shield": "🛡️ Güvenli bağış",
                 "arrow": "→ Sağda ok",
             }, default="none"),
-            "heart": F("bool", "♥ simgesi (eski ayar)", default=False),
+            "heart": F("bool", "♥ simgesi (eski ayar)", default=False, show_if={"heart": True}),
             "badge": F("text", "Küçük rozet (ör. Acil, ₺500)", max=20, translatable=True),
             "align": F("select", "Hizalama", choices=ALIGN, default="left"),
             "full_width": F("bool", "Tam genişlik", default=False),
@@ -1221,6 +1225,14 @@ SITE_BLOCKS: dict[str, dict] = {
             "show_icon": F("bool", "🌐 Küre simgesini göster", default=False, show_if={"look": ["dropdown", "select"]}),
             "size": F("select", "Boyut", choices={"sm": "Küçük", "md": "Orta"}, default="sm"),
             "align": F("select", "Hizalama", choices=ALIGN, default="left"),
+        },
+    },
+    "site_search": {
+        "label": "Site içi arama", "group": "Site öğeleri", "icon": "🔍", "zones": SITE_ZONES,
+        "fields": {
+            "target": F("select", "Arama hedefi", choices={"campaigns": "Kampanyalar (/kampanyalar)", "news": "Haberler (/haberler)"}, default="campaigns"),
+            "look": F("select", "Görünüm", choices={"icon": "Açılır arama simgesi", "input": "Doğrudan arama kutusu"}, default="icon"),
+            "placeholder": F("text", "Yer tutucu yazı", max=60, translatable=True, placeholder="Kampanya veya konu ara…"),
         },
     },
     "currency_switcher": {
