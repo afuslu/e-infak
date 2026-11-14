@@ -86,7 +86,8 @@ export default function ReportsPage() {
   const [year, setYear] = useState(today.getFullYear())
   const [start, setStart] = useState(isoDate(new Date(today.getFullYear(), 0, 1)))
   const [end, setEnd] = useState(isoDate(today))
-  const [data, setData] = useState<any>(null)
+  const [dataState, setDataState] = useState<{ key: ReportKey; payload: any } | null>(null)
+  const data = dataState?.key === report ? dataState.payload : null
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
@@ -126,15 +127,15 @@ export default function ReportsPage() {
   useEffect(() => {
     const meta = REPORTS.find((r) => r.key === report)
     if (meta?.advanced && !advancedEnabled) {
-      setData(null)
+      setDataState(null)
       return
     }
     let cancelled = false
     setLoading(true)
     setError('')
     adminGet<any>(ENDPOINTS[report], params)
-      .then((res) => { if (!cancelled) setData(res.data) })
-      .catch((err) => { if (!cancelled) { setData(null); setError(apiErrorMessage(err, 'Rapor yüklenemedi')) } })
+      .then((res) => { if (!cancelled) setDataState({ key: report, payload: res.data }) })
+      .catch((err) => { if (!cancelled) { setDataState(null); setError(apiErrorMessage(err, 'Rapor yüklenemedi')) } })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [report, params, advancedEnabled, reloadKey])
@@ -374,46 +375,46 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="Kayıtlı bağışçı (toplam)"
-          value={data.total_donors.toLocaleString('tr-TR')}
+          value={(data.total_donors ?? 0).toLocaleString('tr-TR')}
           detail={{
             title: 'Ülke ve Tür Dağılımı',
             content: () => (
               <div className="space-y-4">
-                <ReportTable header={['Ülke', 'Bağışçı']} rows={data.by_country.map((c: any) => [c.label, c.count])} />
-                <ReportTable header={['Tür', 'Bağışçı']} rows={data.by_type.map((c: any) => [c.label, c.count])} />
+                <ReportTable header={['Ülke', 'Bağışçı']} rows={(data.by_country ?? []).map((c: any) => [c.label, c.count])} />
+                <ReportTable header={['Tür', 'Bağışçı']} rows={(data.by_type ?? []).map((c: any) => [c.label, c.count])} />
               </div>
             ),
           }}
         />
         <Stat
           label="Aralıkta bağış yapan"
-          value={data.active_donors.toLocaleString('tr-TR')}
+          value={(data.active_donors ?? 0).toLocaleString('tr-TR')}
           detail={{
             title: 'Şehir Bazlı Bağışçılar (İlk 10)',
-            content: () => <ReportTable header={['Şehir', 'Bağışçı']} rows={data.by_city.map((c: any) => [c.label, c.count])} />,
+            content: () => <ReportTable header={['Şehir', 'Bağışçı']} rows={(data.by_city ?? []).map((c: any) => [c.label, c.count])} />,
           }}
         />
         <Stat
           label="İlk kez bağış yapan"
-          value={data.new_donors.toLocaleString('tr-TR')}
+          value={(data.new_donors ?? 0).toLocaleString('tr-TR')}
           detail={{
             title: 'Aylık Yeni Bağışçılar',
-            content: () => <ReportTable header={['Ay', 'Yeni']} rows={data.new_by_month.map((m: any) => [m.label, m.count])} />,
+            content: () => <ReportTable header={['Ay', 'Yeni']} rows={(data.new_by_month ?? []).map((m: any) => [m.label, m.count])} />,
           }}
         />
         <Stat
           label="Tekrar bağış yapan"
-          value={data.returning_donors.toLocaleString('tr-TR')}
+          value={(data.returning_donors ?? 0).toLocaleString('tr-TR')}
           detail={{
             title: 'Bağışçı Özeti',
             content: () => (
               <ReportTable
                 header={['Metrik', 'Sayı']}
                 rows={[
-                  ['Toplam kayıtlı bağışçı', data.total_donors.toLocaleString('tr-TR')],
-                  ['Aralıkta aktif', data.active_donors.toLocaleString('tr-TR')],
-                  ['İlk kez bağış yapan', data.new_donors.toLocaleString('tr-TR')],
-                  ['Tekrar bağış yapan', data.returning_donors.toLocaleString('tr-TR')],
+                  ['Toplam kayıtlı bağışçı', (data.total_donors ?? 0).toLocaleString('tr-TR')],
+                  ['Aralıkta aktif', (data.active_donors ?? 0).toLocaleString('tr-TR')],
+                  ['İlk kez bağış yapan', (data.new_donors ?? 0).toLocaleString('tr-TR')],
+                  ['Tekrar bağış yapan', (data.returning_donors ?? 0).toLocaleString('tr-TR')],
                 ]}
               />
             ),
@@ -423,27 +424,27 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="border border-gray-100 p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-bold text-gray-900">Yeni bağışçılar (aylık)</h2>
-          <ReportTable header={['Ay', 'Yeni']} rows={data.new_by_month.map((m: any) => [m.label, m.count])} />
+          <ReportTable header={['Ay', 'Yeni']} rows={(data.new_by_month ?? []).map((m: any) => [m.label, m.count])} />
         </Card>
         <Card className="border border-gray-100 p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-bold text-gray-900">Ülke (yurt içi / yurt dışı)</h2>
-          <ReportTable header={['Ülke', 'Bağışçı']} rows={data.by_country.map((c: any) => [c.label, c.count])} />
+          <ReportTable header={['Ülke', 'Bağışçı']} rows={(data.by_country ?? []).map((c: any) => [c.label, c.count])} />
           <h2 className="mb-3 mt-6 text-sm font-bold text-gray-900">Tür</h2>
-          <ReportTable header={['Tür', 'Bağışçı']} rows={data.by_type.map((c: any) => [c.label, c.count])} />
+          <ReportTable header={['Tür', 'Bağışçı']} rows={(data.by_type ?? []).map((c: any) => [c.label, c.count])} />
         </Card>
         <Card className="border border-gray-100 p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-bold text-gray-900">Şehir (ilk 10)</h2>
-          <ReportTable header={['Şehir', 'Bağışçı']} rows={data.by_city.map((c: any) => [c.label, c.count])} />
+          <ReportTable header={['Şehir', 'Bağışçı']} rows={(data.by_city ?? []).map((c: any) => [c.label, c.count])} />
         </Card>
       </div>
       <ExportButton
         name={`bagiscilar-raporu-${data.start}-${data.end}.csv`}
         header={['Bölüm', 'Etiket', 'Sayı']}
         rows={[
-          ...data.new_by_month.map((m: any) => ['Aylık Yeni', m.label, m.count]),
-          ...data.by_country.map((c: any) => ['Ülke', c.label, c.count]),
-          ...data.by_type.map((c: any) => ['Tür', c.label, c.count]),
-          ...data.by_city.map((c: any) => ['Şehir', c.label, c.count]),
+          ...(data.new_by_month ?? []).map((m: any) => ['Aylık Yeni', m.label, m.count]),
+          ...(data.by_country ?? []).map((c: any) => ['Ülke', c.label, c.count]),
+          ...(data.by_type ?? []).map((c: any) => ['Tür', c.label, c.count]),
+          ...(data.by_city ?? []).map((c: any) => ['Şehir', c.label, c.count]),
         ]}
       />
     </div>
