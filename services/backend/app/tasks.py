@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import worker_process_init
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import requests
@@ -19,6 +20,16 @@ celery_app = Celery(
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND
 )
+
+
+@worker_process_init.connect
+def _fresh_connections_per_task(**_kwargs):
+    """Every task runs in its own asyncio.run() loop. Pooled asyncpg connections stay bound to the
+    loop that opened them, so the next task failed with "another operation is in progress" and the
+    SMS dispatcher, outbox and payment checks stopped. In the worker, open a connection per use."""
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy.pool import NullPool
+    AsyncSessionLocal.configure(bind=create_async_engine(settings.DATABASE_URL, poolclass=NullPool))
 
 @celery_app.task(name="app.tasks.send_email_task")
 def send_email_task(to_email: str, subject: str, content: str, attachment: dict | None = None):
