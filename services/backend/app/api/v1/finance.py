@@ -1,10 +1,10 @@
 import logging
 from uuid import UUID
 from datetime import date, datetime, time, timedelta
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
@@ -174,6 +174,7 @@ async def export_derbis_report(
     request: Request,
     start: Optional[date] = None,
     end: Optional[date] = None,
+    format: Literal["csv", "xlsx"] = "csv",
     db: AsyncSession = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
@@ -194,6 +195,44 @@ async def export_derbis_report(
     result = await db.execute(query)
     rows = result.all()
     
+    method_map = {"credit_card": "Kredi Kartı", "cash": "Nakit", "bank_transfer": "Havale/EFT"}
+    if format == "xlsx":
+        from app.utils.excel_export import build_corporate_xlsx
+
+        org = getattr(request.state, "organization", None)
+        period_parts = [p for p in (start.strftime("%d.%m.%Y") if start else None, end.strftime("%d.%m.%Y") if end else None) if p]
+        subtitle = f"Dönem: {' - '.join(period_parts)}" if period_parts else "Tüm Onaylı Bağışlar"
+        xlsx_rows = []
+        for idx, (donation, donor) in enumerate(rows, 1):
+            full_name = f"{donor.first_name} {donor.last_name or ''}".strip()
+            tc_no = donor.tc_no or donor.tax_number or "Bilinmiyor"
+            date_str = donation.created_at.strftime("%d.%m.%Y") if donation.created_at else ""
+            pm_val = donation.payment_method.value if hasattr(donation.payment_method, "value") else str(donation.payment_method)
+            xlsx_rows.append([
+                idx,
+                donation.receipt_number,
+                full_name,
+                tc_no,
+                date_str,
+                round(float(donation.amount_lira), 2),
+                method_map.get(pm_val, pm_val),
+                (donation.donor_message or "Bağış").replace("\n", " "),
+            ])
+        xlsx_bytes = build_corporate_xlsx(
+            title="DERBİS Ek-5/A Bağış Defteri",
+            headers=["Sıra No", "Makbuz No", "Bağışçı Ad Soyadı", "T.C. Kimlik / Vergi No", "Bağış Tarihi", "Bağış Tutarı (TL)", "Ödeme Yöntemi", "Açıklama"],
+            rows=xlsx_rows,
+            org_name=getattr(org, "name", "") or "",
+            subtitle=subtitle,
+            primary_color=getattr(org, "theme_primary_color", None),
+            currency_cols={6},
+        )
+        return Response(
+            content=xlsx_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=derbis_bagis_defteri.xlsx"},
+        )
+
     # Generate CSV with UTF-8 BOM so Microsoft Excel parses Turkish characters natively
     output = io.StringIO()
     # UTF-8 BOM bytes
@@ -202,7 +241,6 @@ async def export_derbis_report(
     # Headers
     output.write("Sıra No;Makbuz No;Bağışçı Ad Soyadı;T.C. Kimlik / Vergi No;Bağış Tarihi;Bağış Tutarı (TL);Ödeme Yöntemi;Açıklama\n")
     
-    method_map = {"credit_card": "Kredi Kartı", "cash": "Nakit", "bank_transfer": "Havale/EFT"}
     for idx, (donation, donor) in enumerate(rows, 1):
         full_name = f"{donor.first_name} {donor.last_name or ''}".strip().replace(";", " ")
         tc_no = donor.tc_no or donor.tax_number or "Bilinmiyor"

@@ -104,7 +104,7 @@ export function adminGet<T>(path: string, params?: Record<string, unknown>) {
   return withAuthRetry(() => axios.get<T>(`${adminApiBase()}/api/v1/admin-features${path}`, { headers: adminAuthHeaders(), params }))
 }
 
-export function adminSend<T>(method: 'post' | 'put' | 'delete', path: string, data?: unknown) {
+export function adminSend<T>(method: 'post' | 'put' | 'patch' | 'delete', path: string, data?: unknown) {
   return withAuthRetry(() =>
     axios.request<T>({
       method,

@@ -565,7 +565,7 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
     return {"marked": marked, "sms_queued": sms_queued, "sms_failed": sms_failed}
 
 
-async def _papers(db: AsyncSession, org_id: UUID, animals: list[KurbanAnimal], org_name: str) -> Response:
+async def _papers(db: AsyncSession, org_id: UUID, animals: list[KurbanAnimal], org_name: str, organization=None) -> Response:
     from app.utils.kurban_pdf import build_kurban_papers
 
     shares = (await db.execute(
@@ -590,7 +590,7 @@ async def _papers(db: AsyncSession, org_id: UUID, animals: list[KurbanAnimal], o
                 for s in sorted(by_animal.get(a.id, []), key=lambda s: s.share_number or 0)
             ],
         })
-    pdf = build_kurban_papers(org_name, data)
+    pdf = build_kurban_papers(org_name, data, organization=organization)
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="kurban-kagitlari.pdf"'})
 
@@ -600,7 +600,7 @@ async def animal_paper(request: Request, animal_id: UUID, db: AsyncSession = Dep
     org_id = _org_id(request)
     animal = await _animal(db, org_id, animal_id)
     org = getattr(request.state, "organization", None)
-    return await _papers(db, org_id, [animal], getattr(org, "name", ""))
+    return await _papers(db, org_id, [animal], getattr(org, "name", ""), organization=org)
 
 
 @router.get("/campaigns/{campaign_id}/papers.pdf", dependencies=[Depends(require_capability("kurban.pdf"))])
@@ -619,7 +619,7 @@ async def campaign_papers(
         query = query.where(KurbanAnimal.status == KurbanStatus(status_filter))
     animals = (await db.execute(query.order_by(KurbanAnimal.animal_number))).scalars().all()
     org = getattr(request.state, "organization", None)
-    return await _papers(db, org_id, list(animals), getattr(org, "name", ""))
+    return await _papers(db, org_id, list(animals), getattr(org, "name", ""), organization=org)
 
 
 # --- Shares ---------------------------------------------------------------------------

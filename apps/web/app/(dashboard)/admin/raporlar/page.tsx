@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { RefreshCw } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, apiErrorMessage, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, apiErrorMessage, exportCsv, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
 import { PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors'
@@ -30,16 +31,7 @@ const ENDPOINTS: Record<ReportKey, string> = {
 const isoDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-function downloadCsv(filename: string, header: string[], rows: (string | number)[][]) {
-  const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`
-  const csv = '﻿' + [header, ...rows].map((r) => r.map(escape).join(';')).join('\n')
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
+const CURRENCIES = ['TRY', 'USD', 'EUR', 'GBP', 'SAR', 'CHF'] as const
 
 function Bars({ items, currency }: { items: { label: string; value: number; sub?: string }[]; currency: string }) {
   const max = Math.max(1, ...items.map((i) => i.value))
@@ -97,6 +89,33 @@ export default function ReportsPage() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+
+  const applyPreset = (preset: '7d' | '30d' | 'this_month' | 'last_month' | 'this_year') => {
+    const now = new Date()
+    if (preset === '7d') {
+      const s = new Date(now)
+      s.setDate(now.getDate() - 6)
+      setStart(isoDate(s))
+      setEnd(isoDate(now))
+    } else if (preset === '30d') {
+      const s = new Date(now)
+      s.setDate(now.getDate() - 29)
+      setStart(isoDate(s))
+      setEnd(isoDate(now))
+    } else if (preset === 'this_month') {
+      setStart(isoDate(new Date(now.getFullYear(), now.getMonth(), 1)))
+      setEnd(isoDate(now))
+    } else if (preset === 'last_month') {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const last = new Date(now.getFullYear(), now.getMonth(), 0)
+      setStart(isoDate(first))
+      setEnd(isoDate(last))
+    } else {
+      setStart(isoDate(new Date(now.getFullYear(), 0, 1)))
+      setEnd(isoDate(now))
+    }
+  }
 
   const params = useMemo(() => {
     if (report === 'monthly') return { year, currency }
@@ -118,14 +137,14 @@ export default function ReportsPage() {
       .catch((err) => { if (!cancelled) { setData(null); setError(apiErrorMessage(err, 'Rapor yüklenemedi')) } })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [report, params, advancedEnabled])
+  }, [report, params, advancedEnabled, reloadKey])
 
   const locked = REPORTS.find((r) => r.key === report)?.advanced && !advancedEnabled
   const money = (cents: number) => formatMoney(cents, currency)
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Raporlar" actions={<div className="flex flex-wrap items-center gap-2 text-sm">
+      <PageHeader title="Raporlar" actions={<div className="flex flex-wrap items-center gap-2 text-sm print:hidden">
           {report === 'monthly' && (
             <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-lg border bg-white p-2 font-semibold">
               {Array.from({ length: 6 }, (_, i) => today.getFullYear() - i).map((y) => <option key={y} value={y}>{y}</option>)}
@@ -139,25 +158,54 @@ export default function ReportsPage() {
             </>
           )}
           <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-lg border bg-white p-2 font-semibold">
-            <option value="TRY">TL</option>
-            <option value="USD">USD</option>
-            <option value="EUR">EUR</option>
+            {CURRENCIES.map((c) => <option key={c} value={c}>{c === 'TRY' ? 'TL' : c}</option>)}
           </select>
+          <button
+            type="button"
+            onClick={() => setReloadKey((k) => k + 1)}
+            disabled={loading}
+            className="inline-flex items-center gap-1 rounded-lg border bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Yenile
+          </button>
           <button type="button" onClick={() => window.print()} className="rounded-lg border bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
             Yazdır / PDF
           </button>
         </div>} />
 
-      <div className="flex flex-wrap gap-2">
-        {REPORTS.map((r) => (
-          <button
-            key={r.key}
-            onClick={() => setReport(r.key)}
-            className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${report === r.key ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white text-gray-700 hover:border-primary-600'}`}
-          >
-            {r.label}{r.advanced && !advancedEnabled ? ' (üst pakette)' : ''}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+        <div className="flex flex-wrap gap-2">
+          {REPORTS.map((r) => (
+            <button
+              key={r.key}
+              onClick={() => setReport(r.key)}
+              className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${report === r.key ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white text-gray-700 hover:border-primary-600'}`}
+            >
+              {r.label}{r.advanced && !advancedEnabled ? ' (üst pakette)' : ''}
+            </button>
+          ))}
+        </div>
+        {['daily', 'campaigns', 'staff', 'donors'].includes(report) && (
+          <div className="flex flex-wrap gap-1.5 text-xs">
+            {([
+              ['7d', 'Son 7 Gün'],
+              ['30d', 'Son 30 Gün'],
+              ['this_month', 'Bu Ay'],
+              ['last_month', 'Geçen Ay'],
+              ['this_year', 'Bu Yıl'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => applyPreset(key)}
+                className="rounded-md border border-slate-200 bg-white px-2.5 py-1 font-medium text-slate-600 hover:border-emerald-500 hover:text-emerald-700"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {locked ? (
@@ -388,14 +436,24 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
           <ReportTable header={['Şehir', 'Bağışçı']} rows={data.by_city.map((c: any) => [c.label, c.count])} />
         </Card>
       </div>
+      <ExportButton
+        name={`bagiscilar-raporu-${data.start}-${data.end}.csv`}
+        header={['Bölüm', 'Etiket', 'Sayı']}
+        rows={[
+          ...data.new_by_month.map((m: any) => ['Aylık Yeni', m.label, m.count]),
+          ...data.by_country.map((c: any) => ['Ülke', c.label, c.count]),
+          ...data.by_type.map((c: any) => ['Tür', c.label, c.count]),
+          ...data.by_city.map((c: any) => ['Şehir', c.label, c.count]),
+        ]}
+      />
     </div>
   )
 }
 
 function ExportButton({ name, header, rows }: { name: string; header: string[]; rows: (string | number)[][] }) {
   return (
-    <div className="flex justify-end">
-      <button onClick={() => downloadCsv(name, header, rows)} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:border-primary-600">
+    <div className="flex justify-end print:hidden">
+      <button onClick={() => exportCsv(name, header, rows)} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:border-primary-600">
         ⬇ Excel (CSV) indir
       </button>
     </div>

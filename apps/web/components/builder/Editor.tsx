@@ -1526,30 +1526,53 @@ export function SiteBuilderEditor() {
               </div>
               <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
                 {rightTab === 'content' && (
-                  Object.keys(selectedSpec.fields).length === 0
-                    ? <p className="text-[12px] text-gray-400">Bu bloğun içerik ayarı yok; stil ve gelişmiş ayarları kullanın.{selectedSpec.container ? ' İçine blok eklemek için önizlemedeki “+ Buraya blok ekle”ye tıklayın.' : ''}</p>
-                    : translating ? (
-                      <>
-                        <p className="rounded-md bg-amber-50 p-2 text-[11px] text-amber-800">{LANG_LABEL[lang] || lang} metinleri düzenleniyor. Boş bırakılan alanlarda Türkçe metin gösterilir.</p>
-                        <Fields specs={selectedSpec.fields} onlyTranslatable values={selected.translations?.[lang] || {}} baseValues={selected.props}
-                          ctx={{ campaigns: data.campaigns }}
-                          onChange={(values) => setSelected((b) => ({ ...b, translations: { ...b.translations, [lang]: values } }))} />
-                      </>
-                    ) : (
-                      <Fields specs={selectedSpec.fields} values={selected.props} ctx={{ campaigns: data.campaigns }}
-                        onChange={(values) => setSelected((b) => {
-                          const next = { ...b, props: values }
-                          if (b.type === 'columns' && values.ratio !== b.props.ratio) {
-                            const want = String(values.ratio || '1-1').split('-').length
-                            const cols = [...(b.children || [])]
-                            while (cols.length < want) cols.push(newBlock('column', catalog.blocks.column))
-                            const removed = cols.splice(want)
-                            if (removed.length && cols.length) cols[cols.length - 1] = { ...cols[cols.length - 1], children: [...(cols[cols.length - 1].children || []), ...removed.flatMap((c) => c.children || [])] }
-                            next.children = cols
-                          }
-                          return next
-                        })} />
-                    )
+                  <>
+                    {!translating && (selected.type === 'categories' || selected.type === 'campaigns' || selected.type === 'campaign_card' || selected.type === 'featured_campaign' || Object.values(selectedSpec.fields).some((f) => f.kind === 'campaign' || f.kind === 'campaigns')) && (
+                      <div className="flex items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50/70 px-2.5 py-2 text-[11px] text-blue-900">
+                        <a
+                          href={selected.type === 'categories' ? '/admin/bagis-kalemleri' : '/admin/kampanyalar'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-semibold text-blue-700 hover:underline"
+                        >
+                          {selected.type === 'categories' ? 'Bağış Kalemlerini Yönet ↗' : 'Kampanyaları Yönet ↗'}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            loadData().then(() => setMessage({ type: 'ok', text: 'Site verileri yenilendi' }))
+                          }}
+                          className="rounded border border-blue-200 bg-white px-2 py-0.5 font-medium text-blue-700 hover:bg-blue-50"
+                        >
+                          Yenile
+                        </button>
+                      </div>
+                    )}
+                    {Object.keys(selectedSpec.fields).length === 0
+                      ? <p className="text-[12px] text-gray-400">Bu bloğun içerik ayarı yok; stil ve gelişmiş ayarları kullanın.{selectedSpec.container ? ' İçine blok eklemek için önizlemedeki “+ Buraya blok ekle”ye tıklayın.' : ''}</p>
+                      : translating ? (
+                        <>
+                          <p className="rounded-md bg-amber-50 p-2 text-[11px] text-amber-800">{LANG_LABEL[lang] || lang} metinleri düzenleniyor. Boş bırakılan alanlarda Türkçe metin gösterilir.</p>
+                          <Fields specs={selectedSpec.fields} onlyTranslatable values={selected.translations?.[lang] || {}} baseValues={selected.props}
+                            ctx={{ campaigns: data.campaigns }}
+                            onChange={(values) => setSelected((b) => ({ ...b, translations: { ...b.translations, [lang]: values } }))} />
+                        </>
+                      ) : (
+                        <Fields specs={selectedSpec.fields} values={selected.props} ctx={{ campaigns: data.campaigns }}
+                          onChange={(values) => setSelected((b) => {
+                            const next = { ...b, props: values }
+                            if (b.type === 'columns' && values.ratio !== b.props.ratio) {
+                              const want = String(values.ratio || '1-1').split('-').length
+                              const cols = [...(b.children || [])]
+                              while (cols.length < want) cols.push(newBlock('column', catalog.blocks.column))
+                              const removed = cols.splice(want)
+                              if (removed.length && cols.length) cols[cols.length - 1] = { ...cols[cols.length - 1], children: [...(cols[cols.length - 1].children || []), ...removed.flatMap((c) => c.children || [])] }
+                              next.children = cols
+                            }
+                            return next
+                          })} />
+                      )}
+                  </>
                 )}
                 {rightTab === 'style' && (
                   <>

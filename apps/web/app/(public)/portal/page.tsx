@@ -3,7 +3,7 @@ import { PortalClient } from '../../../components/portal/PortalClient'
 import { getSite } from '../../../lib/public-content'
 
 export const metadata: Metadata = {
-  title: 'Bağışçı ve Veli Paneli',
+  title: 'Bağışçı Paneli',
   robots: { index: false, follow: false },
 }
 

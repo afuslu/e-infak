@@ -35,6 +35,11 @@ export function DemoForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    const digits = form.phone.replace(/\D/g, '')
+    if (digits.length < 10 || digits.length > 15) {
+      setError('Geçerli bir telefon numarası girin (ör. 05xx xxx xx xx).')
+      return
+    }
     setState('sending')
     try {
       const res = await fetch('/api/v1/directory/demo-request', {
@@ -92,7 +97,13 @@ export function DemoForm() {
       <button type="submit" disabled={state === 'sending'} className="pt-cta w-full rounded-xl px-6 py-3.5 text-sm font-bold disabled:opacity-60">
         {state === 'sending' ? 'Gönderiliyor…' : 'Demo talep et'}
       </button>
-      <p className="text-center text-xs text-pt-faint">Bilgileriniz yalnızca sizi aramak için kullanılır.</p>
+      <p className="text-center text-xs text-pt-faint">
+        Bilgileriniz yalnızca demo görüşmesi için{' '}
+        <a href="#kvkk-bilgi" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('einfak-kvkk')) }} className="underline hover:text-pt-text">
+          KVKK kapsamında
+        </a>{' '}
+        işlenir.
+      </p>
     </form>
   )
 }

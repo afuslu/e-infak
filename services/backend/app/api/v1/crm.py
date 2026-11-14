@@ -456,7 +456,7 @@ async def search_donations(
     campaign_id: Optional[UUID] = None,
     status_filter: Optional[DonationStatus] = Query(default=None, alias="status"),
     payment_method: Optional[PaymentMethod] = None,
-    currency: Optional[Literal["TRY", "USD", "EUR"]] = None,
+    currency: Optional[Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"]] = None,
     min_amount_cents: Optional[int] = Query(default=None, ge=0),
     max_amount_cents: Optional[int] = Query(default=None, ge=0),
     issued_by: Optional[str] = Query(default=None, description="'online', 'manual' veya personel id"),
@@ -571,7 +571,7 @@ class ReceiptLine(BaseModel):
     """One donation item on a receipt (the video's "Makbuz Detay" row)."""
     campaign_id: UUID
     amount_cents: int = Field(gt=0, le=1_000_000_000)
-    currency: Literal["TRY", "USD", "EUR"] = "TRY"
+    currency: Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"] = "TRY"
     quantity: int = Field(default=1, ge=1, le=700)
     on_behalf_of: Optional[str] = Field(default=None, max_length=200)
     metadata: dict = Field(default_factory=dict)
@@ -590,7 +590,7 @@ class ManualDonationIn(BaseModel):
     campaign_id: Optional[UUID] = None
     amount_cents: Optional[int] = Field(default=None, gt=0, le=1_000_000_000)
     lines: Optional[list[ReceiptLine]] = Field(default=None, max_length=30)
-    currency: Literal["TRY", "USD", "EUR"] = "TRY"
+    currency: Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"] = "TRY"
     # cash | bank_transfer | credit_card (POS / card at the office); bank_account_id names the account
     payment_method: Literal["cash", "bank_transfer", "credit_card"] = "cash"
     bank_account_id: Optional[UUID] = None

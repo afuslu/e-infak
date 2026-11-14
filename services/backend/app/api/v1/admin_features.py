@@ -1,21 +1,21 @@
 import logging
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Literal
 from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_validator
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.core.db import get_db
 from app.models.donor_note import DonorNote
 from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign
 from app.models.user import User, UserRole
-from app.models.donation import Donor, Donation
+from app.models.donation import Donor, Donation, DonationStatus
 from app.models.zakat_setting import ZakatSetting
 from app.models.student import Student
 from app.models.student_progress import StudentProgress
@@ -329,16 +329,22 @@ async def get_donation_receipt(
     else:
         donor_name = "Anonim Bağışçı"
 
+    pm_val = donation.payment_method.value if hasattr(donation.payment_method, "value") else str(donation.payment_method)
+    pm_label = {"credit_card": "Kredi Kartı", "cash": "Nakit", "bank_transfer": "Havale/EFT"}.get(pm_val, pm_val)
+
     return {
         "donation_id": str(donation.id),
         "receipt_number": donation.receipt_number,
+        "official_receipt_no": donation.official_receipt_no,
         "verification_hash": verification_hash,
         "verify_url": f"{await _public_site_url(db, request)}/verify/receipt/{donation.receipt_number}",
         "status": "valid" if donation.status == "confirmed" else donation.status,
         "donor_name": donor_name,
         "amount_lira": donation.amount_cents / 100,
+        "amount_cents": donation.amount_cents,
+        "currency": donation.currency or "TRY",
         "created_at": donation.created_at,
-        "payment_method": "Kredi Kartı" if donation.payment_method == "credit_card" else "Havale/EFT",
+        "payment_method": pm_label,
     }
 
 
@@ -442,19 +448,31 @@ async def get_analytics_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    from app.models.campaign import HIDDEN_CAMPAIGN_TAG, CampaignStatus
     org_id = UUID(request.state.organization_id)
     
-    # 1. Fetch campaigns for progress
-    camp_query = select(Campaign).where(Campaign.organization_id == org_id)
+    # 1. Fetch visible campaigns for progress
+    camp_query = (
+        select(Campaign)
+        .where(
+            Campaign.organization_id == org_id,
+            or_(Campaign.tags.is_(None), ~Campaign.tags.any(HIDDEN_CAMPAIGN_TAG)),
+        )
+        .order_by((Campaign.status == CampaignStatus.ACTIVE).desc(), Campaign.display_order.desc(), Campaign.created_at.desc())
+    )
     camp_res = await db.execute(camp_query)
     campaigns = camp_res.scalars().all()
     
     campaigns_progress = [
         {
             "title": c.title,
+            "status": c.status.value if hasattr(c.status, "value") else str(c.status),
+            "currency": (c.currency or "TRY").upper(),
             "progress": c.progress_percentage,
-            "collected_lira": c.collected_cents / 100,
-            "target_lira": c.target_cents / 100
+            "collected_cents": c.collected_cents or 0,
+            "target_cents": c.target_cents or 0,
+            "collected_lira": (c.collected_cents or 0) / 100,
+            "target_lira": (c.target_cents or 0) / 100,
         }
         for c in campaigns
     ]
@@ -473,11 +491,43 @@ async def get_analytics_stats(
         for p in await payment_method_totals(db, org_id, date(today.year, 1, 1), today)
     ]
 
+    # 3. Son gelen bağışlar
+    recent_rows = (
+        await db.execute(
+            select(Donation)
+            .options(selectinload(Donation.donor), selectinload(Donation.campaign))
+            .where(
+                Donation.organization_id == org_id,
+                Donation.status.in_([DonationStatus.CONFIRMED, DonationStatus.PENDING]),
+            )
+            .order_by(func.coalesce(Donation.paid_at, Donation.created_at).desc())
+            .limit(6)
+        )
+    ).scalars().all()
+
+    pm_labels = {"credit_card": "Kredi Kartı", "bank_transfer": "Havale / EFT", "cash": "Nakit"}
+    recent_donations = [
+        {
+            "id": str(d.id),
+            "receipt_number": d.receipt_number,
+            "donor_id": str(d.donor_id),
+            "donor_name": d.donor.full_name if d.donor else "—",
+            "campaign_title": d.campaign.title if d.campaign else "—",
+            "amount_cents": d.amount_cents,
+            "currency": (d.currency or "TRY").upper(),
+            "payment_method": pm_labels.get(d.payment_method.value if hasattr(d.payment_method, "value") else str(d.payment_method), "Diğer"),
+            "status": d.status.value if hasattr(d.status, "value") else str(d.status),
+            "paid_at": (d.paid_at or d.created_at).isoformat() if (d.paid_at or d.created_at) else None,
+        }
+        for d in recent_rows
+    ]
+
     return {
         "kpis": await dashboard_kpis(db, org_id),
         "monthly_donations": monthly_donations,
         "campaigns_progress": campaigns_progress,
-        "payment_methods": payment_methods
+        "payment_methods": payment_methods,
+        "recent_donations": recent_donations,
     }
 
 # --- Phase 4: Student & Sponsorships ---
@@ -863,41 +913,160 @@ async def get_public_active_banners(
     return res.scalars().all()
 
 # --- Phase 4: Subscriptions & Recurring Payments ---
+class SubscriptionUpdate(BaseModel):
+    status: Optional[Literal["active", "paused", "cancelled", "past_due"]] = None
+    amount_cents: Optional[int] = Field(None, ge=100)
+    currency: Optional[Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"]] = None
+    next_charge_date: Optional[datetime] = None
+
+
+def _serialize_subscription(sub: Subscription) -> Dict[str, Any]:
+    currency = (sub.currency or "TRY").upper()
+    return {
+        "id": str(sub.id),
+        "donor_id": str(sub.donor_id),
+        "donor_name": sub.donor.full_name if sub.donor else "Bilinmeyen Bağışçı",
+        "donor_email": sub.donor.email if sub.donor else None,
+        "donor_phone": sub.donor.phone if sub.donor else None,
+        "campaign_id": str(sub.campaign_id),
+        "campaign_title": sub.campaign.title if sub.campaign else "Genel Bağış",
+        "amount_cents": sub.amount_cents,
+        "amount_lira": sub.amount_cents / 100,
+        "currency": currency,
+        "status": sub.status,
+        "has_card_token": bool(sub.card_token),
+        "card_brand": None,
+        "card_last4": None,
+        "next_billing_date": sub.next_charge_date,
+        "created_at": sub.created_at,
+    }
+
+
 @router.get("/subscriptions")
 async def list_subscriptions(
     request: Request,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    q: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     org_id = UUID(request.state.organization_id)
-    result = await db.execute(
+
+    summary_rows = (
+        await db.execute(
+            select(
+                Subscription.status,
+                Subscription.currency,
+                func.count(Subscription.id),
+                func.coalesce(func.sum(Subscription.amount_cents), 0),
+            )
+            .where(Subscription.organization_id == org_id)
+            .group_by(Subscription.status, Subscription.currency)
+        )
+    ).all()
+
+    counts: Dict[str, int] = {"active": 0, "paused": 0, "cancelled": 0, "past_due": 0, "total": 0}
+    monthly_totals: Dict[str, int] = {}
+    for st, curr, cnt, total_cents in summary_rows:
+        cnt_int = int(cnt or 0)
+        counts[st] = counts.get(st, 0) + cnt_int
+        counts["total"] += cnt_int
+        if st == "active":
+            c = (curr or "TRY").upper()
+            monthly_totals[c] = monthly_totals.get(c, 0) + int(total_cents or 0)
+
+    base_filters = [Subscription.organization_id == org_id]
+    if status_filter and status_filter in {"active", "paused", "cancelled", "past_due"}:
+        base_filters.append(Subscription.status == status_filter)
+
+    query = (
         select(Subscription)
         .options(selectinload(Subscription.donor), selectinload(Subscription.campaign))
-        .where(Subscription.organization_id == org_id)
-        .order_by(Subscription.created_at.desc())
+        .where(*base_filters)
     )
-    return [
-        {
-            "id": str(sub.id),
-            "donor_name": sub.donor.full_name,
-            "campaign_title": sub.campaign.title,
-            "amount_lira": sub.amount_cents / 100,
-            "status": sub.status,
-            "next_billing_date": sub.next_charge_date,
-            "card_brand": None,
-            "card_last4": None,
-        }
-        for sub in result.scalars().all()
-    ]
+    count_query = select(func.count(Subscription.id)).where(*base_filters)
+
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        search_cond = or_(
+            Donor.full_name.ilike(pattern),
+            Donor.email.ilike(pattern),
+            Donor.phone.ilike(pattern),
+            Campaign.title.ilike(pattern),
+        )
+        query = query.join(Subscription.donor).join(Subscription.campaign).where(search_cond)
+        count_query = count_query.join(Subscription.donor).join(Subscription.campaign).where(search_cond)
+
+    total = int((await db.execute(count_query)).scalar() or 0)
+    rows = (
+        await db.execute(
+            query.order_by(Subscription.created_at.desc()).offset(offset).limit(limit)
+        )
+    ).scalars().all()
+
+    return {
+        "items": [_serialize_subscription(sub) for sub in rows],
+        "total": total,
+        "recurring_enabled": False,
+        "summary": {
+            "counts": counts,
+            "monthly_totals": monthly_totals,
+        },
+    }
+
+
+@router.patch("/subscriptions/{subscription_id}")
+async def update_subscription(
+    request: Request,
+    subscription_id: UUID,
+    payload: SubscriptionUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = UUID(request.state.organization_id)
+    sub = (
+        await db.execute(
+            select(Subscription)
+            .options(selectinload(Subscription.donor), selectinload(Subscription.campaign))
+            .where(Subscription.id == subscription_id, Subscription.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Düzenli bağış talimatı bulunamadı.")
+
+    if payload.status is not None:
+        sub.status = payload.status
+    if payload.amount_cents is not None:
+        sub.amount_cents = payload.amount_cents
+    if payload.currency is not None:
+        sub.currency = payload.currency
+    if payload.next_charge_date is not None:
+        sub.next_charge_date = payload.next_charge_date
+
+    await db.commit()
+    await db.refresh(sub)
+    return _serialize_subscription(sub)
+
 
 @router.post("/subscriptions/{subscription_id}/retry")
 async def retry_failed_subscription(
     request: Request,
-    subscription_id: str,
+    subscription_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     org_id = UUID(request.state.organization_id)
+    sub = (
+        await db.execute(
+            select(Subscription).where(Subscription.id == subscription_id, Subscription.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Düzenli bağış talimatı bulunamadı.")
+    if sub.status in ("paused", "cancelled"):
+        raise HTTPException(status_code=400, detail="Duraklatılmış veya iptal edilmiş talimatta tahsilat denenemez.")
     raise HTTPException(
         status_code=503,
         detail="Ziraat Pay tokenlı tahsilat yetkisi etkin değil; sahte tahsilat yapılmadı.",
@@ -1064,48 +1233,227 @@ async def delete_webhook(
     )
     return {"status": "success"}
 
-# --- Phase 5: Water Well Management ---
-# --- Phase 5: AI-Powered Insights ---
+_CAMPAIGN_CATEGORY_LABELS = {
+    "genel": "Genel Bağış",
+    "egitim": "Eğitim",
+    "saglik": "Sağlık",
+    "gida": "Gıda",
+    "su": "Su Kuyusu",
+    "yetim": "Yetim",
+    "kurban": "Kurban",
+    "insaat": "İnşaat",
+    "zekat": "Zekât",
+    "fitre": "Fitre",
+    "fidye": "Fidye",
+    "sadaka": "Sadaka",
+    "adak": "Adak",
+    "akika": "Akika",
+}
+
+
+# --- Phase 5: RFM & Donor Insights ---
 @router.get("/ai/donor-insights")
 async def get_ai_donor_insights(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    # Computes donor churn lists, predictive analytics for the STK panel
-    churn_list = [
-        {
-            "donor_name": "Mustafa Öztürk",
-            "last_donation_date": "2026-03-12",
-            "risk_percentage": 87.0,
-            "recommended_action": "Kurban Kampanyası SMS Gönder"
-        },
-        {
-            "donor_name": "Zeynep Kaya",
-            "last_donation_date": "2026-04-05",
-            "risk_percentage": 72.0,
-            "recommended_action": "Hafızlık Veli Durum Raporu Paylaş"
-        }
-    ]
-    
-    predictive_amounts = [
-        {"campaign_category": "Su Kuyusu", "suggested_avg_lira": 15000.0, "expected_donor_count": 28},
-        {"campaign_category": "Medrese Yardımı", "suggested_avg_lira": 750.0, "expected_donor_count": 140}
-    ]
-    
+    org_id = UUID(request.state.organization_id)
+    now = datetime.now(timezone.utc)
+    inactive_cutoff = now - timedelta(days=45)
+
+    analyzed_donors = int(
+        (
+            await db.execute(
+                select(func.count(Donor.id)).where(
+                    Donor.organization_id == org_id,
+                    func.coalesce(Donor.total_donations, 0) >= 1,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+    dormant_donors = (
+        await db.execute(
+            select(Donor)
+            .where(
+                Donor.organization_id == org_id,
+                func.coalesce(Donor.total_donations, 0) >= 1,
+                Donor.last_donation_at.isnot(None),
+                Donor.last_donation_at <= inactive_cutoff,
+            )
+            .order_by(Donor.total_donated_cents.desc(), Donor.last_donation_at.asc())
+            .limit(200)
+        )
+    ).scalars().all()
+
+    churn_items = []
+    for d in dormant_donors:
+        last_dt = d.last_donation_at
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
+        days_since = max(0, (now - last_dt).days)
+        count = int(d.total_donations or 1)
+        total_cents = int(d.total_donated_cents or 0)
+
+        recency_score = min(62.0, (days_since / 365.0) * 62.0)
+        repeat_bonus = 25.0 if count >= 3 else (15.0 if count == 2 else 5.0)
+        value_bonus = 10.0 if total_cents >= 100_000 else (5.0 if total_cents >= 25_000 else 0.0)
+        risk = round(min(98.0, max(25.0, recency_score + repeat_bonus + value_bonus)), 1)
+
+        if risk >= 80 and count >= 3:
+            action = "Sadık bağışçı — özel teşekkür ve güncel proje SMS'i gönder"
+        elif risk >= 75:
+            action = "Yüksek kayıp riski — yeni kampanya hatırlatma SMS'i gönder"
+        elif days_since >= 180:
+            action = "6+ aydır sessiz — dönemsel bağış daveti paylaş"
+        else:
+            action = "Aktif tutma — güncel faaliyet raporu ilet"
+
+        churn_items.append(
+            {
+                "donor_id": str(d.id),
+                "donor_name": d.full_name,
+                "donor_phone": d.phone,
+                "allow_sms": bool(d.allow_sms),
+                "last_donation_date": last_dt.date().isoformat(),
+                "days_since_last": days_since,
+                "donation_count": count,
+                "total_donated_cents": total_cents,
+                "risk_percentage": risk,
+                "recommended_action": action,
+            }
+        )
+
+    churn_items.sort(key=lambda x: (-x["risk_percentage"], -x["total_donated_cents"]))
+    churn_list = churn_items[:30]
+    high_risk_count = sum(1 for c in churn_items if c["risk_percentage"] >= 75)
+
+    year_ago = now - timedelta(days=365)
+    paid_expr = func.coalesce(Donation.paid_at, Donation.created_at)
+    cat_rows = (
+        await db.execute(
+            select(
+                Campaign.category,
+                Donation.currency,
+                func.count(func.distinct(Donation.donor_id)),
+                func.count(Donation.id),
+                func.avg(Donation.amount_cents),
+                func.sum(Donation.amount_cents),
+            )
+            .join(Campaign, Campaign.id == Donation.campaign_id)
+            .where(
+                Donation.organization_id == org_id,
+                Donation.status == DonationStatus.CONFIRMED,
+                paid_expr >= year_ago,
+            )
+            .group_by(Campaign.category, Donation.currency)
+            .order_by(func.sum(Donation.amount_cents).desc())
+            .limit(10)
+        )
+    ).all()
+
+    predictive_amounts = []
+    for cat, currency, uniq_donors, tx_count, avg_cents, sum_cents in cat_rows:
+        cat_key = cat.value if hasattr(cat, "value") else str(cat)
+        predictive_amounts.append(
+            {
+                "campaign_category": _CAMPAIGN_CATEGORY_LABELS.get(cat_key, cat_key.title()),
+                "currency": (currency or "TRY").upper(),
+                "suggested_avg_cents": int(round(avg_cents or 0)),
+                "suggested_avg_lira": round((avg_cents or 0) / 100, 2),
+                "expected_donor_count": int(uniq_donors or 0),
+                "donation_count": int(tx_count or 0),
+                "total_cents": int(sum_cents or 0),
+            }
+        )
+
+    ninety_days_ago = now - timedelta(days=90)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    try_90_cents = int(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(Donation.amount_cents), 0)).where(
+                    Donation.organization_id == org_id,
+                    Donation.status == DonationStatus.CONFIRMED,
+                    Donation.currency == "TRY",
+                    paid_expr >= ninety_days_ago,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+    try_month_cents = int(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(Donation.amount_cents), 0)).where(
+                    Donation.organization_id == org_id,
+                    Donation.status == DonationStatus.CONFIRMED,
+                    Donation.currency == "TRY",
+                    paid_expr >= month_start,
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
     return {
         "churn_list": churn_list,
-        "predictive_amounts": predictive_amounts
+        "predictive_amounts": predictive_amounts,
+        "summary": {
+            "analyzed_donors": analyzed_donors,
+            "at_risk_count": len(churn_items),
+            "high_risk_count": high_risk_count,
+            "avg_monthly_try_cents": int(round(try_90_cents / 3)),
+            "current_month_try_cents": try_month_cents,
+        },
     }
 
 # --- Faz 3: Bağış Kalemleri (Donation Categories) ---
 class DonationCategoryCreate(BaseModel):
-    icon: str = "🤝"
-    title: str
-    description: str
+    icon: str = Field(default="🤝", min_length=1, max_length=10)
+    title: str = Field(..., min_length=1, max_length=200)
+    description: str = Field(..., min_length=1, max_length=500)
     campaign_id: Optional[UUID] = None
     display_order: int = 0
     is_active: bool = True
+
+    @field_validator("icon", "title", "description", mode="before")
+    @classmethod
+    def _strip_text(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
+def _serialize_donation_category(category: DonationCategory) -> Dict[str, Any]:
+    return {
+        "id": str(category.id),
+        "organization_id": str(category.organization_id),
+        "campaign_id": str(category.campaign_id) if category.campaign_id else None,
+        "campaign_title": category.campaign.title if category.campaign else None,
+        "icon": category.icon,
+        "title": category.title,
+        "description": category.description,
+        "display_order": category.display_order,
+        "is_active": category.is_active,
+        "created_at": category.created_at,
+        "updated_at": category.updated_at,
+    }
+
+
+async def _verify_category_campaign(db: AsyncSession, org_id: UUID, campaign_id: Optional[UUID]) -> None:
+    if not campaign_id:
+        return
+    found = (
+        await db.execute(
+            select(Campaign.id).where(Campaign.id == campaign_id, Campaign.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+    if not found:
+        raise HTTPException(status_code=400, detail="Seçilen kampanya bu organizasyona ait değil veya bulunamadı.")
+
 
 @router.get("/donation-categories")
 async def list_donation_categories(
@@ -1114,9 +1462,15 @@ async def list_donation_categories(
     current_user: User = Depends(get_current_user)
 ):
     org_id = UUID(request.state.organization_id)
-    query = select(DonationCategory).where(DonationCategory.organization_id == org_id).order_by(DonationCategory.display_order)
+    query = (
+        select(DonationCategory)
+        .options(selectinload(DonationCategory.campaign))
+        .where(DonationCategory.organization_id == org_id)
+        .order_by(DonationCategory.display_order.asc(), DonationCategory.created_at.asc())
+    )
     res = await db.execute(query)
-    return res.scalars().all()
+    return [_serialize_donation_category(c) for c in res.scalars().all()]
+
 
 @router.post("/donation-categories")
 async def create_donation_category(
@@ -1126,17 +1480,26 @@ async def create_donation_category(
     current_user: User = Depends(get_current_user)
 ):
     org_id = UUID(request.state.organization_id)
+    await _verify_category_campaign(db, org_id, payload.campaign_id)
     category = DonationCategory(organization_id=org_id, **payload.model_dump())
     db.add(category)
     await db.commit()
-    await db.refresh(category)
+
+    loaded = (
+        await db.execute(
+            select(DonationCategory)
+            .options(selectinload(DonationCategory.campaign))
+            .where(DonationCategory.id == category.id)
+        )
+    ).scalar_one()
 
     await write_audit_log(
         db, org_id, current_user.id,
         action="bagis_kalemi_olustur",
-        details={"category_id": str(category.id), "title": category.title}
+        details={"category_id": str(loaded.id), "title": loaded.title}
     )
-    return category
+    return _serialize_donation_category(loaded)
+
 
 @router.put("/donation-categories/{category_id}")
 async def update_donation_category(
@@ -1147,24 +1510,37 @@ async def update_donation_category(
     current_user: User = Depends(get_current_user)
 ):
     org_id = UUID(request.state.organization_id)
-    query = select(DonationCategory).where(DonationCategory.id == category_id, DonationCategory.organization_id == org_id)
+    query = (
+        select(DonationCategory)
+        .options(selectinload(DonationCategory.campaign))
+        .where(DonationCategory.id == category_id, DonationCategory.organization_id == org_id)
+    )
     res = await db.execute(query)
     category = res.scalar_one_or_none()
     if not category:
-        raise HTTPException(status_code=404, detail="Donation category not found")
+        raise HTTPException(status_code=404, detail="Bağış kalemi bulunamadı")
+
+    await _verify_category_campaign(db, org_id, payload.campaign_id)
 
     for key, value in payload.model_dump().items():
         setattr(category, key, value)
 
     await db.commit()
-    await db.refresh(category)
+    loaded = (
+        await db.execute(
+            select(DonationCategory)
+            .options(selectinload(DonationCategory.campaign))
+            .where(DonationCategory.id == category.id)
+        )
+    ).scalar_one()
 
     await write_audit_log(
         db, org_id, current_user.id,
         action="bagis_kalemi_guncelle",
-        details={"category_id": str(category_id), "title": category.title}
+        details={"category_id": str(category_id), "title": loaded.title}
     )
-    return category
+    return _serialize_donation_category(loaded)
+
 
 @router.delete("/donation-categories/{category_id}")
 async def delete_donation_category(
@@ -1178,7 +1554,7 @@ async def delete_donation_category(
     res = await db.execute(query)
     category = res.scalar_one_or_none()
     if not category:
-        raise HTTPException(status_code=404, detail="Donation category not found")
+        raise HTTPException(status_code=404, detail="Bağış kalemi bulunamadı")
 
     await db.delete(category)
     await db.commit()

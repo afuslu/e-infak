@@ -79,7 +79,7 @@ def _range(start: Optional[date], end: Optional[date]) -> tuple[date, date]:
 
 def _currency(value: str) -> str:
     value = value.upper()
-    if value not in {"TRY", "USD", "EUR"}:
+    if value not in {"TRY", "USD", "EUR", "GBP", "SAR", "CHF"}:
         raise HTTPException(status_code=422, detail="Desteklenmeyen para birimi")
     return value
 

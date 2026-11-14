@@ -7,7 +7,7 @@ import {
   AlertCircle, ArrowDownRight, ArrowDownToLine, ArrowUpRight, Blocks, CalendarDays, ChevronRight, HandCoins, Megaphone,
   Receipt, RefreshCw, TrendingUp, UserPlus, Users, type LucideIcon,
 } from 'lucide-react'
-import { adminGet, hasFeature, hasPermission, useAdminAccess, v1Get } from '../../../lib/admin-access'
+import { adminGet, formatMoney, hasFeature, hasPermission, useAdminAccess, v1Get } from '../../../lib/admin-access'
 import { PageHeader, StatCard } from '../../../components/admin/ui'
 import { ghostButton } from '../../../components/admin/FormKit'
 
@@ -18,9 +18,26 @@ interface MonthlyTrend {
 
 interface CampaignProgress {
   title: string
+  status?: string
+  currency?: string
   progress: number
+  collected_cents?: number
+  target_cents?: number
   collected_lira: number
   target_lira: number
+}
+
+interface RecentDonation {
+  id: string
+  receipt_number: string
+  donor_id: string
+  donor_name: string
+  campaign_title: string
+  amount_cents: number
+  currency: string
+  payment_method: string
+  status: string
+  paid_at: string | null
 }
 
 interface Kpis {
@@ -68,6 +85,7 @@ export default function AdminDashboardPage() {
   const [trends, setTrends] = useState<MonthlyTrend[]>([])
   const [campaigns, setCampaigns] = useState<CampaignProgress[]>([])
   const [payments, setPayments] = useState<PaymentMethod[]>([])
+  const [recentDonations, setRecentDonations] = useState<RecentDonation[]>([])
   const [kpis, setKpis] = useState<Kpis | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -79,10 +97,11 @@ export default function AdminDashboardPage() {
     setLoading(true)
     setError('')
     try {
-      const res = await adminGet<{ monthly_donations: MonthlyTrend[]; campaigns_progress: CampaignProgress[]; payment_methods: PaymentMethod[]; kpis: Kpis }>('/analytics/stats')
+      const res = await adminGet<{ monthly_donations: MonthlyTrend[]; campaigns_progress: CampaignProgress[]; payment_methods: PaymentMethod[]; recent_donations?: RecentDonation[]; kpis: Kpis }>('/analytics/stats')
       setTrends(res.data.monthly_donations)
       setCampaigns(res.data.campaigns_progress)
       setPayments(res.data.payment_methods)
+      setRecentDonations(res.data.recent_donations || [])
       setKpis(res.data.kpis)
     } catch {
       setError('Analiz verileri yüklenemedi. Lütfen tekrar deneyin.')
@@ -274,8 +293,8 @@ export default function AdminDashboardPage() {
                       {campaigns.map((c, i) => (
                         <tr key={i}>
                           <td className="py-2 font-semibold">{c.title}</td>
-                          <td className="py-2 text-right tabular-nums">{c.collected_lira.toLocaleString('tr-TR')} ₺</td>
-                          <td className="py-2 text-right tabular-nums text-gray-500">{c.target_lira ? `${c.target_lira.toLocaleString('tr-TR')} ₺` : '—'}</td>
+                          <td className="py-2 text-right tabular-nums">{formatMoney(c.collected_cents ?? Math.round(c.collected_lira * 100), c.currency || 'TRY')}</td>
+                          <td className="py-2 text-right tabular-nums text-gray-500">{c.target_lira ? formatMoney(c.target_cents ?? Math.round(c.target_lira * 100), c.currency || 'TRY') : '—'}</td>
                           <td className="py-2 text-right font-bold tabular-nums text-primary-700">%{Math.round(c.progress)}</td>
                         </tr>
                       ))}
@@ -345,7 +364,7 @@ export default function AdminDashboardPage() {
                     <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                       <div 
                         style={{ width: `${paymentTotal ? (p.total_lira / paymentTotal) * 100 : 0}%` }}
-                        className={`h-full rounded-full ${idx === 0 ? 'bg-indigo-600' : 'bg-teal-600'}`}
+                        className={`h-full rounded-full ${['bg-emerald-600', 'bg-sky-600', 'bg-amber-500'][idx % 3]}`}
                       />
                     </div>
                   </div>
@@ -375,6 +394,64 @@ export default function AdminDashboardPage() {
             </Card>
           </div>
         </div>
+      )}
+
+      {!loading && (
+        <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b pb-2">
+            <h2 className="text-base font-bold text-gray-900">Son Gelen Bağışlar</h2>
+            <Link href="/admin/bagislar" className="text-xs font-bold text-primary-700 hover:underline">
+              Tüm bağışlar →
+            </Link>
+          </div>
+          {recentDonations.length === 0 ? (
+            <p className="text-xs text-gray-400 py-4 text-center">Henüz bağış kaydı bulunmuyor.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b text-[11px] font-bold uppercase text-gray-500">
+                  <tr>
+                    <th className="py-2">Tarih</th>
+                    <th className="py-2">Bağışçı</th>
+                    <th className="py-2">Kampanya</th>
+                    <th className="py-2">Ödeme</th>
+                    <th className="py-2">Durum</th>
+                    <th className="py-2 text-right">Tutar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {recentDonations.map((d) => (
+                    <tr key={d.id} className="hover:bg-gray-50/70">
+                      <td className="py-2.5 whitespace-nowrap text-gray-500">
+                        {d.paid_at ? new Date(d.paid_at).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
+                        <div className="font-mono text-[10px] text-gray-400">{d.receipt_number}</div>
+                      </td>
+                      <td className="py-2.5 font-semibold text-gray-900">
+                        <Link href={`/admin/bagiscilar?donor=${d.donor_id}`} className="hover:text-primary-700">
+                          {d.donor_name}
+                        </Link>
+                      </td>
+                      <td className="py-2.5 text-gray-600">{d.campaign_title}</td>
+                      <td className="py-2.5 text-gray-600">{d.payment_method}</td>
+                      <td className="py-2.5">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                          d.status === 'confirmed'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {d.status === 'confirmed' ? 'Onaylı' : 'Beklemede'}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-right font-bold tabular-nums text-gray-900">
+                        {formatMoney(d.amount_cents, d.currency)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
       )}
     </div>
   )

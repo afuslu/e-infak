@@ -140,9 +140,41 @@ async def update_book(request: Request, book_id: UUID, payload: BookUpdate, db: 
         raise HTTPException(status_code=409, detail="Koçanda boş yaprak kalmadığı için açılamaz")
     for key, value in payload.model_dump().items():
         setattr(book, key, value)
+    db.add(AuditLog(
+        organization_id=org_id,
+        user_id=current_user.id,
+        action="makbuz_kocani_guncelle",
+        details={
+            "book_id": str(book.id),
+            "series": book.series,
+            "branch": book.branch,
+            "holder_user_id": str(book.holder_user_id) if book.holder_user_id else None,
+            "status": book.status,
+        },
+    ))
     await db.commit()
     used = (await db.execute(select(func.count(Donation.id)).where(Donation.receipt_book_id == book.id))).scalar_one()
     return _book_out(book, int(used), (await _names(db, org_id)).get(book.holder_user_id))
+
+
+@router.delete("/receipt-books/{book_id}")
+async def delete_book(request: Request, book_id: UUID, db: AsyncSession = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    """Hiç yaprağı kesilmemiş ve iptal edilmemiş koçanı siler."""
+    org_id = _org_id(request)
+    book = await _book(db, org_id, book_id, lock=True)
+    used_count = (await db.execute(select(func.count(Donation.id)).where(Donation.receipt_book_id == book.id))).scalar_one()
+    if used_count > 0 or (book.voided or []):
+        raise HTTPException(status_code=409, detail="Kullanılmış veya iptal yaprağı bulunan koçan silinemez; kapatabilirsiniz")
+    db.add(AuditLog(
+        organization_id=org_id,
+        user_id=current_user.id,
+        action="makbuz_kocani_sil",
+        details={"series": book.series, "start_no": book.start_no, "end_no": book.end_no},
+    ))
+    await db.delete(book)
+    await db.commit()
+    return {"deleted": True}
 
 
 class VoidIn(BaseModel):
@@ -216,7 +248,7 @@ async def book_sheets(request: Request, book_id: UUID, db: AsyncSession = Depend
 @router.get("/receipt-books-summary")
 async def receipt_channel_summary(
     request: Request, start: Optional[date] = None, end: Optional[date] = None,
-    currency: Literal["TRY", "USD", "EUR"] = "TRY",
+    currency: Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"] = "TRY",
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     """Online, şube (koçan) ve koçansız elle kesilen makbuzları ayrı ayrı toplar."""

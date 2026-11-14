@@ -63,8 +63,8 @@ export default async function RootLayout({
       <body className="font-sans" style={brandStyle}>
         <Providers>
           {children}
-          <DonationCart />
-          <SiteWidgets />
+          {site && <DonationCart />}
+          {site && <SiteWidgets />}
         </Providers>
       </body>
     </html>

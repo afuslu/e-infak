@@ -1,23 +1,50 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import axios from 'axios'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Card } from '@e-infak/ui'
-import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
-import { Label, Notice, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { Download, Eye, FileText, HandCoins, MessageSquare, Plus, RefreshCw, Wallet, X } from 'lucide-react'
+import { Button, Card, Input } from '@e-infak/ui'
+import {
+  adminGet,
+  adminSend,
+  apiErrorMessage,
+  exportCsv as downloadCsv,
+  formatMoney,
+  hasPermission,
+  useAdminAccess,
+  v1Get,
+} from '../../../../lib/admin-access'
+import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
-import { PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
+import {
+  Modal,
+  PageHeader,
+  Pagination,
+  StatCard,
+  TBody,
+  THead,
+  Table,
+  Td,
+  Th,
+  Tr,
+  confirmDialog,
+  toast,
+} from '../../../../components/admin/ui'
 
 interface Row {
   id: string
   receipt_number: string
+  official_receipt_no?: string | null
+  campaign_id?: string | null
   campaign_title: string | null
   amount_cents: number
   currency: string
+  quantity?: number
   status: string
   payment_method_label: string
   is_manual: boolean
+  is_anonymous?: boolean
   paid_at: string
   on_behalf_of: string | null
   issued_by_name: string | null
@@ -32,13 +59,28 @@ interface SearchResult {
   items: Row[]
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  confirmed: 'Onaylı', pending: 'Beklemede', failed: 'Başarısız', refunded: 'İade', cancelled: 'İptal',
+const STATUS_META: Record<string, { label: string; badgeClass: string }> = {
+  confirmed: { label: 'Onaylı', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  pending: { label: 'Beklemede', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
+  failed: { label: 'Başarısız', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
+  refunded: { label: 'İade', badgeClass: 'bg-slate-100 text-slate-600 border-slate-200' },
+  cancelled: { label: 'İptal', badgeClass: 'bg-slate-100 text-slate-500 border-slate-200' },
 }
 
+const CURRENCIES = ['TRY', 'USD', 'EUR', 'GBP', 'SAR', 'CHF'] as const
+
 const emptyFilters = {
-  q: '', start: '', end: '', campaign_id: '', status: '', payment_method: '', currency: '',
-  min: '', max: '', issued_by: '', on_behalf: '',
+  q: '',
+  start: '',
+  end: '',
+  campaign_id: '',
+  status: '',
+  payment_method: '',
+  currency: '',
+  min: '',
+  max: '',
+  issued_by: '',
+  on_behalf: '',
 }
 
 const PAGE_SIZE = 50
@@ -52,102 +94,150 @@ export default function AdminDonationsPage() {
   const [campaigns, setCampaigns] = useState<{ id: string; title: string }[]>([])
   const [staff, setStaff] = useState<{ id: string; first_name: string; last_name: string }[]>([])
   const [showManual, setShowManual] = useState(false)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  // Modals
+  const [detailRow, setDetailRow] = useState<Row | null>(null)
+  const [cancelTarget, setCancelTarget] = useState<Row | null>(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelling, setCancelling] = useState(false)
+  const [smsRow, setSmsRow] = useState<Row | null>(null)
 
   useEffect(() => {
-    axios.get(`${adminApiBase()}/api/v1/campaigns`, { headers: adminAuthHeaders(), params: { page_size: 100 } })
-      .then((res) => setCampaigns(res.data.items || [])).catch(() => {})
-    adminGet<{ id: string; first_name: string; last_name: string }[]>('/users').then((res) => setStaff(res.data)).catch(() => {})
+    v1Get<{ items: { id: string; title: string }[] }>('/campaigns', { page_size: 100 })
+      .then((res) => setCampaigns(res.data?.items || []))
+      .catch(() => {})
+    adminGet<{ id: string; first_name: string; last_name: string }[]>('/users')
+      .then((res) => setStaff(res.data || []))
+      .catch(() => {})
   }, [])
 
-  const params = (overrides: Record<string, unknown> = {}) => {
-    const f = filters
-    const toCents = (v: string) => (v ? Math.round(Number(v.replace(',', '.')) * 100) : undefined)
-    return {
-      q: f.q || undefined, start: f.start || undefined, end: f.end || undefined,
-      campaign_id: f.campaign_id || undefined, status: f.status || undefined,
-      payment_method: f.payment_method || undefined, currency: f.currency || undefined,
-      min_amount_cents: toCents(f.min), max_amount_cents: toCents(f.max),
-      issued_by: f.issued_by || undefined, on_behalf: f.on_behalf || undefined,
-      page, page_size: PAGE_SIZE, ...overrides,
-    }
-  }
+  const buildParams = useCallback(
+    (overrides: Record<string, unknown> = {}) => {
+      const f = filters
+      const toCents = (v: string) => (v ? Math.round(Number(v.replace(',', '.')) * 100) : undefined)
+      return {
+        q: f.q || undefined,
+        start: f.start || undefined,
+        end: f.end || undefined,
+        campaign_id: f.campaign_id || undefined,
+        status: f.status || undefined,
+        payment_method: f.payment_method || undefined,
+        currency: f.currency || undefined,
+        min_amount_cents: toCents(f.min),
+        max_amount_cents: toCents(f.max),
+        issued_by: f.issued_by || undefined,
+        on_behalf: f.on_behalf || undefined,
+        page,
+        page_size: PAGE_SIZE,
+        ...overrides,
+      }
+    },
+    [filters, page],
+  )
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
-      setResult((await adminGet<SearchResult>('/donations', params())).data)
+      const res = await adminGet<SearchResult>('/donations', buildParams())
+      setResult(res.data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Bağışlar yüklenemedi') })
+      toast.error(apiErrorMessage(err, 'Bağışlar yüklenemedi'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [buildParams])
 
   useEffect(() => {
-    const t = setTimeout(load, 300)
+    const t = setTimeout(load, 250)
     return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, page])
+  }, [load])
 
   const setFilter = (key: keyof typeof emptyFilters, value: string) => {
     setPage(1)
     setFilters((f) => ({ ...f, [key]: value }))
   }
 
-  const exportCsv = async () => {
+  const handleExportCsv = async () => {
+    setExporting(true)
     try {
       const all: Row[] = []
       for (let p = 1; p <= 20; p++) {
-        const res = await adminGet<SearchResult>('/donations', params({ page: p, page_size: 500 }))
+        const res = await adminGet<SearchResult>('/donations', buildParams({ page: p, page_size: 500 }))
         all.push(...res.data.items)
         if (res.data.items.length < 500) break
       }
-      const header = ['Makbuz No', 'Tarih', 'Bağışçı', 'Telefon', 'Kampanya', 'Adına', 'Ödeme', 'Personel', 'Durum', 'Tutar', 'Para Birimi']
-      const rows = all.map((r) => [r.receipt_number, new Date(r.paid_at).toLocaleString('tr-TR'), r.donor_name, r.donor_phone || '',
-        r.campaign_title || '', r.on_behalf_of || '', r.payment_method_label, r.issued_by_name || 'Online', STATUS_LABELS[r.status] || r.status,
-        (r.amount_cents / 100).toLocaleString('tr-TR'), r.currency])
-      const csv = '﻿' + [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(';')).join('\n')
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'bagislar.csv'
-      a.click()
-      URL.revokeObjectURL(url)
+      downloadCsv(
+        'bagislar.csv',
+        ['Makbuz No', 'Resmi Koçan No', 'Tarih', 'Bağışçı', 'Telefon', 'Kampanya', 'Adına', 'Ödeme', 'Personel', 'Durum', 'Tutar', 'Para Birimi'],
+        all.map((r) => [
+          r.receipt_number,
+          r.official_receipt_no || '',
+          new Date(r.paid_at).toLocaleString('tr-TR'),
+          r.donor_name,
+          r.donor_phone || '',
+          r.campaign_title || '',
+          r.on_behalf_of || '',
+          r.payment_method_label,
+          r.issued_by_name || 'Online',
+          STATUS_META[r.status]?.label || r.status,
+          (r.amount_cents / 100).toFixed(2),
+          r.currency,
+        ]),
+      )
+      toast.ok(`${all.length} kayıt CSV olarak indirildi.`)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Dışa aktarılamadı') })
+      toast.error(apiErrorMessage(err, 'Dışa aktarılamadı'))
+    } finally {
+      setExporting(false)
     }
   }
 
-  const cancel = async (row: Row) => {
-    const reason = window.prompt(`${row.receipt_number} numaralı makbuz iptal edilecek. İptal nedeni:`)
-    if (!reason) return
+  const handleCancelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!cancelTarget) return
+    if (!cancelReason.trim()) {
+      toast.error('Lütfen iptal nedenini yazın.')
+      return
+    }
+    setCancelling(true)
     try {
-      await adminSend('post', `/donations/${row.id}/cancel`, { reason })
-      setMessage({ type: 'ok', text: 'Makbuz iptal edildi' })
+      await adminSend('post', `/donations/${cancelTarget.id}/cancel`, { reason: cancelReason.trim() })
+      toast.ok(`${cancelTarget.receipt_number} numaralı makbuz iptal edildi.`)
+      setCancelTarget(null)
+      setCancelReason('')
+      if (detailRow?.id === cancelTarget.id) setDetailRow(null)
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err, 'Makbuz iptal edilemedi'))
+    } finally {
+      setCancelling(false)
     }
   }
 
   const markPaid = async (row: Row) => {
-    if (!(await confirmDialog({ title: `${row.receipt_number} numaralı makbuzun ödemesi alındı mı?`, text: 'Makbuz onaylanır, kampanya toplamına eklenir ve bağışçıya makbuz bildirimi gider.', confirmLabel: 'Ödendi', danger: false }))) return
+    const ok = await confirmDialog({
+      title: `${row.receipt_number} numaralı makbuzun ödemesi alındı mı?`,
+      text: 'Makbuz onaylanır, kampanya toplamına eklenir ve bağışçıya makbuz bildirimi gider.',
+      confirmLabel: 'Ödendi',
+      danger: false,
+    })
+    if (!ok) return
     try {
       const res = await adminSend<{ lines: number }>('post', `/donations/${row.id}/mark-paid`)
-      setMessage({ type: 'ok', text: res.data.lines > 1 ? `Makbuz ödendi (${res.data.lines} kalem)` : 'Makbuz ödendi' })
+      toast.ok(res.data.lines > 1 ? `Makbuz ödendi (${res.data.lines} kalem)` : 'Makbuz ödendi')
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
-  const pdf = async (row: Row) => {
+  const downloadPdf = async (row: Row) => {
     try {
       await downloadReceiptPdf(row.id, row.receipt_number)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'PDF indirilemedi') })
+      toast.error(apiErrorMessage(err, 'PDF indirilemedi'))
     }
   }
 
@@ -156,42 +246,110 @@ export default function AdminDonationsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Bağışlar" actions={<div className="flex gap-2">
-          <button onClick={exportCsv} className={ghostButton}>⬇ Excel (CSV)</button>
-          {canIssue && <button onClick={() => setShowManual((v) => !v)} className={primaryButton}>{showManual ? 'Vazgeç' : '+ Elle Makbuz Kes'}</button>}
-        </div>} />
-
-      <Notice message={message} />
+      <PageHeader
+        title="Bağışlar"
+        description="Tüm online ve elle kesilen bağışları arayın, filtreleyin, makbuz PDF'i indirin ve tahsilat durumlarını yönetin."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleExportCsv} disabled={exporting}>
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              {exporting ? 'Hazırlanıyor...' : 'CSV'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading}>
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
+            {canIssue && (
+              <Button type="button" size="sm" onClick={() => setShowManual((v) => !v)}>
+                {showManual ? (
+                  <>
+                    <X className="w-3.5 h-3.5 mr-1.5" />
+                    Vazgeç
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5 mr-1.5" />
+                    Elle Makbuz Kes
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       {showManual && (
-        <Card className="border border-primary-100 p-6 shadow-sm">
-          <ManualReceiptForm onDone={(r) => {
-            setShowManual(false)
-            setMessage({ type: 'ok', text: `${r.receipt_number} numaralı makbuz kesildi` })
-            load()
-          }} />
+        <Card className="border border-emerald-200 bg-white p-6 shadow-sm">
+          <ManualReceiptForm
+            onDone={(r) => {
+              setShowManual(false)
+              toast.ok(`${r.receipt_number} numaralı makbuz kesildi`)
+              load()
+            }}
+          />
         </Card>
       )}
 
-      <Card className="space-y-3 border border-gray-100 p-4 shadow-sm">
+      {result && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="Toplam Bağış Kaydı"
+            value={result.total.toLocaleString('tr-TR')}
+            hint="Seçili filtrelere göre"
+            tone="neutral"
+            icon={HandCoins}
+          />
+          {result.totals.slice(0, 3).map((t) => (
+            <StatCard
+              key={t.currency}
+              label={`${t.currency} Toplamı`}
+              value={formatMoney(t.total_cents, t.currency)}
+              hint={`${t.count.toLocaleString('tr-TR')} adet işlem`}
+              tone="good"
+              icon={Wallet}
+            />
+          ))}
+        </div>
+      )}
+
+      <Card className="space-y-3 border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div className="lg:col-span-2">
-            <Label label="Ara"><input className={inputClass} placeholder="Bağışçı, telefon, makbuz no, adına..." value={filters.q} onChange={(e) => setFilter('q', e.target.value)} /></Label>
+            <Label label="Ara">
+              <input
+                className={inputClass}
+                placeholder="Bağışçı, telefon, makbuz no, koçan no, adına..."
+                value={filters.q}
+                onChange={(e) => setFilter('q', e.target.value)}
+              />
+            </Label>
           </div>
-          <Label label="Başlangıç"><input type="date" className={inputClass} value={filters.start} onChange={(e) => setFilter('start', e.target.value)} /></Label>
-          <Label label="Bitiş"><input type="date" className={inputClass} value={filters.end} onChange={(e) => setFilter('end', e.target.value)} /></Label>
+          <Label label="Başlangıç">
+            <input type="date" className={inputClass} value={filters.start} onChange={(e) => setFilter('start', e.target.value)} />
+          </Label>
+          <Label label="Bitiş">
+            <input type="date" className={inputClass} value={filters.end} onChange={(e) => setFilter('end', e.target.value)} />
+          </Label>
           <div className="lg:col-span-2">
             <Label label="Kampanya">
               <select className={inputClass} value={filters.campaign_id} onChange={(e) => setFilter('campaign_id', e.target.value)}>
                 <option value="">Tümü</option>
-                {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
               </select>
             </Label>
           </div>
           <Label label="Durum">
             <select className={inputClass} value={filters.status} onChange={(e) => setFilter('status', e.target.value)}>
               <option value="">Tümü</option>
-              {Object.entries(STATUS_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              {Object.entries(STATUS_META).map(([k, m]) => (
+                <option key={k} value={k}>
+                  {m.label}
+                </option>
+              ))}
             </select>
           </Label>
           <Label label="Ödeme">
@@ -204,7 +362,12 @@ export default function AdminDonationsPage() {
           </Label>
           <Label label="Para birimi">
             <select className={inputClass} value={filters.currency} onChange={(e) => setFilter('currency', e.target.value)}>
-              <option value="">Tümü</option><option value="TRY">TL</option><option value="USD">USD</option><option value="EUR">EUR</option>
+              <option value="">Tümü</option>
+              {CURRENCIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </select>
           </Label>
           <Label label="Tutar (min - maks)">
@@ -218,80 +381,290 @@ export default function AdminDonationsPage() {
               <option value="">Tümü</option>
               <option value="online">Online (otomatik)</option>
               <option value="manual">Elle kesilenler</option>
-              {staff.map((s) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+              {staff.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.first_name} {s.last_name}
+                </option>
+              ))}
             </select>
           </Label>
           <Label label="Adına bağış">
             <select className={inputClass} value={filters.on_behalf} onChange={(e) => setFilter('on_behalf', e.target.value)}>
-              <option value="">Tümü</option><option value="true">Başkası adına</option><option value="false">Kendi adına</option>
+              <option value="">Tümü</option>
+              <option value="true">Başkası adına</option>
+              <option value="false">Kendi adına</option>
             </select>
           </Label>
         </div>
         {activeFilters > 0 && (
-          <button onClick={() => { setFilters(emptyFilters); setPage(1) }} className="text-xs font-bold text-primary-700">Filtreleri temizle ({activeFilters})</button>
+          <button
+            type="button"
+            onClick={() => {
+              setFilters(emptyFilters)
+              setPage(1)
+            }}
+            className="text-xs font-semibold text-emerald-700 hover:underline"
+          >
+            Filtreleri temizle ({activeFilters})
+          </button>
         )}
       </Card>
 
-      {result && (
-        <div className="flex flex-wrap gap-3">
-          <div className="rounded-lg border bg-white px-4 py-2 text-sm"><span className="text-gray-500">Kayıt:</span> <strong>{result.total.toLocaleString('tr-TR')}</strong></div>
-          {result.totals.map((t) => (
-            <div key={t.currency} className="rounded-lg border bg-white px-4 py-2 text-sm">
-              <span className="text-gray-500">{t.currency} toplam:</span> <strong>{formatMoney(t.total_cents, t.currency)}</strong>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <Card className="border border-gray-100 p-4 shadow-sm">
+      <Card className="border border-slate-200 bg-white p-4 shadow-sm">
         {loading && !result ? (
-          <p className="py-12 text-center text-sm text-gray-500 animate-pulse">Yükleniyor...</p>
+          <p className="py-12 text-center text-sm text-slate-500 animate-pulse">Bağışlar yükleniyor...</p>
         ) : !result || result.items.length === 0 ? (
-          <p className="py-12 text-center text-xs text-gray-400">Bu filtrelerle bağış bulunamadı.</p>
+          <p className="py-12 text-center text-xs text-slate-400">Bu filtrelerle bağış bulunamadı.</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <THead>
                 <Tr>
-                  <Th>Tarih</Th><Th>Bağışçı</Th><Th>Kampanya</Th>
-                  <Th>Ödeme</Th><Th>Durum</Th><Th className="text-right">Tutar</Th><Th className="text-right">İşlem</Th>
+                  <Th>Tarih / Makbuz</Th>
+                  <Th>Bağışçı</Th>
+                  <Th>Kampanya</Th>
+                  <Th>Ödeme</Th>
+                  <Th>Durum</Th>
+                  <Th className="text-right">Tutar</Th>
+                  <Th className="text-right">İşlem</Th>
                 </Tr>
               </THead>
               <TBody>
-                {result.items.map((r) => (
-                  <Tr key={r.id} className={r.status === 'cancelled' || r.status === 'refunded' ? 'opacity-50' : ''}>
-                    <Td className="whitespace-nowrap">
-                      {new Date(r.paid_at).toLocaleDateString('tr-TR')}
-                      <div className="font-mono text-[10px] text-gray-400">{r.receipt_number}</div>
-                    </Td>
-                    <Td>
-                      <Link href={`/admin/bagiscilar?donor=${r.donor_id}`} className="font-semibold text-gray-900 hover:text-primary-700">{r.donor_name}</Link>
-                      {r.on_behalf_of && <div className="text-[11px] text-primary-700">Adına: {r.on_behalf_of}</div>}
-                    </Td>
-                    <Td>{r.campaign_title}</Td>
-                    <Td>
-                      {r.payment_method_label}
-                      <div className="text-[10px] text-gray-400">{r.issued_by_name ? `${r.is_manual ? 'Elle' : 'Onay'}: ${r.issued_by_name}` : 'Online'}</div>
-                    </Td>
-                    <Td>{STATUS_LABELS[r.status] || r.status}</Td>
-                    <Td className="text-right font-bold tabular-nums">{formatMoney(r.amount_cents, r.currency)}</Td>
-                    <Td className="text-right whitespace-nowrap">
-                      <button onClick={() => pdf(r)} className="font-bold text-primary-700 hover:underline">PDF</button>
-                      {canIssue && r.is_manual && r.status === 'pending' && (
-                        <button onClick={() => markPaid(r)} className="ml-3 font-bold text-green-700 hover:underline">Ödendi</button>
-                      )}
-                      {canIssue && r.is_manual && (r.status === 'confirmed' || r.status === 'pending') && (
-                        <button onClick={() => cancel(r)} className="ml-3 font-bold text-red-600 hover:underline">İptal</button>
-                      )}
-                    </Td>
-                  </Tr>
-                ))}
+                {result.items.map((r) => {
+                  const st = STATUS_META[r.status] || { label: r.status, badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' }
+                  return (
+                    <Tr
+                      key={r.id}
+                      onClick={() => setDetailRow(r)}
+                      className={`cursor-pointer hover:bg-slate-50/70 ${r.status === 'cancelled' || r.status === 'refunded' ? 'opacity-60' : ''}`}
+                    >
+                      <Td className="whitespace-nowrap">
+                        <div className="text-xs font-medium text-slate-800">
+                          {new Date(r.paid_at).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
+                        </div>
+                        <div className="font-mono text-[10px] text-slate-400">
+                          {r.receipt_number}
+                          {r.official_receipt_no ? ` · ${r.official_receipt_no}` : ''}
+                        </div>
+                      </Td>
+                      <Td>
+                        <div className="flex items-center gap-1.5">
+                          <Link
+                            href={`/admin/bagiscilar?donor=${r.donor_id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-semibold text-slate-900 hover:text-emerald-700"
+                          >
+                            {r.donor_name}
+                          </Link>
+                          {r.is_anonymous && (
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                              Anonim
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {r.donor_phone || ''}
+                          {r.donor_phone && r.on_behalf_of ? ' · ' : ''}
+                          {r.on_behalf_of ? <span className="text-emerald-700">Adına: {r.on_behalf_of}</span> : null}
+                        </div>
+                      </Td>
+                      <Td className="text-xs text-slate-700">{r.campaign_title || '—'}</Td>
+                      <Td>
+                        <div className="text-xs text-slate-800">{r.payment_method_label}</div>
+                        <div className="text-[10px] text-slate-400">
+                          {r.issued_by_name ? `${r.is_manual ? 'Elle' : 'Onay'}: ${r.issued_by_name}` : 'Online'}
+                        </div>
+                      </Td>
+                      <Td>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border ${st.badgeClass}`}>
+                          {st.label}
+                        </span>
+                      </Td>
+                      <Td className="text-right font-bold tabular-nums text-slate-900">
+                        {formatMoney(r.amount_cents, r.currency)}
+                      </Td>
+                      <Td className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <div className="inline-flex items-center justify-end gap-2 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setDetailRow(r)}
+                            className="font-semibold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1"
+                            title="Detay"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadPdf(r)}
+                            className="font-semibold text-emerald-700 hover:underline"
+                          >
+                            PDF
+                          </button>
+                          {r.donor_phone && (
+                            <button
+                              type="button"
+                              onClick={() => setSmsRow(r)}
+                              className="font-semibold text-sky-700 hover:underline"
+                              title="SMS Gönder"
+                            >
+                              SMS
+                            </button>
+                          )}
+                          {canIssue && r.is_manual && r.status === 'pending' && (
+                            <button
+                              type="button"
+                              onClick={() => markPaid(r)}
+                              className="font-semibold text-emerald-700 hover:underline"
+                            >
+                              Ödendi
+                            </button>
+                          )}
+                          {canIssue && r.is_manual && (r.status === 'confirmed' || r.status === 'pending') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCancelTarget(r)
+                                setCancelReason('')
+                              }}
+                              className="font-semibold text-rose-600 hover:underline"
+                            >
+                              İptal
+                            </button>
+                          )}
+                        </div>
+                      </Td>
+                    </Tr>
+                  )
+                })}
               </TBody>
             </Table>
           </div>
         )}
-        {result && <div className="mt-4"><Pagination page={page} pages={pages} total={result.total} onChange={setPage} /></div>}
+        {result && result.total > PAGE_SIZE && (
+          <div className="mt-4">
+            <Pagination page={page} pages={pages} total={result.total} onChange={setPage} />
+          </div>
+        )}
       </Card>
+
+      {detailRow && (
+        <Modal
+          title={`Bağış Detayı · ${detailRow.receipt_number}`}
+          description={new Date(detailRow.paid_at).toLocaleString('tr-TR')}
+          onClose={() => setDetailRow(null)}
+          footer={
+            <div className="flex flex-wrap justify-between gap-2 w-full">
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => downloadPdf(detailRow)}>
+                  <FileText className="w-3.5 h-3.5 mr-1.5" />
+                  Makbuz PDF
+                </Button>
+                {detailRow.donor_phone && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSmsRow(detailRow)
+                      setDetailRow(null)
+                    }}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
+                    SMS Gönder
+                  </Button>
+                )}
+              </div>
+              <Button type="button" onClick={() => setDetailRow(null)}>
+                Kapat
+              </Button>
+            </div>
+          }
+        >
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="rounded-lg bg-slate-50 p-3">
+              <div className="text-slate-400">Bağışçı</div>
+              <Link href={`/admin/bagiscilar?donor=${detailRow.donor_id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
+                {detailRow.donor_name}
+              </Link>
+              {detailRow.donor_phone && <div className="text-slate-500 mt-0.5">{detailRow.donor_phone}</div>}
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <div className="text-slate-400">Tutar & Durum</div>
+              <div className="font-bold text-sm text-slate-900">{formatMoney(detailRow.amount_cents, detailRow.currency)}</div>
+              <div className="text-slate-600 mt-0.5">{STATUS_META[detailRow.status]?.label || detailRow.status}</div>
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <div className="text-slate-400">Kampanya</div>
+              <div className="font-semibold text-slate-800">{detailRow.campaign_title || '—'}</div>
+              {detailRow.on_behalf_of && <div className="text-emerald-700 mt-0.5">Adına: {detailRow.on_behalf_of}</div>}
+            </div>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <div className="text-slate-400">Ödeme & Kaynak</div>
+              <div className="font-semibold text-slate-800">{detailRow.payment_method_label}</div>
+              <div className="text-slate-500 mt-0.5">
+                {detailRow.issued_by_name ? `${detailRow.is_manual ? 'Elle' : 'Onay'}: ${detailRow.issued_by_name}` : 'Online'}
+              </div>
+            </div>
+            {detailRow.official_receipt_no && (
+              <div className="col-span-2 rounded-lg bg-slate-50 p-3">
+                <div className="text-slate-400">Resmi Koçan Makbuz No</div>
+                <div className="font-mono font-semibold text-slate-800">{detailRow.official_receipt_no}</div>
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {cancelTarget && (
+        <Modal
+          title="Makbuzu İptal Et"
+          description={`${cancelTarget.receipt_number} · ${cancelTarget.donor_name}`}
+          onClose={() => setCancelTarget(null)}
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setCancelTarget(null)} disabled={cancelling}>
+                Vazgeç
+              </Button>
+              <Button type="submit" form="cancel-donation-form" disabled={cancelling} className="bg-rose-600 hover:bg-rose-700 text-white">
+                {cancelling ? 'İptal Ediliyor...' : 'Makbuzu İptal Et'}
+              </Button>
+            </div>
+          }
+        >
+          <form id="cancel-donation-form" onSubmit={handleCancelSubmit} className="space-y-3">
+            <p className="text-xs text-slate-600">
+              Bu işlem makbuzu iptal durumuna alır ve tutarı kampanya toplamından düşer.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">İptal Nedeni *</label>
+              <Input
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Örn: Yanlış tutar, mükerrer kayıt..."
+                required
+              />
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {smsRow && (
+        <QuickSmsDialog
+          target={{
+            donorId: smsRow.donor_id,
+            donationId: smsRow.id,
+            name: smsRow.donor_name,
+            phone: smsRow.donor_phone,
+          }}
+          eventKey="makbuz"
+          campaignId={smsRow.campaign_id}
+          onClose={() => setSmsRow(null)}
+          onSent={(res) => {
+            toast.ok(sentNotice(res))
+            setSmsRow(null)
+          }}
+        />
+      )}
     </div>
   )
 }

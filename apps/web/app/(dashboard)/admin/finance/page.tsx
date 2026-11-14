@@ -194,10 +194,10 @@ export default function AdminFinancePage() {
     }
   }
 
-  const handleExportDerbis = async () => {
+  const handleExportDerbis = async (fmt: 'xlsx' | 'csv' = 'xlsx') => {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-      const response = await fetch(`${API_BASE}/api/v1/finance/derbis-export`, {
+      const response = await fetch(`${API_BASE}/api/v1/finance/derbis-export?format=${fmt}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         }
@@ -208,7 +208,7 @@ export default function AdminFinancePage() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = 'derbis_bagis_defteri.csv'
+      a.download = `derbis_bagis_defteri.${fmt}`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -240,11 +240,14 @@ export default function AdminFinancePage() {
               🖨️ Yazdır / PDF
             </button>
             <Button
-              onClick={handleExportDerbis}
+              onClick={() => handleExportDerbis('xlsx')}
               className="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shadow-sm text-xs"
             >
-              DERBİS Ek-5/A Raporu (Excel/CSV)
+              DERBİS Ek-5/A (Excel)
             </Button>
+            <button type="button" onClick={() => handleExportDerbis('csv')} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50">
+              DERBİS (CSV)
+            </button>
           </div>
         }
       />
@@ -398,7 +401,32 @@ export default function AdminFinancePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-gray-600">Tutar & Para Birimi *</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="Örn: 8500"
+                    value={amountLira}
+                    onChange={(e) => setAmountLira(e.target.value)}
+                    className="min-w-0 flex-1 rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
+                    required
+                  />
+                  <select
+                    aria-label="Para birimi"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                    className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-primary-500"
+                  >
+                    {CURRENCIES.map((cur) => (
+                      <option key={cur} value={cur}>{cur}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-bold text-gray-600">Kategori *</label>
                   <select
@@ -410,30 +438,6 @@ export default function AdminFinancePage() {
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-gray-600">Tutar & Para Birimi *</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="Örn: 8500"
-                      value={amountLira}
-                      onChange={(e) => setAmountLira(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
-                      required
-                    />
-                    <select
-                      aria-label="Para birimi"
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value)}
-                      className="rounded-lg border border-gray-300 bg-white px-2.5 py-2.5 text-sm font-semibold outline-none focus:border-primary-500"
-                    >
-                      {CURRENCIES.map((cur) => (
-                        <option key={cur} value={cur}>{cur}</option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-bold text-gray-600">Harcama Tarihi</label>

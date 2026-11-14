@@ -15,7 +15,7 @@ class CampaignBase(BaseModel):
     story: Optional[str] = None
     category: CampaignCategory = CampaignCategory.GENEL
     target_cents: int = Field(..., ge=0)
-    currency: Literal["TRY", "USD", "EUR"] = "TRY"
+    currency: Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"] = "TRY"
     cover_image_url: Optional[str] = None
     gallery_urls: List[str] = []
     video_url: Optional[str] = None
@@ -23,6 +23,7 @@ class CampaignBase(BaseModel):
     allow_custom_amount: bool = True
     min_donation_cents: int = Field(default=1000, ge=100)
     is_featured: bool = False
+    display_order: int = 0
     show_collected: bool = True
     show_donor_list: bool = True
     start_date: Optional[datetime] = None
@@ -46,19 +47,29 @@ class CampaignBase(BaseModel):
 
 class CampaignCreate(CampaignBase):
     slug: Optional[str] = None  # Will be auto-generated from title if not provided
+    status: CampaignStatus = CampaignStatus.DRAFT
 
 
 class CampaignUpdate(BaseModel):
-    title: Optional[str] = None
+    title: Optional[str] = Field(None, max_length=300)
     summary: Optional[str] = None
     story: Optional[str] = None
     category: Optional[CampaignCategory] = None
     status: Optional[CampaignStatus] = None
-    target_cents: Optional[int] = None
-    currency: Optional[Literal["TRY", "USD", "EUR"]] = None
+    target_cents: Optional[int] = Field(None, ge=0)
+    currency: Optional[Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"]] = None
     cover_image_url: Optional[str] = None
     gallery_urls: Optional[List[str]] = None
+    video_url: Optional[str] = None
+    suggested_amounts_cents: Optional[List[int]] = None
+    allow_custom_amount: Optional[bool] = None
+    min_donation_cents: Optional[int] = Field(None, ge=100)
     is_featured: Optional[bool] = None
+    display_order: Optional[int] = None
+    show_collected: Optional[bool] = None
+    show_donor_list: Optional[bool] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     translations: Optional[Dict[str, Dict[str, str]]] = None
     checkout_fields_schema: Optional[List[Dict[str, Any]]] = None
 

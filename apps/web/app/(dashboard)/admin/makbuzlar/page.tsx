@@ -1,19 +1,32 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import axios from 'axios'
-import { Download } from 'lucide-react'
+import { Copy, Download, ExternalLink, XCircle } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, exportCsv, formatMoney, hasPermission, useAdminAccess, adminApiBase, adminAuthHeaders } from '../../../../lib/admin-access'
+import {
+  adminApiBase,
+  adminAuthHeaders,
+  adminGet,
+  adminSend,
+  apiErrorMessage,
+  exportCsv,
+  formatMoney,
+  hasPermission,
+  useAdminAccess,
+} from '../../../../lib/admin-access'
+import { Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms } from '../../../../lib/sms'
-import { PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
+import { Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 
 interface Donation {
   id: string
   receipt_number: string
   official_receipt_no?: string | null
+  campaign_title?: string | null
   amount_cents: number
   currency: string
   status: string
@@ -26,6 +39,12 @@ interface Donation {
   paid_at: string
 }
 
+interface TotalItem {
+  currency: string
+  count: number
+  total_cents: number
+}
+
 interface ReceiptDetail {
   receipt_number: string
   official_receipt_no?: string | null
@@ -34,17 +53,42 @@ interface ReceiptDetail {
   status: string
   donor_name: string
   amount_lira: number
+  amount_cents?: number
+  currency?: string
   payment_method: string
+}
+
+const PAGE_SIZE = 50
+const CURRENCIES = ['TRY', 'USD', 'EUR', 'GBP', 'SAR', 'CHF'] as const
+
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  confirmed: { label: 'Onaylı', cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+  cancelled: { label: 'İptal', cls: 'border-red-200 bg-red-50 text-red-700' },
+  pending: { label: 'Bekliyor', cls: 'border-amber-200 bg-amber-50 text-amber-700' },
+  refunded: { label: 'İade', cls: 'border-gray-200 bg-gray-100 text-gray-600' },
 }
 
 export default function AdminReceiptsPage() {
   const [donations, setDonations] = useState<Donation[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
+  const [total, setTotal] = useState(0)
+  const [totals, setTotals] = useState<TotalItem[]>([])
+  const [page, setPage] = useState(1)
+  const [filters, setFilters] = useState({
+    q: '',
+    status: 'confirmed',
+    payment_method: '',
+    currency: '',
+    issued_by: '',
+    start: '',
+    end: '',
+  })
   const [loading, setLoading] = useState(false)
   const [receiptDetail, setReceiptDetail] = useState<ReceiptDetail | null>(null)
   const [receiptLoadingId, setReceiptLoadingId] = useState<string | null>(null)
   const [showManual, setShowManual] = useState(false)
-  const [notice, setNotice] = useState('')
+  const [cancelTarget, setCancelTarget] = useState<{ donation: Donation; reason: string } | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [sms, setSms] = useState<Record<string, RelatedSms>>({})
   const [smsFor, setSmsFor] = useState<Donation | null>(null)
   const { data: access } = useAdminAccess()
@@ -53,60 +97,108 @@ export default function AdminReceiptsPage() {
 
   const API_BASE = adminApiBase()
 
-  const getAuthHeaders = adminAuthHeaders
-
   const loadDonations = async () => {
     setLoading(true)
     try {
-      const res = await adminGet<{ items: Donation[] }>('/donations', {
-        status: 'confirmed', q: searchQuery || undefined, page_size: 100,
+      const res = await adminGet<{ items: Donation[]; total: number; totals: TotalItem[] }>('/donations', {
+        q: filters.q.trim() || undefined,
+        status: filters.status || undefined,
+        payment_method: filters.payment_method || undefined,
+        currency: filters.currency || undefined,
+        issued_by: filters.issued_by || undefined,
+        start: filters.start || undefined,
+        end: filters.end || undefined,
+        page,
+        page_size: PAGE_SIZE,
       })
       setDonations(res.data.items)
+      setTotal(res.data.total ?? res.data.items.length)
+      setTotals(res.data.totals || [])
       setSms(await loadRelatedSms('donation', res.data.items.map((d) => d.id)))
     } catch (err) {
-      console.error('Failed to load donations:', err)
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Makbuzlar yüklenemedi') })
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    const t = setTimeout(loadDonations, 300)
+    const t = setTimeout(loadDonations, 250)
     return () => clearTimeout(t)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, page])
+
+  const setFilter = (key: keyof typeof filters, value: string) => {
+    setPage(1)
+    setFilters((prev) => ({ ...prev, [key]: value }))
+  }
 
   const viewReceipt = async (donationId: string) => {
     setReceiptLoadingId(donationId)
     setReceiptDetail(null)
     try {
-      const res = await axios.get(`${API_BASE}/api/v1/admin-features/donations/${donationId}/receipt`, { headers: getAuthHeaders() })
+      const res = await axios.get(`${API_BASE}/api/v1/admin-features/donations/${donationId}/receipt`, {
+        headers: adminAuthHeaders(),
+      })
       setReceiptDetail(res.data)
     } catch (err) {
-      console.error('Failed to load receipt:', err)
-      toast.error('Makbuz bilgisi alınamadı.')
+      toast.error(apiErrorMessage(err, 'Makbuz bilgisi alınamadı.'))
     } finally {
       setReceiptLoadingId(null)
     }
   }
 
-  const filteredDonations = donations
+  const submitCancel = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!cancelTarget || !cancelTarget.reason.trim()) return
+    setCancelling(true)
+    setMessage(null)
+    try {
+      await adminSend('post', `/donations/${cancelTarget.donation.id}/cancel`, {
+        reason: cancelTarget.reason.trim(),
+      })
+      setMessage({ type: 'ok', text: `${cancelTarget.donation.receipt_number} numaralı makbuz iptal edildi.` })
+      setCancelTarget(null)
+      await loadDonations()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Makbuz iptal edilemedi') })
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  const copyVerifyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.ok('Doğrulama linki kopyalandı')
+    } catch {
+      toast.error('Link kopyalanamadı')
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <div className="space-y-8">
-      <PageHeader title="Makbuzlar" actions={<div className="flex gap-2">
-          <button
-            onClick={loadDonations}
-            className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
-          >
-            Yenile
-          </button>
-          {canIssue && (
-            <button onClick={() => setShowManual((v) => !v)} className="text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 px-3 py-1.5 rounded-lg shadow-sm">
-              {showManual ? 'Vazgeç' : '+ Elle Makbuz Kes'}
+    <div className="space-y-6">
+      <PageHeader
+        title="Makbuzlar"
+        description={<>Kesilen tüm online ve elle bağış makbuzları, doğrulama kodları ve iptal işlemleri.</>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/makbuz-kocanlari" className={ghostButton}>
+              Makbuz Koçanları →
+            </Link>
+            <button onClick={loadDonations} className={ghostButton}>
+              Yenile
             </button>
-          )}
-        </div>} />
+            {canIssue && (
+              <button onClick={() => setShowManual((v) => !v)} className={primaryButton}>
+                {showManual ? 'Vazgeç' : '+ Elle Makbuz Kes'}
+              </button>
+            )}
+          </div>
+        }
+      />
 
       {smsFor && (
         <QuickSmsDialog
@@ -115,129 +207,351 @@ export default function AdminReceiptsPage() {
           campaignId={smsFor.campaign_id}
           target={{ donationId: smsFor.id, name: smsFor.donor_name }}
           onClose={() => setSmsFor(null)}
-          onSent={(r) => { setNotice(sentNotice(r)); loadDonations() }}
+          onSent={(r) => {
+            setMessage({ type: 'ok', text: sentNotice(r) })
+            loadDonations()
+          }}
         />
       )}
 
-      {notice && <div className="rounded-lg border border-green-100 bg-green-50 p-3 text-sm font-semibold text-green-700">{notice}</div>}
+      <Notice message={message} />
 
       {showManual && (
-        <Card className="p-6 border border-primary-100 shadow-sm">
-          <ManualReceiptForm onDone={(r) => {
-            setShowManual(false)
-            setNotice(`${r.receipt_number} numaralı makbuz kesildi${r.official_receipt_no ? ` (matbu: ${r.official_receipt_no})` : ''}`)
-            loadDonations()
-          }} />
+        <Card className="border border-primary-100 p-6 shadow-sm">
+          <ManualReceiptForm
+            onDone={(r) => {
+              setShowManual(false)
+              setMessage({
+                type: 'ok',
+                text: `${r.receipt_number} numaralı makbuz kesildi${r.official_receipt_no ? ` (matbu: ${r.official_receipt_no})` : ''}`,
+              })
+              loadDonations()
+            }}
+          />
         </Card>
       )}
 
       {receiptDetail && (
-        <Card className="p-6 border-2 border-primary-200 shadow-sm space-y-3 bg-primary-50/40">
-          <div className="flex justify-between items-start">
+        <Card className="space-y-3 border-2 border-primary-200 bg-primary-50/40 p-6 shadow-sm">
+          <div className="flex items-start justify-between">
             <div>
-              <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Makbuz Doğrulama</div>
-              <div className="text-2xl font-black text-gray-900">{receiptDetail.receipt_number}</div>
+              <div className="mb-1 text-xs font-bold uppercase tracking-wider text-gray-500">Makbuz Doğrulama</div>
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-2xl font-black text-gray-900">{receiptDetail.receipt_number}</span>
+                {receiptDetail.official_receipt_no && (
+                  <span className="text-xs font-semibold text-gray-500">Matbu: {receiptDetail.official_receipt_no}</span>
+                )}
+              </div>
             </div>
-            <button onClick={() => setReceiptDetail(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+            <button onClick={() => setReceiptDetail(null)} className="text-xl leading-none text-gray-400 hover:text-gray-700">
+              ✕
+            </button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm pt-2 border-t">
+          <div className="grid grid-cols-2 gap-4 border-t pt-3 text-sm md:grid-cols-4">
             <div>
-              <div className="text-[10px] font-bold text-gray-400 uppercase">Bağışçı</div>
+              <div className="text-[10px] font-bold uppercase text-gray-400">Bağışçı</div>
               <div className="font-semibold text-gray-800">{receiptDetail.donor_name}</div>
             </div>
             <div>
-              <div className="text-[10px] font-bold text-gray-400 uppercase">Tutar</div>
-              <div className="font-semibold text-gray-800">{receiptDetail.amount_lira.toLocaleString('tr-TR')} ₺</div>
+              <div className="text-[10px] font-bold uppercase text-gray-400">Tutar</div>
+              <div className="font-semibold text-gray-800">
+                {formatMoney(
+                  receiptDetail.amount_cents ?? Math.round(receiptDetail.amount_lira * 100),
+                  receiptDetail.currency || 'TRY'
+                )}
+              </div>
             </div>
             <div>
-              <div className="text-[10px] font-bold text-gray-400 uppercase">Ödeme</div>
+              <div className="text-[10px] font-bold uppercase text-gray-400">Ödeme</div>
               <div className="font-semibold text-gray-800">{receiptDetail.payment_method}</div>
             </div>
             <div>
-              <div className="text-[10px] font-bold text-gray-400 uppercase">Doğrulama Kodu</div>
+              <div className="text-[10px] font-bold uppercase text-gray-400">Doğrulama Kodu</div>
               <div className="font-mono text-xs text-gray-600">{receiptDetail.verification_hash}</div>
             </div>
           </div>
-          <a href={receiptDetail.verify_url} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-primary-600 hover:underline">
-            Genel doğrulama sayfasını görüntüle ↗
-          </a>
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <a
+              href={receiptDetail.verify_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-bold text-primary-600 hover:underline"
+            >
+              Genel doğrulama sayfasını görüntüle <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+            <button
+              type="button"
+              onClick={() => copyVerifyLink(receiptDetail.verify_url)}
+              className="inline-flex items-center gap-1 rounded-md border border-primary-200 bg-white px-2.5 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50"
+            >
+              <Copy className="h-3 w-3" /> Linki Kopyala
+            </button>
+          </div>
         </Card>
       )}
 
-      <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
+      <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="lg:col-span-2">
+            <input
+              type="text"
+              placeholder="Makbuz no, matbu no, bağışçı veya telefon..."
+              value={filters.q}
+              onChange={(e) => setFilter('q', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <select
+            aria-label="Durum filtresi"
+            className={inputClass}
+            value={filters.status}
+            onChange={(e) => setFilter('status', e.target.value)}
+          >
+            <option value="confirmed">Onaylı</option>
+            <option value="cancelled">İptal edilmiş</option>
+            <option value="">Tüm durumlar</option>
+          </select>
+          <select
+            aria-label="Ödeme yöntemi"
+            className={inputClass}
+            value={filters.payment_method}
+            onChange={(e) => setFilter('payment_method', e.target.value)}
+          >
+            <option value="">Tüm ödeme tipleri</option>
+            <option value="cash">Nakit</option>
+            <option value="bank_transfer">Havale / EFT</option>
+            <option value="credit_card">Kredi Kartı</option>
+          </select>
+          <select
+            aria-label="Kaynak"
+            className={inputClass}
+            value={filters.issued_by}
+            onChange={(e) => setFilter('issued_by', e.target.value)}
+          >
+            <option value="">Online + Elle</option>
+            <option value="online">Sadece Online</option>
+            <option value="manual">Sadece Elle / Koçan</option>
+          </select>
+          <select
+            aria-label="Para birimi"
+            className={inputClass}
+            value={filters.currency}
+            onChange={(e) => setFilter('currency', e.target.value)}
+          >
+            <option value="">Tüm birimler</option>
+            {CURRENCIES.map((cur) => (
+              <option key={cur} value={cur}>
+                {cur}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <input
-            type="text"
-            placeholder="Makbuz no, bağışçı adı veya telefon ile ara..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full max-w-md rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              aria-label="Başlangıç tarihi"
+              className={`${inputClass} w-40`}
+              value={filters.start}
+              onChange={(e) => setFilter('start', e.target.value)}
+            />
+            <span className="text-xs text-gray-400">—</span>
+            <input
+              type="date"
+              aria-label="Bitiş tarihi"
+              className={`${inputClass} w-40`}
+              value={filters.end}
+              onChange={(e) => setFilter('end', e.target.value)}
+            />
+            {totals.length > 0 && (
+              <span className="ml-2 text-xs font-semibold text-gray-600">
+                {total.toLocaleString('tr-TR')} makbuz ·{' '}
+                {totals.map((t) => formatMoney(t.total_cents, t.currency)).join(' · ')}
+              </span>
+            )}
+          </div>
+
           {donations.length > 0 && (
             <button
               type="button"
-              onClick={() => exportCsv('makbuzlar.csv', ['Makbuz No', 'Matbu No', 'Bağışçı', 'Kimin Adına', 'Ödeme Yöntemi', 'Tutar', 'Para Birimi', 'Durum', 'Tarih'],
-                donations.map((d) => [d.receipt_number, d.official_receipt_no || '', d.donor_name, d.on_behalf_of || '', d.payment_method_label, d.amount_cents / 100, d.currency, d.status, d.paid_at ? new Date(d.paid_at).toLocaleDateString('tr-TR') : '']))}
+              onClick={() =>
+                exportCsv(
+                  'makbuzlar.csv',
+                  ['Makbuz No', 'Matbu No', 'Bağışçı', 'Kampanya', 'Kimin Adına', 'Ödeme Yöntemi', 'Tutar', 'Para Birimi', 'Durum', 'Tarih'],
+                  donations.map((d) => [
+                    d.receipt_number,
+                    d.official_receipt_no || '',
+                    d.donor_name,
+                    d.campaign_title || '',
+                    d.on_behalf_of || '',
+                    d.payment_method_label,
+                    d.amount_cents / 100,
+                    d.currency,
+                    STATUS_BADGE[d.status]?.label || d.status,
+                    d.paid_at ? new Date(d.paid_at).toLocaleDateString('tr-TR') : '',
+                  ])
+                )
+              }
               className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
             >
-              <Download className="h-3.5 w-3.5" /> CSV İndir
+              <Download className="h-3.5 w-3.5" /> CSV İndir (Sayfa)
             </button>
           )}
         </div>
 
         {loading ? (
-          <p className="text-sm text-gray-500 animate-pulse py-6 text-center">Makbuzlar yükleniyor...</p>
-        ) : filteredDonations.length === 0 ? (
-          <p className="text-xs text-gray-400 py-6 text-center">Ödemesi tamamlanmış bağış bulunmamaktadır.</p>
+          <p className="py-6 text-center text-sm text-gray-500 animate-pulse">Makbuzlar yükleniyor...</p>
+        ) : donations.length === 0 ? (
+          <p className="py-6 text-center text-xs text-gray-400">Eşleşen makbuz bulunamadı.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <Table inset>
-              <THead>
-                <Tr>
-                  <Th>Makbuz No</Th>
-                  <Th>Bağışçı</Th>
-                  <Th>Ödeme Tipi</Th>
-                  <Th>Tarih</Th>
-                  <Th className="text-right">Tutar</Th>
-                  <Th>SMS</Th>
-                  <Th className="text-right">İşlem</Th>
-                </Tr>
-              </THead>
-              <TBody>
-                {filteredDonations.map((don) => (
-                  <Tr key={don.id} className="hover:bg-gray-50/50">
-                    <Td className="font-bold text-gray-900">{don.receipt_number}{don.official_receipt_no && <div className="text-[11px] font-semibold text-gray-500">Matbu {don.official_receipt_no}</div>}</Td>
-                    <Td>
-                      {don.donor_name}
-                      {don.on_behalf_of && <div className="text-[10px] text-primary-700">Adına: {don.on_behalf_of}</div>}
-                    </Td>
-                    <Td>{don.payment_method_label}{don.is_manual && ' (elle)'}</Td>
-                    <Td className="text-gray-400">{new Date(don.paid_at).toLocaleDateString('tr-TR')}</Td>
-                    <Td className="text-right font-bold text-emerald-800">{formatMoney(don.amount_cents, don.currency)}</Td>
-                    <Td><SmsStatusPill sms={sms[don.id]} /></Td>
-                    <Td className="text-right">
-                      {canSms && <button onClick={() => setSmsFor(don)} className="mr-3 font-bold text-primary-600 hover:text-primary-700">SMS</button>}
-                      <button
-                        onClick={() => viewReceipt(don.id)}
-                        disabled={receiptLoadingId === don.id}
-                        className="text-primary-600 hover:text-primary-700 font-bold"
-                      >
-                        {receiptLoadingId === don.id ? 'Yükleniyor...' : 'Doğrulama Linki'}
-                      </button>
-                      <button
-                        onClick={() => downloadReceiptPdf(don.id, don.receipt_number).catch(() => toast.error('PDF indirilemedi.'))}
-                        className="ml-3 text-primary-600 hover:text-primary-700 font-bold"
-                      >
-                        PDF
-                      </button>
-                    </Td>
+          <>
+            <div className="overflow-x-auto">
+              <Table inset>
+                <THead>
+                  <Tr>
+                    <Th>Makbuz No</Th>
+                    <Th>Bağışçı</Th>
+                    <Th>Kampanya</Th>
+                    <Th>Ödeme Tipi</Th>
+                    <Th>Tarih</Th>
+                    <Th>Durum</Th>
+                    <Th className="text-right">Tutar</Th>
+                    <Th>SMS</Th>
+                    <Th className="text-right">İşlem</Th>
                   </Tr>
-                ))}
-              </TBody>
-            </Table>
-          </div>
+                </THead>
+                <TBody>
+                  {donations.map((don) => {
+                    const st = STATUS_BADGE[don.status] || { label: don.status, cls: 'border-gray-200 bg-gray-100 text-gray-600' }
+                    return (
+                      <Tr key={don.id} className={`hover:bg-gray-50/50 ${don.status === 'cancelled' ? 'opacity-60' : ''}`}>
+                        <Td className="font-bold text-gray-900">
+                          {don.receipt_number}
+                          {don.official_receipt_no && (
+                            <div className="text-[11px] font-semibold text-gray-500">Matbu {don.official_receipt_no}</div>
+                          )}
+                        </Td>
+                        <Td>
+                          {don.donor_name}
+                          {don.on_behalf_of && <div className="text-[10px] text-primary-700">Adına: {don.on_behalf_of}</div>}
+                        </Td>
+                        <Td className="max-w-[180px] truncate text-xs text-gray-600">{don.campaign_title || '—'}</Td>
+                        <Td className="text-xs">
+                          {don.payment_method_label}
+                          {don.is_manual && ' (elle)'}
+                        </Td>
+                        <Td className="whitespace-nowrap text-xs text-gray-400">
+                          {new Date(don.paid_at).toLocaleDateString('tr-TR')}
+                        </Td>
+                        <Td>
+                          <span className={`inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${st.cls}`}>
+                            {st.label}
+                          </span>
+                        </Td>
+                        <Td className="text-right font-bold text-emerald-800 tabular-nums">
+                          {formatMoney(don.amount_cents, don.currency)}
+                        </Td>
+                        <Td>
+                          <SmsStatusPill sms={sms[don.id]} />
+                        </Td>
+                        <Td className="whitespace-nowrap text-right text-xs">
+                          {canSms && don.status === 'confirmed' && (
+                            <button onClick={() => setSmsFor(don)} className="mr-2 font-bold text-primary-600 hover:text-primary-700">
+                              SMS
+                            </button>
+                          )}
+                          <button
+                            onClick={() => viewReceipt(don.id)}
+                            disabled={receiptLoadingId === don.id}
+                            className="font-bold text-primary-600 hover:text-primary-700"
+                          >
+                            {receiptLoadingId === don.id ? '…' : 'Doğrula'}
+                          </button>
+                          <button
+                            onClick={() =>
+                              downloadReceiptPdf(don.id, don.receipt_number).catch(() => toast.error('PDF indirilemedi.'))
+                            }
+                            className="ml-2 font-bold text-primary-600 hover:text-primary-700"
+                          >
+                            PDF
+                          </button>
+                          {canIssue && don.is_manual && don.status === 'confirmed' && (
+                            <button
+                              type="button"
+                              title="Elle kesilen makbuzu iptal et"
+                              onClick={() => setCancelTarget({ donation: don, reason: 'Hatalı makbuz girişi' })}
+                              className="ml-2 inline-flex items-center gap-0.5 font-bold text-red-600 hover:text-red-700"
+                            >
+                              <XCircle className="h-3.5 w-3.5" /> İptal
+                            </button>
+                          )}
+                        </Td>
+                      </Tr>
+                    )
+                  })}
+                </TBody>
+              </Table>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
+                <span>
+                  Sayfa {page} / {totalPages} ({total.toLocaleString('tr-TR')} kayıt)
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    Önceki
+                  </button>
+                  <button
+                    type="button"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    Sonraki
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </Card>
+
+      {cancelTarget && (
+        <Modal
+          title={`${cancelTarget.donation.receipt_number} Makbuzunu İptal Et`}
+          size="sm"
+          onClose={() => setCancelTarget(null)}
+        >
+          <form onSubmit={submitCancel} className="space-y-3">
+            <p className="text-xs text-gray-600">
+              <strong>{cancelTarget.donation.donor_name}</strong> adına kesilen{' '}
+              <strong>{formatMoney(cancelTarget.donation.amount_cents, cancelTarget.donation.currency)}</strong> tutarındaki
+              makbuz iptal edilecek. Varsa bağlı aidat/taahhüt borcu yeniden açılır.
+            </p>
+            <TextInput
+              label="İptal gerekçesi *"
+              required
+              value={cancelTarget.reason}
+              onChange={(v) => setCancelTarget({ ...cancelTarget, reason: v })}
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" className={ghostButton} onClick={() => setCancelTarget(null)}>
+                Vazgeç
+              </button>
+              <button type="submit" disabled={cancelling} className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">
+                {cancelling ? 'İptal ediliyor...' : 'Makbuzu İptal Et'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }

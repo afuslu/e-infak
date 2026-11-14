@@ -1,17 +1,19 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import {
-  ArrowDownToLine, ArrowRight, Beef, Blocks, Calculator, Check, CreditCard, Droplets, Globe, GraduationCap, HandCoins,
-  HeartHandshake, Home, IdCard, MessagesSquare, PiggyBank, Receipt, ShieldCheck, Users, type LucideIcon,
+  ArrowDownToLine, ArrowRight, BarChart3, Beef, Blocks, BrainCircuit, Calculator, CalendarCheck2, Check,
+  CreditCard, Droplets, Globe, GraduationCap, HandCoins, HeartHandshake, Home, Lock, MessagesSquare,
+  PiggyBank, Receipt, ShieldCheck, Users, type LucideIcon,
 } from 'lucide-react'
 import { DemoForm, PlanCta } from './portal/DemoForm'
 import { MockBuilder, Screenshot } from './portal/Mocks'
+import { PortalFaq, PortalKvkkModal, PortalMobileNav } from './portal/PortalExtras'
 import { PortalThemeToggle } from './portal/ThemeToggle'
 
 const API_URL = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8020').replace(/\/$/, '')
 
 interface DirectoryEntry { slug: string; name: string; tagline: string | null; logo_url: string | null; primary_color: string | null; url: string }
-interface PlanInfo { key: string; label: string; users: number }
+interface PlanInfo { key: string; label: string; users: number; bank_accounts?: number }
 
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
@@ -54,26 +56,50 @@ const PANELS: { icon: LucideIcon; name: string; who: string; points: string[] }[
     points: ['Bağış, makbuz, kasa ve banka hareketleri tek ekranda', 'Bağışçı kartı, notlar, temsilci atama ve raporlar', 'Personele göre yetki; açık ve koyu tema'] },
   { icon: HeartHandshake, name: 'Bağışçı paneli', who: 'Bağışçılarınız için',
     points: ['SMS koduyla şifresiz giriş', 'Bağış geçmişi, makbuz ve kurban kesim videosu', 'Sponsorluk taksiti ve üyelik aidatını online ödeme'] },
-  { icon: GraduationCap, name: 'Veli paneli', who: 'Öğrenci velileri için',
-    points: ['Hafızlık ilerlemesini sayfa sayfa takip', 'Hoca değerlendirmeleri', 'Aynı numaraya kayıtlı tüm öğrenciler tek girişte'] },
 ]
 
-const MODULES: [LucideIcon, string, string][] = [
-  [Blocks, 'Site yapıcı', 'Sürükle-bırak bloklar, hazır slider ve bölümlerle kendi alan adınızda bağış sitesi.'],
-  [CreditCard, 'Online bağış', 'Kartla 3D Secure ödeme, bağış sepeti ve düzenli bağış talimatı.'],
-  [Receipt, 'Makbuz', 'Otomatik makbuz ve SMS, elden makbuz ve koçan takibi, makbuz doğrulama sayfası.'],
-  [Users, 'Bağışçı yönetimi', 'Bağışçı kartı, mükerrer kayıt birleştirme, Excel’den aktarım.'],
-  [ArrowDownToLine, 'Gelen havaleler', 'Banka hareketlerini bağışçı ve kalemle eşleştirme, bölme, geri alma.'],
-  [MessagesSquare, 'SMS', 'Şablonlar, hızlı ve toplu gönderim, iletim raporu ve bakiye takibi.'],
-  [Beef, 'Kurban organizasyonu', 'Hisse dağıtımı, kesim takibi ve bağışçıya özel kesim videosu.'],
-  [HeartHandshake, 'Sponsorluk ve burs', 'Yetim ve öğrenci sponsorluğu, taksit planı ve vade hatırlatması.'],
-  [Droplets, 'Su kuyusu', 'Hisseli veya tek bağışçılı kuyular, yapım durumu ve fotoğraf galerisi.'],
-  [PiggyBank, 'Kumbara ve kumanya', 'Kumbara dağıtım ve toplama, kumanya dağıtım kayıtları.'],
-  [IdCard, 'Üyelik ve aidat', 'Üye kaydı, dönemlik aidat tahakkuku, hatırlatma ve online ödeme.'],
-  [Home, 'Yoksul takibi', 'Başvuru, hane bilgisi ve puanlama ile ihtiyaç sahibi takibi.'],
-  [Calculator, 'Finans ve muhasebe', 'Kasa ve giderler, banka hesapları, cari, çek ve bordro.'],
-  [HandCoins, 'Zekât ve fitre', 'Güncel nisap ve fitre tutarlarıyla sitede hesaplama.'],
-  [Globe, 'Çoklu dil ve para birimi', 'Sitenizi birden çok dilde yayınlayın, farklı para birimlerinde bağış alın.'],
+const MODULE_GROUPS: { title: string; items: [LucideIcon, string, string][] }[] = [
+  {
+    title: 'Web, Online Bağış & Kurumsal',
+    items: [
+      [Blocks, 'Site yapıcı', 'Sürükle-bırak bloklar, hazır slider ve bölümlerle kendi alan adınızda bağış sitesi.'],
+      [CreditCard, 'Online bağış', 'Kartla 3D Secure ödeme, bağış sepeti ve düzenli bağış talimatı.'],
+      [Globe, 'Çoklu dil ve para birimi', 'Türkçe, İngilizce ve Arapça yayın; TRY, EUR ve USD ile bağış alma.'],
+      [HandCoins, 'Zekât ve fitre', 'Güncel nisap ve fitre tutarlarıyla sitede kolay hesaplama ve bağış.'],
+      [Beef, 'Kurban organizasyonu', 'Hisse dağıtımı, kesim takibi ve bağışçıya özel kesim videosu.'],
+      [HeartHandshake, 'Sponsorluk ve burs', 'Yetim ve öğrenci sponsorluğu, taksit planı ve vade hatırlatması.'],
+    ],
+  },
+  {
+    title: 'Bağışçı, İletişim & Akıllı Analiz',
+    items: [
+      [Users, 'Bağışçı yönetimi', 'Bağışçı kartı, mükerrer kayıt birleştirme, Excel’den aktarım.'],
+      [MessagesSquare, 'SMS', 'Şablonlar, hızlı ve toplu gönderim, İYS ve gece kuralı, iletim raporu.'],
+      [BrainCircuit, 'AI Öngörüleri', 'Bağış eğilimi, düşüş riski tespiti, segmentasyon ve akıllı öneriler.'],
+      [BarChart3, 'Raporlar ve analiz', 'Kampanya, kalem, dönem ve bağışçı bazlı dışa aktarılabilir raporlar.'],
+      [CalendarCheck2, 'Görevler ve takvim', 'Ekip içi görev atama, vade hatırlatmaları ve kurumsal takvim.'],
+      [GraduationCap, 'Hafızlık ve veli bildirimi', 'Öğrenci ilerleme takibi ve velilere otomatik SMS / WhatsApp bilgilendirmesi.'],
+    ],
+  },
+  {
+    title: 'Finans, Muhasebe & Saha',
+    items: [
+      [ArrowDownToLine, 'Gelen havaleler', 'Banka hareketlerini bağışçı ve kalemle eşleştirme, bölme, geri alma.'],
+      [Receipt, 'Makbuz', 'Otomatik makbuz ve SMS, elden makbuz koçan takibi, doğrulama sayfası.'],
+      [Calculator, 'Finans ve muhasebe', 'Kasa ve giderler, banka hesapları, cari, çek ve bordro.'],
+      [Droplets, 'Su kuyusu', 'Hisseli veya tek bağışçılı kuyular, yapım durumu ve fotoğraf galerisi.'],
+      [PiggyBank, 'Kumbara ve kumanya', 'Kumbara dağıtım ve toplama, kumanya dağıtım kayıtları.'],
+      [Home, 'Üyelik, aidat ve yoksul takibi', 'Üye aidat tahakkuku, online ödeme ve hane puanlamalı ihtiyaç sahibi takibi.'],
+    ],
+  },
+]
+
+const TRUST_PILLARS = [
+  'Doğrudan kurum hesabına 3D Secure Sanal POS',
+  'İYS ve gece saati uyumlu SMS',
+  'SSL ve KVKK uyumlu izole altyapı',
+  'Günlük otomatik yedekleme',
+  'Ücretsiz veri aktarımı',
 ]
 
 const STEPS = [
@@ -118,13 +144,14 @@ export async function EInfakPortal() {
   ])
   const saved = jar.get('einfak_tema')?.value
   const theme = saved === 'dark' ? 'dark' : 'light'
-  const planList = (plans.length ? plans : Object.keys(PLAN_COPY).map((key) => ({ key, label: PLAN_LABELS[key], users: PLAN_COPY[key].users })))
+  const planList: PlanInfo[] = (plans.length ? plans : Object.keys(PLAN_COPY).map((key) => ({ key, label: PLAN_LABELS[key], users: PLAN_COPY[key].users })))
     .filter((plan) => PLAN_COPY[plan.key])
-  const nav = [
+  const nav: [string, string][] = [
     ['#ozellikler', 'Özellikler'],
     ['#moduller', 'Modüller'],
     ['#paketler', 'Paketler'],
-    ...(organisations.length ? [['#kurumlar', 'Kurumlar']] : []),
+    ['#sss', 'SSS'],
+    ...(organisations.length ? [['#kurumlar', 'Kurumlar'] as [string, string]] : []),
   ]
   const jsonLd = {
     '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'E-İnfak', applicationCategory: 'BusinessApplication',
@@ -136,7 +163,7 @@ export async function EInfakPortal() {
     <div className="portal flex min-h-screen flex-col scroll-smooth bg-pt-bg font-sans text-pt-text" data-theme={theme}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
 
-      <header className="sticky top-0 z-20 border-b border-pt-line bg-pt-bg/90 backdrop-blur">
+      <header className="sticky top-0 z-20 relative border-b border-pt-line bg-pt-bg/90 backdrop-blur">
         <div className={`${container} flex items-center justify-between gap-4 py-3.5`}>
           <Link href="/" className="flex items-center gap-3">
             <img src="/images/e-infak/mark.png" alt="" width={36} height={36} className="h-9 w-9 rounded-xl bg-white object-contain p-1 ring-1 ring-pt-line" />
@@ -154,6 +181,7 @@ export async function EInfakPortal() {
             <a href="#demo" className="pt-cta rounded-lg px-3.5 py-2">
               <span className="sm:hidden">Demo</span><span className="hidden sm:inline">Demo talep edin</span>
             </a>
+            <PortalMobileNav items={nav} />
           </div>
         </div>
       </header>
@@ -187,7 +215,7 @@ export async function EInfakPortal() {
 
         {organisations.length > 0 && (
           <section className="border-b border-pt-line">
-            <div className={`${container} flex flex-wrap items-center justify-center gap-x-10 gap-y-3 py-6 text-sm`}>
+            <div className={`${container} flex flex-wrap items-center justify-center gap-x-10 gap-y-3 py-5 text-sm`}>
               <span className="font-semibold text-pt-faint">{organisations.length} kurum bağışını E-İnfak ile topluyor</span>
               {organisations.slice(0, 6).map((org) => (
                 <a key={org.slug} href={org.url} className="font-bold text-pt-muted hover:text-pt-brand">{org.name}</a>
@@ -195,6 +223,17 @@ export async function EInfakPortal() {
             </div>
           </section>
         )}
+
+        <section className="border-b border-pt-line bg-pt-bg">
+          <div className={`${container} flex flex-wrap items-center justify-center gap-x-8 gap-y-3 py-4 text-xs font-semibold text-pt-muted`}>
+            {TRUST_PILLARS.map((item) => (
+              <span key={item} className="flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5 text-pt-brand" aria-hidden="true" />
+                {item}
+              </span>
+            ))}
+          </div>
+        </section>
 
         <section id="ozellikler" className={`${container} scroll-mt-20 space-y-20 py-16 lg:py-24`}>
           <div className="mx-auto max-w-3xl text-center">
@@ -219,10 +258,10 @@ export async function EInfakPortal() {
 
         <section id="paneller" className="scroll-mt-20 border-y border-pt-line bg-pt-soft">
           <div className={`${container} py-16`}>
-            <p className={eyebrow}>Üç panel</p>
-            <h2 className={sectionTitle}>Personel, bağışçı ve veli için ayrı ekranlar</h2>
+            <p className={eyebrow}>İki panel</p>
+            <h2 className={sectionTitle}>Personel ve bağışçı için ayrı ekranlar</h2>
             <p className={lead}>Herkes yalnızca kendi işine yarayan ekranı görür; veriler tek yerde tutulur.</p>
-            <div className="mt-10 grid gap-5 lg:grid-cols-3">
+            <div className="mt-10 grid gap-5 lg:grid-cols-2">
               {PANELS.map((panel) => (
                 <div key={panel.name} className="rounded-2xl border border-pt-line bg-pt-card p-7">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-pt-brand-soft text-pt-brand"><panel.icon className="h-5 w-5" aria-hidden="true" /></div>
@@ -239,13 +278,20 @@ export async function EInfakPortal() {
           <p className={eyebrow}>Modüller</p>
           <h2 className={sectionTitle}>Bağıştan sahaya, ihtiyacınız olan her şey</h2>
           <p className={lead}>Paketinize göre açılır; kullanmadığınız modül menünüzde yer kaplamaz.</p>
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {MODULES.map(([Icon, title, text]) => (
-              <div key={title} className="flex gap-4 rounded-2xl border border-pt-line bg-pt-card p-5 transition-colors hover:border-pt-brand">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-pt-brand-soft text-pt-brand"><Icon className="h-5 w-5" aria-hidden="true" /></div>
-                <div>
-                  <h3 className="font-bold text-pt-text">{title}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-pt-muted">{text}</p>
+          <div className="mt-10 space-y-10">
+            {MODULE_GROUPS.map((group) => (
+              <div key={group.title}>
+                <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-pt-brand">{group.title}</h3>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {group.items.map(([Icon, title, text]) => (
+                    <div key={title} className="flex gap-4 rounded-2xl border border-pt-line bg-pt-card p-5 transition-colors hover:border-pt-brand">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-pt-brand-soft text-pt-brand"><Icon className="h-5 w-5" aria-hidden="true" /></div>
+                      <div>
+                        <h4 className="font-bold text-pt-text">{title}</h4>
+                        <p className="mt-1 text-sm leading-relaxed text-pt-muted">{text}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -281,7 +327,9 @@ export async function EInfakPortal() {
                     <h3 className="text-xl font-bold text-pt-text">{plan.label}</h3>
                     {copy.featured && <span className="rounded-full bg-pt-brand-soft px-2.5 py-0.5 text-[11px] font-bold text-pt-brand">En çok tercih edilen</span>}
                   </div>
-                  <p className="mt-1 text-sm text-pt-muted">{plan.users} personel hesabı</p>
+                  <p className="mt-1 text-sm text-pt-muted">
+                    {plan.users} personel hesabı{plan.bank_accounts ? ` · ${plan.bank_accounts} banka hesabı` : ''}
+                  </p>
                   <ul className="mt-5 flex-1 space-y-3 text-sm text-pt-text">{copy.items.map((item) => <Tick key={item}>{item}</Tick>)}</ul>
                   <PlanCta plan={plan.key} className={`mt-7 rounded-xl px-4 py-3 text-center text-sm font-bold ${copy.featured ? 'pt-cta' : 'border border-pt-line text-pt-text hover:border-pt-brand'}`}>
                     Teklif isteyin
@@ -315,6 +363,16 @@ export async function EInfakPortal() {
           </section>
         )}
 
+        <section id="sss" className="scroll-mt-20 border-t border-pt-line bg-pt-soft">
+          <div className={`${container} py-16`}>
+            <div className="mx-auto max-w-3xl">
+              <p className={eyebrow}>Sıkça sorulanlar</p>
+              <h2 className={sectionTitle}>Aklınıza takılan sorular</h2>
+              <PortalFaq />
+            </div>
+          </div>
+        </section>
+
         <section id="demo" className={`${container} scroll-mt-20 py-16 lg:py-24`}>
           <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-16">
             <div>
@@ -336,13 +394,14 @@ export async function EInfakPortal() {
       <footer className="border-t border-pt-line bg-pt-soft">
         <div className={`${container} flex flex-wrap items-center justify-between gap-3 py-7 text-xs text-pt-faint`}>
           <p>E-İnfak Dernek Bağış Platformu © {new Date().getFullYear()}</p>
-          <div className="flex gap-5">
+          <div className="flex flex-wrap gap-5">
             <Link href="/giris" className="hover:text-pt-text">Kurum Girişi</Link>
-            <Link href="/platform" className="hover:text-pt-text">Platform</Link>
-            <a href="mailto:info@e-infak.org" className="hover:text-pt-text">İletişim</a>
+            <a href="#sss" className="hover:text-pt-text">Sıkça Sorulanlar</a>
+            <a href="mailto:info@e-infak.org" className="hover:text-pt-text">info@e-infak.org</a>
           </div>
         </div>
       </footer>
+      <PortalKvkkModal />
     </div>
   )
 }

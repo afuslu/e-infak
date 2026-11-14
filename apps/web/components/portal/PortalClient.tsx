@@ -91,18 +91,12 @@ interface DonorProjects {
   student_sponsorships: Array<{ id: string; person_name: string; active: boolean; amount_cents: number }>
 }
 
-interface Student { id: string; full_name: string; parent_name: string }
-
-interface StudentProgress { id: string; check_date: string; memorized_pages: number; current_surah: string; instructor_notes?: string }
-
 interface TransferInfo { bank_name?: string; iban?: string; transfer_reference?: string }
 
-type Role = 'donor' | 'parent'
 type PayMethod = 'credit_card' | 'bank_transfer'
 type TabKey = 'ozet' | 'bagislar' | 'kurban' | 'destek' | 'uyelik' | 'duzenli' | 'odemeler'
 
 const SESSION_KEY = 'einfak-portal'
-const QURAN_PAGES = 604
 const EMPTY_PROJECTS: DonorProjects = { water_wells: [], orphan_sponsorships: [], student_sponsorships: [] }
 
 const DONATION_STATUS: Record<string, [string, string]> = {
@@ -237,14 +231,12 @@ const donateLink = (
 /* ---------- page ---------- */
 
 export function PortalClient({ siteName }: { siteName: string }) {
-  const [activeRole, setActiveRole] = useState<Role>('donor')
   const [step, setStep] = useState<'login' | 'otp' | 'dashboard'>('login')
   const [phone, setPhone] = useState('')
   const [otpCode, setOtpCode] = useState('')
   const [resendIn, setResendIn] = useState(0)
 
   const [token, setToken] = useState<string | null>(null)
-  const [role, setRole] = useState<Role | null>(null)
   const [displayName, setDisplayName] = useState('')
   const [tab, setTab] = useState<TabKey>('ozet')
 
@@ -256,9 +248,6 @@ export function PortalClient({ siteName }: { siteName: string }) {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>([])
   const [projects, setProjects] = useState<DonorProjects>(EMPTY_PROJECTS)
-  const [students, setStudents] = useState<Student[]>([])
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
-  const [studentProgress, setStudentProgress] = useState<StudentProgress[]>([])
 
   const [payingId, setPayingId] = useState<string | null>(null)
   const [transferInfo, setTransferInfo] = useState<TransferInfo | null>(null)
@@ -270,13 +259,11 @@ export function PortalClient({ siteName }: { siteName: string }) {
   const logout = useCallback((message = '') => {
     try { sessionStorage.removeItem(SESSION_KEY) } catch { /* ignore */ }
     setToken(null)
-    setRole(null)
     setStep('login')
     setOtpCode('')
     setTab('ozet')
     setDonations([]); setShares([]); setPledges([]); setMemberships([]); setMyWells([])
     setSubscriptions([]); setPaymentOrders([]); setProjects(EMPTY_PROJECTS)
-    setStudents([]); setSelectedStudent(null); setStudentProgress([])
     setTransferInfo(null)
     setSuccessMsg('')
     setErrorMsg(message)
@@ -291,28 +278,11 @@ export function PortalClient({ siteName }: { siteName: string }) {
     return true
   }, [logout])
 
-  const loadStudentProgress = useCallback(async (student: Student, authToken: string | null) => {
-    setSelectedStudent(student)
-    setStudentProgress([])
-    try {
-      const res = await axios.get(`${apiBase()}/api/v1/parent/students/${student.id}/progress`, { headers: authHeaders(authToken) })
-      setStudentProgress(res.data)
-    } catch (err) {
-      if (!expired(err)) setErrorMsg('İlerleme kayıtları yüklenemedi.')
-    }
-  }, [expired])
-
-  const loadDashboard = useCallback(async (authToken: string, forRole: Role) => {
+  const loadDashboard = useCallback(async (authToken: string) => {
     const base = apiBase()
     const headers = authHeaders(authToken)
     setDataLoading(true)
     try {
-      if (forRole === 'parent') {
-        const res = await axios.get(`${base}/api/v1/parent/students`, { headers })
-        setStudents(res.data)
-        if (res.data.length > 0) await loadStudentProgress(res.data[0], authToken)
-        return
-      }
       const get = (path: string) => axios.get(`${base}/api/v1/portal/me/${path}`, { headers })
       const [donationsRes, sharesRes, subsRes, ordersRes, projectsRes] = await Promise.all([
         get('donations'), get('kurban-shares'), get('subscriptions'), get('payment-orders'), get('projects'),
@@ -332,19 +302,17 @@ export function PortalClient({ siteName }: { siteName: string }) {
     } finally {
       setDataLoading(false)
     }
-  }, [expired, loadStudentProgress])
+  }, [expired])
 
   // A reload keeps the visitor signed in for this browser tab.
   useEffect(() => {
     try {
       const saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null')
-      if (saved?.token && (saved.role === 'donor' || saved.role === 'parent')) {
+      if (saved?.token && (!saved.role || saved.role === 'donor')) {
         setToken(saved.token)
-        setRole(saved.role)
-        setActiveRole(saved.role)
         setDisplayName(typeof saved.name === 'string' ? saved.name : '')
         setStep('dashboard')
-        loadDashboard(saved.token, saved.role)
+        loadDashboard(saved.token)
       }
     } catch {
       // storage unavailable: sign in again
@@ -357,7 +325,7 @@ export function PortalClient({ siteName }: { siteName: string }) {
     return () => clearTimeout(timer)
   }, [resendIn])
 
-  const authPath = (name: string) => `${apiBase()}/api/v1/${activeRole === 'donor' ? 'portal' : 'parent'}/${name}`
+  const authPath = (name: string) => `${apiBase()}/api/v1/portal/${name}`
 
   const sendOtp = async () => {
     if (!phone.trim()) return
@@ -384,15 +352,14 @@ export function PortalClient({ siteName }: { siteName: string }) {
     try {
       const res = await axios.post(authPath('verify-otp'), { phone, code: otpCode })
       const accessToken: string = res.data.access_token
-      const person = res.data.donor || res.data.parent || res.data.user
+      const person = res.data.donor || res.data.user
       const name = [person?.first_name, person?.last_name].filter(Boolean).join(' ')
       setToken(accessToken)
-      setRole(activeRole)
       setDisplayName(name)
       setStep('dashboard')
       setSuccessMsg('')
-      try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: accessToken, role: activeRole, name })) } catch { /* ignore */ }
-      loadDashboard(accessToken, activeRole)
+      try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token: accessToken, role: 'donor', name })) } catch { /* ignore */ }
+      loadDashboard(accessToken)
     } catch (err) {
       setErrorMsg(errorText(err, 'Kod geçersiz veya süresi dolmuş.'))
     } finally {
@@ -497,9 +464,6 @@ export function PortalClient({ siteName }: { siteName: string }) {
     { key: 'duzenli', label: 'Düzenli Bağış', count: subscriptions.length },
     paymentOrders.length ? { key: 'odemeler', label: 'Ödemeler', count: paymentOrders.length } : null,
   ].filter(Boolean)) as { key: TabKey; label: string; count: number }[]
-
-  const latestProgress = studentProgress.reduce<StudentProgress | null>(
-    (best, p) => (!best || new Date(p.check_date) > new Date(best.check_date) ? p : best), null)
 
   /* ---------- sections ---------- */
 
@@ -834,30 +798,17 @@ export function PortalClient({ siteName }: { siteName: string }) {
         <div className="mx-auto max-w-md">
           <div className="mb-7 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600 text-2xl text-white shadow-lg" aria-hidden="true">
-              {activeRole === 'donor' ? '🤲' : '🎓'}
+              🤲
             </div>
-            <h1 className="font-heading text-2xl font-bold text-slate-900 sm:text-3xl">{activeRole === 'donor' ? 'Bağışçı Paneli' : 'Veli Paneli'}</h1>
+            <h1 className="font-heading text-2xl font-bold text-slate-900 sm:text-3xl">Bağışçı Paneli</h1>
             <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
-              {activeRole === 'donor'
-                ? 'Bağışlarınızı, makbuzlarınızı, kurban videolarınızı ve sponsorluklarınızı tek yerden takip edin.'
-                : 'Öğrencinizin hafızlık ilerlemesini ve hoca değerlendirmelerini takip edin.'}
+              Bağışlarınızı, makbuzlarınızı, kurban videolarınızı ve sponsorluklarınızı tek yerden takip edin.
             </p>
           </div>
 
           {messages}
 
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-            {step === 'login' && (
-              <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1.5" role="tablist">
-                {(['donor', 'parent'] as Role[]).map((r) => (
-                  <button key={r} type="button" role="tab" aria-selected={activeRole === r}
-                    onClick={() => { setActiveRole(r); setErrorMsg(''); setSuccessMsg('') }}
-                    className={`rounded-xl py-2.5 text-sm font-bold transition-colors ${activeRole === r ? 'bg-white text-primary-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>
-                    {r === 'donor' ? 'Bağışçı' : 'Veli'}
-                  </button>
-                ))}
-              </div>
-            )}
 
             <div className="p-6">
               {step === 'login' ? (
@@ -868,7 +819,7 @@ export function PortalClient({ siteName }: { siteName: string }) {
                       onChange={(event) => setPhone(event.target.value)} required
                       className="w-full rounded-xl border border-slate-300 p-3.5 text-base outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-600/20" />
                     <p className="mt-1.5 text-xs text-slate-500">
-                      {activeRole === 'donor' ? 'Bağış yaparken kullandığınız numarayı girin.' : 'Kurumda kayıtlı veli numaranızı girin.'} Size SMS ile tek kullanımlık kod göndereceğiz.
+                      Bağış yaparken kullandığınız numarayı girin. Size SMS ile tek kullanımlık kod göndereceğiz.
                     </p>
                   </div>
                   <button type="submit" disabled={loading}
@@ -907,7 +858,7 @@ export function PortalClient({ siteName }: { siteName: string }) {
     )
   }
 
-  const initials = (displayName || (role === 'donor' ? 'B' : 'V')).split(' ').map((part) => part[0]).slice(0, 2).join('').toLocaleUpperCase('tr')
+  const initials = (displayName || 'B').split(' ').map((part) => part[0]).slice(0, 2).join('').toLocaleUpperCase('tr')
 
   return (
     <div className="bg-slate-50 px-4 py-8 text-slate-800 antialiased sm:py-10">
@@ -916,14 +867,12 @@ export function PortalClient({ siteName }: { siteName: string }) {
           <div className="flex min-w-0 items-center gap-3.5">
             <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-primary-600 text-base font-bold text-white">{initials}</div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary-700">{role === 'donor' ? 'Bağışçı Paneli' : 'Veli Paneli'}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary-700">Bağışçı Paneli</p>
               <h1 className="truncate font-heading text-xl font-bold text-slate-900 sm:text-2xl">{displayName ? `Merhaba, ${displayName.split(' ')[0]}` : 'Hoş geldiniz'}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {role === 'donor' && (
-              <Link href="/kampanyalar" className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700">Bağış yap</Link>
-            )}
+            <Link href="/kampanyalar" className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700">Bağış yap</Link>
             <button type="button" onClick={() => logout()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
               Çıkış
             </button>
@@ -956,7 +905,7 @@ export function PortalClient({ siteName }: { siteName: string }) {
             </div>
             <div className="h-64 animate-pulse rounded-2xl bg-slate-200/70" />
           </div>
-        ) : role === 'donor' ? (
+        ) : (
           <div className="animate-fade-in space-y-6">
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               <Stat label="Toplam destek" value={totalText} hint={`${confirmed.length} onaylı bağış`} accent />
@@ -980,75 +929,6 @@ export function PortalClient({ siteName }: { siteName: string }) {
             </div>
 
             <div role="tabpanel">{tabContent[activeTab]}</div>
-          </div>
-        ) : (
-          <div className="animate-fade-in grid items-start gap-6 md:grid-cols-12">
-            <div className="md:col-span-4">
-              <Panel title="Öğrencilerim">
-                {students.length === 0 ? (
-                  <Empty icon="🎓">Numaranıza kayıtlı öğrenci bulunamadı.</Empty>
-                ) : (
-                  <div className="space-y-2">
-                    {students.map((s) => (
-                      <button key={s.id} type="button" onClick={() => loadStudentProgress(s, token)}
-                        className={`w-full rounded-xl border p-3 text-start text-sm font-bold transition-colors ${
-                          selectedStudent?.id === s.id ? 'border-primary-600 bg-primary-50 text-primary-900' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}>
-                        {s.full_name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </Panel>
-            </div>
-
-            <div className="space-y-6 md:col-span-8">
-              {!selectedStudent ? (
-                <Panel title="İlerleme"><Empty icon="📖">Ayrıntıları görmek için bir öğrenci seçin.</Empty></Panel>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    <Stat label="Ezberlenen sayfa" value={latestProgress ? `${latestProgress.memorized_pages} / ${QURAN_PAGES}` : '—'}
-                      hint={latestProgress ? `%${Math.min(100, Math.round((latestProgress.memorized_pages / QURAN_PAGES) * 100))} tamamlandı` : undefined} accent />
-                    <Stat label="Güncel sure" value={latestProgress?.current_surah || '—'} />
-                    <Stat label="Son kontrol" value={latestProgress ? new Date(latestProgress.check_date).toLocaleDateString('tr-TR') : '—'} hint={`${studentProgress.length} kayıt`} />
-                  </div>
-
-                  <Panel title={`${selectedStudent.full_name} · hafızlık ilerlemesi`}>
-                    {studentProgress.length === 0 ? (
-                      <Empty icon="📖">Bu öğrenci için henüz ders kaydı girilmemiş.</Empty>
-                    ) : (
-                      <div className="space-y-3">
-                        {studentProgress.map((p) => (
-                          <div key={p.id}>
-                            <div className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-slate-700">
-                              <span>{date(p.check_date)}</span>
-                              <span>{p.current_surah} · <b>{p.memorized_pages} sayfa</b></span>
-                            </div>
-                            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                              <div className="h-full rounded-full bg-primary-600" style={{ width: `${Math.min((p.memorized_pages / QURAN_PAGES) * 100, 100)}%` }} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Panel>
-
-                  {studentProgress.some((p) => p.instructor_notes) && (
-                    <Panel title="Hoca değerlendirmeleri">
-                      <div className="space-y-3">
-                        {studentProgress.filter((p) => p.instructor_notes).map((p) => (
-                          <blockquote key={p.id} className="rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">
-                            <span className="mb-1 block text-xs font-bold text-amber-800">{date(p.check_date)}</span>
-                            {p.instructor_notes}
-                          </blockquote>
-                        ))}
-                      </div>
-                    </Panel>
-                  )}
-                </>
-              )}
-            </div>
           </div>
         )}
       </div>
