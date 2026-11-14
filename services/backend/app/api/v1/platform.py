@@ -24,7 +24,7 @@ from app.core.security import create_access_token, decode_token, get_password_ha
 from app.models.audit_log import AuditLog
 from app.models.donation import Donation, DonationStatus
 from app.models.organization import Organization, OrganizationDomain
-from app.models.platform import PlatformAuditLog, PlatformUser
+from app.models.platform import DemoRequest, PlatformAuditLog, PlatformUser
 from app.models.user import User, UserRole
 from app.payments import PROVIDERS as PAYMENT_PROVIDERS, build_provider
 from app.services import domains, passwords, platform_alerts
@@ -565,6 +565,34 @@ async def support_session(org_id: UUID, request: Request, db: AsyncSession = Dep
     await db.commit()
     # The token travels in the URL fragment: browsers never send it to a server or log it.
     return {"url": f"{await site_url(db, org)}/giris#destek={token}", "expires_in": SUPPORT_TOKEN_MINUTES * 60}
+
+
+# --- Demo requests from the landing page ----------------------------------------
+
+def _demo_row(r: DemoRequest) -> dict:
+    return {"id": str(r.id), "name": r.name, "organization": r.organization, "phone": r.phone, "email": r.email,
+            "plan": r.plan, "message": r.message, "status": r.status, "created_at": r.created_at.isoformat()}
+
+
+@router.get("/demo-requests")
+async def demo_requests(db: AsyncSession = Depends(get_db), _: PlatformUser = Depends(get_platform_user)):
+    rows = (await db.execute(select(DemoRequest).order_by(DemoRequest.created_at.desc()).limit(300))).scalars().all()
+    return [_demo_row(r) for r in rows]
+
+
+class DemoStatusIn(BaseModel):
+    status: str = Field(pattern="^(new|contacted|closed)$")
+
+
+@router.patch("/demo-requests/{request_id}")
+async def update_demo_request(request_id: UUID, payload: DemoStatusIn, db: AsyncSession = Depends(get_db),
+                              _: PlatformUser = Depends(get_platform_user)):
+    row = await db.get(DemoRequest, request_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Talep bulunamadı")
+    row.status = payload.status
+    await db.commit()
+    return _demo_row(row)
 
 
 # --- Audit ----------------------------------------------------------------------

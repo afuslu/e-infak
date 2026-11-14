@@ -233,3 +233,30 @@ async def test_alerts_flag_full_seats_and_data_outside_plan(db_session, http):
     kinds = {a["kind"] for a in (await http.get(f"/api/v1/platform/alerts?org_id={org.id}", headers=auth)).json()}
     assert "seats_full" not in kinds and "data_outside_plan" not in kinds
     assert (await http.get("/api/v1/platform/alerts")).status_code == 401
+
+
+async def test_demo_request_is_stored_and_bots_are_dropped(db_session):
+    from fastapi import HTTPException
+    from sqlalchemy import select
+    from starlette.requests import Request
+    from app.api.v1 import site
+    from app.models.platform import DemoRequest
+
+    request = Request({"type": "http", "method": "POST", "path": "/api/v1/directory/demo-request", "headers": [],
+                       "query_string": b"", "client": ("9.9.9.9", 1)})
+    marker = f"Deneme Derneği {uuid.uuid4().hex[:6]}"
+    ok = await site.create_demo_request(site.DemoRequestIn(
+        name="Ayşe <b>Yılmaz</b>", organization=marker, phone="0532 111 22 33", email="A@Ornek.org", plan="orta",
+        message="Kurban modülünü görmek istiyoruz"), request, db_session)
+    assert ok == {"status": "received"}
+    await site.create_demo_request(site.DemoRequestIn(
+        name="Bot", organization=marker + " bot", phone="05321112233", website="http://spam"), request, db_session)
+    with pytest.raises(HTTPException):
+        await site.create_demo_request(site.DemoRequestIn(name="Ali", organization=marker, phone="1234567"), request, db_session)
+    rows = (await db_session.execute(select(DemoRequest).where(DemoRequest.organization.like(f"{marker}%")))).scalars().all()
+    assert len(rows) == 1 and rows[0].phone == "05321112233" and rows[0].email == "a@ornek.org" and "<" not in rows[0].name
+    assert rows[0].plan == "orta" and rows[0].status == "new"
+
+    plans = await site.platform_plans()
+    assert [p["key"] for p in plans] == ["baslangic", "orta", "ileri"] and [p["users"] for p in plans] == [1, 3, 5]
+    assert plans[1]["new_features"] and not set(plans[1]["new_features"]) & set(plans[0]["new_features"])

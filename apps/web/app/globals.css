@@ -35,6 +35,18 @@
   --font-heading: var(--font-heading-family), Georgia, serif;
 
   --animate-fade-in: fade-in 0.25s ease-out both;
+
+  /* e-infak.org landing page: light by day, dark by night (values on .portal below) */
+  --color-pt-bg: var(--pt-bg);
+  --color-pt-soft: var(--pt-soft);
+  --color-pt-card: var(--pt-card);
+  --color-pt-line: var(--pt-line);
+  --color-pt-text: var(--pt-text);
+  --color-pt-muted: var(--pt-muted);
+  --color-pt-faint: var(--pt-faint);
+  --color-pt-brand: var(--pt-brand);
+  --color-pt-brand-strong: var(--pt-brand-strong);
+  --color-pt-brand-soft: var(--pt-brand-soft);
 }
 
 /* Defaults of the site design tokens; organisation choices override them on .site-design. */
@@ -204,3 +216,38 @@
   html.has-tabbar body { padding-bottom: calc(4.25rem + env(safe-area-inset-bottom)); }
   html.has-tabbar .float-above-tabbar { bottom: 5.25rem; }
 }
+
+
+/* ----- e-infak.org ana sayfası: gündüz ve gece görünümü -----
+ * Varsayılan cihazın ayarıdır; ziyaretçi üstteki düğmeyle değiştirirse data-theme yazılır. */
+.portal {
+  color-scheme: light;
+  --pt-bg: #FFFFFF; --pt-soft: #F6F8F7; --pt-card: #FFFFFF; --pt-line: #E3E8E6;
+  --pt-text: #0E1B17; --pt-muted: #475A54; --pt-faint: #7B8C86;
+  --pt-brand: #047857; --pt-brand-strong: #065F46; --pt-brand-soft: #E7F6F0;
+  --pt-shadow: 0 1px 2px rgb(14 27 23 / .05), 0 12px 32px -12px rgb(14 27 23 / .16);
+}
+.portal[data-theme="dark"] {
+  color-scheme: dark;
+  --pt-bg: #0A1211; --pt-soft: #0F1A18; --pt-card: #121F1C; --pt-line: #213531;
+  --pt-text: #EEF5F2; --pt-muted: #A5B8B1; --pt-faint: #6F857D;
+  --pt-brand: #34D399; --pt-brand-strong: #6EE7B7; --pt-brand-soft: rgb(52 211 153 / .12);
+  --pt-shadow: 0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -16px rgb(0 0 0 / .7);
+}
+@media (prefers-color-scheme: dark) {
+  .portal:not([data-theme="light"]) {
+    color-scheme: dark;
+    --pt-bg: #0A1211; --pt-soft: #0F1A18; --pt-card: #121F1C; --pt-line: #213531;
+    --pt-text: #EEF5F2; --pt-muted: #A5B8B1; --pt-faint: #6F857D;
+    --pt-brand: #34D399; --pt-brand-strong: #6EE7B7; --pt-brand-soft: rgb(52 211 153 / .12);
+    --pt-shadow: 0 1px 2px rgb(0 0 0 / .4), 0 16px 40px -16px rgb(0 0 0 / .7);
+  }
+  .portal:not([data-theme="light"]) .pt-day { display: none; }
+  .portal:not([data-theme="light"]) .pt-night { display: inline-flex; }
+}
+.portal .pt-night { display: none; }
+.portal[data-theme="dark"] .pt-day { display: none; }
+.portal[data-theme="dark"] .pt-night { display: inline-flex; }
+.portal .pt-shadow { box-shadow: var(--pt-shadow); }
+.portal .pt-cta { background: #047857; color: #FFFFFF; }
+.portal .pt-cta:hover { background: #065F46; }

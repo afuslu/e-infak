@@ -8,6 +8,7 @@ import { platformCall, platformToken, setPlatformToken } from '../../lib/platfor
 const NAV = [
   { href: '/platform', label: 'Kurumlar' },
   { href: '/platform/yeni', label: 'Yeni kurum' },
+  { href: '/platform/talepler', label: 'Demo talepleri' },
   { href: '/platform/kayitlar', label: 'İşlem kayıtları' },
 ]
 

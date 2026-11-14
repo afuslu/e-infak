@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 
@@ -32,5 +32,21 @@ class PlatformAuditLog(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
     action = Column(String(100), nullable=False, index=True)
     details = Column(JSONB, nullable=False, default=dict)
+    ip_address = Column(String(64))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class DemoRequest(Base):
+    """A demo / offer request left on the platform landing page (e-infak.org)."""
+    __tablename__ = "demo_requests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(120), nullable=False)
+    organization = Column(String(200), nullable=False)
+    phone = Column(String(32), nullable=False)
+    email = Column(String(255))
+    plan = Column(String(20))  # package the visitor asked about, if any
+    message = Column(Text)
+    status = Column(String(16), nullable=False, default="new", server_default="new", index=True)  # new | contacted | closed
     ip_address = Column(String(64))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)

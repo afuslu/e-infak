@@ -1,10 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import axios from 'axios'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { hasFeature, hasPermission, useAdminAccess } from '../../../lib/admin-access'
+import {
+  AlertCircle, ArrowDownRight, ArrowDownToLine, ArrowUpRight, Blocks, CalendarDays, ChevronRight, HandCoins, Megaphone,
+  Receipt, RefreshCw, TrendingUp, UserPlus, Users, type LucideIcon,
+} from 'lucide-react'
+import { adminGet, hasFeature, hasPermission, useAdminAccess, v1Get } from '../../../lib/admin-access'
+import { PageHeader, StatCard } from '../../../components/admin/ui'
+import { ghostButton } from '../../../components/admin/FormKit'
 
 interface MonthlyTrend {
   month: string
@@ -37,8 +42,9 @@ function Change({ current, previous, label }: { current: number; previous: numbe
   const pct = ((current - previous) / previous) * 100
   const up = pct >= 0
   return (
-    <div className={`text-xs font-semibold ${up ? 'text-green-600' : 'text-red-600'}`}>
-      {up ? '↑' : '↓'} %{Math.abs(pct).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} {label}
+    <div className={`flex items-center gap-1 text-xs font-semibold ${up ? 'text-green-600' : 'text-red-600'}`}>
+      {up ? <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /> : <ArrowDownRight className="h-3.5 w-3.5" aria-hidden="true" />}
+      %{Math.abs(pct).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} {label}
     </div>
   )
 }
@@ -49,13 +55,13 @@ interface PaymentMethod {
   total_lira: number
 }
 
-const QUICK_LINKS: { href: string; label: string; icon: string; feature?: string; permission?: string }[] = [
-  { href: '/admin/bagislar', label: 'Bağışlar', icon: '💰' },
-  { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: '📢' },
-  { href: '/admin/bagiscilar', label: 'Bağışçılar', icon: '👥', feature: 'donor_crm' },
-  { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: '🧾', feature: 'receipts' },
-  { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: '📨', feature: 'bank_transactions' },
-  { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: '🧩', permission: 'content_manage' },
+const QUICK_LINKS: { href: string; label: string; icon: LucideIcon; feature?: string; permission?: string }[] = [
+  { href: '/admin/bagislar', label: 'Bağışlar', icon: HandCoins },
+  { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: Megaphone },
+  { href: '/admin/bagiscilar', label: 'Bağışçılar', icon: Users, feature: 'donor_crm' },
+  { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: Receipt, feature: 'receipts' },
+  { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownToLine, feature: 'bank_transactions' },
+  { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: Blocks, permission: 'content_manage' },
 ]
 
 export default function AdminDashboardPage() {
@@ -67,31 +73,28 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState('')
   const { data: access } = useAdminAccess()
 
-  const API_BASE = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
-
-  const getAuthHeaders = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-    return {
-      Authorization: `Bearer ${token}`,
-    }
-  }
+  const [todo, setTodo] = useState<{ transfers?: number; smsFailed?: number; smsWaiting?: number }>({})
 
   const loadAnalytics = async () => {
     setLoading(true)
     setError('')
     try {
-      const headers = getAuthHeaders()
-      const res = await axios.get(`${API_BASE}/api/v1/admin-features/analytics/stats`, { headers })
+      const res = await adminGet<{ monthly_donations: MonthlyTrend[]; campaigns_progress: CampaignProgress[]; payment_methods: PaymentMethod[]; kpis: Kpis }>('/analytics/stats')
       setTrends(res.data.monthly_donations)
       setCampaigns(res.data.campaigns_progress)
       setPayments(res.data.payment_methods)
       setKpis(res.data.kpis)
-    } catch (err) {
-      console.error('Failed to load analytics:', err)
+    } catch {
       setError('Analiz verileri yüklenemedi. Lütfen tekrar deneyin.')
     } finally {
       setLoading(false)
     }
+    // Work waiting for staff; modules outside the package simply stay hidden.
+    v1Get<{ total: number }>('/admin/incoming-transfers', { status: 'unmatched', limit: 1 })
+      .then((r) => setTodo((t) => ({ ...t, transfers: r.data.total }))).catch(() => {})
+    adminGet<{ counts: Record<string, number> }>('/sms/messages', { page_size: 1 })
+      .then((r) => setTodo((t) => ({ ...t, smsFailed: r.data.counts.failed || 0, smsWaiting: (r.data.counts.queued || 0) + (r.data.counts.scheduled || 0) })))
+      .catch(() => {})
   }
 
   useEffect(() => {
@@ -104,21 +107,12 @@ export default function AdminDashboardPage() {
   const paymentTotal = payments.reduce((sum, p) => sum + p.total_lira, 0)
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Genel Bakış</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </p>
-        </div>
-        <button
-          onClick={loadAnalytics}
-          className="text-xs font-bold text-primary-600 hover:text-primary-700 bg-white border px-3 py-1.5 rounded-lg shadow-sm"
-        >
-          🔄 Yenile
-        </button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Genel Bakış"
+        description={<span className="inline-flex items-center gap-1.5"><CalendarDays className="h-4 w-4" aria-hidden="true" />{new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>}
+        actions={<button onClick={loadAnalytics} className={`${ghostButton} flex items-center gap-1.5`}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Yenile</button>}
+      />
 
       {error && (
         <div role="alert" className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -134,48 +128,50 @@ export default function AdminDashboardPage() {
         {QUICK_LINKS.filter((link) => hasFeature(access, link.feature) && hasPermission(access, link.permission)).map((link) => (
           <Link key={link.href} href={link.href}
             className="group flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-3.5 py-3 text-[13px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-primary-500 hover:text-primary-700">
-            <span className="text-lg">{link.icon}</span>
+            <link.icon className="h-[18px] w-[18px] shrink-0 text-gray-400 group-hover:text-primary-600" aria-hidden="true" />
             <span className="min-w-0 truncate">{link.label}</span>
           </Link>
         ))}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="p-6 border border-gray-100 shadow-sm">
-          <div className="mb-2 text-sm text-gray-600 font-bold uppercase tracking-wider text-[10px]">Bugün Toplanan</div>
-          <div className="mb-1 text-3xl font-black text-gray-950">{kpis ? money(kpis.today_cents) : '—'}</div>
-          {kpis && <Change current={kpis.today_cents} previous={kpis.yesterday_cents} label="dünden" />}
-        </Card>
+      {(!!todo.transfers || !!todo.smsFailed) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {!!todo.transfers && (
+            <Link href="/admin/gelen-havaleler" className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 hover:border-amber-300">
+              <ArrowDownToLine className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <span className="flex-1">{todo.transfers.toLocaleString('tr-TR')} gelen havale bağışçıyla eşleştirilmeyi bekliyor</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
+          {!!todo.smsFailed && (
+            <Link href="/admin/sms-gonderimleri" className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:border-red-300">
+              <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <span className="flex-1">{todo.smsFailed.toLocaleString('tr-TR')} SMS gönderilemedi</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
+        </div>
+      )}
 
-        <Card className="p-6 border border-gray-100 shadow-sm">
-          <div className="mb-2 text-sm text-gray-600 font-bold uppercase tracking-wider text-[10px]">Bu Ay Toplanan</div>
-          <div className="mb-1 text-3xl font-black text-primary-600">{kpis ? money(kpis.month_cents) : '—'}</div>
-          {kpis && <Change current={kpis.month_cents} previous={kpis.last_month_to_date_cents} label="geçen ayın aynı dönemine göre" />}
-        </Card>
-
-        <Card className="p-6 border border-gray-100 shadow-sm">
-          <div className="mb-2 text-sm text-gray-600 font-bold uppercase tracking-wider text-[10px]">Bağış Yapan Bağışçı</div>
-          <div className="mb-1 text-3xl font-black text-gray-950">{kpis ? kpis.donor_count.toLocaleString('tr-TR') : '—'}</div>
-          {kpis && <div className="text-xs text-blue-600 font-semibold">Bu ay {kpis.new_donors_this_month} yeni bağışçı</div>}
-        </Card>
-
-        <Card className="p-6 border border-gray-100 shadow-sm">
-          <div className="mb-2 text-sm text-gray-600 font-bold uppercase tracking-wider text-[10px]">Aktif Kampanyalar</div>
-          <div className="mb-1 text-3xl font-black text-gray-950">{kpis ? kpis.active_campaigns : '—'}</div>
-          <div className="text-xs text-gray-400 font-semibold">Toplam {campaigns.length} kampanya</div>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Bugün toplanan" icon={HandCoins} value={kpis ? money(kpis.today_cents) : '—'}
+          hint={kpis && <Change current={kpis.today_cents} previous={kpis.yesterday_cents} label="dünden" />} />
+        <StatCard label="Bu ay toplanan" icon={TrendingUp} tone="brand" value={kpis ? money(kpis.month_cents) : '—'}
+          hint={kpis && <Change current={kpis.month_cents} previous={kpis.last_month_to_date_cents} label="geçen ayın aynı dönemine göre" />} />
+        <StatCard label="Bağış yapan bağışçı" icon={UserPlus} value={kpis ? kpis.donor_count.toLocaleString('tr-TR') : '—'}
+          hint={kpis && `Bu ay ${kpis.new_donors_this_month} yeni bağışçı`} />
+        <StatCard label="Aktif kampanya" icon={Megaphone} value={kpis ? kpis.active_campaigns : '—'} hint={`Toplam ${campaigns.length} kampanya`} />
       </div>
 
       {loading ? (
         <p className="text-sm text-gray-500 animate-pulse text-center py-12">Analiz verileri yükleniyor...</p>
       ) : (
-        <div className="grid lg:grid-cols-12 gap-8 items-start">
+        <div className="grid items-start gap-6 lg:grid-cols-12">
           {/* Left: Interactive Monthly Donations Bar Chart */}
           <div className="lg:col-span-8">
             <Card className="p-6 border border-gray-100 shadow-sm space-y-6">
               <div className="border-b pb-2">
-                <h2 className="text-lg font-bold text-gray-900">Aylık Bağış Trendi (Son 6 Ay)</h2>
+                <h2 className="text-base font-bold text-gray-900">Aylık bağış trendi <span className="font-normal text-gray-400">· son 6 ay</span></h2>
               </div>
 
               {/* Dynamic CSS Bar Chart */}
@@ -207,7 +203,7 @@ export default function AdminDashboardPage() {
           <div className="lg:col-span-4 space-y-6">
             {/* Payment breakdowns */}
             <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-[11px] text-gray-400">Ödeme Kanalları (Bu Yıl)</h2>
+              <h2 className="border-b pb-2 text-base font-bold text-gray-900">Ödeme kanalları <span className="font-normal text-gray-400">· bu yıl</span></h2>
               {payments.length === 0 && <p className="text-xs text-gray-400">Bu yıl henüz onaylı bağış yok.</p>}
               <div className="space-y-4">
                 {payments.map((p, idx) => (
@@ -230,7 +226,7 @@ export default function AdminDashboardPage() {
 
             {/* Campaign Gauges */}
             <Card className="p-6 border border-gray-100 shadow-sm space-y-4">
-              <h2 className="text-sm font-bold text-gray-900 border-b pb-2 uppercase tracking-wider text-[11px] text-gray-400">Kampanya Doluluk Puanları</h2>
+              <h2 className="border-b pb-2 text-base font-bold text-gray-900">Kampanya hedefleri</h2>
               <div className="space-y-4 max-h-52 overflow-y-auto pr-1">
                 {campaigns.map((c, idx) => (
                   <div key={idx} className="space-y-1">

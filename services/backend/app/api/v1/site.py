@@ -76,6 +76,58 @@ async def card_payments_available(db: AsyncSession, org) -> bool:
         return False
 
 
+class DemoRequestIn(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    organization: str = Field(min_length=2, max_length=200)
+    phone: str = Field(min_length=7, max_length=32)
+    email: str | None = Field(default=None, max_length=255)
+    plan: str | None = Field(default=None, max_length=20)
+    message: str | None = Field(default=None, max_length=2000)
+    website: str | None = Field(default=None, max_length=200)  # hidden field; only bots fill it
+
+
+@public_router.post("/directory/demo-request", status_code=201,
+                    dependencies=[Depends(rate_limit("demo-request", limit=5, window_seconds=3600))])
+async def create_demo_request(payload: DemoRequestIn, request: Request, db: AsyncSession = Depends(get_db)):
+    """Demo / offer request from the platform landing page; listed in the platform console."""
+    from app.core.plans import Plan
+    from app.models.platform import DemoRequest
+    from app.utils.content import sanitize_public_text
+
+    if payload.website:  # a bot: answer as if it worked, store nothing
+        return {"status": "received"}
+    digits = "".join(ch for ch in payload.phone if ch.isdigit())
+    if not 10 <= len(digits) <= 15:
+        raise HTTPException(status_code=422, detail="Geçerli bir telefon numarası girin")
+    email = (payload.email or "").strip().lower() or None
+    if email and ("@" not in email or "." not in email.split("@")[-1]):
+        raise HTTPException(status_code=422, detail="Geçerli bir e-posta adresi girin")
+    db.add(DemoRequest(
+        name=sanitize_public_text(payload.name) or "", organization=sanitize_public_text(payload.organization) or "",
+        phone=digits, email=email, plan=payload.plan if payload.plan in {p.value for p in Plan} else None,
+        message=sanitize_public_text(payload.message), ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+    return {"status": "received"}
+
+
+@public_router.get("/directory/plans")
+async def platform_plans():
+    """Packages as the product defines them, so the landing page cannot drift from the real limits."""
+    from app.core.plans import FEATURE_LABELS, PLAN_FEATURES, PLAN_LABELS, PLAN_LIMITS, Plan
+
+    plans, seen = [], frozenset()
+    for plan in Plan:
+        features = PLAN_FEATURES[plan]
+        plans.append({
+            "key": plan.value, "label": PLAN_LABELS[plan], "users": PLAN_LIMITS[plan]["users"],
+            "bank_accounts": PLAN_LIMITS[plan]["bank_accounts"],
+            "new_features": sorted(FEATURE_LABELS[f] for f in features - seen if f in FEATURE_LABELS),
+        })
+        seen = features
+    return plans
+
+
 @public_router.get("/directory")
 async def platform_directory(db: AsyncSession = Depends(get_db)):
     """Organisations listed on the platform landing page (they can opt out)."""

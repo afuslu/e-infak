@@ -6,7 +6,7 @@ from app.models.media import MediaAsset, MediaFolder
 from app.models.sponsorship import Beneficiary, Pledge, PledgeInstallment, WellShare
 from app.models.fx import FxRate
 from app.models.credentials import TenantCredential
-from app.models.platform import PlatformAuditLog, PlatformUser
+from app.models.platform import DemoRequest, PlatformAuditLog, PlatformUser
 from app.models.field_ops import (
     Region, MoneyBox, MoneyBoxCollection, AidPackage, AidRecipient, AidDistribution, HouseholdMember, TaskTemplate, Task,
 )

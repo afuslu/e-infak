@@ -1,10 +1,12 @@
 import type { MetadataRoute } from 'next'
 import { headers } from 'next/headers'
-import { getPublic, type PublicPost } from '../lib/public-content'
+import { getPublic, getSite, type PublicPost } from '../lib/public-content'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const host = (await headers()).get('host') || 'e-infak.org'
   const baseUrl = `https://${host}`
+  // The platform's own address has one page; organisation paths do not exist there.
+  if (!(await getSite())) return [{ url: `${baseUrl}/`, lastModified: new Date(), changeFrequency: 'weekly', priority: 1 }]
   const paths = [
     '/', '/kampanyalar', '/haberler', '/galeri', '/gonullu', '/hakkimizda', '/iletisim', '/zekat-hesapla',
     '/kvkk', '/gizlilik', '/bagis-kosullari',
