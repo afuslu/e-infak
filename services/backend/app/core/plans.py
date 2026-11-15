@@ -96,6 +96,7 @@ _BASLANGIC = {
     Feature.SMS,
     Feature.ROLES,
     Feature.REPORTS_BASIC,
+    Feature.ACCOUNTING,
 }
 _ORTA = _BASLANGIC | {
     Feature.MULTI_LANGUAGE,

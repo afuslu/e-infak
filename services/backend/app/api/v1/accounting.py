@@ -1049,16 +1049,17 @@ async def list_gelir_gider(
 
     # 3. Düzeltme geçmişini (AuditLog) yükle
     audit_rows = (await db.execute(
-        select(AuditLog, User.full_name, User.email)
+        select(AuditLog, User.first_name, User.last_name, User.email)
         .outerjoin(User, User.id == AuditLog.user_id)
         .where(AuditLog.organization_id == org_id, AuditLog.action == "gelir_gider_duzenle")
         .order_by(AuditLog.created_at.desc())
         .limit(1000)
     )).all()
     revisions_by_item: dict[str, list[dict]] = {}
-    for log, u_name, u_email in audit_rows:
+    for log, u_fn, u_ln, u_email in audit_rows:
         det = log.details or {}
         item_key = str(det.get("item_id") or "")
+        u_name = f"{u_fn or ''} {u_ln or ''}".strip()
         if item_key:
             revisions_by_item.setdefault(item_key, []).append({
                 "id": str(log.id),

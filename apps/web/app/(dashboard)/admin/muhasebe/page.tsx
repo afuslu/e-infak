@@ -107,7 +107,77 @@ const GELIR_GIDER_SORT_OPTIONS = [
   { value: 'miktar_asc', label: 'Tutar (Küçük -> Büyük)' },
   { value: 'kategori_asc', label: 'Kategoriye Göre (A-Z)' },
   { value: 'kategori_desc', label: 'Kategoriye Göre (Z-A)' },
+  { value: 'tip_asc', label: 'İşlem Tipi (Gelir -> Gider)' },
+  { value: 'tip_desc', label: 'İşlem Tipi (Gider -> Gelir)' },
+  { value: 'kisi_asc', label: 'Kişi / Kurum (A-Z)' },
+  { value: 'kisi_desc', label: 'Kişi / Kurum (Z-A)' },
 ];
+
+const PREDEFINED_BANKS = [
+  { value: 'Vakıf Katılım', label: 'Vakıf Katılım' },
+  { value: 'Kuveyt Türk', label: 'Kuveyt Türk' },
+  { value: 'Ziraat Katılım', label: 'Ziraat Katılım' },
+  { value: 'Emlak Katılım', label: 'Emlak Katılım' },
+  { value: 'Türkiye Finans', label: 'Türkiye Finans' },
+  { value: 'Albaraka Türk', label: 'Albaraka Türk' },
+  { value: 'Vakıfbank', label: 'Vakıfbank' },
+  { value: 'Ziraat Bankası', label: 'Ziraat Bankası' },
+  { value: 'Halkbank', label: 'Halkbank' },
+  { value: 'DİĞER', label: 'Diğer (Manuel Giriş)' },
+];
+
+function WhatsAppSvg({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M12.031 2c-5.508 0-9.987 4.479-9.987 9.987 0 1.763.459 3.479 1.332 4.992L2 22l5.165-1.354a9.946 9.946 0 0 0 4.866 1.268h.004c5.508 0 9.987-4.479 9.987-9.987A9.953 9.953 0 0 0 19.097 4.9a9.95 9.95 0 0 0-7.066-2.9Zm5.839 14.274c-.246.692-1.434 1.324-1.988 1.409-.511.078-1.158.111-1.87-.115-.433-.138-.988-.321-1.699-.628-2.99-1.291-4.943-4.301-5.092-4.5-.149-.199-1.215-1.617-1.215-3.084 0-1.467.768-2.189 1.041-2.487.273-.299.595-.374.794-.374.198 0 .397.002.57.01.183.009.428-.069.67.512.248.597.843 2.065.917 2.214.075.149.124.323.025.522-.099.199-.149.323-.298.497-.149.174-.313.389-.447.522-.149.149-.304.31-.13.609.174.298.771 1.272 1.655 2.061 1.137 1.014 2.096 1.328 2.394 1.477.298.149.471.124.645-.075.174-.199.744-.87.943-1.168.198-.299.397-.249.67-.149.273.099 1.736.819 2.034.968.298.149.496.224.57.348.075.125.075.721-.171 1.414Z" />
+    </svg>
+  );
+}
+
+function ExcelSvg({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm1.8 18H14l-2-3.4-2 3.4H8.2l2.9-4.5L8.2 11H10l2 3.4 2-3.4h1.8l-2.9 4.5 2.9 4.5ZM13 9V3.5L18.5 9H13Z" />
+    </svg>
+  );
+}
+
+function PdfSvg({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm-4.5 11.5c0 .83-.67 1.5-1.5 1.5H7v2H5.5v-5H8c.83 0 1.5.67 1.5 1.5Zm5 1c0 1.38-1.12 2.5-2.5 2.5h-1.5v-5H12c1.38 0 2.5 1.12 2.5 2.5Zm4-1H17v1h1.5V16H17v1h-1.5v-5h3v1.5ZM7 13.5h1v-1H7v1Zm5 2h1v-2h-1v2ZM13 9V3.5L18.5 9H13Z" />
+    </svg>
+  );
+}
+
+function WordSvg({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Zm1.2 17h-1.5l-1.7-5.8L10.3 19H8.8L6.8 11h1.6l1.2 5.6L11.3 11h1.4l1.7 5.6 1.2-5.6h1.6l-2 8ZM13 9V3.5L18.5 9H13Z" />
+    </svg>
+  );
+}
+
+function PrintSvg({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <rect width="12" height="8" x="6" y="14" />
+    </svg>
+  );
+}
+
+function formatDateWithOptionalTime(tarih?: string | null, olusturma?: string | null): string {
+  const base = formatDateTR(tarih);
+  if (!olusturma) return base;
+  const d = new Date(olusturma);
+  if (Number.isNaN(d.getTime())) return base;
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  if (hh === '00' && mm === '00') return base;
+  return `${base} ${hh}:${mm}`;
+}
 
 const KASA_BANKA_SORT_OPTIONS = [
   { value: 'custom', label: 'Özel Sıralama (Sürükle)' },
@@ -344,16 +414,21 @@ export default function OnMuhasebePage() {
   });
   const [ggSort, setGgSort] = useState('tarih_desc');
   const [showFilters, setShowFilters] = useState(false);
+  const [showDayPicker, setShowDayPicker] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [selectedGgDetail, setSelectedGgDetail] = useState<any | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [ggPage, setGgPage] = useState(1);
   const [ggPageSize, setGgPageSize] = useState(25);
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Kasa & Banka filters & UI states
+  const [showKbFilters, setShowKbFilters] = useState(false);
   const [kbFilters, setKbFilters] = useState({
     search: '',
     kasaId: '',
     bankaId: '',
+    durum: '',
     minTutar: '',
     maxTutar: '',
   });
@@ -422,6 +497,8 @@ export default function OnMuhasebePage() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [transferForm, setTransferForm] = useState({
+    gonderen_tip: 'kasa' as 'kasa' | 'banka',
+    alici_tip: 'banka' as 'kasa' | 'banka',
     from_account_id: '',
     to_account_id: '',
     miktar: '',
@@ -437,8 +514,12 @@ export default function OnMuhasebePage() {
     name: '',
     currency: 'TRY',
     bank_name: '',
+    sube_adi: '',
+    hesap_turu: 'Vadesiz',
+    hesap_no: '',
     iban: '',
     opening_balance: '0',
+    aciklama: '',
     default_for: '' as '' | 'cash' | 'bank_transfer' | 'credit_card',
     is_active: true,
   });
@@ -468,8 +549,9 @@ export default function OnMuhasebePage() {
       if (ggFilters.ay) {
         const m = String(ggFilters.ay).padStart(2, '0');
         const lastDay = new Date(y, Number(ggFilters.ay), 0).getDate();
-        if (ggFilters.gun) {
-          const d = String(ggFilters.gun).padStart(2, '0');
+        const selectedDays = ggFilters.gun ? ggFilters.gun.split(',').filter(Boolean) : [];
+        if (selectedDays.length === 1) {
+          const d = String(selectedDays[0]).padStart(2, '0');
           return { start: `${y}-${m}-${d}`, end: `${y}-${m}-${d}` };
         }
         return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2, '0')}` };
@@ -512,6 +594,7 @@ export default function OnMuhasebePage() {
   // Load main data
   const loadData = useCallback(async () => {
     setUpdating(true);
+    setLoadError(null);
     try {
       const ggParams: Record<string, any> = {};
       if (computedDateRange.start) ggParams.start = computedDateRange.start;
@@ -526,7 +609,13 @@ export default function OnMuhasebePage() {
       setGelirGiderItems(ggRes.data?.items || []);
       if (ggRes.data?.summary) setGelirGiderSummary(ggRes.data.summary);
     } catch (e: any) {
-      flash('err', e?.response?.data?.detail || 'Finans verileri yüklenemedi');
+      const rawDetail = e?.response?.data?.detail;
+      const errMsg =
+        typeof rawDetail === 'string'
+          ? rawDetail
+          : rawDetail?.message || e?.message || 'Finans verileri yüklenemedi';
+      setLoadError(String(errMsg));
+      flash('err', String(errMsg));
     } finally {
       setLoading(false);
       setUpdating(false);
@@ -612,11 +701,19 @@ export default function OnMuhasebePage() {
     void savePreferences({ ...hesapGorunumu, varsayilanDonem: mode });
   };
 
+  const handleSortColumn = (colKey: 'tarih' | 'tip' | 'kategori' | 'miktar' | 'odeme' | 'hesap' | 'kisi') => {
+    setGgSort((prev) => {
+      if (prev === `${colKey}_desc`) return `${colKey}_asc`;
+      return `${colKey}_desc`;
+    });
+  };
+
   // Filtered & Sorted Gelir-Gider List
   const filteredGelirGiderler = useMemo(() => {
     const q = ggFilters.search.trim().toLowerCase();
     const minC = ggFilters.minTutar !== '' ? toCents(ggFilters.minTutar) : null;
     const maxC = ggFilters.maxTutar !== '' ? toCents(ggFilters.maxTutar) : null;
+    const selectedDays = ggFilters.gun ? ggFilters.gun.split(',').filter(Boolean).map((d) => Number(d)) : [];
 
     const list = gelirGiderItems.filter((item) => {
       if (ggFilters.islemTipi && item.islem_tipi !== ggFilters.islemTipi) return false;
@@ -624,6 +721,10 @@ export default function OnMuhasebePage() {
       if (ggFilters.kasaId && item.account_id !== ggFilters.kasaId) return false;
       if (ggFilters.bankaId && item.account_id !== ggFilters.bankaId) return false;
       if (ggFilters.odemeYontemi && item.odeme_yontemi !== ggFilters.odemeYontemi) return false;
+      if (selectedDays.length > 0 && item.tarih) {
+        const dayNum = Number(String(item.tarih).slice(8, 10));
+        if (!selectedDays.includes(dayNum)) return false;
+      }
       if (minC !== null && item.miktar_cents < minC) return false;
       if (maxC !== null && item.miktar_cents > maxC) return false;
       if (q) {
@@ -640,6 +741,14 @@ export default function OnMuhasebePage() {
       if (ggSort === 'miktar_asc') return a.miktar_cents - b.miktar_cents;
       if (ggSort === 'kategori_asc') return (a.kategori || '').localeCompare(b.kategori || '', 'tr');
       if (ggSort === 'kategori_desc') return (b.kategori || '').localeCompare(a.kategori || '', 'tr');
+      if (ggSort === 'tip_asc') return (a.islem_tipi || '').localeCompare(b.islem_tipi || '', 'tr');
+      if (ggSort === 'tip_desc') return (b.islem_tipi || '').localeCompare(a.islem_tipi || '', 'tr');
+      if (ggSort === 'odeme_asc') return (a.odeme_yontemi_display || '').localeCompare(b.odeme_yontemi_display || '', 'tr');
+      if (ggSort === 'odeme_desc') return (b.odeme_yontemi_display || '').localeCompare(a.odeme_yontemi_display || '', 'tr');
+      if (ggSort === 'hesap_asc') return (a.banka_hesabi_adi || a.kasa_adi || '').localeCompare(b.banka_hesabi_adi || b.kasa_adi || '', 'tr');
+      if (ggSort === 'hesap_desc') return (b.banka_hesabi_adi || b.kasa_adi || '').localeCompare(a.banka_hesabi_adi || a.kasa_adi || '', 'tr');
+      if (ggSort === 'kisi_asc') return (a.kisi_adi || '').localeCompare(b.kisi_adi || '', 'tr');
+      if (ggSort === 'kisi_desc') return (b.kisi_adi || '').localeCompare(a.kisi_adi || '', 'tr');
       return 0;
     });
   }, [gelirGiderItems, ggFilters, ggSort]);
@@ -924,7 +1033,15 @@ export default function OnMuhasebePage() {
       });
       flash('ok', 'Kasa / Banka devir işlemi başarıyla gerçekleşti');
       setShowTransferModal(false);
-      setTransferForm({ from_account_id: '', to_account_id: '', miktar: '', tarih: todayISO(), aciklama: '' });
+      setTransferForm({
+        gonderen_tip: 'kasa',
+        alici_tip: 'banka',
+        from_account_id: '',
+        to_account_id: '',
+        miktar: '',
+        tarih: todayISO(),
+        aciklama: '',
+      });
       await loadData();
     } catch (err: any) {
       flash('err', err?.response?.data?.detail || 'Devir işlemi başarısız');
@@ -937,12 +1054,20 @@ export default function OnMuhasebePage() {
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const computedName =
+        accountForm.kind === 'cash'
+          ? accountForm.name.trim()
+          : accountForm.name.trim() ||
+            [accountForm.bank_name.trim(), accountForm.sube_adi.trim(), accountForm.hesap_turu.trim()]
+              .filter(Boolean)
+              .join(' - ') ||
+            'Banka Hesabı';
       const payload = {
-        name: accountForm.name.trim(),
+        name: computedName,
         kind: accountForm.kind,
         currency: accountForm.currency,
-        bank_name: accountForm.bank_name.trim() || null,
-        iban: accountForm.iban.trim() || null,
+        bank_name: accountForm.kind === 'cash' ? null : accountForm.bank_name.trim() || null,
+        iban: accountForm.kind === 'cash' ? null : accountForm.iban.trim() || null,
         opening_balance_cents: toCents(accountForm.opening_balance),
         default_for: accountForm.default_for || null,
         is_active: accountForm.is_active,
@@ -992,11 +1117,11 @@ export default function OnMuhasebePage() {
     }
   };
 
-  // Export CSV / Excel & DERBİS
+  // Export CSV / Excel, Word, PDF, WhatsApp & DERBİS (e-Medrese Birebir)
   const exportGelirGiderCSV = () => {
     const headers = ['Tarih', 'Tip', 'Kategori', 'Miktar', 'Para Birimi', 'Ödeme Yöntemi', 'Kasa / Banka', 'Kişi / Kurum', 'Belge No', 'Açıklama'];
     const rows = filteredGelirGiderler.map((it) => [
-      it.tarih,
+      formatDateWithOptionalTime(it.tarih, it.olusturma_tarihi),
       it.islem_tipi_display,
       it.kategori,
       (it.miktar_cents / 100).toFixed(2).replace('.', ','),
@@ -1013,6 +1138,98 @@ export default function OnMuhasebePage() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `gelir_gider_listesi_${todayISO()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportGelirGiderWord = () => {
+    const rowsHtml = filteredGelirGiderler
+      .map(
+        (it) =>
+          `<tr>
+            <td>${formatDateWithOptionalTime(it.tarih, it.olusturma_tarihi)}</td>
+            <td>${it.islem_tipi_display}</td>
+            <td>${it.kategori || '-'}</td>
+            <td style="text-align:right;font-weight:bold;color:${it.islem_tipi === 'GELIR' ? '#047857' : '#be123c'}">${it.islem_tipi === 'GELIR' ? '+' : '-'}${formatMoney(it.miktar_cents, it.para_birimi)}</td>
+            <td>${it.odeme_yontemi_display || '-'}</td>
+            <td>${it.banka_hesabi_adi || it.kasa_adi || '-'}</td>
+            <td>${it.kisi_adi || '-'}</td>
+            <td>${it.aciklama || '-'}</td>
+          </tr>`,
+      )
+      .join('');
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>Gelir-Gider Listesi</title>
+      <style>body{font-family:Arial,sans-serif;font-size:11pt}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #cbd5e1;padding:6px 8px;font-size:10pt}th{background:#f1f5f9;text-align:left}</style>
+      </head><body>
+      <h2>Ön Muhasebe - Gelir / Gider Listesi (${todayISO()})</h2>
+      <p><b>Toplam Gelir:</b> ${formatMoney(liveSummary.gelirCents)} (${liveSummary.gelirAdedi} işlem) &nbsp;|&nbsp; <b>Toplam Gider:</b> ${formatMoney(liveSummary.giderCents)} (${liveSummary.giderAdedi} işlem) &nbsp;|&nbsp; <b>Net Durum:</b> ${formatMoney(liveSummary.netCents)}</p>
+      <table><thead><tr><th>Tarih</th><th>Tip</th><th>Kategori</th><th>Miktar</th><th>Ödeme Yöntemi</th><th>Kasa / Banka</th><th>Kişi / Kurum</th><th>Açıklama</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+      </body></html>`;
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gelir_gider_listesi_${todayISO()}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportGelirGiderPDF = () => {
+    window.print();
+  };
+
+  const shareGelirGiderWhatsApp = () => {
+    const topLines = filteredGelirGiderler.slice(0, 15).map(
+      (it) =>
+        `• ${formatDateTR(it.tarih)} | ${it.islem_tipi === 'GELIR' ? '🟢 +' : '🔴 -'}${formatMoney(it.miktar_cents, it.para_birimi)} | ${it.kategori}${it.kisi_adi ? ` (${it.kisi_adi})` : ''}`,
+    );
+    const msg = [
+      `📊 *ÖN MUHASEBE GELİR / GİDER ÖZETİ*`,
+      `📅 Tarih: ${formatDateTR(todayISO())}`,
+      `────────────────────`,
+      `🟢 *Toplam Gelir:* ${formatMoney(liveSummary.gelirCents)} (${liveSummary.gelirAdedi} işlem)`,
+      `🔴 *Toplam Gider:* ${formatMoney(liveSummary.giderCents)} (${liveSummary.giderAdedi} işlem)`,
+      `⚖️ *Net Durum:* ${formatMoney(liveSummary.netCents)}`,
+      `────────────────────`,
+      ...(topLines.length > 0 ? [`*Son Hareketler:*`, ...topLines] : ['Kayıt bulunmuyor.']),
+      filteredGelirGiderler.length > 15 ? `...ve ${filteredGelirGiderler.length - 15} kayıt daha.` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const exportAccountsCSV = (type: 'kasa' | 'banka', list: any[]) => {
+    const headers =
+      type === 'kasa'
+        ? ['Kasa Adı', 'Para Birimi', 'Başlangıç Bakiyesi', 'Güncel Bakiye', 'Durum']
+        : ['Banka / Hesap Adı', 'Banka', 'IBAN', 'Para Birimi', 'Başlangıç Bakiyesi', 'Güncel Bakiye', 'Durum'];
+    const rows = list.map((a) =>
+      type === 'kasa'
+        ? [
+            a.name,
+            a.currency,
+            (a.opening_balance_cents / 100).toFixed(2).replace('.', ','),
+            (a.balance_cents / 100).toFixed(2).replace('.', ','),
+            a.is_active ? 'Aktif' : 'Pasif',
+          ]
+        : [
+            a.name,
+            a.bank_name || '-',
+            a.iban || '-',
+            a.currency,
+            (a.opening_balance_cents / 100).toFixed(2).replace('.', ','),
+            (a.balance_cents / 100).toFixed(2).replace('.', ','),
+            a.is_active ? 'Aktif' : 'Pasif',
+          ],
+    );
+    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${type}_listesi_${todayISO()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1039,7 +1256,36 @@ export default function OnMuhasebePage() {
     tableContainerRef.current.scrollBy({ left: dir === 'left' ? -320 : 320, behavior: 'smooth' });
   };
 
-  // ==================== PILL TAB NAVIGATION ====================
+  const renderSortableTh = (
+    label: string,
+    colKey: 'tarih' | 'tip' | 'kategori' | 'miktar' | 'odeme' | 'hesap' | 'kisi',
+    align: 'left' | 'center' | 'right' = 'left',
+  ) => {
+    const isDesc = ggSort === `${colKey}_desc`;
+    const isAsc = ggSort === `${colKey}_asc`;
+    const isActive = isDesc || isAsc;
+    return (
+      <th
+        onClick={() => handleSortColumn(colKey)}
+        className={`cursor-pointer select-none border-r border-slate-200/60 px-3 py-3 transition-colors hover:bg-slate-100 ${
+          align === 'right' ? 'px-4 text-right' : align === 'center' ? 'text-center' : 'text-left'
+        }`}
+      >
+        <span
+          className={`inline-flex items-center gap-1 ${
+            align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : ''
+          }`}
+        >
+          <span>{label}</span>
+          <span className={`text-[10px] ${isActive ? 'font-black text-emerald-600' : 'text-slate-400'}`}>
+            {isAsc ? '↑' : isDesc ? '↓' : '⇅'}
+          </span>
+        </span>
+      </th>
+    );
+  };
+
+  // ==================== TAB NAVIGATION (e-Medrese Birebir) ====================
   const TABS: Array<{ id: TabKey; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }> = [
     { id: 'gelir-gider', label: 'Gelir/Gider', icon: TrendingUp },
     { id: 'kasa-banka', label: 'Kasa & Banka', icon: Wallet },
@@ -1049,9 +1295,9 @@ export default function OnMuhasebePage() {
   const renderTabNavigation = () => (
     <div
       data-modern-surface="card"
-      className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
+      className="sticky top-0 z-10 rounded-xl border border-slate-200/90 bg-white/95 p-1.5 shadow-sm backdrop-blur-xl sm:p-2"
     >
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:gap-2 sm:overflow-visible sm:pb-0">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1060,10 +1306,10 @@ export default function OnMuhasebePage() {
               key={tab.id}
               type="button"
               onClick={() => handleTabChange(tab.id)}
-              className={`flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-semibold transition-all sm:px-4 sm:text-sm ${
+              className={`flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-semibold transition-all duration-200 sm:px-3.5 sm:text-sm ${
                 isActive
-                  ? 'bg-emerald-700 text-white shadow-sm'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xs'
+                  : 'border-transparent text-slate-600 hover:border-slate-200 hover:bg-slate-50'
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -1071,7 +1317,7 @@ export default function OnMuhasebePage() {
               {tab.badge && tab.badge > 0 ? (
                 <span
                   className={`rounded-full px-1.5 py-0.5 text-[11px] font-black leading-none ${
-                    isActive ? 'bg-white text-emerald-800' : 'bg-amber-500 text-white'
+                    isActive ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
                   }`}
                 >
                   {tab.badge}
@@ -1400,7 +1646,9 @@ export default function OnMuhasebePage() {
                   </select>
                   <select
                     value={ggFilters.ay}
-                    onChange={(e) => setGgFilters((prev) => ({ ...prev, ay: e.target.value, startDate: '', endDate: '' }))}
+                    onChange={(e) =>
+                      setGgFilters((prev) => ({ ...prev, ay: e.target.value, gun: '', startDate: '', endDate: '' }))
+                    }
                     className="h-8 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-800"
                   >
                     <option value="">Tüm Aylar (Yıllık)</option>
@@ -1410,6 +1658,88 @@ export default function OnMuhasebePage() {
                       </option>
                     ))}
                   </select>
+
+                  {/* Çoklu Gün Seçici (1..31 Takvim Izgarası - e-Medrese Birebir) */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      disabled={!ggFilters.ay}
+                      onClick={() => setShowDayPicker((p) => !p)}
+                      className="flex h-8 cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-2.5 text-xs font-bold text-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span className="truncate">
+                        {!ggFilters.gun
+                          ? 'Tüm Günler'
+                          : ggFilters.gun.split(',').length === 1
+                            ? `${Number(ggFilters.gun)}. Gün`
+                            : `${ggFilters.gun.split(',').length} Gün Seçili`}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </button>
+
+                    {showDayPicker && ggFilters.ay ? (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowDayPicker(false)} />
+                        <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                          <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2">
+                            <span className="text-xs font-bold text-slate-700">Gün Seçin (Çoklu)</span>
+                            {ggFilters.gun ? (
+                              <button
+                                type="button"
+                                onClick={() => setGgFilters((prev) => ({ ...prev, gun: '' }))}
+                                className="cursor-pointer text-[11px] font-medium text-rose-500 hover:underline"
+                              >
+                                Temizle
+                              </button>
+                            ) : null}
+                          </div>
+                          <div className="grid grid-cols-7 gap-1">
+                            {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => {
+                              const selectedDays = ggFilters.gun ? ggFilters.gun.split(',').filter(Boolean) : [];
+                              const isSelected = selectedDays.includes(d);
+                              return (
+                                <button
+                                  key={d}
+                                  type="button"
+                                  onClick={() => {
+                                    let nextDays: string[];
+                                    if (isSelected) {
+                                      nextDays = selectedDays.filter((item) => item !== d);
+                                    } else {
+                                      nextDays = [...selectedDays, d].sort((a, b) => Number(a) - Number(b));
+                                    }
+                                    setGgFilters((prev) => ({
+                                      ...prev,
+                                      gun: nextDays.join(','),
+                                      startDate: '',
+                                      endDate: '',
+                                    }));
+                                  }}
+                                  className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-xs font-bold transition-all ${
+                                    isSelected
+                                      ? 'scale-105 bg-teal-600 text-white shadow-sm'
+                                      : 'bg-slate-50 text-slate-700 hover:bg-teal-50 hover:text-teal-600'
+                                  }`}
+                                >
+                                  {Number(d)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
+                            <span className="text-[10px] text-slate-400">Birden fazla gün seçebilirsiniz</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowDayPicker(false)}
+                              className="cursor-pointer rounded-md bg-teal-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-teal-700"
+                            >
+                              Tamam
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -1438,6 +1768,35 @@ export default function OnMuhasebePage() {
                   </button>
                 </div>
               </div>
+
+              {/* Yıllık Görünüm Aktif Bilgi Kutusu (e-Medrese Birebir) */}
+              {!ggFilters.ay && !ggFilters.startDate && !ggFilters.endDate ? (
+                <div className="flex flex-col justify-between gap-2 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3.5 py-2.5 text-xs text-indigo-800 sm:flex-row sm:items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📆</span>
+                    <span>
+                      <strong>Yıllık Görünüm Aktif:</strong> Şu an <strong>{ggFilters.yil || 'Tüm Yıllar'}</strong>{' '}
+                      yılındaki <u>tüm ayların</u> gelir ve giderlerini görüntülüyorsunuz.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setGgFilters((prev) => ({
+                        ...prev,
+                        yil: currentYear,
+                        ay: currentMonth,
+                        gun: '',
+                        startDate: '',
+                        endDate: '',
+                      }))
+                    }
+                    className="shrink-0 cursor-pointer rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-700"
+                  >
+                    Sadece Bu Ayı Göster ({AYLAR.find((a) => a.value === currentMonth)?.label})
+                  </button>
+                </div>
+              ) : null}
 
               {/* Select & Range Filters */}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-5">
@@ -1558,8 +1917,25 @@ export default function OnMuhasebePage() {
           ) : null}
         </div>
 
-        {/* 4. Yuvarlak Pill Sekme Çubuğu */}
+        {/* 4. Sekme Çubuğu (e-Medrese Birebir) */}
         {renderTabNavigation()}
+
+        {/* Hata Uyarısı (Varsa) */}
+        {loadError ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+              <span>Finans verileri alınırken hata oluştu: {loadError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadData()}
+              className="cursor-pointer rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700"
+            >
+              Tekrar Dene
+            </button>
+          </div>
+        ) : null}
 
         {/* 5. Gelir-Gider Listesi Ana Kartı (e-Medrese Birebir) */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -1619,7 +1995,7 @@ export default function OnMuhasebePage() {
               </div>
             </div>
 
-            {/* Sağ Aksiyon Butonları: < > + Dışa Aktar + Devir İşlemleri + Gelir Ekle + Gider Ekle */}
+            {/* Sağ Aksiyon Butonları: < > + Orijinal Renkli Dışa Aktarım (WhatsApp / Excel / Word / PDF / Yazdır / DERBİS) + Devir İşlemleri + Gelir Ekle + Gider Ekle */}
             <div className="flex flex-wrap items-center gap-2">
               <div className="mr-1 hidden items-center gap-1 md:flex">
                 <button
@@ -1640,77 +2016,76 @@ export default function OnMuhasebePage() {
                 </button>
               </div>
 
-              <div className="relative">
+              {/* Orijinal İkonlu ve Renkli Dışa Aktarım Çubuğu (e-Medrese Birebir) */}
+              <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200/90 bg-slate-50/80 p-1">
                 <button
                   type="button"
-                  onClick={() => setShowExportMenu((p) => !p)}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-2xs transition hover:border-teal-500"
+                  onClick={shareGelirGiderWhatsApp}
+                  title="WhatsApp ile Paylaş"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#25D366] px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#1ebe57]"
                 >
-                  <Download className="h-4 w-4" /> Dışa Aktar
+                  <WhatsAppSvg className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">WhatsApp</span>
                 </button>
-                {showExportMenu ? (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-2 shadow-2xl">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        exportGelirGiderCSV();
-                        setShowExportMenu(false);
-                      }}
-                      className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                        <FileSpreadsheet className="h-4 w-4" />
-                      </div>
-                      Excel / CSV İndir (.csv)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void downloadDerbis('xlsx');
-                        setShowExportMenu(false);
-                      }}
-                      className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      DERBİS Bağış Defteri (.xlsx)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void downloadDerbis('csv');
-                        setShowExportMenu(false);
-                      }}
-                      className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      DERBİS Bağış Defteri (.csv)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowExportMenu(false);
-                        window.print();
-                      }}
-                      className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                      PDF / Yazdır
-                    </button>
-                  </div>
-                ) : null}
+
+                <button
+                  type="button"
+                  onClick={exportGelirGiderCSV}
+                  title="Excel İndir (.csv)"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#1D6F42] px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#165934]"
+                >
+                  <ExcelSvg className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Excel</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={exportGelirGiderWord}
+                  title="Word İndir (.doc)"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#2B579A] px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#1e3f73]"
+                >
+                  <WordSvg className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Word</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => exportGelirGiderPDF()}
+                  title="PDF Raporu Oluştur"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#E10915] px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#bd0711]"
+                >
+                  <PdfSvg className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => exportGelirGiderPDF()}
+                  title="Tabloyu Yazdır"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-slate-900"
+                >
+                  <PrintSvg className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Yazdır</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void downloadDerbis('xlsx')}
+                  title="DERBİS Bağış Defteri İndir (.xlsx)"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-teal-300 bg-teal-50 px-2.5 py-1.5 text-xs font-bold text-teal-800 transition hover:bg-teal-100"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-teal-700" />
+                  <span className="hidden xl:inline">DERBİS</span>
+                </button>
               </div>
 
               <button
                 type="button"
                 onClick={() => {
                   setTransferForm({
+                    gonderen_tip: 'kasa',
                     from_account_id: siraliKasalar[0]?.id || '',
+                    alici_tip: 'banka',
                     to_account_id: siraliBankaHesaplari[0]?.id || '',
                     miktar: '',
                     tarih: todayISO(),
@@ -1746,7 +2121,8 @@ export default function OnMuhasebePage() {
             {paginatedGelirGiderler.map((item) => (
               <div
                 key={item.id}
-                className={`rounded-2xl border p-4 shadow-xs ${
+                onClick={() => setSelectedGgDetail(item)}
+                className={`cursor-pointer rounded-2xl border p-4 shadow-xs transition active:scale-[0.99] ${
                   item.islem_tipi === 'GELIR'
                     ? 'border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/50'
                     : 'border-rose-200/80 bg-gradient-to-br from-white to-rose-50/50'
@@ -1754,8 +2130,11 @@ export default function OnMuhasebePage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="font-mono text-xs text-slate-500">{formatDateTR(item.tarih)}</p>
+                    <p className="font-mono text-xs text-slate-500">
+                      {formatDateWithOptionalTime(item.tarih, item.olusturma_tarihi)}
+                    </p>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
                       <span className="text-sm font-bold text-slate-900">{item.kategori}</span>
                       {renderDuzeltmeBadge(item)}
                     </div>
@@ -1779,7 +2158,7 @@ export default function OnMuhasebePage() {
             ))}
           </div>
 
-          {/* Masaüstü Tablo Görünümü (e-Medrese Sütunları) */}
+          {/* Masaüstü Tablo Görünümü (e-Medrese Sıralanabilir Sütunları & Satır Tıklama Detayı) */}
           <div
             ref={tableContainerRef}
             className="hidden min-h-[320px] overflow-x-auto md:block"
@@ -1787,13 +2166,13 @@ export default function OnMuhasebePage() {
             <table className="w-full min-w-[860px] border-collapse text-xs sm:text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-600">
                 <tr>
-                  <th className="border-r border-slate-200/60 px-3 py-3">Tarih</th>
-                  <th className="border-r border-slate-200/60 px-3 py-3 text-center">Tip</th>
-                  <th className="border-r border-slate-200/60 px-3 py-3">Kategori</th>
-                  <th className="border-r border-slate-200/60 px-4 py-3 text-right">Miktar</th>
-                  <th className="border-r border-slate-200/60 px-3 py-3">Ödeme Yöntemi</th>
-                  <th className="border-r border-slate-200/60 px-3 py-3">Kasa / Banka</th>
-                  <th className="border-r border-slate-200/60 px-3 py-3">Kişi / Kurum</th>
+                  {renderSortableTh('Tarih', 'tarih')}
+                  {renderSortableTh('Tip', 'tip', 'center')}
+                  {renderSortableTh('Kategori', 'kategori')}
+                  {renderSortableTh('Miktar', 'miktar', 'right')}
+                  {renderSortableTh('Ödeme Yöntemi', 'odeme')}
+                  {renderSortableTh('Kasa / Banka', 'hesap')}
+                  {renderSortableTh('Kişi / Kurum', 'kisi')}
                   <th className="border-r border-slate-200/60 px-3 py-3">Açıklama</th>
                   <th className="px-3 py-3 text-center">İşlemler</th>
                 </tr>
@@ -1815,7 +2194,9 @@ export default function OnMuhasebePage() {
                   paginatedGelirGiderler.map((item) => (
                     <tr
                       key={item.id}
-                      className="group/row transition-colors hover:bg-slate-50"
+                      onClick={() => setSelectedGgDetail(item)}
+                      className="group/row cursor-pointer transition-colors hover:bg-slate-50"
+                      title="Detayları görmek için tıklayın"
                     >
                       <td
                         className={`whitespace-nowrap border-l-2 border-r border-l-transparent border-r-slate-200/60 px-3 py-2.5 font-mono text-xs text-slate-600 transition-all ${
@@ -1824,7 +2205,7 @@ export default function OnMuhasebePage() {
                             : 'group-hover/row:border-l-rose-500'
                         }`}
                       >
-                        {formatDateTR(item.tarih)}
+                        {formatDateWithOptionalTime(item.tarih, item.olusturma_tarihi)}
                       </td>
                       <td className="border-r border-slate-200/60 px-3 py-2.5 text-center">
                         <span
@@ -1842,6 +2223,7 @@ export default function OnMuhasebePage() {
                       </td>
                       <td className="border-r border-slate-200/60 px-3 py-2.5 font-semibold text-slate-900">
                         <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
                           <span>{item.kategori}</span>
                           {renderDuzeltmeBadge(item)}
                         </div>
@@ -1883,7 +2265,10 @@ export default function OnMuhasebePage() {
                       >
                         {item.aciklama || '-'}
                       </td>
-                      <td className="px-3 py-2.5 text-center">
+                      <td
+                        className="px-3 py-2.5 text-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
@@ -1969,75 +2354,6 @@ export default function OnMuhasebePage() {
             </div>
           ) : null}
         </div>
-
-        {/* 6. Alt Kategori & Gelir/Gider Dağılım Analitiği */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-black text-slate-900">Gelir Kalemleri Dağılımı</h3>
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
-            </div>
-            <div className="space-y-2.5">
-              {(gelirGiderSummary.kategori_dagilimi || [])
-                .filter((k: any) => k.tip === 'GELIR')
-                .sort((a: any, b: any) => b.toplam_cents - a.toplam_cents)
-                .slice(0, 6)
-                .map((k: any) => {
-                  const pct =
-                    liveSummary.gelirCents > 0 ? Math.min(100, Math.round((k.toplam_cents / liveSummary.gelirCents) * 100)) : 0;
-                  return (
-                    <div key={k.kategori}>
-                      <div className="mb-1 flex justify-between text-xs">
-                        <span className="font-semibold text-slate-700">
-                          {k.kategori} <span className="text-slate-400">({k.adet} işlem)</span>
-                        </span>
-                        <span className="font-bold text-emerald-700">{formatMoney(k.toplam_cents)}</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.max(4, pct)}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              {(gelirGiderSummary.kategori_dagilimi || []).filter((k: any) => k.tip === 'GELIR').length === 0 ? (
-                <p className="py-6 text-center text-xs text-slate-400">Bu dönemde gelir kaydı yok.</p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-black text-slate-900">En Yüksek Gider Kalemleri</h3>
-              <TrendingDown className="h-4 w-4 text-rose-600" />
-            </div>
-            <div className="space-y-2.5">
-              {(gelirGiderSummary.kategori_dagilimi || [])
-                .filter((k: any) => k.tip === 'GIDER')
-                .sort((a: any, b: any) => b.toplam_cents - a.toplam_cents)
-                .slice(0, 6)
-                .map((k: any) => {
-                  const pct =
-                    liveSummary.giderCents > 0 ? Math.min(100, Math.round((k.toplam_cents / liveSummary.giderCents) * 100)) : 0;
-                  return (
-                    <div key={k.kategori}>
-                      <div className="mb-1 flex justify-between text-xs">
-                        <span className="font-semibold text-slate-700">
-                          {k.kategori} <span className="text-slate-400">({k.adet} işlem)</span>
-                        </span>
-                        <span className="font-bold text-rose-600">{formatMoney(k.toplam_cents)}</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full rounded-full bg-rose-500" style={{ width: `${Math.max(4, pct)}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              {(gelirGiderSummary.kategori_dagilimi || []).filter((k: any) => k.tip === 'GIDER').length === 0 ? (
-                <p className="py-6 text-center text-xs text-slate-400">Bu dönemde gider kaydı yok.</p>
-              ) : null}
-            </div>
-          </div>
-        </div>
       </div>
     );
   };
@@ -2053,9 +2369,16 @@ export default function OnMuhasebePage() {
     const toplamVarlikCents = toplamKasaCents + toplamBankaCents;
 
     const q = kbFilters.search.trim().toLowerCase();
+    const minCents = kbFilters.minTutar ? Math.round(Number(kbFilters.minTutar) * 100) : null;
+    const maxCents = kbFilters.maxTutar ? Math.round(Number(kbFilters.maxTutar) * 100) : null;
+
     const filteredKasalar = siraliKasalar
       .filter((k) => {
         if (kbFilters.kasaId && k.id !== kbFilters.kasaId) return false;
+        if (kbFilters.durum === 'aktif' && !k.is_active) return false;
+        if (kbFilters.durum === 'pasif' && k.is_active) return false;
+        if (minCents !== null && !Number.isNaN(minCents) && k.balance_cents < minCents) return false;
+        if (maxCents !== null && !Number.isNaN(maxCents) && k.balance_cents > maxCents) return false;
         if (q && !`${k.name || ''}`.toLowerCase().includes(q)) return false;
         return true;
       })
@@ -2070,6 +2393,10 @@ export default function OnMuhasebePage() {
     const filteredBankalar = siraliBankaHesaplari
       .filter((b) => {
         if (kbFilters.bankaId && b.id !== kbFilters.bankaId) return false;
+        if (kbFilters.durum === 'aktif' && !b.is_active) return false;
+        if (kbFilters.durum === 'pasif' && b.is_active) return false;
+        if (minCents !== null && !Number.isNaN(minCents) && b.balance_cents < minCents) return false;
+        if (maxCents !== null && !Number.isNaN(maxCents) && b.balance_cents > maxCents) return false;
         if (q && !`${b.name || ''} ${b.bank_name || ''} ${b.iban || ''}`.toLowerCase().includes(q)) return false;
         return true;
       })
@@ -2080,6 +2407,14 @@ export default function OnMuhasebePage() {
         if (kbSort === 'ad_desc') return (b.name || '').localeCompare(a.name || '', 'tr');
         return 0;
       });
+
+    const activeKbFilterCount = [
+      kbFilters.kasaId,
+      kbFilters.bankaId,
+      kbFilters.durum,
+      kbFilters.minTutar,
+      kbFilters.maxTutar,
+    ].filter(Boolean).length;
 
     return (
       <div className="flex flex-col gap-6">
@@ -2152,98 +2487,234 @@ export default function OnMuhasebePage() {
           </div>
         </div>
 
-        {/* 2. Arama + Sıralama + Yeni Kasa / Yeni Banka Butonları */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <ResponsiveDataToolbar
-            search={{
-              value: kbFilters.search,
-              onChange: (val) => setKbFilters((p) => ({ ...p, search: val })),
-              placeholder: 'Kasa adı, banka, IBAN veya açıklama ara…',
-            }}
-            sort={{
-              value: kbSort,
-              onChange: setKbSort,
-              options: KASA_BANKA_SORT_OPTIONS,
-            }}
-            extraActions={
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingAccount(null);
-                    setAccountForm({
-                      kind: 'cash',
-                      name: '',
-                      currency: 'TRY',
-                      bank_name: '',
-                      iban: '',
-                      opening_balance: '0',
-                      default_for: '',
-                      is_active: true,
-                    });
-                    setShowAccountModal(true);
-                  }}
-                  className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700"
+        {/* 2. Arama + Sıralama + Gelişmiş Filtreler + Yeni Kasa / Yeni Banka Butonları */}
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="p-4">
+            <ResponsiveDataToolbar
+              search={{
+                value: kbFilters.search,
+                onChange: (val) => setKbFilters((p) => ({ ...p, search: val })),
+                placeholder: 'Kasa adı, banka, IBAN veya açıklama ara…',
+              }}
+              sort={{
+                value: kbSort,
+                onChange: setKbSort,
+                options: KASA_BANKA_SORT_OPTIONS,
+              }}
+              extraActions={
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowKbFilters((p) => !p)}
+                    className={`inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition ${
+                      showKbFilters || activeKbFilterCount > 0
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Layers className="h-4 w-4" />
+                    <span>Filtreler</span>
+                    {activeKbFilterCount > 0 ? (
+                      <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] text-white">
+                        {activeKbFilterCount}
+                      </span>
+                    ) : null}
+                  </button>
+                  {activeKbFilterCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setKbFilters({
+                          search: '',
+                          kasaId: '',
+                          bankaId: '',
+                          durum: '',
+                          minTutar: '',
+                          maxTutar: '',
+                        })
+                      }
+                      className="inline-flex h-10 cursor-pointer items-center gap-1 rounded-xl bg-rose-50 px-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100"
+                    >
+                      <X className="h-3.5 w-3.5" /> Temizle
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAccount(null);
+                      setAccountForm({
+                        kind: 'cash',
+                        name: '',
+                        currency: 'TRY',
+                        bank_name: '',
+                        sube_adi: '',
+                        hesap_turu: 'VADESIZ',
+                        hesap_no: '',
+                        iban: '',
+                        opening_balance: '0',
+                        aciklama: '',
+                        default_for: '',
+                        is_active: true,
+                      });
+                      setShowAccountModal(true);
+                    }}
+                    className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700"
+                  >
+                    <Plus className="h-4 w-4" /> Yeni Kasa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAccount(null);
+                      setAccountForm({
+                        kind: 'bank',
+                        name: '',
+                        currency: 'TRY',
+                        bank_name: '',
+                        sube_adi: '',
+                        hesap_turu: 'VADESIZ',
+                        hesap_no: '',
+                        iban: '',
+                        opening_balance: '0',
+                        aciklama: '',
+                        default_for: '',
+                        is_active: true,
+                      });
+                      setShowAccountModal(true);
+                    }}
+                    className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700"
+                  >
+                    <Plus className="h-4 w-4" /> Yeni Banka Hesabı
+                  </button>
+                </div>
+              }
+            />
+          </div>
+
+          {showKbFilters ? (
+            <div className="grid grid-cols-1 gap-3 border-t border-slate-100 p-4 sm:grid-cols-2 lg:grid-cols-5">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Kasa Seç</label>
+                <select
+                  value={kbFilters.kasaId}
+                  onChange={(e) => setKbFilters((p) => ({ ...p, kasaId: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
                 >
-                  <Plus className="h-4 w-4" /> Yeni Kasa
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingAccount(null);
-                    setAccountForm({
-                      kind: 'bank',
-                      name: '',
-                      currency: 'TRY',
-                      bank_name: '',
-                      iban: '',
-                      opening_balance: '0',
-                      default_for: '',
-                      is_active: true,
-                    });
-                    setShowAccountModal(true);
-                  }}
-                  className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700"
-                >
-                  <Plus className="h-4 w-4" /> Yeni Banka Hesabı
-                </button>
+                  <option value="">Tüm Kasalar</option>
+                  {siraliKasalar.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.name}
+                    </option>
+                  ))}
+                </select>
               </div>
-            }
-          />
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Banka Hesabı Seç</label>
+                <select
+                  value={kbFilters.bankaId}
+                  onChange={(e) => setKbFilters((p) => ({ ...p, bankaId: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
+                >
+                  <option value="">Tüm Bankalar</option>
+                  {siraliBankaHesaplari.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Durum</label>
+                <select
+                  value={kbFilters.durum}
+                  onChange={(e) => setKbFilters((p) => ({ ...p, durum: e.target.value as any }))}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
+                >
+                  <option value="">Tümü</option>
+                  <option value="aktif">Aktif</option>
+                  <option value="pasif">Pasif</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Min Bakiye (₺)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={kbFilters.minTutar}
+                  onChange={(e) => setKbFilters((p) => ({ ...p, minTutar: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Max Bakiye (₺)</label>
+                <input
+                  type="number"
+                  placeholder="Limitsiz"
+                  value={kbFilters.maxTutar}
+                  onChange={(e) => setKbFilters((p) => ({ ...p, maxTutar: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
+                />
+              </div>
+            </div>
+          ) : null}
         </section>
 
         {/* 3. Sekme Çubuğu */}
         {renderTabNavigation()}
 
-        {/* 4. Banka Hesapları Tablosu (Sürükle-Bırak + 12 Renk Seçici + Banka Logosu + IBAN Kopyala + Mutabakat Çekmecesi) */}
+        {/* 4. Banka Hesapları Tablosu (Sürükle-Bırak + 12 Renk Seçici + Banka Logosu + IBAN Kopyala + Mutabakat Çekmecesi + Excel/PDF Dışa Aktar) */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
             <div>
               <h3 className="text-lg font-bold text-slate-900">Banka & POS Hesapları</h3>
               <p className="text-xs text-slate-500">
                 Satırları sürükleyerek veya oklarla sıralayabilir, renk seçebilir ve &ldquo;Hareketler &amp; Mutabakat&rdquo; ile ekstre kontrolü yapabilirsiniz.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingAccount(null);
-                setAccountForm({
-                  kind: 'bank',
-                  name: '',
-                  currency: 'TRY',
-                  bank_name: '',
-                  iban: '',
-                  opening_balance: '0',
-                  default_for: '',
-                  is_active: true,
-                });
-                setShowAccountModal(true);
-              }}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" /> Yeni Hesap Ekle
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => exportAccountsCSV('banka', filteredBankalar)}
+                title="Banka Hesapları Excel İndir (.csv)"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#1D6F42] px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#165934]"
+              >
+                <ExcelSvg className="h-3.5 w-3.5" />
+                <span>Excel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                title="Banka Hesapları PDF / Yazdır"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#E10915] px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#bd0711]"
+              >
+                <PdfSvg className="h-3.5 w-3.5" />
+                <span>PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingAccount(null);
+                  setAccountForm({
+                    kind: 'bank',
+                    name: '',
+                    currency: 'TRY',
+                    bank_name: '',
+                    sube_adi: '',
+                    hesap_turu: 'VADESIZ',
+                    hesap_no: '',
+                    iban: '',
+                    opening_balance: '0',
+                    aciklama: '',
+                    default_for: '',
+                    is_active: true,
+                  });
+                  setShowAccountModal(true);
+                }}
+                className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4" /> Yeni Hesap Ekle
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -2389,8 +2860,12 @@ export default function OnMuhasebePage() {
                               name: banka.name,
                               currency: banka.currency,
                               bank_name: banka.bank_name || '',
+                              sube_adi: '',
+                              hesap_turu: 'VADESIZ',
+                              hesap_no: '',
                               iban: banka.iban || '',
                               opening_balance: (banka.opening_balance_cents / 100).toFixed(2),
+                              aciklama: '',
                               default_for: banka.default_for || '',
                               is_active: banka.is_active,
                             });
@@ -2427,28 +2902,52 @@ export default function OnMuhasebePage() {
 
         {/* 5. Kasalar Tablosu */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
             <h3 className="text-lg font-bold text-slate-900">Kasalar</h3>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingAccount(null);
-                setAccountForm({
-                  kind: 'cash',
-                  name: '',
-                  currency: 'TRY',
-                  bank_name: '',
-                  iban: '',
-                  opening_balance: '0',
-                  default_for: '',
-                  is_active: true,
-                });
-                setShowAccountModal(true);
-              }}
-              className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700"
-            >
-              <Plus className="h-4 w-4" /> Yeni Kasa Ekle
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => exportAccountsCSV('kasa', filteredKasalar)}
+                title="Kasalar Excel İndir (.csv)"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#1D6F42] px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#165934]"
+              >
+                <ExcelSvg className="h-3.5 w-3.5" />
+                <span>Excel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                title="Kasalar PDF / Yazdır"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#E10915] px-2.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#bd0711]"
+              >
+                <PdfSvg className="h-3.5 w-3.5" />
+                <span>PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingAccount(null);
+                  setAccountForm({
+                    kind: 'cash',
+                    name: '',
+                    currency: 'TRY',
+                    bank_name: '',
+                    sube_adi: '',
+                    hesap_turu: 'VADESIZ',
+                    hesap_no: '',
+                    iban: '',
+                    opening_balance: '0',
+                    aciklama: '',
+                    default_for: '',
+                    is_active: true,
+                  });
+                  setShowAccountModal(true);
+                }}
+                className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+              >
+                <Plus className="h-4 w-4" /> Yeni Kasa Ekle
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -2566,8 +3065,12 @@ export default function OnMuhasebePage() {
                               name: kasa.name,
                               currency: kasa.currency,
                               bank_name: '',
+                              sube_adi: '',
+                              hesap_turu: 'VADESIZ',
+                              hesap_no: '',
                               iban: '',
                               opening_balance: (kasa.opening_balance_cents / 100).toFixed(2),
+                              aciklama: '',
                               default_for: kasa.default_for || '',
                               is_active: kasa.is_active,
                             });
@@ -2994,8 +3497,12 @@ export default function OnMuhasebePage() {
                             name: '',
                             currency: ggForm.para_birimi || 'TRY',
                             bank_name: '',
+                            sube_adi: '',
+                            hesap_turu: 'VADESIZ',
+                            hesap_no: '',
                             iban: '',
                             opening_balance: '0',
+                            aciklama: '',
                             default_for: '',
                             is_active: true,
                           });
@@ -3018,8 +3525,12 @@ export default function OnMuhasebePage() {
                               name: '',
                               currency: 'TRY',
                               bank_name: '',
+                              sube_adi: '',
+                              hesap_turu: 'VADESIZ',
+                              hesap_no: '',
                               iban: '',
                               opening_balance: '0',
+                              aciklama: '',
                               default_for: '',
                               is_active: true,
                             });
@@ -3077,8 +3588,12 @@ export default function OnMuhasebePage() {
                             name: '',
                             currency: ggForm.para_birimi || 'TRY',
                             bank_name: '',
+                            sube_adi: '',
+                            hesap_turu: 'VADESIZ',
+                            hesap_no: '',
                             iban: '',
                             opening_balance: '0',
+                            aciklama: '',
                             default_for: '',
                             is_active: true,
                           });
@@ -3101,8 +3616,12 @@ export default function OnMuhasebePage() {
                               name: '',
                               currency: 'TRY',
                               bank_name: '',
+                              sube_adi: '',
+                              hesap_turu: 'VADESIZ',
+                              hesap_no: '',
                               iban: '',
                               opening_balance: '0',
+                              aciklama: '',
                               default_for: '',
                               is_active: true,
                             });
@@ -3446,7 +3965,167 @@ export default function OnMuhasebePage() {
         </div>
       ) : null}
 
-      {/* 5. ⇄ Kasa / Banka Devir İşlemleri (Virman) Modalı */}
+      {/* 4B. Satır Tıklama Detay ve Revizyon Geçmişi Modalı (e-Medrese Birebir) */}
+      {selectedGgDetail ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setSelectedGgDetail(null)}
+        >
+          <div
+            className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-extrabold uppercase ${
+                    selectedGgDetail.islem_tipi === 'GELIR'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-rose-50 text-rose-700'
+                  }`}
+                >
+                  {selectedGgDetail.islem_tipi_display}
+                </span>
+                <h3 className="text-base font-bold text-slate-900">İşlem Detayı</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedGgDetail(null)}
+                className="cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4 text-xs sm:text-sm">
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div>
+                  <div className="text-xs font-semibold text-slate-500">Kategori</div>
+                  <div className="mt-0.5 text-base font-bold text-slate-900">{selectedGgDetail.kategori}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-semibold text-slate-500">Tutar</div>
+                  <div
+                    className={`mt-0.5 text-lg font-black tabular-nums ${
+                      selectedGgDetail.islem_tipi === 'GELIR' ? 'text-emerald-600' : 'text-rose-600'
+                    }`}
+                  >
+                    {selectedGgDetail.islem_tipi === 'GELIR' ? '+' : '-'}
+                    {formatMoney(selectedGgDetail.miktar_cents, selectedGgDetail.para_birimi)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 p-4">
+                <div>
+                  <span className="block text-[11px] font-semibold uppercase text-slate-400">Tarih / Saat</span>
+                  <span className="mt-0.5 block font-mono font-bold text-slate-800">
+                    {formatDateWithOptionalTime(selectedGgDetail.tarih, selectedGgDetail.olusturma_tarihi)}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-semibold uppercase text-slate-400">Ödeme Yöntemi</span>
+                  <span className="mt-0.5 block font-bold text-slate-800">
+                    {selectedGgDetail.odeme_yontemi_display}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-semibold uppercase text-slate-400">Kasa / Banka</span>
+                  <span className="mt-0.5 block font-bold text-slate-800">
+                    {selectedGgDetail.banka_hesabi_adi || selectedGgDetail.kasa_adi || selectedGgDetail.account_name || '-'}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-semibold uppercase text-slate-400">Kişi / Kurum</span>
+                  <span className="mt-0.5 block font-bold text-slate-800">{selectedGgDetail.kisi_adi || '-'}</span>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-semibold uppercase text-slate-400">Belge / Makbuz No</span>
+                  <span className="mt-0.5 block font-mono font-bold text-slate-800">
+                    {selectedGgDetail.belge_no || '-'}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[11px] font-semibold uppercase text-slate-400">Kaydeden</span>
+                  <span className="mt-0.5 block font-bold text-slate-800">
+                    {selectedGgDetail.olusturan_adi || 'Sistem'}
+                  </span>
+                </div>
+              </div>
+
+              {selectedGgDetail.aciklama ? (
+                <div className="rounded-xl border border-slate-200 p-3.5">
+                  <span className="block text-[11px] font-semibold uppercase text-slate-400">Açıklama</span>
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{selectedGgDetail.aciklama}</p>
+                </div>
+              ) : null}
+
+              {selectedGgDetail.duzeltme_bilgisi?.duzeltildi &&
+              selectedGgDetail.duzeltme_bilgisi.gecmis &&
+              selectedGgDetail.duzeltme_bilgisi.gecmis.length > 0 ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-800">
+                      ✎ Düzeltme & Revizyon Geçmişi ({selectedGgDetail.duzeltme_bilgisi.toplam_duzeltme})
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {selectedGgDetail.duzeltme_bilgisi.gecmis.map((rev: any, idx: number) => (
+                      <div key={idx} className="rounded-lg border border-amber-200/80 bg-white p-2.5 text-xs">
+                        <div className="flex items-center justify-between text-[11px] text-slate-500">
+                          <span className="font-bold text-slate-700">{rev.kullanici}</span>
+                          <span>{rev.tarih ? new Date(rev.tarih).toLocaleString('tr-TR') : ''}</span>
+                        </div>
+                        <div className="mt-1.5 space-y-1">
+                          {rev.degisiklikler.map((deg: any, dIdx: number) => (
+                            <div key={dIdx} className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                              <span className="font-semibold text-slate-600">{deg.alan}:</span>
+                              <span className="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700 line-through">
+                                {deg.eski || '-'}
+                              </span>
+                              <span className="text-slate-400">→</span>
+                              <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700">
+                                {deg.yeni || '-'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-3.5">
+              {selectedGgDetail.source_type !== 'donation' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const item = selectedGgDetail;
+                    setSelectedGgDetail(null);
+                    openEditGgModal(item);
+                  }}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-700"
+                >
+                  <Edit2 className="h-3.5 w-3.5" /> Düzenle
+                </button>
+              ) : (
+                <span className="text-[11px] text-slate-500">Bağış makbuzu kaydı</span>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedGgDetail(null)}
+                className="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100"
+              >
+                Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 5. ⇄ Kasa / Banka Devir İşlemleri (Virman) Modalı (e-Medrese Birebir) */}
       {showTransferModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <form onSubmit={handleSaveTransfer} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
@@ -3456,17 +4135,56 @@ export default function OnMuhasebePage() {
                 <X className="h-5 w-5 text-slate-400" />
               </button>
             </div>
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Gönderen Hesap (Çıkış) *</label>
+            <div className="mt-4 space-y-4">
+              {/* Gönderen Hesap */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">Gönderen (Çıkış) *</label>
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTransferForm((p) => ({
+                          ...p,
+                          gonderen_tip: 'kasa',
+                          from_account_id: siraliKasalar[0]?.id || '',
+                        }))
+                      }
+                      className={`cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-bold transition ${
+                        transferForm.gonderen_tip === 'kasa'
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Kasa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTransferForm((p) => ({
+                          ...p,
+                          gonderen_tip: 'banka',
+                          from_account_id: siraliBankaHesaplari[0]?.id || '',
+                        }))
+                      }
+                      className={`cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-bold transition ${
+                        transferForm.gonderen_tip === 'banka'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Banka
+                    </button>
+                  </div>
+                </div>
                 <select
                   required
                   value={transferForm.from_account_id}
                   onChange={(e) => setTransferForm({ ...transferForm, from_account_id: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   <option value="">Seçiniz…</option>
-                  {accounts
+                  {(transferForm.gonderen_tip === 'kasa' ? siraliKasalar : siraliBankaHesaplari)
                     .filter((a) => a.is_active)
                     .map((a) => (
                       <option key={a.id} value={a.id}>
@@ -3475,16 +4193,60 @@ export default function OnMuhasebePage() {
                     ))}
                 </select>
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Alıcı Hesap (Giriş) *</label>
+
+              {/* Alıcı Hesap */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">Alıcı (Giriş) *</label>
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTransferForm((p) => ({
+                          ...p,
+                          alici_tip: 'kasa',
+                          to_account_id:
+                            siraliKasalar.find((k) => k.id !== p.from_account_id)?.id || siraliKasalar[0]?.id || '',
+                        }))
+                      }
+                      className={`cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-bold transition ${
+                        transferForm.alici_tip === 'kasa'
+                          ? 'bg-emerald-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Kasa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTransferForm((p) => ({
+                          ...p,
+                          alici_tip: 'banka',
+                          to_account_id:
+                            siraliBankaHesaplari.find((b) => b.id !== p.from_account_id)?.id ||
+                            siraliBankaHesaplari[0]?.id ||
+                            '',
+                        }))
+                      }
+                      className={`cursor-pointer rounded-md px-2.5 py-1 text-[11px] font-bold transition ${
+                        transferForm.alici_tip === 'banka'
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      Banka
+                    </button>
+                  </div>
+                </div>
                 <select
                   required
                   value={transferForm.to_account_id}
                   onChange={(e) => setTransferForm({ ...transferForm, to_account_id: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                 >
                   <option value="">Seçiniz…</option>
-                  {accounts
+                  {(transferForm.alici_tip === 'kasa' ? siraliKasalar : siraliBankaHesaplari)
                     .filter((a) => a.is_active && a.id !== transferForm.from_account_id)
                     .map((a) => (
                       <option key={a.id} value={a.id}>
@@ -3493,6 +4255,7 @@ export default function OnMuhasebePage() {
                     ))}
                 </select>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-xs font-bold text-slate-700">Miktar *</label>
@@ -3548,74 +4311,134 @@ export default function OnMuhasebePage() {
         </div>
       ) : null}
 
-      {/* 6. Kasa / Banka Ekle-Düzenle Modalı */}
+      {/* 6. Kasa / Banka Ekle-Düzenle Modalı (e-Medrese Birebir) */}
       {showAccountModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <form onSubmit={handleSaveAccount} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <form
+            onSubmit={handleSaveAccount}
+            className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <h3 className="text-base font-bold text-slate-900">
                 {editingAccount
-                  ? 'Hesap Düzenle'
+                  ? accountForm.kind === 'cash'
+                    ? 'Kasa Düzenle'
+                    : 'Banka Hesabı Düzenle'
                   : accountForm.kind === 'cash'
                     ? 'Yeni Kasa Ekle'
-                    : 'Yeni Banka / POS Hesabı Ekle'}
+                    : 'Yeni Banka Hesabı Ekle'}
               </h3>
               <button type="button" onClick={() => setShowAccountModal(false)}>
                 <X className="h-5 w-5 text-slate-400" />
               </button>
             </div>
-            <div className="mt-4 space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Hesap Türü</label>
-                  <select
-                    value={accountForm.kind}
-                    onChange={(e) => setAccountForm({ ...accountForm, kind: e.target.value as any })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  >
-                    <option value="cash">Kasa (Nakit)</option>
-                    <option value="bank">Banka Hesabı</option>
-                    <option value="pos">POS / Sanal POS</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Para Birimi</label>
-                  <select
-                    value={accountForm.currency}
-                    onChange={(e) => setAccountForm({ ...accountForm, currency: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  >
-                    {Object.keys(CURRENCY_SYMBOLS).map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Hesap / Kasa Adı *</label>
-                <input
-                  required
-                  value={accountForm.name}
-                  onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
-                  placeholder={accountForm.kind === 'cash' ? 'Örn: Merkez Kasa' : 'Örn: Kuveyt Türk Bağış TL'}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-
+            <div className="flex-1 space-y-3.5 overflow-y-auto px-6 py-4">
               {accountForm.kind !== 'cash' ? (
                 <>
-                  <div>
-                    <label className="mb-1 block text-xs font-bold text-slate-700">Banka Adı</label>
-                    <input
-                      value={accountForm.bank_name}
-                      onChange={(e) => setAccountForm({ ...accountForm, bank_name: e.target.value })}
-                      placeholder="Örn: Vakıf Katılım, Ziraat, Kuveyt Türk"
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                    />
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">Banka Seçimi *</label>
+                      <select
+                        value={
+                          PREDEFINED_BANKS.some((b) => b.value === accountForm.bank_name)
+                            ? accountForm.bank_name
+                            : accountForm.bank_name
+                              ? 'Diğer'
+                              : ''
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'Diğer') {
+                            setAccountForm((p) => ({ ...p, bank_name: '' }));
+                          } else {
+                            setAccountForm((p) => ({
+                              ...p,
+                              bank_name: val,
+                              name: p.name || (val ? `${val} Hesabı` : ''),
+                            }));
+                          }
+                        }}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                      >
+                        <option value="">Banka Seçiniz…</option>
+                        {PREDEFINED_BANKS.map((b) => (
+                          <option key={b.value} value={b.value}>
+                            {b.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">Banka Adı</label>
+                      <input
+                        value={accountForm.bank_name}
+                        onChange={(e) => setAccountForm({ ...accountForm, bank_name: e.target.value })}
+                        placeholder="Örn: Ziraat Katılım"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </div>
                   </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">Hesap Adı *</label>
+                      <input
+                        required
+                        value={accountForm.name}
+                        onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
+                        placeholder="Örn: Ziraat Katılım Bağış TL"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">Şube Adı / Kodu</label>
+                      <input
+                        value={accountForm.sube_adi}
+                        onChange={(e) => setAccountForm({ ...accountForm, sube_adi: e.target.value })}
+                        placeholder="Örn: Merkez Şube"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">Hesap Türü</label>
+                      <select
+                        value={accountForm.kind}
+                        onChange={(e) => setAccountForm({ ...accountForm, kind: e.target.value as any })}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                      >
+                        <option value="bank">Vadesiz / Cari</option>
+                        <option value="pos">POS / Sanal POS</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">Para Birimi *</label>
+                      <select
+                        value={accountForm.currency}
+                        onChange={(e) => setAccountForm({ ...accountForm, currency: e.target.value })}
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                      >
+                        {Object.keys(CURRENCY_SYMBOLS).map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-bold text-slate-700">Hesap No</label>
+                      <input
+                        value={accountForm.hesap_no}
+                        onChange={(e) => setAccountForm({ ...accountForm, hesap_no: e.target.value })}
+                        placeholder="Hesap numarası"
+                        className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+
                   <div>
                     <label className="mb-1 block text-xs font-bold text-slate-700">IBAN</label>
                     <input
@@ -3626,9 +4449,36 @@ export default function OnMuhasebePage() {
                     />
                   </div>
                 </>
-              ) : null}
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-xs font-bold text-slate-700">Kasa Adı *</label>
+                    <input
+                      required
+                      value={accountForm.name}
+                      onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
+                      placeholder="Örn: Merkez Kasa"
+                      className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-bold text-slate-700">Para Birimi *</label>
+                    <select
+                      value={accountForm.currency}
+                      onChange={(e) => setAccountForm({ ...accountForm, currency: e.target.value })}
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                    >
+                      {Object.keys(CURRENCY_SYMBOLS).map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-bold text-slate-700">Başlangıç Bakiyesi</label>
                   <input
@@ -3636,29 +4486,50 @@ export default function OnMuhasebePage() {
                     step="0.01"
                     value={accountForm.opening_balance}
                     onChange={(e) => setAccountForm({ ...accountForm, opening_balance: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Otomatik Bağış Yönü</label>
+                  <label className="mb-1 block text-xs font-bold text-slate-700">Varsayılan Ödeme Yönü</label>
                   <select
                     value={accountForm.default_for}
                     onChange={(e) => setAccountForm({ ...accountForm, default_for: e.target.value as any })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
                   >
                     <option value="">Varsayılan Değil</option>
-                    <option value="cash">Nakit Bağışlar</option>
+                    <option value="cash">Nakit İşlemler</option>
                     <option value="bank_transfer">Banka Havaleleri</option>
                     <option value="credit_card">Kredi Kartı / POS</option>
                   </select>
                 </div>
               </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">Açıklama</label>
+                <input
+                  value={accountForm.aciklama}
+                  onChange={(e) => setAccountForm({ ...accountForm, aciklama: e.target.value })}
+                  placeholder="İsteğe bağlı not veya açıklama…"
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <label className="inline-flex cursor-pointer items-center gap-2 pt-1 text-xs font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={accountForm.is_active}
+                  onChange={(e) => setAccountForm({ ...accountForm, is_active: e.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+                />
+                <span>Hesap Aktif</span>
+              </label>
             </div>
-            <div className="mt-6 flex justify-end gap-2">
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
               <button
                 type="button"
                 onClick={() => setShowAccountModal(false)}
-                className="cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700"
+                className="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700"
               >
                 Vazgeç
               </button>

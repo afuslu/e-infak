@@ -181,6 +181,10 @@ async def sync_organization_finance(db: AsyncSession, org_id: UUID) -> bool:
     from app.models.automation import BankAccount
     from app.models.donation import Donation, DonationStatus
     from app.models.expense import Expense
+    from app.models.organization import Organization
+
+    # Paralel isteklerin (Promise.all vb.) aynı anda senkronizasyon yapıp çakışmasını önlemek için kurum satırını kilitle
+    await db.execute(select(Organization.id).where(Organization.id == org_id).with_for_update())
 
     changed = False
 
@@ -210,6 +214,9 @@ async def sync_organization_finance(db: AsyncSession, org_id: UUID) -> bool:
         db.add(cash_acc)
         await db.flush()
         changed = True
+    elif not cash_acc.is_active:
+        cash_acc.is_active = True
+        changed = True
 
     # 3. Geçmiş onaylı bağışlardan LedgerEntry kaydı olmayanları deftere işle
     existing_donation_ids = set((await db.execute(select(LedgerEntry.source_id).where(
@@ -226,6 +233,7 @@ async def sync_organization_finance(db: AsyncSession, org_id: UUID) -> bool:
     for don in unposted_donations:
         if don.id not in existing_donation_ids and don.amount_cents > 0:
             await post_donation(db, don)
+            existing_donation_ids.add(don.id)
             changed = True
 
     # 4. Geçmiş giderlerden (Expense) LedgerEntry kaydı olmayanları işle
@@ -242,20 +250,44 @@ async def sync_organization_finance(db: AsyncSession, org_id: UUID) -> bool:
     for exp in all_expenses:
         if exp.id in existing_expense_ids or exp.amount_cents <= 0:
             continue
-        # Eski "Kasa & Giderler" ekranından girilmiş (account_id ve expense_card_id olmayan) giderleri Merkez Kasa'ya bağla
-        if exp.account_id is None and exp.expense_card_id is None and (exp.currency or "TRY") == "TRY":
-            exp.account_id = cash_acc.id
+        exp_cur = (exp.currency or "TRY").upper().strip()
+        if exp_cur == "TL":
+            exp_cur = "TRY"
+            exp.currency = "TRY"
+        # Hesabı seçilmemiş tüm eski giderleri Merkez Kasa'ya (veya döviz kasasına) bağla
+        if exp.account_id is None:
+            if exp_cur == "TRY":
+                exp.account_id = cash_acc.id
+            else:
+                fx_cash = (await db.execute(select(FinanceAccount).where(
+                    FinanceAccount.organization_id == org_id,
+                    FinanceAccount.kind == "cash",
+                    FinanceAccount.currency == exp_cur,
+                ).order_by(FinanceAccount.created_at))).scalars().first()
+                if not fx_cash:
+                    fx_cash = FinanceAccount(
+                        organization_id=org_id,
+                        name=f"Merkez Kasa ({exp_cur})",
+                        kind="cash",
+                        currency=exp_cur[:3],
+                        opening_balance_cents=0,
+                        is_active=True,
+                    )
+                    db.add(fx_cash)
+                    await db.flush()
+                exp.account_id = fx_cash.id
         if exp.account_id:
             acc = await db.get(FinanceAccount, exp.account_id)
             if acc and acc.organization_id == org_id:
                 post(
                     db, acc, direction="out", amount_cents=exp.amount_cents,
-                    entry_date=local_day(exp.expense_date),
+                    entry_date=local_day(exp.expense_date or exp.created_at),
                     category=(exp.category or "Gider")[:60],
                     description=(exp.description or exp.title)[:500] if (exp.description or exp.title) else None,
                     source_type="expense", source_id=exp.id,
                     counterparty_id=exp.counterparty_id, user_id=exp.created_by_id,
                 )
+                existing_expense_ids.add(exp.id)
                 changed = True
 
     if changed:

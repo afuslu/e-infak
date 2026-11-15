@@ -129,7 +129,7 @@ ROUTE_RULES: tuple[tuple[str, frozenset | str, frozenset | str], ...] = tuple(
         ("/admin-features/org-settings", ANY, {"settings"}),
         ("/admin-features/donation-categories", ANY, {"site"}),
         ("/admin-features/uploads", ANY, {"site", "operations", "settings", "donors", "members", "kurban"}),
-        ("/admin-features/acc/", {"finance"}, {"finance"}),
+        ("/admin-features/acc/", {"finance", "receipts", "bank", "reports"}, {"finance", "receipts", "bank"}),
         ("/admin-features/activity-logs", {"settings", "users"}, {"settings", "users"}),
         ("/admin-features/audit-logs", {"settings", "users"}, {"settings", "users"}),
         ("/admin-features/login-logs", {"settings", "users"}, {"settings", "users"}),

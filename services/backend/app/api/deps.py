@@ -366,7 +366,7 @@ ADMIN_ROUTE_FEATURES: tuple[tuple[str, Feature | tuple[Feature, ...]], ...] = (
     ("/donations/import", Feature.RECEIPTS),
     ("/members", Feature.MEMBERSHIP),
     ("/member-dues", Feature.MEMBERSHIP),
-    ("/admin-features/acc/", Feature.ACCOUNTING),
+    ("/admin-features/acc/", (Feature.RECEIPTS, Feature.ACCOUNTING, Feature.BANK_TRANSACTIONS)),
     # Regions are shared by money boxes, food aid and poverty tracking: any of them opens them.
     ("/regions", (Feature.MONEY_BOX, Feature.FOOD_AID, Feature.POVERTY_TRACKING)),
     ("/tasks", Feature.TASKS),
