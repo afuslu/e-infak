@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { AlertCircle, History, MapPin, PiggyBank, Plus, Search, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
-} from '../../../../lib/admin-access'
+import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon } from '../../../../components/admin/ui'
 
@@ -58,7 +56,7 @@ function newKey() {
 
 export default function KumbaraPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'operations_manage')
+  const canEdit = can(access, 'operations.manage')
   const [boxes, setBoxes] = useState<Box[]>([])
   const [regions, setRegions] = useState<Region[]>([])
   const [staff, setStaff] = useState<{ id: string; first_name: string; last_name: string }[]>([])

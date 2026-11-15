@@ -4,13 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Printer } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import {
-  apiErrorMessage,
-  hasPermission,
-  useAdminAccess,
-  v1Get,
-  v1Send,
-} from '../../../../lib/admin-access'
+import { apiErrorMessage, useAdminAccess, v1Get, v1Send, hasModule } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
@@ -64,7 +58,7 @@ const CURRENCIES = ['TRY', 'USD', 'EUR', 'GBP', 'SAR', 'CHF']
 
 export default function BankAccountsPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'finance_manage')
+  const canEdit = hasModule(access, 'bank')
   const [banks, setBanks] = useState<Bank[]>([])
   const [showAllBanks, setShowAllBanks] = useState(false)
   const [accounts, setAccounts] = useState<Account[]>([])

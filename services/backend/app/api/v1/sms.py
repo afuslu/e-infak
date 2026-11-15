@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, mask_phone, require_admin_route_feature, require_admin_route_permission, require_capability
+from app.api.deps import get_current_user, mask_phone, require_admin_route_feature, require_admin_route_permission, require_capability, masked
 from app.core.db import get_db
 from app.models.audit_log import AuditLog
 from app.models.automation import BankTransaction
@@ -488,7 +488,7 @@ async def preview_batch(request: Request, payload: BatchIn, db: AsyncSession = D
     return {
         "recipients": len(recipients), "stats": stats, "parts_total": sum(info["parts"] for _r, _t, info in rendered),
         "max_parts": max((info["parts"] for _r, _t, info in rendered), default=0),
-        "sample": {"name": sample[0].name, "phone": sample[0].phone, "body": sample[1], "segments": sample[2]} if sample else None,
+        "sample": {"name": sample[0].name, "phone": masked(sample[0].phone), "body": sample[1], "segments": sample[2]} if sample else None,
         "send_at": send_at, "moved_for_quiet_hours": moved,
         "label": await audience_label(db, org_id, payload.audience),
     }

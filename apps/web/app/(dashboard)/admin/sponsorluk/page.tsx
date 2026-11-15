@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { AlertCircle, CalendarClock, CheckCircle2, HeartHandshake, Search, Users, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
-} from '../../../../lib/admin-access'
+import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
 import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
@@ -74,8 +72,8 @@ type Tab = 'beneficiaries' | 'pledges'
 
 export default function SponsorshipPage() {
   const { data: access } = useAdminAccess()
-  const canOps = hasPermission(access, 'operations_manage')
-  const canDonor = hasPermission(access, 'donor_manage')
+  const canOps = can(access, 'operations.manage')
+  const canDonor = can(access, 'operations.manage')
   const [tab, setTab] = useState<Tab>('beneficiaries')
   const [summary, setSummary] = useState<Summary | null>(null)
   const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([])

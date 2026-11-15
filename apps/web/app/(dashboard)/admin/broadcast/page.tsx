@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, useAdminAccess, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { SegmentInfo, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
 import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
@@ -58,7 +58,7 @@ const toAsciiTr = (text: string) => text.replace(/[çÇğĞıİöÖşŞüÜ]/g, 
 
 export default function BulkSmsPage() {
   const { data: access } = useAdminAccess()
-  const canSend = hasPermission(access, 'donor_manage')
+  const canSend = can(access, 'sms.bulk')
   const [options, setOptions] = useState<Options | null>(null)
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
   const [meta, setMeta] = useState<SmsMeta | null>(null)

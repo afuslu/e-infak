@@ -31,7 +31,7 @@ from app.models.organization import Organization
 from app.models.organization_settings import OrganizationSettings
 from app.models.content_post import ContentPost
 from app.models.subscription import Subscription
-from app.api.deps import Permission, get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability, require_permission
+from app.api.deps import Permission, ensure_donor_visible, ensure_receipt_visible, get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability, require_permission, masked
 from app.utils.content import sanitize_public_text
 
 logger = logging.getLogger(__name__)
@@ -110,8 +110,9 @@ async def add_donor_note(
     donor_res = await db.execute(donor_query)
     donor = donor_res.scalar_one_or_none()
     if not donor:
-        raise HTTPException(status_code=404, detail="Donor not found")
-        
+        raise HTTPException(status_code=404, detail="Bağışçı bulunamadı")
+    ensure_donor_visible(current_user, donor)
+
     note = DonorNote(
         donor_id=donor_id,
         author_id=current_user.id,
@@ -143,6 +144,10 @@ async def list_donor_notes(
     current_user: User = Depends(get_current_user)
 ):
     org_id = UUID(request.state.organization_id)
+    donor = (await db.execute(select(Donor).where(Donor.id == donor_id, Donor.organization_id == org_id))).scalar_one_or_none()
+    if not donor:
+        raise HTTPException(status_code=404, detail="Bağışçı bulunamadı")
+    ensure_donor_visible(current_user, donor)
     query = (
         select(DonorNote, User)
         .join(Donor, Donor.id == DonorNote.donor_id)
@@ -324,7 +329,8 @@ async def get_donation_receipt(
     res = await db.execute(query)
     donation = res.scalar_one_or_none()
     if not donation:
-        raise HTTPException(status_code=404, detail="Donation not found")
+        raise HTTPException(status_code=404, detail="Bağış bulunamadı")
+    ensure_receipt_visible(current_user, donation)
 
     # Generate digital verification signature checksum
     import hashlib
@@ -380,6 +386,7 @@ async def download_donation_receipt_pdf(
     donation = res.scalar_one_or_none()
     if not donation:
         raise HTTPException(status_code=404, detail="Donation not found")
+    ensure_receipt_visible(current_user, donation)
 
     donor_name = "Anonim Bağışçı"
     if donation.donor:
@@ -459,8 +466,11 @@ async def get_analytics_stats(
     current_user: User = Depends(get_current_user)
 ):
     from app.models.campaign import HIDDEN_CAMPAIGN_TAG, CampaignStatus
+    from app.api.deps import has_capability, module_groups
     org_id = UUID(request.state.organization_id)
-    
+    # Organisation-wide money figures are for staff who see every receipt or the reports.
+    sees_all = has_capability(current_user, "receipts.view_all") or "reports" in module_groups(current_user, False)
+
     # 1. Fetch visible campaigns for progress
     camp_query = (
         select(Campaign)
@@ -494,12 +504,12 @@ async def get_analytics_stats(
     monthly_donations = [
         {"month": m["label"], "total_lira": m["total_cents"] / 100, "count": m["count"]}
         for m in await last_months_totals(db, org_id, months=6)
-    ]
+    ] if sees_all else []
     today = today_local()
     payment_methods = [
         {"method": p["label"], "count": p["count"], "total_lira": p["total_cents"] / 100}
         for p in await payment_method_totals(db, org_id, date(today.year, 1, 1), today)
-    ]
+    ] if sees_all else []
 
     # 3. Son gelen bağışlar
     recent_rows = (
@@ -509,6 +519,7 @@ async def get_analytics_stats(
             .where(
                 Donation.organization_id == org_id,
                 Donation.status.in_([DonationStatus.CONFIRMED, DonationStatus.PENDING]),
+                *(() if has_capability(current_user, "receipts.view_all") else (Donation.issued_by_id == current_user.id,)),
             )
             .order_by(func.coalesce(Donation.paid_at, Donation.created_at).desc())
             .limit(6)
@@ -533,7 +544,7 @@ async def get_analytics_stats(
     ]
 
     return {
-        "kpis": await dashboard_kpis(db, org_id),
+        "kpis": await dashboard_kpis(db, org_id) if sees_all else None,
         "monthly_donations": monthly_donations,
         "campaigns_progress": campaigns_progress,
         "payment_methods": payment_methods,
@@ -771,7 +782,7 @@ async def list_student_sponsorships(
             "id": str(sp.id),
             "donor_id": str(sp.donor_id),
             "donor_name": f"{d.first_name} {d.last_name or ''}".strip(),
-            "donor_phone": d.phone,
+            "donor_phone": masked(d.phone),
             "amount_cents": sp.amount_cents,
             "is_active": sp.is_active
         }
@@ -937,7 +948,7 @@ def _serialize_subscription(sub: Subscription) -> Dict[str, Any]:
         "donor_id": str(sub.donor_id),
         "donor_name": sub.donor.full_name if sub.donor else "Bilinmeyen Bağışçı",
         "donor_email": sub.donor.email if sub.donor else None,
-        "donor_phone": sub.donor.phone if sub.donor else None,
+        "donor_phone": masked(sub.donor.phone) if sub.donor else None,
         "campaign_id": str(sub.campaign_id),
         "campaign_title": sub.campaign.title if sub.campaign else "Genel Bağış",
         "amount_cents": sub.amount_cents,
@@ -1352,7 +1363,7 @@ async def get_ai_donor_insights(
             {
                 "donor_id": str(d.id),
                 "donor_name": d.full_name,
-                "donor_phone": d.phone,
+                "donor_phone": masked(d.phone),
                 "allow_sms": bool(d.allow_sms),
                 "last_donation_date": last_dt.date().isoformat(),
                 "days_since_last": days_since,

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
 import { Copy, KeyRound, Pencil, Plus, Search, Shield, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess, whatsappUrl, type CapabilityGroup } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, useAdminAccess, whatsappUrl, type CapabilityGroup, can } from '../../../../lib/admin-access'
 import { ExportButtons, PageHeader, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface StaffUser {
@@ -49,7 +49,7 @@ const buttonClass = 'rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold t
 export default function AdminUsersPage() {
   const queryClient = useQueryClient()
   const { data: access } = useAdminAccess()
-  const canManage = hasPermission(access, 'user_manage')
+  const canManage = can(access, 'users.manage')
   const [tab, setTab] = useState<Tab>('users')
   const [users, setUsers] = useState<StaffUser[]>([])
   const [departments, setDepartments] = useState<Department[]>([])

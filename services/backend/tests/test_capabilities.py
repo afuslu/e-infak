@@ -116,3 +116,58 @@ def test_mask_phone_formats():
         __dict__ = {"staff_role": type("R", (), {"permissions": []})()}
     assert mask_phone("05321234567", Viewer()) == "0532 *** ** 67"
     assert mask_phone(None, Viewer()) is None
+
+
+def _staff(role: UserRole = UserRole.CRM, ticks: list[str] | None = None) -> User:
+    user = User(id=uuid.uuid4(), organization_id=uuid.uuid4(), email="x@example.com", hashed_password="x",
+                first_name="X", last_name="Y", role=role)
+    if ticks is not None:
+        user.staff_role_id = uuid.uuid4()
+        user.staff_role = StaffRole(name="r", permissions=ticks)
+    return user
+
+
+def test_module_gate_follows_ticks_not_shared_broad_permissions():
+    from app.api.deps import can_reach
+
+    sms_only = _staff(ticks=["sms.send"])
+    assert can_reach(sms_only, "/api/v1/admin-features/sms/messages", write=False)
+    assert can_reach(sms_only, "/api/v1/admin-features/donors", write=False)  # picks recipients
+    # SMS, membership and donors share donor_manage; one tick must not open the others.
+    assert not can_reach(sms_only, "/api/v1/admin-features/members", write=True)
+    assert not can_reach(sms_only, "/api/v1/admin-features/donors/merge", write=True)
+    assert not can_reach(sms_only, "/api/v1/admin-features/acc/payroll", write=False)
+    assert not can_reach(sms_only, "/api/v1/admin-features/integrations/webhooks", write=False)
+
+    receipts = _staff(ticks=["receipts.create"])
+    assert can_reach(receipts, "/api/v1/admin-features/donations/manual", write=True)
+    assert not can_reach(receipts, "/api/v1/admin-features/acc/employees", write=False)  # salaries, IBANs
+
+    accountant = _staff(role=UserRole.MUHASEBE)
+    assert can_reach(accountant, "/api/v1/admin-features/acc/payroll", write=False)
+    assert not can_reach(accountant, "/api/v1/admin-features/staff-roles", write=False)
+
+    reader = _staff(role=UserRole.READONLY)
+    assert can_reach(reader, "/api/v1/admin-features/donors", write=False)
+    assert not can_reach(reader, "/api/v1/admin-features/donors", write=True)
+    assert not can_reach(reader, "/api/v1/admin-features/ip-rules", write=False)
+    # A path nobody listed is closed (settings only).
+    assert not can_reach(reader, "/api/v1/admin-features/yeni-bir-uc", write=False)
+
+
+def test_receipt_visibility_and_masking_context():
+    from types import SimpleNamespace
+    from app.api.deps import _viewer, can_see_receipt, masked
+
+    clerk = _staff(ticks=["receipts.create", "donors.view_all"])
+    other = SimpleNamespace(issued_by_id=uuid.uuid4(), donor=None)
+    own = SimpleNamespace(issued_by_id=clerk.id, donor=None)
+    assert can_see_receipt(clerk, own) and not can_see_receipt(clerk, other)
+    assert can_see_receipt(_staff(ticks=["receipts.view_all"]), other)
+
+    token = _viewer.set(clerk)
+    try:
+        assert masked("05321234567") != "05321234567" and "*" in masked("05321234567")
+    finally:
+        _viewer.reset(token)
+    assert masked("05321234567") == "05321234567"  # outside a staff request

@@ -5,17 +5,7 @@ import Link from 'next/link'
 import axios from 'axios'
 import { Copy, Download, ExternalLink, FileDown, MessageSquare, ShieldCheck, XCircle } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import {
-  adminApiBase,
-  adminAuthHeaders,
-  adminGet,
-  adminSend,
-  apiErrorMessage,
-  exportCsv,
-  formatMoney,
-  hasPermission,
-  useAdminAccess,
-} from '../../../../lib/admin-access'
+import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, exportCsv, formatMoney, useAdminAccess, can } from '../../../../lib/admin-access'
 import { Notice, TextInput, compactInputClass, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
@@ -92,8 +82,8 @@ export default function AdminReceiptsPage() {
   const [sms, setSms] = useState<Record<string, RelatedSms>>({})
   const [smsFor, setSmsFor] = useState<Donation | null>(null)
   const { data: access } = useAdminAccess()
-  const canIssue = hasPermission(access, 'finance_manage')
-  const canSms = hasPermission(access, 'donor_manage')
+  const canIssue = can(access, 'receipts.create')
+  const canSms = can(access, 'sms.send')
 
   const API_BASE = adminApiBase()
 

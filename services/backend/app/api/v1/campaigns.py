@@ -6,7 +6,7 @@ from uuid import UUID
 from app.core.db import get_db
 from app.models.campaign import HIDDEN_CAMPAIGN_TAG, Campaign, CampaignStatus, CampaignCategory
 from app.schemas.campaign import CampaignCreate, CampaignUpdate, CampaignResponse, CampaignListResponse
-from app.api.deps import Permission, require_permission
+from app.api.deps import Permission, require_permission, require_module
 from app.models.user import User, UserRole
 from slugify import slugify
 from app.schemas.campaign import CAMPAIGN_I18N
@@ -106,7 +106,7 @@ async def create_campaign(
     request: Request,
     campaign_in: CampaignCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.CONTENT_MANAGE)),
+    current_user: User = Depends(require_module("site")),
 ):
     """Create new campaign (admin only)"""
     
@@ -144,7 +144,7 @@ async def update_campaign(
     campaign_id: UUID,
     campaign_in: CampaignUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.CONTENT_MANAGE)),
+    current_user: User = Depends(require_module("site")),
 ):
     """Update campaign (admin only)"""
     

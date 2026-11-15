@@ -28,7 +28,7 @@ export interface AdminAccess {
   plans: { key: string; label: string; features: string[]; addons: string[]; users: number; bank_accounts: number; storage_mb: number }[]
   limits: { users: number; extra_user_seats: number; bank_accounts: number; storage_bytes: number }
   usage: { users: number; bank_accounts: number; storage_bytes: number; media_count: number }
-  me: { id: string; role: string; is_platform_admin: boolean; permissions: string[]; capabilities?: string[] }
+  me: { id: string; role: string; is_platform_admin: boolean; permissions: string[]; capabilities?: string[]; modules?: string[] }
   permission_catalog: { key: string; label: string }[]
   capability_catalog?: CapabilityGroup[]
   builtin_roles: { key: string; label: string; permissions: string[] }[]
@@ -148,14 +148,24 @@ export function hasFeature(access: AdminAccess | undefined, feature?: string) {
 
 export function hasPermission(access: AdminAccess | undefined, permission?: string) {
   if (!permission) return true
-  if (!access) return true
+  if (!access) return false
   return access.me.permissions.includes(permission)
 }
 
-/** Fine-grained permission (e.g. "donors.phone"). Unknown until loaded: allowed, the API enforces it. */
+/** Fine-grained permission (e.g. "donors.phone"). Hidden until access is known; the API enforces it too. */
 export function can(access: AdminAccess | undefined, capability: string) {
-  if (!access || !access.me.capabilities) return true
+  if (!access) return false
+  if (!access.me.capabilities) return true
   return access.me.capabilities.includes(capability)
+}
+
+/** Module (capability group, e.g. "receipts") the person works in: at least one tick in it. */
+export function hasModule(access: AdminAccess | undefined, module?: string | string[]) {
+  if (!module) return true
+  if (!access) return false
+  if (!access.me.modules) return true
+  const wanted = Array.isArray(module) ? module : [module]
+  return wanted.some((m) => access.me.modules!.includes(m))
 }
 
 export const formatMoney = (cents: number, currency = 'TRY') =>

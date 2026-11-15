@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Notice, ghostButton, inputClass } from '../../../../components/admin/FormKit'
 import { SOURCE_LABEL, STATUS_CLASS, STATUS_LABEL, SmsMessage, SmsStatus } from '../../../../lib/sms'
 import { ExportButtons, PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
@@ -20,7 +20,7 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('tr-TR'
 
 export default function SmsLogPage() {
   const { data: access } = useAdminAccess()
-  const canSend = hasPermission(access, 'donor_manage')
+  const canSend = can(access, 'sms.send')
   const [status, setStatus] = useState<'' | SmsStatus>('')
   const [source, setSource] = useState('')
   const [q, setQ] = useState('')

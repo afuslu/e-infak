@@ -18,7 +18,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability
+from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability, masked, ensure_capability, require_any_capability
 from app.api.v1.crm import _normalize_phone
 from app.core.db import get_db
 from app.models.audit_log import AuditLog
@@ -95,7 +95,7 @@ def _member_out(m: Member, open_cents: int = 0, overdue: int = 0, last_paid: Opt
         "status": m.status, "status_label": MEMBER_STATUSES.get(m.status, m.status),
         "joined_on": m.joined_on, "left_on": m.left_on, "dues_cents": m.dues_cents, "dues_period": m.dues_period,
         "notes": m.notes, "donor_id": str(m.donor_id),
-        "full_name": d.full_name if d else None, "phone": d.phone if d else None, "email": d.email if d else None,
+        "full_name": d.full_name if d else None, "phone": masked(d.phone) if d else None, "email": d.email if d else None,
         "city": d.city if d else None,
         "open_dues_cents": open_cents, "overdue_count": overdue, "last_paid_at": last_paid,
     }
@@ -113,7 +113,7 @@ def _due_out(due: MemberDue, member: Optional[Member] = None) -> dict:
     }
     if member is not None:
         out.update({"member_no": member.member_no, "full_name": member.donor.full_name if member.donor else None,
-                    "phone": member.donor.phone if member.donor else None})
+                    "phone": masked(member.donor.phone) if member.donor else None})
     return out
 
 
@@ -397,6 +397,8 @@ def _vcard(m: Member) -> str:
 async def members_vcard(request: Request, ids: Annotated[Optional[str], Query(max_length=20000)] = None,
                         db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Seçili (ids=uuid,uuid) ya da tüm aktif üyeler için tek .vcf dosyası."""
+    # A contact card is the phone number itself: only for staff who may see numbers in full.
+    ensure_capability(current_user, "donors.phone", "Telefonları tam görme yetkiniz olmadığı için rehber dosyası alınamaz")
     org_id = _org_id(request)
     query = select(Member).options(selectinload(Member.donor)).where(Member.organization_id == org_id)
     if ids:
@@ -548,7 +550,9 @@ class DuesPaymentIn(BaseModel):
     empty_to_none = field_validator("receipt_book_id", "bank_reference", mode="before")(lambda cls, v: v or None)
 
 
-@router.post("/member-dues/pay", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_capability("members.manage"))])
+# Collecting dues writes a receipt: membership staff or anyone who may write receipts.
+@router.post("/member-dues/pay", status_code=status.HTTP_201_CREATED,
+             dependencies=[Depends(require_any_capability("members.manage", "receipts.create"))])
 async def pay_dues(request: Request, payload: DuesPaymentIn, db: AsyncSession = Depends(get_db),
                    current_user: User = Depends(get_current_user)):
     """Bir üyenin seçili açık aidatlarını tek makbuzla tahsil eder (nakit / havale)."""
@@ -618,7 +622,7 @@ async def waive_dues(request: Request, payload: WaiveIn, db: AsyncSession = Depe
     return {"waived": len(dues)}
 
 
-@router.delete("/member-dues/{due_id}")
+@router.delete("/member-dues/{due_id}", dependencies=[Depends(require_capability("members.manage"))])
 async def delete_due(request: Request, due_id: UUID, db: AsyncSession = Depends(get_db),
                      current_user: User = Depends(get_current_user)):
     """Yanlışlıkla açılmış açık durumdaki tekil aidat kaydını siler."""

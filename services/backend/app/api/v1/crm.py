@@ -18,7 +18,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import ensure_capability, get_current_user, has_capability, mask_phone, require_admin_route_feature, require_admin_route_permission
+from app.api.deps import ensure_capability, get_current_user, has_capability, mask_phone, require_admin_route_feature, require_admin_route_permission, ensure_receipt_visible, masked
 from app.core.db import get_db
 from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign
@@ -553,7 +553,7 @@ async def search_donations(
         row.update({
             "donor_id": str(d.donor_id),
             "donor_name": d.donor.full_name if d.donor else "—",
-            "donor_phone": d.donor.phone if d.donor else None,
+            "donor_phone": masked(d.donor.phone) if d.donor else None,
             "is_anonymous": bool(d.is_anonymous),
         })
         items.append(row)
@@ -792,10 +792,11 @@ async def mark_manual_donation_paid(request: Request, donation_id: UUID, db: Asy
 
     org_id = _org_id(request)
     ensure_capability(current_user, "receipts.mark_paid", "Makbuzu ödendi yapma yetkiniz yok")
-    donation = (await db.execute(select(Donation).where(
-        Donation.id == donation_id, Donation.organization_id == org_id).with_for_update())).scalar_one_or_none()
+    donation = (await db.execute(select(Donation).options(selectinload(Donation.donor)).where(
+        Donation.id == donation_id, Donation.organization_id == org_id).with_for_update(of=Donation))).scalar_one_or_none()
     if not donation:
         raise HTTPException(status_code=404, detail="Bağış bulunamadı")
+    ensure_receipt_visible(current_user, donation)
     group = (donation.payment_details or {}).get("receipt_group")
     rows = [donation]
     if group:
@@ -827,10 +828,11 @@ async def cancel_manual_donation(request: Request, donation_id: UUID, payload: C
     org_id = _org_id(request)
     donation = (await db.execute(
         select(Donation).options(selectinload(Donation.campaign), selectinload(Donation.donor))
-        .where(Donation.id == donation_id, Donation.organization_id == org_id).with_for_update()
+        .where(Donation.id == donation_id, Donation.organization_id == org_id).with_for_update(of=Donation)
     )).scalar_one_or_none()
     if not donation:
         raise HTTPException(status_code=404, detail="Bağış bulunamadı")
+    ensure_receipt_visible(current_user, donation)
     if donation.payment_provider not in OFFLINE_PROVIDERS:
         raise HTTPException(status_code=409, detail="Online ödemeler iptal edilemez; iade işlemi kullanılmalıdır")
     if donation.status not in (DonationStatus.CONFIRMED, DonationStatus.PENDING):

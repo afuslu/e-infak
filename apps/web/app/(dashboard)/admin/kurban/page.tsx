@@ -5,9 +5,7 @@ import { Card } from '@e-infak/ui'
 import {
   Calculator, CheckCircle2, Clock, Coins, FileText, MessageSquare, Search, Users, Video, X,
 } from 'lucide-react'
-import {
-  apiErrorMessage, downloadFile, formatMoney, hasPermission, useAdminAccess, v1Get, v1Send, whatsappUrl,
-} from '../../../../lib/admin-access'
+import { apiErrorMessage, downloadFile, formatMoney, useAdminAccess, v1Get, v1Send, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm } from '../../../../components/admin/ManualReceiptForm'
 import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
@@ -78,8 +76,8 @@ const emptyCampaign = {
 
 export default function KurbanAdminPage() {
   const { data: access } = useAdminAccess()
-  const canWrite = hasPermission(access, 'operations_manage')
-  const canIssue = hasPermission(access, 'finance_manage')
+  const canWrite = can(access, 'kurban.manage')
+  const canIssue = can(access, 'receipts.create')
   const [campaigns, setCampaigns] = useState<KurbanCampaign[]>([])
   const [types, setTypes] = useState<{ key: string; label: string }[]>([])
   const [selectedId, setSelectedId] = useState<string>('')

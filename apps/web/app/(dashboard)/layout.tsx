@@ -9,7 +9,7 @@ import { ExternalLink, Lock, type LucideIcon, Monitor, Moon, PanelLeftClose, Pan
 import { UiHost } from '../../components/admin/ui'
 import { groupOf, NAV_GROUPS, navItemFor, type NavItem, searchKey } from '../../components/admin/admin-nav'
 import { AdminCommandPalette, AdminNotificationsBell, AdminProfileMenu } from '../../components/admin/AdminShellWidgets'
-import { hasFeature, hasPermission, useAdminAccess, v1Get } from '../../lib/admin-access'
+import { hasFeature, hasModule, hasPermission, useAdminAccess, v1Get } from '../../lib/admin-access'
 
 const MENU_KEY = 'einfak-admin-menu'
 const COLLAPSE_KEY = 'einfak-admin-sidebar-collapsed'
@@ -187,10 +187,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const [ThemeIcon, themeLabel] = THEME_LABELS[theme.choice]
-  const allowed = (item: NavItem) => hasFeature(access, item.feature) && hasPermission(access, item.permission)
+  const permitted = (item: NavItem) => hasPermission(access, item.permission) && hasModule(access, item.module)
+  // Menu entries appear once access is known; a page is only reported blocked after that too.
+  const allowed = (item: NavItem) => !!access && hasFeature(access, item.feature) && permitted(item)
   const groups = NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter(allowed) })).filter((group) => group.items.length)
-  const blockedFeature = currentItem && !hasFeature(access, currentItem.feature) ? currentItem : undefined
-  const blockedPermission = currentItem && !blockedFeature && !hasPermission(access, currentItem.permission) ? currentItem : undefined
+  const blockedFeature = access && currentItem && !hasFeature(access, currentItem.feature) ? currentItem : undefined
+  const blockedPermission = access && currentItem && !blockedFeature && !permitted(currentItem) ? currentItem : undefined
   const needle = searchKey(query.trim())
   const results = needle
     ? groups.flatMap((group) => group.items

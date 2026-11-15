@@ -4,9 +4,7 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 import { Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
-} from '../../../../lib/admin-access'
+import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ExportButtons, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
@@ -46,8 +44,8 @@ const emptyMember = { member_no: '', member_type: 'asil', status: 'active', join
 
 export default function MembersPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'donor_manage')
-  const canCollect = hasPermission(access, 'finance_manage')
+  const canEdit = can(access, 'members.manage')
+  const canCollect = (can(access, 'members.manage') || can(access, 'receipts.create'))
   const [tab, setTab] = useState<Tab>('members')
   const [settings, setSettings] = useState<Settings | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)

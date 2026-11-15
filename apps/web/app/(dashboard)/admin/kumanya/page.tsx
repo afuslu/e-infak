@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { AlertTriangle, Boxes, CheckCircle2, Package, Search, Truck, Wallet } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import {
-  adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
-} from '../../../../lib/admin-access'
+import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon } from '../../../../components/admin/ui'
 
@@ -28,7 +26,7 @@ type Tab = 'packages' | 'recipients' | 'distributions'
 
 export default function KumanyaPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'operations_manage')
+  const canEdit = can(access, 'operations.manage')
   const [tab, setTab] = useState<Tab>('packages')
   const [packages, setPackages] = useState<Package[]>([])
   const [recipients, setRecipients] = useState<Recipient[]>([])

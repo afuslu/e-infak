@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability
+from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability, masked
 from app.api.v1.crm import _normalize_phone
 from app.api.v1.reconciliation import _amount_to_cents
 from app.core.db import Base, get_db
@@ -487,7 +487,7 @@ async def import_receipts(
 
 def _donor_brief(d: Donor) -> dict:
     return {
-        "id": str(d.id), "full_name": d.full_name, "phone": d.phone, "email": d.email, "tc_masked":
+        "id": str(d.id), "full_name": d.full_name, "phone": masked(d.phone), "email": d.email, "tc_masked":
             f"{d.tc_no[:3]}******{d.tc_no[-2:]}" if d.tc_no else None,
         "city": d.city, "total_donations": d.total_donations or 0, "total_donated_cents": d.total_donated_cents or 0,
         "last_donation_at": d.last_donation_at, "created_at": d.created_at, "tags": d.tags or [],

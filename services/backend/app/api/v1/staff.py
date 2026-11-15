@@ -255,6 +255,15 @@ def _audit(db: AsyncSession, org_id: UUID, actor: User, action: str, details: di
 
 # --- Package / access ------------------------------------------------------
 
+def _reachable_modules(user: User) -> set[str]:
+    from app.api.deps import module_groups
+    from app.core.capabilities import GROUPS
+
+    if user.role == UserRole.PLATFORM_ADMIN or (user.role == UserRole.STK_ADMIN and not user.staff_role_id):
+        return {g.key for g in GROUPS}
+    return module_groups(user, write=False)
+
+
 @router.get("/access")
 async def get_access(
     request: Request,
@@ -319,6 +328,8 @@ async def get_access(
             "is_platform_admin": current_user.role == UserRole.PLATFORM_ADMIN,
             "permissions": sorted(p.value for p in effective_permissions(current_user)),
             "capabilities": sorted(effective_capabilities(current_user)),
+            # Modules (capability groups) this person may open; drives the menu.
+            "modules": sorted(_reachable_modules(current_user)),
         },
         "permission_catalog": [{"key": p.value, "label": PERMISSION_LABELS[p]} for p in Permission],
         "capability_catalog": capability_catalog(),

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess, v1Get } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, useAdminAccess, v1Get, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { MODE_LABEL, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
 import { PageHeader, confirmDialog } from '../../../../components/admin/ui'
@@ -21,7 +21,7 @@ const fill = (body: string) => body.replace(/\{(\w+)\}/g, (all, name) => SAMPLE[
 
 export default function SmsTemplatesPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'donor_manage')
+  const canEdit = can(access, 'sms.templates')
   const [templates, setTemplates] = useState<SmsTemplate[] | null>(null)
   const [meta, setMeta] = useState<SmsMeta | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 import { Printer } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminApiBase, adminAuthHeaders, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminApiBase, adminAuthHeaders, apiErrorMessage, formatMoney, useAdminAccess, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
@@ -37,7 +37,7 @@ const CURRENCIES = ['TRY', 'USD', 'EUR', 'GBP', 'SAR', 'CHF']
 
 export default function AccountingPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'finance_manage')
+  const canEdit = can(access, 'finance.manage')
   const [tab, setTab] = useState<Tab>('summary')
   const [accounts, setAccounts] = useState<Account[]>([])
   const [parties, setParties] = useState<Party[]>([])

@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import Permission, require_capability, require_feature, require_permission
+from app.api.deps import Permission, require_capability, require_feature, require_permission, require_module, masked
 from app.core.config import settings
 from app.core.db import get_db
 from app.core.plans import Feature
@@ -39,8 +39,8 @@ router = APIRouter(
     dependencies=[Depends(require_feature(Feature.KURBAN))],
 )
 
-READ = Depends(require_permission(Permission.ADMIN_READ))
-WRITE = Depends(require_permission(Permission.OPERATIONS_MANAGE))
+READ = Depends(require_module("kurban", write=False))
+WRITE = Depends(require_module("kurban"))
 TYPE_LABELS = {KurbanAnimalType.COW: "Büyükbaş", KurbanAnimalType.SHEEP: "Küçükbaş"}
 
 KURBAN_CHECKOUT_FIELDS = [
@@ -669,7 +669,7 @@ async def list_shares(
                 "id": str(s.id), "campaign_id": str(s.campaign_id) if s.campaign_id else None,
                 "animal_id": str(s.animal_id) if s.animal_id else None, "animal_number": number,
                 "share_number": s.share_number, "donor_id": str(s.donor_id) if s.donor_id else None,
-                "donor_name": s.donor_name, "donor_phone": s.donor_phone, "on_behalf_of": s.on_behalf_of,
+                "donor_name": s.donor_name, "donor_phone": masked(s.donor_phone), "on_behalf_of": s.on_behalf_of,
                 "kurban_type": s.kurban_type, "kurban_type_label": KURBAN_TYPES.get(s.kurban_type, s.kurban_type),
                 "status": s.status.value, "notified": bool(s.notified_at), "receipt_number": receipt,
                 "created_at": s.created_at,

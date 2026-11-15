@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, can } from '../../../../../lib/admin-access'
 import { Notice, ghostButton, primaryButton } from '../../../../../components/admin/FormKit'
 import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../../components/admin/ui'
 
@@ -15,7 +15,7 @@ interface Group { reasons: string[]; donors: DonorBrief[] }
 
 export default function DuplicateDonorsPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'donor_manage')
+  const canEdit = can(access, 'donors.merge')
   const [includeNames, setIncludeNames] = useState(false)
   const [groups, setGroups] = useState<Group[] | null>(null)
   const [targets, setTargets] = useState<Record<number, string>>({})

@@ -15,7 +15,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission
+from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, masked
 from app.core.db import get_db
 from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign, CampaignCategory, CampaignStatus
@@ -227,7 +227,7 @@ def _pledge_out(p: Pledge, today: date, include_installments: bool = False) -> d
         "id": str(p.id), "kind": p.kind, "kind_label": PLEDGE_KINDS.get(p.kind, p.kind),
         "title": p.title or (p.beneficiary.full_name if p.beneficiary else None),
         "donor_id": str(p.donor_id), "donor_name": p.donor.full_name if p.donor else None,
-        "donor_phone": p.donor.phone if p.donor else None,
+        "donor_phone": masked(p.donor.phone) if p.donor else None,
         "beneficiary_id": str(p.beneficiary_id) if p.beneficiary_id else None,
         "beneficiary_name": p.beneficiary.full_name if p.beneficiary else None,
         "water_well_id": str(p.water_well_id) if p.water_well_id else None,

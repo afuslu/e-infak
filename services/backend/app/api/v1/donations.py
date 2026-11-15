@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import ensure_receipt_visible, get_current_user, has_capability, require_module
 from app.core.db import get_db
 from app.models.donation import Donation, DonationStatus
 from app.models.user import User
@@ -28,7 +28,7 @@ async def get_donation(
     request: Request,
     donation_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_module("receipts", "reports", write=False)),
 ):
     result = await db.execute(
         select(Donation).where(
@@ -39,6 +39,7 @@ async def get_donation(
     donation = result.scalar_one_or_none()
     if not donation:
         raise HTTPException(status_code=404, detail="Bağış bulunamadı")
+    ensure_receipt_visible(current_user, donation)
     return donation
 
 
@@ -50,9 +51,11 @@ async def list_donations(
     status: Optional[DonationStatus] = None,
     campaign_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_module("receipts", "reports", write=False)),
 ):
     query = select(Donation).where(Donation.organization_id == request.state.organization_id)
+    if not has_capability(current_user, "receipts.view_all"):
+        query = query.where(Donation.issued_by_id == current_user.id)
     if status:
         query = query.where(Donation.status == status)
     if campaign_id:

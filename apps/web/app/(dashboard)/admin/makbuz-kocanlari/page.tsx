@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, compactInputClass, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ExportButtons, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
@@ -64,7 +64,7 @@ const today = () => {
 
 export default function ReceiptBooksPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'finance_manage')
+  const canEdit = (can(access, 'receipts.create') || can(access, 'finance.manage'))
   const [books, setBooks] = useState<Book[]>([])
   const [staff, setStaff] = useState<Staff[]>([])
   const [search, setSearch] = useState('')

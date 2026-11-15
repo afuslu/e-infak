@@ -4,18 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Download, Eye, FileText, HandCoins, MessageSquare, Plus, RefreshCw, Wallet, X } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import {
-  adminGet,
-  adminSend,
-  apiErrorMessage,
-  exportPdf,
-  exportXlsx,
-  formatMoney,
-  hasPermission,
-  useAdminAccess,
-  v1Get,
-  whatsappUrl,
-} from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, exportPdf, exportXlsx, formatMoney, useAdminAccess, v1Get, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
@@ -93,7 +82,7 @@ const PAGE_SIZE = 50
 
 export default function AdminDonationsPage() {
   const { data: access } = useAdminAccess()
-  const canIssue = hasPermission(access, 'finance_manage')
+  const canIssue = can(access, 'receipts.create')
   const [filters, setFilters] = useState(emptyFilters)
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<SearchResult | null>(null)

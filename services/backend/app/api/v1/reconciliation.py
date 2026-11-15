@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import Permission, mask_phone, require_capability, require_feature, require_permission
+from app.api.deps import Permission, mask_phone, require_capability, require_feature, require_module, require_permission
 from app.core.plans import Feature
 from app.api.v1.checkout import _finalize_paid_order, _load_order, lock_order
 from app.core.db import get_db
@@ -362,7 +362,7 @@ async def import_bank_statement(
     bank_account_id: Annotated[UUID | None, Query()] = None,
     column_map: Annotated[Optional[str], Query()] = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    current_user: User = Depends(require_module("bank")),
 ):
     from app.banking.sync import process_transactions
 
@@ -448,7 +448,7 @@ async def import_bank_statement(
 async def list_bank_imports(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    _: User = Depends(require_module("bank")),
 ):
     org_id = UUID(request.state.organization_id)
     imports = (
@@ -490,7 +490,7 @@ async def delete_bank_import(
     import_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    _: User = Depends(require_module("bank")),
 ):
     org_id = UUID(request.state.organization_id)
     imp = await db.get(BankStatementImport, import_id)
@@ -525,7 +525,7 @@ async def delete_bank_import(
 async def reconciliation_summary(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    _: User = Depends(require_module("bank")),
 ):
     org_id = UUID(request.state.organization_id)
     rows = (
@@ -574,7 +574,7 @@ async def list_reconciliation(
     request: Request,
     status: ReconciliationStatus | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    current_user: User = Depends(require_module("bank")),
 ):
     query = select(BankTransaction).where(BankTransaction.organization_id == UUID(request.state.organization_id))
     if status:
@@ -588,7 +588,7 @@ async def reconciliation_candidates(
     request: Request,
     transaction_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    current_user: User = Depends(require_module("bank")),
 ):
     org_id = UUID(request.state.organization_id)
     tx = (
@@ -637,7 +637,7 @@ async def resolve_reconciliation(
     transaction_id: UUID,
     payment_order_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    current_user: User = Depends(require_module("bank")),
 ):
     org_id = UUID(request.state.organization_id)
     result = await db.execute(select(BankTransaction).where(
@@ -674,7 +674,7 @@ async def reopen_reconciliation(
     request: Request,
     transaction_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    _: User = Depends(require_module("bank")),
 ):
     from app.banking.matching import Matcher, analyse
 
@@ -711,7 +711,7 @@ async def convert_to_expense(
     transaction_id: UUID,
     payload: ToExpenseIn,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    current_user: User = Depends(require_module("bank")),
 ):
     org_id = UUID(request.state.organization_id)
     tx = (

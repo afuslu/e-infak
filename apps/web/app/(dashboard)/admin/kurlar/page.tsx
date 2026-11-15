@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import { RefreshCw } from 'lucide-react'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, useAdminAccess, can } from '../../../../lib/admin-access'
 import { primaryButton } from '../../../../components/admin/FormKit'
 import { PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 
@@ -35,7 +35,7 @@ export default function RatesPage() {
     <div className="space-y-6">
       <PageHeader title="Döviz ve Altın Kurları"
         description="Dövizli bağışların TL karşılığı ve zekât hesabı bu kurlarla yapılır. Kaynak: TCMB; saatte bir kendiliğinden güncellenir."
-        actions={hasPermission(access, 'settings_manage') && (
+        actions={(can(access, 'settings.manage') || can(access, 'finance.manage')) && (
           <button onClick={refresh} disabled={busy} className={`${primaryButton} flex items-center gap-1.5`}>
             <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} /> Kurları güncelle
           </button>

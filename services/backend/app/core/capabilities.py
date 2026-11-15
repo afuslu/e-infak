@@ -109,6 +109,82 @@ def permissions_of(capabilities: set[str]) -> set[str]:
     return {PERMISSION_OF[key] for key in capabilities if key in PERMISSION_OF}
 
 
+# --- Module access for admin API paths ------------------------------------------------------------
+# A staff member reaches a path when they hold at least one tick in one of the listed modules
+# (endpoints then check the exact tick). ANY = every staff member. Rules are matched in order on
+# the path after /api/v1; the first fragment found wins. Anything not listed needs "settings".
+ANY = "*"
+SENSITIVE = frozenset({"settings", "users"})  # read-only staff do not see these
+
+ROUTE_RULES: tuple[tuple[str, frozenset | str, frozenset | str], ...] = tuple(
+    (fragment, frozenset(read) if read != ANY else ANY, frozenset(write) if write != ANY else ANY)
+    for fragment, read, write in (
+        ("/admin-features/access", ANY, ANY),
+        ("/admin-features/plan", ANY, {"settings"}),
+        ("/admin-features/tasks", ANY, ANY),
+        ("/admin-features/export/", ANY, ANY),
+        ("/admin-features/public-verify/", ANY, ANY),
+        ("/admin-features/analytics/", ANY, {"reports"}),
+        ("/admin-features/exchange-rates", ANY, {"settings", "finance"}),
+        ("/admin-features/org-settings", ANY, {"settings"}),
+        ("/admin-features/donation-categories", ANY, {"site"}),
+        ("/admin-features/uploads", ANY, {"site", "operations", "settings", "donors", "members", "kurban"}),
+        ("/admin-features/acc/", {"finance"}, {"finance"}),
+        ("/admin-features/activity-logs", {"settings", "users"}, {"settings", "users"}),
+        ("/admin-features/audit-logs", {"settings", "users"}, {"settings", "users"}),
+        ("/admin-features/login-logs", {"settings", "users"}, {"settings", "users"}),
+        ("/admin-features/ip-rules", {"settings", "users"}, {"settings", "users"}),
+        ("/admin-features/ai/", {"reports", "donors"}, {"reports", "donors"}),
+        ("/admin-features/regions", {"operations", "kurban"}, {"operations"}),
+        *((f"/admin-features/{part}", {"operations"}, {"operations"}) for part in (
+            "aid-", "beneficiaries", "households", "money-boxes", "water-wells", "students")),
+        ("/admin-features/campaigns/", {"site"}, {"site"}),
+        *((f"/admin-features/{part}", {"site"}, {"site"}) for part in (
+            "banners", "content-posts", "gallery", "media", "menu", "pages", "site-appearance", "site-builder",
+            "site-domains")),
+        ("/admin-features/departments", {"users"}, {"users"}),
+        ("/admin-features/staff-roles", {"users"}, {"users"}),
+        # Staff names are needed wherever a record is assigned to someone.
+        ("/admin-features/users", {"users", "donors", "receipts", "bank", "reports", "sms", "members"}, {"users"}),
+        ("/admin-features/donations", {"receipts", "reports"}, {"receipts"}),
+        ("/admin-features/donors/duplicates", {"donors"}, {"donors"}),
+        ("/admin-features/donors/merge", {"donors"}, {"donors"}),
+        ("/admin-features/donors/import", {"donors"}, {"donors"}),
+        # Receipt, SMS, member and bank screens pick donors.
+        ("/admin-features/donors", {"donors", "receipts", "sms", "members", "bank", "kurban"}, {"donors", "sms"}),
+        ("/admin-features/integrations", {"settings"}, {"settings"}),
+        ("/admin-features/member-dues", {"members", "finance", "receipts"}, {"members", "finance", "receipts"}),
+        ("/admin-features/members", {"members"}, {"members"}),
+        ("/admin-features/pledges", {"operations", "donors", "receipts"}, {"operations", "donors", "receipts"}),
+        ("/admin-features/receipt-books", {"receipts", "finance", "bank"}, {"receipts", "finance"}),
+        ("/admin-features/reports/", {"reports"}, {"reports"}),
+        # SMS endpoints check sms.send / sms.bulk / sms.templates themselves.
+        ("/admin-features/sms/account", {"sms", "settings"}, {"settings"}),
+        ("/admin-features/sms/", {"sms", "donors", "receipts", "bank", "kurban"}, {"sms", "donors", "receipts", "bank", "kurban"}),
+        ("/admin-features/subscriptions", {"finance", "donors", "receipts"}, {"finance", "donors", "receipts"}),
+        ("/admin-features/volunteers", {"site", "donors"}, {"site", "donors"}),
+        ("/admin-features/zakat-settings", {"finance", "settings", "site"}, {"finance", "settings"}),
+        ("/finance/derbis-export", {"finance", "receipts"}, {"finance"}),
+        ("/finance/", {"finance"}, {"finance"}),
+    )
+)
+DEFAULT_RULE = (frozenset({"settings"}), frozenset({"settings"}))
+
+
+def rule_for(path: str, write: bool) -> frozenset | str:
+    for fragment, read, write_groups in ROUTE_RULES:
+        if fragment in path:
+            return write_groups if write else read
+    return DEFAULT_RULE[1] if write else DEFAULT_RULE[0]
+
+
+GROUP_OF: dict[str, str] = {c.key: g.key for g in GROUPS for c in g.capabilities}
+
+
+def groups_of(capabilities: set[str]) -> set[str]:
+    return {GROUP_OF[key] for key in capabilities if key in GROUP_OF}
+
+
 def catalog() -> list[dict]:
     return [{"key": g.key, "label": g.label, "permission": g.permission,
              "capabilities": [{"key": c.key, "label": c.label, "rule": c.rule} for c in g.capabilities]} for g in GROUPS]

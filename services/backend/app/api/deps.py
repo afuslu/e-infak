@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -98,6 +99,7 @@ async def get_current_user(
     reason = await denial(db, user, request.client.host if request.client else None)
     if reason:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
+    _viewer.set(user)
     return user
 
 
@@ -175,6 +177,51 @@ def require_capability(key: str):
     return checker
 
 
+def can_see_donor(user: User, donor) -> bool:
+    """donors.view_all, or the staff member represents this donor."""
+    return donor.assigned_user_id == user.id or has_capability(user, "donors.view_all")
+
+
+def ensure_donor_visible(user: User, donor) -> None:
+    if not can_see_donor(user, donor):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bağışçı bulunamadı")
+
+
+def can_see_receipt(user: User, donation) -> bool:
+    """receipts.view_all, a receipt this staff member wrote, or one of a donor they represent."""
+    if has_capability(user, "receipts.view_all") or donation.issued_by_id == user.id:
+        return True
+    donor = donation.__dict__.get("donor")
+    return bool(donor is not None and donor.assigned_user_id == user.id)
+
+
+def ensure_receipt_visible(user: User, donation) -> None:
+    # Looks like it does not exist, as for donors.
+    if not can_see_receipt(user, donation):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bağış bulunamadı")
+
+
+# The staff member of the current request, so serializers deep in a module can mask phones without
+# threading the user through every helper. Set by get_current_user (an async dependency, so it runs
+# in the request's own context).
+_viewer: ContextVar[Optional[User]] = ContextVar("einfak_viewer", default=None)
+
+
+def masked(phone: str | None) -> str | None:
+    """Donor phone as the current staff member may see it (unchanged outside a staff request)."""
+    viewer = _viewer.get()
+    return mask_phone(phone, viewer) if viewer is not None else phone
+
+
+def require_any_capability(*keys: str):
+    """Route dependency: at least one of these capabilities."""
+    async def checker(current_user: User = Depends(get_current_active_user)) -> User:
+        if not any(has_capability(current_user, key) for key in keys):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bu işlem için yetkiniz yok")
+        return current_user
+    return checker
+
+
 def mask_phone(phone: str | None, user: User) -> str | None:
     """Phone as the staff member may see it: in full with donors.phone, else "0532 *** ** 12"."""
     if not phone or has_capability(user, "donors.phone"):
@@ -217,46 +264,52 @@ def require_permission(permission: Permission):
     return permission_checker
 
 
+def module_groups(user: User, write: bool) -> set[str]:
+    """Modules (capability groups) the staff member works in: those with at least one tick.
+
+    The built-in read-only role reads every module except settings and staff management.
+    """
+    from app.core import capabilities
+
+    groups = capabilities.groups_of(effective_capabilities(user))
+    if not write and user.role == UserRole.READONLY and not user.staff_role_id:
+        groups |= {g.key for g in capabilities.GROUPS} - capabilities.SENSITIVE
+    return groups
+
+
+def can_reach(user: User, path: str, write: bool) -> bool:
+    from app.core import capabilities
+
+    if user.role == UserRole.PLATFORM_ADMIN or (user.role == UserRole.STK_ADMIN and not user.staff_role_id):
+        return True
+    needed = capabilities.rule_for(path, write)
+    return needed == capabilities.ANY or bool(module_groups(user, write) & needed)
+
+
+def require_module(*groups: str, write: bool = True):
+    """Route dependency for routers outside the central table: a tick in one of these modules."""
+    async def checker(current_user: User = Depends(get_current_active_user)) -> User:
+        if current_user.role == UserRole.PLATFORM_ADMIN or (
+            current_user.role == UserRole.STK_ADMIN and not current_user.staff_role_id
+        ):
+            return current_user
+        if not module_groups(current_user, write) & set(groups):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bu bölüm için yetkiniz yok")
+        return current_user
+    return checker
+
+
 async def require_admin_route_permission(
     request: Request,
     current_user: User = Depends(get_current_active_user),
 ) -> User:
-    """Map privileged API paths to one centrally maintained permission matrix."""
-    path = request.url.path
-    if request.method == "GET":
-        required = Permission.REPORT_READ if "/reports" in path else Permission.ADMIN_READ
-    else:
-        if "/tasks" in path or "/admin-features/export/" in path:
-            # Every staff member works on tasks or exports tables they can read.
-            required = Permission.ADMIN_READ
-        elif any(part in path for part in ("/users", "/departments", "/staff-roles")):
-            required = Permission.USER_MANAGE
-        elif any(part in path for part in (
-            "/finance", "/payments", "/reconciliation", "/bank-statements", "/zakat", "/receipt-books", "/member-dues",
-            "/admin-features/acc/",
-        )):
-            required = Permission.FINANCE_MANAGE
-        elif any(part in path for part in ("/donations",)):
-            required = Permission.FINANCE_MANAGE
-        elif any(part in path for part in (
-            "/campaigns", "/content-posts", "/banners", "/donation-categories", "/pages", "/menu", "/gallery",
-            "/media", "/uploads", "/site-builder",
-        )):
-            required = Permission.CONTENT_MANAGE
-        elif any(part in path for part in ("/donors", "/sms", "/broadcast", "/volunteers", "/pledges", "/members")):
-            required = Permission.DONOR_MANAGE
-        elif any(part in path for part in (
-            "/kurban", "/students", "/water-wells", "/orphans", "/beneficiaries",
-            "/regions", "/money-boxes", "/aid-", "/households",
-        )):
-            required = Permission.OPERATIONS_MANAGE
-        else:
-            required = Permission.SETTINGS_MANAGE
-    if not has_permission(current_user, required):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Missing permission: {required.value}",
-        )
+    """Central gate for admin paths: reads and writes both need the module (app.core.capabilities.ROUTE_RULES).
+
+    Unknown paths need the settings module, so a new endpoint is closed until it is listed.
+    """
+    write = request.method not in ("GET", "HEAD", "OPTIONS")
+    if not can_reach(current_user, request.url.path, write):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bu bölüm için yetkiniz yok")
     return current_user
 
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Droplets, ExternalLink, MapPin, Plus, Search, Users, Wallet, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
 import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
@@ -48,7 +48,7 @@ const empty = {
 
 export default function WellsPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'operations_manage')
+  const canEdit = can(access, 'operations.manage')
   const [wells, setWells] = useState<Well[]>([])
   const [statusFilter, setStatusFilter] = useState('')
   const [countryFilter, setCountryFilter] = useState('')

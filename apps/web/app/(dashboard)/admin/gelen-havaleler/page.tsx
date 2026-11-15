@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
-import { adminApiBase, adminGet, apiErrorMessage, exportCsv, formatMoney, hasPermission, useAdminAccess, v1Get, v1Send, whatsappUrl } from '../../../../lib/admin-access'
+import { adminApiBase, adminGet, apiErrorMessage, exportCsv, formatMoney, useAdminAccess, v1Get, v1Send, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, PickedDonor } from '../../../../components/admin/DonorPicker'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
@@ -44,7 +44,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('tr-TR', { dateStyle:
 
 export default function IncomingTransfersPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'finance_manage')
+  const canEdit = can(access, 'bank.approve')
   const [status, setStatus] = useState<View>('unmatched')
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [duplicateGroups, setDuplicateGroups] = useState(0)
@@ -65,7 +65,7 @@ export default function IncomingTransfersPage() {
   const [busy, setBusy] = useState(false)
   const [sms, setSms] = useState<Record<string, RelatedSms>>({})
   const [smsFor, setSmsFor] = useState<Transfer | null>(null)
-  const canSms = hasPermission(access, 'donor_manage')
+  const canSms = can(access, 'sms.send')
 
   const load = async () => {
     setLoading(true)

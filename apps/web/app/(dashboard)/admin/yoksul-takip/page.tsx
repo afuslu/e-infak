@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Card } from '@e-infak/ui'
-import {
-  adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl,
-} from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ExportButtons, PageHeader, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
@@ -73,7 +71,7 @@ type MemberForm = typeof emptyMember & { id?: string }
 
 export default function PovertyTrackingPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'operations_manage')
+  const canEdit = can(access, 'operations.manage')
   const [tab, setTab] = useState<Tab>('households')
   const [meta, setMeta] = useState<Meta | null>(null)
   const [regions, setRegions] = useState<{ id: string; name: string }[]>([])

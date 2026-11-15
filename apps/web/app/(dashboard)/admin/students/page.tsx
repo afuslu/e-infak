@@ -5,7 +5,7 @@ import { BookOpen, GraduationCap, HeartHandshake, Pencil, Plus, Search, Trash2, 
 import { Card, Button } from '@e-infak/ui'
 import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 
 interface Student {
   id: string
@@ -36,7 +36,7 @@ const TOTAL_QURAN_PAGES = 604
 
 export default function AdminStudentsPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = hasPermission(access, 'operations_manage')
+  const canEdit = can(access, 'operations.manage')
 
   const [students, setStudents] = useState<Student[]>([])
   const [query, setQuery] = useState('')

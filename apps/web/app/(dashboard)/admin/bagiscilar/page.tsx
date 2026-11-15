@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, hasPermission, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
@@ -62,8 +62,11 @@ function DonorsPage() {
   const searchParams = useSearchParams()
   const selectedId = searchParams.get('donor')
   const { data: access } = useAdminAccess()
-  const canManage = hasPermission(access, 'donor_manage')
-  const canIssue = hasPermission(access, 'finance_manage')
+  const perms: DonorPerms = {
+    create: can(access, 'donors.create'), update: can(access, 'donors.update'), remove: can(access, 'donors.delete'),
+    imports: can(access, 'donors.import'), sms: can(access, 'sms.send'), notes: can(access, 'donors.notes_write'),
+  }
+  const canIssue = can(access, 'receipts.create')
 
   const [filters, setFilters] = useState({ q: '', assigned: '', region: '', donor_type: '', has_donation: '', tag: '', sort: 'recent' })
   const [page, setPage] = useState(1)
@@ -105,8 +108,8 @@ function DonorsPage() {
     <div className="space-y-6">
       <PageHeader title="Bağışçılar" description={<>{list.total.toLocaleString('tr-TR')} kayıt</>} actions={<div className="flex flex-wrap gap-2">
           <Link href="/admin/bagiscilar/mukerrer" className={ghostButton}>Mükerrer kayıtlar</Link>
-          {canManage && <Link href="/admin/veri-aktarma" className={ghostButton}>Excel&apos;den aktar</Link>}
-          {canManage && <button onClick={() => setShowCreate((v) => !v)} className={primaryButton}>{showCreate ? 'Vazgeç' : '+ Yeni Bağışçı'}</button>}
+          {perms.imports && <Link href="/admin/veri-aktarma" className={ghostButton}>Excel&apos;den aktar</Link>}
+          {perms.create && <button onClick={() => setShowCreate((v) => !v)} className={primaryButton}>{showCreate ? 'Vazgeç' : '+ Yeni Bağışçı'}</button>}
         </div>} />
 
       <Notice message={message} />
@@ -226,7 +229,7 @@ function DonorsPage() {
             <DonorCardPanel
               donorId={selectedId}
               staff={staff}
-              canManage={canManage}
+              perms={perms}
               canIssue={canIssue}
               onClose={() => select(null)}
               onChanged={load}
@@ -242,6 +245,8 @@ function DonorsPage() {
     </div>
   )
 }
+
+interface DonorPerms { create: boolean; update: boolean; remove: boolean; imports: boolean; sms: boolean; notes: boolean }
 
 function DonorForm({ donor, staff, onSaved }: { donor?: DonorCard; staff: Staff[]; onSaved: (d: DonorRow) => void }) {
   const [form, setForm] = useState({
@@ -342,9 +347,9 @@ function DonorForm({ donor, staff, onSaved }: { donor?: DonorCard; staff: Staff[
 }
 
 function DonorCardPanel({
-  donorId, staff, canManage, canIssue, onClose, onChanged, onDeleted,
+  donorId, staff, perms, canIssue, onClose, onChanged, onDeleted,
 }: {
-  donorId: string; staff: Staff[]; canManage: boolean; canIssue: boolean; onClose: () => void; onChanged: () => void; onDeleted: () => void
+  donorId: string; staff: Staff[]; perms: DonorPerms; canIssue: boolean; onClose: () => void; onChanged: () => void; onDeleted: () => void
 }) {
   const [card, setCard] = useState<DonorCard | null>(null)
   const [tab, setTab] = useState<'donations' | 'notes' | 'edit' | 'receipt'>('donations')
@@ -405,8 +410,8 @@ function DonorCardPanel({
               </a>
             ) : null
           })()}
-          {canManage && <button onClick={() => setSmsOpen(true)} className={primaryButton}>SMS Gönder</button>}
-          {canManage && card.total_donations === 0 && (
+          {perms.sms && <button onClick={() => setSmsOpen(true)} className={primaryButton}>SMS Gönder</button>}
+          {perms.remove && card.total_donations === 0 && (
             <button
               type="button"
               title="Bağışı olmayan kaydı sil"
@@ -453,7 +458,7 @@ function DonorCardPanel({
         {([
           ['donations', `Bağışlar (${card.donations.length})`],
           ['notes', `Notlar & SMS (${card.notes.length + smsLog.length})`],
-          ...(canManage ? [['edit', 'Bilgileri Düzenle']] : []),
+          ...(perms.update ? [['edit', 'Bilgileri Düzenle']] : []),
           ...(canIssue ? [['receipt', 'Makbuz Kes']] : []),
         ] as [typeof tab, string][]).map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}>{l}</button>
@@ -496,7 +501,7 @@ function DonorCardPanel({
 
       {tab === 'notes' && (
         <div className="space-y-4">
-          {canManage && (
+          {perms.notes && (
             <form onSubmit={addNote} className="flex gap-2">
               <input required className={inputClass} placeholder="Görüşme notu ekle..." value={note} onChange={(e) => setNote(e.target.value)} />
               <button type="submit" className={primaryButton}>Ekle</button>

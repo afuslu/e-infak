@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import Permission, require_permission
+from app.api.deps import Permission, require_module, require_permission
 from app.services.donation_hooks import on_donation_cancelled, on_donation_confirmed
 from app.services.fx import add_to_campaign, add_to_donor, remove_from_campaign, remove_from_donor
 from app.payments import PROVIDERS, build_provider, provider_for, provider_key_for
@@ -681,7 +681,7 @@ async def refund_payment(
     checkout_id: UUID,
     payload: RefundIn | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    current_user: User = Depends(require_module("bank", "receipts")),
 ):
     """Refund whole receipt lines through the bank.
 
@@ -789,7 +789,7 @@ async def reconcile_payment(
     request: Request,
     checkout_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    current_user: User = Depends(require_module("bank", "receipts")),
 ):
     order = await _load_order(db, checkout_id)
     if not order or str(order.organization_id) != request.state.organization_id:
@@ -820,7 +820,7 @@ async def confirm_bank_transfer(
     checkout_id: UUID,
     bank_transaction_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    current_user: User = Depends(require_module("bank", "receipts")),
 ):
     order = await _load_order(db, checkout_id)
     if not order or str(order.organization_id) != request.state.organization_id:

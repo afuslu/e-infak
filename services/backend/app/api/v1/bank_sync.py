@@ -10,7 +10,7 @@ from sqlalchemy import func, literal_column, or_, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import Permission, mask_phone, require_capability, require_feature, require_permission
+from app.api.deps import Permission, mask_phone, require_capability, require_feature, require_permission, require_module
 from app.banking import CONNECTORS, credential_key
 from app.banking.matching import Matcher, analyse, approve, transfer_donations, unmatch
 from app.banking.parsers import fold
@@ -26,7 +26,9 @@ from app.services.tenant_credentials import CredentialsUnavailable, get_credenti
 
 TZ = ZoneInfo("Europe/Istanbul")
 router = APIRouter(tags=["bank-sync"], dependencies=[Depends(require_feature(Feature.BANK_TRANSACTIONS))])
-finance = require_permission(Permission.FINANCE_MANAGE)
+finance = require_module("bank")
+# Receipt forms offer the organisation's bank accounts as payment methods.
+bank_or_receipts = require_module("bank", "receipts", write=False)
 
 
 def _org_id(request: Request) -> UUID:
@@ -118,7 +120,7 @@ async def _campaign(db: AsyncSession, org_id: UUID, campaign_id: Optional[UUID])
 
 
 @router.get("/admin/bank-accounts")
-async def list_accounts(request: Request, db: AsyncSession = Depends(get_db), _: User = Depends(finance)):
+async def list_accounts(request: Request, db: AsyncSession = Depends(get_db), _: User = Depends(bank_or_receipts)):
     rows = (await db.execute(select(BankAccount).where(BankAccount.organization_id == _org_id(request))
                              .order_by(BankAccount.created_at))).scalars().all()
     return [_account_out(a) for a in rows]

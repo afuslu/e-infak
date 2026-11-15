@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, hasPermission, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, useAdminAccess, can } from '../../../../lib/admin-access'
 import { Label, TextArea, TextInput, inputClass } from '../../../../components/admin/FormKit'
 import { ExportButtons, Modal, PageHeader, StatCard, confirmDialog, toast } from '../../../../components/admin/ui'
 
@@ -85,8 +85,8 @@ const EMPTY_FORM = {
 
 export default function TasksPage() {
   const { data: access } = useAdminAccess()
-  const isManager = hasPermission(access, 'user_manage')
-  const canAssign = isManager || hasPermission(access, 'operations_manage')
+  const isManager = can(access, 'users.manage')
+  const canAssign = isManager || can(access, 'operations.manage')
 
   const [scope, setScope] = useState<Scope>('mine')
   const [view, setView] = useState<ViewMode>('list')

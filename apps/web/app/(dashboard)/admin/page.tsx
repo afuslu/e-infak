@@ -7,7 +7,7 @@ import {
   AlertCircle, ArrowDownRight, ArrowDownToLine, ArrowUpRight, Blocks, CalendarDays, ChevronRight, HandCoins, Megaphone,
   Receipt, RefreshCw, TrendingUp, UserPlus, Users, type LucideIcon,
 } from 'lucide-react'
-import { adminGet, formatMoney, hasFeature, hasPermission, useAdminAccess, v1Get } from '../../../lib/admin-access'
+import { adminGet, formatMoney, hasFeature, useAdminAccess, v1Get, hasModule } from '../../../lib/admin-access'
 import { PageHeader, StatCard } from '../../../components/admin/ui'
 import { ghostButton } from '../../../components/admin/FormKit'
 
@@ -72,13 +72,13 @@ interface PaymentMethod {
   total_lira: number
 }
 
-const QUICK_LINKS: { href: string; label: string; icon: LucideIcon; feature?: string; permission?: string }[] = [
-  { href: '/admin/bagislar', label: 'Bağışlar', icon: HandCoins },
-  { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: Megaphone },
-  { href: '/admin/bagiscilar', label: 'Bağışçılar', icon: Users, feature: 'donor_crm' },
-  { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: Receipt, feature: 'receipts' },
-  { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownToLine, feature: 'bank_transactions' },
-  { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: Blocks, permission: 'content_manage' },
+const QUICK_LINKS: { href: string; label: string; icon: LucideIcon; feature?: string; module?: string }[] = [
+  { href: '/admin/bagislar', label: 'Bağışlar', icon: HandCoins, module: 'receipts' },
+  { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: Megaphone, module: 'site' },
+  { href: '/admin/bagiscilar', label: 'Bağışçılar', icon: Users, feature: 'donor_crm', module: 'donors' },
+  { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: Receipt, feature: 'receipts', module: 'receipts' },
+  { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownToLine, feature: 'bank_transactions', module: 'bank' },
+  { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: Blocks, module: 'site' },
 ]
 
 export default function AdminDashboardPage() {
@@ -144,7 +144,7 @@ export default function AdminDashboardPage() {
 
       {/* Sık kullanılan işlemler */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {QUICK_LINKS.filter((link) => hasFeature(access, link.feature) && hasPermission(access, link.permission)).map((link) => (
+        {QUICK_LINKS.filter((link) => hasFeature(access, link.feature) && hasModule(access, link.module)).map((link) => (
           <Link key={link.href} href={link.href}
             className="group flex items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-3.5 py-3 text-[13px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-primary-500 hover:text-primary-700">
             <link.icon className="h-[18px] w-[18px] shrink-0 text-gray-400 group-hover:text-primary-600" aria-hidden="true" />
