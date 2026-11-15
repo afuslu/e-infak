@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import axios from 'axios'
-import { Card } from '@e-infak/ui'
+import { Button, Card, Input } from '@e-infak/ui'
 import {
   AlertTriangle,
   BarChart3,
@@ -13,6 +13,7 @@ import {
   Home,
   Package as PackageIcon,
   Plus,
+  RefreshCw,
   Settings as SettingsIcon,
   Sparkles,
   Truck,
@@ -20,8 +21,8 @@ import {
   X,
 } from 'lucide-react'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
-import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
+import { Label, inputClass } from '../../../../components/admin/FormKit'
+import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, ResponsiveDataToolbar } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 
 type Degree = 'critical' | 'high' | 'medium' | 'low'
@@ -141,7 +142,9 @@ export default function SocialAidAndKumanyaPage() {
   const [detail, setDetail] = useState<Detail | null>(null)
   const [form, setForm] = useState<HouseholdForm | null>(null)
   const [memberForm, setMemberForm] = useState<MemberForm | null>(null)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [pkgFilter, setPkgFilter] = useState<'all' | 'active' | 'deficit'>('all')
+  const [pkgQuery, setPkgQuery] = useState('')
 
   const loadAidReportAndDistributions = async () => {
     try {
@@ -170,7 +173,7 @@ export default function SocialAidAndKumanyaPage() {
         setMeta(m.data)
         setRegions(r.data)
       })
-      .catch((err) => setMessage({ type: 'error', text: apiErrorMessage(err, 'Modül yüklenemedi') }))
+      .catch((err) => toast.error(apiErrorMessage(err, 'Modül yüklenemedi')))
 
     axios
       .get(`${adminApiBase()}/api/v1/campaigns`, { headers: adminAuthHeaders(), params: { page_size: 100 } })
@@ -199,7 +202,17 @@ export default function SocialAidAndKumanyaPage() {
           : { review: 'approved', ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) }
       setRows((await adminGet<Household[]>('/households', params)).data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Haneler yüklenemedi') })
+      toast.error(apiErrorMessage(err, 'Haneler yüklenemedi'))
+    }
+  }
+
+  const refreshAll = async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([loadHouseholds(), loadAidReportAndDistributions()])
+      toast.ok('Sosyal yardım verileri yenilendi.')
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -221,20 +234,19 @@ export default function SocialAidAndKumanyaPage() {
       setDetail((await adminGet<Detail>(`/households/${id}`)).data)
       setMemberForm(null)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
   const act = async (fn: () => Promise<unknown>, ok: string, refreshId?: string) => {
-    setMessage(null)
     try {
       await fn()
-      setMessage({ type: 'ok', text: ok })
+      toast.ok(ok)
       await Promise.all([loadHouseholds(), loadAidReportAndDistributions()])
       if (refreshId) await openDetail(refreshId)
       return true
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
       return false
     }
   }
@@ -306,7 +318,7 @@ export default function SocialAidAndKumanyaPage() {
 
   const planSelectedHouseholds = () => {
     if (!quickPlan.package_id) {
-      setMessage({ type: 'error', text: 'Önce dağıtılacak yardım paketini seçin' })
+      toast.error('Önce dağıtılacak yardım paketini seçin.')
       return
     }
     act(
@@ -410,26 +422,32 @@ export default function SocialAidAndKumanyaPage() {
           </>
         }
         actions={
-          canEdit ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPkgForm({ name: '', contents: '', cost: '', campaign: '', stock: '0', is_active: true })}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
-              >
-                <PackageIcon className="h-4 w-4" />
-                + Paket Tanımla
-              </button>
-              <button
-                type="button"
-                onClick={() => editHousehold()}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
-              >
-                <Plus className="h-4 w-4" />
-                Yeni Hane Ekle
-              </button>
-            </div>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={refreshAll} disabled={refreshing} className="h-10 rounded-xl px-3 text-xs font-bold">
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
+            {canEdit && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setPkgForm({ name: '', contents: '', cost: '', campaign: '', stock: '0', is_active: true })}
+                  className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
+                >
+                  <PackageIcon className="h-4 w-4" />
+                  + Paket Tanımla
+                </button>
+                <button
+                  type="button"
+                  onClick={() => editHousehold()}
+                  className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  Yeni Hane Ekle
+                </button>
+              </>
+            )}
+          </div>
         }
       />
 
@@ -475,10 +493,7 @@ export default function SocialAidAndKumanyaPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs
           value={tab}
-          onChange={(k) => {
-            setTab(k)
-            setMessage(null)
-          }}
+          onChange={(k) => setTab(k)}
           tabs={[
             { key: 'households', label: 'İhtiyaç Sahibi Haneler', count: tab === 'households' ? rows.length : undefined, icon: Home },
             { key: 'applications', label: 'Yardım Başvuruları', count: tab === 'applications' ? rows.length : undefined, icon: ClipboardCheck },
@@ -488,8 +503,6 @@ export default function SocialAidAndKumanyaPage() {
           ]}
         />
       </div>
-
-      <Notice message={message} />
 
       {/* TAB 1 & 2: HOUSEHOLDS & APPLICATIONS */}
       {(tab === 'households' || tab === 'applications') && (
@@ -550,6 +563,42 @@ export default function SocialAidAndKumanyaPage() {
               }
             />
 
+            {tab === 'households' && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { label: 'Tümü', active: !filters.degree && !filters.not_helped_days, onClick: () => setFilters((f) => ({ ...f, degree: '', not_helped_days: '' })) },
+                    { label: 'Çok Acil', active: filters.degree === 'critical', onClick: () => setFilters((f) => ({ ...f, degree: f.degree === 'critical' ? '' : 'critical' })) },
+                    { label: 'Yüksek Öncelikli', active: filters.degree === 'high', onClick: () => setFilters((f) => ({ ...f, degree: f.degree === 'high' ? '' : 'high' })) },
+                    { label: '30+ Gün Yardım Almayan', active: filters.not_helped_days === '30', onClick: () => setFilters((f) => ({ ...f, not_helped_days: f.not_helped_days === '30' ? '' : '30' })) },
+                    { label: '90+ Gün Yardım Almayan', active: filters.not_helped_days === '90', onClick: () => setFilters((f) => ({ ...f, not_helped_days: f.not_helped_days === '90' ? '' : '90' })) },
+                  ].map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={p.onClick}
+                      className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                        p.active
+                          ? 'border-emerald-600 bg-emerald-600 text-white'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                {(activeHouseholdFilters > 0 || filters.q) && (
+                  <button
+                    type="button"
+                    onClick={() => setFilters({ degree: '', city: '', district: '', neighborhood: '', region_id: '', not_helped_days: '', q: '' })}
+                    className="text-xs font-bold text-rose-600 hover:text-rose-700"
+                  >
+                    Filtreleri Temizle
+                  </button>
+                )}
+              </div>
+            )}
+
             {tab === 'households' && showFilters && meta && (
               <div className="grid gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-3 lg:grid-cols-6">
                 <Label label="Muhtaçlık Derecesi">
@@ -558,9 +607,15 @@ export default function SocialAidAndKumanyaPage() {
                     {Object.entries(meta.degrees).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </Label>
-                <TextInput label="İl" value={filters.city} onChange={(v) => setFilters({ ...filters, city: v })} />
-                <TextInput label="İlçe" value={filters.district} onChange={(v) => setFilters({ ...filters, district: v })} />
-                <TextInput label="Mahalle" value={filters.neighborhood} onChange={(v) => setFilters({ ...filters, neighborhood: v })} />
+                <Label label="İl">
+                  <Input value={filters.city} onChange={(e) => setFilters({ ...filters, city: e.target.value })} />
+                </Label>
+                <Label label="İlçe">
+                  <Input value={filters.district} onChange={(e) => setFilters({ ...filters, district: e.target.value })} />
+                </Label>
+                <Label label="Mahalle">
+                  <Input value={filters.neighborhood} onChange={(e) => setFilters({ ...filters, neighborhood: e.target.value })} />
+                </Label>
                 <Label label="Saha Bölgesi">
                   <select className={inputClass} value={filters.region_id} onChange={(e) => setFilters({ ...filters, region_id: e.target.value })}>
                     <option value="">Tüm bölgeler</option>
@@ -765,100 +820,164 @@ export default function SocialAidAndKumanyaPage() {
       {/* TAB 3: PACKAGES (KUMANYA & YARDIM PAKETLERİ) */}
       {tab === 'packages' && (
         <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {packages.map((p) => {
-              const deficit = Math.max(0, p.planned - p.stock)
-              const targetCount = Math.max(p.funded_packages, p.planned + p.delivered, 1)
-              const fundedPct = Math.min(100, Math.round((p.funded_packages / targetCount) * 100))
-              return (
-                <div
-                  key={p.id}
-                  className={`flex flex-col justify-between space-y-3.5 rounded-2xl border p-5 shadow-xs transition-all hover:shadow-md ${
-                    p.is_active ? 'border-slate-200/80 bg-white' : 'border-slate-200 bg-slate-50/70 opacity-80'
+          <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { key: 'all' as const, label: `Tümü (${packages.length})` },
+                { key: 'active' as const, label: `Aktif Paketler (${packages.filter((p) => p.is_active).length})` },
+                { key: 'deficit' as const, label: `Stok Açığı Olanlar (${packages.filter((p) => p.planned > p.stock).length})` },
+              ].map((pill) => (
+                <button
+                  key={pill.key}
+                  type="button"
+                  onClick={() => setPkgFilter(pill.key)}
+                  className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                    pkgFilter === pill.key
+                      ? 'border-emerald-600 bg-emerald-600 text-white'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
-                            <PackageIcon className="h-4 w-4" />
-                          </span>
-                          <strong className="text-base font-black text-slate-900">{p.name}</strong>
-                        </div>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                              p.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                            }`}
-                          >
-                            {p.is_active ? 'Aktif Paket' : 'Pasif'}
-                          </span>
-                          {deficit > 0 && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700">
-                              <AlertTriangle className="h-3 w-3" /> {deficit} adet stok açığı
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                value={pkgQuery}
+                onChange={(e) => setPkgQuery(e.target.value)}
+                placeholder="Paket adı veya içerik ara..."
+                className="h-9 w-56 text-xs"
+              />
+              {(pkgFilter !== 'all' || pkgQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPkgFilter('all')
+                    setPkgQuery('')
+                  }}
+                  className="text-xs font-bold text-rose-600 hover:text-rose-700"
+                >
+                  Temizle
+                </button>
+              )}
+            </div>
+          </section>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {packages
+              .filter((p) => {
+                if (pkgFilter === 'active' && !p.is_active) return false
+                if (pkgFilter === 'deficit' && p.planned <= p.stock) return false
+                const q = pkgQuery.trim().toLowerCase()
+                if (q && !`${p.name} ${p.contents || ''}`.toLowerCase().includes(q)) return false
+                return true
+              })
+              .map((p) => {
+                const deficit = Math.max(0, p.planned - p.stock)
+                const targetCount = Math.max(p.funded_packages, p.planned + p.delivered, 1)
+                const fundedPct = Math.min(100, Math.round((p.funded_packages / targetCount) * 100))
+                return (
+                  <div
+                    key={p.id}
+                    className={`flex flex-col justify-between space-y-3.5 rounded-2xl border p-5 shadow-xs transition-all hover:shadow-md ${
+                      p.is_active ? 'border-slate-200/80 bg-white' : 'border-slate-200 bg-slate-50/70 opacity-80'
+                    }`}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                              <PackageIcon className="h-4 w-4" />
                             </span>
-                          )}
+                            <strong className="text-base font-black text-slate-900">{p.name}</strong>
+                          </div>
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                p.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {p.is_active ? 'Aktif Paket' : 'Pasif'}
+                            </span>
+                            {deficit > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-[10px] font-bold text-rose-700">
+                                <AlertTriangle className="h-3 w-3" /> {deficit} adet stok açığı
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <span className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-800 tabular-nums">
+                          {formatMoney(p.unit_cost_cents)}
+                        </span>
                       </div>
-                      <span className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-black text-slate-800 tabular-nums">
-                        {formatMoney(p.unit_cost_cents)}
-                      </span>
+
+                      {p.contents && <p className="text-xs leading-relaxed text-slate-600">{p.contents}</p>}
+
+                      <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                        {[
+                          ['Fonlanan', p.funded_packages, 'text-slate-900'],
+                          ['Hazır Stok', p.stock, deficit > 0 ? 'text-rose-600' : 'text-slate-900'],
+                          ['Planlı', p.planned, 'text-amber-700'],
+                          ['Teslim', p.delivered, 'text-emerald-700'],
+                        ].map(([l, v, tone]) => (
+                          <div key={l as string} className="rounded-xl border border-slate-100 bg-slate-50/70 p-2">
+                            <div className="text-[10px] font-bold text-slate-500">{l}</div>
+                            <div className={`mt-0.5 text-base font-black tabular-nums ${tone}`}>{v}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {p.donation_campaign_id && (
+                        <div className="space-y-1 pt-1">
+                          <div className="flex justify-between text-xs font-semibold text-slate-500">
+                            <span>Bağış Kaleminden Fonlanan</span>
+                            <span className="font-bold text-emerald-700 tabular-nums">{formatMoney(p.funded_cents)}</span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                            <div className="h-full rounded-full bg-emerald-600" style={{ width: `${fundedPct}%` }} />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    {p.contents && <p className="text-xs leading-relaxed text-slate-600">{p.contents}</p>}
-
-                    <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                      {[
-                        ['Fonlanan', p.funded_packages, 'text-slate-900'],
-                        ['Hazır Stok', p.stock, deficit > 0 ? 'text-rose-600' : 'text-slate-900'],
-                        ['Planlı', p.planned, 'text-amber-700'],
-                        ['Teslim', p.delivered, 'text-emerald-700'],
-                      ].map(([l, v, tone]) => (
-                        <div key={l as string} className="rounded-xl border border-slate-100 bg-slate-50/70 p-2">
-                          <div className="text-[10px] font-bold text-slate-500">{l}</div>
-                          <div className={`mt-0.5 text-base font-black tabular-nums ${tone}`}>{v}</div>
-                        </div>
-                      ))}
+                    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                      {canEdit && p.is_active && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTab('distributions')
+                            setDistMode('bulk')
+                          }}
+                          className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Toplu Planla
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                          onClick={() =>
+                            setPkgForm({
+                              id: p.id,
+                              name: p.name,
+                              contents: p.contents || '',
+                              cost: String(p.unit_cost_cents / 100),
+                              campaign: p.donation_campaign_id || '',
+                              stock: String(p.stock),
+                              is_active: p.is_active,
+                            })
+                          }
+                        >
+                          Düzenle / Stok Güncelle
+                        </button>
+                      )}
                     </div>
-
-                    {p.donation_campaign_id && (
-                      <div className="space-y-1 pt-1">
-                        <div className="flex justify-between text-xs font-semibold text-slate-500">
-                          <span>Bağış Kaleminden Fonlanan</span>
-                          <span className="font-bold text-emerald-700 tabular-nums">{formatMoney(p.funded_cents)}</span>
-                        </div>
-                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                          <div className="h-full rounded-full bg-emerald-600" style={{ width: `${fundedPct}%` }} />
-                        </div>
-                      </div>
-                    )}
                   </div>
-
-                  {canEdit && (
-                    <div className="flex justify-end border-t border-slate-100 pt-3">
-                      <button
-                        type="button"
-                        className="cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                        onClick={() =>
-                          setPkgForm({
-                            id: p.id,
-                            name: p.name,
-                            contents: p.contents || '',
-                            cost: String(p.unit_cost_cents / 100),
-                            campaign: p.donation_campaign_id || '',
-                            stock: String(p.stock),
-                            is_active: p.is_active,
-                          })
-                        }
-                      >
-                        Düzenle / Stok Güncelle
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                )
+              })}
             {packages.length === 0 && (
               <Card className="border border-slate-200/80 p-12 text-center shadow-xs md:col-span-2 xl:col-span-3">
                 <PackageIcon className="mx-auto h-10 w-10 text-slate-300" />
@@ -920,7 +1039,6 @@ export default function SocialAidAndKumanyaPage() {
               regions={regions}
               packages={packages}
               canEdit={canEdit}
-              onMessage={setMessage}
               onPlanned={() => {
                 loadAidReportAndDistributions()
                 setDistMode('list')
@@ -962,6 +1080,44 @@ export default function SocialAidAndKumanyaPage() {
                     />
                   }
                 />
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { label: 'Planlananlar', active: distStatus === 'planned', onClick: () => setDistStatus('planned') },
+                      { label: 'Teslim Edilenler', active: distStatus === 'delivered', onClick: () => setDistStatus('delivered') },
+                      { label: 'İptal Edilenler', active: distStatus === 'cancelled', onClick: () => setDistStatus('cancelled') },
+                      { label: 'Tümü', active: distStatus === '', onClick: () => setDistStatus('') },
+                    ].map((p) => (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={p.onClick}
+                        className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                          p.active
+                            ? 'border-emerald-600 bg-emerald-600 text-white'
+                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                  {(activeDistFilters > 0 || distQuery) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDistStatus('planned')
+                        setDistPackageId('')
+                        setDistRegionId('')
+                        setDistQuery('')
+                      }}
+                      className="text-xs font-bold text-rose-600 hover:text-rose-700"
+                    >
+                      Filtreleri Temizle
+                    </button>
+                  )}
+                </div>
 
                 {showDistFilters && (
                   <div className="grid gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-3">
@@ -1148,7 +1304,6 @@ export default function SocialAidAndKumanyaPage() {
               meta={meta}
               canEdit={canEdit}
               onSaved={(line) => setMeta({ ...meta, poverty_line_cents: line })}
-              onMessage={setMessage}
             />
           )}
           <Stats
@@ -1235,9 +1390,10 @@ export default function SocialAidAndKumanyaPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {canEdit && (
-                  <button
+                  <Button
                     type="button"
-                    className={ghostButton}
+                    variant="secondary"
+                    size="sm"
                     onClick={() => {
                       const d = detail
                       setDetail(null)
@@ -1245,16 +1401,16 @@ export default function SocialAidAndKumanyaPage() {
                     }}
                   >
                     Düzenle
-                  </button>
+                  </Button>
                 )}
                 {canEdit && detail.review_status !== 'approved' && (
-                  <button type="button" className={primaryButton} onClick={() => review(detail, 'approved')}>Onayla</button>
+                  <Button type="button" size="sm" onClick={() => review(detail, 'approved')}>Onayla</Button>
                 )}
                 {canEdit && detail.review_status === 'applied' && (
-                  <button type="button" className={ghostButton} onClick={() => review(detail, 'inspecting')}>İncelemeye Al</button>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => review(detail, 'inspecting')}>İncelemeye Al</Button>
                 )}
                 {canEdit && detail.review_status !== 'rejected' && (
-                  <button type="button" className={`${ghostButton} text-rose-600`} onClick={() => review(detail, 'rejected')}>Reddet</button>
+                  <Button type="button" variant="danger" size="sm" onClick={() => review(detail, 'rejected')}>Reddet</Button>
                 )}
               </div>
             </div>
@@ -1291,15 +1447,17 @@ export default function SocialAidAndKumanyaPage() {
               <div className="mb-2 flex items-center justify-between">
                 <h3 className="text-sm font-black text-slate-900">Aile Bireyleri ({detail.members.length})</h3>
                 {canEdit && (
-                  <button type="button" className={ghostButton} onClick={() => setMemberForm({ ...emptyMember })}>
+                  <Button type="button" variant="secondary" size="sm" onClick={() => setMemberForm({ ...emptyMember })}>
                     + Birey Ekle
-                  </button>
+                  </Button>
                 )}
               </div>
               {memberForm && (
                 <form onSubmit={saveMember} className="mb-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <div className="grid gap-3 sm:grid-cols-4">
-                    <TextInput label="Ad Soyad" value={memberForm.full_name} onChange={(v) => setM('full_name', v)} required minLength={2} />
+                    <Label label="Ad Soyad">
+                      <Input value={memberForm.full_name} onChange={(e) => setM('full_name', e.target.value)} required minLength={2} />
+                    </Label>
                     <Label label="Yakınlık">
                       <select className={inputClass} value={memberForm.relation} onChange={(e) => setM('relation', e.target.value)}>
                         {Object.entries(meta.relations).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -1310,11 +1468,21 @@ export default function SocialAidAndKumanyaPage() {
                         <option value="">—</option><option value="female">Kadın</option><option value="male">Erkek</option>
                       </select>
                     </Label>
-                    <TextInput label="Doğum Tarihi" type="date" value={memberForm.birth_date} onChange={(v) => setM('birth_date', v)} />
-                    <TextInput label="Aylık Gelir (₺)" value={memberForm.income} onChange={(v) => setM('income', v)} inputMode="decimal" />
-                    <TextInput label="Okul" value={memberForm.school} onChange={(v) => setM('school', v)} />
-                    <TextInput label="Beden" value={memberForm.clothing_size} onChange={(v) => setM('clothing_size', v)} />
-                    <TextInput label="Ayakkabı No" value={memberForm.shoe_size} onChange={(v) => setM('shoe_size', v)} />
+                    <Label label="Doğum Tarihi">
+                      <Input type="date" value={memberForm.birth_date} onChange={(e) => setM('birth_date', e.target.value)} />
+                    </Label>
+                    <Label label="Aylık Gelir (₺)">
+                      <Input value={memberForm.income} onChange={(e) => setM('income', e.target.value)} inputMode="decimal" />
+                    </Label>
+                    <Label label="Okul">
+                      <Input value={memberForm.school} onChange={(e) => setM('school', e.target.value)} />
+                    </Label>
+                    <Label label="Beden">
+                      <Input value={memberForm.clothing_size} onChange={(e) => setM('clothing_size', e.target.value)} />
+                    </Label>
+                    <Label label="Ayakkabı No">
+                      <Input value={memberForm.shoe_size} onChange={(e) => setM('shoe_size', e.target.value)} />
+                    </Label>
                   </div>
                   <div className="flex flex-wrap gap-4 text-xs font-bold text-slate-700">
                     {([['is_working', 'Çalışıyor'], ['is_student', 'Öğrenci'], ['is_disabled', 'Engelli'], ['has_chronic_illness', 'Kronik hasta']] as const).map(([k, l]) => (
@@ -1324,10 +1492,12 @@ export default function SocialAidAndKumanyaPage() {
                       </label>
                     ))}
                   </div>
-                  <TextInput label="Not" value={memberForm.notes} onChange={(v) => setM('notes', v)} />
+                  <Label label="Not">
+                    <Input value={memberForm.notes} onChange={(e) => setM('notes', e.target.value)} />
+                  </Label>
                   <div className="flex gap-2">
-                    <button type="submit" className={primaryButton}>Kaydet</button>
-                    <button type="button" className={ghostButton} onClick={() => setMemberForm(null)}>Vazgeç</button>
+                    <Button type="submit" size="sm">Kaydet</Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setMemberForm(null)}>Vazgeç</Button>
                   </div>
                 </form>
               )}
@@ -1425,18 +1595,40 @@ export default function SocialAidAndKumanyaPage() {
         >
           <form onSubmit={saveHousehold} className="space-y-4">
             <fieldset className="grid gap-3 sm:grid-cols-3">
-              <TextInput label="Hane Reisi / Başvuran" value={form.full_name} onChange={(v) => set('full_name', v)} required minLength={2} />
-              <TextInput label="Telefon" value={form.phone} onChange={(v) => set('phone', v)} />
-              <TextInput label="TC Kimlik No" value={form.national_id} onChange={(v) => set('national_id', v)} hint={form.id ? 'Boş bırakılırsa korunur' : undefined} />
+              <Label label="Hane Reisi / Başvuran">
+                <Input value={form.full_name} onChange={(e) => set('full_name', e.target.value)} required minLength={2} />
+              </Label>
+              <Label label="Telefon">
+                <Input value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+              </Label>
+              <Label label="TC Kimlik No" hint={form.id ? 'Boş bırakılırsa korunur' : undefined}>
+                <Input value={form.national_id} onChange={(e) => set('national_id', e.target.value)} />
+              </Label>
             </fieldset>
             <fieldset className="grid gap-3 sm:grid-cols-4">
-              <TextInput label="İl" value={form.city} onChange={(v) => set('city', v)} />
-              <TextInput label="İlçe" value={form.district} onChange={(v) => set('district', v)} />
-              <TextInput label="Mahalle" value={form.neighborhood} onChange={(v) => set('neighborhood', v)} />
-              <TextInput label="Sokak" value={form.street} onChange={(v) => set('street', v)} />
-              <div className="sm:col-span-2"><TextInput label="Açık Adres" value={form.address} onChange={(v) => set('address', v)} /></div>
-              <TextInput label="Enlem (GPS)" value={form.latitude} onChange={(v) => set('latitude', v)} inputMode="decimal" />
-              <TextInput label="Boylam (GPS)" value={form.longitude} onChange={(v) => set('longitude', v)} inputMode="decimal" />
+              <Label label="İl">
+                <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
+              </Label>
+              <Label label="İlçe">
+                <Input value={form.district} onChange={(e) => set('district', e.target.value)} />
+              </Label>
+              <Label label="Mahalle">
+                <Input value={form.neighborhood} onChange={(e) => set('neighborhood', e.target.value)} />
+              </Label>
+              <Label label="Sokak">
+                <Input value={form.street} onChange={(e) => set('street', e.target.value)} />
+              </Label>
+              <div className="sm:col-span-2">
+                <Label label="Açık Adres">
+                  <Input value={form.address} onChange={(e) => set('address', e.target.value)} />
+                </Label>
+              </div>
+              <Label label="Enlem (GPS)">
+                <Input value={form.latitude} onChange={(e) => set('latitude', e.target.value)} inputMode="decimal" />
+              </Label>
+              <Label label="Boylam (GPS)">
+                <Input value={form.longitude} onChange={(e) => set('longitude', e.target.value)} inputMode="decimal" />
+              </Label>
               <Label label="Saha Bölgesi">
                 <select className={inputClass} value={form.region_id} onChange={(e) => set('region_id', e.target.value)}>
                   <option value="">—</option>
@@ -1445,11 +1637,21 @@ export default function SocialAidAndKumanyaPage() {
               </Label>
             </fieldset>
             <fieldset className="grid gap-3 sm:grid-cols-4">
-              <TextInput label="Hane Büyüklüğü" value={form.household_size} onChange={(v) => set('household_size', v)} inputMode="numeric" />
-              <TextInput label="Aylık Toplam Gelir (₺)" value={form.income} onChange={(v) => set('income', v)} inputMode="decimal" />
-              <TextInput label="Aylık Kira (₺)" value={form.rent} onChange={(v) => set('rent', v)} inputMode="decimal" />
-              <TextInput label="Aylık Gider (₺)" value={form.expense} onChange={(v) => set('expense', v)} inputMode="decimal" />
-              <TextInput label="Toplam Borç (₺)" value={form.debt} onChange={(v) => set('debt', v)} inputMode="decimal" />
+              <Label label="Hane Büyüklüğü">
+                <Input value={form.household_size} onChange={(e) => set('household_size', e.target.value)} inputMode="numeric" />
+              </Label>
+              <Label label="Aylık Toplam Gelir (₺)">
+                <Input value={form.income} onChange={(e) => set('income', e.target.value)} inputMode="decimal" />
+              </Label>
+              <Label label="Aylık Kira (₺)">
+                <Input value={form.rent} onChange={(e) => set('rent', e.target.value)} inputMode="decimal" />
+              </Label>
+              <Label label="Aylık Gider (₺)">
+                <Input value={form.expense} onChange={(e) => set('expense', e.target.value)} inputMode="decimal" />
+              </Label>
+              <Label label="Toplam Borç (₺)">
+                <Input value={form.debt} onChange={(e) => set('debt', e.target.value)} inputMode="decimal" />
+              </Label>
               <Label label="Konut Durumu">
                 <select className={inputClass} value={form.housing_status} onChange={(e) => set('housing_status', e.target.value)}>
                   <option value="">—</option>
@@ -1489,10 +1691,17 @@ export default function SocialAidAndKumanyaPage() {
                 })}
               </div>
             </div>
-            <TextArea label="İhtiyaçlar / Saha Notları" value={form.needs} onChange={(v) => set('needs', v)} rows={2} />
+            <Label label="İhtiyaçlar / Saha Notları">
+              <textarea
+                className={`${inputClass} min-h-[72px] py-2`}
+                rows={2}
+                value={form.needs}
+                onChange={(e) => set('needs', e.target.value)}
+              />
+            </Label>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className={ghostButton} onClick={() => setForm(null)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>Kaydet</button>
+              <Button type="button" variant="secondary" onClick={() => setForm(null)}>Vazgeç</Button>
+              <Button type="submit">Kaydet</Button>
             </div>
           </form>
         </Modal>
@@ -1507,10 +1716,16 @@ export default function SocialAidAndKumanyaPage() {
         >
           <form onSubmit={savePackage} className="grid gap-3.5 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <TextInput label="Paket Adı" required value={pkgForm.name} onChange={(v) => setPkgForm({ ...pkgForm, name: v })} placeholder="Örn: Ramazan Gıda Kolisi" />
+              <Label label="Paket Adı">
+                <Input required value={pkgForm.name} onChange={(e) => setPkgForm({ ...pkgForm, name: e.target.value })} placeholder="Örn: Ramazan Gıda Kolisi" />
+              </Label>
             </div>
-            <TextInput label="Birim Maliyet (₺)" required inputMode="decimal" value={pkgForm.cost} onChange={(v) => setPkgForm({ ...pkgForm, cost: v })} />
-            <TextInput label="Hazır Stok (Adet)" type="number" min={0} value={pkgForm.stock} onChange={(v) => setPkgForm({ ...pkgForm, stock: v })} />
+            <Label label="Birim Maliyet (₺)">
+              <Input required inputMode="decimal" value={pkgForm.cost} onChange={(e) => setPkgForm({ ...pkgForm, cost: e.target.value })} />
+            </Label>
+            <Label label="Hazır Stok (Adet)">
+              <Input type="number" min={0} value={pkgForm.stock} onChange={(e) => setPkgForm({ ...pkgForm, stock: e.target.value })} />
+            </Label>
             <div className="sm:col-span-2">
               <Label label="Bağış Kalemi (Fonlama Takibi)">
                 <select className={inputClass} value={pkgForm.campaign} onChange={(e) => setPkgForm({ ...pkgForm, campaign: e.target.value })}>
@@ -1520,15 +1735,22 @@ export default function SocialAidAndKumanyaPage() {
               </Label>
             </div>
             <div className="sm:col-span-2">
-              <TextArea label="Paket İçeriği" rows={2} value={pkgForm.contents} onChange={(v) => setPkgForm({ ...pkgForm, contents: v })} />
+              <Label label="Paket İçeriği">
+                <textarea
+                  className={`${inputClass} min-h-[72px] py-2`}
+                  rows={2}
+                  value={pkgForm.contents}
+                  onChange={(e) => setPkgForm({ ...pkgForm, contents: e.target.value })}
+                />
+              </Label>
             </div>
             <label className="flex items-center gap-2 text-xs font-bold text-slate-700 sm:col-span-2">
               <input type="checkbox" checked={pkgForm.is_active} onChange={(e) => setPkgForm({ ...pkgForm, is_active: e.target.checked })} />
               Paket dağıtım planlamasında aktif olsun
             </label>
             <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
-              <button type="button" className={ghostButton} onClick={() => setPkgForm(null)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>Kaydet</button>
+              <Button type="button" variant="secondary" onClick={() => setPkgForm(null)}>Vazgeç</Button>
+              <Button type="submit">Kaydet</Button>
             </div>
           </form>
         </Modal>
@@ -1543,20 +1765,22 @@ export default function SocialAidAndKumanyaPage() {
           onClose={() => setReviewModal(null)}
         >
           <form onSubmit={submitReview} className="space-y-4">
-            <TextArea
-              label={reviewModal.status === 'approved' ? 'İnceleme Notu (isteğe bağlı)' : 'Ret Gerekçesi (isteğe bağlı)'}
-              value={reviewNote}
-              onChange={setReviewNote}
-              rows={3}
-            />
+            <Label label={reviewModal.status === 'approved' ? 'İnceleme Notu (isteğe bağlı)' : 'Ret Gerekçesi (isteğe bağlı)'}>
+              <textarea
+                className={`${inputClass} min-h-[84px] py-2`}
+                value={reviewNote}
+                onChange={(e) => setReviewNote(e.target.value)}
+                rows={3}
+              />
+            </Label>
             <div className="flex justify-end gap-2">
-              <button type="button" className={ghostButton} onClick={() => setReviewModal(null)}>Vazgeç</button>
-              <button
+              <Button type="button" variant="secondary" onClick={() => setReviewModal(null)}>Vazgeç</Button>
+              <Button
                 type="submit"
-                className={reviewModal.status === 'approved' ? primaryButton : 'rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700'}
+                variant={reviewModal.status === 'approved' ? 'primary' : 'danger'}
               >
                 {reviewModal.status === 'approved' ? 'Onayla' : 'Reddet'}
-              </button>
+              </Button>
             </div>
           </form>
         </Modal>
@@ -1565,9 +1789,8 @@ export default function SocialAidAndKumanyaPage() {
   )
 }
 
-function BulkPlan({ meta, regions, packages, canEdit, onMessage, onPlanned }: {
+function BulkPlan({ meta, regions, packages, canEdit, onPlanned }: {
   meta: Meta; regions: { id: string; name: string }[]; packages: { id: string; name: string; stock: number }[]; canEdit: boolean
-  onMessage: (m: { type: 'ok' | 'error'; text: string } | null) => void
   onPlanned: () => void
 }) {
   const [plan, setPlan] = useState({
@@ -1577,9 +1800,8 @@ function BulkPlan({ meta, regions, packages, canEdit, onMessage, onPlanned }: {
   const [result, setResult] = useState<{ households: number; packages_needed: number; stock: number; stock_short: number; estimated_cost_cents: number; planned: number; preview: Household[] } | null>(null)
 
   const run = async (dryRun: boolean) => {
-    onMessage(null)
     if (!plan.package_id) {
-      onMessage({ type: 'error', text: 'Önce dağıtılacak paketi seçin' })
+      toast.error('Önce dağıtılacak paketi seçin')
       return
     }
     try {
@@ -1590,11 +1812,11 @@ function BulkPlan({ meta, regions, packages, canEdit, onMessage, onPlanned }: {
       })
       setResult(res.data)
       if (!dryRun) {
-        onMessage({ type: 'ok', text: `${res.data.planned} haneye dağıtım planlandı. Dağıtım listesinden teslimatları işaretleyebilirsiniz.` })
+        toast.ok(`${res.data.planned} haneye dağıtım planlandı. Dağıtım listesinden teslimatları işaretleyebilirsiniz.`)
         onPlanned()
       }
     } catch (err) {
-      onMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
   const p = (k: keyof typeof plan, v: string) => { setPlan({ ...plan, [k]: v }); setResult(null) }
@@ -1614,21 +1836,41 @@ function BulkPlan({ meta, regions, packages, canEdit, onMessage, onPlanned }: {
             {packages.map((x) => <option key={x.id} value={x.id}>{x.name} (Stok: {x.stock})</option>)}
           </select>
         </Label>
-        <TextInput label="İl" value={plan.city} onChange={(v) => p('city', v)} />
-        <TextInput label="İlçe" value={plan.district} onChange={(v) => p('district', v)} />
-        <TextInput label="Mahalle" value={plan.neighborhood} onChange={(v) => p('neighborhood', v)} />
+        <Label label="İl">
+          <Input value={plan.city} onChange={(e) => p('city', e.target.value)} />
+        </Label>
+        <Label label="İlçe">
+          <Input value={plan.district} onChange={(e) => p('district', e.target.value)} />
+        </Label>
+        <Label label="Mahalle">
+          <Input value={plan.neighborhood} onChange={(e) => p('neighborhood', e.target.value)} />
+        </Label>
         <Label label="Saha Bölgesi">
           <select className={inputClass} value={plan.region_id} onChange={(e) => p('region_id', e.target.value)}>
             <option value="">Tümü</option>
             {regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </Label>
-        <TextInput label="En Az Puan" value={plan.min_score} onChange={(v) => p('min_score', v)} inputMode="numeric" />
-        <TextInput label="Son Kaç Günde Yardım Alanı Atla" value={plan.exclude_helped_days} onChange={(v) => p('exclude_helped_days', v)} inputMode="numeric" />
-        <TextInput label="En Fazla Hane Sayısı" value={plan.max_households} onChange={(v) => p('max_households', v)} inputMode="numeric" />
-        <TextInput label="Hane Başı Paket Adedi" value={plan.quantity} onChange={(v) => p('quantity', v)} inputMode="numeric" />
-        <TextInput label="Planlanan Dağıtım Tarihi" type="date" value={plan.planned_date} onChange={(v) => p('planned_date', v)} />
-        <div className="sm:col-span-2"><TextInput label="Dağıtım Notu" value={plan.notes} onChange={(v) => p('notes', v)} /></div>
+        <Label label="En Az Puan">
+          <Input value={plan.min_score} onChange={(e) => p('min_score', e.target.value)} inputMode="numeric" />
+        </Label>
+        <Label label="Son Kaç Günde Yardım Alanı Atla">
+          <Input value={plan.exclude_helped_days} onChange={(e) => p('exclude_helped_days', e.target.value)} inputMode="numeric" />
+        </Label>
+        <Label label="En Fazla Hane Sayısı">
+          <Input value={plan.max_households} onChange={(e) => p('max_households', e.target.value)} inputMode="numeric" />
+        </Label>
+        <Label label="Hane Başı Paket Adedi">
+          <Input value={plan.quantity} onChange={(e) => p('quantity', e.target.value)} inputMode="numeric" />
+        </Label>
+        <Label label="Planlanan Dağıtım Tarihi">
+          <Input type="date" value={plan.planned_date} onChange={(e) => p('planned_date', e.target.value)} />
+        </Label>
+        <div className="sm:col-span-2">
+          <Label label="Dağıtım Notu">
+            <Input value={plan.notes} onChange={(e) => p('notes', e.target.value)} />
+          </Label>
+        </div>
       </div>
       <div className="flex flex-wrap gap-2 text-xs font-bold">
         {(Object.entries(meta.degrees) as [Degree, string][]).map(([k, v]) => {
@@ -1651,15 +1893,14 @@ function BulkPlan({ meta, regions, packages, canEdit, onMessage, onPlanned }: {
         })}
       </div>
       <div className="flex gap-2">
-        <button type="button" className={ghostButton} onClick={() => run(true)}>Önizle (Simülasyon)</button>
+        <Button type="button" variant="secondary" onClick={() => run(true)}>Önizle (Simülasyon)</Button>
         {canEdit && result && result.households > 0 && result.planned === 0 && (
-          <button
+          <Button
             type="button"
-            className={primaryButton}
             onClick={async () => (await confirmDialog({ title: `${result.households} haneye dağıtım planlansın mı?`, danger: false })) && run(false)}
           >
             Dağıtım Planını Oluştur ({result.households} Hane)
-          </button>
+          </Button>
         )}
       </div>
       {result && (
@@ -1816,8 +2057,8 @@ function Stats({ onSelectHousehold }: { onSelectHousehold: (id: string) => void 
   )
 }
 
-function Settings({ meta, canEdit, onSaved, onMessage }: {
-  meta: Meta; canEdit: boolean; onSaved: (line: number) => void; onMessage: (m: { type: 'ok' | 'error'; text: string } | null) => void
+function Settings({ meta, canEdit, onSaved }: {
+  meta: Meta; canEdit: boolean; onSaved: (line: number) => void
 }) {
   const [line, setLine] = useState(String(meta.poverty_line_cents / 100))
   const save = async (e: React.FormEvent) => {
@@ -1825,9 +2066,9 @@ function Settings({ meta, canEdit, onSaved, onMessage }: {
     try {
       const res = await adminSend<{ poverty_line_cents: number; rescored: number }>('put', '/households-settings', { poverty_line_cents: toCents(line) })
       onSaved(res.data.poverty_line_cents)
-      onMessage({ type: 'ok', text: `Eşik kaydedildi, ${res.data.rescored} hanenin puanı yeniden hesaplandı` })
+      toast.ok(`Eşik kaydedildi, ${res.data.rescored} hanenin puanı yeniden hesaplandı`)
     } catch (err) {
-      onMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
   return (
@@ -1838,16 +2079,16 @@ function Settings({ meta, canEdit, onSaved, onMessage }: {
       </div>
       <form onSubmit={save} className="flex flex-wrap items-end gap-3">
         <div className="w-72">
-          <TextInput
-            label="Kişi Başı Aylık Yoksulluk Eşiği (₺)"
-            value={line}
-            onChange={setLine}
-            inputMode="decimal"
-            disabled={!canEdit}
-            hint={`Varsayılan ${formatMoney(meta.default_poverty_line_cents)}.`}
-          />
+          <Label label="Kişi Başı Aylık Yoksulluk Eşiği (₺)" hint={`Varsayılan ${formatMoney(meta.default_poverty_line_cents)}.`}>
+            <Input
+              value={line}
+              onChange={(e) => setLine(e.target.value)}
+              inputMode="decimal"
+              disabled={!canEdit}
+            />
+          </Label>
         </div>
-        {canEdit && <button type="submit" className={primaryButton}>Kaydet ve Tüm Haneleri Yeniden Puanla</button>}
+        {canEdit && <Button type="submit">Kaydet ve Tüm Haneleri Yeniden Puanla</Button>}
       </form>
       <div className="rounded-xl bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
         <p className="mb-1 font-bold text-slate-800">Muhtaçlık Puanı Nasıl Hesaplanır? (0–100, yüksek = daha acil ihtiyaç)</p>
