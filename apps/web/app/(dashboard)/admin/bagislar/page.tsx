@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ChevronDown, Download, Eye, FileText, HandCoins, MessageSquare, Plus, RefreshCw, SlidersHorizontal, Wallet, X } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Check, ChevronDown, Copy, Download, Eye, FileText, HandCoins, MessageSquare, Plus, RefreshCw, SlidersHorizontal, Wallet, X } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, exportPdf, exportXlsx, formatMoney, useAdminAccess, v1Get, whatsappUrl, can } from '../../../../lib/admin-access'
+import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
@@ -15,7 +17,6 @@ import {
   Pagination,
   PdfIcon,
   SmsIcon,
-  StatCard,
   TBody,
   THead,
   Table,
@@ -89,11 +90,40 @@ const QUICK_VIEWS: [string, string, Partial<typeof emptyFilters>][] = [
   ['online', 'Online bağışlar', { issued_by: 'online' }],
 ]
 
+const CURRENCY_GRADIENTS = [
+  'from-emerald-600 to-teal-700',
+  'from-sky-600 to-blue-700',
+  'from-amber-500 to-orange-600',
+]
+
+function CopyButton({ value, label }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      title={`${label || value} kopyala`}
+      onClick={(e) => {
+        e.stopPropagation()
+        navigator.clipboard?.writeText(value).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        }).catch(() => {})
+      }}
+      className="inline-flex items-center rounded p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+    >
+      {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+    </button>
+  )
+}
+
 export default function AdminDonationsPage() {
+  const router = useRouter()
   const { data: access } = useAdminAccess()
   const canIssue = can(access, 'receipts.create')
+  const canBulkSms = can(access, 'sms.bulk')
   const [filters, setFilters] = useState(emptyFilters)
   const [showFilters, setShowFilters] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
   useEffect(() => {
     const view = QUICK_VIEWS.find(([key]) => key === new URLSearchParams(window.location.search).get('gorunum'))
     if (view) setFilters({ ...emptyFilters, ...view[2] })
@@ -152,6 +182,7 @@ export default function AdminDonationsPage() {
     try {
       const res = await adminGet<SearchResult>('/donations', buildParams())
       setResult(res.data)
+      setPicked(new Set())
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Bağışlar yüklenemedi'))
     } finally {
@@ -264,6 +295,24 @@ export default function AdminDonationsPage() {
     }
   }
 
+  const sendBulkSms = () => {
+    if (!result) return
+    const phones = Array.from(new Set(
+      result.items
+        .filter((r) => picked.has(r.id) && r.donor_phone)
+        .map((r) => r.donor_phone!.trim())
+        .filter(Boolean)
+    ))
+    if (!phones.length) {
+      toast.error('Seçili bağışlarda kayıtlı telefon numarası yok')
+      return
+    }
+    try {
+      sessionStorage.setItem('broadcast_prefill_numbers', phones.join('\n'))
+    } catch { /* ignore */ }
+    router.push('/admin/broadcast?kind=numbers')
+  }
+
   const pages = result ? Math.max(1, Math.ceil(result.total / PAGE_SIZE)) : 1
   const activeFilters = Object.values(filters).filter(Boolean).length
 
@@ -320,7 +369,7 @@ export default function AdminDonationsPage() {
       />
 
       {showManual && (
-        <Card className="border border-emerald-200 bg-white p-6 shadow-sm">
+        <Modal title="Elle Makbuz Kes" size="lg" onClose={() => setShowManual(false)}>
           <ManualReceiptForm
             onDone={(r) => {
               setShowManual(false)
@@ -328,26 +377,26 @@ export default function AdminDonationsPage() {
               load()
             }}
           />
-        </Card>
+        </Modal>
       )}
 
       {result && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            label="Toplam Bağış Kaydı"
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <GlobalStatCard
+            title="Toplam Bağış Kaydı"
             value={result.total.toLocaleString('tr-TR')}
-            hint="Seçili filtrelere göre"
-            tone="neutral"
-            icon={HandCoins}
+            subtitle="Seçili filtrelere göre"
+            gradient="from-slate-600 to-slate-700"
+            icon={<HandCoins className="h-5 w-5" />}
           />
-          {result.totals.slice(0, 3).map((t) => (
-            <StatCard
+          {result.totals.slice(0, 3).map((t, idx) => (
+            <GlobalStatCard
               key={t.currency}
-              label={`${t.currency} Toplamı`}
+              title={`${t.currency} Toplamı`}
               value={formatMoney(t.total_cents, t.currency)}
-              hint={`${t.count.toLocaleString('tr-TR')} adet işlem`}
-              tone="good"
-              icon={Wallet}
+              subtitle={`${t.count.toLocaleString('tr-TR')} adet işlem`}
+              gradient={CURRENCY_GRADIENTS[idx % CURRENCY_GRADIENTS.length]}
+              icon={<Wallet className="h-5 w-5" />}
             />
           ))}
         </div>
@@ -528,16 +577,56 @@ export default function AdminDonationsPage() {
         )}
       </Card>
 
-      <Card className="border border-slate-200 bg-white p-4 shadow-sm">
+      <Card className="space-y-3 border border-slate-200 bg-white p-4 shadow-sm">
+        {picked.size > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary-200 bg-primary-50/70 px-3 py-2 text-xs">
+            <span className="font-bold text-primary-900">{picked.size} bağış seçildi</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {canBulkSms && (
+                <button
+                  type="button"
+                  onClick={sendBulkSms}
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1.5 font-semibold text-white hover:bg-primary-700"
+                >
+                  <MessageSquare className="h-3.5 w-3.5" /> Seçilen Bağışçılara Toplu SMS
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setPicked(new Set())}
+                className="cursor-pointer font-semibold text-gray-500 hover:text-gray-800"
+              >
+                Temizle
+              </button>
+            </div>
+          </div>
+        )}
         {loading && !result ? (
           <p className="py-12 text-center text-sm text-slate-500 animate-pulse">Bağışlar yükleniyor...</p>
         ) : !result || result.items.length === 0 ? (
           <p className="py-12 text-center text-xs text-slate-400">Bu filtrelerle bağış bulunamadı.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <THead>
                 <Tr>
+                  <Th className="w-8">
+                    <input
+                      type="checkbox"
+                      aria-label="Sayfadaki tüm bağışları seç"
+                      checked={result.items.length > 0 && result.items.every((r) => picked.has(r.id))}
+                      onChange={(e) => {
+                        const ids = result.items.map((r) => r.id)
+                        setPicked((prev) => {
+                          const next = new Set(prev)
+                          if (e.target.checked) ids.forEach((id) => next.add(id))
+                          else ids.forEach((id) => next.delete(id))
+                          return next
+                        })
+                      }}
+                    />
+                  </Th>
                   <Th>Tarih / Makbuz</Th>
                   <Th>Bağışçı</Th>
                   <Th>Kampanya</Th>
@@ -556,13 +645,20 @@ export default function AdminDonationsPage() {
                       onClick={() => setDetailRow(r)}
                       className={`cursor-pointer hover:bg-slate-50/70 ${r.status === 'cancelled' || r.status === 'refunded' ? 'opacity-60' : ''}`}
                     >
+                      <Td onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={picked.has(r.id)}
+                          onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })}
+                        />
+                      </Td>
                       <Td className="whitespace-nowrap">
                         <div className="text-xs font-medium text-slate-800">
                           {new Date(r.paid_at).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
                         </div>
-                        <div className="font-mono text-[10px] text-slate-400">
-                          {r.receipt_number}
-                          {r.official_receipt_no ? ` · ${r.official_receipt_no}` : ''}
+                        <div className="flex items-center gap-1 font-mono text-[10px] text-slate-400">
+                          <span>{r.receipt_number}{r.official_receipt_no ? ` · ${r.official_receipt_no}` : ''}</span>
+                          <CopyButton value={r.receipt_number} label="Makbuz no" />
                         </div>
                       </Td>
                       <Td>
@@ -580,8 +676,13 @@ export default function AdminDonationsPage() {
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-500">
-                          {r.donor_phone || ''}
+                        <div className="flex flex-wrap items-center gap-1 text-[11px] text-slate-500">
+                          {r.donor_phone && (
+                            <>
+                              <span>{r.donor_phone}</span>
+                              <CopyButton value={r.donor_phone} label="Telefon" />
+                            </>
+                          )}
                           {r.donor_phone && r.on_behalf_of ? ' · ' : ''}
                           {r.on_behalf_of ? <span className="text-emerald-700">Adına: {r.on_behalf_of}</span> : null}
                         </div>
@@ -675,6 +776,62 @@ export default function AdminDonationsPage() {
               </TBody>
             </Table>
           </div>
+          <div className="space-y-2 md:hidden">
+            {result.items.map((r) => {
+              const st = STATUS_META[r.status] || { label: r.status, badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' }
+              const wa = whatsappUrl(
+                r.donor_phone,
+                `Sayın ${r.donor_name}, ${formatMoney(r.amount_cents, r.currency)} tutarındaki ${r.campaign_title || ''} bağışınız için teşekkür ederiz. Makbuz No: ${r.receipt_number}`,
+              )
+              return (
+                <div
+                  key={r.id}
+                  onClick={() => setDetailRow(r)}
+                  className={`cursor-pointer rounded-xl border border-slate-200 bg-white p-3.5 ${r.status === 'cancelled' || r.status === 'refunded' ? 'opacity-60' : ''}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={picked.has(r.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })}
+                        className="mt-1"
+                      />
+                      <div>
+                        <p className="font-bold text-slate-900">{r.donor_name}</p>
+                        <p className="font-mono text-[11px] text-slate-400">{r.receipt_number} · {new Date(r.paid_at).toLocaleDateString('tr-TR')}</p>
+                        <p className="text-xs text-slate-600">{r.campaign_title || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-slate-900">{formatMoney(r.amount_cents, r.currency)}</p>
+                      <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-[10px] font-semibold ${st.badgeClass}`}>{st.label}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-slate-500">{r.payment_method_label}</span>
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => downloadPdf(r)} className="inline-flex items-center gap-1 rounded-md border border-[#D32F2F]/30 bg-[#D32F2F]/10 px-2 py-0.5 text-[11px] font-bold text-[#D32F2F]">
+                        <PdfIcon className="h-3 w-3" /> PDF
+                      </button>
+                      {r.donor_phone && (
+                        <button type="button" onClick={() => setSmsRow(r)} className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-bold text-sky-700">
+                          <SmsIcon className="h-3 w-3" /> SMS
+                        </button>
+                      )}
+                      {wa && (
+                        <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-0.5 text-[11px] font-bold text-[#128C7E]">
+                          <WhatsAppIcon className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          </>
         )}
         {result && result.total > PAGE_SIZE && (
           <div className="mt-4">
@@ -746,7 +903,12 @@ export default function AdminDonationsPage() {
               <Link href={`/admin/bagiscilar?donor=${detailRow.donor_id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
                 {detailRow.donor_name}
               </Link>
-              {detailRow.donor_phone && <div className="text-slate-500 mt-0.5">{detailRow.donor_phone}</div>}
+              {detailRow.donor_phone && (
+                <div className="mt-0.5 flex items-center gap-1 text-slate-500">
+                  <span>{detailRow.donor_phone}</span>
+                  <CopyButton value={detailRow.donor_phone} label="Telefon" />
+                </div>
+              )}
             </div>
             <div className="rounded-lg bg-slate-50 p-3">
               <div className="text-slate-400">Tutar & Durum</div>
