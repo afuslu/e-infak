@@ -3,7 +3,7 @@ from typing import Literal, Any, Optional, List, Dict
 from datetime import datetime
 from uuid import UUID
 from app.models.campaign import CampaignStatus, CampaignCategory
-from app.utils.content import sanitize_public_text
+from app.utils.content import sanitize_long_text
 from app.utils.i18n import clean_translations
 
 CAMPAIGN_I18N = ("title", "summary", "story")
@@ -35,7 +35,7 @@ class CampaignBase(BaseModel):
     @field_validator("story", mode="before")
     @classmethod
     def sanitize_story(cls, value: str | None) -> str | None:
-        return sanitize_public_text(value)
+        return sanitize_long_text(value)
 
     @field_validator("translations", mode="before")
     @classmethod
@@ -77,7 +77,7 @@ class CampaignUpdate(BaseModel):
     @field_validator("story", mode="before")
     @classmethod
     def sanitize_story(cls, value: str | None) -> str | None:
-        return sanitize_public_text(value)
+        return sanitize_long_text(value)
 
     @field_validator("translations", mode="before")
     @classmethod

@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@e-infak/ui'
 import { ApproxCurrency, CURRENCY_SYMBOL } from '../../../../components/site/ApproxCurrency'
+import { FormattedStory } from '../../../../components/FormattedStory'
 import { translator } from '../../../../lib/i18n'
 
 export default function CampaignDetailClient({ slug, locale = 'tr', initial }: { slug: string; locale?: string; initial?: Campaign | null }) {
@@ -87,8 +88,8 @@ export default function CampaignDetailClient({ slug, locale = 'tr', initial }: {
             <p className="mb-8 text-xl text-gray-600">{campaign.summary}</p>
 
             {campaign.story && (
-              <div className="prose prose-lg max-w-none whitespace-pre-line text-gray-700">
-                {campaign.story}
+              <div className="prose prose-lg max-w-none">
+                <FormattedStory text={campaign.story} className="text-base" />
               </div>
             )}
           </div>

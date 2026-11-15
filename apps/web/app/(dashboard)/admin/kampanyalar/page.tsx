@@ -35,6 +35,7 @@ import {
 import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { ImageField } from '../../../../components/admin/ImageField'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
+import { FormattedStory } from '../../../../components/FormattedStory'
 import {
   adminSend,
   apiErrorMessage,
@@ -200,6 +201,27 @@ export default function AdminCampaignsPage() {
     show_donor_list: true,
   })
   const [savingGeneral, setSavingGeneral] = useState(false)
+  const [storyPreview, setStoryPreview] = useState(false)
+  const storyRef = useRef<HTMLTextAreaElement | null>(null)
+
+  const applyStoryFormat = (prefix: string, suffix = '') => {
+    const el = storyRef.current
+    const current = editForm.story || ''
+    if (!el) {
+      setEditForm({ ...editForm, story: `${current}${current ? '\n' : ''}${prefix}${suffix}` })
+      return
+    }
+    const start = el.selectionStart ?? current.length
+    const end = el.selectionEnd ?? current.length
+    const selectedText = current.slice(start, end) || (suffix ? 'metin' : 'Başlık')
+    const next = `${current.slice(0, start)}${prefix}${selectedText}${suffix}${current.slice(end)}`
+    setEditForm({ ...editForm, story: next })
+    requestAnimationFrame(() => {
+      el.focus()
+      const cursor = start + prefix.length + selectedText.length + suffix.length
+      el.setSelectionRange(cursor, cursor)
+    })
+  }
 
   // Media tab state
   const [galleryUrls, setGalleryUrls] = useState<string[]>([])
@@ -989,13 +1011,79 @@ export default function AdminCampaignsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Kampanya Hikayesi / Detay</label>
-                    <textarea
-                      rows={4}
-                      value={editForm.story}
-                      onChange={(e) => setEditForm({ ...editForm, story: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    />
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                      <label className="block text-xs font-medium text-slate-600">
+                        Kampanya Hikayesi / Detay
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        {!storyPreview && (
+                          <div className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 p-0.5 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => applyStoryFormat('## ')}
+                              className="px-2 py-0.5 rounded hover:bg-white font-semibold text-slate-700"
+                              title="Alt başlık ekle"
+                            >
+                              Başlık
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyStoryFormat('**', '**')}
+                              className="px-2 py-0.5 rounded hover:bg-white font-bold text-slate-700"
+                              title="Kalın yap"
+                            >
+                              B
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => applyStoryFormat('- ')}
+                              className="px-2 py-0.5 rounded hover:bg-white font-medium text-slate-700"
+                              title="Liste maddesi ekle"
+                            >
+                              • Liste
+                            </button>
+                          </div>
+                        )}
+                        <div className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => setStoryPreview(false)}
+                            className={`px-2 py-0.5 rounded font-medium ${!storyPreview ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'}`}
+                          >
+                            Düzenle
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setStoryPreview(true)}
+                            className={`px-2 py-0.5 rounded font-medium ${storyPreview ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500'}`}
+                          >
+                            Önizleme
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    {storyPreview ? (
+                      <div className="min-h-[140px] rounded-lg border border-slate-200 bg-slate-50/70 p-3">
+                        {editForm.story.trim() ? (
+                          <FormattedStory text={editForm.story} />
+                        ) : (
+                          <p className="text-xs text-slate-400 italic">Önizlenecek hikaye metni yok.</p>
+                        )}
+                      </div>
+                    ) : (
+                      <textarea
+                        ref={storyRef}
+                        rows={6}
+                        value={editForm.story}
+                        onChange={(e) => setEditForm({ ...editForm, story: e.target.value })}
+                        placeholder="## Proje Amacı&#10;Kampanyanızın detaylarını buraya yazın. **Kalın** vurgu veya - madde listesi kullanabilirsiniz."
+                        className="w-full rounded-lg border border-slate-200 p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                    )}
+                    <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Biçimlendirme: ## Başlık, **kalın**, - madde</span>
+                      <span className="tabular-nums">{editForm.story.length.toLocaleString('tr-TR')} karakter</span>
+                    </div>
                   </div>
 
                   <ImageField
