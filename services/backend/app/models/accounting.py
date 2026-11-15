@@ -90,7 +90,11 @@ class LedgerEntry(Base):
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    __table_args__ = (Index("ix_ledger_source", "source_type", "source_id"),)
+    __table_args__ = (
+        Index("ix_ledger_source", "source_type", "source_id"),
+        Index("ix_ledger_org_date", "organization_id", "entry_date"),
+        Index("ix_ledger_org_source", "organization_id", "source_type", "source_id"),
+    )
 
 
 class Cheque(Base):

@@ -1029,6 +1029,9 @@ async def list_gelir_gider(
     q: Optional[str] = None,
     min_cents: Optional[int] = None,
     max_cents: Optional[int] = None,
+    sort: Optional[str] = "tarih_desc",
+    page: Optional[int] = Query(default=None, ge=1),
+    page_size: Optional[int] = Query(default=None, ge=1, le=5000),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1046,6 +1049,233 @@ async def list_gelir_gider(
     # 2. Cari kartları yükle
     cp_rows = (await db.execute(select(Counterparty).where(Counterparty.organization_id == org_id))).scalars().all()
     cp_map = {c.id: c.name for c in cp_rows}
+
+    sql_sortable = sort in (None, "tarih_desc", "tarih_asc", "miktar_desc", "miktar_asc", "tip_asc", "tip_desc")
+    fast_paged = (
+        page is not None
+        and page_size is not None
+        and not (q or "").strip()
+        and not (odeme_yontemi or "").strip()
+        and not (kategori or "").strip()
+        and sql_sortable
+    )
+
+    if fast_paged:
+        # Hızlı SQL yolu: 2.899+ satırı Python'a çekmeden özet + sadece istenen sayfayı getir
+        base_conds = [
+            LedgerEntry.organization_id == org_id,
+            LedgerEntry.source_type != "transfer",
+        ]
+        if start:
+            base_conds.append(LedgerEntry.entry_date >= start)
+        if end:
+            base_conds.append(LedgerEntry.entry_date <= end)
+        if islem_tipi == "GELIR":
+            base_conds.append(LedgerEntry.direction == "in")
+        elif islem_tipi == "GIDER":
+            base_conds.append(LedgerEntry.direction == "out")
+        if account_id:
+            base_conds.append(LedgerEntry.account_id == account_id)
+        if min_cents is not None:
+            base_conds.append(LedgerEntry.amount_cents >= min_cents)
+        if max_cents is not None:
+            base_conds.append(LedgerEntry.amount_cents <= max_cents)
+
+        # Özet (TRY + döviz + kategori dağılımı) tek SQL GROUP BY sorgusuyla
+        cur_expr = func.coalesce(FinanceAccount.currency, "TRY")
+        cat_expr = func.coalesce(Campaign.title, LedgerEntry.category, "Genel")
+        agg_rows = (await db.execute(
+            select(
+                LedgerEntry.direction,
+                cur_expr,
+                cat_expr,
+                func.count(LedgerEntry.id),
+                func.coalesce(func.sum(LedgerEntry.amount_cents), 0),
+            )
+            .outerjoin(FinanceAccount, FinanceAccount.id == LedgerEntry.account_id)
+            .outerjoin(Donation, (LedgerEntry.source_type == "donation") & (Donation.id == LedgerEntry.source_id))
+            .outerjoin(Campaign, Campaign.id == Donation.campaign_id)
+            .where(*base_conds)
+            .group_by(LedgerEntry.direction, cur_expr, cat_expr)
+        )).all()
+
+        toplam_gelir_cents = 0
+        toplam_gider_cents = 0
+        gelir_adedi = 0
+        gider_adedi = 0
+        doviz_gelir: dict[str, int] = {}
+        doviz_gider: dict[str, int] = {}
+        kategori_ozet: dict[str, dict[str, Any]] = {}
+        all_categories_set: set[str] = set()
+
+        for direction, cur, cat_name, cnt, total_c in agg_rows:
+            tip = "GELIR" if direction == "in" else "GIDER"
+            c_int = int(cnt or 0)
+            t_int = int(total_c or 0)
+            cat_str = str(cat_name or ("Gelir" if tip == "GELIR" else "Gider"))
+            all_categories_set.add(cat_str)
+            if tip == "GELIR":
+                gelir_adedi += c_int
+            else:
+                gider_adedi += c_int
+            if cur != "TRY":
+                if tip == "GELIR":
+                    doviz_gelir[cur] = doviz_gelir.get(cur, 0) + t_int
+                else:
+                    doviz_gider[cur] = doviz_gider.get(cur, 0) + t_int
+            else:
+                if tip == "GELIR":
+                    toplam_gelir_cents += t_int
+                else:
+                    toplam_gider_cents += t_int
+                k_key = f"{tip}:{cat_str}"
+                if k_key not in kategori_ozet:
+                    kategori_ozet[k_key] = {"tip": tip, "kategori": cat_str, "toplam_cents": 0, "adet": 0}
+                kategori_ozet[k_key]["toplam_cents"] += t_int
+                kategori_ozet[k_key]["adet"] += c_int
+
+        total_count = gelir_adedi + gider_adedi
+        order_clauses = {
+            "tarih_asc": (LedgerEntry.entry_date.asc(), LedgerEntry.created_at.asc()),
+            "miktar_desc": (LedgerEntry.amount_cents.desc(), LedgerEntry.entry_date.desc()),
+            "miktar_asc": (LedgerEntry.amount_cents.asc(), LedgerEntry.entry_date.desc()),
+            "tip_asc": (LedgerEntry.direction.asc(), LedgerEntry.entry_date.desc()),
+            "tip_desc": (LedgerEntry.direction.desc(), LedgerEntry.entry_date.desc()),
+        }.get(sort or "tarih_desc", (LedgerEntry.entry_date.desc(), LedgerEntry.created_at.desc()))
+
+        offset_val = (page - 1) * page_size
+        l_entries = (await db.execute(
+            select(LedgerEntry)
+            .where(*base_conds)
+            .order_by(*order_clauses)
+            .offset(offset_val)
+            .limit(page_size)
+        )).scalars().all()
+
+        # Yalnızca bu sayfadaki kayıtların düzeltme loglarını çek
+        page_item_keys = {str(e.id) for e in l_entries} | {str(e.source_id) for e in l_entries if e.source_id}
+        revisions_by_item: dict[str, list[dict]] = {}
+        if page_item_keys:
+            audit_rows = (await db.execute(
+                select(AuditLog, User.first_name, User.last_name, User.email)
+                .outerjoin(User, User.id == AuditLog.user_id)
+                .where(AuditLog.organization_id == org_id, AuditLog.action == "gelir_gider_duzenle")
+                .order_by(AuditLog.created_at.desc())
+                .limit(200)
+            )).all()
+            for log, u_fn, u_ln, u_email in audit_rows:
+                det = log.details or {}
+                item_key = str(det.get("item_id") or "")
+                if item_key in page_item_keys:
+                    u_name = f"{u_fn or ''} {u_ln or ''}".strip()
+                    revisions_by_item.setdefault(item_key, []).append({
+                        "id": str(log.id),
+                        "tarih": log.created_at.isoformat() if log.created_at else None,
+                        "kullanici": u_name or u_email or "Yetkili",
+                        "degisiklikler": det.get("changes") or {},
+                    })
+
+        donation_ids = {e.source_id for e in l_entries if e.source_type == "donation" and e.source_id}
+        expense_ids = {e.source_id for e in l_entries if e.source_type == "expense" and e.source_id}
+
+        don_map: dict[UUID, tuple[Donation, Optional[str], Optional[str]]] = {}
+        if donation_ids:
+            d_rows = (await db.execute(
+                select(Donation, Donor.first_name, Donor.last_name, Donor.company_name, Campaign.title)
+                .outerjoin(Donor, Donor.id == Donation.donor_id)
+                .outerjoin(Campaign, Campaign.id == Donation.campaign_id)
+                .where(Donation.id.in_(donation_ids))
+            )).all()
+            for d, fn, ln, comp, camp_title in d_rows:
+                donor_name = comp or f"{fn or ''} {ln or ''}".strip() or d.on_behalf_of or "Hayırsever"
+                don_map[d.id] = (d, donor_name, camp_title)
+
+        exp_map: dict[UUID, Expense] = {}
+        if expense_ids:
+            e_rows = (await db.execute(select(Expense).where(Expense.id.in_(expense_ids)))).scalars().all()
+            exp_map = {e.id: e for e in e_rows}
+
+        items: list[dict] = []
+        for le in l_entries:
+            acc = acc_map.get(le.account_id)
+            tip = "GELIR" if le.direction == "in" else "GIDER"
+            para_birimi = acc.currency if acc else "TRY"
+            kisi_adi = cp_map.get(le.counterparty_id) if le.counterparty_id else None
+            kampanya_adi = None
+            belge_no = None
+            aciklama = le.description
+            kat = le.category or ("Gelir" if tip == "GELIR" else "Gider")
+            odeme = _infer_odeme_yontemi(acc.kind if acc else None)
+
+            if le.source_type == "donation" and le.source_id in don_map:
+                don, donor_name, camp_title = don_map[le.source_id]
+                kisi_adi = donor_name
+                kampanya_adi = camp_title or "Genel Bağış"
+                belge_no = don.official_receipt_no or don.receipt_number
+                kat = camp_title or "Bağış"
+                odeme = _infer_odeme_yontemi(acc.kind if acc else None, getattr(don.payment_method, "value", don.payment_method))
+                if don.donor_message:
+                    aciklama = f"{aciklama} · {don.donor_message}" if aciklama else don.donor_message
+            elif le.source_type == "expense" and le.source_id in exp_map:
+                exp = exp_map[le.source_id]
+                belge_no = exp.receipt_no or None
+                aciklama = exp.description or exp.title or aciklama
+                kat = exp.category or kat
+                if not kisi_adi and exp.counterparty_id:
+                    kisi_adi = cp_map.get(exp.counterparty_id)
+
+            item_id_str = str(le.id)
+            rev_list = revisions_by_item.get(item_id_str) or (revisions_by_item.get(str(le.source_id)) if le.source_id else []) or []
+
+            items.append({
+                "id": item_id_str,
+                "source_type": le.source_type,
+                "source_id": str(le.source_id) if le.source_id else None,
+                "tarih": le.entry_date.isoformat(),
+                "olusturma_tarihi": le.created_at.isoformat() if le.created_at else None,
+                "islem_tipi": tip,
+                "islem_tipi_display": "Gelir" if tip == "GELIR" else "Gider",
+                "kategori": kat,
+                "kategori_display": kat,
+                "miktar_cents": le.amount_cents,
+                "miktar": round(le.amount_cents / 100.0, 2),
+                "para_birimi": para_birimi,
+                "odeme_yontemi": odeme,
+                "odeme_yontemi_display": ODEME_YONTEMI_LABELS.get(odeme, odeme),
+                "account_id": str(acc.id) if acc else None,
+                "account_name": acc.name if acc else None,
+                "account_kind": acc.kind if acc else None,
+                "kasa_adi": acc.name if (acc and acc.kind == "cash") else None,
+                "banka_hesabi_adi": (f"{acc.bank_name} - {acc.name}" if (acc and acc.bank_name and acc.bank_name.lower() not in acc.name.lower()) else (acc.name if acc else None)) if (acc and acc.kind in ("bank", "pos")) else None,
+                "kampanya_adi": kampanya_adi,
+                "kisi_adi": kisi_adi,
+                "counterparty_id": str(le.counterparty_id) if le.counterparty_id else None,
+                "belge_no": belge_no,
+                "aciklama": aciklama,
+                "paid": True,
+                "duzeltme_sayisi": len(rev_list),
+                "duzeltme_gecmisi": rev_list,
+            })
+
+        return {
+            "items": items,
+            "total": total_count,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": max(1, (total_count + page_size - 1) // page_size),
+            "summary": {
+                "toplam_gelir_cents": toplam_gelir_cents,
+                "toplam_gider_cents": toplam_gider_cents,
+                "net_cents": toplam_gelir_cents - toplam_gider_cents,
+                "gelir_adedi": gelir_adedi,
+                "gider_adedi": gider_adedi,
+                "toplam_kayit": total_count,
+                "doviz_gelir": doviz_gelir,
+                "doviz_gider": doviz_gider,
+                "kategori_dagilimi": list(kategori_ozet.values()),
+                "mevcut_kategoriler": sorted(all_categories_set),
+            },
+        }
 
     # 3. Düzeltme geçmişini (AuditLog) yükle
     audit_rows = (await db.execute(
@@ -1230,7 +1460,26 @@ async def list_gelir_gider(
                 continue
         filtered.append(it)
 
-    filtered.sort(key=lambda x: (x["tarih"], x.get("olusturma_tarihi") or ""), reverse=True)
+    if sort == "tarih_asc":
+        filtered.sort(key=lambda x: (x["tarih"], x.get("olusturma_tarihi") or ""))
+    elif sort == "miktar_desc":
+        filtered.sort(key=lambda x: x["miktar_cents"], reverse=True)
+    elif sort == "miktar_asc":
+        filtered.sort(key=lambda x: x["miktar_cents"])
+    elif sort == "kategori_asc":
+        filtered.sort(key=lambda x: (x.get("kategori") or "").lower())
+    elif sort == "kategori_desc":
+        filtered.sort(key=lambda x: (x.get("kategori") or "").lower(), reverse=True)
+    elif sort == "tip_asc":
+        filtered.sort(key=lambda x: x.get("islem_tipi") or "")
+    elif sort == "tip_desc":
+        filtered.sort(key=lambda x: x.get("islem_tipi") or "", reverse=True)
+    elif sort == "kisi_asc":
+        filtered.sort(key=lambda x: (x.get("kisi_adi") or "").lower())
+    elif sort == "kisi_desc":
+        filtered.sort(key=lambda x: (x.get("kisi_adi") or "").lower(), reverse=True)
+    else:
+        filtered.sort(key=lambda x: (x["tarih"], x.get("olusturma_tarihi") or ""), reverse=True)
 
     # 7. Özet hesaplamaları (TRY ve döviz kırılımlı)
     toplam_gelir_cents = sum(x["miktar_cents"] for x in filtered if x["islem_tipi"] == "GELIR" and x["para_birimi"] == "TRY")
@@ -1256,16 +1505,25 @@ async def list_gelir_gider(
             kategori_ozet[k_key]["adet"] += 1
 
     all_categories = sorted({x["kategori"] for x in items if x.get("kategori")})
+    total_count = len(filtered)
+    paged_items = filtered
+    if page is not None and page_size is not None:
+        start_idx = (page - 1) * page_size
+        paged_items = filtered[start_idx : start_idx + page_size]
 
     return {
-        "items": filtered,
+        "items": paged_items,
+        "total": total_count,
+        "page": page or 1,
+        "page_size": page_size or total_count,
+        "total_pages": max(1, (total_count + (page_size or max(total_count, 1)) - 1) // (page_size or max(total_count, 1))) if page_size else 1,
         "summary": {
             "toplam_gelir_cents": toplam_gelir_cents,
             "toplam_gider_cents": toplam_gider_cents,
             "net_cents": toplam_gelir_cents - toplam_gider_cents,
             "gelir_adedi": gelir_adedi,
             "gider_adedi": gider_adedi,
-            "toplam_kayit": len(filtered),
+            "toplam_kayit": total_count,
             "doviz_gelir": doviz_gelir,
             "doviz_gider": doviz_gider,
             "kategori_dagilimi": list(kategori_ozet.values()),

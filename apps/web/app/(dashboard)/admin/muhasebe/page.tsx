@@ -397,6 +397,7 @@ export default function OnMuhasebePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ggPage, setGgPage] = useState(1);
   const [ggPageSize, setGgPageSize] = useState(25);
+  const [ggTotal, setGgTotal] = useState(0);
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Kasa & Banka filters & UI states
@@ -411,7 +412,8 @@ export default function OnMuhasebePage() {
   });
   const [kbSort, setKbSort] = useState('custom');
   const [draggedAccountId, setDraggedAccountId] = useState<string | null>(null);
-  const [prefsReady, setPrefsReady] = useState(false);
+  const accountsLoadedRef = useRef(false);
+  const prevSearchRef = useRef('');
 
   // Modals & Drawers
   const [statModal, setStatModal] = useState<{
@@ -520,7 +522,7 @@ export default function OnMuhasebePage() {
     return { start: undefined, end: undefined };
   }, [ggFilters.startDate, ggFilters.endDate, ggFilters.yil, ggFilters.ay, ggFilters.gun]);
 
-  // Load Preferences once before first data fetch so aylık/yıllık filter doesn't double-fetch
+  // Load Preferences in parallel with initial data (default is 'yillik')
   useEffect(() => {
     let active = true;
     api
@@ -543,10 +545,7 @@ export default function OnMuhasebePage() {
           setGgFilters((prev) => ({ ...prev, yil: currentYear, ay: currentMonth }));
         }
       })
-      .catch(() => {})
-      .finally(() => {
-        if (active) setPrefsReady(true);
-      });
+      .catch(() => {});
 
     // Unmatched incoming transfers count badge
     api
@@ -559,41 +558,93 @@ export default function OnMuhasebePage() {
     };
   }, [currentMonth, currentYear]);
 
-  // Load main data
-  const loadData = useCallback(async () => {
-    setUpdating(true);
-    setLoadError(null);
-    try {
-      const ggParams: Record<string, any> = {};
-      if (computedDateRange.start) ggParams.start = computedDateRange.start;
-      if (computedDateRange.end) ggParams.end = computedDateRange.end;
+  const buildGgParams = useCallback(
+    (overrides?: Record<string, any>) => {
+      const params: Record<string, any> = {
+        page: ggPage,
+        page_size: ggPageSize,
+        sort: ggSort,
+      };
+      if (computedDateRange.start) params.start = computedDateRange.start;
+      if (computedDateRange.end) params.end = computedDateRange.end;
+      if (ggFilters.islemTipi) params.islem_tipi = ggFilters.islemTipi;
+      if (ggFilters.kategori) params.kategori = ggFilters.kategori;
+      const accountId = ggFilters.kasaId || ggFilters.bankaId;
+      if (accountId) params.account_id = accountId;
+      if (ggFilters.odemeYontemi) params.odeme_yontemi = ggFilters.odemeYontemi;
+      if (ggFilters.search.trim()) params.q = ggFilters.search.trim();
+      if (ggFilters.minTutar) params.min_cents = toCents(ggFilters.minTutar);
+      if (ggFilters.maxTutar) params.max_cents = toCents(ggFilters.maxTutar);
+      return { ...params, ...overrides };
+    },
+    [
+      ggPage,
+      ggPageSize,
+      ggSort,
+      computedDateRange.start,
+      computedDateRange.end,
+      ggFilters.islemTipi,
+      ggFilters.kategori,
+      ggFilters.kasaId,
+      ggFilters.bankaId,
+      ggFilters.odemeYontemi,
+      ggFilters.search,
+      ggFilters.minTutar,
+      ggFilters.maxTutar,
+    ],
+  );
 
-      const [accRes, ggRes] = await Promise.all([
-        api.get(`${BASE}/accounts`),
-        api.get(`${BASE}/gelir-gider`, { params: ggParams }),
-      ]);
-
-      setAccounts(accRes.data || []);
-      setGelirGiderItems(ggRes.data?.items || []);
-      if (ggRes.data?.summary) setGelirGiderSummary(ggRes.data.summary);
-    } catch (e: any) {
-      const rawDetail = e?.response?.data?.detail;
-      const errMsg =
-        typeof rawDetail === 'string'
-          ? rawDetail
-          : rawDetail?.message || e?.message || 'Finans verileri yüklenemedi';
-      setLoadError(String(errMsg));
-      flash('err', String(errMsg));
-    } finally {
-      setLoading(false);
-      setUpdating(false);
-    }
-  }, [computedDateRange.start, computedDateRange.end, flash]);
+  // Load main data (server-side paginated & summarized)
+  const loadData = useCallback(
+    async (opts?: { includeAccounts?: boolean }) => {
+      const includeAccounts = opts?.includeAccounts ?? true;
+      setUpdating(true);
+      setLoadError(null);
+      try {
+        const ggParams = buildGgParams();
+        if (includeAccounts) {
+          const [accRes, ggRes] = await Promise.all([
+            api.get(`${BASE}/accounts`),
+            api.get(`${BASE}/gelir-gider`, { params: ggParams }),
+          ]);
+          accountsLoadedRef.current = true;
+          setAccounts(accRes.data || []);
+          setGelirGiderItems(ggRes.data?.items || []);
+          setGgTotal(Number(ggRes.data?.total ?? ggRes.data?.summary?.toplam_kayit ?? 0));
+          if (ggRes.data?.summary) setGelirGiderSummary(ggRes.data.summary);
+        } else {
+          const ggRes = await api.get(`${BASE}/gelir-gider`, { params: ggParams });
+          setGelirGiderItems(ggRes.data?.items || []);
+          setGgTotal(Number(ggRes.data?.total ?? ggRes.data?.summary?.toplam_kayit ?? 0));
+          if (ggRes.data?.summary) setGelirGiderSummary(ggRes.data.summary);
+        }
+      } catch (e: any) {
+        const rawDetail = e?.response?.data?.detail;
+        const errMsg =
+          typeof rawDetail === 'string'
+            ? rawDetail
+            : rawDetail?.message || e?.message || 'Finans verileri yüklenemedi';
+        setLoadError(String(errMsg));
+        flash('err', String(errMsg));
+      } finally {
+        setLoading(false);
+        setUpdating(false);
+      }
+    },
+    [buildGgParams, flash],
+  );
 
   useEffect(() => {
-    if (!prefsReady) return;
-    loadData();
-  }, [loadData, prefsReady]);
+    const searchChanged = prevSearchRef.current !== ggFilters.search;
+    prevSearchRef.current = ggFilters.search;
+    if (searchChanged && ggFilters.search.trim() !== '') {
+      const timer = setTimeout(() => {
+        loadData({ includeAccounts: !accountsLoadedRef.current });
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+    loadData({ includeAccounts: !accountsLoadedRef.current });
+  }, [loadData, ggFilters.search]);
 
   // Split accounts into Kasalar & Bankalar
   const kasalar = useMemo(() => accounts.filter((a) => a.kind === 'cash'), [accounts]);
@@ -677,90 +728,33 @@ export default function OnMuhasebePage() {
     });
   };
 
-  // Filtered & Sorted Gelir-Gider List
+  // Server-side filtered & sorted Gelir-Gider List (optional multi-day gun filter client-side)
   const filteredGelirGiderler = useMemo(() => {
-    const q = ggFilters.search.trim().toLowerCase();
-    const minC = ggFilters.minTutar !== '' ? toCents(ggFilters.minTutar) : null;
-    const maxC = ggFilters.maxTutar !== '' ? toCents(ggFilters.maxTutar) : null;
     const selectedDays = ggFilters.gun ? ggFilters.gun.split(',').filter(Boolean).map((d) => Number(d)) : [];
-
-    const list = gelirGiderItems.filter((item) => {
-      if (ggFilters.islemTipi && item.islem_tipi !== ggFilters.islemTipi) return false;
-      if (ggFilters.kategori && item.kategori !== ggFilters.kategori) return false;
-      if (ggFilters.kasaId && item.account_id !== ggFilters.kasaId) return false;
-      if (ggFilters.bankaId && item.account_id !== ggFilters.bankaId) return false;
-      if (ggFilters.odemeYontemi && item.odeme_yontemi !== ggFilters.odemeYontemi) return false;
-      if (selectedDays.length > 0 && item.tarih) {
-        const dayNum = Number(String(item.tarih).slice(8, 10));
-        if (!selectedDays.includes(dayNum)) return false;
-      }
-      if (minC !== null && item.miktar_cents < minC) return false;
-      if (maxC !== null && item.miktar_cents > maxC) return false;
-      if (q) {
-        const hay = `${item.kategori || ''} ${item.aciklama || ''} ${item.kisi_adi || ''} ${item.belge_no || ''} ${item.kampanya_adi || ''} ${item.account_name || ''}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
+    if (selectedDays.length <= 1) return gelirGiderItems;
+    return gelirGiderItems.filter((item) => {
+      if (!item.tarih) return false;
+      const dayNum = Number(String(item.tarih).slice(8, 10));
+      return selectedDays.includes(dayNum);
     });
+  }, [gelirGiderItems, ggFilters.gun]);
 
-    return [...list].sort((a, b) => {
-      if (ggSort === 'tarih_desc') return `${b.tarih}${b.olusturma_tarihi || ''}`.localeCompare(`${a.tarih}${a.olusturma_tarihi || ''}`);
-      if (ggSort === 'tarih_asc') return `${a.tarih}${a.olusturma_tarihi || ''}`.localeCompare(`${b.tarih}${b.olusturma_tarihi || ''}`);
-      if (ggSort === 'miktar_desc') return b.miktar_cents - a.miktar_cents;
-      if (ggSort === 'miktar_asc') return a.miktar_cents - b.miktar_cents;
-      if (ggSort === 'kategori_asc') return (a.kategori || '').localeCompare(b.kategori || '', 'tr');
-      if (ggSort === 'kategori_desc') return (b.kategori || '').localeCompare(a.kategori || '', 'tr');
-      if (ggSort === 'tip_asc') return (a.islem_tipi || '').localeCompare(b.islem_tipi || '', 'tr');
-      if (ggSort === 'tip_desc') return (b.islem_tipi || '').localeCompare(a.islem_tipi || '', 'tr');
-      if (ggSort === 'odeme_asc') return (a.odeme_yontemi_display || '').localeCompare(b.odeme_yontemi_display || '', 'tr');
-      if (ggSort === 'odeme_desc') return (b.odeme_yontemi_display || '').localeCompare(a.odeme_yontemi_display || '', 'tr');
-      if (ggSort === 'hesap_asc') return (a.banka_hesabi_adi || a.kasa_adi || '').localeCompare(b.banka_hesabi_adi || b.kasa_adi || '', 'tr');
-      if (ggSort === 'hesap_desc') return (b.banka_hesabi_adi || b.kasa_adi || '').localeCompare(a.banka_hesabi_adi || a.kasa_adi || '', 'tr');
-      if (ggSort === 'kisi_asc') return (a.kisi_adi || '').localeCompare(b.kisi_adi || '', 'tr');
-      if (ggSort === 'kisi_desc') return (b.kisi_adi || '').localeCompare(a.kisi_adi || '', 'tr');
-      return 0;
-    });
-  }, [gelirGiderItems, ggFilters, ggSort]);
-
-  // Dynamic summary from filtered items
+  // Summary from backend SQL aggregation
   const liveSummary = useMemo(() => {
-    let gelirCents = 0;
-    let giderCents = 0;
-    let gelirAdedi = 0;
-    let giderAdedi = 0;
-    const dovizGelir: Record<string, number> = {};
-    const dovizGider: Record<string, number> = {};
-
-    filteredGelirGiderler.forEach((it) => {
-      const cur = it.para_birimi || 'TRY';
-      if (it.islem_tipi === 'GELIR') {
-        gelirAdedi += 1;
-        if (cur === 'TRY') gelirCents += it.miktar_cents;
-        else dovizGelir[cur] = (dovizGelir[cur] || 0) + it.miktar_cents;
-      } else {
-        giderAdedi += 1;
-        if (cur === 'TRY') giderCents += it.miktar_cents;
-        else dovizGider[cur] = (dovizGider[cur] || 0) + it.miktar_cents;
-      }
-    });
-
     return {
-      gelirCents,
-      giderCents,
-      netCents: gelirCents - giderCents,
-      gelirAdedi,
-      giderAdedi,
-      toplamKayit: filteredGelirGiderler.length,
-      dovizGelir,
-      dovizGider,
+      gelirCents: Number(gelirGiderSummary?.toplam_gelir_cents || 0),
+      giderCents: Number(gelirGiderSummary?.toplam_gider_cents || 0),
+      netCents: Number(gelirGiderSummary?.net_cents || 0),
+      gelirAdedi: Number(gelirGiderSummary?.gelir_adedi || 0),
+      giderAdedi: Number(gelirGiderSummary?.gider_adedi || 0),
+      toplamKayit: Number(gelirGiderSummary?.toplam_kayit ?? ggTotal ?? 0),
+      dovizGelir: (gelirGiderSummary?.doviz_gelir || {}) as Record<string, number>,
+      dovizGider: (gelirGiderSummary?.doviz_gider || {}) as Record<string, number>,
     };
-  }, [filteredGelirGiderler]);
+  }, [gelirGiderSummary, ggTotal]);
 
-  const ggTotalPages = Math.max(1, Math.ceil(filteredGelirGiderler.length / ggPageSize));
-  const paginatedGelirGiderler = useMemo(() => {
-    const startIdx = (ggPage - 1) * ggPageSize;
-    return filteredGelirGiderler.slice(startIdx, startIdx + ggPageSize);
-  }, [filteredGelirGiderler, ggPage, ggPageSize]);
+  const ggTotalPages = Math.max(1, Math.ceil(ggTotal / ggPageSize));
+  const paginatedGelirGiderler = filteredGelirGiderler;
 
   const activeFilterCount = useMemo(
     () =>
@@ -1087,9 +1081,22 @@ export default function OnMuhasebePage() {
   };
 
   // Export CSV / Excel, Word, PDF, WhatsApp & DERBİS (e-Medrese Birebir)
-  const exportGelirGiderCSV = () => {
+  const fetchAllFilteredGelirGider = async (): Promise<any[]> => {
+    if (ggTotal <= filteredGelirGiderler.length) return filteredGelirGiderler;
+    try {
+      const res = await api.get(`${BASE}/gelir-gider`, {
+        params: buildGgParams({ page: 1, page_size: 5000 }),
+      });
+      return res.data?.items || filteredGelirGiderler;
+    } catch {
+      return filteredGelirGiderler;
+    }
+  };
+
+  const exportGelirGiderCSV = async () => {
+    const exportList = await fetchAllFilteredGelirGider();
     const headers = ['Tarih', 'Tip', 'Kategori', 'Miktar', 'Para Birimi', 'Ödeme Yöntemi', 'Kasa / Banka', 'Kişi / Kurum', 'Belge No', 'Açıklama'];
-    const rows = filteredGelirGiderler.map((it) => [
+    const rows = exportList.map((it) => [
       formatDateWithOptionalTime(it.tarih, it.olusturma_tarihi),
       it.islem_tipi_display,
       it.kategori,
@@ -1111,8 +1118,9 @@ export default function OnMuhasebePage() {
     URL.revokeObjectURL(url);
   };
 
-  const exportGelirGiderWord = () => {
-    const rowsHtml = filteredGelirGiderler
+  const exportGelirGiderWord = async () => {
+    const exportList = await fetchAllFilteredGelirGider();
+    const rowsHtml = exportList
       .map(
         (it) =>
           `<tr>
@@ -1162,7 +1170,7 @@ export default function OnMuhasebePage() {
       `⚖️ *Net Durum:* ${formatMoney(liveSummary.netCents)}`,
       `────────────────────`,
       ...(topLines.length > 0 ? [`*Son Hareketler:*`, ...topLines] : ['Kayıt bulunmuyor.']),
-      filteredGelirGiderler.length > 15 ? `...ve ${filteredGelirGiderler.length - 15} kayıt daha.` : '',
+      ggTotal > 15 ? `...ve ${ggTotal - 15} kayıt daha.` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -1407,8 +1415,8 @@ export default function OnMuhasebePage() {
             ? `📅 ${ggFilters.yil} Yılı (Tüm Aylar) verileri listeleniyor`
             : '📅 Tüm Zamanlar verileri listeleniyor';
 
-    const pageStart = filteredGelirGiderler.length === 0 ? 0 : (ggPage - 1) * ggPageSize + 1;
-    const pageEnd = Math.min(filteredGelirGiderler.length, ggPage * ggPageSize);
+    const pageStart = ggTotal === 0 ? 0 : (ggPage - 1) * ggPageSize + 1;
+    const pageEnd = Math.min(ggTotal, ggPage * ggPageSize);
 
     return (
       <div className="space-y-6">
@@ -2280,10 +2288,10 @@ export default function OnMuhasebePage() {
           </div>
 
           {/* Sayfalama (Pagination) */}
-          {filteredGelirGiderler.length > 0 ? (
+          {ggTotal > 0 ? (
             <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3.5 text-xs sm:flex-row sm:items-center sm:justify-between">
               <div className="font-semibold text-slate-600">
-                {pageStart}-{pageEnd} / {filteredGelirGiderler.length} kayıt
+                {pageStart}-{pageEnd} / {ggTotal} kayıt
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <select
