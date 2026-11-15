@@ -58,11 +58,9 @@ export const NAV_GROUPS: NavGroup[] = [
     key: 'saha', label: 'Saha & Organizasyon', items: [
       { href: '/admin/kurban', label: 'Kurban Organizasyonu', icon: Beef, feature: 'kurban', module: 'kurban' },
       { href: '/admin/sponsorluk', label: 'Sponsorluk & Burs', icon: HeartHandshake, feature: 'sponsorship', module: 'operations' },
-      { href: '/admin/students', label: 'Hafızlık Öğrencileri', icon: GraduationCap, feature: 'education', module: 'operations' },
       { href: '/admin/wells', label: 'Su Kuyuları', icon: Droplets, feature: 'water_well', module: 'operations' },
       { href: '/admin/kumbara', label: 'Kumbaralar', icon: PiggyBank, feature: 'money_box', module: 'operations' },
-      { href: '/admin/kumanya', label: 'Kumanya Dağıtım', icon: Package, feature: 'food_aid', module: 'operations' },
-      { href: '/admin/yoksul-takip', label: 'Yoksul Takibi', icon: Home, feature: 'poverty_tracking', module: 'operations' },
+      { href: '/admin/yoksul-takip', label: 'Sosyal Yardım & Kumanya', icon: Home, feature: 'poverty_tracking', module: 'operations' },
     ],
   },
   {

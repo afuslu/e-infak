@@ -2,12 +2,22 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
-import { AlertCircle, CalendarClock, CheckCircle2, HeartHandshake, Search, Users, Wallet, X } from 'lucide-react'
+import {
+  AlertCircle,
+  CalendarClock,
+  CheckCircle2,
+  HeartHandshake,
+  Plus,
+  Users,
+  Wallet,
+  X,
+} from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
+import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, ResponsiveDataToolbar } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 
 interface Beneficiary {
   id: string
@@ -82,6 +92,9 @@ export default function SponsorshipPage() {
   const [pledgeFor, setPledgeFor] = useState<Beneficiary | null>(null)
   const [onlyWaiting, setOnlyWaiting] = useState(false)
   const [onlyOverdue, setOnlyOverdue] = useState(false)
+  const [statModal, setStatModal] = useState<'beneficiaries' | 'due' | 'paid' | 'overdue' | null>(null)
+  const [triggerNewBeneficiary, setTriggerNewBeneficiary] = useState(0)
+  const [triggerNewPledge, setTriggerNewPledge] = useState(0)
 
   const loadSummary = () => {
     adminGet<Summary>('/pledges/summary').then((r) => setSummary(r.data)).catch(() => {})
@@ -91,193 +104,114 @@ export default function SponsorshipPage() {
   useEffect(() => { loadSummary() }, [])
 
   return (
-    <div className="space-y-6">
-      <PageHeader title="Sponsorluk & Burs" description={<>Talebe, hoca ve yetim kayıtları; bağışçılarla eşleştirme ve aylık taksit takibi.</>} />
+    <div className="space-y-5">
+      <AppPageHeader
+        eyebrow="SAHA & ORGANİZASYON"
+        title="Sponsorluk & Burs Yönetimi"
+        meta="Talebe, yetim ve hoca burs kayıtları; bağışçılarla eşleştirme, aylık taahhüt ve taksit tahsilat takibi."
+        icon={<HeartHandshake className="h-6 w-6" />}
+        chips={
+          summary ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                ✓ {summary.sponsored_beneficiaries} Sponsorlu Kişi
+              </span>
+              {summary.waiting_beneficiaries > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                  ⏳ {summary.waiting_beneficiaries} Sponsor Bekleyen
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-800">
+                📋 {summary.active_pledges} Aktif Taahhüt
+              </span>
+            </>
+          ) : undefined
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {canOps && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('beneficiaries')
+                  setTriggerNewBeneficiary((n) => n + 1)
+                }}
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
+              >
+                <Plus className="h-4 w-4" />
+                Yeni Yararlanıcı
+              </button>
+            )}
+            {canDonor && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('pledges')
+                  setTriggerNewPledge((n) => n + 1)
+                }}
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                <Plus className="h-4 w-4" />
+                Yeni Taahhüt
+              </button>
+            )}
+          </div>
+        }
+      />
 
       {summary && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <StatCard
-            label="Aktif taahhüt"
-            icon={HeartHandshake}
-            value={summary.active_pledges}
-            detail={{
-              title: 'Aktif Taahhütler',
-              content: () => (
-                <Table>
-                  <THead><Tr><Th>Bağışçı</Th><Th>Yararlanıcı / Kalem</Th><Th className="text-right">Aylık</Th><Th className="text-right">İlerleme</Th></Tr></THead>
-                  <TBody>
-                    {allPledges.map((p) => (
-                      <Tr key={p.id}>
-                        <Td className="font-semibold">{p.donor_name}</Td>
-                        <Td className="text-xs">{p.title || p.beneficiary_name || p.campaign_title}</Td>
-                        <Td className="text-right tabular-nums">{formatMoney(p.installment_amount_cents, p.currency)}</Td>
-                        <Td className="text-right text-xs font-bold tabular-nums">{p.paid_count}/{p.installment_count}</Td>
-                      </Tr>
-                    ))}
-                    {allPledges.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Aktif taahhüt yok.</Td></Tr>}
-                  </TBody>
-                </Table>
-              ),
-            }}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <GlobalStatCard
+            id="beneficiaries"
+            title="SPONSORLU & BEKLEYEN"
+            value={`${summary.sponsored_beneficiaries} / ${summary.sponsored_beneficiaries + summary.waiting_beneficiaries}`}
+            subtitle={`${summary.waiting_beneficiaries} kişi sponsor eşleştirmesi bekliyor`}
+            icon={<Users className="h-4 w-4" />}
+            gradient="from-emerald-600 to-teal-700"
+            onClick={() => setStatModal('beneficiaries')}
           />
-          <StatCard
-            label="Sponsorlu kişi"
-            icon={Users}
-            tone="good"
-            value={summary.sponsored_beneficiaries}
-            detail={{
-              title: 'Sponsorlu Yararlanıcılar',
-              content: () => {
-                const sponsored = allBeneficiaries.filter((b) => b.active_pledges > 0)
-                return (
-                  <Table>
-                    <THead><Tr><Th>Ad Soyad</Th><Th>Tür</Th><Th>Sponsorlar</Th></Tr></THead>
-                    <TBody>
-                      {sponsored.map((b) => (
-                        <Tr key={b.id}>
-                          <Td className="font-semibold">{b.full_name}</Td>
-                          <Td className="text-xs text-gray-500">{b.kind_label}</Td>
-                          <Td className="text-xs text-green-700">{b.sponsors.join(', ')}</Td>
-                        </Tr>
-                      ))}
-                      {sponsored.length === 0 && <Tr><Td colSpan={3} className="text-center text-gray-400">Sponsorlu kayıt yok.</Td></Tr>}
-                    </TBody>
-                  </Table>
-                )
-              },
-            }}
-          />
-          <StatCard
-            label="Sponsor bekleyen"
-            icon={CalendarClock}
-            tone={summary.waiting_beneficiaries > 0 ? 'warn' : 'neutral'}
-            className={summary.waiting_beneficiaries > 0 ? 'border-amber-200 bg-amber-50/40' : undefined}
-            value={summary.waiting_beneficiaries}
-            detail={{
-              title: 'Sponsor Bekleyen Yararlanıcılar',
-              content: () => {
-                const waiting = allBeneficiaries.filter((b) => b.status === 'active' && b.active_pledges === 0)
-                return (
-                  <Table>
-                    <THead><Tr><Th>Ad Soyad</Th><Th>Tür</Th><Th>Şehir / Ülke</Th><Th className="text-right">Aylık İhtiyaç</Th></Tr></THead>
-                    <TBody>
-                      {waiting.map((b) => (
-                        <Tr key={b.id}>
-                          <Td className="font-semibold">{b.full_name}</Td>
-                          <Td className="text-xs text-gray-500">{b.kind_label}</Td>
-                          <Td className="text-xs text-gray-500">{[b.city, b.country].filter(Boolean).join(', ') || '—'}</Td>
-                          <Td className="text-right font-semibold tabular-nums">{b.monthly_need_cents ? formatMoney(b.monthly_need_cents) : '—'}</Td>
-                        </Tr>
-                      ))}
-                      {waiting.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Sponsor bekleyen kayıt yok.</Td></Tr>}
-                    </TBody>
-                  </Table>
-                )
-              },
-            }}
-          />
-          <StatCard
-            label="Bu ay beklenen"
-            icon={Wallet}
+          <GlobalStatCard
+            id="due"
+            title="BU AY BEKLENEN TAKSİT"
             value={formatMoney(summary.due_this_month.amount_cents)}
-            hint={`${summary.due_this_month.count} taksit`}
-            detail={{
-              title: 'Bu Ay Beklenen Taksitler',
-              description: `${summary.due_this_month.count} taksit · Toplam ${formatMoney(summary.due_this_month.amount_cents)}`,
-              content: () => (
-                <Table>
-                  <THead><Tr><Th>Bağışçı</Th><Th>Kalem</Th><Th className="text-right">Sonraki Vade</Th><Th className="text-right">Tutar</Th></Tr></THead>
-                  <TBody>
-                    {allPledges.filter((p) => p.next_due_date).map((p) => (
-                      <Tr key={p.id}>
-                        <Td className="font-semibold">{p.donor_name}</Td>
-                        <Td className="text-xs">{p.title || p.beneficiary_name || p.campaign_title}</Td>
-                        <Td className="text-right text-xs">{p.next_due_date ? new Date(p.next_due_date).toLocaleDateString('tr-TR') : '—'}</Td>
-                        <Td className="text-right font-bold tabular-nums">{formatMoney(p.installment_amount_cents, p.currency)}</Td>
-                      </Tr>
-                    ))}
-                    {allPledges.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Beklenen taksit yok.</Td></Tr>}
-                  </TBody>
-                </Table>
-              ),
-            }}
+            subtitle={`${summary.due_this_month.count} taksit · ${summary.active_pledges} aktif taahhüt`}
+            icon={<Wallet className="h-4 w-4" />}
+            gradient="from-blue-600 to-indigo-700"
+            onClick={() => setStatModal('due')}
           />
-          <StatCard
-            label="Bu ay ödenen"
-            icon={CheckCircle2}
-            tone="good"
+          <GlobalStatCard
+            id="paid"
+            title="BU AY TAHSİL EDİLEN"
             value={formatMoney(summary.paid_this_month.amount_cents)}
-            hint={`${summary.paid_this_month.count} taksit`}
-            detail={{
-              title: 'Ödemesi Alınan Taahhütler',
-              description: `Bu ay ${summary.paid_this_month.count} taksit · ${formatMoney(summary.paid_this_month.amount_cents)}`,
-              content: () => {
-                const paidOnes = allPledges.filter((p) => p.paid_count > 0)
-                return (
-                  <Table>
-                    <THead><Tr><Th>Bağışçı</Th><Th>Kalem</Th><Th className="text-right">Ödenen Taksit</Th><Th className="text-right">Aylık</Th></Tr></THead>
-                    <TBody>
-                      {paidOnes.map((p) => (
-                        <Tr key={p.id}>
-                          <Td className="font-semibold">{p.donor_name}</Td>
-                          <Td className="text-xs">{p.title || p.beneficiary_name || p.campaign_title}</Td>
-                          <Td className="text-right font-bold tabular-nums text-green-700">{p.paid_count}/{p.installment_count}</Td>
-                          <Td className="text-right tabular-nums">{formatMoney(p.installment_amount_cents, p.currency)}</Td>
-                        </Tr>
-                      ))}
-                      {paidOnes.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Ödenen taksit yok.</Td></Tr>}
-                    </TBody>
-                  </Table>
-                )
-              },
-            }}
+            subtitle={`Bu ay ${summary.paid_this_month.count} taksit ödendi`}
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            gradient="from-teal-500 to-emerald-600"
+            onClick={() => setStatModal('paid')}
           />
-          <StatCard
-            label="Gecikmiş"
-            icon={AlertCircle}
-            tone={summary.overdue.count > 0 ? 'bad' : 'neutral'}
-            className={summary.overdue.count > 0 ? 'border-red-200 bg-red-50/40' : undefined}
-            value={`${summary.overdue.count} · ${formatMoney(summary.overdue.amount_cents)}`}
-            detail={{
-              title: 'Gecikmiş Taahhütler',
-              description: `${summary.overdue.count} taksit · ${formatMoney(summary.overdue.amount_cents)}`,
-              content: () => {
-                const overdueRows = allPledges.filter((p) => p.overdue_count > 0)
-                return (
-                  <Table>
-                    <THead><Tr><Th>Bağışçı</Th><Th>Telefon</Th><Th className="text-right">Geciken</Th><Th className="text-right">Tutar</Th></Tr></THead>
-                    <TBody>
-                      {overdueRows.map((p) => (
-                        <Tr key={p.id}>
-                          <Td className="font-semibold">{p.donor_name}</Td>
-                          <Td className="text-xs text-gray-500">{p.donor_phone || '—'}</Td>
-                          <Td className="text-right font-bold tabular-nums text-red-600">{p.overdue_count}</Td>
-                          <Td className="text-right font-bold tabular-nums text-red-600">{formatMoney(p.overdue_cents, p.currency)}</Td>
-                        </Tr>
-                      ))}
-                      {overdueRows.length === 0 && <Tr><Td colSpan={4} className="text-center text-gray-400">Gecikmiş taksit yok.</Td></Tr>}
-                    </TBody>
-                  </Table>
-                )
-              },
-            }}
+          <GlobalStatCard
+            id="overdue"
+            title="GECİKMİŞ TAKSİTLER"
+            value={formatMoney(summary.overdue.amount_cents)}
+            subtitle={summary.overdue.count > 0 ? `${summary.overdue.count} gecikmiş taksit var` : 'Gecikmiş taksit bulunmuyor'}
+            icon={<AlertCircle className="h-4 w-4" />}
+            gradient={summary.overdue.count > 0 ? 'from-rose-500 to-red-600' : 'from-slate-500 to-slate-700'}
+            onClick={() => setStatModal('overdue')}
           />
         </div>
       )}
 
-      <div className="flex gap-1 border-b text-sm font-semibold">
-        {([['beneficiaries', 'Talebe / Hoca / Yetim'], ['pledges', 'Taahhütler & Taksitler']] as [Tab, string][]).map(([k, l]) => (
-          <button
-            key={k}
-            onClick={() => {
-              setTab(k)
-              if (k === 'beneficiaries') setPledgeFor(null)
-            }}
-            className={`-mb-px border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}
-          >
-            {l}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs
+          value={tab}
+          onChange={(k) => {
+            setTab(k)
+            if (k === 'beneficiaries') setPledgeFor(null)
+          }}
+          tabs={[
+            { key: 'beneficiaries', label: 'Yararlanıcılar (Talebe / Yetim / Hoca)', count: allBeneficiaries.length, icon: Users },
+            { key: 'pledges', label: 'Taahhütler & Taksit Takibi', count: allPledges.length, icon: CalendarClock },
+          ]}
+        />
       </div>
 
       <Notice message={message} />
@@ -289,6 +223,8 @@ export default function SponsorshipPage() {
           setMessage={setMessage}
           initialWaiting={onlyWaiting}
           onClearInitialWaiting={() => setOnlyWaiting(false)}
+          triggerNew={triggerNewBeneficiary}
+          onChanged={loadSummary}
           onPledge={(b) => { setPledgeFor(b); setTab('pledges') }}
         />
       ) : (
@@ -297,9 +233,61 @@ export default function SponsorshipPage() {
           setMessage={setMessage}
           presetBeneficiary={pledgeFor}
           initialOverdue={onlyOverdue}
+          triggerNew={triggerNewPledge}
           onClearInitialOverdue={() => setOnlyOverdue(false)}
           onClearPreset={() => setPledgeFor(null)}
           onChanged={() => { loadSummary(); setPledgeFor(null) }}
+        />
+      )}
+
+      {summary && (
+        <MuhasebeStatModal
+          isOpen={statModal !== null}
+          onClose={() => setStatModal(null)}
+          title={
+            statModal === 'beneficiaries'
+              ? 'Yararlanıcı Sponsorluk Durumu'
+              : statModal === 'due'
+                ? 'Aktif Taahhütler & Sonraki Vadeler'
+                : statModal === 'paid'
+                  ? 'Ödemesi Alınan Taahhütler'
+                  : 'Gecikmiş Taahhütler'
+          }
+          items={
+            statModal === 'beneficiaries'
+              ? allBeneficiaries.map((b) => ({
+                  label: `${b.full_name} (${b.kind_label})`,
+                  value: b.active_pledges > 0 ? `Sponsorlu (${b.sponsors.join(', ')})` : 'Sponsor Bekliyor',
+                  sub: [b.school, b.city, b.country, b.monthly_need_cents ? `İhtiyaç: ${formatMoney(b.monthly_need_cents)}` : null].filter(Boolean).join(' · '),
+                  color: b.active_pledges > 0 ? 'emerald' : 'amber',
+                }))
+              : statModal === 'due'
+                ? allPledges.map((p) => ({
+                    label: `${p.donor_name || 'Bağışçı'} → ${p.title || p.beneficiary_name || p.campaign_title || ''}`,
+                    value: formatMoney(p.installment_amount_cents, p.currency),
+                    sub: `${p.paid_count}/${p.installment_count} ödendi · Sonraki vade: ${p.next_due_date ? new Date(p.next_due_date).toLocaleDateString('tr-TR') : '—'}`,
+                    percent: p.installment_count > 0 ? Math.round((p.paid_count / p.installment_count) * 100) : 0,
+                    color: 'blue',
+                  }))
+                : statModal === 'paid'
+                  ? allPledges
+                      .filter((p) => p.paid_count > 0)
+                      .map((p) => ({
+                        label: `${p.donor_name || 'Bağışçı'} → ${p.title || p.beneficiary_name || p.campaign_title || ''}`,
+                        value: `${p.paid_count}/${p.installment_count} Taksit`,
+                        sub: `Aylık: ${formatMoney(p.installment_amount_cents, p.currency)}`,
+                        percent: p.installment_count > 0 ? Math.round((p.paid_count / p.installment_count) * 100) : 0,
+                        color: 'emerald',
+                      }))
+                  : allPledges
+                      .filter((p) => p.overdue_count > 0)
+                      .map((p) => ({
+                        label: `${p.donor_name || 'Bağışçı'} (${p.donor_phone || '—'})`,
+                        value: `${p.overdue_count} Geciken · ${formatMoney(p.overdue_cents, p.currency)}`,
+                        sub: p.title || p.beneficiary_name || p.campaign_title || '',
+                        color: 'rose',
+                      }))
+          }
         />
       )}
     </div>
@@ -313,15 +301,20 @@ const emptyBeneficiary = {
   guardian_name: '', guardian_phone: '', photo_url: '', description: '', monthly_need: '', status: 'active',
 }
 
-function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWaiting, onClearInitialWaiting }: {
+function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWaiting, onClearInitialWaiting, triggerNew, onChanged }: {
   canEdit: boolean; canPledge: boolean; setMessage: SetMessage; onPledge: (b: Beneficiary) => void;
-  initialWaiting: boolean; onClearInitialWaiting: () => void;
+  initialWaiting: boolean; onClearInitialWaiting: () => void; triggerNew: number; onChanged: () => void;
 }) {
   const [rows, setRows] = useState<Beneficiary[]>([])
   const [filters, setFilters] = useState({ kind: '', sponsored: '', status: '', q: '' })
+  const [showFilters, setShowFilters] = useState(false)
   const [editing, setEditing] = useState<Beneficiary | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyBeneficiary)
+
+  useEffect(() => {
+    if (triggerNew > 0) open(null)
+  }, [triggerNew])
 
   useEffect(() => {
     if (initialWaiting) {
@@ -369,45 +362,159 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
       setShowForm(false)
       setMessage({ type: 'ok', text: 'Kayıt kaydedildi' })
       await load()
+      onChanged()
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err) })
     }
   }
 
   const set = (k: keyof typeof emptyBeneficiary, v: string) => setForm((f) => ({ ...f, [k]: v }))
+  const activeFilterCount = [filters.kind, filters.sponsored, filters.status].filter(Boolean).length
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input className={`${inputClass} w-56 pl-8`} placeholder="Ad, kod, şehir, okul" value={filters.q} onChange={(e) => setFilters({ ...filters, q: e.target.value })} />
-        </div>
-        <select className={`${inputClass} w-44`} value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })}>
-          <option value="">Tüm türler</option>{KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        </select>
-        <select className={`${inputClass} w-44`} value={filters.sponsored} onChange={(e) => setFilters({ ...filters, sponsored: e.target.value })}>
-          <option value="">Sponsor durumu</option><option value="true">Sponsorlu</option><option value="false">Sponsor bekleyen</option>
-        </select>
-        <select className={`${inputClass} w-36`} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
-          <option value="">Tüm durumlar</option><option value="active">Aktif</option><option value="passive">Pasif</option>
-        </select>
-        <ExportButtons
-          filename="yararlanicilar"
-          title="Sponsorluk Yararlanıcıları"
-          subtitle={`${rows.length} kayıt`}
-          getData={() => ({
-            headers: ['Tür', 'Kod', 'Ad Soyad', 'Ülke', 'Şehir', 'Okul', 'Sponsorlar'],
-            rows: rows.map((r) => [r.kind_label, r.code, r.full_name, r.country, r.city, r.school, r.sponsors.join(', ')]),
-          })}
+      <section className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+        <ResponsiveDataToolbar
+          search={{
+            value: filters.q,
+            onChange: (q) => setFilters({ ...filters, q }),
+            placeholder: 'Ad soyad, kurum kodu, şehir veya okul ara...',
+          }}
+          filter={{
+            activeCount: activeFilterCount,
+            onOpen: () => setShowFilters((v) => !v),
+            label: 'Gelişmiş Filtreler',
+            showOnDesktop: true,
+          }}
+          extraActions={
+            <ExportButtons
+              filename="yararlanicilar"
+              title="Sponsorluk Yararlanıcıları"
+              subtitle={`${rows.length} kayıt`}
+              getData={() => ({
+                headers: ['Tür', 'Kod', 'Ad Soyad', 'Ülke', 'Şehir', 'Okul', 'Aylık İhtiyaç', 'Sponsorlar'],
+                rows: rows.map((r) => [
+                  r.kind_label,
+                  r.code,
+                  r.full_name,
+                  r.country,
+                  r.city,
+                  r.school,
+                  r.monthly_need_cents ? formatMoney(r.monthly_need_cents) : '—',
+                  r.sponsors.join(', ') || 'Bekliyor',
+                ]),
+              })}
+            />
+          }
         />
-        <div className="flex-1" />
-        {canEdit && <button className={primaryButton} onClick={() => (showForm ? setShowForm(false) : open(null))}>{showForm ? 'Vazgeç' : '+ Yeni Kayıt'}</button>}
+
+        {showFilters && (
+          <div className="grid gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-3">
+            <Label label="Yararlanıcı Türü">
+              <select className={inputClass} value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })}>
+                <option value="">Tüm türler</option>
+                {KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </Label>
+            <Label label="Sponsorluk Durumu">
+              <select className={inputClass} value={filters.sponsored} onChange={(e) => setFilters({ ...filters, sponsored: e.target.value })}>
+                <option value="">Tümü</option>
+                <option value="true">Sponsorlu</option>
+                <option value="false">Sponsor bekleyen</option>
+              </select>
+            </Label>
+            <Label label="Kayıt Durumu">
+              <select className={inputClass} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+                <option value="">Tüm durumlar</option>
+                <option value="active">Aktif</option>
+                <option value="passive">Pasif</option>
+              </select>
+            </Label>
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {rows.map((b) => (
+          <div
+            key={b.id}
+            className={`flex gap-3.5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all hover:shadow-md ${
+              b.status === 'passive' ? 'opacity-60' : ''
+            }`}
+          >
+            {b.photo_url ? (
+              <img src={b.photo_url} alt="" className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200" />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-xl font-black text-white shadow-inner">
+                {b.first_name[0]}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <div className="truncate text-base font-black text-slate-900">{b.full_name}</div>
+                <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                  {b.kind_label}
+                </span>
+              </div>
+              <div className="mt-0.5 truncate text-xs font-medium text-slate-500">
+                {[b.code && `#${b.code}`, b.school, b.city, b.country].filter(Boolean).join(' · ') || 'Konum / kurum belirtilmedi'}
+              </div>
+              {b.monthly_need_cents > 0 && (
+                <div className="mt-1.5 text-xs text-slate-600">
+                  Aylık ihtiyaç: <span className="font-bold text-slate-900 tabular-nums">{formatMoney(b.monthly_need_cents)}</span>
+                </div>
+              )}
+              <div className="mt-1.5">
+                {b.active_pledges ? (
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                    ✓ Sponsor: {b.sponsors.join(', ')}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
+                    ⏳ Sponsor bekliyor
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-2.5">
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => open(b)}
+                    className="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    Düzenle
+                  </button>
+                )}
+                {canPledge && b.status === 'active' && (
+                  <button
+                    type="button"
+                    onClick={() => onPledge(b)}
+                    className="cursor-pointer rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700"
+                  >
+                    + Sponsor Eşleştir
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+        {rows.length === 0 && (
+          <Card className="border border-slate-200/80 p-12 text-center shadow-xs md:col-span-2 xl:col-span-3">
+            <Users className="mx-auto h-10 w-10 text-slate-300" />
+            <p className="mt-2 text-sm font-bold text-slate-700">Yararlanıcı kaydı bulunamadı</p>
+            <p className="mt-1 text-xs text-slate-500">Yeni yararlanıcı (talebe, yetim, hoca) ekleyerek sponsor eşleştirmesi başlatabilirsiniz.</p>
+          </Card>
+        )}
       </div>
 
       {showForm && (
-        <Card className="border border-primary-100 p-6 shadow-sm">
-          <form onSubmit={save} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Modal
+          title={editing ? `${editing.full_name} · Kaydı Düzenle` : 'Yeni Yararlanıcı Ekle'}
+          description="Talebe, yetim veya hoca bilgilerini girerek sponsorluk havuzuna ekleyebilirsiniz."
+          size="lg"
+          onClose={() => setShowForm(false)}
+        >
+          <form onSubmit={save} className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
             <Label label="Tür">
               <select className={inputClass} value={form.kind} onChange={(e) => set('kind', e.target.value)}>
                 {KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
@@ -428,60 +535,56 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
             <TextInput label="Veli / yakını" value={form.guardian_name} onChange={(v) => set('guardian_name', v)} />
             <TextInput label="Veli telefonu" value={form.guardian_phone} onChange={(v) => set('guardian_phone', v)} />
             <TextInput label="Aylık ihtiyaç (₺)" inputMode="decimal" value={form.monthly_need} onChange={(v) => set('monthly_need', v)} />
-            <div className="sm:col-span-2"><TextInput label="Fotoğraf adresi" placeholder="https://..." value={form.photo_url} onChange={(v) => set('photo_url', v)} /></div>
+            <div className="sm:col-span-2">
+              <TextInput label="Fotoğraf adresi" placeholder="https://..." value={form.photo_url} onChange={(v) => set('photo_url', v)} />
+            </div>
             <Label label="Durum">
               <select className={inputClass} value={form.status} onChange={(e) => set('status', e.target.value)}>
                 <option value="active">Aktif</option><option value="passive">Pasif</option>
               </select>
             </Label>
-            <div className="sm:col-span-2 lg:col-span-4"><TextArea label="Açıklama (sponsora gösterilmez)" rows={2} value={form.description} onChange={(v) => set('description', v)} /></div>
-            <div className="flex justify-end sm:col-span-2 lg:col-span-4"><button type="submit" className={primaryButton}>{editing ? 'Kaydet' : 'Ekle'}</button></div>
-          </form>
-        </Card>
-      )}
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((b) => (
-          <Card key={b.id} className={`flex gap-3 border border-gray-100 p-4 shadow-sm ${b.status === 'passive' ? 'opacity-50' : ''}`}>
-            {b.photo_url
-              ? <img src={b.photo_url} alt="" className="h-16 w-16 flex-shrink-0 rounded-lg object-cover" />
-              : <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-xl font-bold text-gray-400">{b.first_name[0]}</div>}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <div className="truncate font-bold text-gray-900">{b.full_name}</div>
-                <span className="rounded border px-1.5 py-0.5 text-[10px] font-bold">{b.kind_label}</span>
-              </div>
-              <div className="truncate text-xs text-gray-500">{[b.school, b.city, b.country].filter(Boolean).join(' · ') || '—'}</div>
-              {b.monthly_need_cents > 0 && (
-                <div className="mt-1 text-xs text-gray-600">Aylık ihtiyaç: <span className="font-semibold tabular-nums">{formatMoney(b.monthly_need_cents)}</span></div>
-              )}
-              <div className={`mt-1 text-xs font-semibold ${b.active_pledges ? 'text-green-700' : 'text-amber-700'}`}>
-                {b.active_pledges ? `Sponsor: ${b.sponsors.join(', ')}` : 'Sponsor bekliyor'}
-              </div>
-              <div className="mt-2 flex gap-2">
-                {canEdit && <button className={ghostButton} onClick={() => open(b)}>Düzenle</button>}
-                {canPledge && b.status === 'active' && <button className={ghostButton} onClick={() => onPledge(b)}>Sponsor eşleştir</button>}
-              </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <TextArea label="Açıklama (sponsora gösterilmez)" rows={2} value={form.description} onChange={(v) => set('description', v)} />
             </div>
-          </Card>
-        ))}
-        {rows.length === 0 && <p className="py-10 text-center text-xs text-gray-400 md:col-span-2 xl:col-span-3">Kayıt yok.</p>}
-      </div>
+            <div className="flex justify-end gap-2 pt-2 sm:col-span-2 lg:col-span-3">
+              <button type="button" className={ghostButton} onClick={() => setShowForm(false)}>Vazgeç</button>
+              <button type="submit" className={primaryButton}>{editing ? 'Kaydet' : 'Oluştur'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }
 
-function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initialOverdue, onClearInitialOverdue, onClearPreset }: {
+function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initialOverdue, onClearInitialOverdue, onClearPreset, triggerNew }: {
   canEdit: boolean; setMessage: SetMessage; presetBeneficiary: Beneficiary | null; onChanged: () => void;
-  initialOverdue: boolean; onClearInitialOverdue: () => void; onClearPreset: () => void;
+  initialOverdue: boolean; onClearInitialOverdue: () => void; onClearPreset: () => void; triggerNew: number;
 }) {
   const [rows, setRows] = useState<PledgeRow[]>([])
   const [filters, setFilters] = useState({ kind: '', status: 'active', overdue: '' })
+  const [showFilters, setShowFilters] = useState(false)
   const [query, setQuery] = useState('')
   const [detail, setDetail] = useState<PledgeRow | null>(null)
   const [showForm, setShowForm] = useState(!!presetBeneficiary)
   const [matchModal, setMatchModal] = useState<Installment | null>(null)
   const [receiptInput, setReceiptInput] = useState('')
+
+  useEffect(() => {
+    if (triggerNew > 0) setShowForm(true)
+  }, [triggerNew])
+
+  useEffect(() => {
+    if (presetBeneficiary) {
+      setShowForm(true)
+      setForm((f) => ({
+        ...f,
+        kind: 'sponsorship',
+        beneficiary_id: presetBeneficiary.id,
+        amount: presetBeneficiary.monthly_need_cents ? String(presetBeneficiary.monthly_need_cents / 100) : f.amount,
+      }))
+    }
+  }, [presetBeneficiary])
 
   useEffect(() => {
     if (initialOverdue) {
@@ -495,9 +598,10 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
     if (!q) return rows
     return rows.filter((p) =>
       [p.donor_name, p.donor_phone, p.beneficiary_name, p.title, p.campaign_title]
-        .some((v) => v?.toLowerCase().includes(q))
+        .some((v) => v?.toLowerCase().includes(q)),
     )
   }, [rows, query])
+
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([])
   const [wells, setWells] = useState<{ id: string; name: string }[]>([])
   const [campaigns, setCampaigns] = useState<{ id: string; title: string }[]>([])
@@ -552,6 +656,7 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
       })
       setShowForm(false)
       setDonor(null)
+      onClearPreset()
       setMessage({ type: 'ok', text: 'Taahhüt oluşturuldu, taksitler planlandı' })
       setDetail(res.data)
       onChanged()
@@ -601,217 +706,310 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
   }
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }))
+  const activeFilterCount = [filters.kind, filters.status !== 'active' ? filters.status : '', filters.overdue].filter(Boolean).length
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input className={`${inputClass} w-56 pl-8`} placeholder="Bağışçı, telefon, yararlanıcı" value={query} onChange={(e) => setQuery(e.target.value)} />
-        </div>
-        <select className={`${inputClass} w-44`} value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })}>
-          <option value="">Tüm türler</option><option value="sponsorship">Sponsorluk / Burs</option><option value="water_well">Su Kuyusu</option><option value="general">Genel</option>
-        </select>
-        <select className={`${inputClass} w-40`} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
-          <option value="">Tüm durumlar</option><option value="active">Aktif</option><option value="completed">Tamamlandı</option><option value="cancelled">İptal</option>
-        </select>
-        <label className="flex items-center gap-2 text-sm font-semibold">
-          <input type="checkbox" checked={filters.overdue === 'true'} onChange={(e) => setFilters({ ...filters, overdue: e.target.checked ? 'true' : '' })} /> Yalnız gecikenler
-        </label>
-        <ExportButtons
-          filename="taahhutler"
-          title="Sponsorluk Taahhütleri"
-          subtitle={`${rows.length} taahhüt`}
-          currencyCols={[7]}
-          getData={() => ({
-            headers: ['Bağışçı', 'Telefon', 'Tür', 'Kime', 'Taksit', 'Ödenen', 'Geciken', 'Geciken tutar', 'Sonraki vade'],
-            rows: rows.map((r) => [
-              r.donor_name,
-              r.donor_phone,
-              r.kind_label,
-              r.title,
-              `${r.installment_count} × ${r.installment_amount_cents / 100} ${r.currency}`,
-              r.paid_count,
-              r.overdue_count,
-              r.overdue_cents / 100,
-              r.next_due_date,
-            ]),
-          })}
+      <section className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+        <ResponsiveDataToolbar
+          search={{
+            value: query,
+            onChange: setQuery,
+            placeholder: 'Bağışçı, telefon, yararlanıcı veya başlık ara...',
+          }}
+          filter={{
+            activeCount: activeFilterCount,
+            onOpen: () => setShowFilters((v) => !v),
+            label: 'Gelişmiş Filtreler',
+            showOnDesktop: true,
+          }}
+          extraActions={
+            <ExportButtons
+              filename="taahhutler"
+              title="Sponsorluk Taahhütleri"
+              subtitle={`${filteredRows.length} taahhüt`}
+              currencyCols={[7]}
+              getData={() => ({
+                headers: ['Bağışçı', 'Telefon', 'Tür', 'Kime', 'Taksit', 'Ödenen', 'Geciken', 'Geciken Tutar', 'Sonraki Vade'],
+                rows: filteredRows.map((r) => [
+                  r.donor_name,
+                  r.donor_phone,
+                  r.kind_label,
+                  r.title || r.beneficiary_name || r.campaign_title,
+                  `${r.installment_count} × ${r.installment_amount_cents / 100} ${r.currency}`,
+                  r.paid_count,
+                  r.overdue_count,
+                  r.overdue_cents / 100,
+                  r.next_due_date,
+                ]),
+              })}
+            />
+          }
         />
-        <div className="flex-1" />
-        {canEdit && (
-          <button
-            className={primaryButton}
-            onClick={() => {
-              if (showForm) {
-                setShowForm(false)
-                onClearPreset()
-              } else {
-                setShowForm(true)
-              }
-            }}
-          >
-            {showForm ? 'Vazgeç' : '+ Yeni Taahhüt'}
-          </button>
-        )}
-      </div>
 
-      {showForm && (
-        <Card className="border border-primary-100 p-6 shadow-sm">
-          <form onSubmit={create} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="sm:col-span-2"><DonorPicker value={donor} onChange={setDonor} label="Sponsor / bağışçı" /></div>
-            <Label label="Tür">
-              <select className={inputClass} value={form.kind} onChange={(e) => set('kind', e.target.value)}>
-                <option value="sponsorship">Sponsorluk / Burs</option><option value="water_well">Su Kuyusu</option><option value="general">Genel</option>
+        {showFilters && (
+          <div className="grid items-end gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-3">
+            <Label label="Taahhüt Türü">
+              <select className={inputClass} value={filters.kind} onChange={(e) => setFilters({ ...filters, kind: e.target.value })}>
+                <option value="">Tüm türler</option>
+                <option value="sponsorship">Sponsorluk / Burs</option>
+                <option value="water_well">Su Kuyusu</option>
+                <option value="general">Genel</option>
               </select>
             </Label>
-            {form.kind === 'sponsorship' && (
-              <Label label="Kime">
-                <select required className={inputClass} value={form.beneficiary_id} onChange={(e) => set('beneficiary_id', e.target.value)}>
-                  <option value="">Seçin</option>
-                  {beneficiaries.map((b) => <option key={b.id} value={b.id}>{b.full_name} ({b.kind_label}){b.active_pledges ? ' — sponsorlu' : ''}</option>)}
-                </select>
-              </Label>
-            )}
-            {form.kind === 'water_well' && (
-              <Label label="Su kuyusu">
-                <select required className={inputClass} value={form.water_well_id} onChange={(e) => set('water_well_id', e.target.value)}>
-                  <option value="">Seçin</option>{wells.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                </select>
-              </Label>
-            )}
-            {form.kind === 'general' && <TextInput label="Başlık" value={form.title} onChange={(v) => set('title', v)} />}
-            <Label label="Tahsil edilecek bağış kalemi">
-              <select className={inputClass} value={form.campaign_id} onChange={(e) => set('campaign_id', e.target.value)} required={form.kind !== 'water_well'}>
-                <option value="">{form.kind === 'water_well' ? 'Kuyunun kalemi' : 'Seçin'}</option>
-                {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            <Label label="Durum">
+              <select className={inputClass} value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+                <option value="">Tüm durumlar</option>
+                <option value="active">Aktif</option>
+                <option value="completed">Tamamlandı</option>
+                <option value="cancelled">İptal</option>
               </select>
             </Label>
-            <TextInput label="Aylık taksit (₺)" required inputMode="decimal" value={form.amount} onChange={(v) => set('amount', v)} />
-            <TextInput label="Taksit sayısı (ay)" required type="number" min={1} max={120} value={form.count} onChange={(v) => set('count', v)} />
-            <TextInput label="İlk taksit tarihi" required type="date" value={form.start_date} onChange={(v) => set('start_date', v)} />
-            <div className="sm:col-span-2 lg:col-span-4"><TextInput label="Not" value={form.notes} onChange={(v) => set('notes', v)} /></div>
-            <p className="text-xs text-gray-500 sm:col-span-2 lg:col-span-3">
-              Bu kaleme bağışçıdan gelen her onaylı bağış, tutarın karşıladığı en eski bekleyen taksitleri otomatik ödenmiş sayar.
-            </p>
-            <div className="flex justify-end"><button type="submit" className={primaryButton}>Taahhüt oluştur</button></div>
-          </form>
-        </Card>
-      )}
+            <label className="flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700">
+              <input
+                type="checkbox"
+                checked={filters.overdue === 'true'}
+                onChange={(e) => setFilters({ ...filters, overdue: e.target.checked ? 'true' : '' })}
+                className="h-4 w-4 rounded border-slate-300 text-rose-600"
+              />
+              Yalnızca Gecikmiş Taksiti Olanlar
+            </label>
+          </div>
+        )}
+      </section>
 
       <div className="grid items-start gap-4 xl:grid-cols-12">
-        <Card className={`border border-gray-100 p-2 shadow-sm ${detail ? 'xl:col-span-6' : 'xl:col-span-12'}`}>
-          <ul className="divide-y divide-gray-100">
+        <Card className={`overflow-hidden rounded-2xl border border-slate-200/80 p-2 shadow-xs ${detail ? 'xl:col-span-6' : 'xl:col-span-12'}`}>
+          <ul className="divide-y divide-slate-100">
             {filteredRows.map((p) => {
               const pct = p.installment_count > 0 ? Math.min(100, Math.round((p.paid_count / p.installment_count) * 100)) : 0
               return (
                 <li key={p.id}>
-                  <button onClick={() => openDetail(p)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-gray-50 ${detail?.id === p.id ? 'bg-primary-50' : ''}`}>
+                  <button
+                    type="button"
+                    onClick={() => openDetail(p)}
+                    className={`flex w-full cursor-pointer items-center gap-3 rounded-xl px-3.5 py-3 text-left transition hover:bg-slate-50 ${
+                      detail?.id === p.id ? 'bg-emerald-50/70 ring-1 ring-emerald-300' : ''
+                    }`}
+                  >
                     <div className="min-w-0 flex-1 space-y-1">
-                      <div className="truncate font-semibold">{p.donor_name} → {p.title || p.beneficiary_name || p.campaign_title}</div>
-                      <div className="text-xs text-gray-500">
-                        {p.kind_label} · {formatMoney(p.installment_amount_cents, p.currency)} × {p.installment_count} · {p.paid_count}/{p.installment_count} ödendi
-                        {p.next_due_date && ` · sonraki ${new Date(p.next_due_date).toLocaleDateString('tr-TR')}`}
+                      <div className="truncate font-bold text-slate-900">
+                        {p.donor_name} → <span className="text-emerald-700">{p.title || p.beneficiary_name || p.campaign_title}</span>
                       </div>
-                      <div className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-gray-100">
-                        <div className="h-full rounded-full bg-primary-600 transition-all" style={{ width: `${pct}%` }} />
+                      <div className="text-xs font-medium text-slate-500">
+                        {p.kind_label} · {formatMoney(p.installment_amount_cents, p.currency)} × {p.installment_count} ·{' '}
+                        <strong className="text-slate-800">{p.paid_count}/{p.installment_count} ödendi</strong>
+                        {p.next_due_date && ` · Sonraki vade: ${new Date(p.next_due_date).toLocaleDateString('tr-TR')}`}
+                      </div>
+                      <div className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-emerald-600 transition-all" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
-                    {p.overdue_count > 0 && <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">{p.overdue_count} gecikmiş</span>}
-                    {p.status !== 'active' && <span className="rounded border px-2 py-0.5 text-[10px] font-bold text-gray-500">{p.status === 'completed' ? 'Tamamlandı' : 'İptal'}</span>}
+                    {p.overdue_count > 0 && (
+                      <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[11px] font-bold text-rose-700">
+                        {p.overdue_count} gecikmiş
+                      </span>
+                    )}
+                    {p.status !== 'active' && (
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-bold text-slate-500">
+                        {p.status === 'completed' ? 'Tamamlandı' : 'İptal'}
+                      </span>
+                    )}
                   </button>
                 </li>
               )
             })}
-            {filteredRows.length === 0 && <li className="py-10 text-center text-xs text-gray-400">Taahhüt yok.</li>}
+            {filteredRows.length === 0 && (
+              <li className="py-12 text-center text-xs text-slate-400">Seçili kriterlere uygun taahhüt bulunamadı.</li>
+            )}
           </ul>
         </Card>
 
         {detail && (
-          <Card className="space-y-3 border border-gray-100 p-5 shadow-sm xl:col-span-6">
-            <div className="flex items-start justify-between gap-3">
+          <Card className="space-y-4 rounded-2xl border border-slate-200/80 p-5 shadow-xs xl:col-span-6">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
               <div>
-                <div className="text-lg font-bold">{detail.title || detail.beneficiary_name}</div>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
+                <div className="text-lg font-black text-slate-900">{detail.title || detail.beneficiary_name}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
                   <span>{detail.donor_name} · {detail.donor_phone} · {detail.campaign_title}</span>
                   {(() => {
-                    const wa = whatsappUrl(detail.donor_phone, `Merhaba ${detail.donor_name}, ${detail.title || detail.beneficiary_name || 'sponsorluk'} taahhüdünüz${detail.overdue_count > 0 ? ` (${detail.overdue_count} geciken taksit: ${formatMoney(detail.overdue_cents, detail.currency)})` : ''} hakkında bilgilendirmek isteriz.`)
+                    const wa = whatsappUrl(
+                      detail.donor_phone,
+                      `Merhaba ${detail.donor_name}, ${detail.title || detail.beneficiary_name || 'sponsorluk'} taahhüdünüz${detail.overdue_count > 0 ? ` (${detail.overdue_count} geciken taksit: ${formatMoney(detail.overdue_cents, detail.currency)})` : ''} hakkında bilgilendirmek isteriz.`,
+                    )
                     return wa ? (
-                      <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-0.5 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20">
+                      <a
+                        href={wa}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg bg-[#25D366] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#1ebe5d]"
+                      >
                         <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
                       </a>
                     ) : null
                   })()}
                 </div>
               </div>
-              <button onClick={() => setDetail(null)} className="text-xl text-gray-400">✕</button>
+              <button
+                type="button"
+                onClick={() => setDetail(null)}
+                className="cursor-pointer rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
+
             <Table>
               <THead>
                 <Tr>
                   <Th>#</Th>
-                  <Th>Vade</Th>
+                  <Th>Vade Tarihi</Th>
                   <Th className="text-right">Tutar</Th>
                   <Th className="text-right">Durum</Th>
-                  <Th />
+                  <Th className="text-right">İşlem</Th>
                 </Tr>
               </THead>
               <TBody>
                 {(detail.installments || []).map((i) => (
                   <Tr key={i.id}>
-                    <Td>{i.seq}.</Td>
+                    <Td className="font-bold">{i.seq}.</Td>
                     <Td>{new Date(i.due_date).toLocaleDateString('tr-TR')}</Td>
-                    <Td className="text-right tabular-nums">{formatMoney(i.amount_cents, detail.currency)}</Td>
-                    <Td className={`py-1.5 text-right font-semibold ${i.status === 'paid' ? 'text-green-700' : i.status === 'overdue' ? 'text-red-600' : 'text-gray-500'}`}>
-                      {STATUS_LABEL[i.status] || i.status}
+                    <Td className="text-right font-bold tabular-nums">{formatMoney(i.amount_cents, detail.currency)}</Td>
+                    <Td className="py-1.5 text-right">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                          i.status === 'paid'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : i.status === 'overdue'
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {STATUS_LABEL[i.status] || i.status}
+                      </span>
                     </Td>
                     <Td className="text-right">
                       {canEdit && (i.status === 'pending' || i.status === 'overdue') && detail.status === 'active' && (
-                        <button className="font-bold text-primary-700" onClick={() => openMatch(i)}>Eşleştir</button>
+                        <button
+                          type="button"
+                          className="cursor-pointer rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+                          onClick={() => openMatch(i)}
+                        >
+                          Makbuz Eşleştir
+                        </button>
                       )}
                     </Td>
                   </Tr>
                 ))}
               </TBody>
             </Table>
+
             {canEdit && (
-              <div className="flex justify-end gap-2 border-t pt-3">
-                {detail.status === 'cancelled'
-                  ? <button className={ghostButton} onClick={() => setStatus(detail, 'active')}>Yeniden etkinleştir</button>
-                  : detail.status === 'active' && <button className={`${ghostButton} text-red-600`} onClick={() => setStatus(detail, 'cancelled')}>Taahhüdü iptal et</button>}
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                {detail.status === 'cancelled' ? (
+                  <button className={ghostButton} onClick={() => setStatus(detail, 'active')}>Yeniden Etkinleştir</button>
+                ) : detail.status === 'active' ? (
+                  <button className={`${ghostButton} text-rose-600`} onClick={() => setStatus(detail, 'cancelled')}>Taahhüdü İptal Et</button>
+                ) : null}
               </div>
             )}
           </Card>
         )}
       </div>
 
-      {matchModal && detail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-bold text-gray-900">Taksit #{matchModal.seq} · Makbuz Eşleştir</h3>
-              <button type="button" onClick={() => setMatchModal(null)} className="rounded p-1 text-gray-400 hover:bg-gray-100">
-                <X className="h-4 w-4" />
-              </button>
+      {showForm && (
+        <Modal
+          title="Yeni Sponsorluk / Burs Taahhüdü"
+          description="Seçilen kaleme bağışçıdan gelen her onaylı bağış, tutarın karşıladığı en eski bekleyen taksitleri otomatik ödenmiş sayar."
+          size="lg"
+          onClose={() => {
+            setShowForm(false)
+            onClearPreset()
+          }}
+        >
+          <form onSubmit={create} className="grid gap-3.5 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <DonorPicker value={donor} onChange={setDonor} label="Sponsor / Bağışçı" />
             </div>
-            <p className="mb-3 text-xs text-gray-500">
-              {detail.donor_name} · Vade: {new Date(matchModal.due_date).toLocaleDateString('tr-TR')} · Tutar: {formatMoney(matchModal.amount_cents, detail.currency)}
-            </p>
-            <form onSubmit={submitMatch} className="space-y-3">
-              <TextInput
-                label="Onaylı Bağış Makbuz Numarası"
-                required
-                value={receiptInput}
-                onChange={setReceiptInput}
-                placeholder="Örn: MKB-2026-000123"
-              />
-              <div className="flex justify-end gap-2 pt-1">
-                <button type="button" className={ghostButton} onClick={() => setMatchModal(null)}>Vazgeç</button>
-                <button type="submit" className={primaryButton}>Eşleştir</button>
-              </div>
-            </form>
-          </div>
-        </div>
+            <Label label="Taahhüt Türü">
+              <select className={inputClass} value={form.kind} onChange={(e) => set('kind', e.target.value)}>
+                <option value="sponsorship">Sponsorluk / Burs</option>
+                <option value="water_well">Su Kuyusu</option>
+                <option value="general">Genel</option>
+              </select>
+            </Label>
+            {form.kind === 'sponsorship' && (
+              <Label label="Yararlanıcı">
+                <select required className={inputClass} value={form.beneficiary_id} onChange={(e) => set('beneficiary_id', e.target.value)}>
+                  <option value="">Seçin</option>
+                  {beneficiaries.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.full_name} ({b.kind_label}){b.active_pledges ? ' — sponsorlu' : ''}
+                    </option>
+                  ))}
+                </select>
+              </Label>
+            )}
+            {form.kind === 'water_well' && (
+              <Label label="Su Kuyusu">
+                <select required className={inputClass} value={form.water_well_id} onChange={(e) => set('water_well_id', e.target.value)}>
+                  <option value="">Seçin</option>
+                  {wells.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </Label>
+            )}
+            {form.kind === 'general' && <TextInput label="Başlık" value={form.title} onChange={(v) => set('title', v)} />}
+            <Label label="Tahsil Edilecek Bağış Kalemi">
+              <select className={inputClass} value={form.campaign_id} onChange={(e) => set('campaign_id', e.target.value)} required={form.kind !== 'water_well'}>
+                <option value="">{form.kind === 'water_well' ? 'Kuyunun kalemi' : 'Seçin'}</option>
+                {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+              </select>
+            </Label>
+            <TextInput label="Aylık Taksit Tutarı (₺)" required inputMode="decimal" value={form.amount} onChange={(v) => set('amount', v)} />
+            <TextInput label="Taksit Sayısı (Ay)" required type="number" min={1} max={120} value={form.count} onChange={(v) => set('count', v)} />
+            <TextInput label="İlk Taksit Tarihi" required type="date" value={form.start_date} onChange={(v) => set('start_date', v)} />
+            <div className="sm:col-span-2">
+              <TextInput label="Not" value={form.notes} onChange={(v) => set('notes', v)} />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
+              <button
+                type="button"
+                className={ghostButton}
+                onClick={() => {
+                  setShowForm(false)
+                  onClearPreset()
+                }}
+              >
+                Vazgeç
+              </button>
+              <button type="submit" className={primaryButton}>Taahhüt Oluştur</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {matchModal && detail && (
+        <Modal
+          title={`Taksit #${matchModal.seq} · Makbuz Eşleştir`}
+          description={`${detail.donor_name} · Vade: ${new Date(matchModal.due_date).toLocaleDateString('tr-TR')} · Tutar: ${formatMoney(matchModal.amount_cents, detail.currency)}`}
+          size="sm"
+          onClose={() => setMatchModal(null)}
+        >
+          <form onSubmit={submitMatch} className="space-y-4">
+            <TextInput
+              label="Eşleştirilecek Bağışın Makbuz Numarası"
+              required
+              value={receiptInput}
+              onChange={setReceiptInput}
+              placeholder="Örn: MKB-2026-0001"
+              hint="Bağışçının onaylanmış bağışlarından makbuz numarası ile eşleştirilir."
+            />
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" className={ghostButton} onClick={() => setMatchModal(null)}>Vazgeç</button>
+              <button type="submit" className={primaryButton}>Eşleştir</button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   )

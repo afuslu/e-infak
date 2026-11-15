@@ -253,16 +253,42 @@ export function FilterBar({ children }: { children: ReactNode }) {
 }
 
 export function Tabs<K extends string>({ tabs, value, onChange }: {
-  tabs: { key: K; label: string; count?: number }[]; value: K; onChange: (key: K) => void
+  tabs: { key: K; label: string; count?: number; icon?: LucideIcon }[]; value: K; onChange: (key: K) => void
 }) {
   return (
-    <div className="flex flex-wrap gap-2" role="tablist">
-      {tabs.map((tab) => (
-        <button key={tab.key} type="button" role="tab" aria-selected={value === tab.key} onClick={() => onChange(tab.key)}
-          className={`rounded-full px-4 py-1.5 text-xs font-bold transition-colors ${value === tab.key ? 'bg-primary-600 text-white' : 'border border-gray-200 bg-white text-gray-700 hover:border-primary-600'}`}>
-          {tab.label}{tab.count !== undefined ? ` (${tab.count.toLocaleString('tr-TR')})` : ''}
-        </button>
-      ))}
+    <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-xs" role="tablist">
+      {tabs.map((tab) => {
+        const active = value === tab.key
+        const Icon = tab.icon
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(tab.key)}
+            className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all ${
+              active
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xs'
+                : 'border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            {Icon && (
+              <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-emerald-600' : 'text-slate-400'}`} aria-hidden="true" />
+            )}
+            <span>{tab.label}</span>
+            {tab.count !== undefined && (
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-black leading-none tabular-nums ${
+                  active ? 'bg-emerald-200/70 text-emerald-900' : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {tab.count.toLocaleString('tr-TR')}
+              </span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -426,7 +452,7 @@ export function SmsIcon({ className = 'h-4 w-4' }: { className?: string }) {
   )
 }
 
-/** Kurum logolu ve marka renkli kurumsal Excel (.xlsx) + PDF dışa aktarım + Yazdır butonları. */
+/** Kurum logolu ve marka renkli kurumsal WhatsApp + Excel (.xlsx) + Word (.doc) + PDF + Yazdır butonları. */
 export function ExportButtons({
   filename,
   title,
@@ -444,7 +470,7 @@ export function ExportButtons({
   currencyCols?: number[]
   printable?: boolean
 }) {
-  const [busy, setBusy] = useState<'xlsx' | 'pdf' | null>(null)
+  const [busy, setBusy] = useState<'xlsx' | 'pdf' | 'word' | null>(null)
 
   const run = async (type: 'xlsx' | 'pdf') => {
     setBusy(type)
@@ -462,34 +488,129 @@ export function ExportButtons({
     }
   }
 
+  const shareWhatsApp = () => {
+    try {
+      const { headers, rows } = getData()
+      const lines: string[] = [`*${title}*`]
+      if (subtitle) lines.push(`_${subtitle}_`)
+      if (summary && summary.length > 0) {
+        lines.push('')
+        summary.forEach(([k, v]) => lines.push(`• *${k}:* ${v}`))
+      }
+      lines.push(`\nToplam Kayıt: *${rows.length}*`)
+      const preview = rows.slice(0, 12)
+      if (preview.length > 0) {
+        lines.push('')
+        preview.forEach((r, idx) => {
+          const parts = r
+            .map((cell, ci) => (cell !== null && cell !== undefined && String(cell).trim() !== '' ? `${headers[ci] || ''}: ${cell}` : null))
+            .filter(Boolean)
+            .slice(0, 4)
+          lines.push(`${idx + 1}. ${parts.join(' | ')}`)
+        })
+        if (rows.length > 12) lines.push(`... ve ${rows.length - 12} kayıt daha.`)
+      }
+      window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank', 'noopener,noreferrer')
+    } catch {
+      toast.error('WhatsApp paylaşımı hazırlanamadı.')
+    }
+  }
+
+  const exportWord = () => {
+    setBusy('word')
+    try {
+      const { headers, rows } = getData()
+      const base = filename.replace(/\.(xlsx|pdf|doc|docx)$/i, '')
+      const summaryHtml =
+        summary && summary.length > 0
+          ? `<p style="margin:8px 0 14px;font-size:12px;color:#334155">${summary.map(([k, v]) => `<b>${k}:</b> ${v}`).join(' &nbsp;|&nbsp; ')}</p>`
+          : ''
+      const ths = headers
+        .map((h) => `<th style="border:1px solid #cbd5e1;background:#f1f5f9;padding:6px 8px;font-size:11px;text-align:left">${h}</th>`)
+        .join('')
+      const trs = rows
+        .map(
+          (r) =>
+            `<tr>${r
+              .map((c) => `<td style="border:1px solid #cbd5e1;padding:5px 8px;font-size:11px">${c ?? ''}</td>`)
+              .join('')}</tr>`,
+        )
+        .join('')
+      const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${title}</title></head><body style="font-family:Calibri,Arial,sans-serif;color:#0f172a"><h2 style="margin:0 0 4px">${title}</h2>${subtitle ? `<p style="margin:0 0 10px;font-size:12px;color:#64748b">${subtitle}</p>` : ''}${summaryHtml}<table style="width:100%;border-collapse:collapse">${ths ? `<thead><tr>${ths}</tr></thead>` : ''}<tbody>${trs}</tbody></table></body></html>`
+      const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${base}.doc`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Word dosyası oluşturulamadı.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className="inline-flex flex-wrap items-center gap-1.5 print:hidden">
       <button
         type="button"
+        onClick={shareWhatsApp}
+        title="WhatsApp ile Paylaş"
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#25D366] px-3 text-xs font-bold text-white shadow-xs transition hover:bg-[#1ebe5d]"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+          <path d="M12.031 2c-5.516 0-9.969 4.453-9.969 9.969 0 1.766.469 3.484 1.359 4.984L2 22l5.188-1.359c1.453.797 3.109 1.219 4.843 1.219 5.516 0 9.969-4.453 9.969-9.969S17.547 2 12.031 2zm5.828 14.125c-.25.703-1.438 1.344-2.016 1.422-.531.078-1.219.109-1.969-.125-.453-.141-1.047-.344-1.797-.672-3.156-1.359-5.219-4.547-5.375-4.766-.156-.203-1.281-1.703-1.281-3.25s.812-2.312 1.094-2.625c.297-.312.641-.391.859-.391.219 0 .422.016.609.016.203 0 .469-.078.734.562.266.656.906 2.219.984 2.375.078.156.125.344.031.547-.094.219-.141.344-.297.531-.156.188-.328.406-.469.547-.156.156-.312.328-.141.641.188.312.812 1.344 1.75 2.172 1.203 1.078 2.219 1.406 2.531 1.562.312.156.5.125.688-.078.188-.219.797-.938 1.016-1.25.219-.312.422-.266.719-.156.297.109 1.875.891 2.203 1.047.312.156.531.234.609.375.078.141.078.813-.172 1.516z" />
+        </svg>
+        <span className="hidden sm:inline">WhatsApp</span>
+      </button>
+      <button
+        type="button"
         disabled={busy !== null}
         onClick={() => run('xlsx')}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-[#1D6F42]/30 bg-[#1D6F42]/10 px-3 py-1.5 text-xs font-bold text-[#1D6F42] transition-colors hover:bg-[#1D6F42]/15 disabled:opacity-50"
+        title="Excel (.xlsx) İndir"
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#1D6F42] px-3 text-xs font-bold text-white shadow-xs transition hover:bg-[#165934] disabled:opacity-50"
       >
-        <ExcelIcon className="h-3.5 w-3.5" />
-        {busy === 'xlsx' ? 'Hazırlanıyor…' : 'Excel'}
+        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8.5 18l2.25-3.5L8.5 11h1.75l1.375 2.375L13 11h1.75l-2.25 3.5 2.25 3.5H13l-1.375-2.375L10.25 18H8.5z" />
+        </svg>
+        <span className="hidden sm:inline">{busy === 'xlsx' ? 'Hazırlanıyor…' : 'Excel'}</span>
+      </button>
+      <button
+        type="button"
+        disabled={busy !== null}
+        onClick={exportWord}
+        title="Word (.doc) İndir"
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#2B579A] px-3 text-xs font-bold text-white shadow-xs transition hover:bg-[#204378] disabled:opacity-50"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM7.5 11h1.5l1.1 4.8L11.2 11h1.6l1.1 4.8L15 11h1.5l-1.9 7h-1.6L12 13.4 11 18H9.4l-1.9-7z" />
+        </svg>
+        <span className="hidden sm:inline">Word</span>
       </button>
       <button
         type="button"
         disabled={busy !== null}
         onClick={() => run('pdf')}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-[#D32F2F]/30 bg-[#D32F2F]/10 px-3 py-1.5 text-xs font-bold text-[#D32F2F] transition-colors hover:bg-[#D32F2F]/15 disabled:opacity-50"
+        title="PDF İndir"
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-[#E10915] px-3 text-xs font-bold text-white shadow-xs transition hover:bg-[#c00711] disabled:opacity-50"
       >
-        <PdfIcon className="h-3.5 w-3.5" />
-        {busy === 'pdf' ? 'Hazırlanıyor…' : 'PDF'}
+        <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zm-3.5 9.5c0 .83-.67 1.5-1.5 1.5H7v2H5.5v-5H8c.83 0 1.5.67 1.5 1.5zm5 1c0 1.38-1.12 2.5-2.5 2.5h-2v-5h2c1.38 0 2.5 1.12 2.5 2.5zm4-1h-2v1h1.5v1.25H16.5V18H15v-5h3.5v1.5zM7 13.25v1h1c.14 0 .25-.11.25-.25v-.5c0-.14-.11-.25-.25-.25H7zm4.5 0v2.5h.5c.69 0 1.25-.56 1.25-1.25s-.56-1.25-1.25-1.25h-.5z" />
+        </svg>
+        <span className="hidden sm:inline">{busy === 'pdf' ? 'Hazırlanıyor…' : 'PDF'}</span>
       </button>
       {printable && (
         <button
           type="button"
           onClick={() => window.print()}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 transition-colors hover:bg-primary-100"
+          title="Yazdır"
+          className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-slate-800 px-3 text-xs font-bold text-white shadow-xs transition hover:bg-slate-900"
         >
           <Printer className="h-3.5 w-3.5" aria-hidden="true" />
-          Yazdır
+          <span className="hidden sm:inline">Yazdır</span>
         </button>
       )}
     </div>
