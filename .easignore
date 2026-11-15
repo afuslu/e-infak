@@ -1,0 +1,12 @@
+node_modules/
+apps/web/
+services/
+packages/
+deploy/
+docs/
+scripts/
+v3/
+.claude/
+.pnpm-store/
+.git/
+*.log
