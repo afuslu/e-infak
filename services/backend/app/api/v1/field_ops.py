@@ -22,6 +22,7 @@ from app.models.staff import Department
 from app.models.user import User
 from app.services.offline_donation import record_offline_donation
 from app.services.poverty import rescore
+from app.services.push_service import notify_user_push
 from app.utils.content import sanitize_public_text
 
 router = APIRouter(
@@ -881,6 +882,14 @@ async def create_task(request: Request, payload: TaskIn, db: AsyncSession = Depe
     await db.flush()
     _audit(db, org_id, current_user, "gorev_olustur", {"task_id": str(task.id), "assigned_to": str(task.assigned_to_id) if task.assigned_to_id else None})
     await db.commit()
+    if task.assigned_to_id and task.assigned_to_id != current_user.id:
+        await notify_user_push(
+            db,
+            task.assigned_to_id,
+            title="Yeni Görev Atandı",
+            body=task.title,
+            data={"type": "task", "task_id": str(task.id)},
+        )
     d_names = await _donor_names(db, org_id, {task.donor_id} if task.donor_id else set())
     return _task_out(task, await _names(db, org_id), donor_names=d_names)
 
