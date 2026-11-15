@@ -68,36 +68,23 @@ import {
 } from '@/components/admin/muhasebe/hesapGorunum';
 import { GelenHavalelerTab } from '@/components/admin/muhasebe/GelenHavalelerTab';
 import { BankaEntegrasyonPanel } from '@/components/admin/muhasebe/BankaEntegrasyonPanel';
-import { AdvancedTabs } from '@/components/admin/muhasebe/AdvancedTabs';
 
 const BASE = '/admin-features/acc';
-const STOCK_BASE = '/admin-features/acc/stock';
 
 export type TabKey =
   | 'gelir-gider'
   | 'kasa-banka'
   | 'gelen-havaleler'
-  | 'cari-hesap'
-  | 'tahsilat'
-  | 'invoices'
-  | 'stock'
-  | 'cheques'
-  | 'payroll';
+  | 'tahsilat';
 
 const LEGACY_TAB_MAP: Record<string, TabKey> = {
   summary: 'gelir-gider',
   expenses: 'gelir-gider',
   accounts: 'kasa-banka',
-  parties: 'cari-hesap',
   'gelir-gider': 'gelir-gider',
   'kasa-banka': 'kasa-banka',
   'gelen-havaleler': 'gelen-havaleler',
-  'cari-hesap': 'cari-hesap',
   tahsilat: 'tahsilat',
-  invoices: 'invoices',
-  stock: 'stock',
-  cheques: 'cheques',
-  payroll: 'payroll',
 };
 
 const AYLAR = [
@@ -439,44 +426,28 @@ export default function OnMuhasebePage() {
       if (computedDateRange.start) ggParams.start = computedDateRange.start;
       if (computedDateRange.end) ggParams.end = computedDateRange.end;
 
-      const [accRes, ggRes, cpRes, tahRes, chRes, empRes, payRes, whRes, siRes, smRes, invRes] = await Promise.all([
+      const [accRes, ggRes, tahRes] = await Promise.all([
         api.get(`${BASE}/accounts`),
         api.get(`${BASE}/gelir-gider`, { params: ggParams }),
-        api.get(`${BASE}/counterparties`),
         api.get(`${BASE}/tahsilatlar`, {
           params: {
             start: tahsilatFilters.startDate || computedDateRange.start,
             end: tahsilatFilters.endDate || computedDateRange.end,
           },
         }),
-        api.get(`${BASE}/cheques`).catch(() => ({ data: [] })),
-        api.get(`${BASE}/employees`).catch(() => ({ data: [] })),
-        api.get(`${BASE}/payroll`, { params: { period } }).catch(() => ({ data: null })),
-        api.get(`${STOCK_BASE}/warehouses`).catch(() => ({ data: [] })),
-        api.get(`${STOCK_BASE}/items`).catch(() => ({ data: [] })),
-        api.get(`${STOCK_BASE}/moves`).catch(() => ({ data: [] })),
-        api.get(`${STOCK_BASE}/invoices`).catch(() => ({ data: [] })),
       ]);
 
       setAccounts(accRes.data || []);
       setGelirGiderItems(ggRes.data?.items || []);
       if (ggRes.data?.summary) setGelirGiderSummary(ggRes.data.summary);
-      setParties(cpRes.data || []);
       if (tahRes.data) setTahsilatData(tahRes.data);
-      setCheques(chRes.data || []);
-      setEmployees(empRes.data || []);
-      setPayroll(payRes.data);
-      setWarehouses(whRes.data || []);
-      setStockItems(siRes.data || []);
-      setStockMoves(smRes.data || []);
-      setInvoices(invRes.data || []);
     } catch (e: any) {
       flash('err', e?.response?.data?.detail || 'Finans verileri yüklenemedi');
     } finally {
       setLoading(false);
       setUpdating(false);
     }
-  }, [computedDateRange.start, computedDateRange.end, period, tahsilatFilters.startDate, tahsilatFilters.endDate, flash]);
+  }, [computedDateRange.start, computedDateRange.end, tahsilatFilters.startDate, tahsilatFilters.endDate, flash]);
 
   useEffect(() => {
     loadData();
@@ -904,17 +875,12 @@ export default function OnMuhasebePage() {
     tableContainerRef.current.scrollBy({ left: dir === 'left' ? -320 : 320, behavior: 'smooth' });
   };
 
-  // ==================== PILL TAB NAVIGATION (e-Medrese birebir) ====================
+  // ==================== PILL TAB NAVIGATION ====================
   const TABS: Array<{ id: TabKey; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }> = [
     { id: 'gelir-gider', label: 'Gelir/Gider', icon: TrendingUp },
     { id: 'kasa-banka', label: 'Kasa & Banka', icon: Wallet },
     { id: 'gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownLeft, badge: unmatchedTransferCount },
-    { id: 'cari-hesap', label: 'Cari Hesap', icon: Users },
     { id: 'tahsilat', label: 'Tahsilat', icon: CreditCard },
-    { id: 'invoices', label: 'Faturalar', icon: FileSpreadsheet },
-    { id: 'stock', label: 'Stok & Depo', icon: Package },
-    { id: 'cheques', label: 'Çek & Senet', icon: ScrollText },
-    { id: 'payroll', label: 'Personel & Maaş', icon: UserCheck },
   ];
 
   const renderTabNavigation = () => (
@@ -2487,295 +2453,7 @@ export default function OnMuhasebePage() {
     );
   };
 
-  // ==================== SEKME 4: CARİ HESAP (e-Medrese Birebir) ====================
-  const renderCariHesap = () => {
-    const q = cariFilters.search.trim().toLowerCase();
-    const filteredParties = parties
-      .filter((p) => {
-        if (cariFilters.tip && p.kind !== cariFilters.tip) return false;
-        if (cariFilters.bakiyeDurum === 'borclu' && Number(p.unpaid_cents || 0) <= 0) return false;
-        if (cariFilters.bakiyeDurum === 'dengeli' && Number(p.unpaid_cents || 0) !== 0) return false;
-        if (q && !`${p.name || ''} ${p.tax_no || ''} ${p.phone || ''} ${p.email || ''}`.toLowerCase().includes(q)) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        if (cariSort === 'ad_asc') return (a.name || '').localeCompare(b.name || '', 'tr');
-        if (cariSort === 'ad_desc') return (b.name || '').localeCompare(a.name || '', 'tr');
-        if (cariSort === 'bakiye_desc') return (b.unpaid_cents || 0) - (a.unpaid_cents || 0);
-        if (cariSort === 'bakiye_asc') return (a.unpaid_cents || 0) - (b.unpaid_cents || 0);
-        return 0;
-      });
-
-    const toplamBorcCents = filteredParties.reduce((s, p) => s + Number(p.unpaid_cents || 0), 0);
-    const cariHareketList = filteredGelirGiderler.filter((it) => it.counterparty_id || it.kisi_adi);
-
-    return (
-      <div className="space-y-6">
-        {/* 1. Cari Özet & 4'lü GlobalStatCard */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-600">Cari Hesap</p>
-              <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">Cari Özet</h2>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingParty(null);
-                  setPartyForm({
-                    name: '',
-                    kind: 'supplier',
-                    tax_no: '',
-                    tax_office: '',
-                    phone: '',
-                    email: '',
-                    iban: '',
-                    address: '',
-                    note: '',
-                  });
-                  setShowPartyModal(true);
-                }}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800"
-              >
-                <Plus className="h-4 w-4" /> Yeni Cari
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <GlobalStatCard
-              id="cari"
-              title="Toplam Hesap"
-              value={filteredParties.length}
-              subtitle="Kayıtlı cari kart"
-              icon={<Users className="h-5 w-5" />}
-              gradient="from-indigo-500 to-violet-600"
-            />
-            <GlobalStatCard
-              id="borc"
-              title="Açık Cari Borç"
-              value={formatMoney(toplamBorcCents)}
-              subtitle="Ödenmemiş gider bakiyesi"
-              icon={<TrendingDown className="h-5 w-5" />}
-              gradient="from-rose-500 to-red-600"
-            />
-            <GlobalStatCard
-              id="tedarikci"
-              title="Tedarikçiler"
-              value={filteredParties.filter((p) => p.kind === 'supplier').length}
-              subtitle="Firma / esnaf"
-              icon={<Building2 className="h-5 w-5" />}
-              gradient="from-cyan-500 to-blue-600"
-            />
-            <GlobalStatCard
-              id="hareket"
-              title="Cari Hareketler"
-              value={cariHareketList.length}
-              subtitle="Kişi/kurum bağlantılı işlem"
-              icon={<Activity className="h-5 w-5" />}
-              gradient="from-emerald-500 to-teal-600"
-            />
-          </div>
-        </div>
-
-        {/* 2. Alt Sekmeler (Cari Hesaplar | Cari Hareketler) */}
-        <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setCariSubTab('hesaplar')}
-              className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition sm:text-sm ${
-                cariSubTab === 'hesaplar' ? 'bg-cyan-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Users className="h-4 w-4" /> Cari Hesaplar
-              <span className={`rounded-full px-2 py-0.5 text-xs ${cariSubTab === 'hesaplar' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                {filteredParties.length}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setCariSubTab('hareketler')}
-              className={`flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition sm:text-sm ${
-                cariSubTab === 'hareketler' ? 'bg-cyan-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Activity className="h-4 w-4" /> Cari Hareketler
-              <span className={`rounded-full px-2 py-0.5 text-xs ${cariSubTab === 'hareketler' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                {cariHareketList.length}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* 3. Arama & Sıralama */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <ResponsiveDataToolbar
-            search={{
-              value: cariFilters.search,
-              onChange: (val) => setCariFilters((p) => ({ ...p, search: val })),
-              placeholder: 'Cari adı, vergi no, telefon veya e-posta ara…',
-            }}
-            sort={{
-              value: cariSort,
-              onChange: setCariSort,
-              options: CARI_SORT_OPTIONS,
-            }}
-            extraActions={
-              <select
-                value={cariFilters.tip}
-                onChange={(e) => setCariFilters((p) => ({ ...p, tip: e.target.value }))}
-                className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700"
-              >
-                <option value="">Tüm Cari Tipleri</option>
-                <option value="supplier">Tedarikçi</option>
-                <option value="customer">Müşteri / Bağışçı</option>
-                <option value="staff">Personel</option>
-                <option value="partner">Ortak Kurum</option>
-                <option value="other">Diğer</option>
-              </select>
-            }
-          />
-        </section>
-
-        {/* 4. Ana Sekme Barı */}
-        {renderTabNavigation()}
-
-        {/* 5. Tablo */}
-        {cariSubTab === 'hesaplar' ? (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-xs sm:text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-600">
-                <tr>
-                  <th className="px-4 py-3">Cari Ad / Unvan</th>
-                  <th className="px-4 py-3 text-center">Tip</th>
-                  <th className="px-4 py-3">Vergi No / Daire</th>
-                  <th className="px-4 py-3">Telefon / E-posta</th>
-                  <th className="px-4 py-3 text-right">Bakiye Durumu</th>
-                  <th className="px-4 py-3 text-center">İşlemler</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredParties.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-bold text-slate-900">{p.name}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700">
-                        {p.kind_label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">
-                      {[p.tax_no, p.tax_office].filter(Boolean).join(' · ') || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-600">
-                      {[p.phone, p.email].filter(Boolean).join(' · ') || '-'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {p.unpaid_cents > 0 ? (
-                        <span className="inline-flex items-center gap-1 font-bold text-rose-600">
-                          {formatMoney(p.unpaid_cents)}
-                          <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[11px]">
-                            Alacaklı
-                          </span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 font-medium text-slate-500">
-                          0,00 ₺
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px]">Dengeli</span>
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => api.get(`${BASE}/counterparties/${p.id}/statement`).then((r) => setPartyStatement(r.data))}
-                          className="cursor-pointer rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100"
-                        >
-                          Ekstre
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingParty(p);
-                            setPartyForm({
-                              name: p.name,
-                              kind: p.kind,
-                              tax_no: p.tax_no || '',
-                              tax_office: p.tax_office || '',
-                              phone: p.phone || '',
-                              email: p.email || '',
-                              iban: p.iban || '',
-                              address: p.address || '',
-                              note: p.note || '',
-                            });
-                            setShowPartyModal(true);
-                          }}
-                          className="cursor-pointer rounded p-1.5 text-blue-600 hover:bg-blue-50"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredParties.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-sm text-slate-500">
-                      Cari hesap bulunamadı.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-xs sm:text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-600">
-                <tr>
-                  <th className="px-4 py-3">Tarih</th>
-                  <th className="px-4 py-3">Kişi / Cari</th>
-                  <th className="px-4 py-3">Kategori</th>
-                  <th className="px-4 py-3 text-right">Tutar</th>
-                  <th className="px-4 py-3">Durum</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {cariHareketList.map((h) => (
-                  <tr key={h.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono text-xs">{formatDateTR(h.tarih)}</td>
-                    <td className="px-4 py-3 font-bold text-slate-900">{h.kisi_adi}</td>
-                    <td className="px-4 py-3">{h.kategori}</td>
-                    <td
-                      className={`px-4 py-3 text-right font-bold ${
-                        h.islem_tipi === 'GELIR' ? 'text-emerald-600' : 'text-rose-600'
-                      }`}
-                    >
-                      {h.islem_tipi === 'GELIR' ? '+' : '-'}
-                      {formatMoney(h.miktar_cents, h.para_birimi)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          h.paid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                        }`}
-                      >
-                        {h.paid ? 'Ödendi' : 'Bekliyor'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ==================== SEKME 5: TAHSİLAT (e-Medrese Birebir) ====================
+  // ==================== SEKME 4: TAHSİLAT (e-Medrese Birebir) ====================
   const renderTahsilat = () => {
     const sum = tahsilatData.summary || {};
     const q = tahsilatFilters.search.trim().toLowerCase();
@@ -3047,27 +2725,7 @@ export default function OnMuhasebePage() {
               onUnmatchedCountChange={setUnmatchedTransferCount}
             />
           )}
-          {activeTab === 'cari-hesap' && renderCariHesap()}
           {activeTab === 'tahsilat' && renderTahsilat()}
-          {['invoices', 'stock', 'cheques', 'payroll'].includes(activeTab) && (
-            <AdvancedTabs
-              activeTab={activeTab as 'invoices' | 'stock' | 'cheques' | 'payroll'}
-              tabNavigation={renderTabNavigation()}
-              accounts={accounts}
-              parties={parties}
-              cheques={cheques}
-              employees={employees}
-              payroll={payroll}
-              period={period}
-              setPeriod={setPeriod}
-              warehouses={warehouses}
-              stockItems={stockItems}
-              stockMoves={stockMoves}
-              invoices={invoices}
-              onRefresh={loadData}
-              flash={flash}
-            />
-          )}
         </div>
       </div>
 
@@ -3571,135 +3229,6 @@ export default function OnMuhasebePage() {
               </button>
             </div>
           </form>
-        </div>
-      ) : null}
-
-      {/* 7. Cari Ekle-Düzenle Modalı */}
-      {showPartyModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <form onSubmit={handleSaveParty} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-base font-bold text-slate-900">
-                {editingParty ? 'Cari Kart Düzenle' : 'Yeni Cari Kart Ekle'}
-              </h3>
-              <button type="button" onClick={() => setShowPartyModal(false)}>
-                <X className="h-5 w-5 text-slate-400" />
-              </button>
-            </div>
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Cari Adı / Unvanı *</label>
-                <input
-                  required
-                  value={partyForm.name}
-                  onChange={(e) => setPartyForm({ ...partyForm, name: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Cari Tipi</label>
-                  <select
-                    value={partyForm.kind}
-                    onChange={(e) => setPartyForm({ ...partyForm, kind: e.target.value as any })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  >
-                    <option value="supplier">Tedarikçi</option>
-                    <option value="customer">Müşteri / Bağışçı</option>
-                    <option value="staff">Personel</option>
-                    <option value="partner">Ortak Kurum</option>
-                    <option value="other">Diğer</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Telefon</label>
-                  <input
-                    value={partyForm.phone}
-                    onChange={(e) => setPartyForm({ ...partyForm, phone: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Vergi / TC No</label>
-                  <input
-                    value={partyForm.tax_no}
-                    onChange={(e) => setPartyForm({ ...partyForm, tax_no: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Vergi Dairesi</label>
-                  <input
-                    value={partyForm.tax_office}
-                    onChange={(e) => setPartyForm({ ...partyForm, tax_office: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">IBAN</label>
-                <input
-                  value={partyForm.iban}
-                  onChange={(e) => setPartyForm({ ...partyForm, iban: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 font-mono text-sm"
-                />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowPartyModal(false)}
-                className="cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700"
-              >
-                Vazgeç
-              </button>
-              <button
-                type="submit"
-                className="cursor-pointer rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800"
-              >
-                Kaydet
-              </button>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
-      {/* 8. Cari Ekstre Modalı */}
-      {partyStatement ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">{partyStatement.counterparty?.name} · Cari Ekstre</h3>
-                <p className="text-xs text-slate-500">
-                  Açık Borç: <strong className="text-rose-600">{formatMoney(partyStatement.unpaid_cents || 0)}</strong>
-                </p>
-              </div>
-              <button type="button" onClick={() => setPartyStatement(null)}>
-                <X className="h-5 w-5 text-slate-400" />
-              </button>
-            </div>
-            <div className="mt-4 space-y-2">
-              {(partyStatement.movements || []).map((m: any) => (
-                <div key={m.id} className="flex justify-between rounded-xl border border-slate-200 p-3 text-xs">
-                  <div>
-                    <span className="font-bold text-slate-900">{m.category}</span>
-                    <span className="ml-2 text-slate-500">{formatDateTR(m.entry_date)}</span>
-                    <p className="mt-0.5 text-slate-500">{m.description || '-'}</p>
-                  </div>
-                  <span className={`font-black ${m.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {m.direction === 'in' ? '+' : '-'}
-                    {formatMoney(m.amount_cents, m.currency)}
-                  </span>
-                </div>
-              ))}
-              {!(partyStatement.movements || []).length ? (
-                <p className="py-6 text-center text-xs text-slate-500">Bu cariye ait hareket bulunamadı.</p>
-              ) : null}
-            </div>
-          </div>
         </div>
       ) : null}
     </div>
