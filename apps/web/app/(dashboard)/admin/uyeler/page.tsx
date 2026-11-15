@@ -45,6 +45,25 @@ const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${Str
 
 const emptyMember = { member_no: '', member_type: 'asil', status: 'active', joined_on: '', left_on: '', dues: '', dues_period: '', notes: '', first_name: '', last_name: '', phone: '', email: '', tc_no: '', city: '' }
 
+const AVATAR_TONES = [
+  'bg-emerald-100 text-emerald-700',
+  'bg-sky-100 text-sky-700',
+  'bg-amber-100 text-amber-700',
+  'bg-violet-100 text-violet-700',
+  'bg-rose-100 text-rose-700',
+]
+function memberInitials(name: string | null | undefined) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return 'Ü'
+  return parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() : `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+}
+function memberAvatarTone(name: string | null | undefined) {
+  const text = name || ''
+  let sum = 0
+  for (let i = 0; i < text.length; i++) sum += text.charCodeAt(i)
+  return AVATAR_TONES[sum % AVATAR_TONES.length]
+}
+
 function CopyButton({ value, label }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false)
   return (
@@ -490,7 +509,14 @@ export default function MembersPage() {
                       />
                     </Td>
                     <Td className="font-bold">{m.member_no}</Td>
-                    <Td className="font-semibold text-gray-900">{m.full_name}</Td>
+                    <Td>
+                      <div className="flex items-center gap-2.5">
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${memberAvatarTone(m.full_name)}`}>
+                          {memberInitials(m.full_name)}
+                        </span>
+                        <span className="font-semibold text-gray-900">{m.full_name}</span>
+                      </div>
+                    </Td>
                     <Td>
                       {m.phone ? (
                         <div className="flex items-center gap-1">
@@ -529,6 +555,9 @@ export default function MembersPage() {
                       onClick={(e) => e.stopPropagation()}
                       onChange={() => setPickedMembers((p) => { const n = new Set(p); n.has(m.id) ? n.delete(m.id) : n.add(m.id); return n })}
                     />
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${memberAvatarTone(m.full_name)}`}>
+                      {memberInitials(m.full_name)}
+                    </span>
                     <div>
                       <p className="font-bold text-gray-900">{m.full_name}</p>
                       <p className="text-xs text-gray-500">#{m.member_no} · {m.member_type_label}</p>
@@ -763,6 +792,7 @@ function DuesTab({ canCollect, canSms, canBulkSms, onMessage, onChanged, onOpenM
   const [waiveModal, setWaiveModal] = useState(false)
   const [waiveReason, setWaiveReason] = useState('Yönetim kurulu kararı')
   const [smsTarget, setSmsTarget] = useState<Due | null>(null)
+  const [showGen, setShowGen] = useState(false)
   const [gen, setGen] = useState({ period: thisMonth(), due_date: '', amount: '' })
   const [preview, setPreview] = useState<{ created: number; total_cents: number; already_had: number; no_amount: number; other_period: number } | null>(null)
   const load = () => adminGet<Due[]>('/member-dues', { status, period: periodFilter.trim() || undefined, q: q.trim() || undefined, sort })
@@ -839,21 +869,37 @@ function DuesTab({ canCollect, canSms, canBulkSms, onMessage, onChanged, onOpenM
   return (
     <div className="space-y-4">
       {canCollect && (
-        <Card className="space-y-3 border border-gray-100 p-6 shadow-sm">
-          <h2 className="text-sm font-bold text-gray-900">Aidat dönemi aç</h2>
-          <p className="text-xs text-gray-500">Aylık dönem (2026-11) aylık aidatlı, yıllık dönem (2026) yıllık aidatlı aktif üyelere açılır. Aynı dönemi tekrar açmak güvenlidir; zaten olanlar atlanır.</p>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-36"><TextInput label="Dönem" value={gen.period} onChange={(v) => { setGen({ ...gen, period: v }); setPreview(null) }} placeholder="2026-11 / 2026" /></div>
-            <div className="w-44"><TextInput label="Son ödeme tarihi" type="date" value={gen.due_date} onChange={(v) => setGen({ ...gen, due_date: v })} hint="Boşsa dönem sonu" /></div>
-            <div className="w-40"><TextInput label="Tutar (₺)" inputMode="decimal" value={gen.amount} onChange={(v) => { setGen({ ...gen, amount: v }); setPreview(null) }} hint="Boşsa üye / kurum aidatı" /></div>
-            <button className={ghostButton} onClick={() => generate(true)}>Önizle</button>
-            {preview && preview.created > 0 && <button className={primaryButton} onClick={() => generate(false)}>Dönemi aç</button>}
+        <Card className="border border-gray-100 p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-bold text-gray-900">Aidat dönemi aç</h2>
+              <p className="text-xs text-gray-500">Yeni aylık veya yıllık aidat dönemini aktif üyelere toplu oluşturun.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowGen((v) => !v)}
+              className={showGen ? ghostButton : primaryButton}
+            >
+              {showGen ? 'Kapat' : '+ Aidat Dönemi Aç'}
+            </button>
           </div>
-          {preview && (
-            <p className="text-xs text-gray-700">{preview.created} üyeye toplam {formatMoney(preview.total_cents)} açılacak
-              {preview.already_had ? ` · ${preview.already_had} üyede bu dönem zaten var` : ''}
-              {preview.no_amount ? ` · ${preview.no_amount} üyenin aidat tutarı yok (Aidat ayarı sekmesi)` : ''}
-              {preview.other_period ? ` · ${preview.other_period} üye diğer dönem tipinde` : ''}</p>
+          {showGen && (
+            <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+              <p className="text-xs text-gray-500">Aylık dönem (2026-11) aylık aidatlı, yıllık dönem (2026) yıllık aidatlı aktif üyelere açılır. Aynı dönemi tekrar açmak güvenlidir; zaten olanlar atlanır.</p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="w-36"><TextInput label="Dönem" value={gen.period} onChange={(v) => { setGen({ ...gen, period: v }); setPreview(null) }} placeholder="2026-11 / 2026" /></div>
+                <div className="w-44"><TextInput label="Son ödeme tarihi" type="date" value={gen.due_date} onChange={(v) => setGen({ ...gen, due_date: v })} hint="Boşsa dönem sonu" /></div>
+                <div className="w-40"><TextInput label="Tutar (₺)" inputMode="decimal" value={gen.amount} onChange={(v) => { setGen({ ...gen, amount: v }); setPreview(null) }} hint="Boşsa üye / kurum aidatı" /></div>
+                <button className={ghostButton} onClick={() => generate(true)}>Önizle</button>
+                {preview && preview.created > 0 && <button className={primaryButton} onClick={() => generate(false)}>Dönemi aç</button>}
+              </div>
+              {preview && (
+                <p className="text-xs text-gray-700">{preview.created} üyeye toplam {formatMoney(preview.total_cents)} açılacak
+                  {preview.already_had ? ` · ${preview.already_had} üyede bu dönem zaten var` : ''}
+                  {preview.no_amount ? ` · ${preview.no_amount} üyenin aidat tutarı yok (Aidat ayarı sekmesi)` : ''}
+                  {preview.other_period ? ` · ${preview.other_period} üye diğer dönem tipinde` : ''}</p>
+              )}
+            </div>
           )}
         </Card>
       )}
