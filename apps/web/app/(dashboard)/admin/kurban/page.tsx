@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import {
   Beef,
@@ -149,8 +149,14 @@ export default function KurbanAdminPage() {
   }
 
   useEffect(() => { loadCampaigns() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const didMountRef = useRef(false)
   useEffect(() => {
     setPicked(new Set())
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      loadSelected()
+      return
+    }
     const t = setTimeout(loadSelected, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps

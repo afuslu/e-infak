@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import axios from 'axios'
 import { Card } from '@e-infak/ui'
@@ -178,8 +178,14 @@ export default function SocialAidAndKumanyaPage() {
       .catch(() => {})
   }, [])
 
+  const didMountDistRef = useRef(false)
   useEffect(() => {
     setPickedDistributions(new Set())
+    if (!didMountDistRef.current) {
+      didMountDistRef.current = true
+      loadAidReportAndDistributions()
+      return
+    }
     const t = setTimeout(loadAidReportAndDistributions, 200)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,8 +203,14 @@ export default function SocialAidAndKumanyaPage() {
     }
   }
 
+  const didMountHouseRef = useRef(false)
   useEffect(() => {
     setPickedHouseholds(new Set())
+    if (!didMountHouseRef.current) {
+      didMountHouseRef.current = true
+      loadHouseholds()
+      return
+    }
     const t = setTimeout(loadHouseholds, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps

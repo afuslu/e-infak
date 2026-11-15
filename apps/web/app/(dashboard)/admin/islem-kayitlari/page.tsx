@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import { adminGet, apiErrorMessage } from '../../../../lib/admin-access'
@@ -22,15 +22,22 @@ export default function ActivityLogPage() {
   const [filters, setFilters] = useState({ user_id: '', action: '', q: '', date_from: '', date_to: '', requests: '' })
   const [page, setPage] = useState(1)
 
+  const didMountRef = useRef(false)
   useEffect(() => {
-    const t = setTimeout(async () => {
+    const run = async () => {
       try {
         const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v))
         setData((await adminGet<{ items: Row[]; total: number; actions: { key: string; label: string }[] }>('/activity-logs', { ...params, page, page_size: PAGE })).data)
       } catch (err) {
         toast.error(apiErrorMessage(err, 'Kayıtlar yüklenemedi'))
       }
-    }, 250)
+    }
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      run()
+      return
+    }
+    const t = setTimeout(run, 250)
     return () => clearTimeout(t)
   }, [filters, page])
   useEffect(() => { adminGet<Staff[]>('/users').then((r) => setStaff(r.data)).catch(() => {}) }, [])

@@ -4,6 +4,7 @@ upgrade candidates, campaign preference, and rule-based narrative summary (no pe
 from __future__ import annotations
 
 import logging
+import time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -67,8 +68,18 @@ def _rfm_scores(days_since: int, count: int, total_cents: int) -> tuple[int, int
     return r, f, m, seg
 
 
+_INSIGHTS_CACHE: dict[tuple[UUID, bool], tuple[float, dict[str, Any]]] = {}
+_INSIGHTS_TTL_SEC = 60.0
+
+
 async def compute_org_insights(db: AsyncSession, org_id: UUID, mask_fn=None) -> dict[str, Any]:
     """Compute RFM, interval-based churn, upgrade candidates and category predictions for one tenant."""
+    cache_key = (org_id, mask_fn is not None)
+    now_mono = time.monotonic()
+    cached = _INSIGHTS_CACHE.get(cache_key)
+    if cached and (now_mono - cached[0]) < _INSIGHTS_TTL_SEC:
+        return cached[1]
+
     now = datetime.now(timezone.utc)
     donors = (
         await db.execute(
@@ -274,7 +285,7 @@ async def compute_org_insights(db: AsyncSession, org_id: UUID, mask_fn=None) -> 
         f"Son 12 ayda en yüksek katkı '{top_cat}' kategorisinde gerçekleşti."
     )
 
-    return {
+    result = {
         "churn_list": churn_items[:30],
         "upgrade_candidates": upgrade_candidates[:20],
         "predictive_amounts": predictive_amounts,
@@ -292,6 +303,8 @@ async def compute_org_insights(db: AsyncSession, org_id: UUID, mask_fn=None) -> 
             "current_month_try_cents": current_month_try_cents,
         },
     }
+    _INSIGHTS_CACHE[cache_key] = (time.monotonic(), result)
+    return result
 
 
 async def compute_all(db_factory) -> dict[str, int]:

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { Trash2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
@@ -71,8 +71,14 @@ export default function MembersPage() {
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Üyeler yüklenemedi') })
     }
   }
+  const didMountMembersRef = useRef(false)
   useEffect(() => {
     if (tab !== 'members') return
+    if (!didMountMembersRef.current) {
+      didMountMembersRef.current = true
+      load()
+      return
+    }
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps

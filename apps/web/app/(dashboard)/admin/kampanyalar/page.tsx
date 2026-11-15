@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CheckCircle2,
   ExternalLink,
@@ -204,7 +204,13 @@ export default function AdminCampaignsPage() {
     }
   }, [page, search, statusFilter, categoryFilter])
 
+  const didMountRef = useRef(false)
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      loadCampaigns(page, search, statusFilter, categoryFilter)
+      return
+    }
     const timer = setTimeout(() => {
       loadCampaigns(page, search, statusFilter, categoryFilter)
     }, 200)

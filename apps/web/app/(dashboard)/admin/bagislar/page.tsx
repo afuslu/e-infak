@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Download, Eye, FileText, HandCoins, MessageSquare, Plus, RefreshCw, Wallet, X } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
@@ -156,7 +156,13 @@ export default function AdminDonationsPage() {
     }
   }, [buildParams])
 
+  const didMountRef = useRef(false)
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      load()
+      return
+    }
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
   }, [load])
@@ -169,11 +175,16 @@ export default function AdminDonationsPage() {
   const handleExport = async (fmt: 'xlsx' | 'pdf') => {
     setExporting(true)
     try {
-      const all: Row[] = []
-      for (let p = 1; p <= 20; p++) {
-        const res = await adminGet<SearchResult>('/donations', buildParams({ page: p, page_size: 500 }))
-        all.push(...res.data.items)
-        if (res.data.items.length < 500) break
+      const first = await adminGet<SearchResult>('/donations', buildParams({ page: 1, page_size: 500 }))
+      const all: Row[] = [...first.data.items]
+      const totalPages = Math.min(20, Math.ceil((first.data.total || all.length) / 500))
+      if (totalPages > 1 && first.data.items.length === 500) {
+        const rest = await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, idx) =>
+            adminGet<SearchResult>('/donations', buildParams({ page: idx + 2, page_size: 500 })),
+          ),
+        )
+        for (const r of rest) all.push(...r.data.items)
       }
       const headers = ['Makbuz No', 'Resmi Koçan No', 'Tarih', 'Bağışçı', 'Telefon', 'Kampanya', 'Adına', 'Ödeme', 'Personel', 'Durum', 'Tutar', 'Para Birimi']
       const rows = all.map((r) => [

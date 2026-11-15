@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Save, Trash2, UserPlus, Users } from 'lucide-react'
 import { Card } from '@e-infak/ui'
@@ -51,7 +51,13 @@ export default function AdminVolunteersPage() {
     }
   }
 
+  const didMountRef = useRef(false)
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      load()
+      return
+    }
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
   }, [q]) // eslint-disable-line react-hooks/exhaustive-deps

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
 import { ghostButton, inputClass } from '../../../../components/admin/FormKit'
@@ -27,7 +27,16 @@ export default function LoginLogsPage() {
       toast.error(apiErrorMessage(err, 'Kayıtlar yüklenemedi'))
     }
   }
-  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [filters, page]) // eslint-disable-line react-hooks/exhaustive-deps
+  const didMountRef = useRef(false)
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      load()
+      return
+    }
+    const t = setTimeout(load, 250)
+    return () => clearTimeout(t)
+  }, [filters, page]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { adminGet<Staff[]>('/users').then((r) => setStaff(r.data)).catch(() => {}) }, [])
 
   const endSessions = async (userId?: string) => {

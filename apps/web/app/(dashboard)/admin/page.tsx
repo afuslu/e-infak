@@ -96,6 +96,12 @@ export default function AdminDashboardPage() {
   const loadAnalytics = async () => {
     setLoading(true)
     setError('')
+    // Work waiting for staff; modules outside the package simply stay hidden.
+    v1Get<{ total: number }>('/admin/incoming-transfers', { status: 'unmatched', limit: 1 })
+      .then((r) => setTodo((t) => ({ ...t, transfers: r.data.total }))).catch(() => {})
+    adminGet<{ counts: Record<string, number> }>('/sms/messages', { page_size: 1 })
+      .then((r) => setTodo((t) => ({ ...t, smsFailed: r.data.counts.failed || 0, smsWaiting: (r.data.counts.queued || 0) + (r.data.counts.scheduled || 0) })))
+      .catch(() => {})
     try {
       const res = await adminGet<{ monthly_donations: MonthlyTrend[]; campaigns_progress: CampaignProgress[]; payment_methods: PaymentMethod[]; recent_donations?: RecentDonation[]; kpis: Kpis }>('/analytics/stats')
       setTrends(res.data.monthly_donations)
@@ -108,12 +114,6 @@ export default function AdminDashboardPage() {
     } finally {
       setLoading(false)
     }
-    // Work waiting for staff; modules outside the package simply stay hidden.
-    v1Get<{ total: number }>('/admin/incoming-transfers', { status: 'unmatched', limit: 1 })
-      .then((r) => setTodo((t) => ({ ...t, transfers: r.data.total }))).catch(() => {})
-    adminGet<{ counts: Record<string, number> }>('/sms/messages', { page_size: 1 })
-      .then((r) => setTodo((t) => ({ ...t, smsFailed: r.data.counts.failed || 0, smsWaiting: (r.data.counts.queued || 0) + (r.data.counts.scheduled || 0) })))
-      .catch(() => {})
   }
 
   useEffect(() => {

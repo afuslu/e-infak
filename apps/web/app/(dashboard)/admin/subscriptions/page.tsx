@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Ban, CalendarClock, CreditCard, Download, Edit3, Info, Pause, Play, RefreshCw, Repeat, Search, Wallet } from 'lucide-react'
 import { Button, Input } from '@e-infak/ui'
 import {
@@ -149,7 +149,13 @@ export default function AdminSubscriptionsPage() {
     }
   }, [page, q, statusFilter])
 
+  const didMountRef = useRef(false)
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      load(page, q, statusFilter)
+      return
+    }
     const timer = setTimeout(() => {
       load(page, q, statusFilter)
     }, 200)

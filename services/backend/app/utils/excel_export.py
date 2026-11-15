@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 import re
@@ -34,6 +35,20 @@ def _clean_hex(hex_color: str | None, default: str = "065F46") -> str:
     return default
 
 
+@lru_cache(maxsize=64)
+def _cached_logo_png(path_str: str, mtime_ns: int) -> bytes | None:
+    try:
+        from PIL import Image
+        with Image.open(path_str) as im:
+            im = im.convert("RGBA")
+            im.thumbnail((42, 42))
+            buf = BytesIO()
+            im.save(buf, format="PNG")
+            return buf.getvalue()
+    except Exception:
+        return None
+
+
 def _resolve_logo_png_bytes(organization: Any) -> BytesIO | None:
     """Kurum logosunu yerel medya klasöründen okuyup 40x40 PNG bayt akışına dönüştürür."""
     if organization is None:
@@ -60,16 +75,14 @@ def _resolve_logo_png_bytes(organization: Any) -> BytesIO | None:
         return None
 
     try:
-        from PIL import Image
-        with Image.open(candidate) as im:
-            im = im.convert("RGBA")
-            im.thumbnail((42, 42))
-            buf = BytesIO()
-            im.save(buf, format="PNG")
-            buf.seek(0)
-            return buf
-    except Exception:
+        mtime_ns = candidate.stat().st_mtime_ns
+    except OSError:
         return None
+
+    raw = _cached_logo_png(str(candidate), mtime_ns)
+    if not raw:
+        return None
+    return BytesIO(raw)
 
 
 def build_corporate_xlsx(

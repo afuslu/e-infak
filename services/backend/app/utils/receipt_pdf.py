@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import os
 from datetime import datetime
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -103,6 +104,22 @@ def code_matches(receipt_number: str, amount_cents: int, code: str | None) -> bo
     return bool(code) and hmac.compare_digest(verification_hash(receipt_number, amount_cents), code.strip().upper())
 
 
+@lru_cache(maxsize=64)
+def _cached_pdf_logo_bytes(path_str: str, mtime_ns: int) -> bytes | None:
+    try:
+        from PIL import Image
+        with Image.open(path_str) as img:
+            # Saydamlığı beyaz zeminle birleştirip PNG olarak belleğe al (WebP/RGBA uyumlu)
+            rgba = img.convert("RGBA")
+            bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+            bg.paste(rgba, mask=rgba.split()[3])
+            out = BytesIO()
+            bg.convert("RGB").save(out, format="PNG")
+            return out.getvalue()
+    except Exception:
+        return None
+
+
 def resolve_local_logo(organization: Any) -> ImageReader | None:
     """Kurum logosu yerel medya dizinindeyse ağ isteği yapmadan ImageReader döner."""
     logo_url = (getattr(organization, "logo_url", None) or "").strip()
@@ -128,18 +145,14 @@ def resolve_local_logo(organization: Any) -> ImageReader | None:
         return None
 
     try:
-        from PIL import Image
-        with Image.open(candidate) as img:
-            # Saydamlığı beyaz zeminle birleştirip PNG olarak belleğe al (WebP/RGBA uyumlu)
-            rgba = img.convert("RGBA")
-            bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
-            bg.paste(rgba, mask=rgba.split()[3])
-            out = BytesIO()
-            bg.convert("RGB").save(out, format="PNG")
-            out.seek(0)
-            return ImageReader(out)
-    except Exception:
+        mtime_ns = candidate.stat().st_mtime_ns
+    except OSError:
         return None
+
+    raw = _cached_pdf_logo_bytes(str(candidate), mtime_ns)
+    if not raw:
+        return None
+    return ImageReader(BytesIO(raw))
 
 
 def _safe_hex(value: str | None, default: str = "#065f46") -> colors.Color:

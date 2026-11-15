@@ -10,7 +10,7 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import Date, Integer, cast, distinct, extract, func, select
+from sqlalchemy import Date, Integer, case, cast, distinct, extract, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin_route_feature, require_admin_route_permission, require_feature
@@ -164,11 +164,14 @@ async def dashboard_kpis(db: AsyncSession, org_id: UUID, currency: str = "TRY") 
         month_start - timedelta(days=1),
     )
 
-    async def total(start: date, end: date) -> int:
-        return int((await db.execute(
-            select(func.coalesce(func.sum(Donation.amount_cents), 0))
-            .where(*_confirmed(org_id, currency), _local_day.between(start, end))
-        )).scalar_one())
+    sums_row = (await db.execute(
+        select(
+            func.coalesce(func.sum(case((_local_day == today, Donation.amount_cents), else_=0)), 0),
+            func.coalesce(func.sum(case((_local_day == yesterday, Donation.amount_cents), else_=0)), 0),
+            func.coalesce(func.sum(case((_local_day.between(month_start, today), Donation.amount_cents), else_=0)), 0),
+            func.coalesce(func.sum(case((_local_day.between(last_month_start, last_month_same_day), Donation.amount_cents), else_=0)), 0),
+        ).where(*_confirmed(org_id, currency), _local_day >= min(last_month_start, yesterday))
+    )).one()
 
     first_gift = (
         select(func.min(_local_day).label("first_day"))
@@ -176,21 +179,23 @@ async def dashboard_kpis(db: AsyncSession, org_id: UUID, currency: str = "TRY") 
         .group_by(Donation.donor_id)
         .subquery()
     )
-    donors_with_gift = (await db.execute(select(func.count()).select_from(first_gift))).scalar_one()
-    new_this_month = (await db.execute(
-        select(func.count()).select_from(first_gift).where(first_gift.c.first_day >= month_start)
-    )).scalar_one()
+    donor_counts = (await db.execute(
+        select(
+            func.count(),
+            func.coalesce(func.sum(case((first_gift.c.first_day >= month_start, 1), else_=0)), 0),
+        ).select_from(first_gift)
+    )).one()
     active_campaigns = (await db.execute(
         select(func.count(Campaign.id)).where(Campaign.organization_id == org_id, Campaign.status == CampaignStatus.ACTIVE)
     )).scalar_one()
     return {
         "currency": currency,
-        "today_cents": await total(today, today),
-        "yesterday_cents": await total(yesterday, yesterday),
-        "month_cents": await total(month_start, today),
-        "last_month_to_date_cents": await total(last_month_start, last_month_same_day),
-        "donor_count": int(donors_with_gift),
-        "new_donors_this_month": int(new_this_month),
+        "today_cents": int(sums_row[0] or 0),
+        "yesterday_cents": int(sums_row[1] or 0),
+        "month_cents": int(sums_row[2] or 0),
+        "last_month_to_date_cents": int(sums_row[3] or 0),
+        "donor_count": int(donor_counts[0] or 0),
+        "new_donors_this_month": int(donor_counts[1] or 0),
         "active_campaigns": int(active_campaigns),
     }
 

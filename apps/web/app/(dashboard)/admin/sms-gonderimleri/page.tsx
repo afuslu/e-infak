@@ -44,7 +44,13 @@ export default function SmsLogPage() {
     }
   }
 
+  const didMountRef = useRef(false)
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true
+      load()
+      return
+    }
     const t = setTimeout(() => load(), 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps

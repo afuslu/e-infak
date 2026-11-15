@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Activity,
@@ -66,8 +67,14 @@ import {
   type HesapGorunumTercihleri,
   type HesapTuru,
 } from '@/components/admin/muhasebe/hesapGorunum';
-import { GelenHavalelerTab } from '@/components/admin/muhasebe/GelenHavalelerTab';
-import { BankaEntegrasyonPanel } from '@/components/admin/muhasebe/BankaEntegrasyonPanel';
+const GelenHavalelerTab = dynamic(
+  () => import('@/components/admin/muhasebe/GelenHavalelerTab').then((m) => m.GelenHavalelerTab),
+  { ssr: false, loading: () => <div className="p-8 text-center text-sm text-slate-500">Gelen havaleler yükleniyor...</div> },
+);
+const BankaEntegrasyonPanel = dynamic(
+  () => import('@/components/admin/muhasebe/BankaEntegrasyonPanel').then((m) => m.BankaEntegrasyonPanel),
+  { ssr: false, loading: () => <div className="p-6 text-center text-sm text-slate-500">Banka entegrasyonları yükleniyor...</div> },
+);
 
 const BASE = '/admin-features/acc';
 
@@ -187,13 +194,6 @@ const KASA_BANKA_SORT_OPTIONS = [
   { value: 'ad_desc', label: 'Hesap Adı (Z-A)' },
 ];
 
-const CARI_SORT_OPTIONS = [
-  { value: 'ad_asc', label: 'Cari Adı (A-Z)' },
-  { value: 'ad_desc', label: 'Cari Adı (Z-A)' },
-  { value: 'bakiye_desc', label: 'Borç/Bakiye (Büyük -> Küçük)' },
-  { value: 'bakiye_asc', label: 'Borç/Bakiye (Küçük -> Büyük)' },
-];
-
 const GELIR_KATEGORILERI = [
   { value: 'Aidat', label: 'Aidat' },
   { value: 'Servis Ücreti', label: 'Servis Ücreti' },
@@ -308,7 +308,6 @@ interface OzelKategori {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const monthStartISO = () => `${new Date().toISOString().slice(0, 7)}-01`;
-const thisPeriod = () => new Date().toISOString().slice(0, 7);
 const toCents = (val: string | number) =>
   Math.round((parseFloat(String(val || '0').replace(',', '.')) || 0) * 100);
 
@@ -372,29 +371,7 @@ export default function OnMuhasebePage() {
     kategori_dagilimi: [],
     mevcut_kategoriler: [],
   });
-  const [parties, setParties] = useState<any[]>([]);
-  const [tahsilatData, setTahsilatData] = useState<{ items: any[]; summary: any }>({
-    items: [],
-    summary: {
-      toplam_cents: 0,
-      nakit_cents: 0,
-      banka_cents: 0,
-      kart_cents: 0,
-      toplam_adet: 0,
-      odeme_dagilimi: [],
-      tip_dagilimi: [],
-      son_7_gun: [],
-      liderler: [],
-    },
-  });
-  const [cheques, setCheques] = useState<any[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [payroll, setPayroll] = useState<any>(null);
-  const [period, setPeriod] = useState(thisPeriod());
-  const [warehouses, setWarehouses] = useState<any[]>([]);
-  const [stockItems, setStockItems] = useState<any[]>([]);
-  const [stockMoves, setStockMoves] = useState<any[]>([]);
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [parties] = useState<any[]>([]);
 
   // Gelir/Gider filters & UI states
   const [ggFilters, setGgFilters] = useState({
@@ -434,25 +411,7 @@ export default function OnMuhasebePage() {
   });
   const [kbSort, setKbSort] = useState('custom');
   const [draggedAccountId, setDraggedAccountId] = useState<string | null>(null);
-
-  // Cari Hesap filters & UI states
-  const [cariSubTab, setCariSubTab] = useState<'hesaplar' | 'hareketler'>('hesaplar');
-  const [cariFilters, setCariFilters] = useState({
-    search: '',
-    tip: '',
-    bakiyeDurum: '',
-  });
-  const [cariSort, setCariSort] = useState('ad_asc');
-  const [partyStatement, setPartyStatement] = useState<any | null>(null);
-
-  // Tahsilat filters
-  const [tahsilatFilters, setTahsilatFilters] = useState({
-    search: '',
-    odemeYontemi: '',
-    tip: '',
-    startDate: '',
-    endDate: '',
-  });
+  const [prefsReady, setPrefsReady] = useState(false);
 
   // Modals & Drawers
   const [statModal, setStatModal] = useState<{
@@ -561,11 +520,13 @@ export default function OnMuhasebePage() {
     return { start: undefined, end: undefined };
   }, [ggFilters.startDate, ggFilters.endDate, ggFilters.yil, ggFilters.ay, ggFilters.gun]);
 
-  // Load Preferences once
+  // Load Preferences once before first data fetch so aylık/yıllık filter doesn't double-fetch
   useEffect(() => {
+    let active = true;
     api
       .get(`${BASE}/preferences`)
       .then((res) => {
+        if (!active) return;
         const d = res.data || {};
         const donem = d.varsayilan_donem === 'aylik' ? 'aylik' : 'yillik';
         setHesapGorunumu({
@@ -582,13 +543,20 @@ export default function OnMuhasebePage() {
           setGgFilters((prev) => ({ ...prev, yil: currentYear, ay: currentMonth }));
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (active) setPrefsReady(true);
+      });
 
     // Unmatched incoming transfers count badge
     api
       .get('/admin/incoming-transfers', { params: { status: 'unmatched', limit: 1 } })
       .then((res) => setUnmatchedTransferCount(res.data?.total || 0))
       .catch(() => {});
+
+    return () => {
+      active = false;
+    };
   }, [currentMonth, currentYear]);
 
   // Load main data
@@ -623,8 +591,9 @@ export default function OnMuhasebePage() {
   }, [computedDateRange.start, computedDateRange.end, flash]);
 
   useEffect(() => {
+    if (!prefsReady) return;
     loadData();
-  }, [loadData]);
+  }, [loadData, prefsReady]);
 
   // Split accounts into Kasalar & Bankalar
   const kasalar = useMemo(() => accounts.filter((a) => a.kind === 'cash'), [accounts]);
