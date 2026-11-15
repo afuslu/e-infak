@@ -21,7 +21,7 @@ import {
 import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
-import { AppPageHeader, GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Tabs, confirmDialog, toast } from '../../../../components/admin/ui'
 
 interface Field {
@@ -317,6 +317,7 @@ function ProviderForm({
 
 export default function PaymentSmsAccountsPage() {
   const [data, setData] = useState<Accounts | null>(null)
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'payment' | 'sms'>('payment')
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
@@ -410,6 +411,15 @@ export default function PaymentSmsAccountsPage() {
             subtitle={ownPayment?.configured ? 'Bilgiler tanımlı' : 'Kurulum bekliyor'}
             gradient={ownPayment?.configured ? 'from-emerald-500 to-teal-600' : 'from-amber-500 to-orange-600'}
             icon={<CreditCard className="h-4 w-4" />}
+            onClick={() => setStatModal({
+              title: 'Sanal POS Durumu',
+              subtitle: ownPayment?.label || data.payment_provider,
+              items: [
+                { label: 'Sağlayıcı', value: ownPayment?.label || data.payment_provider, color: 'blue' },
+                { label: 'Durum', value: ownPayment?.configured ? 'Tanımlı' : 'Kurulum bekliyor', color: ownPayment?.configured ? 'emerald' : 'amber' },
+                { label: 'Ödeme Ortamı', value: data.live_payments_enabled ? 'Canlı Açık' : 'Test Modu', color: data.live_payments_enabled ? 'emerald' : 'amber' },
+              ],
+            })}
           />
           <GlobalStatCard
             title="Aktif SMS Sağlayıcısı"
@@ -423,6 +433,15 @@ export default function PaymentSmsAccountsPage() {
             }
             gradient={ownSms?.configured ? 'from-emerald-500 to-teal-600' : 'from-slate-500 to-slate-700'}
             icon={<MessageSquare className="h-4 w-4" />}
+            onClick={() => setStatModal({
+              title: 'SMS Sağlayıcı Durumu',
+              subtitle: ownSms?.label || data.sms_provider,
+              items: [
+                { label: 'Sağlayıcı', value: ownSms?.label || data.sms_provider, color: 'blue' },
+                { label: 'Kurum Hesabı', value: ownSms?.configured ? 'Aktif' : 'Tanımlı değil', color: ownSms?.configured ? 'emerald' : 'amber' },
+                { label: 'Platform Yedeği', value: data.sms_platform_fallback ? 'Açık' : 'Kapalı', color: data.sms_platform_fallback ? 'emerald' : 'rose' },
+              ],
+            })}
           />
           <GlobalStatCard
             title="Ödeme Ortamı"
@@ -430,6 +449,13 @@ export default function PaymentSmsAccountsPage() {
             subtitle={data.live_payments_enabled ? 'Gerçek tahsilat etkin' : 'Platform test modu kullanılıyor'}
             gradient={data.live_payments_enabled ? 'from-emerald-500 to-teal-600' : 'from-amber-500 to-orange-600'}
             icon={<ShieldCheck className="h-4 w-4" />}
+            onClick={() => setStatModal({
+              title: 'Ödeme Ortamı Bilgisi',
+              items: [
+                { label: 'Mod', value: data.live_payments_enabled ? 'Canlı Tahsilat' : 'Test / Sandbox', color: data.live_payments_enabled ? 'emerald' : 'amber' },
+                { label: 'Şifreleme Kasası', value: data.encryption_ready ? 'Hazır' : 'Anahtar Eksik', color: data.encryption_ready ? 'emerald' : 'rose' },
+              ],
+            })}
           />
           <GlobalStatCard
             title="Şifreleme Kasası"
@@ -437,6 +463,12 @@ export default function PaymentSmsAccountsPage() {
             subtitle={data.encryption_ready ? 'AES/Fernet şifreli saklama' : 'Kayıt devre dışı'}
             gradient={data.encryption_ready ? 'from-emerald-500 to-teal-600' : 'from-rose-500 to-red-600'}
             icon={<Lock className="h-4 w-4" />}
+            onClick={() => setStatModal({
+              title: 'Şifreleme Kasası Durumu',
+              items: [
+                { label: 'Kasa Durumu', value: data.encryption_ready ? 'Hazır (AES/Fernet)' : 'Anahtar Eksik', color: data.encryption_ready ? 'emerald' : 'rose' },
+              ],
+            })}
           />
         </div>
       ) : (
@@ -446,6 +478,13 @@ export default function PaymentSmsAccountsPage() {
           ))}
         </div>
       )}
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       {data && (
         <>

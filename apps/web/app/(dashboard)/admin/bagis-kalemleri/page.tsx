@@ -21,7 +21,7 @@ import { Button, Card, Input } from '@e-infak/ui'
 import { ExportButtons, FilterBar, PageHeader, Tabs, confirmDialog, toast } from '../../../../components/admin/ui'
 import { ImageField } from '../../../../components/admin/ImageField'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
-import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { adminGet, adminSend, apiErrorMessage, v1Get } from '../../../../lib/admin-access'
 
 interface DonationCategory {
@@ -106,6 +106,7 @@ function sortCategories(list: DonationCategory[]) {
 
 export default function AdminDonationCategoriesPage() {
   const [categories, setCategories] = useState<DonationCategory[]>([])
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editorTab, setEditorTab] = useState<'general' | 'i18n'>('general')
@@ -438,6 +439,16 @@ export default function AdminDonationCategoriesPage() {
           subtitle="Ana sayfa hızlı bağış"
           gradient="from-slate-600 to-slate-700"
           icon={<Layers className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Tüm Bağış Kalemleri',
+            subtitle: `Toplam ${stats.total} kalem (${stats.active} aktif, ${stats.inactive} pasif)`,
+            items: categories.map((c) => ({
+              label: c.title,
+              value: c.is_active ? 'Yayında' : 'Pasif',
+              sub: c.campaign_title ? `Kampanya: ${c.campaign_title}` : 'Genel bağış',
+              color: c.is_active ? 'emerald' : 'amber',
+            })),
+          })}
         />
         <GlobalStatCard
           title="Yayında (Aktif)"
@@ -445,6 +456,16 @@ export default function AdminDonationCategoriesPage() {
           subtitle="Sitede ziyaretçiye açık"
           gradient="from-emerald-600 to-teal-700"
           icon={<CheckCircle2 className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Yayındaki Bağış Kalemleri',
+            subtitle: `${stats.active} aktif kalem`,
+            items: categories.filter((c) => c.is_active).map((c) => ({
+              label: c.title,
+              value: c.suggested_amounts_cents?.[0] ? `${(c.suggested_amounts_cents[0] / 100).toLocaleString('tr-TR')} ₺+` : 'Serbest tutar',
+              sub: c.campaign_title || 'Genel bağış',
+              color: 'emerald',
+            })),
+          })}
         />
         <GlobalStatCard
           title="Kampanyaya Bağlı"
@@ -452,6 +473,16 @@ export default function AdminDonationCategoriesPage() {
           subtitle={`${stats.unlinked} genel bağış`}
           gradient="from-sky-600 to-indigo-700"
           icon={<Link2 className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Kampanyaya Bağlı Kalemler',
+            subtitle: `${stats.linked} bağlı · ${stats.unlinked} genel bağış`,
+            items: categories.filter((c) => Boolean(c.campaign_id)).map((c) => ({
+              label: c.title,
+              value: c.campaign_title || 'Bağlı kampanya',
+              sub: c.is_active ? 'Yayında' : 'Pasif',
+              color: 'blue',
+            })),
+          })}
         />
         <GlobalStatCard
           title="Pasif"
@@ -459,8 +490,25 @@ export default function AdminDonationCategoriesPage() {
           subtitle="Gizlenmiş kalemler"
           gradient="from-amber-500 to-orange-600"
           icon={<EyeOff className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Pasif Bağış Kalemleri',
+            subtitle: `${stats.inactive} gizlenmiş kalem`,
+            items: categories.filter((c) => !c.is_active).map((c) => ({
+              label: c.title,
+              value: 'Pasif',
+              sub: c.campaign_title || 'Genel bağış',
+              color: 'amber',
+            })),
+          })}
         />
       </div>
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Bağış kalemi görünümü">
         {[

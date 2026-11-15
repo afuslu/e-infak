@@ -13,7 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { PageHeader, toast } from '../../../../components/admin/ui'
 import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
 
@@ -47,6 +47,7 @@ export default function AdminZakatPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
 
   const loadSettings = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true)
@@ -154,6 +155,16 @@ export default function AdminZakatPage() {
           subtitle={autoSync ? 'TCMB Otomatik Mod' : 'Manuel Sabit Mod'}
           gradient="from-emerald-600 to-teal-700"
           icon={<Scale className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Aktif Nisap Hesabı',
+            subtitle: autoSync ? 'TCMB verileriyle otomatik güncellenir' : 'Manuel sabit kur aktif',
+            items: [
+              { label: 'Altın Nisabı (85 gr)', value: `${activeNisap.toLocaleString('tr-TR')} ₺`, color: 'emerald' },
+              { label: 'Gram Altın (24 Ayar)', value: `${activeGold.toLocaleString('tr-TR')} ₺`, color: 'amber' },
+              { label: 'Gümüş Nisabı (595 gr)', value: silverNisap !== null ? `${silverNisap.toLocaleString('tr-TR')} ₺` : '—', color: 'blue' },
+              { label: 'Son Güncelleme', value: updatedAt ? new Date(updatedAt).toLocaleString('tr-TR') : '—', color: 'indigo' },
+            ],
+          })}
         />
         <GlobalStatCard
           title="Gram Altın (24 Ayar)"
@@ -161,6 +172,15 @@ export default function AdminZakatPage() {
           subtitle={liveTcmb?.source ? `Kaynak: ${liveTcmb.source}` : 'Kayıtlı kur'}
           gradient="from-amber-500 to-orange-600"
           icon={<Coins className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Altın Kuru Detayı',
+            subtitle: liveTcmb?.source ? `Kaynak: ${liveTcmb.source}` : 'Kayıtlı kur bilgisi',
+            items: [
+              { label: '1 Gram 24 Ayar Altın', value: `${activeGold.toLocaleString('tr-TR')} ₺`, color: 'amber' },
+              { label: '85 Gram (Nisap Miktarı)', value: `${(activeGold * 85).toLocaleString('tr-TR')} ₺`, color: 'emerald' },
+              { label: 'Kayıtlı Nisap Tutarı', value: `${activeNisap.toLocaleString('tr-TR')} ₺`, color: 'blue' },
+            ],
+          })}
         />
         <GlobalStatCard
           title="Gümüş Nisabı (595 gr)"
@@ -168,6 +188,14 @@ export default function AdminZakatPage() {
           subtitle={silverGram !== null ? `Gram gümüş: ${silverGram.toLocaleString('tr-TR')} ₺` : 'TCMB verisi bekleniyor'}
           gradient="from-slate-600 to-slate-700"
           icon={<Sparkles className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Gümüş Nisabı Detayı',
+            subtitle: 'Hanefi fıkhına göre 595 gr gümüş karşılığı',
+            items: [
+              { label: '1 Gram Gümüş', value: silverGram !== null ? `${silverGram.toLocaleString('tr-TR')} ₺` : '—', color: 'blue' },
+              { label: '595 Gram Gümüş Nisabı', value: silverNisap !== null ? `${silverNisap.toLocaleString('tr-TR')} ₺` : '—', color: 'emerald' },
+            ],
+          })}
         />
         <GlobalStatCard
           title="TCMB Döviz Kurları"
@@ -175,8 +203,24 @@ export default function AdminZakatPage() {
           subtitle={liveTcmb?.eur_rate != null ? `EUR: ${liveTcmb.eur_rate.toLocaleString('tr-TR')} ₺` : 'EUR bilgisi yok'}
           gradient="from-sky-600 to-indigo-700"
           icon={<DollarSign className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'TCMB Anlık Döviz & Kıymetli Maden',
+            subtitle: liveTcmb?.source ? `Kaynak: ${liveTcmb.source}` : 'Canlı kur bilgileri',
+            items: [
+              { label: 'ABD Doları (USD)', value: liveTcmb?.usd_rate != null ? `${liveTcmb.usd_rate.toLocaleString('tr-TR')} ₺` : '—', color: 'blue' },
+              { label: 'Euro (EUR)', value: liveTcmb?.eur_rate != null ? `${liveTcmb.eur_rate.toLocaleString('tr-TR')} ₺` : '—', color: 'indigo' },
+              { label: 'Gram Altın', value: liveTcmb?.gold_price_per_gram != null ? `${liveTcmb.gold_price_per_gram.toLocaleString('tr-TR')} ₺` : '—', color: 'amber' },
+            ],
+          })}
         />
       </div>
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       {loading ? (
         <Card className="p-8 border border-slate-200 text-center text-sm text-slate-500 animate-pulse">

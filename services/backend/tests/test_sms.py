@@ -470,3 +470,66 @@ async def test_reports_mark_messages_delivered_or_failed(db_session, provider, m
     assert len(mine) == 1 and fresh.provider_ref not in mine[0]  # just-sent messages are not asked about yet
     assert first.status == "delivered" and first.delivered_at is not None
     assert second.status == "failed" and "zaman aşımı" in second.error and fresh.status == "sent"
+
+
+async def test_modern_bulk_features_csv_ab_throttle_optout_and_test_sms(db_session, provider):
+    from datetime import datetime as dt
+    from app.models.sms_batch import SmsBatch
+    from app.services.sms_audience import Audience, resolve
+    from app.services.sms_service import opt_out_token, verify_opt_out_token
+
+    org, admin, campaign, donor = await _setup(db_session, allow_sms=True)
+    # Name + phone CSV/paste parsing
+    recipients, stats = await resolve(
+        db_session, org.id,
+        Audience(kind="numbers", numbers="telefon,ad_soyad\n0532 111 22 33, Ahmet Yılmaz\nAyşe Kaya;05334445566"),
+    )
+    assert len(recipients) == 2 and stats["invalid"] == 0
+    assert recipients[0].name == "Ahmet Yılmaz" and recipients[0].first_name == "Ahmet"
+    assert recipients[1].name == "Ayşe Kaya" and recipients[1].first_name == "Ayşe"
+
+    # Opt-out HMAC token round-trip
+    tok = opt_out_token(org.id, donor.phone, donor.id)
+    assert verify_opt_out_token(tok) == (org.id, donor.phone, donor.id)
+    assert verify_opt_out_token(tok + "tamper") is None
+
+    # Test SMS endpoint does not create an SmsBatch row
+    test_res = await sms_api.send_bulk_test(
+        _request(org),
+        sms_api.BulkTestIn(phone="05321112233", body="Merhaba {ad_soyad}, {odeme_linki}", sample_name="Ali Veli",
+                           campaign_id=campaign.id),
+        db_session, admin,
+    )
+    assert "Merhaba Ali Veli" in test_res["body"] and f"/kampanyalar/{campaign.slug}" in test_res["body"]
+    assert (await db_session.execute(select_org(org.id))).scalars().all()[-1].source == "test"
+
+    # A/B test + throttling + scheduled edit
+    future = dt.now(timezone.utc) + timedelta(days=2)
+    created = await sms_api.send_batch(
+        _request(org),
+        sms_api.BatchIn(
+            name="A/B Kampanya",
+            body="Metin A {odeme_linki} {ret_linki}",
+            ab_variant_body="Metin B {odeme_linki} {ret_linki}",
+            ab_test_percent=50,
+            campaign_id=campaign.id,
+            throttle_per_minute=100,
+            send_at=future,
+            quiet_hours=False,
+            audience=Audience(kind="numbers", numbers="05321112233, Ahmet\n05334445566, Mehmet"),
+        ),
+        db_session, admin,
+    )
+    msgs = (await db_session.execute(select_messages(created["id"]))).scalars().all()
+    assert {m.ab_variant for m in msgs} == {"A", "B"}
+    assert all(m.track_code for m in msgs)
+    assert all("/sms-iptal/" in m.body and "/s/" in m.body for m in msgs)
+
+    # Scheduled batch edit
+    await sms_api.update_scheduled_batch(
+        _request(org), uuid.UUID(created["id"]),
+        sms_api.BatchPatchIn(name="Güncel Ad", body="Yeni Metin {ad}", quiet_hours=False),
+        db_session, admin,
+    )
+    stored = await db_session.get(SmsBatch, uuid.UUID(created["id"]))
+    assert stored.name == "Güncel Ad" and stored.body == "Yeni Metin {ad}"

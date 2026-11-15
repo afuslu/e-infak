@@ -32,7 +32,7 @@ import {
   toast,
   confirmDialog,
 } from '../../../../components/admin/ui'
-import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { ImageField } from '../../../../components/admin/ImageField'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
 import { FormattedStory } from '../../../../components/FormattedStory'
@@ -141,6 +141,7 @@ function formatSuggestedAmounts(cents?: number[]): string {
 
 export default function AdminCampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
   const [globalStats, setGlobalStats] = useState<CampaignStats>({
     total_campaigns: 0,
     active_count: 0,
@@ -586,6 +587,16 @@ export default function AdminCampaignsPage() {
           subtitle={`${globalStats.draft_count} taslak · ${globalStats.completed_count} tamamlandı`}
           gradient="from-slate-600 to-slate-700"
           icon={<Megaphone className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Kampanya Durum Dağılımı',
+            subtitle: `Toplam ${globalStats.total_campaigns} kampanya`,
+            items: [
+              { label: 'Yayında', value: `${globalStats.active_count} kampanya`, color: 'emerald', percent: globalStats.total_campaigns ? Math.round((globalStats.active_count / globalStats.total_campaigns) * 100) : 0 },
+              { label: 'Taslak', value: `${globalStats.draft_count} kampanya`, color: 'amber', percent: globalStats.total_campaigns ? Math.round((globalStats.draft_count / globalStats.total_campaigns) * 100) : 0 },
+              { label: 'Duraklatıldı', value: `${globalStats.paused_count} kampanya`, color: 'rose', percent: globalStats.total_campaigns ? Math.round((globalStats.paused_count / globalStats.total_campaigns) * 100) : 0 },
+              { label: 'Tamamlandı', value: `${globalStats.completed_count} kampanya`, color: 'blue', percent: globalStats.total_campaigns ? Math.round((globalStats.completed_count / globalStats.total_campaigns) * 100) : 0 },
+            ],
+          })}
         />
         <GlobalStatCard
           title="Yayında"
@@ -593,6 +604,20 @@ export default function AdminCampaignsPage() {
           subtitle={`${globalStats.paused_count} duraklatıldı`}
           gradient="from-emerald-600 to-teal-700"
           icon={<CheckCircle2 className="w-5 h-5" />}
+          onClick={() => {
+            const list = campaigns.filter((c) => c.status === 'active')
+            setStatModal({
+              title: 'Yayındaki Kampanyalar',
+              subtitle: `Toplam ${globalStats.active_count} aktif kampanya (bu sayfada ${list.length})`,
+              items: list.map((c) => ({
+                label: c.title,
+                value: formatMoney(c.collected_cents, c.currency || 'TRY'),
+                sub: c.target_cents ? `Hedef: ${formatMoney(c.target_cents, c.currency || 'TRY')}` : 'Hedefsiz',
+                color: 'emerald',
+                percent: c.target_cents ? Math.min(100, Math.round((c.collected_cents / c.target_cents) * 100)) : undefined,
+              })),
+            })
+          }}
         />
         <GlobalStatCard
           title="Öne Çıkan"
@@ -600,6 +625,19 @@ export default function AdminCampaignsPage() {
           subtitle="Ana sayfada vitrinde"
           gradient="from-amber-500 to-orange-600"
           icon={<Star className="w-5 h-5" />}
+          onClick={() => {
+            const list = campaigns.filter((c) => c.is_featured)
+            setStatModal({
+              title: 'Öne Çıkan Kampanyalar',
+              subtitle: `Toplam ${globalStats.featured_count} öne çıkan kampanya`,
+              items: list.map((c) => ({
+                label: c.title,
+                value: formatMoney(c.collected_cents, c.currency || 'TRY'),
+                sub: CATEGORY_LABEL[c.category] || c.category,
+                color: 'amber',
+              })),
+            })
+          }}
         />
         <GlobalStatCard
           title="Toplam Toplanan"
@@ -607,8 +645,30 @@ export default function AdminCampaignsPage() {
           subtitle="Tüm kampanyalar toplamı"
           gradient="from-sky-600 to-indigo-700"
           icon={<Wallet className="w-5 h-5" />}
+          onClick={() => {
+            const sorted = [...campaigns].sort((a, b) => b.collected_cents - a.collected_cents).slice(0, 12)
+            const max = Math.max(1, ...sorted.map((c) => c.collected_cents))
+            setStatModal({
+              title: 'En Yüksek Bağış Toplanan Kampanyalar',
+              subtitle: `Genel toplam: ${formatMoney(globalStats.total_collected_cents, 'TRY')}`,
+              items: sorted.map((c) => ({
+                label: c.title,
+                value: formatMoney(c.collected_cents, c.currency || 'TRY'),
+                sub: CATEGORY_LABEL[c.category] || c.category,
+                color: 'blue',
+                percent: Math.round((c.collected_cents / max) * 100),
+              })),
+            })
+          }}
         />
       </div>
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       {/* Hızlı Görünüm Sekmeleri */}
       <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Kampanya görünümü">

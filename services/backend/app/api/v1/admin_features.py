@@ -463,12 +463,16 @@ class BannerUpdate(BaseModel):
 @router.get("/analytics/stats")
 async def get_analytics_stats(
     request: Request,
+    months: int = Query(6, ge=3, le=12),
+    period: Literal["today", "week", "month", "year"] = Query("year"),
+    currency: str = Query("TRY", min_length=3, max_length=3),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     from app.models.campaign import HIDDEN_CAMPAIGN_TAG, CampaignStatus
     from app.api.deps import has_capability, module_groups
     org_id = UUID(request.state.organization_id)
+    cur = currency.upper()
     # Organisation-wide money figures are for staff who see every receipt or the reports.
     sees_all = has_capability(current_user, "receipts.view_all") or "reports" in module_groups(current_user, False)
 
@@ -486,6 +490,8 @@ async def get_analytics_stats(
     
     campaigns_progress = [
         {
+            "id": str(c.id),
+            "slug": c.slug,
             "title": c.title,
             "status": c.status.value if hasattr(c.status, "value") else str(c.status),
             "currency": (c.currency or "TRY").upper(),
@@ -498,21 +504,34 @@ async def get_analytics_stats(
         for c in campaigns
     ]
     
-    # 2. Son 6 ayın gerçek bağış toplamları ve bu yılın ödeme kanalı dağılımı
+    # 2. Aylık bağış toplamları, seçili dönem ve bugünün ödeme kanalı dağılımı
     from datetime import date
     from app.api.v1.reports import dashboard_kpis, last_months_totals, payment_method_totals, today_local
 
-    monthly_donations = [
-        {"month": m["label"], "total_lira": m["total_cents"] / 100, "count": m["count"]}
-        for m in await last_months_totals(db, org_id, months=6)
-    ] if sees_all else []
     today = today_local()
+    period_starts = {
+        "today": today,
+        "week": today - timedelta(days=today.weekday()),
+        "month": date(today.year, today.month, 1),
+        "year": date(today.year, 1, 1),
+    }
+    period_start = period_starts[period]
+
+    monthly_donations = [
+        {"month": m["label"], "total_cents": m["total_cents"], "total_lira": m["total_cents"] / 100, "count": m["count"]}
+        for m in await last_months_totals(db, org_id, months=months, currency=cur)
+    ] if sees_all else []
     payment_methods = [
-        {"method": p["label"], "count": p["count"], "total_lira": p["total_cents"] / 100}
-        for p in await payment_method_totals(db, org_id, date(today.year, 1, 1), today)
+        {"method": p["label"], "count": p["count"], "total_cents": p["total_cents"], "total_lira": p["total_cents"] / 100}
+        for p in await payment_method_totals(db, org_id, period_start, today, currency=cur)
+    ] if sees_all else []
+    today_payment_methods = [
+        {"method": p["label"], "count": p["count"], "total_cents": p["total_cents"], "total_lira": p["total_cents"] / 100}
+        for p in await payment_method_totals(db, org_id, today, today, currency=cur)
     ] if sees_all else []
 
-    # 3. Son gelen bağışlar
+    # 3. Son gelen bağışlar & bekleyen bağış sayısı
+    visibility_filter = () if has_capability(current_user, "receipts.view_all") else (Donation.issued_by_id == current_user.id,)
     recent_rows = (
         await db.execute(
             select(Donation)
@@ -520,12 +539,22 @@ async def get_analytics_stats(
             .where(
                 Donation.organization_id == org_id,
                 Donation.status.in_([DonationStatus.CONFIRMED, DonationStatus.PENDING]),
-                *(() if has_capability(current_user, "receipts.view_all") else (Donation.issued_by_id == current_user.id,)),
+                *visibility_filter,
             )
             .order_by(func.coalesce(Donation.paid_at, Donation.created_at).desc())
-            .limit(6)
+            .limit(8)
         )
     ).scalars().all()
+
+    pending_donations_count = (
+        await db.execute(
+            select(func.count(Donation.id)).where(
+                Donation.organization_id == org_id,
+                Donation.status == DonationStatus.PENDING,
+                *visibility_filter,
+            )
+        )
+    ).scalar_one()
 
     pm_labels = {"credit_card": "Kredi Kartı", "bank_transfer": "Havale / EFT", "cash": "Nakit"}
     recent_donations = [
@@ -545,11 +574,15 @@ async def get_analytics_stats(
     ]
 
     return {
-        "kpis": await dashboard_kpis(db, org_id) if sees_all else None,
+        "sees_all": sees_all,
+        "currency": cur,
+        "kpis": await dashboard_kpis(db, org_id, currency=cur) if sees_all else None,
         "monthly_donations": monthly_donations,
         "campaigns_progress": campaigns_progress,
         "payment_methods": payment_methods,
+        "today_payment_methods": today_payment_methods,
         "recent_donations": recent_donations,
+        "pending_donations_count": int(pending_donations_count or 0),
     }
 
 # --- Phase 4: Student & Sponsorships ---

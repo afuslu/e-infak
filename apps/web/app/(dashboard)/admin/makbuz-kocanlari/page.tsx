@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, can } from '../../../../lib/admin-access'
-import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import {
   ExportButtons,
   FilterBar,
@@ -91,6 +91,7 @@ export default function ReceiptBooksPage() {
   const canEdit = can(access, 'receipts.create') || can(access, 'finance.manage')
 
   const [books, setBooks] = useState<Book[]>([])
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [staff, setStaff] = useState<Staff[]>([])
@@ -337,6 +338,17 @@ export default function ReceiptBooksPage() {
           subtitle={`${stats.totalSize.toLocaleString('tr-TR')} toplam yaprak`}
           gradient="from-slate-600 to-slate-700"
           icon={<BookOpen className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Tüm Makbuz Koçanları',
+            subtitle: `Toplam ${stats.total} koçan · ${stats.totalSize.toLocaleString('tr-TR')} yaprak`,
+            items: books.map((b) => ({
+              label: `${b.series} · ${b.branch || 'Merkez'}${b.holder_name ? ` (${b.holder_name})` : ''}`,
+              value: `${b.remaining} kalan / ${b.size}`,
+              sub: `${b.used} kesildi · ${b.voided} iptal`,
+              color: b.status === 'active' ? 'emerald' : 'amber',
+              percent: b.size ? Math.round(((b.used + b.voided) / b.size) * 100) : 0,
+            })),
+          })}
         />
         <GlobalStatCard
           title="Kullanımda"
@@ -344,6 +356,17 @@ export default function ReceiptBooksPage() {
           subtitle={`${stats.usedTotal} kesildi · ${stats.voidedTotal} yaprak iptal`}
           gradient="from-emerald-600 to-teal-700"
           icon={<CheckCircle2 className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Kullanımdaki Koçanlar',
+            subtitle: `${stats.active} aktif koçan`,
+            items: books.filter((b) => b.status === 'active').map((b) => ({
+              label: `${b.series} · ${b.branch || 'Merkez'}`,
+              value: `${b.used} kesildi`,
+              sub: b.holder_name ? `Zimmetli: ${b.holder_name} · Kalan: ${b.remaining}` : `Kalan: ${b.remaining}`,
+              color: 'emerald',
+              percent: b.size ? Math.round((b.used / b.size) * 100) : 0,
+            })),
+          })}
         />
         <GlobalStatCard
           title="Kalan Yaprak"
@@ -351,6 +374,21 @@ export default function ReceiptBooksPage() {
           subtitle="Aktif koçanlarda"
           gradient="from-sky-600 to-indigo-700"
           icon={<Layers className="w-5 h-5" />}
+          onClick={() => {
+            const activeBooks = books.filter((b) => b.status === 'active').sort((a, b) => b.remaining - a.remaining)
+            const max = Math.max(1, ...activeBooks.map((b) => b.remaining))
+            setStatModal({
+              title: 'Aktif Koçanlarda Kalan Yapraklar',
+              subtitle: `Toplam ${stats.remainingTotal.toLocaleString('tr-TR')} yaprak`,
+              items: activeBooks.map((b) => ({
+                label: `${b.series} (${b.holder_name || b.branch || 'Merkez'})`,
+                value: `${b.remaining} yaprak`,
+                sub: b.next_label ? `Sıradaki: ${b.next_label}` : undefined,
+                color: 'blue',
+                percent: Math.round((b.remaining / max) * 100),
+              })),
+            })
+          }}
         />
         <GlobalStatCard
           title="Azalan Koçan (≤5)"
@@ -358,8 +396,24 @@ export default function ReceiptBooksPage() {
           subtitle={`${stats.closed} kapalı koçan`}
           gradient="from-amber-500 to-orange-600"
           icon={<AlertTriangle className="w-5 h-5" />}
+          onClick={() => setStatModal({
+            title: 'Azalan ve Kapalı Koçanlar',
+            subtitle: `${stats.low} azalan koçan · ${stats.closed} kapalı koçan`,
+            items: books.filter((b) => (b.status === 'active' && b.remaining <= 5) || b.status !== 'active').map((b) => ({
+              label: `${b.series} · ${b.holder_name || b.branch || 'Merkez'}`,
+              value: b.status === 'active' ? `${b.remaining} yaprak kaldı` : 'Kapalı',
+              color: b.remaining <= 5 && b.status === 'active' ? 'rose' : 'amber',
+            })),
+          })}
         />
       </div>
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       {/* Hızlı Görünüm Sekmeleri */}
       <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Koçan görünümü">

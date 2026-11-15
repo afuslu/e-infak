@@ -1,25 +1,41 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import {
   AlertTriangle,
   Calendar as CalendarIcon,
   CheckCircle2,
   ClipboardList,
   Clock,
+  Download,
+  ExternalLink,
   FileText,
   Kanban,
   ListTodo,
+  MessageSquare,
+  Pencil,
   Plus,
   RefreshCw,
+  Repeat,
   Search,
+  Send,
   Trash2,
+  UserCheck,
   X,
 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, useAdminAccess, can } from '../../../../lib/admin-access'
 import { Label, TextArea, TextInput, inputClass } from '../../../../components/admin/FormKit'
 import { ExportButtons, Modal, PageHeader, StatCard, confirmDialog, toast } from '../../../../components/admin/ui'
+
+interface TaskComment {
+  id: string
+  user_id: string
+  user_name: string
+  text: string
+  created_at: string
+}
 
 interface Task {
   id: string
@@ -34,6 +50,10 @@ interface Task {
   assigned_to_id: string | null
   assigned_to_name: string | null
   department_id: string | null
+  donor_id: string | null
+  donor_name: string | null
+  recurrence: 'none' | 'daily' | 'weekly' | 'monthly'
+  comments: TaskComment[]
   checklist: { text: string; done: boolean }[]
   created_by_id: string
   created_by_name: string | null
@@ -65,11 +85,19 @@ const STATUS_META: Record<Task['status'], { label: string; cls: string }> = {
   cancelled: { label: 'İptal', cls: 'border-rose-200 bg-rose-50 text-rose-600' },
 }
 
+const RECURRENCE_LABELS: Record<Task['recurrence'], string> = {
+  none: 'Tekrar Yok',
+  daily: 'Günlük',
+  weekly: 'Haftalık',
+  monthly: 'Aylık',
+}
+
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 type Scope = 'mine' | 'created' | 'department' | 'all'
 type ViewMode = 'list' | 'kanban' | 'calendar'
+type CalSubView = 'month' | 'week' | 'agenda'
 
 const EMPTY_FORM = {
   template_id: '',
@@ -81,6 +109,8 @@ const EMPTY_FORM = {
   due_date: '',
   assigned_to_id: '',
   department_id: '',
+  donor_id: '',
+  recurrence: 'none',
 }
 
 export default function TasksPage() {
@@ -100,11 +130,19 @@ export default function TasksPage() {
   const [templates, setTemplates] = useState<Template[]>([])
   const [staff, setStaff] = useState<{ id: string; first_name: string; last_name: string; is_active: boolean }[]>([])
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([])
+  const [donors, setDonors] = useState<{ id: string; label: string }[]>([])
 
   const [month, setMonth] = useState(() => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1)
   })
+  const [calView, setCalView] = useState<CalSubView>('month')
+  const [weekBase, setWeekBase] = useState(() => {
+    const d = new Date()
+    const offset = (d.getDay() + 6) % 7
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() - offset)
+  })
+  const [dayModal, setDayModal] = useState<{ date: Date; tasks: Task[] } | null>(null)
 
   const [selected, setSelected] = useState<Task | null>(null)
   const [subtasks, setSubtasks] = useState<Task[]>([])
@@ -112,12 +150,22 @@ export default function TasksPage() {
   const [editDesc, setEditDesc] = useState('')
   const [editCategory, setEditCategory] = useState('')
   const [newCheckItem, setNewCheckItem] = useState('')
+  const [commentText, setCommentText] = useState('')
+  const [sendingComment, setSendingComment] = useState(false)
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkAssignId, setBulkAssignId] = useState('')
+  const [quickTitle, setQuickTitle] = useState('')
+  const [kanbanQuick, setKanbanQuick] = useState<Record<string, string>>({})
+  const [dragTaskId, setDragTaskId] = useState<string | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [creating, setCreating] = useState(false)
 
   const [tplOpen, setTplOpen] = useState(false)
+  const [editingTplId, setEditingTplId] = useState<string | null>(null)
   const [tplForm, setTplForm] = useState({
     title: '',
     description: '',
@@ -130,9 +178,19 @@ export default function TasksPage() {
 
   const range = useMemo(() => {
     if (view !== 'calendar') return {}
+    if (calView === 'week') {
+      const end = new Date(weekBase)
+      end.setDate(end.getDate() + 6)
+      return { start: iso(weekBase), end: iso(end) }
+    }
+    if (calView === 'agenda') {
+      const s = new Date()
+      const e = new Date(s.getFullYear(), s.getMonth() + 2, 0)
+      return { start: iso(s), end: iso(e) }
+    }
     const end = new Date(month.getFullYear(), month.getMonth() + 1, 0)
     return { start: iso(month), end: iso(end) }
-  }, [view, month])
+  }, [view, calView, month, weekBase])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -168,6 +226,18 @@ export default function TasksPage() {
       .catch(() => {})
     adminGet<{ id: string; name: string }[]>('/departments')
       .then((r) => setDepartments(r.data || []))
+      .catch(() => {})
+    adminGet<{ items?: { id: string; first_name?: string; last_name?: string; company_name?: string; display_name?: string }[] }>('/donors', {
+      page_size: 100,
+    })
+      .then((r) =>
+        setDonors(
+          (r.data?.items || []).map((d) => ({
+            id: d.id,
+            label: d.display_name || d.company_name || `${d.first_name || ''} ${d.last_name || ''}`.trim() || 'Bağışçı',
+          })),
+        ),
+      )
       .catch(() => {})
   }, [loadTemplates])
 
@@ -251,7 +321,7 @@ export default function TasksPage() {
     }
     setSavingTpl(true)
     try {
-      await adminSend('post', '/tasks/templates', {
+      const payload = {
         title: tplForm.title.trim(),
         description: tplForm.description.trim() || null,
         priority: tplForm.priority,
@@ -261,15 +331,131 @@ export default function TasksPage() {
           .split('\n')
           .map((s) => s.trim())
           .filter(Boolean),
-      })
-      toast.ok('Şablon eklendi')
+      }
+      if (editingTplId) {
+        await adminSend('put', `/tasks/templates/${editingTplId}`, payload)
+        toast.ok('Şablon güncellendi')
+      } else {
+        await adminSend('post', '/tasks/templates', payload)
+        toast.ok('Şablon eklendi')
+      }
+      setEditingTplId(null)
       setTplForm({ title: '', description: '', priority: 'normal', category: '', default_duration_days: '3', checklistText: '' })
       loadTemplates()
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'Şablon eklenemedi'))
+      toast.error(apiErrorMessage(err, editingTplId ? 'Şablon güncellenemedi' : 'Şablon eklenemedi'))
     } finally {
       setSavingTpl(false)
     }
+  }
+
+  const startEditTemplate = (tpl: Template) => {
+    setEditingTplId(tpl.id)
+    setTplForm({
+      title: tpl.title,
+      description: tpl.description || '',
+      priority: tpl.priority,
+      category: tpl.category || '',
+      default_duration_days: String(tpl.default_duration_days),
+      checklistText: (tpl.checklist || []).join('\n'),
+    })
+  }
+
+  const quickCreateTask = async (title: string, colStatus: Task['status'] = 'todo') => {
+    const clean = title.trim()
+    if (clean.length < 2) return
+    try {
+      await adminSend('post', '/tasks', {
+        title: clean,
+        status: colStatus,
+        ...(!canAssign && access?.me?.id ? { assigned_to_id: access.me.id } : {}),
+      })
+      toast.ok('Görev eklendi')
+      await load()
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Hızlı görev eklenemedi'))
+    }
+  }
+
+  const handleBulkAction = async (action: 'status' | 'assign' | 'delete', value?: string) => {
+    if (selectedIds.length === 0) return
+    if (action === 'delete') {
+      const ok = await confirmDialog({
+        title: 'Toplu Silme',
+        text: `Seçili ${selectedIds.length} görev kalıcı olarak silinsin mi?`,
+        confirmLabel: 'Sil',
+        danger: true,
+      })
+      if (!ok) return
+    }
+    try {
+      const res = await adminSend<{ updated: number }>('post', '/tasks/bulk', {
+        ids: selectedIds,
+        action,
+        ...(action === 'status' ? { status: value } : {}),
+        ...(action === 'assign' ? { assigned_to_id: value || null } : {}),
+      })
+      toast.ok(`${res.data?.updated || 0} görev güncellendi`)
+      setSelectedIds([])
+      setBulkAssignId('')
+      await load()
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Toplu işlem başarısız'))
+    }
+  }
+
+  const handleAddComment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selected || !commentText.trim()) return
+    setSendingComment(true)
+    try {
+      const res = await adminSend<Task>('post', `/tasks/${selected.id}/comments`, { text: commentText.trim() })
+      setSelected(res.data)
+      setCommentText('')
+      await load()
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Not eklenemedi'))
+    } finally {
+      setSendingComment(false)
+    }
+  }
+
+  const downloadIcs = () => {
+    const events = filteredTasks.filter((t) => t.start_date || t.due_date)
+    if (events.length === 0) {
+      toast.error('Takvime aktarılacak tarihli görev yok.')
+      return
+    }
+    const fmt = (d: string) => d.replace(/-/g, '')
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//e-infak//Gorevler//TR',
+      ...events.flatMap((t) => {
+        const dtStart = fmt(t.start_date || t.due_date!)
+        const dtEnd = fmt(t.due_date || t.start_date!)
+        const summary = t.title.replace(/[\r\n,;]/g, ' ')
+        const desc = (t.description || '').replace(/[\r\n]/g, '\\n')
+        return [
+          'BEGIN:VEVENT',
+          `UID:${t.id}@e-infak`,
+          `DTSTART;VALUE=DATE:${dtStart}`,
+          `DTEND;VALUE=DATE:${dtEnd}`,
+          `SUMMARY:${summary}`,
+          ...(desc ? [`DESCRIPTION:${desc}`] : []),
+          'END:VEVENT',
+        ]
+      }),
+      'END:VCALENDAR',
+    ]
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `gorevler-${iso(new Date())}.ics`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.ok(`${events.length} görev .ics olarak indirildi`)
   }
 
   const handleDeleteTemplate = async (tpl: Template) => {
@@ -297,7 +483,8 @@ export default function TasksPage() {
         t.title.toLowerCase().includes(term) ||
         (t.description || '').toLowerCase().includes(term) ||
         (t.category || '').toLowerCase().includes(term) ||
-        (t.assigned_to_name || '').toLowerCase().includes(term),
+        (t.assigned_to_name || '').toLowerCase().includes(term) ||
+        (t.donor_name || '').toLowerCase().includes(term),
     )
   }, [tasks, search])
 
@@ -318,6 +505,28 @@ export default function TasksPage() {
       ...Array.from({ length: total }, (_, i) => new Date(month.getFullYear(), month.getMonth(), i + 1)),
     ]
   }, [month])
+
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekBase)
+      d.setDate(weekBase.getDate() + i)
+      return d
+    })
+  }, [weekBase])
+
+  const agendaGroups = useMemo(() => {
+    const map = new Map<string, Task[]>()
+    const dated = [...filteredTasks]
+      .filter((t) => t.due_date || t.start_date)
+      .sort((a, b) => (a.due_date || a.start_date || '').localeCompare(b.due_date || b.start_date || ''))
+    for (const t of dated) {
+      const key = t.due_date || t.start_date || ''
+      const list = map.get(key) || []
+      list.push(t)
+      map.set(key, list)
+    }
+    return Array.from(map.entries())
+  }, [filteredTasks])
 
   const tasksOn = (d: Date) => {
     const key = iso(d)
@@ -389,10 +598,83 @@ export default function TasksPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Açık Görev" value={String(stats.open)} tone="neutral" icon={ListTodo} />
-        <StatCard label="Geciken" value={String(stats.overdue)} tone="bad" icon={AlertTriangle} />
-        <StatCard label="Devam Ediyor" value={String(stats.inProgress)} tone="brand" icon={Clock} />
-        <StatCard label="Tamamlanan" value={String(stats.done)} tone="good" icon={CheckCircle2} />
+        <StatCard
+          label="Açık Görev"
+          value={String(stats.open)}
+          tone="neutral"
+          icon={ListTodo}
+          detail={{
+            title: 'Açık Görevler',
+            description: `Toplam ${stats.open} tamamlanmamış görev`,
+            content: () => {
+              const list = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled')
+              return list.length === 0 ? <p className="text-sm text-gray-500">Açık görev yok.</p> : (
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b text-left text-gray-500"><th className="py-2">Görev</th><th className="py-2">Durum</th><th className="py-2">Son Tarih</th></tr></thead>
+                  <tbody>{list.map((t) => <tr key={t.id} className="border-b"><td className="py-2 font-semibold">{t.title}</td><td className="py-2">{t.status}</td><td className="py-2">{t.due_date ? new Date(t.due_date).toLocaleDateString('tr-TR') : '—'}</td></tr>)}</tbody>
+                </table>
+              )
+            },
+          }}
+        />
+        <StatCard
+          label="Geciken"
+          value={String(stats.overdue)}
+          tone="bad"
+          icon={AlertTriangle}
+          detail={{
+            title: 'Geciken Görevler',
+            description: `Son tarihi geçmiş ${stats.overdue} görev`,
+            content: () => {
+              const now = Date.now()
+              const list = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled' && t.due_date && new Date(t.due_date).getTime() < now)
+              return list.length === 0 ? <p className="text-sm text-gray-500">Geciken görev yok.</p> : (
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b text-left text-gray-500"><th className="py-2">Görev</th><th className="py-2">Öncelik</th><th className="py-2">Son Tarih</th></tr></thead>
+                  <tbody>{list.map((t) => <tr key={t.id} className="border-b"><td className="py-2 font-semibold">{t.title}</td><td className="py-2">{t.priority}</td><td className="py-2 text-red-600 font-semibold">{t.due_date ? new Date(t.due_date).toLocaleDateString('tr-TR') : '—'}</td></tr>)}</tbody>
+                </table>
+              )
+            },
+          }}
+        />
+        <StatCard
+          label="Devam Ediyor"
+          value={String(stats.inProgress)}
+          tone="brand"
+          icon={Clock}
+          detail={{
+            title: 'Devam Eden Görevler',
+            description: `${stats.inProgress} görev aktif işlemde`,
+            content: () => {
+              const list = tasks.filter((t) => t.status === 'in_progress')
+              return list.length === 0 ? <p className="text-sm text-gray-500">Devam eden görev yok.</p> : (
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b text-left text-gray-500"><th className="py-2">Görev</th><th className="py-2">Öncelik</th><th className="py-2">Son Tarih</th></tr></thead>
+                  <tbody>{list.map((t) => <tr key={t.id} className="border-b"><td className="py-2 font-semibold">{t.title}</td><td className="py-2">{t.priority}</td><td className="py-2">{t.due_date ? new Date(t.due_date).toLocaleDateString('tr-TR') : '—'}</td></tr>)}</tbody>
+                </table>
+              )
+            },
+          }}
+        />
+        <StatCard
+          label="Tamamlanan"
+          value={String(stats.done)}
+          tone="good"
+          icon={CheckCircle2}
+          detail={{
+            title: 'Tamamlanan Görevler',
+            description: `${stats.done} görev tamamlandı`,
+            content: () => {
+              const list = tasks.filter((t) => t.status === 'done')
+              return list.length === 0 ? <p className="text-sm text-gray-500">Tamamlanan görev yok.</p> : (
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b text-left text-gray-500"><th className="py-2">Görev</th><th className="py-2">Öncelik</th><th className="py-2">Tarih</th></tr></thead>
+                  <tbody>{list.map((t) => <tr key={t.id} className="border-b"><td className="py-2 font-semibold">{t.title}</td><td className="py-2">{t.priority}</td><td className="py-2">{t.due_date ? new Date(t.due_date).toLocaleDateString('tr-TR') : '—'}</td></tr>)}</tbody>
+                </table>
+              )
+            },
+          }}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -533,7 +815,26 @@ export default function TasksPage() {
               </select>
             </Label>
             <TextInput label="Kategori" value={form.category} onChange={(v) => setForm({ ...form, category: v })} />
-            <div className="sm:col-span-2 lg:col-span-3">
+            <Label label="Bağışçı (opsiyonel)">
+              <select className={inputClass} value={form.donor_id} onChange={(e) => setForm({ ...form, donor_id: e.target.value })}>
+                <option value="">—</option>
+                {donors.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+            </Label>
+            <Label label="Tekrar">
+              <select className={inputClass} value={form.recurrence} onChange={(e) => setForm({ ...form, recurrence: e.target.value })}>
+                {Object.entries(RECURRENCE_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </Label>
+            <div className="sm:col-span-2 lg:col-span-2">
               <TextArea label="Açıklama" rows={2} value={form.description} onChange={(v) => setForm({ ...form, description: v })} />
             </div>
             <div className="flex justify-end gap-2 sm:col-span-2 lg:col-span-4">
@@ -551,7 +852,92 @@ export default function TasksPage() {
       <div className="grid items-start gap-4 xl:grid-cols-12">
         <div className={selected ? 'xl:col-span-7' : 'xl:col-span-12'}>
           {view === 'list' && (
-            <Card className="border border-slate-200 bg-white p-2 shadow-sm">
+            <Card className="border border-slate-200 bg-white p-2 shadow-sm space-y-2">
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-2 pb-2">
+                <input
+                  type="checkbox"
+                  aria-label="Tümünü seç"
+                  checked={filteredTasks.length > 0 && selectedIds.length === filteredTasks.length}
+                  onChange={(e) => setSelectedIds(e.target.checked ? filteredTasks.map((t) => t.id) : [])}
+                  className="accent-emerald-600"
+                />
+                <form
+                  className="flex flex-1 items-center gap-2"
+                  onSubmit={async (e) => {
+                    e.preventDefault()
+                    if (!quickTitle.trim()) return
+                    const t = quickTitle
+                    setQuickTitle('')
+                    await quickCreateTask(t, 'todo')
+                  }}
+                >
+                  <input
+                    value={quickTitle}
+                    onChange={(e) => setQuickTitle(e.target.value)}
+                    placeholder="Hızlı görev ekle ve Enter'a bas..."
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-1.5 text-xs outline-none focus:border-emerald-500 focus:bg-white"
+                  />
+                  {quickTitle.trim().length >= 2 && (
+                    <Button type="submit" size="sm">
+                      Ekle
+                    </Button>
+                  )}
+                </form>
+              </div>
+
+              {selectedIds.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-xs">
+                  <span className="font-semibold text-emerald-900">{selectedIds.length} görev seçili</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className="rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) handleBulkAction('status', e.target.value)
+                        e.target.value = ''
+                      }}
+                    >
+                      <option value="">Durum değiştir...</option>
+                      {Object.entries(STATUS_META).map(([k, m]) => (
+                        <option key={k} value={k}>
+                          {m.label}
+                        </option>
+                      ))}
+                    </select>
+                    {canAssign && (
+                      <div className="flex items-center gap-1">
+                        <select
+                          className="rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                          value={bulkAssignId}
+                          onChange={(e) => {
+                            setBulkAssignId(e.target.value)
+                            if (e.target.value) handleBulkAction('assign', e.target.value)
+                          }}
+                        >
+                          <option value="">Personel ata...</option>
+                          {staff.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.first_name} {s.last_name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleBulkAction('delete')}
+                      className="inline-flex items-center gap-1 rounded border border-rose-200 bg-white px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Sil
+                    </button>
+                    <button type="button" onClick={() => setSelectedIds([])} className="text-slate-500 hover:text-slate-800">
+                      Vazgeç
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {loading && filteredTasks.length === 0 ? (
                 <p className="py-10 text-center text-sm text-slate-500 animate-pulse">Görevler yükleniyor...</p>
               ) : (
@@ -563,20 +949,38 @@ export default function TasksPage() {
                     >
                       <input
                         type="checkbox"
+                        checked={selectedIds.includes(t.id)}
+                        onChange={(e) =>
+                          setSelectedIds((prev) => (e.target.checked ? [...prev, t.id] : prev.filter((id) => id !== t.id)))
+                        }
+                        aria-label="Toplu seçim"
+                        className="accent-slate-700"
+                      />
+                      <input
+                        type="checkbox"
                         checked={t.status === 'done'}
                         onChange={() => update(t, { status: t.status === 'done' ? 'todo' : 'done' })}
                         aria-label="Tamamlandı"
                         className="accent-emerald-600"
                       />
                       <button type="button" onClick={() => openTask(t)} className="min-w-0 flex-1 text-left">
-                        <div className={`truncate font-semibold text-sm ${t.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                          {t.title}
+                        <div className="flex items-center gap-1.5">
+                          <span className={`truncate font-semibold text-sm ${t.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                            {t.title}
+                          </span>
+                          {t.recurrence && t.recurrence !== 'none' && (
+                            <span title={RECURRENCE_LABELS[t.recurrence]} className="inline-flex items-center text-emerald-600">
+                              <Repeat className="w-3 h-3" />
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-slate-500">
                           {t.assigned_to_name || 'Atanmamış'}
                           {t.category ? ` · ${t.category}` : ''}
+                          {t.donor_name ? ` · Bağışçı: ${t.donor_name}` : ''}
                           {t.subtasks_total > 0 && ` · ${t.subtasks_done}/${t.subtasks_total} alt görev`}
                           {t.checklist.length > 0 && ` · ${t.checklist.filter((c) => c.done).length}/${t.checklist.length} madde`}
+                          {(t.comments?.length || 0) > 0 && ` · ${t.comments.length} not`}
                         </div>
                       </button>
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${STATUS_META[t.status].cls}`}>
@@ -605,7 +1009,29 @@ export default function TasksPage() {
               {(['todo', 'in_progress', 'done'] as const).map((colStatus) => {
                 const colTasks = filteredTasks.filter((t) => t.status === colStatus)
                 return (
-                  <Card key={colStatus} className="border border-slate-200 bg-slate-50/70 p-3 space-y-2.5">
+                  <Card
+                    key={colStatus}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      if (dragOverCol !== colStatus) setDragOverCol(colStatus)
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverCol === colStatus) setDragOverCol(null)
+                    }}
+                    onDrop={async (e) => {
+                      e.preventDefault()
+                      setDragOverCol(null)
+                      const droppedId = e.dataTransfer.getData('text/plain') || dragTaskId
+                      setDragTaskId(null)
+                      const dragged = tasks.find((x) => x.id === droppedId)
+                      if (dragged && dragged.status !== colStatus) {
+                        await update(dragged, { status: colStatus })
+                      }
+                    }}
+                    className={`border p-3 space-y-2.5 transition ${
+                      dragOverCol === colStatus ? 'border-emerald-400 bg-emerald-50/40 ring-2 ring-emerald-200' : 'border-slate-200 bg-slate-50/70'
+                    }`}
+                  >
                     <div className="flex items-center justify-between px-1">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                         {STATUS_META[colStatus].label}
@@ -614,14 +1040,39 @@ export default function TasksPage() {
                         {colTasks.length}
                       </span>
                     </div>
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault()
+                        const val = kanbanQuick[colStatus] || ''
+                        if (val.trim().length < 2) return
+                        setKanbanQuick((prev) => ({ ...prev, [colStatus]: '' }))
+                        await quickCreateTask(val, colStatus)
+                      }}
+                    >
+                      <input
+                        value={kanbanQuick[colStatus] || ''}
+                        onChange={(e) => setKanbanQuick((prev) => ({ ...prev, [colStatus]: e.target.value }))}
+                        placeholder="+ Hızlı ekle (Enter)..."
+                        className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] outline-none focus:border-emerald-500"
+                      />
+                    </form>
                     <div className="space-y-2">
                       {colTasks.map((t) => (
                         <div
                           key={t.id}
+                          draggable
+                          onDragStart={(e) => {
+                            setDragTaskId(t.id)
+                            e.dataTransfer.setData('text/plain', t.id)
+                          }}
+                          onDragEnd={() => {
+                            setDragTaskId(null)
+                            setDragOverCol(null)
+                          }}
                           onClick={() => openTask(t)}
-                          className={`rounded-xl border bg-white p-3 cursor-pointer transition hover:shadow-sm ${
+                          className={`rounded-xl border bg-white p-3 cursor-grab active:cursor-grabbing transition hover:shadow-sm ${
                             selected?.id === t.id ? 'border-emerald-500 ring-1 ring-emerald-500/20' : 'border-slate-200'
-                          }`}
+                          } ${dragTaskId === t.id ? 'opacity-50' : ''}`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <span className={`text-xs font-semibold ${t.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
@@ -631,6 +1082,22 @@ export default function TasksPage() {
                               {PRIORITY[t.priority].label}
                             </span>
                           </div>
+                          {(t.donor_name || (t.recurrence && t.recurrence !== 'none')) && (
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
+                              {t.recurrence && t.recurrence !== 'none' && (
+                                <span className="inline-flex items-center gap-0.5 rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-700 font-medium">
+                                  <Repeat className="w-2.5 h-2.5" />
+                                  {RECURRENCE_LABELS[t.recurrence]}
+                                </span>
+                              )}
+                              {t.donor_name && (
+                                <span className="inline-flex items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-slate-600 truncate max-w-[140px]">
+                                  <UserCheck className="w-2.5 h-2.5 shrink-0" />
+                                  {t.donor_name}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
                             <span className="truncate">{t.assigned_to_name || 'Atanmamış'}</span>
                             {t.due_date && (
@@ -662,7 +1129,7 @@ export default function TasksPage() {
                         </div>
                       ))}
                       {colTasks.length === 0 && (
-                        <p className="text-center text-[11px] text-slate-400 py-6">Görev yok</p>
+                        <p className="text-center text-[11px] text-slate-400 py-6">Kartı buraya sürükleyin veya hızlı ekleyin</p>
                       )}
                     </div>
                   </Card>
@@ -672,92 +1139,236 @@ export default function TasksPage() {
           )}
 
           {view === 'calendar' && (
-            <Card className="border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
+            <Card className="border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-                  >
-                    ←
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const now = new Date()
-                      setMonth(new Date(now.getFullYear(), now.getMonth(), 1))
-                    }}
-                  >
-                    Bugün
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-                  >
-                    →
+                  {calView !== 'agenda' && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (calView === 'week') {
+                            const d = new Date(weekBase)
+                            d.setDate(d.getDate() - 7)
+                            setWeekBase(d)
+                          } else {
+                            setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))
+                          }
+                        }}
+                      >
+                        ←
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const now = new Date()
+                          setMonth(new Date(now.getFullYear(), now.getMonth(), 1))
+                          const offset = (now.getDay() + 6) % 7
+                          setWeekBase(new Date(now.getFullYear(), now.getMonth(), now.getDate() - offset))
+                        }}
+                      >
+                        Bugün
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (calView === 'week') {
+                            const d = new Date(weekBase)
+                            d.setDate(d.getDate() + 7)
+                            setWeekBase(d)
+                          } else {
+                            setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))
+                          }
+                        }}
+                      >
+                        →
+                      </Button>
+                    </>
+                  )}
+                  <strong className="ml-2 text-sm font-bold text-slate-900">
+                    {calView === 'month' && `${MONTHS[month.getMonth()]} ${month.getFullYear()}`}
+                    {calView === 'week' &&
+                      `${weekDays[0].toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} – ${weekDays[6].toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                    {calView === 'agenda' && 'Yaklaşan Görev Ajandası'}
+                  </strong>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+                    {([['month', 'Aylık'], ['week', 'Haftalık'], ['agenda', 'Ajanda']] as const).map(([k, lbl]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setCalView(k)}
+                        className={`rounded-md px-2.5 py-1 font-medium transition ${
+                          calView === k ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={downloadIcs}>
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    Takvime Aktar (.ics)
                   </Button>
                 </div>
-                <strong className="text-sm font-bold text-slate-900">
-                  {MONTHS[month.getMonth()]} {month.getFullYear()}
-                </strong>
-                <span className="text-[11px] text-slate-400">Güne tıklayıp görev ekleyin</span>
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase text-slate-400">
-                {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((d) => (
-                  <div key={d}>{d}</div>
-                ))}
-              </div>
-              <div className="mt-1 grid grid-cols-7 gap-1">
-                {days.map((d, i) => {
-                  const isToday = d && iso(d) === iso(new Date())
-                  const dayTasks = d ? tasksOn(d) : []
-                  return (
-                    <div
-                      key={i}
-                      className={`min-h-[92px] rounded-lg border p-1 group ${
-                        isToday ? 'border-emerald-500 bg-emerald-50/20' : d ? 'border-slate-200 bg-white' : 'bg-transparent border-transparent'
-                      }`}
-                    >
-                      {d && (
-                        <>
-                          <div className="flex items-center justify-between mb-0.5">
-                            <button
-                              type="button"
-                              onClick={() => openQuickCreateForDay(d)}
-                              title="Bu tarihe görev ekle"
-                              className="opacity-0 group-hover:opacity-100 text-[10px] text-emerald-700 font-bold px-1 rounded hover:bg-emerald-50"
-                            >
-                              +
-                            </button>
-                            <span className={`text-[10px] font-semibold ${isToday ? 'text-emerald-700' : 'text-slate-400'}`}>
-                              {d.getDate()}
-                            </span>
-                          </div>
-                          {dayTasks.slice(0, 3).map((t) => (
+
+              {calView === 'month' && (
+                <>
+                  <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase text-slate-400">
+                    {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((d) => (
+                      <div key={d}>{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {days.map((d, i) => {
+                      const isToday = d && iso(d) === iso(new Date())
+                      const dayTasks = d ? tasksOn(d) : []
+                      return (
+                        <div
+                          key={i}
+                          className={`min-h-[92px] rounded-lg border p-1 group ${
+                            isToday ? 'border-emerald-500 bg-emerald-50/20' : d ? 'border-slate-200 bg-white' : 'bg-transparent border-transparent'
+                          }`}
+                        >
+                          {d && (
+                            <>
+                              <div className="flex items-center justify-between mb-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openQuickCreateForDay(d)}
+                                  title="Bu tarihe görev ekle"
+                                  className="opacity-0 group-hover:opacity-100 text-[10px] text-emerald-700 font-bold px-1 rounded hover:bg-emerald-50"
+                                >
+                                  +
+                                </button>
+                                <span className={`text-[10px] font-semibold ${isToday ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                  {d.getDate()}
+                                </span>
+                              </div>
+                              {dayTasks.slice(0, 3).map((t) => (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => openTask(t)}
+                                  className={`mb-0.5 block w-full truncate rounded border px-1 text-left text-[10px] ${PRIORITY[t.priority].cls} ${
+                                    t.status === 'done' ? 'line-through opacity-60' : ''
+                                  }`}
+                                >
+                                  {t.title}
+                                </button>
+                              ))}
+                              {dayTasks.length > 3 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDayModal({ date: d, tasks: dayTasks })}
+                                  className="text-[10px] font-semibold text-emerald-700 hover:underline"
+                                >
+                                  +{dayTasks.length - 3} görev daha
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+
+              {calView === 'week' && (
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
+                  {weekDays.map((d) => {
+                    const isToday = iso(d) === iso(new Date())
+                    const dayTasks = tasksOn(d)
+                    return (
+                      <div
+                        key={iso(d)}
+                        className={`min-h-[220px] rounded-xl border p-2 space-y-1.5 ${
+                          isToday ? 'border-emerald-500 bg-emerald-50/20' : 'border-slate-200 bg-slate-50/40'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1">
+                          <span className={`text-xs font-bold ${isToday ? 'text-emerald-700' : 'text-slate-700'}`}>
+                            {d.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric' })}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => openQuickCreateForDay(d)}
+                            title="Bu tarihe görev ekle"
+                            className="text-xs font-bold text-emerald-700 px-1 rounded hover:bg-emerald-50"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <div className="space-y-1">
+                          {dayTasks.map((t) => (
                             <button
                               key={t.id}
                               type="button"
                               onClick={() => openTask(t)}
-                              className={`mb-0.5 block w-full truncate rounded border px-1 text-left text-[10px] ${PRIORITY[t.priority].cls} ${
+                              className={`block w-full rounded-lg border p-1.5 text-left text-[11px] transition hover:shadow-sm ${PRIORITY[t.priority].cls} ${
                                 t.status === 'done' ? 'line-through opacity-60' : ''
                               }`}
                             >
-                              {t.title}
+                              <div className="font-semibold truncate">{t.title}</div>
+                              <div className="text-[10px] opacity-80 truncate">{t.assigned_to_name || 'Atanmamış'}</div>
                             </button>
                           ))}
-                          {dayTasks.length > 3 && <div className="text-[10px] text-slate-400">+{dayTasks.length - 3}</div>}
-                        </>
-                      )}
+                          {dayTasks.length === 0 && <div className="py-6 text-center text-[10px] text-slate-400">Görev yok</div>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {calView === 'agenda' && (
+                <div className="space-y-3">
+                  {agendaGroups.length === 0 && (
+                    <p className="py-10 text-center text-xs text-slate-400">Tarihli görev bulunamadı.</p>
+                  )}
+                  {agendaGroups.map(([dateKey, groupTasks]) => (
+                    <div key={dateKey} className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 flex items-center justify-between">
+                        <span>{new Date(dateKey).toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                        <span className="text-[11px] font-normal text-slate-500">{groupTasks.length} görev</span>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {groupTasks.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => openTask(t)}
+                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-slate-50/70"
+                          >
+                            <div className="min-w-0">
+                              <div className={`text-xs font-semibold truncate ${t.status === 'done' ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                                {t.title}
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                {t.assigned_to_name || 'Atanmamış'}
+                                {t.donor_name ? ` · ${t.donor_name}` : ''}
+                              </div>
+                            </div>
+                            <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold ${PRIORITY[t.priority].cls}`}>
+                              {PRIORITY[t.priority].label}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  )
-                })}
-              </div>
+                  ))}
+                </div>
+              )}
             </Card>
           )}
         </div>
@@ -873,6 +1484,44 @@ export default function TasksPage() {
                     </option>
                   ))}
                 </select>
+              </Label>
+              <Label label="Tekrar">
+                <select
+                  className={inputClass}
+                  value={selected.recurrence || 'none'}
+                  onChange={(e) => update(selected, { recurrence: e.target.value as Task['recurrence'] })}
+                >
+                  {Object.entries(RECURRENCE_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </Label>
+              <Label label="Bağışçı">
+                <div className="flex items-center gap-1.5">
+                  <select
+                    className={inputClass}
+                    value={selected.donor_id || ''}
+                    onChange={(e) => update(selected, { donor_id: e.target.value || null })}
+                  >
+                    <option value="">—</option>
+                    {donors.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.label}
+                      </option>
+                    ))}
+                  </select>
+                  {selected.donor_id && (
+                    <Link
+                      href={`/admin/bagiscilar?donor=${selected.donor_id}`}
+                      title="Bağışçı kartına git"
+                      className="shrink-0 rounded-lg border border-slate-200 p-2 text-emerald-700 hover:bg-emerald-50"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+                </div>
               </Label>
             </div>
 
@@ -996,6 +1645,37 @@ export default function TasksPage() {
               />
             </div>
 
+            <div className="border-t border-slate-100 pt-3 space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                <MessageSquare className="w-3.5 h-3.5 text-slate-500" />
+                Notlar & Yorumlar ({selected.comments?.length || 0})
+              </div>
+              {(selected.comments || []).length > 0 && (
+                <ul className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {(selected.comments || []).map((c) => (
+                    <li key={c.id} className="rounded-lg bg-slate-50 px-2.5 py-2 text-xs">
+                      <div className="flex items-center justify-between text-[10px] text-slate-400">
+                        <span className="font-semibold text-slate-700">{c.user_name}</span>
+                        <span>{new Date(c.created_at).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                      </div>
+                      <p className="mt-0.5 text-slate-700 whitespace-pre-wrap">{c.text}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form onSubmit={handleAddComment} className="flex gap-1.5">
+                <input
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Görev notu ekle..."
+                  className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs outline-none focus:border-emerald-500"
+                />
+                <Button type="submit" size="sm" variant="outline" disabled={sendingComment || !commentText.trim()}>
+                  <Send className="w-3.5 h-3.5" />
+                </Button>
+              </form>
+            </div>
+
             <div className="flex justify-end border-t border-slate-100 pt-3">
               <Button
                 type="button"
@@ -1012,11 +1692,50 @@ export default function TasksPage() {
         )}
       </div>
 
+      {dayModal && (
+        <Modal
+          title={`${dayModal.date.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`}
+          description={`Bu güne ait ${dayModal.tasks.length} görev listeleniyor.`}
+          onClose={() => setDayModal(null)}
+          size="md"
+        >
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {dayModal.tasks.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setDayModal(null)
+                  openTask(t)
+                }}
+                className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 p-2.5 text-left hover:bg-slate-50"
+              >
+                <div className="min-w-0">
+                  <div className={`text-xs font-semibold truncate ${t.status === 'done' ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                    {t.title}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {STATUS_META[t.status].label} · {t.assigned_to_name || 'Atanmamış'}
+                  </div>
+                </div>
+                <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold ${PRIORITY[t.priority].cls}`}>
+                  {PRIORITY[t.priority].label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
+
       {tplOpen && (
         <Modal
           title="Görev Şablonları"
           description="Sık tekrarlanan işler için hazır görev ve kontrol listesi şablonları oluşturun."
-          onClose={() => setTplOpen(false)}
+          onClose={() => {
+            setTplOpen(false)
+            setEditingTplId(null)
+            setTplForm({ title: '', description: '', priority: 'normal', category: '', default_duration_days: '3', checklistText: '' })
+          }}
           size="lg"
         >
           <div className="space-y-5">
@@ -1032,14 +1751,24 @@ export default function TasksPage() {
                           {PRIORITY[tpl.priority]?.label || tpl.priority} · {tpl.default_duration_days} gün · {tpl.checklist.length} kontrol maddesi
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteTemplate(tpl)}
-                        className="p-1 text-rose-500 hover:bg-rose-50 rounded"
-                        title="Şablonu sil"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEditTemplate(tpl)}
+                          className="p-1 text-slate-500 hover:bg-slate-100 rounded"
+                          title="Şablonu düzenle"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTemplate(tpl)}
+                          className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                          title="Şablonu sil"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1047,7 +1776,23 @@ export default function TasksPage() {
             )}
 
             <form onSubmit={handleSaveTemplate} className="space-y-3 border-t border-slate-100 pt-4">
-              <div className="text-xs font-semibold text-slate-700">Yeni Şablon Ekle</div>
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold text-slate-700">
+                  {editingTplId ? 'Şablonu Düzenle' : 'Yeni Şablon Ekle'}
+                </div>
+                {editingTplId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTplId(null)
+                      setTplForm({ title: '', description: '', priority: 'normal', category: '', default_duration_days: '3', checklistText: '' })
+                    }}
+                    className="text-[11px] text-slate-500 hover:text-slate-800"
+                  >
+                    Düzenlemeyi İptal Et
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   placeholder="Şablon adı *"
@@ -1091,7 +1836,7 @@ export default function TasksPage() {
               />
               <div className="flex justify-end">
                 <Button type="submit" size="sm" disabled={savingTpl}>
-                  {savingTpl ? 'Ekleniyor...' : 'Şablon Ekle'}
+                  {savingTpl ? 'Kaydediliyor...' : editingTplId ? 'Şablonu Güncelle' : 'Şablon Ekle'}
                 </Button>
               </div>
             </form>

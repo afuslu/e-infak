@@ -41,7 +41,9 @@ export function segmentSummary(message: string) {
 
 export interface SmsTemplate {
   id: string; name: string; body: string; event_key: string | null; event_label: string | null; campaign_id: string | null
-  auto_mode: 'auto' | 'manual' | 'off'; is_active: boolean; segments: SegmentInfo; updated_at: string | null
+  auto_mode: 'auto' | 'manual' | 'off'; is_active: boolean; has_default?: boolean
+  stats?: { sent: number; delivered: number; failed: number; last_used_at: string | null }
+  segments: SegmentInfo; updated_at: string | null
 }
 
 export interface SmsMeta {
@@ -55,8 +57,10 @@ export type SmsStatus = 'scheduled' | 'queued' | 'sent' | 'delivered' | 'failed'
 export interface SmsMessage {
   id: string; seq_no: number; phone: string; donor_id: string | null; donor_name: string | null; body: string
   status: SmsStatus; source: string; related_type: string | null; related_id: string | null
-  template_name: string | null; encoding: SmsEncoding; parts: number; provider: string | null; error: string | null
-  attempts: number; send_after: string; sent_at: string | null; delivered_at: string | null; created_at: string
+  batch_id?: string | null; ab_variant?: 'A' | 'B' | null; click_count?: number; clicked_at?: string | null
+  template_name: string | null; encoding: SmsEncoding; parts: number; provider: string | null; provider_ref?: string | null
+  error: string | null; attempts: number; report_checks?: number; report_checked_at?: string | null
+  send_after: string; sent_at: string | null; delivered_at: string | null; created_at: string
   created_by: string | null
 }
 

@@ -1,21 +1,22 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { Printer, RefreshCw } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Printer, RefreshCw, Search, TrendingDown, TrendingUp } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, apiErrorMessage, exportCsv, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, apiErrorMessage, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
 import { ExportButtons, PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
-type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors'
+type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors' | 'recurring'
 
 const REPORTS: { key: ReportKey; label: string; advanced: boolean }[] = [
   { key: 'monthly', label: 'Aylık Bağış', advanced: false },
   { key: 'daily', label: 'Günlük Toplam', advanced: true },
-  { key: 'yearly', label: '5 Yıllık Karşılaştırma', advanced: true },
+  { key: 'yearly', label: 'Yıllık Karşılaştırma', advanced: true },
   { key: 'campaigns', label: 'Kampanyalar', advanced: true },
   { key: 'staff', label: 'Personel Makbuz', advanced: true },
   { key: 'donors', label: 'Bağışçı Sayısı', advanced: true },
+  { key: 'recurring', label: 'Düzenli Bağışlar', advanced: true },
 ]
 
 const ENDPOINTS: Record<ReportKey, string> = {
@@ -25,6 +26,7 @@ const ENDPOINTS: Record<ReportKey, string> = {
   campaigns: '/reports/campaigns',
   staff: '/reports/staff-receipts',
   donors: '/reports/donors',
+  recurring: '/reports/recurring',
 }
 
 // Local calendar date; toISOString() would shift to UTC and land on the previous day in Türkiye.
@@ -32,25 +34,275 @@ const isoDate = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 const CURRENCIES = ['TRY', 'USD', 'EUR', 'GBP', 'SAR', 'CHF'] as const
+const CHART_COLORS = ['#059669', '#0284c7', '#7c3aed', '#d97706', '#e11d48', '#475569', '#0d9488']
 
-function Bars({ items, currency }: { items: { label: string; value: number; sub?: string }[]; currency: string }) {
-  const max = Math.max(1, ...items.map((i) => i.value))
+function DeltaBadge({ pct, label = 'önceki döneme göre' }: { pct: number | null | undefined; label?: string }) {
+  if (pct === null || pct === undefined) return null
+  const up = pct >= 0
   return (
-    <div className="flex h-56 items-end gap-1 overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/50 px-3 pt-6">
-      {items.map((item, idx) => (
-        <div key={idx} className="group flex h-full min-w-[22px] flex-1 flex-col items-center justify-end gap-1">
-          <span className="whitespace-nowrap rounded border bg-white px-1 text-[9px] font-bold text-primary-700 opacity-0 shadow-sm group-hover:opacity-100">
-            {formatMoney(item.value, currency)}{item.sub ? ` · ${item.sub}` : ''}
-          </span>
-          <div style={{ height: `${(item.value / max) * 80}%` }} className="w-full max-w-10 rounded-t bg-primary-600/90 group-hover:bg-primary-700" />
-          <span className="pb-2 text-[9px] font-bold text-gray-500">{item.label}</span>
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+        up ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+      }`}
+    >
+      {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+      {up ? '+' : ''}%{pct.toLocaleString('tr-TR')} {label}
+    </span>
+  )
+}
+
+function Bars({
+  items,
+  currency,
+  isCount = false,
+  allowCumulative = false,
+}: {
+  items: { label: string; value: number; sub?: string }[]
+  currency: string
+  isCount?: boolean
+  allowCumulative?: boolean
+}) {
+  const [cumulative, setCumulative] = useState(false)
+  const displayItems = useMemo(() => {
+    if (!cumulative) return items
+    let acc = 0
+    return items.map((i) => {
+      acc += i.value
+      return { ...i, value: acc }
+    })
+  }, [items, cumulative])
+
+  const max = Math.max(1, ...displayItems.map((i) => i.value))
+  const fmt = (v: number) => (isCount ? v.toLocaleString('tr-TR') : formatMoney(v, currency))
+
+  return (
+    <div className="space-y-2">
+      {allowCumulative && (
+        <div className="flex justify-end">
+          <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setCumulative(false)}
+              className={`rounded-md px-2.5 py-1 font-medium ${!cumulative ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+            >
+              Dönemsel
+            </button>
+            <button
+              type="button"
+              onClick={() => setCumulative(true)}
+              className={`rounded-md px-2.5 py-1 font-medium ${cumulative ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+            >
+              Kümülatif
+            </button>
+          </div>
         </div>
-      ))}
+      )}
+      <div className="relative flex h-60 items-end gap-1.5 overflow-x-auto rounded-xl border border-slate-100 bg-slate-50/50 px-3 pt-7 pb-1">
+        <div className="pointer-events-none absolute inset-x-3 top-7 bottom-7 flex flex-col justify-between text-[9px] text-slate-400">
+          <div className="border-b border-dashed border-slate-200/80 pb-0.5">{fmt(max)}</div>
+          <div className="border-b border-dashed border-slate-200/80 pb-0.5">{fmt(Math.round(max / 2))}</div>
+          <div />
+        </div>
+        {displayItems.map((item, idx) => (
+          <div key={idx} className="group relative z-10 flex h-full min-w-[24px] flex-1 flex-col items-center justify-end gap-1">
+            <span className="pointer-events-none whitespace-nowrap rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 opacity-0 shadow-sm transition group-hover:opacity-100">
+              {fmt(item.value)}{item.sub ? ` · ${item.sub}` : ''}
+            </span>
+            <div
+              style={{ height: `${Math.max(item.value > 0 ? 3 : 0, (item.value / max) * 76)}%` }}
+              className="w-full max-w-10 rounded-t-md bg-emerald-600/85 transition-all group-hover:bg-emerald-700"
+            />
+            <span className="pb-1 text-[10px] font-semibold text-slate-500">{item.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
-function ReportTable({ header, rows }: { header: string[]; rows: (string | number)[][] }) {
+function DonutBreakdown({
+  title,
+  items,
+  currency,
+  isCount = false,
+}: {
+  title: string
+  items: { label: string; value: number; count?: number }[]
+  currency: string
+  isCount?: boolean
+}) {
+  const total = items.reduce((s, i) => s + i.value, 0)
+  const fmt = (v: number) => (isCount ? v.toLocaleString('tr-TR') : formatMoney(v, currency))
+  const r = 38
+  const c = 2 * Math.PI * r
+  let offset = 0
+
+  return (
+    <Card className="border border-gray-100 p-5 shadow-sm space-y-3">
+      <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+      {total === 0 ? (
+        <p className="py-6 text-center text-xs text-slate-400">Veri bulunmuyor.</p>
+      ) : (
+        <div className="flex flex-col sm:flex-row items-center gap-5">
+          <svg viewBox="0 0 100 100" className="h-28 w-28 shrink-0 -rotate-90">
+            <circle cx="50" cy="50" r={r} fill="none" stroke="#f1f5f9" strokeWidth="14" />
+            {items.map((item, idx) => {
+              const frac = item.value / total
+              const dash = frac * c
+              const el = (
+                <circle
+                  key={idx}
+                  cx="50"
+                  cy="50"
+                  r={r}
+                  fill="none"
+                  stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                  strokeWidth="14"
+                  strokeDasharray={`${dash} ${c - dash}`}
+                  strokeDashoffset={-offset}
+                />
+              )
+              offset += dash
+              return el
+            })}
+          </svg>
+          <div className="w-full space-y-2">
+            {items.slice(0, 6).map((item, idx) => {
+              const pct = Math.round((item.value * 1000) / total) / 10
+              return (
+                <div key={idx} className="space-y-0.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 font-medium text-slate-700 truncate">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }} />
+                      {item.label}
+                    </span>
+                    <span className="shrink-0 tabular-nums font-semibold text-slate-900">
+                      {fmt(item.value)} <span className="text-slate-400 font-normal">(%{pct})</span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${pct}%`, backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function MultiYearChart({ years, monthLabels, currency }: { years: any[]; monthLabels: string[]; currency: string }) {
+  const max = Math.max(1, ...years.flatMap((y) => y.months as number[]))
+  const w = 640
+  const h = 210
+  const padX = 30
+  const padY = 20
+  const innerW = w - padX * 2
+  const innerH = h - padY * 2
+
+  return (
+    <div className="space-y-2 rounded-xl border border-slate-100 bg-slate-50/40 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-xs font-bold text-slate-700">Aylık Trend Karşılaştırması</span>
+        <div className="flex flex-wrap gap-3 text-xs">
+          {years.map((y, idx) => (
+            <span key={y.year} className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }} />
+              {y.year} ({formatMoney(y.total_cents, currency)})
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${w} ${h}`} className="w-full min-w-[480px] h-52">
+          {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+            const yPos = padY + innerH * (1 - t)
+            return <line key={i} x1={padX} x2={w - padX} y1={yPos} y2={yPos} stroke="#e2e8f0" strokeDasharray="3 3" />
+          })}
+          {years.map((yr, idx) => {
+            const color = CHART_COLORS[idx % CHART_COLORS.length]
+            const pts = (yr.months as number[])
+              .map((val, mIdx) => {
+                const x = padX + (mIdx / 11) * innerW
+                const yPos = padY + innerH * (1 - val / max)
+                return `${x},${yPos}`
+              })
+              .join(' ')
+            return (
+              <g key={yr.year}>
+                <polyline fill="none" stroke={color} strokeWidth="2.4" points={pts} />
+                {(yr.months as number[]).map((val, mIdx) => {
+                  const x = padX + (mIdx / 11) * innerW
+                  const yPos = padY + innerH * (1 - val / max)
+                  return (
+                    <circle key={mIdx} cx={x} cy={yPos} r="3.2" fill={color}>
+                      <title>{`${yr.year} ${monthLabels[mIdx]}: ${formatMoney(val, currency)}`}</title>
+                    </circle>
+                  )
+                })}
+              </g>
+            )
+          })}
+          {monthLabels.map((lbl, mIdx) => {
+            const x = padX + (mIdx / 11) * innerW
+            return (
+              <text key={lbl} x={x} y={h - 4} textAnchor="middle" fontSize="9" fill="#64748b">
+                {lbl.slice(0, 3)}
+              </text>
+            )
+          })}
+        </svg>
+      </div>
+    </div>
+  )
+}
+
+function StatusSummaryCard({ summary, currency }: { summary?: any; currency: string }) {
+  if (!summary) return null
+  return (
+    <Card className="border border-slate-200 bg-slate-50/50 p-4 shadow-sm">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">Finansal Mutabakat & Tahsilat Özeti</h3>
+        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+          Net Tahsilat Oranı: %{summary.collection_rate_pct}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
+        <div className="rounded-lg border border-emerald-200 bg-white p-2.5">
+          <div className="text-slate-500">Onaylanan</div>
+          <div className="mt-0.5 font-bold text-emerald-700">{formatMoney(summary.confirmed_cents, currency)}</div>
+          <div className="text-[11px] text-slate-400">{summary.confirmed_count} işlem</div>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-white p-2.5">
+          <div className="text-slate-500">Bekleyen Havale/İşlem</div>
+          <div className="mt-0.5 font-bold text-amber-700">{formatMoney(summary.pending_cents, currency)}</div>
+          <div className="text-[11px] text-slate-400">{summary.pending_count} işlem</div>
+        </div>
+        <div className="rounded-lg border border-rose-200 bg-white p-2.5">
+          <div className="text-slate-500">İade / İptal</div>
+          <div className="mt-0.5 font-bold text-rose-700">
+            {formatMoney((summary.refunded_cents || 0) + (summary.cancelled_cents || 0), currency)}
+          </div>
+          <div className="text-[11px] text-slate-400">
+            {(summary.refunded_count || 0) + (summary.cancelled_count || 0)} işlem
+          </div>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+          <div className="text-slate-500">Başarısız Deneme</div>
+          <div className="mt-0.5 font-bold text-slate-700">{formatMoney(summary.failed_cents, currency)}</div>
+          <div className="text-[11px] text-slate-400">{summary.failed_count} işlem</div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function ReportTable({ header, rows }: { header: string[]; rows: (string | number | ReactNode)[][] }) {
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -73,17 +325,137 @@ function ReportTable({ header, rows }: { header: string[]; rows: (string | numbe
   )
 }
 
-function Stat({ label, value, detail }: { label: string; value: string | number; detail?: StatCardDetail }) {
-  return <StatCard label={label} value={value} detail={detail} />
+interface SortCol {
+  label: string
+  sortKey?: string
+}
+
+function SortableReportTable({
+  columns,
+  rows,
+  searchPlaceholder = 'Tabloda ara...',
+}: {
+  columns: SortCol[]
+  rows: { searchText: string; sortValues: Record<string, number | string>; cells: (string | number | ReactNode)[] }[]
+  searchPlaceholder?: string
+}) {
+  const [query, setQuery] = useState('')
+  const [sortBy, setSortBy] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const base = q ? rows.filter((r) => r.searchText.toLowerCase().includes(q)) : rows
+    if (!sortBy) return base
+    return [...base].sort((a, b) => {
+      const av = a.sortValues[sortBy] ?? 0
+      const bv = b.sortValues[sortBy] ?? 0
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return sortDir === 'asc' ? av - bv : bv - av
+      }
+      return sortDir === 'asc' ? String(av).localeCompare(String(bv), 'tr') : String(bv).localeCompare(String(av), 'tr')
+    })
+  }, [rows, query, sortBy, sortDir])
+
+  const toggleSort = (key?: string) => {
+    if (!key) return
+    if (sortBy === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(key)
+      setSortDir('desc')
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="relative max-w-xs print:hidden">
+        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={searchPlaceholder}
+          className="w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 py-1.5 text-xs outline-none focus:border-emerald-500"
+        />
+      </div>
+      <div className="overflow-x-auto">
+        <Table>
+          <THead>
+            <Tr>
+              {columns.map((col, i) => (
+                <Th key={col.label} className={`pb-2 ${i > 0 ? 'text-right' : ''}`}>
+                  {col.sortKey ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(col.sortKey)}
+                      className={`inline-flex items-center gap-1 hover:text-slate-900 ${i > 0 ? 'justify-end' : ''}`}
+                    >
+                      {col.label}
+                      {sortBy === col.sortKey ? (
+                        sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 opacity-40" />
+                      )}
+                    </button>
+                  ) : (
+                    col.label
+                  )}
+                </Th>
+              ))}
+            </Tr>
+          </THead>
+          <TBody>
+            {filtered.length === 0 ? (
+              <Tr><Td colSpan={columns.length} className="text-center text-gray-400">Eşleşen kayıt yok.</Td></Tr>
+            ) : filtered.map((row, i) => (
+              <Tr key={i}>
+                {row.cells.map((cell, j) => (
+                  <Td key={j} className={`py-2 ${j > 0 ? 'text-right tabular-nums' : 'font-semibold text-gray-900'}`}>
+                    {cell}
+                  </Td>
+                ))}
+              </Tr>
+            ))}
+          </TBody>
+        </Table>
+      </div>
+    </div>
+  )
+}
+
+function Stat({
+  label,
+  value,
+  detail,
+  delta,
+}: {
+  label: string
+  value: string | number
+  detail?: StatCardDetail
+  delta?: number | null
+}) {
+  return (
+    <div className="space-y-1">
+      <StatCard label={label} value={value} detail={detail} />
+      {delta !== undefined && delta !== null && (
+        <div className="px-1">
+          <DeltaBadge pct={delta} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function ReportsPage() {
   const { data: access } = useAdminAccess()
   const advancedEnabled = hasFeature(access, 'reports_advanced')
   const today = new Date()
+
   const [report, setReport] = useState<ReportKey>('monthly')
   const [currency, setCurrency] = useState('TRY')
   const [year, setYear] = useState(today.getFullYear())
+  const [yearsCount, setYearsCount] = useState(5)
+  const [ytd, setYtd] = useState(false)
   const [start, setStart] = useState(isoDate(new Date(today.getFullYear(), 0, 1)))
   const [end, setEnd] = useState(isoDate(today))
   const [dataState, setDataState] = useState<{ key: ReportKey; payload: any } | null>(null)
@@ -91,6 +463,43 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+
+  // Hydrate initial filters from URL query parameters
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sp = new URLSearchParams(window.location.search)
+    const t = sp.get('tab') as ReportKey | null
+    if (t && REPORTS.some((r) => r.key === t)) setReport(t)
+    const cur = sp.get('currency')
+    if (cur && (CURRENCIES as readonly string[]).includes(cur)) setCurrency(cur)
+    const yr = Number(sp.get('year'))
+    if (yr >= 2000 && yr <= 2100) setYear(yr)
+    const yrs = Number(sp.get('years'))
+    if (yrs >= 2 && yrs <= 10) setYearsCount(yrs)
+    if (sp.get('ytd') === '1') setYtd(true)
+    const s = sp.get('start')
+    const e = sp.get('end')
+    if (s) setStart(s)
+    if (e) setEnd(e)
+  }, [])
+
+  // Persist filters to URL query parameters
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sp = new URLSearchParams()
+    sp.set('tab', report)
+    sp.set('currency', currency)
+    if (report === 'monthly') sp.set('year', String(year))
+    if (report === 'yearly') {
+      sp.set('years', String(yearsCount))
+      if (ytd) sp.set('ytd', '1')
+    }
+    if (['daily', 'campaigns', 'staff', 'donors'].includes(report)) {
+      sp.set('start', start)
+      sp.set('end', end)
+    }
+    window.history.replaceState(null, '', `?${sp.toString()}`)
+  }, [report, currency, year, yearsCount, ytd, start, end])
 
   const applyPreset = (preset: '7d' | '30d' | 'this_month' | 'last_month' | 'this_year') => {
     const now = new Date()
@@ -120,9 +529,10 @@ export default function ReportsPage() {
 
   const params = useMemo(() => {
     if (report === 'monthly') return { year, currency }
-    if (report === 'yearly') return { years: 5, currency }
+    if (report === 'yearly') return { years: yearsCount, ytd, currency }
+    if (report === 'recurring') return { currency }
     return { start, end, currency }
-  }, [report, year, start, end, currency])
+  }, [report, year, yearsCount, ytd, start, end, currency])
 
   useEffect(() => {
     const meta = REPORTS.find((r) => r.key === report)
@@ -145,35 +555,52 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Raporlar" actions={<div className="flex flex-wrap items-center gap-2 text-sm print:hidden">
-          {report === 'monthly' && (
-            <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-lg border bg-white p-2 font-semibold">
-              {Array.from({ length: 6 }, (_, i) => today.getFullYear() - i).map((y) => <option key={y} value={y}>{y}</option>)}
+      <PageHeader
+        title="Raporlar"
+        description="Bağış, kampanya, tahsilat, bağışçı ve düzenli abonelik performansını dönemsel kıyaslamalarla analiz edin."
+        actions={
+          <div className="flex flex-wrap items-center gap-2 text-sm print:hidden">
+            {report === 'monthly' && (
+              <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-lg border bg-white p-2 font-semibold">
+                {Array.from({ length: 6 }, (_, i) => today.getFullYear() - i).map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            )}
+            {report === 'yearly' && (
+              <>
+                <select value={yearsCount} onChange={(e) => setYearsCount(Number(e.target.value))} className="rounded-lg border bg-white p-2 font-semibold">
+                  {[2, 3, 5, 10].map((n) => <option key={n} value={n}>Son {n} Yıl</option>)}
+                </select>
+                <label className="inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <input type="checkbox" checked={ytd} onChange={(e) => setYtd(e.target.checked)} className="accent-emerald-600" />
+                  Yıl Başından Bugüne (YTD)
+                </label>
+              </>
+            )}
+            {['daily', 'campaigns', 'staff', 'donors'].includes(report) && (
+              <>
+                <input type="date" value={start} max={end} onChange={(e) => setStart(e.target.value)} className="rounded-lg border bg-white p-2" />
+                <span className="text-gray-400">–</span>
+                <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} className="rounded-lg border bg-white p-2" />
+              </>
+            )}
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-lg border bg-white p-2 font-semibold">
+              {CURRENCIES.map((c) => <option key={c} value={c}>{c === 'TRY' ? 'TL' : c}</option>)}
             </select>
-          )}
-          {['daily', 'campaigns', 'staff', 'donors'].includes(report) && (
-            <>
-              <input type="date" value={start} max={end} onChange={(e) => setStart(e.target.value)} className="rounded-lg border bg-white p-2" />
-              <span className="text-gray-400">–</span>
-              <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} className="rounded-lg border bg-white p-2" />
-            </>
-          )}
-          <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-lg border bg-white p-2 font-semibold">
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c === 'TRY' ? 'TL' : c}</option>)}
-          </select>
-          <button
-            type="button"
-            onClick={() => setReloadKey((k) => k + 1)}
-            disabled={loading}
-            className="inline-flex items-center gap-1 rounded-lg border bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Yenile
-          </button>
-          <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-bold text-primary-700 hover:bg-primary-100">
-            <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
-          </button>
-        </div>} />
+            <button
+              type="button"
+              onClick={() => setReloadKey((k) => k + 1)}
+              disabled={loading}
+              className="inline-flex items-center gap-1 rounded-lg border bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Yenile
+            </button>
+            <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-bold text-primary-700 hover:bg-primary-100">
+              <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
+            </button>
+          </div>
+        }
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <div className="flex flex-wrap gap-2">
@@ -181,7 +608,9 @@ export default function ReportsPage() {
             <button
               key={r.key}
               onClick={() => setReport(r.key)}
-              className={`rounded-full border px-4 py-1.5 text-sm font-semibold ${report === r.key ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white text-gray-700 hover:border-primary-600'}`}
+              className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition ${
+                report === r.key ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white text-gray-700 hover:border-primary-600'
+              }`}
             >
               {r.label}{r.advanced && !advancedEnabled ? ' (üst pakette)' : ''}
             </button>
@@ -234,6 +663,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
           <Stat
             label={`${data.year} toplam`}
             value={money(data.total_cents)}
+            delta={data.change_pct}
             detail={{
               title: `${data.year} Aylık Bağış Dökümü`,
               content: () => <ReportTable header={['Ay', 'Bağış adedi', 'Bağışçı', 'Toplam']} rows={rows} />,
@@ -261,15 +691,23 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
             }}
           />
         </div>
+        <StatusSummaryCard summary={data.status_summary} currency={currency} />
         <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
-          <Bars currency={currency} items={data.months.map((m: any) => ({ label: m.label.slice(0, 3), value: m.total_cents, sub: `${m.count} bağış` }))} />
+          <Bars allowCumulative currency={currency} items={data.months.map((m: any) => ({ label: m.label.slice(0, 3), value: m.total_cents, sub: `${m.count} bağış` }))} />
           <ExportButton name={`aylik-bagis-${data.year}.csv`} header={['Ay', 'Bağış adedi', 'Bağışçı', 'Toplam']} rows={rows} />
           <ReportTable header={['Ay', 'Bağış adedi', 'Bağışçı', 'Toplam']} rows={rows} />
         </Card>
-        <Card className="border border-gray-100 p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold text-gray-900">Ödeme kanalları</h2>
-          <ReportTable header={['Kanal', 'Adet', 'Toplam']} rows={data.payment_methods.map((p: any) => [p.label, p.count, money(p.total_cents)])} />
-        </Card>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <DonutBreakdown
+            title="Ödeme kanalları dağılımı"
+            currency={currency}
+            items={data.payment_methods.map((p: any) => ({ label: p.label, value: p.total_cents, count: p.count }))}
+          />
+          <Card className="border border-gray-100 p-6 shadow-sm">
+            <h2 className="mb-3 text-sm font-bold text-gray-900">Ödeme kanalları tablosu</h2>
+            <ReportTable header={['Kanal', 'Adet', 'Toplam']} rows={data.payment_methods.map((p: any) => [p.label, p.count, money(p.total_cents)])} />
+          </Card>
+        </div>
       </div>
     )
   }
@@ -277,11 +715,12 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
   if (report === 'daily') {
     const rows = data.days.map((d: any) => [d.date.split('-').reverse().join('.'), d.count, money(d.total_cents)])
     return (
-      <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
+      <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <Stat
             label="Aralık toplamı"
             value={money(data.total_cents)}
+            delta={data.change_pct}
             detail={{
               title: 'Günlük Bağış Dökümü',
               content: () => <ReportTable header={['Tarih', 'Adet', 'Toplam']} rows={[...rows].reverse()} />,
@@ -296,10 +735,13 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
             }}
           />
         </div>
-        <Bars currency={currency} items={data.days.map((d: any) => ({ label: d.date.slice(8, 10), value: d.total_cents, sub: d.date }))} />
-        <ExportButton name={`gunluk-bagis-${data.start}-${data.end}.csv`} header={['Tarih', 'Adet', 'Toplam']} rows={rows} />
-        <ReportTable header={['Tarih', 'Adet', 'Toplam']} rows={[...rows].reverse()} />
-      </Card>
+        <StatusSummaryCard summary={data.status_summary} currency={currency} />
+        <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
+          <Bars allowCumulative currency={currency} items={data.days.map((d: any) => ({ label: d.date.slice(8, 10), value: d.total_cents, sub: d.date }))} />
+          <ExportButton name={`gunluk-bagis-${data.start}-${data.end}.csv`} header={['Tarih', 'Adet', 'Toplam']} rows={rows} />
+          <ReportTable header={['Tarih', 'Adet', 'Toplam']} rows={[...rows].reverse()} />
+        </Card>
+      </div>
     )
   }
 
@@ -312,42 +754,96 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
       y.change_pct === null ? '—' : `%${y.change_pct.toLocaleString('tr-TR')}`,
     ])
     return (
-      <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
-        <Bars currency={currency} items={data.years.map((y: any) => ({ label: String(y.year), value: y.total_cents, sub: `${y.count} bağış` }))} />
-        <ExportButton name="yillik-karsilastirma.csv" header={header} rows={rows} />
-        <ReportTable header={header} rows={rows} />
-      </Card>
+      <div className="space-y-4">
+        <MultiYearChart years={data.years} monthLabels={data.month_labels} currency={currency} />
+        <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
+          <Bars currency={currency} items={data.years.map((y: any) => ({ label: String(y.year), value: y.total_cents, sub: `${y.count} bağış` }))} />
+          <ExportButton name="yillik-karsilastirma.csv" header={header} rows={rows} />
+          <ReportTable header={header} rows={rows} />
+        </Card>
+      </div>
     )
   }
 
   if (report === 'campaigns') {
     const header = ['Kampanya', 'Bağış adedi', 'Bağışçı', 'Ortalama', 'Pay', 'Hedef doluluk', 'Toplam']
-    const rows = data.campaigns.map((c: any) => [
+    const exportRows = data.campaigns.map((c: any) => [
       c.title, c.count, c.donor_count, money(c.average_cents), `%${c.share_pct}`,
       c.progress_pct === null ? '—' : `%${c.progress_pct}`, money(c.total_cents),
     ])
     const typeRows = (data.categories || []).map((t: any) => [t.label, t.count, `%${t.share_pct}`, money(t.total_cents)])
     return (
       <div className="space-y-4">
-      <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
-        <h2 className="text-sm font-bold text-gray-900">Bağış türlerine göre</h2>
-        <ExportButton name={`bagis-turleri-${data.start}-${data.end}.csv`} header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
-        <ReportTable header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
-      </Card>
-      <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
-        <Stat
-          label="Aralık toplamı"
-          value={money(data.total_cents)}
-          detail={{
-            title: 'Kampanya Dağılımı',
-            content: () => <ReportTable header={header} rows={rows} />,
-          }}
-        />
-        <h2 className="text-sm font-bold text-gray-900">En çok bağış alan kampanyalar</h2>
-        <Bars currency={currency} items={data.campaigns.slice(0, 10).map((c: any) => ({ label: c.title.slice(0, 10), value: c.total_cents, sub: c.title }))} />
-        <ExportButton name={`kampanya-raporu-${data.start}-${data.end}.csv`} header={header} rows={rows} />
-        <ReportTable header={header} rows={rows} />
-      </Card>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Stat
+            label="Aralık toplamı"
+            value={money(data.total_cents)}
+            delta={data.change_pct}
+            detail={{
+              title: 'Kampanya Dağılımı',
+              content: () => <ReportTable header={header} rows={exportRows} />,
+            }}
+          />
+          <Stat
+            label="Aktif kampanya (bağış alan)"
+            value={data.campaigns.length}
+          />
+        </div>
+        <StatusSummaryCard summary={data.status_summary} currency={currency} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <DonutBreakdown
+            title="Bağış türlerine göre dağılım"
+            currency={currency}
+            items={(data.categories || []).map((t: any) => ({ label: t.label, value: t.total_cents, count: t.count }))}
+          />
+          <Card className="space-y-3 border border-gray-100 p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-gray-900">Bağış türleri tablosu</h2>
+              <ExportButton name={`bagis-turleri-${data.start}-${data.end}.csv`} header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
+            </div>
+            <ReportTable header={['Tür', 'Adet', 'Pay', 'Toplam']} rows={typeRows} />
+          </Card>
+        </div>
+        <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
+          <h2 className="text-sm font-bold text-gray-900">En çok bağış alan kampanyalar</h2>
+          <Bars currency={currency} items={data.campaigns.slice(0, 10).map((c: any) => ({ label: c.title.slice(0, 10), value: c.total_cents, sub: c.title }))} />
+          <ExportButton name={`kampanya-raporu-${data.start}-${data.end}.csv`} header={header} rows={exportRows} />
+          <SortableReportTable
+            searchPlaceholder="Kampanya ara..."
+            columns={[
+              { label: 'Kampanya', sortKey: 'title' },
+              { label: 'Bağış adedi', sortKey: 'count' },
+              { label: 'Bağışçı', sortKey: 'donor_count' },
+              { label: 'Ortalama', sortKey: 'average_cents' },
+              { label: 'Pay', sortKey: 'share_pct' },
+              { label: 'Hedef doluluk', sortKey: 'progress_pct' },
+              { label: 'Toplam', sortKey: 'total_cents' },
+            ]}
+            rows={data.campaigns.map((c: any) => ({
+              searchText: `${c.title} ${c.category}`,
+              sortValues: {
+                title: c.title,
+                count: c.count,
+                donor_count: c.donor_count,
+                average_cents: c.average_cents,
+                share_pct: c.share_pct,
+                progress_pct: c.progress_pct ?? -1,
+                total_cents: c.total_cents,
+              },
+              cells: [
+                <Link key={c.id} href={`/admin/bagislar?campaign_id=${c.id}`} className="text-emerald-700 hover:underline">
+                  {c.title}
+                </Link>,
+                c.count,
+                c.donor_count,
+                money(c.average_cents),
+                `%${c.share_pct}`,
+                c.progress_pct === null ? '—' : `%${c.progress_pct}`,
+                money(c.total_cents),
+              ],
+            }))}
+          />
+        </Card>
       </div>
     )
   }
@@ -361,11 +857,79 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
       <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
         <p className="text-xs text-gray-500">
           Havale/EFT onayı veya banka mutabakatıyla makbuz kesen personel. Kartla yapılan online bağışlar &quot;Online (otomatik)&quot; satırındadır.
-          Bu güncellemeden önceki havale onaylarında personel bilgisi tutulmadığı için onlar da online satırında görünür.
         </p>
         <ExportButton name={`personel-makbuz-${data.start}-${data.end}.csv`} header={header} rows={rows} />
-        <ReportTable header={header} rows={rows} />
+        <SortableReportTable
+          searchPlaceholder="Personel ara..."
+          columns={[
+            { label: 'Personel', sortKey: 'name' },
+            { label: 'Makbuz adedi', sortKey: 'count' },
+            { label: 'Son makbuz' },
+            { label: 'Toplam', sortKey: 'total_cents' },
+          ]}
+          rows={data.staff.map((s: any) => ({
+            searchText: `${s.name} ${s.email || ''}`,
+            sortValues: { name: s.name, count: s.count, total_cents: s.total_cents },
+            cells: [
+              s.name,
+              s.count,
+              s.last_receipt_at ? new Date(s.last_receipt_at).toLocaleString('tr-TR') : '—',
+              money(s.total_cents),
+            ],
+          }))}
+        />
       </Card>
+    )
+  }
+
+  if (report === 'recurring') {
+    const campHeader = ['Kampanya', 'Aktif Abone', 'Aylık Yinelenen (MRR)']
+    const campRows = (data.by_campaign || []).map((c: any) => [c.title, c.count, money(c.mrr_cents)])
+    return (
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Aylık Yinelenen (MRR)" value={money(data.mrr_cents || 0)} />
+          <Stat label="Yıllık Projeksiyon (ARR)" value={money(data.arr_cents || 0)} />
+          <Stat label="Aktif Düzenli Bağış" value={(data.active_count || 0).toLocaleString('tr-TR')} />
+          <Stat label="Kayıp Oranı (Churn)" value={`%${data.churn_rate_pct ?? 0}`} />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Card className="border border-slate-200 p-4 text-xs">
+            <div className="text-slate-500">Ortalama Abonelik Tutarı</div>
+            <div className="mt-1 text-lg font-bold text-slate-900">{money(data.avg_amount_cents || 0)}</div>
+          </Card>
+          <Card className="border border-amber-200 bg-amber-50/40 p-4 text-xs">
+            <div className="text-amber-700">Riskli (Tahsilat Hatası Alan)</div>
+            <div className="mt-1 text-lg font-bold text-amber-800">{data.at_risk_count || 0} abone</div>
+          </Card>
+          <Card className="border border-slate-200 p-4 text-xs">
+            <div className="text-slate-500">Duraklatılan / İptal Edilen</div>
+            <div className="mt-1 text-lg font-bold text-slate-800">{data.paused_count || 0} / {data.cancelled_count || 0}</div>
+          </Card>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <DonutBreakdown
+            title="Tahsilat Modu Dağılımı (MRR)"
+            currency={currency}
+            items={(data.by_mode || []).map((m: any) => ({ label: `${m.label} (${m.count})`, value: m.mrr_cents }))}
+          />
+          <Card className="border border-gray-100 p-6 shadow-sm space-y-3">
+            <h2 className="text-sm font-bold text-gray-900">Son 6 Ayda Başlayan Düzenli Bağışlar</h2>
+            <Bars
+              isCount
+              currency={currency}
+              items={(data.new_by_month || []).map((m: any) => ({ label: m.label.slice(0, 3), value: m.count, sub: money(m.mrr_cents) }))}
+            />
+          </Card>
+        </div>
+        <Card className="border border-gray-100 p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-900">Kampanyalara Göre Düzenli Bağışlar</h2>
+            <ExportButton name="duzenli-bagislar.csv" header={campHeader} rows={campRows} />
+          </div>
+          <ReportTable header={campHeader} rows={campRows} />
+        </Card>
+      </div>
     )
   }
 
@@ -389,6 +953,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
         <Stat
           label="Aralıkta bağış yapan"
           value={(data.active_donors ?? 0).toLocaleString('tr-TR')}
+          delta={data.active_change_pct}
           detail={{
             title: 'Şehir Bazlı Bağışçılar (İlk 10)',
             content: () => <ReportTable header={['Şehir', 'Bağışçı']} rows={(data.by_city ?? []).map((c: any) => [c.label, c.count])} />,
@@ -403,7 +968,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
           }}
         />
         <Stat
-          label="Tekrar bağış yapan"
+          label={`Tekrar bağış yapan (%${data.retention_rate_pct ?? 0})`}
           value={(data.returning_donors ?? 0).toLocaleString('tr-TR')}
           detail={{
             title: 'Bağışçı Özeti',
@@ -415,6 +980,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
                   ['Aralıkta aktif', (data.active_donors ?? 0).toLocaleString('tr-TR')],
                   ['İlk kez bağış yapan', (data.new_donors ?? 0).toLocaleString('tr-TR')],
                   ['Tekrar bağış yapan', (data.returning_donors ?? 0).toLocaleString('tr-TR')],
+                  ['Elde tutma oranı', `%${data.retention_rate_pct ?? 0}`],
                 ]}
               />
             ),
@@ -426,12 +992,12 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
           <h2 className="mb-3 text-sm font-bold text-gray-900">Yeni bağışçılar (aylık)</h2>
           <ReportTable header={['Ay', 'Yeni']} rows={(data.new_by_month ?? []).map((m: any) => [m.label, m.count])} />
         </Card>
-        <Card className="border border-gray-100 p-6 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold text-gray-900">Ülke (yurt içi / yurt dışı)</h2>
-          <ReportTable header={['Ülke', 'Bağışçı']} rows={(data.by_country ?? []).map((c: any) => [c.label, c.count])} />
-          <h2 className="mb-3 mt-6 text-sm font-bold text-gray-900">Tür</h2>
-          <ReportTable header={['Tür', 'Bağışçı']} rows={(data.by_type ?? []).map((c: any) => [c.label, c.count])} />
-        </Card>
+        <DonutBreakdown
+          title="Bağışçı Türü & Ülke Dağılımı"
+          isCount
+          currency={currency}
+          items={(data.by_type ?? []).map((c: any) => ({ label: c.label, value: c.count }))}
+        />
         <Card className="border border-gray-100 p-6 shadow-sm">
           <h2 className="mb-3 text-sm font-bold text-gray-900">Şehir (ilk 10)</h2>
           <ReportTable header={['Şehir', 'Bağışçı']} rows={(data.by_city ?? []).map((c: any) => [c.label, c.count])} />

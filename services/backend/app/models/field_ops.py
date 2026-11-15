@@ -196,6 +196,8 @@ class Task(Base):
     template_id = Column(UUID(as_uuid=True), ForeignKey("task_templates.id", ondelete="SET NULL"))
     donor_id = Column(UUID(as_uuid=True), ForeignKey("donors.id", ondelete="SET NULL"))
     checklist = Column(JSONB, nullable=False, default=list)  # [{"text": "...", "done": false}]
+    recurrence = Column(String(16), nullable=False, default="none", server_default="none")
+    comments = Column(JSONB, nullable=False, default=list, server_default="[]")
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     completed_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

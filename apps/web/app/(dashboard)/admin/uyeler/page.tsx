@@ -6,7 +6,7 @@ import axios from 'axios'
 import { AlertTriangle, Check, Copy, CreditCard, MessageSquare, SlidersHorizontal, Trash2, Users, Wallet } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
-import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { ExportButtons, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
@@ -95,6 +95,7 @@ export default function MembersPage() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [members, setMembers] = useState<MemberRow[]>([])
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
   const [pickedMembers, setPickedMembers] = useState<Set<string>>(new Set())
   const [bulkStatus, setBulkStatus] = useState('passive')
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -246,6 +247,19 @@ export default function MembersPage() {
             subtitle={`Toplam ${Object.values(summary.members).reduce((a, b) => a + b, 0).toLocaleString('tr-TR')} kayıtlı üye`}
             gradient="from-emerald-600 to-teal-700"
             icon={<Users className="h-5 w-5" />}
+            onClick={() => {
+              const total = Math.max(1, Object.values(summary.members).reduce((a, b) => a + b, 0))
+              setStatModal({
+                title: 'Üye Durum Dağılımı',
+                subtitle: `Toplam ${total.toLocaleString('tr-TR')} kayıtlı üye`,
+                items: Object.entries(summary.members).map(([k, count]) => ({
+                  label: k === 'active' ? 'Aktif Üye' : k === 'passive' ? 'Pasif Üye' : k === 'suspended' ? 'Askıda' : k,
+                  value: `${count.toLocaleString('tr-TR')} kişi`,
+                  color: k === 'active' ? 'emerald' : 'amber',
+                  percent: Math.round((count / total) * 100),
+                })),
+              })
+            }}
           />
           <GlobalStatCard
             title="Geciken Aidat"
@@ -253,6 +267,21 @@ export default function MembersPage() {
             subtitle={`${summary.overdue_members} üye gecikmede`}
             gradient={summary.overdue_cents > 0 ? 'from-rose-600 to-red-700' : 'from-slate-600 to-slate-700'}
             icon={<AlertTriangle className="h-5 w-5" />}
+            onClick={() => {
+              const list = members.filter((m) => m.overdue_count > 0).sort((a, b) => b.open_dues_cents - a.open_dues_cents)
+              const max = Math.max(1, ...list.map((m) => m.open_dues_cents))
+              setStatModal({
+                title: 'Gecikmiş Aidat Özeti',
+                subtitle: `Toplam ${formatMoney(summary.overdue_cents)} (${summary.overdue_members} üye)`,
+                items: list.slice(0, 15).map((m) => ({
+                  label: m.full_name || m.member_no,
+                  value: formatMoney(m.open_dues_cents),
+                  sub: `${m.overdue_count} geciken dönem${m.phone ? ` · ${m.phone}` : ''}`,
+                  color: 'rose',
+                  percent: Math.round((m.open_dues_cents / max) * 100),
+                })),
+              })
+            }}
           />
           <GlobalStatCard
             title="Açık Aidat Toplamı"
@@ -260,6 +289,21 @@ export default function MembersPage() {
             subtitle="Bekleyen toplam alacak"
             gradient="from-amber-500 to-orange-600"
             icon={<Wallet className="h-5 w-5" />}
+            onClick={() => {
+              const list = members.filter((m) => m.open_dues_cents > 0).sort((a, b) => b.open_dues_cents - a.open_dues_cents)
+              const max = Math.max(1, ...list.map((m) => m.open_dues_cents))
+              setStatModal({
+                title: 'Açık Aidat Alacakları',
+                subtitle: `Toplam bekleyen alacak: ${formatMoney(summary.open_cents)}`,
+                items: list.slice(0, 15).map((m) => ({
+                  label: m.full_name || m.member_no,
+                  value: formatMoney(m.open_dues_cents),
+                  sub: m.overdue_count > 0 ? `${m.overdue_count} dönem gecikmede` : 'Vadesi gelmemiş',
+                  color: 'amber',
+                  percent: Math.round((m.open_dues_cents / max) * 100),
+                })),
+              })
+            }}
           />
           <GlobalStatCard
             title={`${summary.year} Tahsilat`}
@@ -267,9 +311,25 @@ export default function MembersPage() {
             subtitle="Bu yıl tahsil edilen"
             gradient="from-sky-600 to-blue-700"
             icon={<CreditCard className="h-5 w-5" />}
+            onClick={() => setStatModal({
+              title: `${summary.year} Yılı Aidat Özeti`,
+              subtitle: `Tahsil edilen toplam: ${formatMoney(summary.collected_cents)}`,
+              items: [
+                { label: `${summary.year} Tahsilat`, value: formatMoney(summary.collected_cents), color: 'emerald' },
+                { label: 'Açık Aidat Alacağı', value: formatMoney(summary.open_cents), color: 'amber' },
+                { label: 'Geciken Aidat', value: formatMoney(summary.overdue_cents), sub: `${summary.overdue_members} üye`, color: 'rose' },
+              ],
+            })}
           />
         </div>
       )}
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       <div className="flex gap-1 overflow-x-auto border-b text-sm font-semibold">
         {([['members', 'Üyeler'], ['dues', 'Aidatlar'], ['duplicates', 'Çift üyeler'], ['settings', 'Aidat ayarı']] as [Tab, string][]).map(([k, l]) => (

@@ -137,8 +137,21 @@ async def resolve(db: AsyncSession, org_id: UUID, audience: Audience, *, commerc
             recipients.append(Recipient(number, donor_id, name or "", first_name or ""))
 
     if audience.kind == "numbers":
-        for part in re.split(r"[\n,;\t]+", audience.numbers or ""):
-            if part.strip():
+        for line in re.split(r"[\r\n]+", audience.numbers or ""):
+            raw_line = line.strip()
+            if not raw_line:
+                continue
+            cols = [c.strip().strip('"').strip("'") for c in re.split(r"[,;\t]+", raw_line) if c.strip()]
+            if len(cols) == 2 and bool(_valid(cols[0])) != bool(_valid(cols[1])):
+                phone_col, name_col = (cols[0], cols[1]) if _valid(cols[0]) else (cols[1], cols[0])
+                # Skip common CSV header lines like "telefon,ad_soyad"
+                if any(ch.isdigit() for ch in phone_col):
+                    add(phone_col, True, name=name_col, first_name=name_col.split(" ")[0])
+                continue
+            for part in cols:
+                # Skip obvious CSV header words without any digits
+                if not any(ch.isdigit() for ch in part):
+                    continue
                 add(part, True)  # the sender vouches for a pasted list
         return recipients, stats
 

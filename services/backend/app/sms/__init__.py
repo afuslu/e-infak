@@ -53,6 +53,12 @@ class SmsProvider:
         """`commercial`: a promotional message to a consumer, checked against İYS by the provider."""
         raise NotImplementedError
 
+    bulk_chunk = 100
+
+    def send_bulk(self, items: list[tuple[str, str]], commercial: bool = False) -> list[SmsResult]:
+        """Send a chunk of `(phone, message)` pairs in as few HTTP requests as the provider allows."""
+        return [self.send(phone, message, commercial) for phone, message in items]
+
     # How many references one reports() call may carry, and how many calls a polling round may make
     # (providers limit report queries per minute).
     report_chunk = 1
@@ -112,16 +118,22 @@ class NetgsmProvider(SmsProvider):
     secret_fields = {"password"}
     optional_fields = {"sender"}
 
-    def send(self, phone: str, message: str, commercial: bool = False) -> SmsResult:
+    def _netgsm_no(self, phone: str) -> str:
         number = normalize_tr_phone(phone)
-        # NetGSM wants 5XXXXXXXXX for Turkish numbers and 00-prefixed international ones.
-        number = number[2:] if number.startswith("90") else (number if number.startswith("00") else "00" + number)
+        return number[2:] if number.startswith("90") else (number if number.startswith("00") else "00" + number)
+
+    def send(self, phone: str, message: str, commercial: bool = False) -> SmsResult:
+        return self.send_bulk([(phone, message)], commercial)[0]
+
+    def send_bulk(self, items: list[tuple[str, str]], commercial: bool = False) -> list[SmsResult]:
+        if not items:
+            return []
         response = self._http(
             "POST", "https://api.netgsm.com.tr/sms/rest/v2/send",
             auth=(self.credentials["username"], self.credentials["password"]),
             json={
                 "msgheader": self.credentials.get("sender") or "",
-                "messages": [{"msg": message, "no": number}],
+                "messages": [{"msg": msg, "no": self._netgsm_no(phone)} for phone, msg in items],
                 "encoding": "TR",
                 # "0": informational (receipts, codes, reminders); "11": commercial to consumers (İYS checked)
                 "iysfilter": "11" if commercial else "0",
@@ -136,7 +148,8 @@ class NetgsmProvider(SmsProvider):
         if response.status_code != 200 or code != "00":
             reason = NETGSM_ERRORS.get(code) or data.get("description") or f"HTTP {response.status_code}"
             raise SmsError(f"NetGSM gönderimi reddetti (kod {code or '-'}: {reason})")
-        return SmsResult(self.key, str(data.get("jobid") or "") or None)
+        result = SmsResult(self.key, str(data.get("jobid") or "") or None)
+        return [result] * len(items)
 
     report_chunk = 50
     report_calls = 4  # NetGSM allows 10 report queries a minute
@@ -189,9 +202,14 @@ class VerimorProvider(SmsProvider):
     optional_fields = {"sender"}
 
     def send(self, phone: str, message: str, commercial: bool = False) -> SmsResult:
+        return self.send_bulk([(phone, message)], commercial)[0]
+
+    def send_bulk(self, items: list[tuple[str, str]], commercial: bool = False) -> list[SmsResult]:
+        if not items:
+            return []
         payload = {
             "username": self.credentials["username"], "password": self.credentials["password"],
-            "messages": [{"msg": message, "dest": normalize_tr_phone(phone)}],
+            "messages": [{"msg": msg, "dest": normalize_tr_phone(phone)} for phone, msg in items],
         }
         if self.credentials.get("sender"):
             payload["source_addr"] = self.credentials["sender"]
@@ -201,7 +219,8 @@ class VerimorProvider(SmsProvider):
         body = response.text.strip()
         if response.status_code != 200:
             raise SmsError(f"Verimor gönderimi reddetti ({body[:80] or response.status_code})")
-        return SmsResult(self.key, body[:64] or None)
+        result = SmsResult(self.key, body[:64] or None)
+        return [result] * len(items)
 
     VERIMOR_PENDING = {"SENDING", "WAITING", "SENT"}
     report_calls = 8  # Verimor allows 20 status queries a minute
@@ -254,6 +273,29 @@ class IletiMerkeziProvider(SmsProvider):
             raise SmsError(f"İleti Merkezi gönderimi reddetti ({status.get('code')}: {status.get('message')})")
         return SmsResult(self.key, str((data.get("order") or {}).get("id") or "") or None)
 
+    def send_bulk(self, items: list[tuple[str, str]], commercial: bool = False) -> list[SmsResult]:
+        if not items:
+            return []
+        unique_texts = {msg for _phone, msg in items}
+        if len(unique_texts) > 1:
+            return [self.send(phone, msg, commercial) for phone, msg in items]
+        order = {"iys": "1", "iysList": "BIREYSEL"} if commercial else {"iys": "0"}
+        response = self._http("POST", "https://api.iletimerkezi.com/v1/send-sms/json", json={"request": {
+            "authentication": {"key": self.credentials["api_key"], "hash": self.credentials["api_hash"]},
+            "order": {"sender": self.credentials["sender"], **order,
+                      "message": {"text": items[0][1],
+                                  "receipents": {"number": [normalize_tr_phone(phone) for phone, _m in items]}}},
+        }})
+        try:
+            data = response.json().get("response", {})
+        except ValueError as exc:
+            raise SmsError("İleti Merkezi yanıtı okunamadı") from exc
+        status = data.get("status") or {}
+        if status.get("code") != 200:
+            raise SmsError(f"İleti Merkezi gönderimi reddetti ({status.get('code')}: {status.get('message')})")
+        result = SmsResult(self.key, str((data.get("order") or {}).get("id") or "") or None)
+        return [result] * len(items)
+
     report_calls = 10
 
     def _call(self, path: str, body: dict) -> dict:
@@ -298,3 +340,14 @@ def deliver(phone: str, message: str, account: dict, commercial: bool = False) -
     if not provider.configured:
         raise SmsError("SMS hesabı yapılandırılmadı")
     return provider.send(phone, message, commercial)
+
+
+def deliver_bulk(items: list[tuple[str, str]], account: dict, commercial: bool = False) -> list[SmsResult]:
+    """Send a batch of `(phone, message)` pairs through the configured provider."""
+    cls = PROVIDERS.get(account.get("provider") or DEFAULT_PROVIDER)
+    if not cls:
+        raise SmsError("Bilinmeyen SMS sağlayıcısı")
+    provider = cls(account)
+    if not provider.configured:
+        raise SmsError("SMS hesabı yapılandırılmadı")
+    return provider.send_bulk(items, commercial)

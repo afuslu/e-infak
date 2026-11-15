@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Check, ChevronDown, Copy, Eye, RefreshCw, Search, SlidersHorizontal, X } from 'lucide-react'
+import { AlertTriangle, Check, CheckCircle2, ChevronDown, Clock, Copy, Download, Eye, Layers, MessageSquarePlus, MousePointerClick, RefreshCw, RotateCcw, Search, Send, SlidersHorizontal, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
-import { Label, Notice, ghostButton, inputClass } from '../../../../components/admin/FormKit'
+import { Label, Notice, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { SOURCE_LABEL, STATUS_CLASS, STATUS_LABEL, SmsMessage, SmsStatus } from '../../../../lib/sms'
 import { ExportButtons, PageHeader, Pagination, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
@@ -19,6 +20,8 @@ interface Listing {
   total: number
   counts: Record<SmsStatus, number>
   parts_sent: number
+  batch_name?: string | null
+  error_summary?: { error: string; count: number }[]
 }
 
 const TABS: ['' | SmsStatus, string][] = [
@@ -51,6 +54,10 @@ export default function SmsLogPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
   const [retryingAll, setRetryingAll] = useState(false)
+  const [refreshingDlr, setRefreshingDlr] = useState(false)
+  const [exportingCsv, setExportingCsv] = useState(false)
+  const [quickSmsOpen, setQuickSmsOpen] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
@@ -132,22 +139,103 @@ export default function SmsLogPage() {
 
   const failedRetryable = (data?.items || []).filter((m) => m.status === 'failed' && m.source !== 'otp')
   const retryFailed = async () => {
-    if (!failedRetryable.length || retryingAll) return
-    if (!(await confirmDialog(`Bu sayfadaki ${failedRetryable.length} başarısız SMS tekrar kuyruğa alınsın mı?`))) return
+    const failedTotal = counts?.failed || 0
+    if (!failedTotal || retryingAll) return
+    if (!(await confirmDialog(`Filtredeki başarısız SMS'ler (en fazla 1.000 adet) tekrar kuyruğa alınsın mı?`))) return
     setRetryingAll(true)
     setMessage(null)
-    let ok = 0
-    for (const m of failedRetryable) {
-      try {
-        await adminSend('post', `/sms/messages/${m.id}/retry`)
-        ok++
-      } catch {
-        // skip individual error and continue
-      }
+    try {
+      const res = await adminSend<{ retried: number }>('post', '/sms/messages/bulk-retry', {
+        batch_id: batchId || null,
+        source: source || null,
+      })
+      setMessage({ type: 'ok', text: `${res.data.retried.toLocaleString('tr-TR')} başarısız SMS yeniden kuyruğa alındı.` })
+      load()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Toplu yeniden gönderim başlatılamadı') })
+    } finally {
+      setRetryingAll(false)
     }
-    setRetryingAll(false)
-    setMessage({ type: 'ok', text: `${ok} / ${failedRetryable.length} SMS yeniden kuyruğa alındı.` })
-    load()
+  }
+
+  const bulkRetrySelected = async () => {
+    if (!picked.size) return
+    if (!(await confirmDialog(`Seçilen ${picked.size} SMS içinden başarısız/iptal olanlar tekrar kuyruğa alınsın mı?`))) return
+    try {
+      const res = await adminSend<{ retried: number }>('post', '/sms/messages/bulk-retry', { ids: Array.from(picked) })
+      setMessage({ type: 'ok', text: `${res.data.retried} SMS yeniden kuyruğa alındı.` })
+      setPicked(new Set())
+      load()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const bulkCancelSelected = async () => {
+    if (!picked.size) return
+    if (!(await confirmDialog(`Seçilen ${picked.size} SMS içinden bekleyenler iptal edilsin mi?`))) return
+    try {
+      const res = await adminSend<{ cancelled: number }>('post', '/sms/messages/bulk-cancel', { ids: Array.from(picked) })
+      setMessage({ type: 'ok', text: `${res.data.cancelled} bekleyen SMS iptal edildi.` })
+      setPicked(new Set())
+      load()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const refreshReports = async () => {
+    if (refreshingDlr) return
+    setRefreshingDlr(true)
+    setMessage(null)
+    try {
+      const res = await adminSend<{ asked: number; delivered: number; failed: number }>('post', '/sms/reports/refresh')
+      setMessage({
+        type: 'ok',
+        text: res.data.asked
+          ? `${res.data.asked} SMS için rapor sorgulandı: ${res.data.delivered} iletildi, ${res.data.failed} başarısız.`
+          : 'Şu an rapor sorgulanacak bekleyen SMS yok.',
+      })
+      load()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'İletim raporları sorgulanamadı') })
+    } finally {
+      setRefreshingDlr(false)
+    }
+  }
+
+  const exportAllCsv = async () => {
+    if (exportingCsv) return
+    setExportingCsv(true)
+    try {
+      const res = await adminGet<string>('/sms/messages/export', latest.current)
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `sms-gonderimleri-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'CSV indirilemedi') })
+    } finally {
+      setExportingCsv(false)
+    }
+  }
+
+  const togglePick = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const allPicked = Boolean(data?.items.length && data.items.every((m) => picked.has(m.id)))
+  const toggleAll = () => {
+    if (!data?.items.length) return
+    if (allPicked) setPicked(new Set())
+    else setPicked(new Set(data.items.map((m) => m.id)))
   }
 
   const copyText = (key: string, value: string) => {
@@ -173,9 +261,11 @@ export default function SmsLogPage() {
 
   const counts = data?.counts
   const all = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0
-  const sentOrDelivered = (counts?.sent || 0) + (counts?.delivered || 0)
-  const finishedTotal = sentOrDelivered + (counts?.failed || 0)
-  const deliveryRate = finishedTotal > 0 ? Math.round((sentOrDelivered / finishedTotal) * 1000) / 10 : null
+  const deliveredCount = counts?.delivered || 0
+  const sentOnlyCount = counts?.sent || 0
+  const sentOrDelivered = sentOnlyCount + deliveredCount
+  const deliveryBase = sentOrDelivered + (counts?.failed || 0)
+  const deliveryRate = deliveryBase > 0 ? Math.round((deliveredCount / deliveryBase) * 1000) / 10 : null
   const pages = Math.max(1, Math.ceil((data?.total || 0) / PAGE_SIZE))
 
   return (
@@ -185,36 +275,66 @@ export default function SmsLogPage() {
         description={<>Kurumdan çıkan her SMS burada: elle gönderilenler, makbuz ve havale bildirimleri, zamanlananlar.</>}
         actions={
           <div className="flex flex-wrap shrink-0 gap-2 whitespace-nowrap">
+            {canSend && (
+              <button type="button" onClick={() => setQuickSmsOpen(true)} className={`${primaryButton} inline-flex items-center gap-1.5`}>
+                <MessageSquarePlus className="h-3.5 w-3.5" />
+                Tekil SMS Gönder
+              </button>
+            )}
             <Link href="/admin/broadcast" className={ghostButton}>
               + Toplu SMS Gönder
             </Link>
             <Link href="/admin/sms" className={ghostButton}>
               Şablonlar
             </Link>
+            {canSend && sentOnlyCount > 0 && (
+              <button
+                type="button"
+                disabled={refreshingDlr}
+                onClick={refreshReports}
+                className={`${ghostButton} inline-flex items-center gap-1`}
+                title="Operatörden iletim raporlarını şimdi sorgula"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshingDlr ? 'animate-spin' : ''}`} />
+                {refreshingDlr ? 'Sorgulanıyor…' : 'Raporları Sorgula'}
+              </button>
+            )}
             <button type="button" onClick={() => load()} className={`${ghostButton} inline-flex items-center gap-1`}>
               <RefreshCw className="h-3.5 w-3.5" />
               Yenile
             </button>
             {(data?.total ?? 0) > 0 && (
-              <ExportButtons
-                filename="sms-gonderimleri"
-                title="SMS Gönderim Kayıtları"
-                subtitle={`Toplam ${data?.total ?? 0} kayıt (sayfa görünümü)`}
-                getData={() => ({
-                  headers: ['No', 'Tarih', 'Alıcı', 'Telefon', 'Mesaj', 'Kaynak', 'SMS', 'Durum', 'Hata'],
-                  rows: (data?.items || []).map((m) => [
-                    m.seq_no,
-                    when(m.created_at),
-                    m.donor_name || '—',
-                    m.phone,
-                    m.body,
-                    SOURCE_LABEL[m.source] || m.source,
-                    m.parts,
-                    STATUS_LABEL[m.status],
-                    m.error || '',
-                  ]),
-                })}
-              />
+              <>
+                <button
+                  type="button"
+                  disabled={exportingCsv}
+                  onClick={exportAllCsv}
+                  className={`${ghostButton} inline-flex items-center gap-1`}
+                  title="Filtredeki tüm kayıtları (50.000'e kadar) CSV olarak indir"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {exportingCsv ? 'İndiriliyor…' : 'Tümünü CSV İndir'}
+                </button>
+                <ExportButtons
+                  filename="sms-gonderimleri"
+                  title="SMS Gönderim Kayıtları"
+                  subtitle={`Toplam ${data?.total ?? 0} kayıt (sayfa görünümü)`}
+                  getData={() => ({
+                    headers: ['No', 'Tarih', 'Alıcı', 'Telefon', 'Mesaj', 'Kaynak', 'SMS', 'Durum', 'Hata'],
+                    rows: (data?.items || []).map((m) => [
+                      m.seq_no,
+                      when(m.created_at),
+                      m.donor_name || '—',
+                      m.phone,
+                      m.body,
+                      SOURCE_LABEL[m.source] || m.source,
+                      m.parts,
+                      STATUS_LABEL[m.status],
+                      m.error || '',
+                    ]),
+                  })}
+                />
+              </>
             )}
           </div>
         }
@@ -239,7 +359,10 @@ export default function SmsLogPage() {
 
       {batchId && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-900">
-          <span>Yalnızca seçilen toplu SMS gönderimine ait kayıtlar listeleniyor.</span>
+          <span>
+            Yalnızca{' '}
+            <strong>{data?.batch_name ? `"${data.batch_name}"` : 'seçilen toplu SMS gönderimine'}</strong> ait kayıtlar listeleniyor.
+          </span>
           <button
             type="button"
             onClick={() => {
@@ -254,31 +377,69 @@ export default function SmsLogPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-          <div className="text-[10px] font-bold uppercase text-gray-500">Gönderilen</div>
-          <div className="text-2xl font-black tabular-nums text-green-700">{sentOrDelivered.toLocaleString('tr-TR')}</div>
-        </div>
-        <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-          <div className="text-[10px] font-bold uppercase text-gray-500">Bekleyen</div>
-          <div className="text-2xl font-black tabular-nums text-amber-700">
-            {((counts?.queued || 0) + (counts?.scheduled || 0)).toLocaleString('tr-TR')}
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-700">
+            <Send className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase text-gray-500">Gönderilen</div>
+            <div className="text-xl font-black tabular-nums text-green-700">{sentOrDelivered.toLocaleString('tr-TR')}</div>
+            {sentOnlyCount > 0 && <div className="text-[10px] text-gray-400">{sentOnlyCount.toLocaleString('tr-TR')} operatörde</div>}
           </div>
         </div>
-        <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-          <div className="text-[10px] font-bold uppercase text-gray-500">Başarısız</div>
-          <div className="text-2xl font-black tabular-nums text-red-700">{(counts?.failed || 0).toLocaleString('tr-TR')}</div>
-        </div>
-        <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-          <div className="text-[10px] font-bold uppercase text-gray-500">İletim Oranı</div>
-          <div className="text-2xl font-black tabular-nums text-emerald-700">
-            {deliveryRate !== null ? `%${deliveryRate.toLocaleString('tr-TR')}` : '—'}
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+            <Clock className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase text-gray-500">Bekleyen</div>
+            <div className="text-xl font-black tabular-nums text-amber-700">
+              {((counts?.queued || 0) + (counts?.scheduled || 0)).toLocaleString('tr-TR')}
+            </div>
           </div>
         </div>
-        <div className="col-span-2 rounded-xl border border-gray-100 bg-white p-4 shadow-sm md:col-span-1">
-          <div className="text-[10px] font-bold uppercase text-gray-500">Toplam SMS Parçası</div>
-          <div className="text-2xl font-black tabular-nums text-gray-900">{(data?.parts_sent || 0).toLocaleString('tr-TR')}</div>
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase text-gray-500">Başarısız</div>
+            <div className="text-xl font-black tabular-nums text-red-700">{(counts?.failed || 0).toLocaleString('tr-TR')}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+            <CheckCircle2 className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase text-gray-500">Gerçek İletim</div>
+            <div className="text-xl font-black tabular-nums text-emerald-700">
+              {deliveryRate !== null ? `%${deliveryRate.toLocaleString('tr-TR')}` : '—'}
+            </div>
+            <div className="text-[10px] text-gray-400">{deliveredCount.toLocaleString('tr-TR')} telefona ulaştı</div>
+          </div>
+        </div>
+        <div className="col-span-2 flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs md:col-span-1">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700">
+            <Layers className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase text-gray-500">Toplam Parça</div>
+            <div className="text-xl font-black tabular-nums text-gray-900">{(data?.parts_sent || 0).toLocaleString('tr-TR')}</div>
+          </div>
         </div>
       </div>
+
+      {data?.error_summary && data.error_summary.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-red-100 bg-red-50/60 px-4 py-2.5 text-xs">
+          <span className="font-bold text-red-800">Başarısızlık Dağılımı:</span>
+          {data.error_summary.map((e) => (
+            <span key={e.error} className="rounded-lg border border-red-200 bg-white px-2.5 py-0.5 font-medium text-red-700">
+              {e.error}: <strong>{e.count}</strong>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         {TABS.map(([key, label]) => (
@@ -435,6 +596,32 @@ export default function SmsLogPage() {
           </div>
         )}
 
+        {canSend && picked.size > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary-200 bg-primary-50/70 px-4 py-2 text-xs">
+            <span className="font-bold text-primary-900">{picked.size} SMS seçildi</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={bulkRetrySelected}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary-600 px-3 py-1 font-bold text-white hover:bg-primary-700"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Seçilenleri Tekrar Gönder
+              </button>
+              <button
+                type="button"
+                onClick={bulkCancelSelected}
+                className="cursor-pointer rounded-lg border border-red-200 bg-white px-3 py-1 font-bold text-red-700 hover:bg-red-50"
+              >
+                Bekleyenleri İptal Et
+              </button>
+              <button type="button" onClick={() => setPicked(new Set())} className="cursor-pointer font-semibold text-gray-600 hover:underline">
+                Seçimi Temizle
+              </button>
+            </div>
+          </div>
+        )}
+
         {!data ? (
           <p className="animate-pulse py-10 text-center text-sm text-gray-400">Yükleniyor…</p>
         ) : data.items.length === 0 ? (
@@ -444,6 +631,9 @@ export default function SmsLogPage() {
             <Table>
               <THead>
                 <Tr>
+                  <Th className="w-8">
+                    <input type="checkbox" checked={allPicked} onChange={toggleAll} aria-label="Tümünü seç" />
+                  </Th>
                   <Th>No</Th>
                   <Th>Tarih</Th>
                   <Th>Alıcı</Th>
@@ -456,6 +646,9 @@ export default function SmsLogPage() {
               <TBody>
                 {data.items.map((m) => (
                   <Tr key={m.id} className="align-top hover:bg-gray-50/60">
+                    <Td>
+                      <input type="checkbox" checked={picked.has(m.id)} onChange={() => togglePick(m.id)} aria-label={`#${m.seq_no} seç`} />
+                    </Td>
                     <Td className="font-bold text-gray-900">#{m.seq_no}</Td>
                     <Td className="whitespace-nowrap text-gray-500">
                       {when(m.created_at)}
@@ -490,9 +683,19 @@ export default function SmsLogPage() {
                       >
                         {m.body}
                       </button>
-                      <div className="text-[10px] text-gray-400">
-                        {m.parts} SMS{m.template_name ? ` · ${m.template_name}` : ''}
-                        {m.created_by ? ` · ${m.created_by}` : ''}
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-400">
+                        <span>{m.parts} SMS</span>
+                        {m.ab_variant && (
+                          <span className="rounded bg-indigo-50 px-1.5 py-0.5 font-bold text-indigo-700">Varyant {m.ab_variant}</span>
+                        )}
+                        {(m.click_count ?? 0) > 0 && (
+                          <span className="inline-flex items-center gap-0.5 rounded bg-sky-50 px-1.5 py-0.5 font-bold text-sky-700">
+                            <MousePointerClick className="h-2.5 w-2.5" />
+                            {m.click_count} tık
+                          </span>
+                        )}
+                        {m.template_name && <span>· {m.template_name}</span>}
+                        {m.created_by && <span>· {m.created_by}</span>}
                       </div>
                     </Td>
                     <Td className="whitespace-nowrap text-gray-600">{SOURCE_LABEL[m.source] || m.source}</Td>
@@ -607,6 +810,60 @@ export default function SmsLogPage() {
                   <div className="mt-0.5 font-semibold text-gray-700">
                     {detailRow.provider || '—'} · {detailRow.parts} SMS ({detailRow.attempts} deneme)
                   </div>
+                  {detailRow.provider_ref && (
+                    <div className="mt-0.5 font-mono text-[10px] text-gray-400">Ref: {detailRow.provider_ref}</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Visual Lifecycle Timeline */}
+              <div className="rounded-xl border border-gray-100 bg-gray-50/50 p-3.5">
+                <div className="mb-2.5 text-[10px] font-bold uppercase text-gray-400">Teslimat Yaşam Döngüsü</div>
+                <div className="grid grid-cols-4 gap-2 text-center text-[10px]">
+                  <div className="space-y-1">
+                    <div className="mx-auto flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                      <Check className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="font-bold text-gray-800">Kuyruk</div>
+                    <div className="font-mono text-[9px] text-gray-400">{when(detailRow.created_at)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div
+                      className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full ${
+                        detailRow.sent_at ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-400'
+                      }`}
+                    >
+                      <Send className="h-3 w-3" />
+                    </div>
+                    <div className="font-bold text-gray-800">Operatör</div>
+                    <div className="font-mono text-[9px] text-gray-400">{when(detailRow.sent_at)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div
+                      className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full ${
+                        detailRow.delivered_at
+                          ? 'bg-emerald-500 text-white'
+                          : detailRow.status === 'failed'
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-gray-200 text-gray-400'
+                      }`}
+                    >
+                      {detailRow.status === 'failed' ? <X className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    </div>
+                    <div className="font-bold text-gray-800">{detailRow.status === 'failed' ? 'Başarısız' : 'İletildi'}</div>
+                    <div className="font-mono text-[9px] text-gray-400">{when(detailRow.delivered_at)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div
+                      className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full ${
+                        (detailRow.click_count ?? 0) > 0 ? 'bg-sky-500 text-white' : 'bg-gray-200 text-gray-400'
+                      }`}
+                    >
+                      <MousePointerClick className="h-3 w-3" />
+                    </div>
+                    <div className="font-bold text-gray-800">Tıklama ({detailRow.click_count ?? 0})</div>
+                    <div className="font-mono text-[9px] text-gray-400">{when(detailRow.clicked_at)}</div>
+                  </div>
                 </div>
               </div>
 
@@ -654,6 +911,14 @@ export default function SmsLogPage() {
               </div>
 
               <div className="flex justify-end gap-2 pt-1">
+                {detailRow.related_type === 'donation' && detailRow.related_id && (
+                  <Link
+                    href={`/admin/bagislar?q=${detailRow.related_id}`}
+                    className={`${ghostButton} mr-auto`}
+                  >
+                    İlgili Bağışı Gör
+                  </Link>
+                )}
                 {canSend && detailRow.source !== 'otp' && (detailRow.status === 'failed' || detailRow.status === 'cancelled') && (
                   <button
                     type="button"
@@ -670,6 +935,17 @@ export default function SmsLogPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {quickSmsOpen && (
+        <QuickSmsDialog
+          target={{ allowSms: true }}
+          onClose={() => setQuickSmsOpen(false)}
+          onSent={(res) => {
+            setMessage({ type: 'ok', text: sentNotice(res) })
+            load()
+          }}
+        />
       )}
     </div>
   )

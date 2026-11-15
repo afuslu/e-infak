@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, whatsappUrl } from '../../lib/admin-access'
 import { RelatedSms, STATUS_CLASS, STATUS_LABEL, SmsTemplate, segmentSummary } from '../../lib/sms'
 import { ghostButton, inputClass, primaryButton } from './FormKit'
-import { portalRoot } from './ui'
+import { WhatsAppIcon, portalRoot } from './ui'
 
 export interface SmsTarget {
   donorId?: string | null
@@ -189,17 +189,32 @@ export function QuickSmsDialog({
         )}
 
         {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={submit} disabled={busy || (needsConfirm && !informational)} className={primaryButton}>
-            {compose ? 'Bu metni kullan' : busy ? 'Gönderiliyor…' : later ? 'SMS Zamanla' : 'SMS Gönder'}
-          </button>
-          <button type="button" onClick={onClose} className={ghostButton}>İptal</button>
-          {compose?.initial && (
-            <button type="button" onClick={() => { compose.onDone(null); onClose() }} className="ml-auto text-xs font-bold text-gray-500 hover:text-gray-800">
-              Otomatik metne dön
-            </button>
-          )}
-        </div>
+        {(() => {
+          const waHref = whatsappUrl(phone || target.phone, body.trim())
+          return (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={submit} disabled={busy || (needsConfirm && !informational)} className={primaryButton}>
+                {compose ? 'Bu metni kullan' : busy ? 'Gönderiliyor…' : later ? 'SMS Zamanla' : 'SMS Gönder'}
+              </button>
+              {waHref && (
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp ile Gönder
+                </a>
+              )}
+              <button type="button" onClick={onClose} className={ghostButton}>İptal</button>
+              {compose?.initial && (
+                <button type="button" onClick={() => { compose.onDone(null); onClose() }} className="ml-auto text-xs font-bold text-gray-500 hover:text-gray-800">
+                  Otomatik metne dön
+                </button>
+              )}
+            </div>
+          )
+        })()}
       </div>
     </div>,
     portalRoot(),

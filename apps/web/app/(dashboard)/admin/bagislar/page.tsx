@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Copy, Download, Eye, FileText, HandCoins, MessageSquare, Plus, RefreshCw, SlidersHorizontal, Wallet, X } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, exportPdf, exportXlsx, formatMoney, useAdminAccess, v1Get, whatsappUrl, can } from '../../../../lib/admin-access'
-import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
@@ -130,6 +130,7 @@ export default function AdminDonationsPage() {
   }, [])
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<SearchResult | null>(null)
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
   const [campaigns, setCampaigns] = useState<{ id: string; title: string }[]>([])
   const [staff, setStaff] = useState<{ id: string; first_name: string; last_name: string }[]>([])
   const [showManual, setShowManual] = useState(false)
@@ -388,6 +389,26 @@ export default function AdminDonationsPage() {
             subtitle="Seçili filtrelere göre"
             gradient="from-slate-600 to-slate-700"
             icon={<HandCoins className="h-5 w-5" />}
+            onClick={() => {
+              const byMethod = new Map<string, number>()
+              for (const r of result.items) {
+                const key = r.payment_method_label || 'Diğer'
+                byMethod.set(key, (byMethod.get(key) || 0) + 1)
+              }
+              const max = Math.max(1, ...byMethod.values())
+              setStatModal({
+                title: 'Bağış Kayıtları — Ödeme Şekli Dağılımı',
+                subtitle: `Toplam ${result.total.toLocaleString('tr-TR')} kayıt (sayfadaki ${result.items.length} işlem)`,
+                items: Array.from(byMethod.entries())
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([label, count]) => ({
+                    label,
+                    value: `${count} işlem`,
+                    color: 'blue' as const,
+                    percent: Math.round((count / max) * 100),
+                  })),
+              })
+            }}
           />
           {result.totals.slice(0, 3).map((t, idx) => (
             <GlobalStatCard
@@ -397,10 +418,38 @@ export default function AdminDonationsPage() {
               subtitle={`${t.count.toLocaleString('tr-TR')} adet işlem`}
               gradient={CURRENCY_GRADIENTS[idx % CURRENCY_GRADIENTS.length]}
               icon={<Wallet className="h-5 w-5" />}
+              onClick={() => {
+                const matching = result.items.filter((r) => r.currency === t.currency)
+                const byCampaign = new Map<string, number>()
+                for (const r of matching) {
+                  const key = r.campaign_title || 'Genel Bağış'
+                  byCampaign.set(key, (byCampaign.get(key) || 0) + r.amount_cents)
+                }
+                const max = Math.max(1, ...byCampaign.values())
+                setStatModal({
+                  title: `${t.currency} Bağışları — Kalem Dağılımı`,
+                  subtitle: `Toplam ${formatMoney(t.total_cents, t.currency)} (${t.count.toLocaleString('tr-TR')} işlem)`,
+                  items: Array.from(byCampaign.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([label, cents]) => ({
+                      label,
+                      value: formatMoney(cents, t.currency),
+                      color: 'emerald' as const,
+                      percent: Math.round((cents / max) * 100),
+                    })),
+                })
+              }}
             />
           ))}
         </div>
       )}
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Görünüm">
         {QUICK_VIEWS.map(([key, label, preset]) => {

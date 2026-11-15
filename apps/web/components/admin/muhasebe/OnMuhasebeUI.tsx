@@ -182,10 +182,17 @@ export const GlobalStatCard: React.FC<GlobalStatCardProps> = ({
           <p className="text-xs font-bold uppercase leading-tight tracking-wider text-slate-500">
             {title}
           </p>
-          <div
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-xs text-white shadow-inner sm:h-8 sm:w-8 sm:text-sm ${gradient}`}
-          >
-            {icon}
+          <div className="flex items-center gap-1.5">
+            {isClickable ? (
+              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-700">
+                Detay
+              </span>
+            ) : null}
+            <div
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-xs text-white shadow-inner sm:h-8 sm:w-8 sm:text-sm ${gradient}`}
+            >
+              {icon}
+            </div>
           </div>
         </div>
         <div className="min-w-0">

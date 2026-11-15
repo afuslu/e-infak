@@ -167,6 +167,21 @@ export default function AdminAiPage() {
           hint="En az 1 onaylı bağışı olanlar"
           tone="neutral"
           icon={Users}
+          detail={{
+            title: 'Bağışçı Analiz Özeti',
+            description: `Toplam ${summary.analyzed_donors.toLocaleString('tr-TR')} bağışçı analiz edildi`,
+            content: () => (
+              <table className="w-full text-xs">
+                <thead><tr className="border-b text-left text-gray-500"><th className="py-2">Metrik</th><th className="py-2 text-right">Değer</th></tr></thead>
+                <tbody>
+                  <tr className="border-b"><td className="py-2 font-semibold">Analiz Edilen Bağışçı</td><td className="py-2 text-right font-bold">{summary.analyzed_donors.toLocaleString('tr-TR')}</td></tr>
+                  <tr className="border-b"><td className="py-2 font-semibold">Kayıp Riski Taşıyan (45+ gün)</td><td className="py-2 text-right font-bold">{summary.at_risk_count.toLocaleString('tr-TR')}</td></tr>
+                  <tr className="border-b"><td className="py-2 font-semibold">Yüksek Riskli (≥%75)</td><td className="py-2 text-right font-bold text-red-600">{summary.high_risk_count.toLocaleString('tr-TR')}</td></tr>
+                  <tr className="border-b"><td className="py-2 font-semibold">Bu Ay Hacim (TRY)</td><td className="py-2 text-right font-bold">{formatMoney(summary.current_month_try_cents, 'TRY')}</td></tr>
+                </tbody>
+              </table>
+            ),
+          }}
         />
         <StatCard
           label="Kayıp Riski Taşıyan"
@@ -174,6 +189,16 @@ export default function AdminAiPage() {
           hint="45+ gündür bağış yapmayan"
           tone="warn"
           icon={Sparkles}
+          detail={{
+            title: 'Kayıp Riski Taşıyan Bağışçılar',
+            description: '45+ gündür bağış yapmayanlar',
+            content: () => churns.length === 0 ? <p className="text-sm text-gray-500">Kayıp riski taşıyan bağışçı yok.</p> : (
+              <table className="w-full text-xs">
+                <thead><tr className="border-b text-left text-gray-500"><th className="py-2">Bağışçı</th><th className="py-2">Risk</th><th className="py-2 text-right">Toplam</th></tr></thead>
+                <tbody>{churns.slice(0, 20).map((c) => <tr key={c.donor_id} className="border-b"><td className="py-2 font-semibold">{c.donor_name}</td><td className="py-2">%{c.risk_percentage}</td><td className="py-2 text-right font-bold">{formatMoney(c.total_donated_cents, 'TRY')}</td></tr>)}</tbody>
+              </table>
+            ),
+          }}
         />
         <StatCard
           label="Yüksek Riskli (≥%75)"
@@ -181,6 +206,19 @@ export default function AdminAiPage() {
           hint="Öncelikli iletişim önerilen"
           tone="bad"
           icon={AlertTriangle}
+          detail={{
+            title: 'Yüksek Riskli Bağışçılar (≥%75)',
+            description: 'Öncelikli iletişim önerilenler',
+            content: () => {
+              const high = churns.filter((c) => c.risk_percentage >= 75)
+              return high.length === 0 ? <p className="text-sm text-gray-500">Yüksek riskli bağışçı yok.</p> : (
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b text-left text-gray-500"><th className="py-2">Bağışçı</th><th className="py-2">Risk</th><th className="py-2 text-right">Toplam</th></tr></thead>
+                  <tbody>{high.map((c) => <tr key={c.donor_id} className="border-b"><td className="py-2 font-semibold">{c.donor_name}</td><td className="py-2 text-red-600 font-bold">%{c.risk_percentage}</td><td className="py-2 text-right font-bold">{formatMoney(c.total_donated_cents, 'TRY')}</td></tr>)}</tbody>
+                </table>
+              )
+            },
+          }}
         />
         <StatCard
           label="3 Aylık Ort. Hacim (TRY)"
@@ -188,6 +226,19 @@ export default function AdminAiPage() {
           hint={`Bu ay: ${formatMoney(summary.current_month_try_cents, 'TRY')}`}
           tone="good"
           icon={TrendingUp}
+          detail={{
+            title: 'Bağış Hacmi Karşılaştırması',
+            description: 'Son 3 aylık ortalama ile bu ayın karşılaştırması',
+            content: () => (
+              <table className="w-full text-xs">
+                <thead><tr className="border-b text-left text-gray-500"><th className="py-2">Dönem</th><th className="py-2 text-right">Tutar</th></tr></thead>
+                <tbody>
+                  <tr className="border-b"><td className="py-2 font-semibold">3 Aylık Ortalama</td><td className="py-2 text-right font-bold">{formatMoney(summary.avg_monthly_try_cents, 'TRY')}</td></tr>
+                  <tr className="border-b"><td className="py-2 font-semibold">Bu Ay (Güncel)</td><td className="py-2 text-right font-bold text-emerald-700">{formatMoney(summary.current_month_try_cents, 'TRY')}</td></tr>
+                </tbody>
+              </table>
+            ),
+          }}
         />
       </div>
 

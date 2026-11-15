@@ -6,7 +6,7 @@ import axios from 'axios'
 import { AlertTriangle, ArrowRight, CheckCircle2, Download, FileSpreadsheet, History, RefreshCw, Sparkles, UploadCloud, Users, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney } from '../../../../lib/admin-access'
-import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 
@@ -114,6 +114,7 @@ export default function DataImportPage() {
   const [defaultCampaign, setDefaultCampaign] = useState('')
   const [extraTag, setExtraTag] = useState('')
   const [result, setResult] = useState<Result | null>(null)
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
   const [busy, setBusy] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
@@ -521,26 +522,66 @@ export default function DataImportPage() {
               value={result.row_count.toLocaleString('tr-TR')}
               gradient="from-slate-600 to-slate-700"
               icon={<FileSpreadsheet className="h-5 w-5" />}
+              onClick={() => setStatModal({
+                title: 'Aktarım Özeti',
+                subtitle: `Toplam ${result.row_count.toLocaleString('tr-TR')} satır işlendi`,
+                items: [
+                  { label: 'Toplam Satır', value: result.row_count.toLocaleString('tr-TR'), color: 'blue' },
+                  { label: kind === 'donations' ? 'Aktarılan Makbuz' : kind === 'members' ? 'Yeni Üye' : 'Yeni Bağışçı', value: String(kind === 'donations' ? (result.imported ?? 0) : (result.created ?? 0)), color: 'emerald' },
+                  { label: kind === 'donations' ? 'Yeni Bağışçı' : 'Mevcutla Eşleşen', value: String(kind === 'donations' ? (result.new_donors ?? 0) : (result.matched ?? 0)), color: 'indigo' },
+                  { label: 'Hatalı Satır', value: String(result.error_count), color: result.error_count > 0 ? 'rose' : 'emerald' },
+                ],
+              })}
             />
             <GlobalStatCard
               title={kind === 'donations' ? 'Aktarılan Makbuz' : kind === 'members' ? 'Yeni Üye' : 'Yeni Bağışçı'}
               value={String(kind === 'donations' ? (result.imported ?? 0) : (result.created ?? 0))}
               gradient="from-emerald-600 to-teal-700"
               icon={<Sparkles className="h-5 w-5" />}
+              onClick={() => setStatModal({
+                title: kind === 'donations' ? 'Aktarılan Makbuzlar' : kind === 'members' ? 'Oluşturulan Üyeler' : 'Oluşturulan Bağışçılar',
+                items: [
+                  { label: 'Başarılı Yeni Kayıt', value: String(kind === 'donations' ? (result.imported ?? 0) : (result.created ?? 0)), color: 'emerald' },
+                  { label: 'Toplam Satır', value: result.row_count.toLocaleString('tr-TR'), color: 'blue' },
+                ],
+              })}
             />
             <GlobalStatCard
               title={kind === 'donations' ? 'Yeni Bağışçı' : 'Mevcutla Eşleşen'}
               value={String(kind === 'donations' ? (result.new_donors ?? 0) : (result.matched ?? 0))}
               gradient="from-sky-600 to-blue-700"
               icon={<Users className="h-5 w-5" />}
+              onClick={() => setStatModal({
+                title: kind === 'donations' ? 'Yeni Bağışçılar' : 'Mevcut Kayıtlarla Eşleşenler',
+                items: [
+                  { label: kind === 'donations' ? 'Yeni Bağışçı' : 'Eşleşen Kayıt', value: String(kind === 'donations' ? (result.new_donors ?? 0) : (result.matched ?? 0)), color: 'blue' },
+                  { label: 'Toplam Satır', value: result.row_count.toLocaleString('tr-TR'), color: 'indigo' },
+                ],
+              })}
             />
             <GlobalStatCard
               title="Hatalı Satır"
               value={String(result.error_count)}
               gradient={result.error_count > 0 ? 'from-rose-600 to-red-700' : 'from-slate-500 to-slate-600'}
               icon={<AlertTriangle className="h-5 w-5" />}
+              onClick={() => setStatModal({
+                title: 'Hatalı Satırlar',
+                subtitle: `${result.error_count} hatalı satır`,
+                items: result.errors.slice(0, 20).map((e) => ({
+                  label: `Satır ${e.row}`,
+                  value: e.message,
+                  color: 'rose' as const,
+                })),
+              })}
             />
           </div>
+          <MuhasebeStatModal
+            isOpen={!!statModal}
+            onClose={() => setStatModal(null)}
+            title={statModal?.title || ''}
+            subtitle={statModal?.subtitle}
+            items={statModal?.items || []}
+          />
 
           {result.errors.length > 0 && (
             <div className="rounded-xl border border-red-200 bg-red-50/40 p-4">

@@ -1,7 +1,8 @@
 """Saha operasyonları: bölgeler, kumbara organizasyonu, kumanya dağıtımı ve görev/takvim."""
+import calendar
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Annotated, List, Literal, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -662,6 +663,7 @@ class TaskIn(BaseModel):
     template_id: Optional[UUID] = None
     donor_id: Optional[UUID] = None
     checklist: Optional[List[dict]] = Field(default=None, max_length=50)
+    recurrence: Optional[Literal["none", "daily", "weekly", "monthly"]] = None
 
     clean_text = field_validator("title", "description", "category", mode="before")(lambda cls, v: _clean(v))
 
@@ -673,11 +675,39 @@ class TaskIn(BaseModel):
         return [{"text": (_clean(str(i.get("text", ""))) or "")[:200], "done": bool(i.get("done"))} for i in value if i.get("text")]
 
 
+class TaskCommentIn(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+    clean_text = field_validator("text", mode="before")(lambda cls, v: _clean(v))
+
+
+class TaskBulkIn(BaseModel):
+    ids: List[UUID] = Field(min_length=1, max_length=200)
+    action: Literal["status", "assign", "delete"]
+    status: Optional[Literal["todo", "in_progress", "done", "cancelled"]] = None
+    assigned_to_id: Optional[UUID] = None
+
+
 def _is_manager(user: User) -> bool:
     return has_permission(user, Permission.USER_MANAGE)
 
 
-def _task_out(t: Task, names: dict, subtask_counts: dict | None = None) -> dict:
+def _shift_recurrence(d: date | None, recurrence: str) -> date | None:
+    if d is None:
+        return None
+    if recurrence == "daily":
+        return d + timedelta(days=1)
+    if recurrence == "weekly":
+        return d + timedelta(days=7)
+    if recurrence == "monthly":
+        month = d.month
+        year = d.year + (month // 12)
+        month = (month % 12) + 1
+        day = min(d.day, calendar.monthrange(year, month)[1])
+        return date(year, month, day)
+    return d
+
+
+def _task_out(t: Task, names: dict, subtask_counts: dict | None = None, donor_names: dict | None = None) -> dict:
     sub = (subtask_counts or {}).get(t.id, (0, 0))
     overdue = t.status in ("todo", "in_progress") and t.due_date and t.due_date < datetime.now(TZ).date()
     return {
@@ -686,7 +716,11 @@ def _task_out(t: Task, names: dict, subtask_counts: dict | None = None) -> dict:
         "assigned_to_id": str(t.assigned_to_id) if t.assigned_to_id else None, "assigned_to_name": names.get(t.assigned_to_id),
         "department_id": str(t.department_id) if t.department_id else None,
         "parent_task_id": str(t.parent_task_id) if t.parent_task_id else None,
-        "donor_id": str(t.donor_id) if t.donor_id else None, "checklist": t.checklist or [],
+        "donor_id": str(t.donor_id) if t.donor_id else None,
+        "donor_name": (donor_names or {}).get(t.donor_id),
+        "checklist": t.checklist or [],
+        "recurrence": t.recurrence or "none",
+        "comments": t.comments or [],
         "created_by_id": str(t.created_by_id), "created_by_name": names.get(t.created_by_id),
         "completed_at": t.completed_at, "created_at": t.created_at,
         "subtasks_total": sub[0], "subtasks_done": sub[1],
@@ -696,6 +730,16 @@ def _task_out(t: Task, names: dict, subtask_counts: dict | None = None) -> dict:
 async def _names(db: AsyncSession, org_id: UUID) -> dict:
     rows = (await db.execute(select(User.id, User.first_name, User.last_name).where(User.organization_id == org_id))).all()
     return {r[0]: f"{r[1]} {r[2]}".strip() for r in rows}
+
+
+async def _donor_names(db: AsyncSession, org_id: UUID, donor_ids: set[UUID]) -> dict:
+    if not donor_ids:
+        return {}
+    rows = (await db.execute(
+        select(Donor.id, Donor.first_name, Donor.last_name, Donor.company_name)
+        .where(Donor.organization_id == org_id, Donor.id.in_(list(donor_ids)))
+    )).all()
+    return {r[0]: (r[3] or f"{r[1] or ''} {r[2] or ''}".strip() or "Bağışçı") for r in rows}
 
 
 @router.get("/tasks/templates")
@@ -715,6 +759,21 @@ async def create_task_template(request: Request, payload: TaskTemplateIn, db: As
     db.add(t)
     await db.commit()
     return {"id": str(t.id)}
+
+
+@router.put("/tasks/templates/{template_id}")
+async def update_task_template(request: Request, template_id: UUID, payload: TaskTemplateIn,
+                               db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not _is_manager(current_user):
+        raise HTTPException(status_code=403, detail="Görev şablonlarını yalnız yöneticiler düzenleyebilir")
+    t = await _owned(db, TaskTemplate, _org_id(request), template_id, "Şablon")
+    data = payload.model_dump()
+    data["checklist"] = [_clean(c)[:200] for c in payload.checklist if c]
+    for k, v in data.items():
+        setattr(t, k, v)
+    await db.commit()
+    return {"id": str(t.id), "title": t.title, "description": t.description, "priority": t.priority,
+            "category": t.category, "default_duration_days": t.default_duration_days, "checklist": t.checklist or []}
 
 
 @router.delete("/tasks/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -777,7 +836,8 @@ async def list_tasks(
             .where(Task.parent_task_id.in_([t.id for t in rows])).group_by(Task.parent_task_id)
         )).all()}
     names = await _names(db, org_id)
-    return [_task_out(t, names, sub) for t in rows]
+    d_names = await _donor_names(db, org_id, {t.donor_id for t in rows if t.donor_id})
+    return [_task_out(t, names, sub, d_names) for t in rows]
 
 
 def _can_edit(user: User, task: Task) -> bool:
@@ -815,12 +875,45 @@ async def create_task(request: Request, payload: TaskIn, db: AsyncSession = Depe
     if data.get("donor_id"):
         await _owned(db, Donor, org_id, data["donor_id"], "Bağışçı")
     task = Task(organization_id=org_id, created_by_id=current_user.id, status=data.pop("status", None) or "todo",
-                priority=data.pop("priority", None) or "normal", checklist=data.pop("checklist", None) or [], **data)
+                priority=data.pop("priority", None) or "normal", checklist=data.pop("checklist", None) or [],
+                recurrence=data.pop("recurrence", None) or "none", **data)
     db.add(task)
     await db.flush()
     _audit(db, org_id, current_user, "gorev_olustur", {"task_id": str(task.id), "assigned_to": str(task.assigned_to_id) if task.assigned_to_id else None})
     await db.commit()
-    return _task_out(task, await _names(db, org_id))
+    d_names = await _donor_names(db, org_id, {task.donor_id} if task.donor_id else set())
+    return _task_out(task, await _names(db, org_id), donor_names=d_names)
+
+
+@router.post("/tasks/bulk")
+async def bulk_update_tasks(request: Request, payload: TaskBulkIn, db: AsyncSession = Depends(get_db),
+                            current_user: User = Depends(get_current_user)):
+    org_id = _org_id(request)
+    rows = (await db.execute(select(Task).where(Task.organization_id == org_id, Task.id.in_(payload.ids)))).scalars().all()
+    if payload.action == "assign" and payload.assigned_to_id:
+        await _staff(db, org_id, payload.assigned_to_id)
+    changed = 0
+    now = datetime.now(timezone.utc)
+    for t in rows:
+        if payload.action == "delete":
+            if not (_is_manager(current_user) or t.created_by_id == current_user.id):
+                continue
+            await db.delete(t)
+            changed += 1
+        elif payload.action == "status" and payload.status:
+            if not _can_edit(current_user, t):
+                continue
+            t.status = payload.status
+            t.completed_at = now if payload.status == "done" else None
+            changed += 1
+        elif payload.action == "assign":
+            if not (_is_manager(current_user) or t.created_by_id == current_user.id):
+                continue
+            t.assigned_to_id = payload.assigned_to_id
+            changed += 1
+    _audit(db, org_id, current_user, "gorev_toplu", {"action": payload.action, "count": changed})
+    await db.commit()
+    return {"updated": changed}
 
 
 @router.put("/tasks/{task_id}")
@@ -830,6 +923,7 @@ async def update_task(request: Request, task_id: UUID, payload: TaskIn, db: Asyn
     task = await _owned(db, Task, org_id, task_id, "Görev")
     if not _can_edit(current_user, task):
         raise HTTPException(status_code=403, detail="Bu görevi düzenleme yetkiniz yok")
+    old_status = task.status
     data = payload.model_dump(exclude_unset=True)
     data.pop("template_id", None)
     data.pop("parent_task_id", None)
@@ -840,16 +934,63 @@ async def update_task(request: Request, task_id: UUID, payload: TaskIn, db: Asyn
             raise HTTPException(status_code=403, detail="Görevi yalnız oluşturan veya yönetici yeniden atayabilir")
     if data.get("department_id"):
         await _owned(db, Department, org_id, data["department_id"], "Birim")
+    if data.get("donor_id"):
+        await _owned(db, Donor, org_id, data["donor_id"], "Bağışçı")
     for key, value in data.items():
-        if key in {"title", "priority", "status"} and value is None:
+        if key in {"title", "priority", "status", "recurrence"} and value is None:
             continue
         setattr(task, key, value)
     if task.status == "done" and not task.completed_at:
         task.completed_at = datetime.now(timezone.utc)
     elif task.status != "done":
         task.completed_at = None
+
+    if old_status != "done" and task.status == "done" and (task.recurrence or "none") in ("daily", "weekly", "monthly"):
+        next_start = _shift_recurrence(task.start_date, task.recurrence)
+        next_due = _shift_recurrence(task.due_date or datetime.now(TZ).date(), task.recurrence)
+        db.add(Task(
+            organization_id=org_id,
+            title=task.title,
+            description=task.description,
+            priority=task.priority,
+            category=task.category,
+            status="todo",
+            start_date=next_start,
+            due_date=next_due,
+            assigned_to_id=task.assigned_to_id,
+            department_id=task.department_id,
+            donor_id=task.donor_id,
+            checklist=[{"text": i.get("text", ""), "done": False} for i in (task.checklist or []) if i.get("text")],
+            recurrence=task.recurrence,
+            created_by_id=task.created_by_id,
+        ))
+
     await db.commit()
-    return _task_out(task, await _names(db, org_id))
+    d_names = await _donor_names(db, org_id, {task.donor_id} if task.donor_id else set())
+    return _task_out(task, await _names(db, org_id), donor_names=d_names)
+
+
+@router.post("/tasks/{task_id}/comments", status_code=status.HTTP_201_CREATED)
+async def add_task_comment(request: Request, task_id: UUID, payload: TaskCommentIn, db: AsyncSession = Depends(get_db),
+                           current_user: User = Depends(get_current_user)):
+    org_id = _org_id(request)
+    task = await _owned(db, Task, org_id, task_id, "Görev")
+    if not _can_edit(current_user, task):
+        raise HTTPException(status_code=403, detail="Bu göreve not ekleme yetkiniz yok")
+    if not payload.text:
+        raise HTTPException(status_code=422, detail="Not metni boş olamaz")
+    comments = list(task.comments or [])
+    comments.append({
+        "id": str(uuid4()),
+        "user_id": str(current_user.id),
+        "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
+        "text": payload.text,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    task.comments = comments
+    await db.commit()
+    d_names = await _donor_names(db, org_id, {task.donor_id} if task.donor_id else set())
+    return _task_out(task, await _names(db, org_id), donor_names=d_names)
 
 
 @router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)

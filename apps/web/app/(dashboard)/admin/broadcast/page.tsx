@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { BookmarkPlus, Check, ChevronDown, ExternalLink, Filter, Search, Send, Smartphone, Sparkles, Upload, X } from 'lucide-react'
+import { BarChart3, BookmarkPlus, Check, CheckCircle2, ChevronDown, Edit3, ExternalLink, Filter, MousePointerClick, RotateCcw, Search, Send, Smartphone, Sparkles, TrendingUp, Upload, Users, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, useAdminAccess, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
@@ -22,6 +22,7 @@ interface Preview {
   parts_total: number
   max_parts: number
   sample: { name: string; phone: string; body: string; segments: SegmentInfo } | null
+  ab_sample?: { body: string; segments: SegmentInfo } | null
   send_at: string | null
   moved_for_quiet_hours: boolean
   label: string
@@ -34,6 +35,7 @@ interface Batch {
   commercial: boolean
   total: number
   sent: number
+  delivered?: number
   failed: number
   waiting: number
   cancelled: number
@@ -41,6 +43,14 @@ interface Batch {
   send_after: string
   created_at: string
   created_by: string | null
+  campaign_id?: string | null
+  throttle_per_minute?: number | null
+  ab_variant_body?: string | null
+  ab_test_percent?: number | null
+  clicks?: number
+  donations_count?: number
+  donations_cents?: number
+  ab_stats?: Record<string, { total: number; delivered: number; clicks: number }> | null
 }
 interface SmsAccount {
   provider: string | null
@@ -67,7 +77,9 @@ const STATE: Record<Batch['state'], [string, string]> = {
   done: ['Tamamlandı', 'border-green-200 bg-green-50 text-green-700'],
   cancelled: ['İptal edildi', 'border-gray-200 bg-gray-100 text-gray-500'],
 }
-const PERSONAL = ['ad_soyad', 'ad', 'kurum', 'kurum_telefon', 'iban']
+const PERSONAL = ['ad_soyad', 'ad', 'kurum', 'kurum_telefon', 'iban', 'odeme_linki', 'ret_linki']
+const money = (cents: number) =>
+  (cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' TL'
 const when = (iso: string) => new Date(iso).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })
 const n = (value: number) => value.toLocaleString('tr-TR')
 const localNow = () => {
@@ -117,24 +129,44 @@ export default function BulkSmsPage() {
   const [later, setLater] = useState(false)
   const [sendAt, setSendAt] = useState(localSoon())
   const [quiet, setQuiet] = useState(true)
+  const [campaignLinkId, setCampaignLinkId] = useState('')
+  const [throttlePerMinute, setThrottlePerMinute] = useState('')
+  const [abEnabled, setAbEnabled] = useState(false)
+  const [abBody, setAbBody] = useState('')
+  const [abPercent, setAbPercent] = useState('50')
   const [preview, setPreview] = useState<Preview | null>(null)
   const [previewError, setPreviewError] = useState('')
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [testPhone, setTestPhone] = useState('')
+  const [testSampleName, setTestSampleName] = useState('')
   const [testing, setTesting] = useState(false)
   const [savingTpl, setSavingTpl] = useState(false)
   const [tplPromptOpen, setTplPromptOpen] = useState(false)
   const [tplName, setTplName] = useState('')
   const [showTests, setShowTests] = useState(false)
   const [batchSearch, setBatchSearch] = useState('')
+  const [editBatch, setEditBatch] = useState<{ id: string; name: string; body: string; sendAt: string; quiet: boolean; throttle: string } | null>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [previewVariant, setPreviewVariant] = useState<'A' | 'B'>('A')
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const numFileRef = useRef<HTMLInputElement>(null)
 
   const loadBatches = () => adminGet<Batch[]>('/sms/batches').then((r) => setBatches(r.data)).catch(() => {})
   const loadTemplates = () =>
     adminGet<SmsTemplate[]>('/sms/templates')
-      .then((r) => setTemplates(r.data.filter((t) => t.is_active && !t.event_key)))
+      .then((r) => {
+        const list = r.data.filter((t) => t.is_active && !t.event_key)
+        setTemplates(list)
+        const urlTpl = new URLSearchParams(window.location.search).get('template_id')
+        if (urlTpl) {
+          const found = list.find((t) => t.id === urlTpl)
+          if (found) {
+            setTemplateId(found.id)
+            setBody((prev) => prev || found.body)
+          }
+        }
+      })
       .catch(() => {})
 
   useEffect(() => {
@@ -178,8 +210,12 @@ export default function BulkSmsPage() {
     body,
     commercial,
     template_id: templateId || null,
+    campaign_id: campaignLinkId || (kind === 'campaign' && campaignId ? campaignId : null),
     send_at: sendIso,
     quiet_hours: quiet,
+    throttle_per_minute: throttlePerMinute ? Number(throttlePerMinute) : null,
+    ab_variant_body: abEnabled && abBody.trim().length >= 2 ? abBody : null,
+    ab_test_percent: abEnabled && abBody.trim().length >= 2 ? Number(abPercent) || 50 : null,
     audience: {
       kind,
       months: Number(months) || 6,
@@ -236,6 +272,10 @@ export default function BulkSmsPage() {
     later,
     sendAt,
     quiet,
+    campaignLinkId,
+    abEnabled,
+    abBody,
+    abPercent,
   ])
 
   const insert = (key: string) => {
@@ -296,21 +336,63 @@ export default function BulkSmsPage() {
     setTesting(true)
     setMessage(null)
     try {
-      await adminSend<Batch>('post', '/sms/batches', {
-        name: `[TEST] ${name.trim() || 'Toplu SMS'}`,
+      await adminSend('post', '/sms/batches/test', {
+        phone,
         body,
-        commercial: false,
-        template_id: templateId || null,
-        send_at: null,
-        quiet_hours: false,
-        audience: { kind: 'numbers', numbers: phone, include_without_consent: true },
+        sample_name: testSampleName.trim() || null,
+        campaign_id: campaignLinkId || (kind === 'campaign' && campaignId ? campaignId : null),
       })
       setMessage({ type: 'ok', text: `Test SMS'i ${phone} numarasına kuyruğa alındı.` })
-      loadBatches()
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Test SMS gönderilemedi') })
     } finally {
       setTesting(false)
+    }
+  }
+
+  const retryFailed = async (b: Batch) => {
+    if (!(await confirmDialog(`"${b.name}" gönderimindeki ${n(b.failed)} başarısız SMS tekrar kuyruğa alınsın mı?`))) return
+    try {
+      const res = await adminSend<{ retried: number }>('post', `/sms/batches/${b.id}/retry-failed`)
+      setMessage({ type: 'ok', text: `${n(res.data.retried)} başarısız SMS tekrar kuyruğa alındı.` })
+      loadBatches()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Tekrar gönderim başlatılamadı') })
+    }
+  }
+
+  const openEditBatch = (b: Batch) => {
+    const d = new Date(b.send_after)
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    setEditBatch({
+      id: b.id,
+      name: b.name,
+      body: b.body,
+      sendAt: d.toISOString().slice(0, 16),
+      quiet: true,
+      throttle: b.throttle_per_minute ? String(b.throttle_per_minute) : '',
+    })
+  }
+
+  const saveEditBatch = async () => {
+    if (!editBatch || savingEdit) return
+    setSavingEdit(true)
+    setMessage(null)
+    try {
+      await adminSend('patch', `/sms/batches/${editBatch.id}`, {
+        name: editBatch.name.trim() || null,
+        body: editBatch.body,
+        send_at: safeIso(editBatch.sendAt),
+        quiet_hours: editBatch.quiet,
+        throttle_per_minute: editBatch.throttle ? Number(editBatch.throttle) : null,
+      })
+      setMessage({ type: 'ok', text: 'Zamanlanmış gönderim güncellendi.' })
+      setEditBatch(null)
+      loadBatches()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Gönderim güncellenemedi') })
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -344,8 +426,8 @@ export default function BulkSmsPage() {
     if (!file) return
     const text = await file.text()
     const extracted = text
-      .split(/[\r\n,;]+/)
-      .map((s) => s.replace(/^["']|["']$/g, '').trim())
+      .split(/[\r\n]+/)
+      .map((s) => s.trim())
       .filter((s) => /\d{7,}/.test(s))
     if (!extracted.length) {
       setMessage({ type: 'error', text: 'Dosyada geçerli telefon numarası bulunamadı.' })
@@ -400,6 +482,17 @@ export default function BulkSmsPage() {
   const balanceAmount = account?.balance?.amount
   const balanceInsufficient = balanceAmount != null && preview ? preview.parts_total > balanceAmount : false
 
+  const kpi = useMemo(() => {
+    const real = batches.filter((b) => !b.name.startsWith('[TEST]') && b.state !== 'cancelled')
+    const total = real.reduce((s, b) => s + b.total, 0)
+    const delivered = real.reduce((s, b) => s + (b.delivered ?? 0), 0)
+    const clicks = real.reduce((s, b) => s + (b.clicks ?? 0), 0)
+    const donationsCount = real.reduce((s, b) => s + (b.donations_count ?? 0), 0)
+    const donationsCents = real.reduce((s, b) => s + (b.donations_cents ?? 0), 0)
+    const deliveryRate = total > 0 ? Math.round((delivered / total) * 100) : 0
+    return { count: real.length, total, delivered, deliveryRate, clicks, donationsCount, donationsCents }
+  }, [batches])
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -425,10 +518,60 @@ export default function BulkSmsPage() {
 
       <Notice message={message} />
 
+      {kpi.count > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Toplam Gönderim</div>
+              <div className="text-lg font-black tabular-nums text-gray-900">
+                {n(kpi.total)} <span className="text-xs font-semibold text-gray-400">({kpi.count} kampanya)</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">İletim Başarısı</div>
+              <div className="text-lg font-black tabular-nums text-emerald-700">
+                %{kpi.deliveryRate} <span className="text-xs font-semibold text-gray-400">({n(kpi.delivered)} iletildi)</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+              <MousePointerClick className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Link Tıklama</div>
+              <div className="text-lg font-black tabular-nums text-gray-900">{n(kpi.clicks)}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">SMS Bağış ROI</div>
+              <div className="text-lg font-black tabular-nums text-gray-900">
+                {money(kpi.donationsCents)} <span className="text-xs font-semibold text-gray-400">({n(kpi.donationsCount)} bağış)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid items-start gap-6 lg:grid-cols-5">
-        <Card className="space-y-5 border border-gray-100 p-6 shadow-sm lg:col-span-3">
+        <Card className="space-y-6 border border-gray-100 p-6 shadow-sm lg:col-span-3">
           <section className="space-y-3">
-            <h2 className="text-sm font-bold text-gray-900">1. Hedef kitle</h2>
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">1</span>
+              <h2 className="text-sm font-bold text-gray-900">Hedef kitle</h2>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Label label="Kime gönderilecek">
                 <select className={inputClass} value={kind} onChange={(e) => setKind(e.target.value)}>
@@ -517,9 +660,12 @@ export default function BulkSmsPage() {
                   className={`${inputClass} resize-y font-mono`}
                   value={numbers}
                   onChange={(e) => setNumbers(e.target.value)}
-                  placeholder={'0532 000 00 00\n0533 000 00 00'}
+                  placeholder={'0532 000 00 00, Ahmet Yılmaz\n0533 000 00 00, Ayşe Demir'}
                 />
-                <p className="text-[11px] text-gray-400">Her satıra bir numara ya da virgülle ayırın. Tekrar edenler ve hatalı numaralar ayıklanır.</p>
+                <p className="text-[11px] text-gray-400">
+                  Her satıra bir numara veya <code>numara, ad soyad</code> yazın. İsim eklerseniz <code>{'{ad_soyad}'}</code> ve{' '}
+                  <code>{'{ad}'}</code> değişkenleri otomatik dolar.
+                </p>
               </div>
             )}
             {kind !== 'numbers' && (
@@ -650,7 +796,10 @@ export default function BulkSmsPage() {
 
           <section className="space-y-3 border-t pt-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-gray-900">2. Mesaj</h2>
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">2</span>
+                <h2 className="text-sm font-bold text-gray-900">Mesaj</h2>
+              </div>
               {canSaveTemplate && body.trim().length >= 5 && (
                 <button
                   type="button"
@@ -695,7 +844,7 @@ export default function BulkSmsPage() {
               </div>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <Label label="Şablon (opsiyonel)">
                 <select
                   className={inputClass}
@@ -710,6 +859,16 @@ export default function BulkSmsPage() {
                   {templates.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
+                    </option>
+                  ))}
+                </select>
+              </Label>
+              <Label label="Kampanya bağlantısı / ROI" hint="{odeme_linki} ve bağış dönüşümü takibi için.">
+                <select className={inputClass} value={campaignLinkId} onChange={(e) => setCampaignLinkId(e.target.value)}>
+                  <option value="">Genel bağış sitesi</option>
+                  {options?.campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
                     </option>
                   ))}
                 </select>
@@ -750,11 +909,50 @@ export default function BulkSmsPage() {
                     className="cursor-pointer rounded border border-primary-200 bg-primary-50 px-2 py-1 font-mono text-[11px] font-bold text-primary-800 hover:bg-primary-100"
                   >{`{${v.key}}`}</button>
                 ))}
+              {commercial && !body.includes('{ret_linki}') && (
+                <button
+                  type="button"
+                  onClick={() => setBody((b) => `${b.trimEnd()}\nSMS iptali: {ret_linki}`)}
+                  className="cursor-pointer rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-100"
+                >
+                  + RET bağlantısı ekle
+                </button>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+              <label className="flex cursor-pointer items-center justify-between gap-2 text-xs font-bold text-gray-700">
+                <span>A/B Testi (İki farklı metin dene)</span>
+                <input type="checkbox" checked={abEnabled} onChange={(e) => setAbEnabled(e.target.checked)} />
+              </label>
+              {abEnabled && (
+                <div className="mt-3 space-y-2 border-t border-gray-200/80 pt-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-gray-600">B Varyantı Mesaj Metni</span>
+                    <select className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs" value={abPercent} onChange={(e) => setAbPercent(e.target.value)}>
+                      <option value="50">%50 A / %50 B</option>
+                      <option value="30">%70 A / %30 B</option>
+                      <option value="20">%80 A / %20 B</option>
+                    </select>
+                  </div>
+                  <textarea
+                    rows={4}
+                    maxLength={1500}
+                    className={`${inputClass} resize-y bg-white`}
+                    placeholder="Alternatif mesaj metnini buraya yazın…"
+                    value={abBody}
+                    onChange={(e) => setAbBody(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
           </section>
 
           <section className="space-y-2 border-t pt-5">
-            <h2 className="text-sm font-bold text-gray-900">3. Zamanlama</h2>
+            <div className="flex items-center gap-2.5 pb-1">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">3</span>
+              <h2 className="text-sm font-bold text-gray-900">Zamanlama ve Hız</h2>
+            </div>
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input type="checkbox" checked={later} onChange={(e) => setLater(e.target.checked)} /> İleri tarihli gönder
             </label>
@@ -763,6 +961,17 @@ export default function BulkSmsPage() {
               <input type="checkbox" checked={quiet} onChange={(e) => setQuiet(e.target.checked)} /> Gece gönderme (21:00–08:00 arası sabah 08:00&apos;e
               ertelenir)
             </label>
+            <div className="pt-1 sm:w-72">
+              <Label label="Gönderim hızı (opsiyonel)" hint="Büyük kitlelerde site/çağrı merkezi yoğunluğunu dengelemek için.">
+                <select className={inputClass} value={throttlePerMinute} onChange={(e) => setThrottlePerMinute(e.target.value)}>
+                  <option value="">Limitsiz (En hızlı)</option>
+                  <option value="100">Dakikada 100 SMS</option>
+                  <option value="250">Dakikada 250 SMS</option>
+                  <option value="500">Dakikada 500 SMS</option>
+                  <option value="1000">Dakikada 1.000 SMS</option>
+                </select>
+              </Label>
+            </div>
           </section>
         </Card>
 
@@ -775,7 +984,9 @@ export default function BulkSmsPage() {
               </h2>
               {preview && (
                 <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">
-                  {counter.info.parts} SMS / kişi
+                  {preview.max_parts > counter.info.parts
+                    ? `${counter.info.parts}–${preview.max_parts} SMS / kişi`
+                    : `${counter.info.parts} SMS / kişi`}
                 </span>
               )}
             </div>
@@ -824,21 +1035,57 @@ export default function BulkSmsPage() {
                   )}
                 </p>
                 {preview.sample && (
-                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-slate-900 p-3 shadow-inner">
-                    <div className="mb-2 flex items-center justify-between border-b border-white/10 pb-1.5 text-[11px] text-slate-300">
-                      <span className="font-semibold text-white">{preview.sample.name || 'Alıcı Önizleme'}</span>
-                      <span className="font-mono text-[10px] text-slate-400">{preview.sample.phone || '05XX...'}</span>
+                  <div className="overflow-hidden rounded-[1.75rem] border-[5px] border-slate-800 bg-slate-950 shadow-lg">
+                    <div className="flex items-center justify-between bg-slate-900/90 px-4 pt-2 pb-1 text-[10px] font-semibold text-slate-400">
+                      <span>09:41</span>
+                      <span className="h-3 w-16 rounded-full bg-slate-800" />
+                      <span>5G</span>
                     </div>
-                    <div className="whitespace-pre-line rounded-2xl rounded-bl-sm bg-emerald-500/95 p-3 text-xs leading-relaxed font-medium text-white shadow-xs">
-                      {preview.sample.body}
+                    <div className="flex items-center justify-between border-b border-white/10 bg-slate-900/60 px-3.5 py-2 text-[11px] text-slate-300">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-300">
+                          SMS
+                        </span>
+                        <div>
+                          <div className="font-semibold text-white">{preview.sample.name || 'Alıcı Önizleme'}</div>
+                          <div className="font-mono text-[10px] text-slate-400">{preview.sample.phone || '05XX...'}</div>
+                        </div>
+                      </div>
+                      {preview.ab_sample && (
+                        <div className="flex rounded-lg bg-slate-800 p-0.5 text-[10px] font-bold">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewVariant('A')}
+                            className={`cursor-pointer rounded-md px-2 py-0.5 ${previewVariant === 'A' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}
+                          >
+                            A
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewVariant('B')}
+                            className={`cursor-pointer rounded-md px-2 py-0.5 ${previewVariant === 'B' ? 'bg-indigo-500 text-white' : 'text-slate-400'}`}
+                          >
+                            B
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <p
-                      className={`mt-2 text-[11px] font-semibold ${
-                        counter.info.encoding === 'unicode' || counter.info.parts > 3 ? 'text-amber-300' : 'text-slate-400'
-                      }`}
-                    >
-                      {counter.text}
-                    </p>
+                    <div className="p-3.5">
+                      <div
+                        className={`whitespace-pre-line rounded-2xl rounded-bl-sm p-3 text-xs leading-relaxed font-medium text-white shadow-xs ${
+                          previewVariant === 'B' && preview.ab_sample ? 'bg-indigo-500/95' : 'bg-emerald-500/95'
+                        }`}
+                      >
+                        {previewVariant === 'B' && preview.ab_sample ? preview.ab_sample.body : preview.sample.body}
+                      </div>
+                      <p
+                        className={`mt-2.5 text-[11px] font-semibold ${
+                          counter.info.encoding === 'unicode' || counter.info.parts > 3 ? 'text-amber-300' : 'text-slate-400'
+                        }`}
+                      >
+                        {counter.text}
+                      </p>
+                    </div>
                   </div>
                 )}
                 {preview.send_at && (
@@ -861,8 +1108,14 @@ export default function BulkSmsPage() {
             </button>
 
             {canSend && body.trim().length >= 2 && (
-              <div className="border-t pt-3">
-                <p className="mb-1.5 text-xs font-bold text-gray-600">Kendinize Test SMS&apos;i Gönderin</p>
+              <div className="space-y-2 border-t pt-3">
+                <p className="text-xs font-bold text-gray-600">Kendinize Test SMS&apos;i Gönderin</p>
+                <input
+                  className={inputClass}
+                  placeholder="Örnek alıcı adı (opsiyonel, ör. Ahmet Yılmaz)"
+                  value={testSampleName}
+                  onChange={(e) => setTestSampleName(e.target.value)}
+                />
                 <div className="flex gap-2">
                   <input className={inputClass} placeholder="05XX XXX XX XX" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
                   <button type="button" onClick={sendTest} disabled={testing || !testPhone.trim()} className={`${ghostButton} shrink-0`}>
@@ -947,12 +1200,35 @@ export default function BulkSmsPage() {
                       <div className="h-1.5 w-32 overflow-hidden rounded-full bg-gray-100">
                         <div className="h-full bg-primary-600" style={{ width: `${b.total ? Math.round((b.sent / b.total) * 100) : 0}%` }} />
                       </div>
-                      <div className="mt-1 tabular-nums text-gray-600">
-                        {n(b.sent)} / {n(b.total)}
+                      <div className="mt-1 space-y-0.5 tabular-nums text-gray-600">
+                        <div>
+                          {n(b.sent)} / {n(b.total)}
+                          {(b.delivered ?? 0) > 0 && (
+                            <span className="ml-1.5 text-[11px] font-semibold text-emerald-700">
+                              ({n(b.delivered || 0)} iletildi · %{b.total ? Math.round(((b.delivered || 0) / b.total) * 100) : 0})
+                            </span>
+                          )}
+                        </div>
+                        {((b.clicks ?? 0) > 0 || (b.donations_count ?? 0) > 0) && (
+                          <div className="flex flex-wrap gap-2 text-[11px] font-semibold text-sky-700">
+                            {(b.clicks ?? 0) > 0 && <span>{n(b.clicks || 0)} tıklama</span>}
+                            {(b.donations_count ?? 0) > 0 && (
+                              <span className="text-emerald-700">
+                                {n(b.donations_count || 0)} bağış ({money(b.donations_cents || 0)})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {b.ab_stats && (
+                          <div className="text-[10px] text-indigo-700">
+                            A: {b.ab_stats.A?.delivered || 0}/{b.ab_stats.A?.total || 0} ({b.ab_stats.A?.clicks || 0} tık) · B:{' '}
+                            {b.ab_stats.B?.delivered || 0}/{b.ab_stats.B?.total || 0} ({b.ab_stats.B?.clicks || 0} tık)
+                          </div>
+                        )}
                         {b.failed > 0 && (
                           <Link
                             href={`/admin/sms-gonderimleri?status=failed&batch_id=${b.id}`}
-                            className="ml-2 inline-flex items-center gap-0.5 font-bold text-red-600 hover:underline"
+                            className="inline-flex items-center gap-0.5 font-bold text-red-600 hover:underline"
                             title="Hata detaylarını SMS Gönderimleri sayfasında inceleyin"
                           >
                             {n(b.failed)} başarısız
@@ -967,7 +1243,27 @@ export default function BulkSmsPage() {
                       </span>
                     </Td>
                     <Td className="whitespace-nowrap text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {canSend && b.state === 'scheduled' && (
+                          <button
+                            type="button"
+                            onClick={() => openEditBatch(b)}
+                            className="inline-flex cursor-pointer items-center gap-1 font-semibold text-sky-700 hover:underline"
+                          >
+                            <Edit3 className="h-3 w-3" />
+                            Düzenle
+                          </button>
+                        )}
+                        {canSend && b.failed > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => retryFailed(b)}
+                            className="inline-flex cursor-pointer items-center gap-1 font-semibold text-amber-700 hover:underline"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Başarısızları Tekrarla
+                          </button>
+                        )}
                         <button type="button" onClick={() => reuseBatch(b)} className="cursor-pointer font-semibold text-primary-700 hover:underline">
                           Forma kopyala
                         </button>
@@ -985,6 +1281,65 @@ export default function BulkSmsPage() {
           </div>
         )}
       </Card>
+
+      {editBatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <Card className="w-full max-w-lg space-y-4 p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900">Zamanlanmış Gönderimi Düzenle</h3>
+              <button type="button" onClick={() => setEditBatch(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <TextInput label="Gönderim adı" maxLength={120} value={editBatch.name} onChange={(v) => setEditBatch({ ...editBatch, name: v })} />
+            <Label label="Mesaj metni">
+              <textarea
+                rows={5}
+                maxLength={1500}
+                className={`${inputClass} resize-y`}
+                value={editBatch.body}
+                onChange={(e) => setEditBatch({ ...editBatch, body: e.target.value })}
+              />
+            </Label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Label label="Gönderim zamanı">
+                <input
+                  type="datetime-local"
+                  min={localNow()}
+                  className={inputClass}
+                  value={editBatch.sendAt}
+                  onChange={(e) => setEditBatch({ ...editBatch, sendAt: e.target.value })}
+                />
+              </Label>
+              <Label label="Gönderim hızı">
+                <select
+                  className={inputClass}
+                  value={editBatch.throttle}
+                  onChange={(e) => setEditBatch({ ...editBatch, throttle: e.target.value })}
+                >
+                  <option value="">Limitsiz</option>
+                  <option value="100">Dakikada 100 SMS</option>
+                  <option value="250">Dakikada 250 SMS</option>
+                  <option value="500">Dakikada 500 SMS</option>
+                  <option value="1000">Dakikada 1.000 SMS</option>
+                </select>
+              </Label>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-gray-700">
+              <input type="checkbox" checked={editBatch.quiet} onChange={(e) => setEditBatch({ ...editBatch, quiet: e.target.checked })} />
+              Gece gönderme (21:00–08:00 arası 08:00&apos;e ertelenir)
+            </label>
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setEditBatch(null)} className={ghostButton}>
+                Vazgeç
+              </button>
+              <button type="button" onClick={saveEditBatch} disabled={savingEdit || editBatch.body.trim().length < 2} className={primaryButton}>
+                {savingEdit ? 'Kaydediliyor…' : 'Kaydet'}
+              </button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

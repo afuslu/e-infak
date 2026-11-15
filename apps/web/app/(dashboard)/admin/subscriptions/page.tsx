@@ -33,7 +33,7 @@ import {
   confirmDialog,
   toast,
 } from '../../../../components/admin/ui'
-import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import {
   adminGet,
   adminSend,
@@ -151,6 +151,7 @@ function formatCardInfo(sub: SubscriptionItem) {
 
 export default function AdminSubscriptionsPage() {
   const [items, setItems] = useState<SubscriptionItem[]>([])
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
@@ -698,6 +699,19 @@ export default function AdminSubscriptionsPage() {
           subtitle={`Toplam ${summary.counts.total.toLocaleString('tr-TR')} kayıt`}
           gradient="from-emerald-600 to-teal-700"
           icon={<Repeat className="w-5 h-5" />}
+          onClick={() => {
+            const actives = items.filter((i) => i.status === 'active')
+            setStatModal({
+              title: 'Aktif Düzenli Bağış Talimatları',
+              subtitle: `Toplam ${summary.counts.active} aktif talimat (sayfadaki ${actives.length})`,
+              items: actives.slice(0, 15).map((i) => ({
+                label: i.donor_name || 'Bağışçı',
+                value: formatMoney(i.amount_cents, i.currency),
+                sub: `${i.campaign_title || 'Genel'} · ${i.frequency === 'monthly' ? 'Aylık' : i.frequency || 'Düzenli'}`,
+                color: 'emerald',
+              })),
+            })
+          }}
         />
         <GlobalStatCard
           title="Aylık Taahhüt (Aktif)"
@@ -705,6 +719,20 @@ export default function AdminSubscriptionsPage() {
           subtitle={`Yıllık projeksiyon ≈ ${annualProjectionText}`}
           gradient="from-sky-600 to-indigo-700"
           icon={<Wallet className="w-5 h-5" />}
+          onClick={() => {
+            const actives = items.filter((i) => i.status === 'active').sort((a, b) => b.amount_cents - a.amount_cents)
+            const max = Math.max(1, ...actives.map((i) => i.amount_cents))
+            setStatModal({
+              title: 'Aylık Taahhüt Dağılımı',
+              subtitle: `Aylık: ${monthlyTotalsText} · Yıllık: ${annualProjectionText}`,
+              items: actives.slice(0, 15).map((i) => ({
+                label: `${i.donor_name || 'Bağışçı'} (${i.campaign_title || 'Genel'})`,
+                value: formatMoney(i.amount_cents, i.currency),
+                color: 'blue',
+                percent: Math.round((i.amount_cents / max) * 100),
+              })),
+            })
+          }}
         />
         <GlobalStatCard
           title="Duraklatılan"
@@ -712,6 +740,19 @@ export default function AdminSubscriptionsPage() {
           subtitle="Geçici olarak bekletilen"
           gradient="from-amber-500 to-orange-600"
           icon={<CalendarClock className="w-5 h-5" />}
+          onClick={() => {
+            const paused = items.filter((i) => i.status === 'paused')
+            setStatModal({
+              title: 'Duraklatılan Talimatlar',
+              subtitle: `Toplam ${summary.counts.paused} duraklatılmış talimat`,
+              items: paused.slice(0, 15).map((i) => ({
+                label: i.donor_name || 'Bağışçı',
+                value: formatMoney(i.amount_cents, i.currency),
+                sub: i.campaign_title || 'Genel',
+                color: 'amber',
+              })),
+            })
+          }}
         />
         <GlobalStatCard
           title="Bekleyen / İptal"
@@ -719,8 +760,28 @@ export default function AdminSubscriptionsPage() {
           subtitle={`${summary.counts.past_due} tahsilat bekliyor · ${summary.counts.cancelled} iptal`}
           gradient="from-rose-600 to-red-700"
           icon={<Ban className="w-5 h-5" />}
+          onClick={() => {
+            const list = items.filter((i) => i.status === 'past_due' || i.status === 'cancelled')
+            setStatModal({
+              title: 'Tahsilat Bekleyen ve İptal Talimatlar',
+              subtitle: `${summary.counts.past_due} tahsilat bekliyor · ${summary.counts.cancelled} iptal`,
+              items: list.slice(0, 15).map((i) => ({
+                label: i.donor_name || 'Bağışçı',
+                value: formatMoney(i.amount_cents, i.currency),
+                sub: i.status === 'past_due' ? 'Tahsilat bekliyor' : 'İptal edildi',
+                color: 'rose',
+              })),
+            })
+          }}
         />
       </div>
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       {/* Hızlı Görünüm Sekmeleri */}
       <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Talimat durumu">

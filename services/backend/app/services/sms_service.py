@@ -5,9 +5,13 @@ sent by `process_message` (Celery task, or the every-minute dispatcher for sched
 and retried messages). Nothing is sent without a row, so staff can see what went out.
 """
 import asyncio
+import base64
+import hashlib
+import hmac
 import logging
 import math
 import re
+import secrets
 import threading
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -20,7 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.sms_message import SMS_OPEN_STATUSES, SmsMessage
 from app.models.sms_template import SmsTemplate
-from app.sms import PROVIDERS, SmsError, SmsUnreachable, deliver, normalize_tr_phone
+from app.sms import PROVIDERS, SmsError, SmsUnreachable, deliver, deliver_bulk, normalize_tr_phone
+
+_ORIGINAL_DELIVER = deliver
 
 logger = logging.getLogger(__name__)
 TZ = ZoneInfo("Europe/Istanbul")
@@ -91,6 +97,7 @@ SMS_VARIABLES = {
     "iban": "Kurum IBAN",
     "odeme_linki": "Bağış / ödeme bağlantısı",
     "yonet_linki": "Düzenli bağışı durdurma / yönetme bağlantısı",
+    "ret_linki": "SMS izni iptal (RET) bağlantısı",
     "gun": "Ayın günü",
 }
 VARIABLE_ALIASES = {"donor_name": "ad_soyad", "amount_lira": "tutar", "campaign_name": "bagis_kalemi"}
@@ -177,8 +184,39 @@ def _date(value: Optional[datetime]) -> str:
     return (value or datetime.now(timezone.utc)).astimezone(TZ).strftime("%d.%m.%Y")
 
 
+def site_url(org) -> str:
+    if settings.ENVIRONMENT == "production" and getattr(org, "primary_domain", None):
+        return f"https://{org.primary_domain}"
+    return settings.PUBLIC_WEB_URL.rstrip("/")
+
+
+def _opt_out_sig(payload: str) -> str:
+    secret = (settings.SECRET_KEY or "e-infak-sms").encode("utf-8")
+    digest = hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).digest()[:12]
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def opt_out_token(org_id: UUID, phone: str, donor_id: Optional[UUID] = None) -> str:
+    raw = f"{org_id}|{phone}|{donor_id or ''}"
+    body = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("ascii").rstrip("=")
+    return f"{body}.{_opt_out_sig(body)}"
+
+
+def verify_opt_out_token(token: str) -> Optional[tuple[UUID, str, Optional[UUID]]]:
+    try:
+        body, sig = token.split(".", 1)
+        if not hmac.compare_digest(sig, _opt_out_sig(body)):
+            return None
+        padded = body + "=" * (-len(body) % 4)
+        raw = base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+        org_s, phone, donor_s = raw.split("|", 2)
+        return UUID(org_s), phone, (UUID(donor_s) if donor_s else None)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 async def build_context(db: AsyncSession, org_id: UUID, *, donor=None, donation=None, transfer=None,
-                        extra: Optional[dict] = None) -> dict:
+                        campaign_id: Optional[UUID] = None, extra: Optional[dict] = None) -> dict:
     """Values for template variables, from the organisation and the records the SMS is about."""
     from app.models.campaign import Campaign
     from app.models.organization import Organization
@@ -186,8 +224,14 @@ async def build_context(db: AsyncSession, org_id: UUID, *, donor=None, donation=
     org = await db.get(Organization, org_id)
     context = {"tarih": _date(None), "para_birimi": "TL"}
     if org:
+        base = site_url(org)
         context.update(kurum=org.name, kurum_unvan=org.account_holder or org.legal_name or org.name,
-                       kurum_telefon=org.phone or "", iban=org.iban or "")
+                       kurum_telefon=org.phone or "", iban=org.iban or "",
+                       portal=f"{base}/bagisci", odeme_linki=base)
+        if campaign_id:
+            camp = await db.get(Campaign, campaign_id)
+            if camp and camp.slug:
+                context["odeme_linki"] = f"{base}/kampanyalar/{camp.slug}"
     if donor is not None:
         context.update(ad_soyad=donor.full_name or "", ad=donor.first_name or "")
     if transfer is not None:
@@ -440,6 +484,8 @@ async def send_message(db: AsyncSession, message: SmsMessage) -> None:
 
 async def process_in(session: AsyncSession, message_id) -> str:
     """Send the message if it is still open and due, and commit. Safe to call twice."""
+    from app.models.donation import Donor
+
     message = (await session.execute(
         select(SmsMessage).where(SmsMessage.id == UUID(str(message_id))).with_for_update(skip_locked=True)
     )).scalar_one_or_none()
@@ -447,6 +493,13 @@ async def process_in(session: AsyncSession, message_id) -> str:
         return "skipped"
     if message.send_after > datetime.now(timezone.utc):
         return "not_due"
+    if message.commercial and message.donor_id:
+        allow = (await session.execute(select(Donor.allow_sms).where(Donor.id == message.donor_id))).scalar_one_or_none()
+        if allow is False:
+            message.status = "cancelled"
+            message.error = "Alıcı SMS iznini iptal etti"
+            await session.commit()
+            return "cancelled"
     await send_message(session, message)
     await session.commit()
     return message.status
@@ -469,14 +522,36 @@ def after_quiet_hours(moment: datetime) -> datetime:
     return morning.astimezone(timezone.utc)
 
 
-def render_bulk(body: str, base_context: dict, recipients: list) -> list[tuple]:
+def _is_personal_body(body: str) -> bool:
+    return bool(_VARIABLE.search(body))
+
+
+def render_bulk(body: str, base_context: dict, recipients: list, *, org_id: Optional[UUID] = None,
+                base_url: Optional[str] = None, preview_only: bool = False) -> list[tuple]:
     """(recipient, text, length info) per recipient; raises SmsError when a text is unusable."""
-    personal = bool(_VARIABLE.search(body))
-    shared = None if personal else render_template(body, base_context)
+    needs_ret = "{ret_linki}" in (body or "") and org_id is not None and base_url
+    needs_pay = "{odeme_linki}" in (body or "") and base_url
+    personal = _is_personal_body(body)
+    if not personal and not needs_ret:
+        shared = render_template(body, base_context)
+        info = segment_info(shared)
+        if not info["parts"]:
+            raise SmsError("Mesaj metni boş")
+        if info["parts"] > MAX_PARTS:
+            raise SmsError(f"Mesaj çok uzun ({info['parts']} SMS); en fazla {MAX_PARTS} SMS boyunda olabilir")
+        return [(recipient, shared, info) for recipient in recipients]
     out = []
     for recipient in recipients:
-        text_ = shared if shared is not None else render_template(
-            body, {**base_context, "ad_soyad": recipient.name, "ad": recipient.first_name})
+        ctx = {**base_context, "ad_soyad": recipient.name, "ad": recipient.first_name}
+        if needs_ret:
+            ctx["ret_linki"] = (
+                f"{base_url}/sms-iptal/onizleme"
+                if preview_only
+                else f"{base_url}/sms-iptal/{opt_out_token(org_id, recipient.phone, recipient.donor_id)}"
+            )
+        if needs_pay and preview_only:
+            ctx["odeme_linki"] = f"{base_url}/s/ornek123"
+        text_ = render_template(body, ctx)
         info = segment_info(text_)
         if not info["parts"]:
             raise SmsError("Mesaj metni boş")
@@ -488,29 +563,74 @@ def render_bulk(body: str, base_context: dict, recipients: list) -> list[tuple]:
 
 async def create_batch(db: AsyncSession, org_id: UUID, *, name: str, body: str, audience: dict, label: str,
                        recipients: list, commercial: bool, send_at: Optional[datetime], created_by: Optional[UUID],
-                       template_id: Optional[UUID] = None):
+                       template_id: Optional[UUID] = None, campaign_id: Optional[UUID] = None,
+                       throttle_per_minute: Optional[int] = None, ab_variant_body: Optional[str] = None,
+                       ab_test_percent: Optional[int] = None):
     """Create a bulk SMS and its messages (the caller commits). Sending starts after the commit."""
+    from app.models.organization import Organization
     from app.models.sms_batch import SmsBatch
 
     if not recipients:
         raise SmsError("Bu hedef kitlede SMS gönderilebilecek kimse yok")
     if len(recipients) > BULK_MAX_RECIPIENTS:
         raise SmsError(f"Bir gönderim en fazla {BULK_MAX_RECIPIENTS:,} kişiye yapılabilir".replace(",", "."))
-    rendered = render_bulk(clean_sms_text(body), await build_context(db, org_id), recipients)
+    clean_a = clean_sms_text(body)
+    clean_b = clean_sms_text(ab_variant_body) if ab_variant_body and ab_variant_body.strip() else None
+    org = await db.get(Organization, org_id)
+    base_url = site_url(org) if org else settings.PUBLIC_WEB_URL.rstrip("/")
+    base_context = await build_context(db, org_id, campaign_id=campaign_id)
+
+    has_ab = bool(clean_b and len(recipients) >= 2)
+    b_percent = ab_test_percent or 50
+    # Split recipients between variant A and variant B when A/B testing is enabled.
+    b_indices: set[int] = set()
+    if has_ab:
+        b_count = max(1, min(len(recipients) - 1, round(len(recipients) * b_percent / 100)))
+        step = len(recipients) / b_count
+        b_indices = {min(len(recipients) - 1, int(i * step)) for i in range(b_count)}
+
     now = datetime.now(timezone.utc)
     scheduled = bool(send_at and send_at > now + timedelta(seconds=30))
-    batch = SmsBatch(organization_id=org_id, name=name.strip(), body=clean_sms_text(body), audience=audience,
-                     audience_label=label[:200], commercial=commercial, total=len(rendered),
-                     send_after=send_at if scheduled else now, created_by=created_by)
+    batch_send_after = send_at if scheduled else now
+    batch = SmsBatch(
+        organization_id=org_id, name=name.strip(), body=clean_a, audience=audience,
+        audience_label=label[:200], commercial=commercial, total=len(recipients),
+        send_after=batch_send_after, created_by=created_by, campaign_id=campaign_id,
+        throttle_per_minute=throttle_per_minute, ab_variant_body=clean_b,
+        ab_test_percent=b_percent if has_ab else None,
+    )
     db.add(batch)
     await db.flush()
     seq = await _next_seq_no(db, org_id)
-    rows = [SmsMessage(
-        organization_id=org_id, seq_no=seq + index, donor_id=recipient.donor_id, phone=recipient.phone, body=text_,
-        status="scheduled" if scheduled else "queued", source="bulk", template_id=template_id, batch_id=batch.id,
-        commercial=commercial, encoding=info["encoding"], parts=info["parts"], send_after=batch.send_after,
-        created_by=created_by,
-    ) for index, (recipient, text_, info) in enumerate(rendered)]
+
+    track_links = "{odeme_linki}" in clean_a or (clean_b and "{odeme_linki}" in clean_b)
+    rows = []
+    for index, recipient in enumerate(recipients):
+        variant = ("B" if index in b_indices else "A") if has_ab else None
+        tpl_body = clean_b if variant == "B" and clean_b else clean_a
+        track_code = secrets.token_urlsafe(7) if track_links else None
+        ctx = {**base_context, "ad_soyad": recipient.name, "ad": recipient.first_name}
+        if "{ret_linki}" in tpl_body:
+            ctx["ret_linki"] = f"{base_url}/sms-iptal/{opt_out_token(org_id, recipient.phone, recipient.donor_id)}"
+        if track_code:
+            ctx["odeme_linki"] = f"{base_url}/s/{track_code}"
+        text_ = render_template(tpl_body, ctx)
+        info = segment_info(text_)
+        if not info["parts"]:
+            raise SmsError("Mesaj metni boş")
+        if info["parts"] > MAX_PARTS:
+            raise SmsError(f"Mesaj çok uzun ({info['parts']} SMS); en fazla {MAX_PARTS} SMS boyunda olabilir")
+        msg_send_after = batch_send_after
+        if throttle_per_minute and throttle_per_minute > 0:
+            msg_send_after = batch_send_after + timedelta(minutes=index // throttle_per_minute)
+        is_msg_scheduled = scheduled or (msg_send_after > now + timedelta(seconds=30))
+        rows.append(SmsMessage(
+            organization_id=org_id, seq_no=seq + index, donor_id=recipient.donor_id, phone=recipient.phone, body=text_,
+            status="scheduled" if is_msg_scheduled else "queued", source="bulk", template_id=template_id,
+            batch_id=batch.id, ab_variant=variant, track_code=track_code,
+            commercial=commercial, encoding=info["encoding"], parts=info["parts"], send_after=msg_send_after,
+            created_by=created_by,
+        ))
     for start in range(0, len(rows), 1000):
         db.add_all(rows[start:start + 1000])
         await db.flush()
@@ -529,8 +649,73 @@ async def cancel_batch(db: AsyncSession, batch) -> int:
     return result.rowcount or 0
 
 
+async def _send_bulk_chunk(session: AsyncSession, messages: list[SmsMessage]) -> None:
+    """Send a chunk of locked, due messages via provider.send_bulk and commit."""
+    from app.models.donation import Donor
+    from app.services.tenant_credentials import sms_account
+
+    if not messages:
+        return
+    now = datetime.now(timezone.utc)
+    org_id = messages[0].organization_id
+    commercial = bool(messages[0].commercial)
+
+    # Re-check opt-out for commercial messages with donor_id (protects scheduled/throttled batches).
+    donor_ids = [m.donor_id for m in messages if m.donor_id is not None]
+    if commercial and donor_ids:
+        opted_out = set((await session.execute(
+            select(Donor.id).where(Donor.id.in_(donor_ids), Donor.allow_sms.is_(False))
+        )).scalars().all())
+        if opted_out:
+            still_open = []
+            for m in messages:
+                if m.donor_id in opted_out:
+                    m.status = "cancelled"
+                    m.error = "Alıcı SMS iznini iptal etti"
+                else:
+                    still_open.append(m)
+            messages = still_open
+            if not messages:
+                await session.commit()
+                return
+
+    account = await sms_account(session, org_id)
+    provider = PROVIDERS.get(account.get("provider") or "")
+    usable = bool(provider) and not account.get("disabled") and provider(account).configured
+    try:
+        if usable:
+            pairs = [(m.phone, m.body) for m in messages]
+            results = await asyncio.to_thread(deliver_bulk, pairs, account, commercial)
+            for m, res in zip(messages, results):
+                m.provider, m.provider_ref = res.provider, res.reference
+        elif settings.ENVIRONMENT == "production":
+            raise SmsError("Kurumun SMS hesabı yapılandırılmadı")
+        else:
+            for m in messages:
+                logger.info("[dev] SMS %s: %s", m.phone, m.body)
+                m.provider = "dev"
+        for m in messages:
+            m.status, m.sent_at, m.error = "sent", now, None
+    except SmsError as exc:
+        for m in messages:
+            m.attempts += 1
+            m.error = str(exc)[:500]
+            if isinstance(exc, SmsUnreachable) and m.attempts < MAX_ATTEMPTS:
+                m.status = "queued"
+                m.send_after = now + timedelta(minutes=2 ** m.attempts)
+            else:
+                m.status = "failed"
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Toplu SMS kümesi beklenmedik biçimde başarısız oldu")
+        for m in messages:
+            m.attempts += 1
+            m.error = f"Beklenmeyen hata: {exc}"[:500]
+            m.status = "failed"
+    await session.commit()
+
+
 async def run_batch(batch_id: str, concurrency: int = 4) -> int:
-    """Send the due messages of a bulk SMS, a few at a time, on connections of its own."""
+    """Send the due messages of a bulk SMS, batching HTTP calls when possible."""
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
     from sqlalchemy.pool import NullPool
 
@@ -538,6 +723,7 @@ async def run_batch(batch_id: str, concurrency: int = 4) -> int:
     sessions = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     gate = asyncio.Semaphore(concurrency)
     handled = 0
+    use_bulk_api = deliver is _ORIGINAL_DELIVER
 
     async def one(message_id) -> None:
         async with gate, sessions() as session:
@@ -557,7 +743,18 @@ async def run_batch(batch_id: str, concurrency: int = 4) -> int:
                 )).scalars().all()
             if not ids:
                 return handled
-            await asyncio.gather(*(one(message_id) for message_id in ids))
+            if use_bulk_api and len(ids) > 1:
+                async with sessions() as session:
+                    locked = (await session.execute(
+                        select(SmsMessage).where(
+                            SmsMessage.id.in_(ids), SmsMessage.status.in_(SMS_OPEN_STATUSES),
+                            SmsMessage.send_after <= datetime.now(timezone.utc),
+                        ).order_by(SmsMessage.seq_no).with_for_update(skip_locked=True)
+                    )).scalars().all()
+                    if locked:
+                        await _send_bulk_chunk(session, locked)
+            else:
+                await asyncio.gather(*(one(message_id) for message_id in ids))
             handled += len(ids)
     finally:
         await engine.dispose()
@@ -615,7 +812,7 @@ REPORT_WINDOW = timedelta(hours=48)   # operators report within two days; after 
 REPORT_FIRST_WAIT = timedelta(minutes=2)
 
 
-async def collect_reports(db: AsyncSession) -> dict:
+async def collect_reports(db: AsyncSession, org_id: Optional[UUID] = None) -> dict:
     """Ask providers what happened to sent messages and mark them delivered or failed (the caller commits).
 
     Each message is asked for again with growing pauses; providers limit report queries, so one
@@ -626,7 +823,9 @@ async def collect_reports(db: AsyncSession) -> dict:
     now = datetime.now(timezone.utc)
     pending = [SmsMessage.status == "sent", SmsMessage.provider_ref.is_not(None), SmsMessage.provider.in_(PROVIDERS),
                SmsMessage.sent_at > now - REPORT_WINDOW, SmsMessage.sent_at < now - REPORT_FIRST_WAIT]
-    org_ids = (await db.execute(select(SmsMessage.organization_id).where(*pending).distinct())).scalars().all()
+    if org_id is not None:
+        pending.append(SmsMessage.organization_id == org_id)
+    org_ids = [org_id] if org_id is not None else (await db.execute(select(SmsMessage.organization_id).where(*pending).distinct())).scalars().all()
     totals = {"delivered": 0, "failed": 0, "asked": 0}
     for org_id in org_ids:
         account = await sms_account(db, org_id)

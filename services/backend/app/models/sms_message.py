@@ -34,6 +34,10 @@ class SmsMessage(Base):
     dedupe_key = Column(String(120))
     template_id = Column(UUID(as_uuid=True), ForeignKey("sms_templates.id", ondelete="SET NULL"))
     batch_id = Column(UUID(as_uuid=True), index=True)
+    ab_variant = Column(String(1))
+    track_code = Column(String(20))
+    clicked_at = Column(DateTime(timezone=True))
+    click_count = Column(Integer, nullable=False, default=0, server_default="0")
     # Promotion: sent through the provider's İYS permission check
     commercial = Column(Boolean, nullable=False, default=False, server_default="false")
     encoding = Column(String(8), nullable=False, default="gsm", server_default="gsm")
@@ -56,4 +60,5 @@ class SmsMessage(Base):
         Index("ix_sms_messages_due", "status", "send_after"),
         Index("ix_sms_messages_org_created", "organization_id", "created_at"),
         Index("ix_sms_messages_related", "organization_id", "related_type", "related_id"),
+        Index("ix_sms_messages_track_code", "track_code", unique=True),
     )

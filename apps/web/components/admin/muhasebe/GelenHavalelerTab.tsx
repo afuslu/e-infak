@@ -24,7 +24,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import { api } from '@/lib/axios';
-import { GlobalStatCard, ResponsiveDataToolbar, formatMoney } from './OnMuhasebeUI';
+import { whatsappUrl } from '@/lib/admin-access';
+import { WhatsAppIcon } from '@/components/admin/ui';
+import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps, ResponsiveDataToolbar, formatMoney } from './OnMuhasebeUI';
 import { BankReconciliationPanel } from '@/components/admin/BankReconciliationPanel';
 
 interface Candidate {
@@ -163,6 +165,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
   const [statusTab, setStatusTab] = useState<'unmatched' | 'ambiguous' | 'matched' | 'ignored' | 'duplicates'>('unmatched');
   const [items, setItems] = useState<Transfer[]>([]);
   const [total, setTotal] = useState(0);
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null);
   const [duplicateGroups, setDuplicateGroups] = useState(0);
   const [q, setQ] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -454,6 +457,21 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
             subtitle={formatMoney(readyTotalCents, 'TRY')}
             icon={<Sparkles className="h-5 w-5" />}
             gradient="from-blue-500 to-cyan-600"
+            onClick={() => {
+              const ready = items.filter(canQuickApprove);
+              const max = Math.max(1, ...ready.map((t) => t.amount_cents));
+              setStatModal({
+                title: 'Tek Tıkla Onaya Hazır Havaleler',
+                subtitle: `${ready.length} adet havale · Toplam ${formatMoney(readyTotalCents, 'TRY')}`,
+                items: ready.slice(0, 15).map((t) => ({
+                  label: t.sender_name || t.suggestion.donor?.name || 'Gönderen',
+                  value: formatMoney(t.amount_cents, t.currency),
+                  sub: `${t.suggestion.campaign?.title || 'Genel'} · ${formatDateTime(t.booked_at)}`,
+                  color: 'blue' as const,
+                  percent: Math.round((t.amount_cents / max) * 100),
+                })),
+              });
+            }}
           />
           <GlobalStatCard
             id="toplam_tutar"
@@ -462,6 +480,21 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
             subtitle={`${items.length} satır toplamı`}
             icon={<HeartHandshake className="h-5 w-5" />}
             gradient="from-indigo-500 to-violet-600"
+            onClick={() => {
+              const sorted = [...items].sort((a, b) => b.amount_cents - a.amount_cents).slice(0, 15);
+              const max = Math.max(1, ...sorted.map((t) => t.amount_cents));
+              setStatModal({
+                title: 'Görünümdeki En Yüksek Havaleler',
+                subtitle: `Toplam ${items.length} kayıt · ${formatMoney(totalViewCents, 'TRY')}`,
+                items: sorted.map((t) => ({
+                  label: t.sender_name || t.suggestion.donor?.name || 'Bilinmeyen Gönderen',
+                  value: formatMoney(t.amount_cents, t.currency),
+                  sub: `${t.source || 'Banka'} · ${formatDateTime(t.booked_at)}`,
+                  color: 'indigo' as const,
+                  percent: Math.round((t.amount_cents / max) * 100),
+                })),
+              });
+            }}
           />
           <GlobalStatCard
             id="mukerrer"
@@ -477,6 +510,14 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
           />
         </div>
       </div>
+
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       {/* 2. Arama & Filtre Çubuğu */}
       {viewMode === 'havaleler' ? (
@@ -1211,7 +1252,21 @@ function ApproveDialog({
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 flex flex-wrap justify-end gap-2">
+          {(() => {
+            const targetPhone = mode === 'new' ? newPhone : s.donor?.phone || s.sender_phone;
+            const wa = whatsappUrl(targetPhone, smsBody || defaultSms(s.donor?.name || transfer.sender_name || '', transfer.amount_cents, transfer.currency, ''));
+            return wa ? (
+              <a
+                href={wa}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+              >
+                <WhatsAppIcon className="h-4 w-4" /> WhatsApp ile Gönder
+              </a>
+            ) : null;
+          })()}
           <button
             type="button"
             onClick={onClose}

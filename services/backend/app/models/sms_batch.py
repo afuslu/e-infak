@@ -21,8 +21,13 @@ class SmsBatch(Base):
     commercial = Column(Boolean, nullable=False, default=False, server_default="false")
     total = Column(Integer, nullable=False, default=0, server_default="0")
     send_after = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"))
+    throttle_per_minute = Column(Integer)
+    ab_variant_body = Column(Text)
+    ab_test_percent = Column(Integer)
     cancelled_at = Column(DateTime(timezone=True))
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     __table_args__ = (Index("ix_sms_batches_org_created", "organization_id", "created_at"),)

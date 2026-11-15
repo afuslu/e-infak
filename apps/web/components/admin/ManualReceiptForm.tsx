@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { Plus, X } from 'lucide-react'
-import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, useAdminAccess, v1Get } from '../../lib/admin-access'
+import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, useAdminAccess, v1Get, whatsappUrl } from '../../lib/admin-access'
 import { Label, TextArea, TextInput, ghostButton, inputClass, primaryButton } from './FormKit'
 import { QuickSmsDialog } from './QuickSmsDialog'
+import { WhatsAppIcon } from './ui'
 import { smsAmount } from '../../lib/sms'
 
 interface CampaignRef { id: string; title: string }
@@ -340,13 +341,49 @@ export function ManualReceiptForm({
           </div>
         )}
         {error && <div className="rounded-lg border border-red-100 bg-red-50 p-2 text-sm font-semibold text-red-700">{error}</div>}
-        <div className="flex gap-2">
-          <button type="button" disabled={!smsPhone} onClick={() => setSmsOpen(true)} className={`${ghostButton} whitespace-nowrap`}
-            title={smsPhone ? undefined : 'Bağışçının telefonu yok'}>
-            {smsBody ? 'SMS metnini düzenle' : 'SMS Gönder'}
-          </button>
-          <button type="submit" disabled={saving} className={`${primaryButton} flex-1`}>{saving ? 'Kesiliyor...' : form.status === 'pending' ? 'Beklemede olarak kaydet' : 'Makbuzu Kes'}</button>
-        </div>
+        {(() => {
+          const donorName = donor?.full_name || `${newDonor.first_name} ${newDonor.last_name}`.trim()
+          const itemTitles = (kurban ? [kurban.campaignId] : lines.map((l) => l.campaign_id))
+            .map((id) => campaigns.find((c) => c.id === id)?.title)
+            .filter(Boolean)
+            .join(', ')
+          const currencySymbol = currencies[0] === 'TRY' || kurban ? '₺' : currencies[0]
+          const defaultWaText = [
+            `Merhaba${donorName ? ` ${donorName}` : ''},`,
+            amountCents > 0
+              ? `${smsAmount(amountCents)} ${currencySymbol}${itemTitles ? ` (${itemTitles})` : ''} bağışınız için teşekkür ederiz.`
+              : `${itemTitles ? `${itemTitles} ` : ''}bağışınız için teşekkür ederiz.`,
+          ].join(' ')
+          const waHref = whatsappUrl(smsPhone, smsBody || defaultWaText)
+          return (
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={!smsPhone} onClick={() => setSmsOpen(true)} className={`${ghostButton} whitespace-nowrap`}
+                title={smsPhone ? undefined : 'Bağışçının telefonu yok'}>
+                {smsBody ? 'SMS metnini düzenle' : 'SMS Gönder'}
+              </button>
+              {waHref ? (
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp ile Gönder
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  title="Bağışçının telefonu yok"
+                  className="inline-flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2 text-xs font-bold text-gray-400"
+                >
+                  <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp ile Gönder
+                </button>
+              )}
+              <button type="submit" disabled={saving} className={`${primaryButton} flex-1`}>{saving ? 'Kesiliyor...' : form.status === 'pending' ? 'Beklemede olarak kaydet' : 'Makbuzu Kes'}</button>
+            </div>
+          )
+        })()}
         {smsOpen && (
           <QuickSmsDialog
             title="Hızlı SMS Gönder — Makbuz"

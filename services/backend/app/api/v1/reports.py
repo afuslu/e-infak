@@ -10,7 +10,7 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import Date, Integer, case, cast, distinct, extract, func, select
+from sqlalchemy import Date, Integer, and_, case, cast, distinct, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin_route_feature, require_admin_route_permission, require_feature
@@ -18,6 +18,7 @@ from app.core.db import get_db
 from app.core.plans import Feature
 from app.models.campaign import Campaign, CampaignCategory, CampaignStatus
 from app.models.donation import Donation, DonationStatus, Donor, PaymentMethod
+from app.models.subscription import Subscription
 from app.models.user import User
 
 router = APIRouter(
@@ -82,6 +83,43 @@ def _currency(value: str) -> str:
     if value not in {"TRY", "USD", "EUR", "GBP", "SAR", "CHF"}:
         raise HTTPException(status_code=422, detail="Desteklenmeyen para birimi")
     return value
+
+
+def _pct_delta(curr: int, prev: int) -> Optional[float]:
+    if not prev:
+        return None
+    return round((curr - prev) * 100 / prev, 1)
+
+
+async def _period_total(db: AsyncSession, org_id: UUID, start: date, end: date, currency: str) -> int:
+    val = (await db.execute(
+        select(func.coalesce(func.sum(Donation.amount_cents), 0))
+        .where(*_confirmed(org_id, currency), _local_day.between(start, end))
+    )).scalar_one()
+    return int(val or 0)
+
+
+async def _status_summary(db: AsyncSession, org_id: UUID, start: date, end: date, currency: str) -> dict:
+    rows = (await db.execute(
+        select(Donation.status, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
+        .where(Donation.organization_id == org_id, Donation.currency == currency, _local_day.between(start, end))
+        .group_by(Donation.status)
+    )).all()
+    by_status = {r[0].value if hasattr(r[0], "value") else r[0]: (int(r[1]), int(r[2])) for r in rows}
+    confirmed = by_status.get("confirmed", (0, 0))
+    pending = by_status.get("pending", (0, 0))
+    refunded = by_status.get("refunded", (0, 0))
+    cancelled = by_status.get("cancelled", (0, 0))
+    failed = by_status.get("failed", (0, 0))
+    attempts = sum(v[0] for v in by_status.values())
+    return {
+        "confirmed_count": confirmed[0], "confirmed_cents": confirmed[1],
+        "pending_count": pending[0], "pending_cents": pending[1],
+        "refunded_count": refunded[0], "refunded_cents": refunded[1],
+        "cancelled_count": cancelled[0], "cancelled_cents": cancelled[1],
+        "failed_count": failed[0], "failed_cents": failed[1],
+        "collection_rate_pct": round(confirmed[0] * 100 / attempts, 1) if attempts else 0.0,
+    }
 
 
 async def monthly_totals(db: AsyncSession, org_id: UUID, year: int, currency: str = "TRY") -> list[dict]:
@@ -212,13 +250,18 @@ async def monthly_report(
     year = year or today_local().year
     currency = _currency(currency)
     months = await monthly_totals(db, org_id, year, currency)
+    total_cents = sum(m["total_cents"] for m in months)
+    prev_total = await _period_total(db, org_id, date(year - 1, 1, 1), date(year - 1, 12, 31), currency)
     return {
         "year": year,
         "currency": currency,
         "months": months,
-        "total_cents": sum(m["total_cents"] for m in months),
+        "total_cents": total_cents,
+        "previous_year_total_cents": prev_total,
+        "change_pct": _pct_delta(total_cents, prev_total),
         "count": sum(m["count"] for m in months),
         "payment_methods": await payment_method_totals(db, org_id, date(year, 1, 1), date(year, 12, 31), currency),
+        "status_summary": await _status_summary(db, org_id, date(year, 1, 1), date(year, 12, 31), currency),
     }
 
 
@@ -251,13 +294,19 @@ async def daily_report(
             "count": int(row[2]) if row else 0,
         })
         cursor += timedelta(days=1)
+    total_cents = sum(d["total_cents"] for d in days)
+    span = (end - start).days + 1
+    prev_total = await _period_total(db, org_id, start - timedelta(days=span), start - timedelta(days=1), currency)
     return {
         "start": start.isoformat(),
         "end": end.isoformat(),
         "currency": currency,
         "days": days,
-        "total_cents": sum(d["total_cents"] for d in days),
+        "total_cents": total_cents,
+        "previous_period_total_cents": prev_total,
+        "change_pct": _pct_delta(total_cents, prev_total),
         "count": sum(d["count"] for d in days),
+        "status_summary": await _status_summary(db, org_id, start, end, currency),
     }
 
 
@@ -265,19 +314,25 @@ async def daily_report(
 async def yearly_comparison(
     request: Request,
     years: Annotated[int, Query(ge=2, le=10)] = 5,
+    ytd: bool = False,
     currency: str = "TRY",
     db: AsyncSession = Depends(get_db),
 ):
     """Son N yılın ay ay karşılaştırması."""
     org_id = _org_id(request)
     currency = _currency(currency)
-    this_year = today_local().year
+    today = today_local()
+    this_year = today.year
     first_year = this_year - years + 1
     year_col = cast(extract("year", _local_ts), Integer)
     month_col = cast(extract("month", _local_ts), Integer)
+    day_col = cast(extract("day", _local_ts), Integer)
+    conditions = [*_confirmed(org_id, currency), year_col >= first_year]
+    if ytd:
+        conditions.append(or_(month_col < today.month, and_(month_col == today.month, day_col <= today.day)))
     rows = (await db.execute(
         select(year_col, month_col, func.coalesce(func.sum(Donation.amount_cents), 0), func.count(Donation.id))
-        .where(*_confirmed(org_id, currency), year_col >= first_year)
+        .where(*conditions)
         .group_by(year_col, month_col)
     )).all()
     data = {(int(r[0]), int(r[1])): (int(r[2]), int(r[3])) for r in rows}
@@ -293,7 +348,7 @@ async def yearly_comparison(
         )
     if result:
         result[0]["change_pct"] = None
-    return {"currency": currency, "month_labels": MONTH_LABELS, "years": result}
+    return {"currency": currency, "ytd": ytd, "month_labels": MONTH_LABELS, "years": result}
 
 
 @router.get("/campaigns", dependencies=ADVANCED)
@@ -331,11 +386,16 @@ async def campaign_report(
         .order_by(total.desc())
     )).all()
     category_total = sum(int(r[1]) for r in by_category)
+    span = (end - start).days + 1
+    prev_total = await _period_total(db, org_id, start - timedelta(days=span), start - timedelta(days=1), currency)
     return {
         "start": start.isoformat(),
         "end": end.isoformat(),
         "currency": currency,
         "total_cents": grand_total,
+        "previous_period_total_cents": prev_total,
+        "change_pct": _pct_delta(grand_total, prev_total),
+        "status_summary": await _status_summary(db, org_id, start, end, currency),
         "categories": [
             {
                 "category": r[0].value,
@@ -469,14 +529,24 @@ async def donor_report(
         .group_by(Donor.donor_type)
     )).all()
 
+    span = (end - start).days + 1
+    prev_start, prev_end = start - timedelta(days=span), start - timedelta(days=1)
+    prev_active = (await db.execute(
+        select(func.count(distinct(Donation.donor_id)))
+        .where(*_confirmed(org_id, currency), _local_day.between(prev_start, prev_end))
+    )).scalar_one()
+
     return {
         "start": start.isoformat(),
         "end": end.isoformat(),
         "currency": currency,
         "total_donors": int(total_donors),
         "active_donors": int(active),
+        "previous_active_donors": int(prev_active or 0),
+        "active_change_pct": _pct_delta(int(active), int(prev_active or 0)),
         "new_donors": int(new),
         "returning_donors": int(active) - int(new),
+        "retention_rate_pct": round((int(active) - int(new)) * 100 / int(active), 1) if active else 0.0,
         "new_by_month": [
             {"label": f"{MONTH_LABELS[r[0].month - 1]} {r[0].year}", "count": int(r[1])} for r in new_by_month
         ],
@@ -486,4 +556,126 @@ async def donor_report(
         ],
         "by_country": await breakdown(Donor.country),
         "by_city": await breakdown(Donor.city),
+    }
+
+
+@router.get("/recurring", dependencies=ADVANCED)
+async def recurring_report(
+    request: Request,
+    currency: str = "TRY",
+    db: AsyncSession = Depends(get_db),
+):
+    """Düzenli (abone) bağışlar: MRR, tahsilat modu, riskli/iptal analizi."""
+    org_id = _org_id(request)
+    currency = _currency(currency)
+    rows = (await db.execute(
+        select(
+            Subscription.status,
+            func.count(Subscription.id),
+            func.coalesce(func.sum(Subscription.amount_cents), 0),
+        )
+        .where(Subscription.organization_id == org_id, Subscription.currency == currency)
+        .group_by(Subscription.status)
+    )).all()
+    by_status = {r[0]: (int(r[1]), int(r[2])) for r in rows}
+    active_cnt, mrr_cents = by_status.get("active", (0, 0))
+    paused_cnt, _ = by_status.get("paused", (0, 0))
+    cancelled_cnt, _ = by_status.get("cancelled", (0, 0))
+    total_cnt = active_cnt + paused_cnt + cancelled_cnt
+
+    at_risk = (await db.execute(
+        select(func.count(Subscription.id))
+        .where(
+            Subscription.organization_id == org_id,
+            Subscription.currency == currency,
+            Subscription.status == "active",
+            Subscription.failed_attempts > 0,
+        )
+    )).scalar_one()
+
+    mode_rows = (await db.execute(
+        select(
+            Subscription.mode,
+            func.count(Subscription.id),
+            func.coalesce(func.sum(Subscription.amount_cents), 0),
+        )
+        .where(
+            Subscription.organization_id == org_id,
+            Subscription.currency == currency,
+            Subscription.status == "active",
+        )
+        .group_by(Subscription.mode)
+    )).all()
+    mode_labels = {"card": "Otomatik Kart", "reminder": "SMS Hatırlatma"}
+
+    camp_rows = (await db.execute(
+        select(
+            Campaign.id,
+            Campaign.title,
+            func.count(Subscription.id),
+            func.coalesce(func.sum(Subscription.amount_cents), 0),
+        )
+        .join(Campaign, Campaign.id == Subscription.campaign_id)
+        .where(
+            Subscription.organization_id == org_id,
+            Subscription.currency == currency,
+            Subscription.status == "active",
+        )
+        .group_by(Campaign.id, Campaign.title)
+        .order_by(func.sum(Subscription.amount_cents).desc())
+        .limit(15)
+    )).all()
+
+    six_months_ago = today_local().replace(day=1)
+    for _ in range(5):
+        six_months_ago = (six_months_ago - timedelta(days=1)).replace(day=1)
+    sub_bucket = func.date_trunc("month", func.timezone(TZ, Subscription.created_at))
+    new_rows = (await db.execute(
+        select(sub_bucket, func.count(Subscription.id), func.coalesce(func.sum(Subscription.amount_cents), 0))
+        .where(
+            Subscription.organization_id == org_id,
+            Subscription.currency == currency,
+            Subscription.created_at >= six_months_ago,
+        )
+        .group_by(sub_bucket)
+        .order_by(sub_bucket)
+    )).all()
+
+    return {
+        "currency": currency,
+        "active_count": active_cnt,
+        "paused_count": paused_cnt,
+        "cancelled_count": cancelled_cnt,
+        "total_count": total_cnt,
+        "mrr_cents": mrr_cents,
+        "arr_cents": mrr_cents * 12,
+        "avg_amount_cents": (mrr_cents // active_cnt) if active_cnt else 0,
+        "at_risk_count": int(at_risk or 0),
+        "churn_rate_pct": round(cancelled_cnt * 100 / total_cnt, 1) if total_cnt else 0.0,
+        "by_mode": [
+            {
+                "mode": r[0],
+                "label": mode_labels.get(r[0], r[0]),
+                "count": int(r[1]),
+                "mrr_cents": int(r[2]),
+            }
+            for r in mode_rows
+        ],
+        "by_campaign": [
+            {
+                "campaign_id": str(r[0]),
+                "title": r[1],
+                "count": int(r[2]),
+                "mrr_cents": int(r[3]),
+            }
+            for r in camp_rows
+        ],
+        "new_by_month": [
+            {
+                "label": f"{MONTH_LABELS[r[0].month - 1]} {r[0].year}",
+                "count": int(r[1]),
+                "mrr_cents": int(r[2]),
+            }
+            for r in new_rows
+        ],
     }
