@@ -6,7 +6,7 @@ import { adminApiBase, adminAuthHeaders } from './admin-access'
 function buildConfig(config?: AxiosRequestConfig): AxiosRequestConfig {
   return {
     ...config,
-    baseURL: adminApiBase(),
+    baseURL: `${adminApiBase()}/api/v1`,
     headers: {
       ...adminAuthHeaders(),
       ...(config?.headers || {}),
