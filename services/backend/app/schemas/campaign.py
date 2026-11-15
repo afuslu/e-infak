@@ -51,6 +51,7 @@ class CampaignCreate(CampaignBase):
 
 
 class CampaignUpdate(BaseModel):
+    slug: Optional[str] = Field(None, max_length=200)
     title: Optional[str] = Field(None, max_length=300)
     summary: Optional[str] = None
     story: Optional[str] = None
@@ -104,9 +105,20 @@ class CampaignResponse(CampaignBase):
         from_attributes = True
 
 
+class CampaignStats(BaseModel):
+    total_campaigns: int = 0
+    active_count: int = 0
+    featured_count: int = 0
+    completed_count: int = 0
+    draft_count: int = 0
+    paused_count: int = 0
+    total_collected_cents: int = 0
+
+
 class CampaignListResponse(BaseModel):
     items: List[CampaignResponse]
     total: int
     page: int
     page_size: int
     total_pages: int
+    stats: Optional[CampaignStats] = None

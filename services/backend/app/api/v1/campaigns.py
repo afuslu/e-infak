@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, case
 from typing import Annotated, List, Optional
 from uuid import UUID
 from app.core.db import get_db
 from app.models.campaign import HIDDEN_CAMPAIGN_TAG, Campaign, CampaignStatus, CampaignCategory
-from app.schemas.campaign import CampaignCreate, CampaignUpdate, CampaignResponse, CampaignListResponse
+from app.schemas.campaign import CampaignCreate, CampaignUpdate, CampaignResponse, CampaignListResponse, CampaignStats
 from app.api.deps import Permission, optional_staff, require_permission, require_module
 from app.models.user import User, UserRole
 from slugify import slugify
@@ -34,6 +34,7 @@ async def list_campaigns(
     category: Optional[CampaignCategory] = None,
     featured: Optional[bool] = None,
     search: Optional[str] = None,
+    sort: Optional[str] = Query(None, pattern="^(display_order|collected_desc|newest|progress_desc)$"),
     db: AsyncSession = Depends(get_db),
 ):
     """List campaigns with filtering and pagination"""
@@ -41,16 +42,30 @@ async def list_campaigns(
     organization_id = request.state.organization_id
     
     # Build query
-    query = select(Campaign).where(
+    base_filter = [
         Campaign.organization_id == organization_id,
         # System items (e.g. member dues) accept payments but are not listed as campaigns.
         or_(Campaign.tags.is_(None), ~Campaign.tags.any(HIDDEN_CAMPAIGN_TAG)),
-    )
-    
+    ]
     staff = await optional_staff(request, db)
     if not staff:
         # Drafts and cancelled campaigns are for the panel only.
-        query = query.where(Campaign.status.in_(PUBLIC_STATUSES))
+        base_filter.append(Campaign.status.in_(PUBLIC_STATUSES))
+
+    # Global stats across all visible campaigns for this organization
+    stats_row = (await db.execute(
+        select(
+            func.count().label("total_campaigns"),
+            func.coalesce(func.sum(case((Campaign.status == CampaignStatus.ACTIVE, 1), else_=0)), 0).label("active_count"),
+            func.coalesce(func.sum(case((Campaign.is_featured.is_(True), 1), else_=0)), 0).label("featured_count"),
+            func.coalesce(func.sum(case((Campaign.status == CampaignStatus.COMPLETED, 1), else_=0)), 0).label("completed_count"),
+            func.coalesce(func.sum(case((Campaign.status == CampaignStatus.DRAFT, 1), else_=0)), 0).label("draft_count"),
+            func.coalesce(func.sum(case((Campaign.status == CampaignStatus.PAUSED, 1), else_=0)), 0).label("paused_count"),
+            func.coalesce(func.sum(Campaign.collected_cents), 0).label("total_collected_cents"),
+        ).where(*base_filter)
+    )).one()
+
+    query = select(Campaign).where(*base_filter)
     if status:
         query = query.where(Campaign.status == status)
     if category:
@@ -65,8 +80,16 @@ async def list_campaigns(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
     
-    # Apply pagination
-    query = query.order_by(Campaign.display_order.desc(), Campaign.created_at.desc())
+    # Apply sorting and pagination
+    if sort == "collected_desc":
+        query = query.order_by(Campaign.collected_cents.desc(), Campaign.created_at.desc())
+    elif sort == "newest":
+        query = query.order_by(Campaign.created_at.desc())
+    elif sort == "progress_desc":
+        ratio = (Campaign.collected_cents * 1.0) / func.nullif(Campaign.target_cents, 0)
+        query = query.order_by(ratio.desc().nullslast(), Campaign.collected_cents.desc())
+    else:
+        query = query.order_by(Campaign.display_order.desc(), Campaign.created_at.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
     
     result = await db.execute(query)
@@ -79,6 +102,15 @@ async def list_campaigns(
         page=page,
         page_size=page_size,
         total_pages=(total + page_size - 1) // page_size,
+        stats=CampaignStats(
+            total_campaigns=int(stats_row.total_campaigns or 0),
+            active_count=int(stats_row.active_count or 0),
+            featured_count=int(stats_row.featured_count or 0),
+            completed_count=int(stats_row.completed_count or 0),
+            draft_count=int(stats_row.draft_count or 0),
+            paused_count=int(stats_row.paused_count or 0),
+            total_collected_cents=int(stats_row.total_collected_cents or 0),
+        ),
     )
 
 
@@ -169,7 +201,25 @@ async def update_campaign(
         raise HTTPException(status_code=404, detail="Campaign not found")
     
     # Update fields
-    for field, value in campaign_in.model_dump(exclude_unset=True).items():
+    payload = campaign_in.model_dump(exclude_unset=True)
+    if "slug" in payload and payload["slug"] is not None:
+        new_slug = slugify(payload["slug"])
+        if not new_slug:
+            raise HTTPException(status_code=400, detail="Geçersiz URL slug")
+        if new_slug != campaign.slug:
+            dup = await db.execute(
+                select(Campaign.id).where(
+                    Campaign.organization_id == organization_id,
+                    Campaign.slug == new_slug,
+                    Campaign.id != campaign.id,
+                )
+            )
+            if dup.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail="Bu URL slug zaten kullanımda")
+            payload["slug"] = new_slug
+        else:
+            payload.pop("slug", None)
+    for field, value in payload.items():
         setattr(campaign, field, value)
     
     await db.commit()

@@ -1,17 +1,24 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import {
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
+  Copy,
   ExternalLink,
+  HandCoins,
   ImagePlus,
   Megaphone,
   PauseCircle,
+  PlayCircle,
   Plus,
   RefreshCw,
   Search,
   Star,
   Trash2,
+  Wallet,
   X,
 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
@@ -21,11 +28,11 @@ import {
   Modal,
   PageHeader,
   Pagination,
-  StatCard,
   Tabs,
   toast,
   confirmDialog,
 } from '../../../../components/admin/ui'
+import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { ImageField } from '../../../../components/admin/ImageField'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
 import {
@@ -90,13 +97,31 @@ interface Campaign {
   progress_percentage?: number
 }
 
+interface CampaignStats {
+  total_campaigns: number
+  active_count: number
+  featured_count: number
+  completed_count: number
+  draft_count: number
+  paused_count: number
+  total_collected_cents: number
+}
+
 interface CampaignListResponse {
   items: Campaign[]
   total: number
   page: number
   page_size: number
   total_pages: number
+  stats?: CampaignStats
 }
+
+const SORT_OPTIONS = [
+  ['display_order', 'Sıra Numarasına Göre'],
+  ['collected_desc', 'En Çok Toplanan'],
+  ['progress_desc', 'Hedefe En Yakın (%)'],
+  ['newest', 'En Yeni'],
+] as const
 
 const PAGE_SIZE = 25
 
@@ -115,6 +140,15 @@ function formatSuggestedAmounts(cents?: number[]): string {
 
 export default function AdminCampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [globalStats, setGlobalStats] = useState<CampaignStats>({
+    total_campaigns: 0,
+    active_count: 0,
+    featured_count: 0,
+    completed_count: 0,
+    draft_count: 0,
+    paused_count: 0,
+    total_collected_cents: 0,
+  })
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [page, setPage] = useState(1)
@@ -123,6 +157,10 @@ export default function AdminCampaignsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
+  const [featuredOnly, setFeaturedOnly] = useState(false)
+  const [sortBy, setSortBy] = useState<string>('display_order')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const [selected, setSelected] = useState<Campaign | null>(null)
   const [drawerTab, setDrawerTab] = useState<'general' | 'media' | 'i18n'>('general')
@@ -145,6 +183,7 @@ export default function AdminCampaignsPage() {
   // Edit form state (synced when selected changes)
   const [editForm, setEditForm] = useState({
     title: '',
+    slug: '',
     summary: '',
     story: '',
     category: 'genel',
@@ -184,44 +223,56 @@ export default function AdminCampaignsPage() {
     }
   }
 
-  const loadCampaigns = useCallback(async (targetPage = page, q = search, st = statusFilter, cat = categoryFilter) => {
+  const loadCampaigns = useCallback(async (
+    targetPage = page,
+    q = search,
+    st = statusFilter,
+    cat = categoryFilter,
+    feat = featuredOnly,
+    sort = sortBy,
+  ) => {
     setLoading(true)
     try {
       const params: Record<string, unknown> = { page: targetPage, page_size: PAGE_SIZE }
       if (q.trim()) params.search = q.trim()
       if (st !== 'all') params.status = st
       if (cat !== 'all') params.category = cat
+      if (feat) params.featured = true
+      if (sort && sort !== 'display_order') params.sort = sort
 
       const res = await v1Get<CampaignListResponse>('/campaigns', params)
       const items = res.data?.items || []
       setCampaigns(items)
       setTotal(res.data?.total || items.length)
       setTotalPages(Math.max(1, res.data?.total_pages || 1))
+      if (res.data?.stats) setGlobalStats(res.data.stats)
+      setSelectedIds(new Set())
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Kampanyalar yüklenemedi.'))
     } finally {
       setLoading(false)
     }
-  }, [page, search, statusFilter, categoryFilter])
+  }, [page, search, statusFilter, categoryFilter, featuredOnly, sortBy])
 
   const didMountRef = useRef(false)
   useEffect(() => {
     if (!didMountRef.current) {
       didMountRef.current = true
-      loadCampaigns(page, search, statusFilter, categoryFilter)
+      loadCampaigns(page, search, statusFilter, categoryFilter, featuredOnly, sortBy)
       return
     }
     const timer = setTimeout(() => {
-      loadCampaigns(page, search, statusFilter, categoryFilter)
+      loadCampaigns(page, search, statusFilter, categoryFilter, featuredOnly, sortBy)
     }, 200)
     return () => clearTimeout(timer)
-  }, [loadCampaigns, page, search, statusFilter, categoryFilter])
+  }, [loadCampaigns, page, search, statusFilter, categoryFilter, featuredOnly, sortBy])
 
   const openEditor = (c: Campaign) => {
     setSelected(c)
     setDrawerTab('general')
     setEditForm({
       title: c.title || '',
+      slug: c.slug || '',
       summary: c.summary || '',
       story: c.story || '',
       category: c.category || 'genel',
@@ -286,7 +337,7 @@ export default function AdminCampaignsPage() {
         cover_image_url: '',
         is_featured: false,
       })
-      await loadCampaigns(1, search, statusFilter, categoryFilter)
+      await loadCampaigns(1, search, statusFilter, categoryFilter, featuredOnly, sortBy)
       setPage(1)
       openEditor(res.data)
     } catch (err) {
@@ -314,6 +365,7 @@ export default function AdminCampaignsPage() {
     try {
       const res = await v1Send<Campaign>('patch', `/campaigns/${selected.id}`, {
         title: editForm.title.trim(),
+        slug: editForm.slug.trim() || undefined,
         summary: editForm.summary.trim(),
         story: editForm.story.trim() || null,
         category: editForm.category,
@@ -371,12 +423,94 @@ export default function AdminCampaignsPage() {
     }
   }
 
-  const stats = useMemo(() => {
-    const active = campaigns.filter((c) => c.status === 'active').length
-    const featured = campaigns.filter((c) => c.is_featured).length
-    const completed = campaigns.filter((c) => c.status === 'completed').length
-    return { active, featured, completed }
-  }, [campaigns])
+  const quickPatchCampaign = async (c: Campaign, patch: Partial<Campaign>, okMsg: string) => {
+    try {
+      const res = await v1Send<Campaign>('patch', `/campaigns/${c.id}`, patch)
+      syncUpdatedCampaign(res.data)
+      if (selected?.id === c.id) {
+        setEditForm((prev) => ({
+          ...prev,
+          status: res.data.status || prev.status,
+          is_featured: Boolean(res.data.is_featured),
+        }))
+      }
+      toast.ok(okMsg)
+      loadCampaigns(page, search, statusFilter, categoryFilter, featuredOnly, sortBy)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'İşlem tamamlanamadı.'))
+    }
+  }
+
+  const runBulkPatch = async (patch: Partial<Campaign>, label: string) => {
+    if (selectedIds.size === 0) return
+    setBulkBusy(true)
+    try {
+      await Promise.all(
+        Array.from(selectedIds).map((id) => v1Send<Campaign>('patch', `/campaigns/${id}`, patch)),
+      )
+      toast.ok(`${selectedIds.size} kampanya için "${label}" uygulandı.`)
+      await loadCampaigns(page, search, statusFilter, categoryFilter, featuredOnly, sortBy)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Toplu işlem sırasında hata oluştu.'))
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  const copyCampaignLink = async (slug: string) => {
+    const url = typeof window !== 'undefined' ? `${window.location.origin}/kampanyalar/${slug}` : `/kampanyalar/${slug}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.ok('Kampanya bağlantısı panoya kopyalandı.')
+    } catch {
+      toast.error('Bağlantı kopyalanamadı.')
+    }
+  }
+
+  const toggleSelectId = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allOnPageSelected = campaigns.length > 0 && campaigns.every((c) => selectedIds.has(c.id))
+  const toggleSelectAllOnPage = () => {
+    if (allOnPageSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(campaigns.map((c) => c.id)))
+    }
+  }
+
+  const moveGalleryItem = (index: number, delta: -1 | 1) => {
+    const target = index + delta
+    if (target < 0 || target >= galleryUrls.length) return
+    setGalleryUrls((prev) => {
+      const next = [...prev]
+      const [item] = next.splice(index, 1)
+      next.splice(target, 0, item)
+      return next
+    })
+  }
+
+  const activeFiltersCount =
+    (search.trim() ? 1 : 0) +
+    (statusFilter !== 'all' ? 1 : 0) +
+    (categoryFilter !== 'all' ? 1 : 0) +
+    (featuredOnly ? 1 : 0) +
+    (sortBy !== 'display_order' ? 1 : 0)
+
+  const clearFilters = () => {
+    setPage(1)
+    setSearch('')
+    setStatusFilter('all')
+    setCategoryFilter('all')
+    setFeaturedOnly(false)
+    setSortBy('display_order')
+  }
 
   return (
     <div className="space-y-6">
@@ -409,7 +543,7 @@ export default function AdminCampaignsPage() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => loadCampaigns(page, search, statusFilter, categoryFilter)}
+              onClick={() => loadCampaigns(page, search, statusFilter, categoryFilter, featuredOnly, sortBy)}
               disabled={loading}
             >
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
@@ -424,10 +558,64 @@ export default function AdminCampaignsPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Toplam Kampanya" value={String(total)} tone="neutral" icon={Megaphone} />
-        <StatCard label="Yayında (Bu Sayfa)" value={String(stats.active)} tone="good" icon={CheckCircle2} />
-        <StatCard label="Öne Çıkan" value={String(stats.featured)} tone="brand" icon={Star} />
-        <StatCard label="Tamamlanan" value={String(stats.completed)} tone="warn" icon={PauseCircle} />
+        <GlobalStatCard
+          title="Toplam Kampanya"
+          value={globalStats.total_campaigns.toLocaleString('tr-TR')}
+          subtitle={`${globalStats.draft_count} taslak · ${globalStats.completed_count} tamamlandı`}
+          gradient="from-slate-600 to-slate-700"
+          icon={<Megaphone className="w-5 h-5" />}
+        />
+        <GlobalStatCard
+          title="Yayında"
+          value={globalStats.active_count.toLocaleString('tr-TR')}
+          subtitle={`${globalStats.paused_count} duraklatıldı`}
+          gradient="from-emerald-600 to-teal-700"
+          icon={<CheckCircle2 className="w-5 h-5" />}
+        />
+        <GlobalStatCard
+          title="Öne Çıkan"
+          value={globalStats.featured_count.toLocaleString('tr-TR')}
+          subtitle="Ana sayfada vitrinde"
+          gradient="from-amber-500 to-orange-600"
+          icon={<Star className="w-5 h-5" />}
+        />
+        <GlobalStatCard
+          title="Toplam Toplanan"
+          value={formatMoney(globalStats.total_collected_cents, 'TRY')}
+          subtitle="Tüm kampanyalar toplamı"
+          gradient="from-sky-600 to-indigo-700"
+          icon={<Wallet className="w-5 h-5" />}
+        />
+      </div>
+
+      {/* Hızlı Görünüm Sekmeleri */}
+      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Kampanya görünümü">
+        {[
+          { key: 'all', label: 'Tümü', count: globalStats.total_campaigns, active: statusFilter === 'all' && !featuredOnly, onClick: () => { setPage(1); setStatusFilter('all'); setFeaturedOnly(false) } },
+          { key: 'active', label: 'Yayında', count: globalStats.active_count, active: statusFilter === 'active' && !featuredOnly, onClick: () => { setPage(1); setStatusFilter('active'); setFeaturedOnly(false) } },
+          { key: 'draft', label: 'Taslak', count: globalStats.draft_count, active: statusFilter === 'draft' && !featuredOnly, onClick: () => { setPage(1); setStatusFilter('draft'); setFeaturedOnly(false) } },
+          { key: 'paused', label: 'Duraklatıldı', count: globalStats.paused_count, active: statusFilter === 'paused' && !featuredOnly, onClick: () => { setPage(1); setStatusFilter('paused'); setFeaturedOnly(false) } },
+          { key: 'completed', label: 'Tamamlandı', count: globalStats.completed_count, active: statusFilter === 'completed' && !featuredOnly, onClick: () => { setPage(1); setStatusFilter('completed'); setFeaturedOnly(false) } },
+          { key: 'featured', label: 'Öne Çıkanlar', count: globalStats.featured_count, active: featuredOnly, onClick: () => { setPage(1); setFeaturedOnly((v) => !v) } },
+        ].map((pill) => (
+          <button
+            key={pill.key}
+            type="button"
+            role="tab"
+            aria-selected={pill.active}
+            onClick={pill.onClick}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+              pill.active
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <span>{pill.label}</span>
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${pill.active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              {pill.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       <FilterBar>
@@ -473,10 +661,69 @@ export default function AdminCampaignsPage() {
             </option>
           ))}
         </select>
+        <select
+          value={sortBy}
+          onChange={(e) => {
+            setPage(1)
+            setSortBy(e.target.value)
+          }}
+          className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+        >
+          {SORT_OPTIONS.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        {activeFiltersCount > 0 && (
+          <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+            Temizle ({activeFiltersCount})
+          </Button>
+        )}
       </FilterBar>
+
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-xs">
+          <span className="font-semibold text-emerald-900">
+            {selectedIds.size} kampanya seçildi
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant="outline" disabled={bulkBusy} onClick={() => runBulkPatch({ status: 'active' }, 'Yayına Al')}>
+              Yayına Al
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={bulkBusy} onClick={() => runBulkPatch({ status: 'paused' }, 'Duraklat')}>
+              Duraklat
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={bulkBusy} onClick={() => runBulkPatch({ is_featured: true }, 'Öne Çıkar')}>
+              Öne Çıkar
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={bulkBusy} onClick={() => runBulkPatch({ is_featured: false }, 'Öne Çıkarmayı Kaldır')}>
+              Vitrinden Çıkar
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={bulkBusy} onClick={() => setSelectedIds(new Set())}>
+              Seçimi Temizle
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-12 gap-6 items-start">
         <div className={`${selected ? 'lg:col-span-6' : 'lg:col-span-12'} space-y-3`}>
+          {!loading && campaigns.length > 0 && (
+            <div className="flex items-center justify-between px-1 text-xs text-slate-500">
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={allOnPageSelected}
+                  onChange={toggleSelectAllOnPage}
+                  className="rounded border-slate-300 accent-emerald-600"
+                />
+                <span>Sayfadakilerin tümünü seç ({campaigns.length})</span>
+              </label>
+              <span>Toplam {total.toLocaleString('tr-TR')} kayıt</span>
+            </div>
+          )}
+
           {loading ? (
             <Card className="p-8 border border-slate-200 text-center text-sm text-slate-500 animate-pulse">
               Kampanyalar yükleniyor...
@@ -489,17 +736,29 @@ export default function AdminCampaignsPage() {
             campaigns.map((c) => {
               const st = STATUS_META[c.status] || { label: c.status, badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' }
               const pct = c.target_cents > 0 ? Math.min(100, Math.round(((c.collected_cents || 0) / c.target_cents) * 100)) : 0
+              const remainingCents = Math.max(0, (c.target_cents || 0) - (c.collected_cents || 0))
               const isSelected = selected?.id === c.id
+              const isChecked = selectedIds.has(c.id)
               return (
                 <Card
                   key={c.id}
                   onClick={() => openEditor(c)}
                   className={`p-4 border cursor-pointer transition-all ${
-                    isSelected ? 'border-emerald-500 bg-emerald-50/30 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-50/30 shadow-sm ring-1 ring-emerald-500/20'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
                   }`}
                 >
-                  <div className="flex items-start gap-3.5">
-                    <div className="w-16 h-12 rounded-lg border border-slate-200 bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleSelectId(c.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      aria-label={`${c.title} seç`}
+                      className="mt-1 rounded border-slate-300 accent-emerald-600 shrink-0"
+                    />
+                    <div className="w-20 h-14 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
                       {c.cover_image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={c.cover_image_url} alt={c.title} className="w-full h-full object-cover" />
@@ -509,8 +768,8 @@ export default function AdminCampaignsPage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                           <h3 className="font-semibold text-sm text-slate-900 truncate">{c.title}</h3>
                           <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${st.badgeClass}`}>
                             {st.label}
@@ -522,23 +781,66 @@ export default function AdminCampaignsPage() {
                             </span>
                           )}
                         </div>
-                        <a
-                          href={`/kampanyalar/${c.slug}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          title="Sitede Görüntüle"
-                          className="text-[11px] font-medium text-slate-500 hover:text-emerald-700 inline-flex items-center gap-1"
-                        >
-                          Sitede Gör
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+
+                        <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => quickPatchCampaign(c, { is_featured: !c.is_featured }, c.is_featured ? 'Öne çıkarma kaldırıldı.' : 'Kampanya öne çıkarıldı.')}
+                            title={c.is_featured ? 'Öne çıkarmayı kaldır' : 'Öne çıkar'}
+                            className={`p-1.5 rounded-md border text-xs transition-colors ${
+                              c.is_featured
+                                ? 'border-amber-200 bg-amber-50 text-amber-600'
+                                : 'border-slate-200 bg-white text-slate-400 hover:text-amber-600'
+                            }`}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${c.is_featured ? 'fill-amber-500' : ''}`} />
+                          </button>
+                          {(c.status === 'active' || c.status === 'draft' || c.status === 'paused') && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                quickPatchCampaign(
+                                  c,
+                                  { status: c.status === 'active' ? 'paused' : 'active' },
+                                  c.status === 'active' ? 'Kampanya duraklatıldı.' : 'Kampanya yayına alındı.',
+                                )
+                              }
+                              title={c.status === 'active' ? 'Duraklat' : 'Yayına Al'}
+                              className="p-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:text-emerald-700 hover:border-emerald-200"
+                            >
+                              {c.status === 'active' ? <PauseCircle className="w-3.5 h-3.5" /> : <PlayCircle className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => copyCampaignLink(c.slug)}
+                            title="Kampanya linkini kopyala"
+                            className="p-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:text-slate-800"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <a
+                            href={`/kampanyalar/${c.slug}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Sitede Görüntüle"
+                            className="p-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:text-emerald-700"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
                       </div>
 
                       <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-2">
                         <span>{CATEGORY_LABEL[c.category] || c.category}</span>
                         <span>·</span>
                         <span className="font-mono text-slate-400">/{c.slug}</span>
+                        {typeof c.display_order === 'number' && c.display_order !== 0 && (
+                          <>
+                            <span>·</span>
+                            <span>Sıra: {c.display_order}</span>
+                          </>
+                        )}
                       </div>
 
                       <div className="mt-2.5">
@@ -547,10 +849,18 @@ export default function AdminCampaignsPage() {
                             {formatMoney(c.collected_cents || 0, c.currency || 'TRY')}
                             <span className="text-slate-400 font-normal"> / {formatMoney(c.target_cents || 0, c.currency || 'TRY')}</span>
                           </span>
-                          <span className="font-semibold text-emerald-700 tabular-nums">%{pct}</span>
+                          <span className="flex items-center gap-2 tabular-nums">
+                            {remainingCents > 0 && (
+                              <span className="text-[11px] text-slate-400">Kalan: {formatMoney(remainingCents, c.currency || 'TRY')}</span>
+                            )}
+                            <span className={`font-semibold ${pct >= 100 ? 'text-sky-700' : 'text-emerald-700'}`}>%{pct}</span>
+                          </span>
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                          <div className="h-full rounded-full bg-emerald-600 transition-all" style={{ width: `${pct}%` }} />
+                          <div
+                            className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-sky-600' : 'bg-emerald-600'}`}
+                            style={{ width: `${pct}%` }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -566,8 +876,8 @@ export default function AdminCampaignsPage() {
         </div>
 
         {selected && (
-          <div className="lg:col-span-6">
-            <Card className="p-5 border border-slate-200 bg-white space-y-4">
+          <div className="lg:col-span-6 lg:sticky lg:top-4">
+            <Card className="p-5 border border-slate-200 bg-white space-y-4 shadow-sm">
               <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="min-w-0">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
@@ -575,22 +885,63 @@ export default function AdminCampaignsPage() {
                   </div>
                   <h2 className="text-lg font-bold text-slate-900 truncate mt-0.5">{selected.title}</h2>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => deleteCampaign(selected)}
-                  className="ml-auto rounded-md border border-red-200 px-2 py-1 text-[11px] font-bold text-red-600 hover:bg-red-50"
-                  title="Bağış almamış kampanyayı siler"
-                >
-                  Sil
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelected(null)}
-                  className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                  title="Kapat"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Link
+                    href="/admin/bagislar"
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                    title="Bağışlar listesine git"
+                  >
+                    <HandCoins className="w-3.5 h-3.5 text-emerald-600" />
+                    Bağışlar
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => copyCampaignLink(selected.slug)}
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                    title="Kampanya linkini kopyala"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    Link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteCampaign(selected)}
+                    className="rounded-md border border-red-200 px-2 py-1 text-[11px] font-bold text-red-600 hover:bg-red-50"
+                    title="Bağış almamış kampanyayı siler"
+                  >
+                    Sil
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(null)}
+                    className="p-1 rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    title="Kapat"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Seçili Kampanya Performans Şeridi */}
+              <div className="grid grid-cols-3 gap-2.5 rounded-xl bg-slate-50 p-3 border border-slate-100">
+                <div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase">Toplanan</div>
+                  <div className="text-sm font-bold text-emerald-700 tabular-nums mt-0.5">
+                    {formatMoney(selected.collected_cents || 0, selected.currency || 'TRY')}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase">Hedef</div>
+                  <div className="text-sm font-bold text-slate-800 tabular-nums mt-0.5">
+                    {formatMoney(selected.target_cents || 0, selected.currency || 'TRY')}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-medium text-slate-500 uppercase">Tamamlanma</div>
+                  <div className="text-sm font-bold text-slate-900 tabular-nums mt-0.5">
+                    %{selected.target_cents > 0 ? Math.min(100, Math.round(((selected.collected_cents || 0) / selected.target_cents) * 100)) : 0}
+                  </div>
+                </div>
               </div>
 
               <Tabs
@@ -605,14 +956,25 @@ export default function AdminCampaignsPage() {
 
               {drawerTab === 'general' && (
                 <form onSubmit={handleSaveGeneral} className="space-y-3.5">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Kampanya Başlığı *</label>
-                    <Input
-                      maxLength={300}
-                      value={editForm.title}
-                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                      required
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Kampanya Başlığı *</label>
+                      <Input
+                        maxLength={300}
+                        value={editForm.title}
+                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">URL Slug</label>
+                      <Input
+                        maxLength={200}
+                        value={editForm.slug}
+                        onChange={(e) => setEditForm({ ...editForm, slug: e.target.value })}
+                        placeholder="kampanya-url-slug"
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -812,14 +1174,34 @@ export default function AdminCampaignsPage() {
                           <div key={`${url}-${index}`} className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 group bg-slate-50">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={url} alt={`Galeri ${index + 1}`} className="object-cover w-full h-full" />
-                            <button
-                              type="button"
-                              onClick={() => setGalleryUrls((prev) => prev.filter((_, i) => i !== index))}
-                              className="absolute top-1.5 right-1.5 p-1 rounded bg-rose-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Kaldır"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                disabled={index === 0}
+                                onClick={() => moveGalleryItem(index, -1)}
+                                className="p-1 rounded bg-slate-900/75 text-white disabled:opacity-30"
+                                title="Yukarı Taşı"
+                              >
+                                <ArrowUp className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={index === galleryUrls.length - 1}
+                                onClick={() => moveGalleryItem(index, 1)}
+                                className="p-1 rounded bg-slate-900/75 text-white disabled:opacity-30"
+                                title="Aşağı Taşı"
+                              >
+                                <ArrowDown className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setGalleryUrls((prev) => prev.filter((_, i) => i !== index))}
+                                className="p-1 rounded bg-rose-600 text-white"
+                                title="Kaldır"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
