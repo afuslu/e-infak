@@ -1,11 +1,35 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { Trash2 } from 'lucide-react'
-import { Card } from '@e-infak/ui'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  AlertTriangle,
+  BookOpen,
+  CheckCircle2,
+  FileSpreadsheet,
+  Layers,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+} from 'lucide-react'
+import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, can } from '../../../../lib/admin-access'
-import { Label, Notice, TextInput, compactInputClass, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { ExportButtons, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import {
+  ExportButtons,
+  FilterBar,
+  Modal,
+  PageHeader,
+  TBody,
+  THead,
+  Table,
+  Td,
+  Th,
+  Tr,
+  confirmDialog,
+  toast,
+} from '../../../../components/admin/ui'
 
 interface Book {
   id: string
@@ -45,10 +69,10 @@ interface Staff {
 }
 
 const STATE_LABEL: Record<Sheet['state'], [string, string]> = {
-  used: ['Kesildi', 'text-gray-700'],
+  used: ['Kesildi', 'text-emerald-700'],
   cancelled: ['Makbuz iptal', 'text-amber-700'],
-  voided: ['Yaprak iptal', 'text-red-700'],
-  gap: ['Atlandı (boş)', 'text-gray-400'],
+  voided: ['Yaprak iptal', 'text-rose-700'],
+  gap: ['Atlandı (boş)', 'text-slate-400'],
 }
 
 const CURRENCIES = ['TRY', 'USD', 'EUR', 'GBP', 'SAR', 'CHF'] as const
@@ -64,11 +88,18 @@ const today = () => {
 
 export default function ReceiptBooksPage() {
   const { data: access } = useAdminAccess()
-  const canEdit = (can(access, 'receipts.create') || can(access, 'finance.manage'))
+  const canEdit = can(access, 'receipts.create') || can(access, 'finance.manage')
+
   const [books, setBooks] = useState<Book[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [staff, setStaff] = useState<Staff[]>([])
+
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'closed'>('')
+  const [statusFilter, setStatusFilter] = useState<'' | 'active' | 'closed' | 'low'>('')
+  const [holderFilter, setHolderFilter] = useState('')
+  const [branchFilter, setBranchFilter] = useState('')
+
   const [form, setForm] = useState<{
     id?: string
     series: string
@@ -81,25 +112,30 @@ export default function ReceiptBooksPage() {
   } | null>(null)
   const [voidModal, setVoidModal] = useState<{ book: Book; number: string; reason: string } | null>(null)
   const [sheets, setSheets] = useState<{ book: Book; sheets: Sheet[] } | null>(null)
+  const [sheetSearch, setSheetSearch] = useState('')
+  const [sheetStateFilter, setSheetStateFilter] = useState<'all' | Sheet['state']>('all')
+
   const [range, setRange] = useState({ start: monthStart(), end: today() })
   const [summaryCurrency, setSummaryCurrency] = useState<string>('TRY')
   const [channels, setChannels] = useState<{ kind: string; label: string; count: number; total_cents: number }[]>([])
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    setLoading(true)
     try {
       setBooks((await adminGet<Book[]>('/receipt-books')).data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Koçanlar yüklenemedi') })
+      toast.error(apiErrorMessage(err, 'Koçanlar yüklenemedi'))
+    } finally {
+      setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     load()
     adminGet<Staff[]>('/users')
       .then((r) => setStaff(r.data.filter((s) => s.is_active)))
       .catch(() => {})
-  }, [])
+  }, [load])
 
   useEffect(() => {
     adminGet<{ channels: typeof channels }>('/receipt-books-summary', { ...range, currency: summaryCurrency })
@@ -107,30 +143,80 @@ export default function ReceiptBooksPage() {
       .catch(() => setChannels([]))
   }, [range, summaryCurrency])
 
+  const branches = useMemo(() => {
+    const set = new Set<string>()
+    books.forEach((b) => set.add(b.branch || 'Merkez'))
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'tr'))
+  }, [books])
+
+  const stats = useMemo(() => {
+    const active = books.filter((b) => b.status === 'active')
+    const closed = books.filter((b) => b.status === 'closed')
+    const low = active.filter((b) => b.remaining <= 5)
+    const remainingTotal = active.reduce((s, b) => s + b.remaining, 0)
+    const usedTotal = books.reduce((s, b) => s + b.used, 0)
+    const voidedTotal = books.reduce((s, b) => s + b.voided, 0)
+    const totalSize = books.reduce((s, b) => s + b.size, 0)
+    return {
+      total: books.length,
+      active: active.length,
+      closed: closed.length,
+      low: low.length,
+      remainingTotal,
+      usedTotal,
+      voidedTotal,
+      totalSize,
+    }
+  }, [books])
+
   const filteredBooks = useMemo(() => {
     const q = search.trim().toLowerCase()
     return books.filter((b) => {
-      if (statusFilter && b.status !== statusFilter) return false
+      if (statusFilter === 'active' && b.status !== 'active') return false
+      if (statusFilter === 'closed' && b.status !== 'closed') return false
+      if (statusFilter === 'low' && !(b.status === 'active' && b.remaining <= 5)) return false
+      if (holderFilter && (b.holder_user_id || '__none__') !== holderFilter) return false
+      if (branchFilter && (b.branch || 'Merkez') !== branchFilter) return false
       if (q) {
-        const hay = `${b.series} ${b.branch || 'Merkez'} ${b.holder_name || ''}`.toLowerCase()
+        const hay = `${b.series} ${b.branch || 'Merkez'} ${b.holder_name || ''} ${b.note || ''}`.toLowerCase()
         if (!hay.includes(q)) return false
       }
       return true
     })
-  }, [books, search, statusFilter])
+  }, [books, search, statusFilter, holderFilter, branchFilter])
+
+  const filteredSheets = useMemo(() => {
+    if (!sheets) return []
+    const q = sheetSearch.trim().toLowerCase()
+    return sheets.sheets.filter((s) => {
+      if (sheetStateFilter !== 'all' && s.state !== sheetStateFilter) return false
+      if (!q) return true
+      return `${s.label} ${s.receipt_number || ''} ${s.donor_name || ''} ${s.reason || ''}`.toLowerCase().includes(q)
+    })
+  }, [sheets, sheetSearch, sheetStateFilter])
+
+  const activeFiltersCount = (search.trim() ? 1 : 0) + (statusFilter ? 1 : 0) + (holderFilter ? 1 : 0) + (branchFilter ? 1 : 0)
+  const clearFilters = () => {
+    setSearch('')
+    setStatusFilter('')
+    setHolderFilter('')
+    setBranchFilter('')
+  }
 
   const openSheets = async (id: string) => {
     try {
+      setSheetSearch('')
+      setSheetStateFilter('all')
       setSheets((await adminGet<{ book: Book; sheets: Sheet[] }>(`/receipt-books/${id}/sheets`)).data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form) return
-    setMessage(null)
+    setSaving(true)
     try {
       if (form.id) {
         await adminSend('put', `/receipt-books/${form.id}`, {
@@ -139,6 +225,7 @@ export default function ReceiptBooksPage() {
           status: form.status,
           note: form.note || null,
         })
+        toast.ok('Koçan güncellendi.')
       } else {
         await adminSend('post', '/receipt-books', {
           series: form.series,
@@ -148,12 +235,14 @@ export default function ReceiptBooksPage() {
           holder_user_id: form.holder_user_id || null,
           note: form.note || null,
         })
+        toast.ok('Yeni koçan oluşturuldu.')
       }
       setForm(null)
-      setMessage({ type: 'ok', text: 'Koçan kaydedildi' })
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -162,15 +251,14 @@ export default function ReceiptBooksPage() {
     if (!voidModal) return
     const { book, number, reason } = voidModal
     if (!number || !reason.trim()) return
-    setMessage(null)
     try {
       await adminSend('post', `/receipt-books/${book.id}/void`, { number: Number(number), reason: reason.trim() })
       setVoidModal(null)
-      setMessage({ type: 'ok', text: `${book.series}-${number} iptal edildi; bu numara bir daha verilmez` })
+      toast.ok(`${book.series}-${number} iptal edildi; bu numara bir daha verilmez.`)
       await load()
       if (sheets?.book.id === book.id) await openSheets(book.id)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
@@ -178,17 +266,17 @@ export default function ReceiptBooksPage() {
     const ok = await confirmDialog({
       title: `${b.series} (${b.start_no}–${b.end_no}) koçanı silinsin mi?`,
       text: 'Hiç yaprağı kullanılmamış bu koçan kalıcı olarak silinecek.',
+      confirmLabel: 'Sil',
       danger: true,
     })
     if (!ok) return
-    setMessage(null)
     try {
       await adminSend('delete', `/receipt-books/${b.id}`)
       if (sheets?.book.id === b.id) setSheets(null)
-      setMessage({ type: 'ok', text: `${b.series} koçanı silindi` })
+      toast.ok(`${b.series} koçanı silindi.`)
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Koçan silinemedi') })
+      toast.error(apiErrorMessage(err, 'Koçan silinemedi'))
     }
   }
 
@@ -198,311 +286,301 @@ export default function ReceiptBooksPage() {
     <div className="space-y-6">
       <PageHeader
         title="Makbuz Koçanları"
-        description={<>Resmî matbu makbuz koçanları. Kesilen ya da iptal edilen numara bir daha verilmez; elle makbuz keserken koçan seçilir.</>}
+        description="Resmî matbu makbuz koçanlarını, zimmetli personeli ve yaprak dökümlerini yönetin. Kesilen veya iptal edilen numara bir daha verilmez."
         actions={
-          canEdit && (
-            <button
-              className={primaryButton}
-              onClick={() =>
-                setForm({ series: '', start_no: '1', end_no: '50', branch: '', holder_user_id: '', status: 'active', note: '' })
-              }
-            >
-              + Yeni koçan
-            </button>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            {filteredBooks.length > 0 && (
+              <ExportButtons
+                filename="makbuz-kocanlari"
+                title="Makbuz Koçanları"
+                subtitle={`${filteredBooks.length} koçan`}
+                getData={() => ({
+                  headers: ['Seri', 'Aralık', 'Şube', 'Zimmet', 'Kesilen', 'İptal', 'Kalan', 'Sıradaki', 'Durum'],
+                  rows: filteredBooks.map((b) => [
+                    b.series,
+                    `${b.start_no}-${b.end_no}`,
+                    b.branch || 'Merkez',
+                    b.holder_name || '—',
+                    b.used,
+                    b.voided,
+                    b.remaining,
+                    b.next_label || '—',
+                    b.status === 'active' ? 'Kullanımda' : 'Kapalı',
+                  ]),
+                })}
+              />
+            )}
+            <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading}>
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
+            {canEdit && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() =>
+                  setForm({ series: '', start_no: '1', end_no: '50', branch: '', holder_user_id: '', status: 'active', note: '' })
+                }
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" />
+                Yeni Koçan
+              </Button>
+            )}
+          </div>
         }
       />
-      <Notice message={message} />
 
-      {form && (
-        <Card className="border border-gray-100 p-6 shadow-sm">
-          <form onSubmit={save} className="space-y-4">
-            <h2 className="text-lg font-bold text-gray-900">{form.id ? `${form.series} koçanını düzenle` : 'Yeni koçan'}</h2>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <TextInput
-                label="Seri"
-                required
-                value={form.series}
-                disabled={!!form.id}
-                onChange={(v) => setForm({ ...form, series: v.toUpperCase() })}
-                hint="ör. A veya 2026-B"
-              />
-              <TextInput
-                label="İlk yaprak no"
-                required
-                inputMode="numeric"
-                value={form.start_no}
-                disabled={!!form.id}
-                onChange={(v) => setForm({ ...form, start_no: v.replace(/\D/g, '') })}
-              />
-              <TextInput
-                label="Son yaprak no"
-                required
-                inputMode="numeric"
-                value={form.end_no}
-                disabled={!!form.id}
-                onChange={(v) => setForm({ ...form, end_no: v.replace(/\D/g, '') })}
-              />
-              <TextInput
-                label="Şube / temsilcilik"
-                value={form.branch}
-                onChange={(v) => setForm({ ...form, branch: v })}
-                hint="Boşsa Merkez sayılır"
-              />
-              <Label label="Zimmetli personel">
-                <select
-                  className={inputClass}
-                  value={form.holder_user_id}
-                  onChange={(e) => setForm({ ...form, holder_user_id: e.target.value })}
-                >
-                  <option value="">—</option>
-                  {staff.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.first_name} {s.last_name}
-                    </option>
-                  ))}
-                </select>
-              </Label>
-              {form.id && (
-                <Label label="Durum">
-                  <select className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                    <option value="active">Kullanımda</option>
-                    <option value="closed">Kapalı</option>
-                  </select>
-                </Label>
-              )}
-            </div>
-            <TextInput label="Not" value={form.note} onChange={(v) => setForm({ ...form, note: v })} />
-            <div className="flex gap-2">
-              <button type="submit" className={primaryButton}>
-                Kaydet
-              </button>
-              <button type="button" className={ghostButton} onClick={() => setForm(null)}>
-                Vazgeç
-              </button>
-            </div>
-          </form>
-        </Card>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <GlobalStatCard
+          title="Toplam Koçan"
+          value={stats.total.toLocaleString('tr-TR')}
+          subtitle={`${stats.totalSize.toLocaleString('tr-TR')} toplam yaprak`}
+          gradient="from-slate-600 to-slate-700"
+          icon={<BookOpen className="w-5 h-5" />}
+        />
+        <GlobalStatCard
+          title="Kullanımda"
+          value={stats.active.toLocaleString('tr-TR')}
+          subtitle={`${stats.usedTotal} kesildi · ${stats.voidedTotal} yaprak iptal`}
+          gradient="from-emerald-600 to-teal-700"
+          icon={<CheckCircle2 className="w-5 h-5" />}
+        />
+        <GlobalStatCard
+          title="Kalan Yaprak"
+          value={stats.remainingTotal.toLocaleString('tr-TR')}
+          subtitle="Aktif koçanlarda"
+          gradient="from-sky-600 to-indigo-700"
+          icon={<Layers className="w-5 h-5" />}
+        />
+        <GlobalStatCard
+          title="Azalan Koçan (≤5)"
+          value={stats.low.toLocaleString('tr-TR')}
+          subtitle={`${stats.closed} kapalı koçan`}
+          gradient="from-amber-500 to-orange-600"
+          icon={<AlertTriangle className="w-5 h-5" />}
+        />
+      </div>
 
-      <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              className={`${compactInputClass} w-56`}
-              placeholder="Seri, şube veya zimmet ara..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <select
-              aria-label="Koçan durumu"
-              className={`${compactInputClass} w-40`}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as '' | 'active' | 'closed')}
+      {/* Hızlı Görünüm Sekmeleri */}
+      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Koçan görünümü">
+        {[
+          { key: '', label: 'Tümü', count: stats.total },
+          { key: 'active', label: 'Kullanımda', count: stats.active },
+          { key: 'low', label: 'Azalan (≤5 yaprak)', count: stats.low },
+          { key: 'closed', label: 'Kapalı', count: stats.closed },
+        ].map((pill) => {
+          const active = statusFilter === pill.key
+          return (
+            <button
+              key={pill.key || 'all'}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setStatusFilter(pill.key as '' | 'active' | 'closed' | 'low')}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                active
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
             >
-              <option value="">Tüm durumlar</option>
-              <option value="active">Kullanımda</option>
-              <option value="closed">Kapalı</option>
-            </select>
-          </div>
-          <span className="text-xs text-gray-400">{filteredBooks.length} koçan</span>
-        </div>
+              <span>{pill.label}</span>
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                {pill.count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
 
+      <FilterBar>
+        <div className="relative flex-1 min-w-[220px]">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Seri, şube, zimmetli personel veya not ara..."
+            className="pl-9"
+          />
+        </div>
+        <select
+          aria-label="Şube"
+          value={branchFilter}
+          onChange={(e) => setBranchFilter(e.target.value)}
+          className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+        >
+          <option value="">Tüm Şubeler</option>
+          {branches.map((br) => (
+            <option key={br} value={br}>
+              {br}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Zimmetli personel"
+          value={holderFilter}
+          onChange={(e) => setHolderFilter(e.target.value)}
+          className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+        >
+          <option value="">Tüm Zimmetler</option>
+          <option value="__none__">Zimmet Atanmamış</option>
+          {staff.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.first_name} {s.last_name}
+            </option>
+          ))}
+        </select>
+        {activeFiltersCount > 0 && (
+          <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+            Temizle ({activeFiltersCount})
+          </Button>
+        )}
+      </FilterBar>
+
+      <Card className="border border-slate-200 bg-white p-0 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <Table>
             <THead>
               <Tr>
-                <Th>Seri / aralık</Th>
+                <Th>Seri / Aralık</Th>
                 <Th>Şube</Th>
                 <Th>Zimmet</Th>
                 <Th>Kullanım</Th>
                 <Th>Kalan</Th>
                 <Th>Sıradaki</Th>
                 <Th>Durum</Th>
-                <Th />
+                <Th className="text-right">İşlem</Th>
               </Tr>
             </THead>
             <TBody>
-              {filteredBooks.map((b) => {
-                const usedPct = b.size > 0 ? Math.min(100, Math.round(((b.used + b.voided) / b.size) * 100)) : 0
-                return (
-                  <Tr key={b.id} className="border-t">
-                    <Td className="font-bold text-gray-900">
-                      {b.series}{' '}
-                      <span className="font-normal text-gray-500">
-                        {b.start_no}–{b.end_no}
-                      </span>
-                    </Td>
-                    <Td>{b.branch || 'Merkez'}</Td>
-                    <Td>{b.holder_name || '—'}</Td>
-                    <Td>
-                      <div className="w-28 space-y-1">
-                        <div className="flex justify-between text-[11px] text-gray-600 tabular-nums">
-                          <span>{b.used} kesildi</span>
-                          {b.voided > 0 && <span className="text-red-600">{b.voided} iptal</span>}
-                        </div>
-                        <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
-                          <div className="h-full bg-primary-600" style={{ width: `${usedPct}%` }} />
-                        </div>
-                      </div>
-                    </Td>
-                    <Td className={b.remaining <= 5 && b.status === 'active' ? 'font-bold text-amber-700' : ''}>{b.remaining}</Td>
-                    <Td className="font-mono text-xs">{b.next_label || '—'}</Td>
-                    <Td>
-                      <span
-                        className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-                          b.status === 'active'
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                            : 'border-gray-200 bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {b.status === 'active' ? 'Kullanımda' : 'Kapalı'}
-                      </span>
-                    </Td>
-                    <Td className="whitespace-nowrap text-right">
-                      <button className="mr-3 font-bold text-primary-700 hover:underline" onClick={() => openSheets(b.id)}>
-                        Yapraklar
-                      </button>
-                      {canEdit && (
-                        <button
-                          className="mr-3 font-bold text-gray-700 hover:underline"
-                          onClick={() =>
-                            setForm({
-                              id: b.id,
-                              series: b.series,
-                              start_no: String(b.start_no),
-                              end_no: String(b.end_no),
-                              branch: b.branch || '',
-                              holder_user_id: b.holder_user_id || '',
-                              status: b.status,
-                              note: b.note || '',
-                            })
-                          }
-                        >
-                          Düzenle
-                        </button>
-                      )}
-                      {canEdit && b.status === 'active' && (
-                        <button
-                          className="mr-2 font-bold text-red-600 hover:underline"
-                          onClick={() => setVoidModal({ book: b, number: String(b.next_no), reason: 'Yaprak yırtıldı' })}
-                        >
-                          Yaprak iptal
-                        </button>
-                      )}
-                      {canEdit && b.used === 0 && b.voided === 0 && (
-                        <button
-                          type="button"
-                          title="Kullanılmamış koçanı sil"
-                          onClick={() => deleteBook(b)}
-                          className="inline-flex rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </Td>
-                  </Tr>
-                )
-              })}
-              {!filteredBooks.length && (
+              {loading ? (
                 <Tr>
-                  <Td colSpan={8} className="text-center text-gray-400">
-                    Koçan bulunamadı.
+                  <Td colSpan={8} className="text-center py-8 text-slate-400">
+                    Koçanlar yükleniyor...
                   </Td>
                 </Tr>
+              ) : !filteredBooks.length ? (
+                <Tr>
+                  <Td colSpan={8} className="text-center py-8 text-slate-400">
+                    Kriterlere uygun koçan bulunamadı.
+                  </Td>
+                </Tr>
+              ) : (
+                filteredBooks.map((b) => {
+                  const usedPct = b.size > 0 ? Math.min(100, Math.round(((b.used + b.voided) / b.size) * 100)) : 0
+                  const isLow = b.remaining <= 5 && b.status === 'active'
+                  return (
+                    <Tr key={b.id} className="border-t hover:bg-slate-50/60">
+                      <Td>
+                        <div className="font-bold text-slate-900">
+                          {b.series}{' '}
+                          <span className="font-normal text-slate-500">
+                            {b.start_no}–{b.end_no}
+                          </span>
+                        </div>
+                        {b.note && <div className="text-[11px] text-slate-400 truncate max-w-[200px]">{b.note}</div>}
+                      </Td>
+                      <Td className="text-slate-700">{b.branch || 'Merkez'}</Td>
+                      <Td className="text-slate-700">{b.holder_name || <span className="text-slate-400">—</span>}</Td>
+                      <Td>
+                        <div className="w-32 space-y-1">
+                          <div className="flex justify-between text-[11px] text-slate-600 tabular-nums">
+                            <span>{b.used} kesildi</span>
+                            {b.voided > 0 && <span className="text-rose-600">{b.voided} iptal</span>}
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className={`h-full transition-all ${isLow ? 'bg-amber-500' : 'bg-emerald-600'}`}
+                              style={{ width: `${usedPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </Td>
+                      <Td className={`tabular-nums ${isLow ? 'font-bold text-amber-700' : 'text-slate-700'}`}>
+                        {b.remaining}
+                      </Td>
+                      <Td className="font-mono text-xs text-slate-600">{b.next_label || '—'}</Td>
+                      <Td>
+                        <span
+                          className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                            b.status === 'active'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-slate-200 bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {b.status === 'active' ? 'Kullanımda' : 'Kapalı'}
+                        </span>
+                      </Td>
+                      <Td className="whitespace-nowrap text-right">
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openSheets(b.id)}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5" />
+                            Yapraklar
+                          </button>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setForm({
+                                  id: b.id,
+                                  series: b.series,
+                                  start_no: String(b.start_no),
+                                  end_no: String(b.end_no),
+                                  branch: b.branch || '',
+                                  holder_user_id: b.holder_user_id || '',
+                                  status: b.status,
+                                  note: b.note || '',
+                                })
+                              }
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              Düzenle
+                            </button>
+                          )}
+                          {canEdit && b.status === 'active' && (
+                            <button
+                              type="button"
+                              onClick={() => setVoidModal({ book: b, number: String(b.next_no), reason: 'Yaprak yırtıldı' })}
+                              className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                            >
+                              Yaprak İptal
+                            </button>
+                          )}
+                          {canEdit && b.used === 0 && b.voided === 0 && (
+                            <button
+                              type="button"
+                              title="Kullanılmamış koçanı sil"
+                              onClick={() => deleteBook(b)}
+                              className="inline-flex rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </Td>
+                    </Tr>
+                  )
+                })
               )}
             </TBody>
           </Table>
         </div>
       </Card>
 
-      {sheets && (
-        <Card className="space-y-3 border border-gray-100 p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-gray-900">{sheets.book.series} koçanı yaprak dökümü</h2>
-            <div className="flex gap-2">
-              <ExportButtons
-                filename={`kocan-${sheets.book.series}`}
-                title={`${sheets.book.series} Koçanı Yaprak Dökümü`}
-                subtitle={`${sheets.sheets.length} yaprak`}
-                currencyCols={[4]}
-                getData={() => ({
-                  headers: ['Yaprak', 'Durum', 'Sistem makbuz no', 'Bağışçı', 'Tutar', 'Tarih / gerekçe'],
-                  rows: sheets.sheets.map((s) => [
-                    s.label,
-                    STATE_LABEL[s.state][0],
-                    s.receipt_number,
-                    s.donor_name,
-                    s.amount_cents !== undefined ? s.amount_cents / 100 : '',
-                    s.paid_at ? new Date(s.paid_at).toLocaleDateString('tr-TR') : s.reason,
-                  ]),
-                })}
-              />
-              <button className={ghostButton} onClick={() => setSheets(null)}>
-                Kapat
-              </button>
-            </div>
-          </div>
-          <div className="max-h-[480px] overflow-auto">
-            <Table>
-              <THead className="sticky top-0 bg-white">
-                <Tr>
-                  <Th>Yaprak</Th>
-                  <Th>Durum</Th>
-                  <Th>Sistem no</Th>
-                  <Th>Bağışçı</Th>
-                  <Th>Tutar</Th>
-                  <Th>Tarih / gerekçe</Th>
-                  <Th />
-                </Tr>
-              </THead>
-              <TBody>
-                {sheets.sheets.map((s) => (
-                  <Tr key={s.no} className="border-t">
-                    <Td className="font-semibold">{s.label}</Td>
-                    <Td className={`font-semibold ${STATE_LABEL[s.state][1]}`}>{STATE_LABEL[s.state][0]}</Td>
-                    <Td>{s.receipt_number || '—'}</Td>
-                    <Td>{s.donor_name || '—'}</Td>
-                    <Td>{s.amount_cents !== undefined ? formatMoney(s.amount_cents, s.currency) : '—'}</Td>
-                    <Td>{s.paid_at ? new Date(s.paid_at).toLocaleDateString('tr-TR') : s.reason || '—'}</Td>
-                    <Td className="text-right">
-                      {canEdit && s.state === 'gap' && sheets.book.status === 'active' && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setVoidModal({ book: sheets.book, number: String(s.no), reason: 'Atlanan / yırtılan yaprak' })
-                          }
-                          className="text-xs font-semibold text-red-600 hover:underline"
-                        >
-                          İptal et
-                        </button>
-                      )}
-                    </Td>
-                  </Tr>
-                ))}
-                {!sheets.sheets.length && (
-                  <Tr>
-                    <Td colSpan={7} className="text-center text-gray-400">
-                      Bu koçandan henüz makbuz kesilmemiş.
-                    </Td>
-                  </Tr>
-                )}
-              </TBody>
-            </Table>
-          </div>
-          <p className="text-[11px] text-gray-400">
-            &quot;Atlandı&quot; satırları, sonraki numaralar kullanıldığı hâlde kesilmemiş yapraklardır; matbu koçanla karşılaştırıp gerekirse iptal edin.
-          </p>
-        </Card>
-      )}
-
-      <Card className="space-y-3 border border-gray-100 p-6 shadow-sm">
+      <Card className="space-y-4 border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-bold text-gray-900">Online ve şube makbuzları ({summaryCurrency})</h2>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Online ve Şube Makbuz Mutabakatı ({summaryCurrency})</h2>
+            <p className="text-xs text-slate-500">Seçili tarih aralığında tahsilat kanallarına göre makbuz dağılımı</p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <select
               aria-label="Para birimi"
-              className={`${compactInputClass} w-24`}
+              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
               value={summaryCurrency}
               onChange={(e) => setSummaryCurrency(e.target.value)}
             >
@@ -512,85 +590,307 @@ export default function ReceiptBooksPage() {
                 </option>
               ))}
             </select>
-            <input
+            <Input
               type="date"
               aria-label="Başlangıç tarihi"
-              className={`${compactInputClass} w-40`}
+              className="w-40"
               value={range.start}
               onChange={(e) => setRange({ ...range, start: e.target.value })}
             />
-            <span className="text-xs text-gray-400">—</span>
-            <input
+            <span className="text-xs text-slate-400">—</span>
+            <Input
               type="date"
               aria-label="Bitiş tarihi"
-              className={`${compactInputClass} w-40`}
+              className="w-40"
               value={range.end}
               onChange={(e) => setRange({ ...range, end: e.target.value })}
             />
           </div>
         </div>
+
         <div className="grid gap-3 sm:grid-cols-3">
           {[
             ['online', 'Online'],
-            ['branch', 'Şube (koçan)'],
-            ['manual', 'Elle (koçansız)'],
+            ['branch', 'Şube (Koçan)'],
+            ['manual', 'Elle (Koçansız)'],
           ].map(([kind, label]) => (
-            <div key={kind} className="rounded-lg bg-gray-50 p-3">
-              <p className="text-[11px] font-bold text-gray-400">{label}</p>
-              <p className="font-semibold text-gray-800">{formatMoney(totalOf(kind), summaryCurrency)}</p>
+            <div key={kind} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3.5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+              <p className="text-base font-bold text-slate-900 mt-1 tabular-nums">{formatMoney(totalOf(kind), summaryCurrency)}</p>
             </div>
           ))}
         </div>
+
         <Table>
           <THead>
             <Tr>
               <Th>Kanal</Th>
-              <Th>Makbuz</Th>
-              <Th>Toplam</Th>
+              <Th>Makbuz Adedi</Th>
+              <Th className="text-right">Toplam</Th>
             </Tr>
           </THead>
           <TBody>
             {channels.map((c) => (
               <Tr key={`${c.kind}-${c.label}`} className="border-t">
-                <Td className="font-semibold">{c.label}</Td>
-                <Td>{c.count}</Td>
-                <Td>{formatMoney(c.total_cents, summaryCurrency)}</Td>
+                <Td className="font-semibold text-slate-800">{c.label}</Td>
+                <Td className="tabular-nums">{c.count}</Td>
+                <Td className="text-right font-semibold tabular-nums">{formatMoney(c.total_cents, summaryCurrency)}</Td>
               </Tr>
             ))}
+            {channels.length === 0 && (
+              <Tr>
+                <Td colSpan={3} className="text-center text-slate-400 py-4">
+                  Bu aralıkta makbuz kaydı bulunamadı.
+                </Td>
+              </Tr>
+            )}
           </TBody>
         </Table>
       </Card>
 
+      {form && (
+        <Modal
+          title={form.id ? `${form.series} Koçanını Düzenle` : 'Yeni Makbuz Koçanı'}
+          description="Seri ve yaprak aralığı oluşturulduktan sonra değiştirilemez."
+          onClose={() => setForm(null)}
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setForm(null)} disabled={saving}>
+                Vazgeç
+              </Button>
+              <Button type="submit" form="receipt-book-form" disabled={saving}>
+                {saving ? 'Kaydediliyor...' : 'Kaydet'}
+              </Button>
+            </div>
+          }
+        >
+          <form id="receipt-book-form" onSubmit={save} className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Seri *</label>
+                <Input
+                  required
+                  value={form.series}
+                  disabled={!!form.id}
+                  onChange={(e) => setForm({ ...form, series: e.target.value.toUpperCase() })}
+                  placeholder="ör. A veya 2026-B"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">İlk Yaprak No *</label>
+                <Input
+                  required
+                  inputMode="numeric"
+                  value={form.start_no}
+                  disabled={!!form.id}
+                  onChange={(e) => setForm({ ...form, start_no: e.target.value.replace(/\D/g, '') })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Son Yaprak No *</label>
+                <Input
+                  required
+                  inputMode="numeric"
+                  value={form.end_no}
+                  disabled={!!form.id}
+                  onChange={(e) => setForm({ ...form, end_no: e.target.value.replace(/\D/g, '') })}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Şube / Temsilcilik</label>
+                <Input
+                  value={form.branch}
+                  onChange={(e) => setForm({ ...form, branch: e.target.value })}
+                  placeholder="Boş bırakılırsa Merkez"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Zimmetli Personel</label>
+                <select
+                  className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                  value={form.holder_user_id}
+                  onChange={(e) => setForm({ ...form, holder_user_id: e.target.value })}
+                >
+                  <option value="">— Seçilmedi —</option>
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.first_name} {s.last_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {form.id && (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Durum</label>
+                <select
+                  className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                >
+                  <option value="active">Kullanımda</option>
+                  <option value="closed">Kapalı</option>
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Not</label>
+              <Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Opsiyonel açıklama..." />
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {sheets && (
+        <Modal
+          title={`${sheets.book.series} Koçanı Yaprak Dökümü`}
+          description={`${sheets.book.start_no}–${sheets.book.end_no} · ${sheets.book.branch || 'Merkez'}${sheets.book.holder_name ? ` · ${sheets.book.holder_name}` : ''}`}
+          size="lg"
+          onClose={() => setSheets(null)}
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <ExportButtons
+                filename={`kocan-${sheets.book.series}`}
+                title={`${sheets.book.series} Koçanı Yaprak Dökümü`}
+                subtitle={`${filteredSheets.length} yaprak`}
+                currencyCols={[4]}
+                getData={() => ({
+                  headers: ['Yaprak', 'Durum', 'Sistem makbuz no', 'Bağışçı', 'Tutar', 'Tarih / gerekçe'],
+                  rows: filteredSheets.map((s) => [
+                    s.label,
+                    STATE_LABEL[s.state][0],
+                    s.receipt_number,
+                    s.donor_name,
+                    s.amount_cents !== undefined ? s.amount_cents / 100 : '',
+                    s.paid_at ? new Date(s.paid_at).toLocaleDateString('tr-TR') : s.reason,
+                  ]),
+                })}
+              />
+              <Button type="button" variant="outline" onClick={() => setSheets(null)}>
+                Kapat
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Input
+                  value={sheetSearch}
+                  onChange={(e) => setSheetSearch(e.target.value)}
+                  placeholder="Yaprak no, bağışçı veya makbuz no ara..."
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+              <select
+                value={sheetStateFilter}
+                onChange={(e) => setSheetStateFilter(e.target.value as 'all' | Sheet['state'])}
+                className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-700"
+              >
+                <option value="all">Tüm Yapraklar ({sheets.sheets.length})</option>
+                <option value="used">Kesildi</option>
+                <option value="gap">Atlandı (Boş)</option>
+                <option value="voided">Yaprak İptal</option>
+                <option value="cancelled">Makbuz İptal</option>
+              </select>
+            </div>
+
+            <div className="max-h-[420px] overflow-auto border border-slate-200 rounded-xl">
+              <Table>
+                <THead className="sticky top-0 bg-slate-50">
+                  <Tr>
+                    <Th>Yaprak</Th>
+                    <Th>Durum</Th>
+                    <Th>Sistem No</Th>
+                    <Th>Bağışçı</Th>
+                    <Th>Tutar</Th>
+                    <Th>Tarih / Gerekçe</Th>
+                    <Th />
+                  </Tr>
+                </THead>
+                <TBody>
+                  {filteredSheets.map((s) => (
+                    <Tr key={s.no} className="border-t">
+                      <Td className="font-semibold text-slate-900">{s.label}</Td>
+                      <Td className={`font-semibold text-xs ${STATE_LABEL[s.state][1]}`}>{STATE_LABEL[s.state][0]}</Td>
+                      <Td className="font-mono text-xs">{s.receipt_number || '—'}</Td>
+                      <Td>{s.donor_name || '—'}</Td>
+                      <Td className="tabular-nums">{s.amount_cents !== undefined ? formatMoney(s.amount_cents, s.currency) : '—'}</Td>
+                      <Td className="text-xs text-slate-600">{s.paid_at ? new Date(s.paid_at).toLocaleDateString('tr-TR') : s.reason || '—'}</Td>
+                      <Td className="text-right">
+                        {canEdit && s.state === 'gap' && sheets.book.status === 'active' && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVoidModal({ book: sheets.book, number: String(s.no), reason: 'Atlanan / yırtılan yaprak' })
+                            }
+                            className="text-xs font-semibold text-rose-600 hover:underline"
+                          >
+                            İptal Et
+                          </button>
+                        )}
+                      </Td>
+                    </Tr>
+                  ))}
+                  {!filteredSheets.length && (
+                    <Tr>
+                      <Td colSpan={7} className="text-center text-slate-400 py-6">
+                        Kayıtlı yaprak bulunamadı.
+                      </Td>
+                    </Tr>
+                  )}
+                </TBody>
+              </Table>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              &quot;Atlandı (boş)&quot; satırları, sonraki numaralar kullanıldığı hâlde kesilmemiş yapraklardır; matbu koçanla karşılaştırıp gerekirse iptal edin.
+            </p>
+          </div>
+        </Modal>
+      )}
+
       {voidModal && (
         <Modal
           title={`${voidModal.book.series} Koçanı — Yaprak İptali`}
+          description="İptal edilen yaprak numarası bir daha otomatik veya elle makbuz kesiminde verilmez."
           size="sm"
           onClose={() => setVoidModal(null)}
-        >
-          <form onSubmit={submitVoid} className="space-y-3">
-            <TextInput
-              label={`İptal edilecek yaprak no (${voidModal.book.start_no}–${voidModal.book.end_no}) *`}
-              required
-              inputMode="numeric"
-              value={voidModal.number}
-              onChange={(v) => setVoidModal({ ...voidModal, number: v.replace(/\D/g, '') })}
-            />
-            <TextInput
-              label="İptal gerekçesi *"
-              required
-              value={voidModal.reason}
-              onChange={(v) => setVoidModal({ ...voidModal, reason: v })}
-            />
-            <p className="text-[11px] text-gray-500">
-              İptal edilen yaprak numarası bir daha otomatik veya elle makbuz kesiminde verilmez.
-            </p>
+          footer={
             <div className="flex justify-end gap-2">
-              <button type="button" className={ghostButton} onClick={() => setVoidModal(null)}>
+              <Button type="button" variant="outline" onClick={() => setVoidModal(null)}>
                 Vazgeç
-              </button>
-              <button type="submit" className={primaryButton}>
+              </Button>
+              <Button type="submit" form="void-sheet-form">
                 Yaprağı İptal Et
-              </button>
+              </Button>
+            </div>
+          }
+        >
+          <form id="void-sheet-form" onSubmit={submitVoid} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                İptal Edilecek Yaprak No ({voidModal.book.start_no}–{voidModal.book.end_no}) *
+              </label>
+              <Input
+                required
+                inputMode="numeric"
+                value={voidModal.number}
+                onChange={(e) => setVoidModal({ ...voidModal, number: e.target.value.replace(/\D/g, '') })}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">İptal Gerekçesi *</label>
+              <Input
+                required
+                value={voidModal.reason}
+                onChange={(e) => setVoidModal({ ...voidModal, reason: e.target.value })}
+              />
             </div>
           </form>
         </Modal>
