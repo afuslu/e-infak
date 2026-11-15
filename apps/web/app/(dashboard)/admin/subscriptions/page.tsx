@@ -39,6 +39,11 @@ interface SubscriptionItem {
   amount_lira: number
   currency: string
   status: SubscriptionStatus | string
+  mode?: 'card' | 'reminder' | string
+  frequency?: string
+  day_of_month?: number | null
+  failed_attempts?: number
+  last_error?: string | null
   has_card_token?: boolean
   card_brand?: string | null
   card_last4?: string | null
@@ -92,9 +97,12 @@ function toDateInputValue(value?: string | null) {
 }
 
 function formatCardInfo(sub: SubscriptionItem) {
+  if (sub.mode === 'reminder') {
+    return sub.day_of_month ? `SMS Hatırlatma (Ayın ${sub.day_of_month}. günü)` : 'SMS Hatırlatma'
+  }
   if (sub.card_brand && sub.card_last4) return `${sub.card_brand} · **** ${sub.card_last4}`
   if (sub.has_card_token) return 'Kayıtlı Kart Tokenı'
-  return 'Manuel / Token Yok'
+  return 'SMS Hatırlatma / Manuel'
 }
 
 export default function AdminSubscriptionsPage() {

@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 from app.core.db import get_db
 from app.core.security import (
     verify_password,
@@ -12,6 +13,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_token,
+    password_fingerprint,
 )
 from app.core.config import settings
 from app.models.audit_log import AuditLog
@@ -91,8 +93,9 @@ async def login(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
     
     # Create tokens
-    access_token = create_access_token({"sub": str(user.id)})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
+    pwd_fp = password_fingerprint(user.hashed_password)
+    access_token = create_access_token({"sub": str(user.id), "pwd": pwd_fp})
+    refresh_token = create_refresh_token({"sub": str(user.id), "pwd": pwd_fp})
     
     # Save session
     session = UserSession(
@@ -148,8 +151,10 @@ async def refresh_token(
     
     # Create new tokens
     user_id = payload.get("sub")
-    access_token = create_access_token({"sub": user_id})
-    new_refresh_token = create_refresh_token({"sub": user_id})
+    user_obj = await db.get(User, UUID(str(user_id))) if user_id else None
+    pwd_fp = password_fingerprint(user_obj.hashed_password) if user_obj else payload.get("pwd")
+    access_token = create_access_token({"sub": user_id, "pwd": pwd_fp})
+    new_refresh_token = create_refresh_token({"sub": user_id, "pwd": pwd_fp})
     
     # Update session
     session.access_token = access_token

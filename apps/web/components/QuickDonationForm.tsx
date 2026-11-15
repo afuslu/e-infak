@@ -78,8 +78,8 @@ const EXTRA_I18N: Record<'tr' | 'en' | 'ar', Record<string, string>> = {
     copy: 'Kopyala',
     copied: 'Kopyalandı ✓',
     oneTime: 'Tek Seferlik',
-    monthly: 'Düzenli Hatırlatma',
-    monthlyHint: 'Her ay aynı tutar için e-posta/SMS hatırlatması alabilirsiniz.',
+    monthly: 'Her ay düzenli',
+    monthlyHint: 'Her ay aynı gün aynı tutar: kartınız saklanabiliyorsa otomatik çekilir, aksi halde SMS ile ödeme bağlantısı gönderilir. Bağışçı portalından istediğiniz zaman durdurabilirsiniz.',
     campaign: 'Kampanya',
     collected: 'Toplanan',
     target: 'Hedef',
@@ -110,8 +110,8 @@ const EXTRA_I18N: Record<'tr' | 'en' | 'ar', Record<string, string>> = {
     copy: 'Copy',
     copied: 'Copied ✓',
     oneTime: 'One-Time',
-    monthly: 'Monthly Reminder',
-    monthlyHint: 'Receive a monthly reminder for this donation amount.',
+    monthly: 'Monthly',
+    monthlyHint: 'Same amount every month: charged automatically when your card can be saved, otherwise you get an SMS payment link. Stop it any time in the donor portal.',
     campaign: 'Campaign',
     collected: 'Raised',
     target: 'Goal',
@@ -293,10 +293,7 @@ export function QuickDonationForm({
       return
     }
     setErrorMsg('')
-    const donorNote = [
-      frequency === 'monthly' ? '[Düzenli Hatırlatma]' : '',
-      message.trim(),
-    ].filter(Boolean).join(' ')
+    const donorNote = message.trim()
     try {
       trackConversion('checkout_started', { campaign_id: activeCampaignId, payment_method: paymentMethod, currency })
       const result = await checkout.mutateAsync({
@@ -306,12 +303,16 @@ export function QuickDonationForm({
           unit_amount_cents: Math.round(Number(amount) * 100),
           donor_message: donorNote || undefined,
           on_behalf_of: isGift && onBehalfOf.trim() ? onBehalfOf.trim() : undefined,
-          metadata: Object.fromEntries(activeSchema.map((field) => [
-            field.key,
-            field.type === 'list'
-              ? (metadata[field.key] || '').split('\n').map((value) => value.trim()).filter(Boolean)
-              : metadata[field.key],
-          ])),
+          metadata: {
+            ...Object.fromEntries(activeSchema.map((field) => [
+              field.key,
+              field.type === 'list'
+                ? (metadata[field.key] || '').split('\n').map((value) => value.trim()).filter(Boolean)
+                : metadata[field.key],
+            ])),
+            // Monthly: the backend opens a recurring instruction once this payment is confirmed.
+            ...(frequency === 'monthly' ? { periyot: 'aylik' } : {}),
+          },
         }],
         donor: {
           first_name: firstName.trim(),

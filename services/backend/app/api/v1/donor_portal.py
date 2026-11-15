@@ -38,8 +38,17 @@ class OTPVerifyRequest(BaseModel):
     code: str
 
 class SubscriptionCreate(BaseModel):
-    campaign_id: str
+    campaign_id: Optional[str] = None
     amount_cents: int
+    currency: str = "TRY"
+    frequency: str = "monthly"
+    day_of_month: Optional[int] = None
+
+
+class SubscriptionActionPayload(BaseModel):
+    action: str  # "pause" | "resume" | "cancel"
+    day_of_month: Optional[int] = None
+    amount_cents: Optional[int] = None
 
 # Dependency to get current authenticated donor
 async def get_current_donor(
@@ -276,6 +285,27 @@ async def get_my_kurban_shares(
         for s, animal, campaign in rows
     ]
 
+def _serialize_portal_sub(s: Subscription, campaign_title: Optional[str] = None) -> dict:
+    return {
+        "id": str(s.id),
+        "campaign_id": str(s.campaign_id) if s.campaign_id else None,
+        "campaign_title": campaign_title or "Genel Bağış",
+        "amount_cents": s.amount_cents,
+        "amount_lira": s.amount_cents / 100,
+        "currency": s.currency,
+        "frequency": getattr(s, "frequency", "monthly") or "monthly",
+        "day_of_month": getattr(s, "day_of_month", None),
+        "mode": getattr(s, "mode", None) or ("card" if getattr(s, "card_token", None) else "reminder"),
+        "card_brand": getattr(s, "card_brand", None),
+        "card_last4": getattr(s, "card_last_4", None),
+        "status": s.status,
+        "failed_attempts": getattr(s, "failed_attempts", 0) or 0,
+        "last_error": getattr(s, "last_error", None),
+        "next_charge_date": s.next_charge_date,
+        "created_at": s.created_at,
+    }
+
+
 @router.post("/subscriptions")
 async def create_new_subscription(
     request: Request,
@@ -283,10 +313,43 @@ async def create_new_subscription(
     current_donor: Donor = Depends(get_current_donor),
     db: AsyncSession = Depends(get_db)
 ):
-    raise HTTPException(
-        status_code=503,
-        detail="Düzenli bağış, Ziraat Pay tokenlı tahsilat yetkisi açıldıktan sonra kullanılabilir.",
+    from app.services.recurring import create_recurring
+
+    if payload.amount_cents < 100:
+        raise HTTPException(status_code=400, detail="Bağış tutarı en az 1 TL olmalıdır.")
+
+    campaign_uuid: Optional[UUID] = None
+    if payload.campaign_id:
+        try:
+            campaign_uuid = UUID(payload.campaign_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz kampanya kimliği.")
+        camp = (
+            await db.execute(
+                select(Campaign).where(
+                    Campaign.id == campaign_uuid,
+                    Campaign.organization_id == current_donor.organization_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if not camp:
+            raise HTTPException(status_code=404, detail="Kampanya bulunamadı.")
+
+    sub = await create_recurring(
+        db,
+        organization_id=current_donor.organization_id,
+        donor_id=current_donor.id,
+        campaign_id=campaign_uuid,
+        amount_cents=payload.amount_cents,
+        currency=(payload.currency or "TRY").upper(),
+        frequency=payload.frequency if payload.frequency in ("monthly", "weekly") else "monthly",
+        day_of_month=payload.day_of_month,
+        mode="reminder",
     )
+    await db.commit()
+    await db.refresh(sub)
+    return _serialize_portal_sub(sub)
+
 
 @router.get("/me/subscriptions")
 async def get_my_subscriptions(
@@ -294,25 +357,62 @@ async def get_my_subscriptions(
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
-        select(Subscription)
+        select(Subscription, Campaign.title)
+        .outerjoin(Campaign, Subscription.campaign_id == Campaign.id)
         .where(
             Subscription.donor_id == current_donor.id,
-            Subscription.status == "active"
+            Subscription.organization_id == current_donor.organization_id,
         )
         .order_by(Subscription.created_at.desc())
     )
-    subs = result.scalars().all()
-    return [
-        {
-            "id": s.id,
-            "amount_lira": s.amount_cents / 100,
-            "currency": s.currency,
-            "status": s.status,
-            "next_charge_date": s.next_charge_date,
-            "created_at": s.created_at
-        }
-        for s in subs
-    ]
+    return [_serialize_portal_sub(s, c_title) for s, c_title in result.all()]
+
+
+@router.post("/subscriptions/{subscription_id}/action")
+async def update_my_subscription(
+    subscription_id: str,
+    payload: SubscriptionActionPayload,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    from datetime import datetime, timezone
+    from app.services.recurring import advance_charge_date
+
+    result = await db.execute(
+        select(Subscription).where(
+            Subscription.id == UUID(subscription_id),
+            Subscription.donor_id == current_donor.id,
+            Subscription.organization_id == current_donor.organization_id,
+        )
+    )
+    sub = result.scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Düzenli bağış talimatı bulunamadı.")
+
+    now = datetime.now(timezone.utc)
+    if payload.action == "pause":
+        sub.status = "paused"
+    elif payload.action == "resume":
+        sub.status = "active"
+        sub.failed_attempts = 0
+        if not sub.next_charge_date or sub.next_charge_date < now:
+            sub.next_charge_date = advance_charge_date(now, sub.frequency or "monthly", sub.day_of_month)
+    elif payload.action == "cancel":
+        sub.status = "cancelled"
+        sub.cancelled_at = now
+        sub.card_token = None
+        sub.card_user_key = None
+    else:
+        raise HTTPException(status_code=400, detail="Geçersiz işlem.")
+
+    if payload.day_of_month is not None:
+        sub.day_of_month = max(1, min(28, int(payload.day_of_month)))
+    if payload.amount_cents is not None and payload.amount_cents >= 100:
+        sub.amount_cents = int(payload.amount_cents)
+
+    await db.commit()
+    return _serialize_portal_sub(sub)
+
 
 @router.delete("/subscriptions/{subscription_id}")
 async def cancel_subscription(
@@ -320,6 +420,8 @@ async def cancel_subscription(
     current_donor: Donor = Depends(get_current_donor),
     db: AsyncSession = Depends(get_db)
 ):
+    from datetime import datetime, timezone
+
     result = await db.execute(
         select(Subscription).where(
             Subscription.id == UUID(subscription_id),
@@ -329,10 +431,80 @@ async def cancel_subscription(
     sub = result.scalar_one_or_none()
     if not sub:
         raise HTTPException(status_code=404, detail="Abonelik bulunamadı.")
-        
+
     sub.status = "cancelled"
+    sub.cancelled_at = datetime.now(timezone.utc)
+    sub.card_token = None
+    sub.card_user_key = None
     await db.commit()
     return {"status": "success", "message": "Düzenli bağış talimatınız iptal edilmiştir."}
+
+
+@router.get("/recurring/{manage_token}")
+async def get_recurring_by_token(
+    manage_token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    if not manage_token or len(manage_token) < 16:
+        raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
+    row = (
+        await db.execute(
+            select(Subscription, Donor.name, Campaign.title, Campaign.slug)
+            .outerjoin(Donor, Subscription.donor_id == Donor.id)
+            .outerjoin(Campaign, Subscription.campaign_id == Campaign.id)
+            .where(Subscription.manage_token == manage_token)
+        )
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
+    sub, donor_name, campaign_title, campaign_slug = row
+    return {
+        **_serialize_portal_sub(sub, campaign_title),
+        "donor_name": donor_name or "Bağışçı",
+        "campaign_slug": campaign_slug,
+    }
+
+
+@router.post("/recurring/{manage_token}/action")
+async def act_on_recurring_by_token(
+    manage_token: str,
+    payload: SubscriptionActionPayload,
+    db: AsyncSession = Depends(get_db),
+):
+    from datetime import datetime, timezone
+    from app.services.recurring import advance_charge_date
+
+    if not manage_token or len(manage_token) < 16:
+        raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
+    sub = (
+        await db.execute(
+            select(Subscription).where(Subscription.manage_token == manage_token)
+        )
+    ).scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
+
+    now = datetime.now(timezone.utc)
+    if payload.action == "pause":
+        sub.status = "paused"
+    elif payload.action == "resume":
+        sub.status = "active"
+        sub.failed_attempts = 0
+        if not sub.next_charge_date or sub.next_charge_date < now:
+            sub.next_charge_date = advance_charge_date(now, sub.frequency or "monthly", sub.day_of_month)
+    elif payload.action == "cancel":
+        sub.status = "cancelled"
+        sub.cancelled_at = now
+        sub.card_token = None
+        sub.card_user_key = None
+    else:
+        raise HTTPException(status_code=400, detail="Geçersiz işlem.")
+
+    if payload.day_of_month is not None:
+        sub.day_of_month = max(1, min(28, int(payload.day_of_month)))
+
+    await db.commit()
+    return _serialize_portal_sub(sub)
 
 
 @router.get("/me/pledges")

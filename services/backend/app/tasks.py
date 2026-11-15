@@ -565,7 +565,31 @@ def send_sms_reminders_task():
     return asyncio.run(_send_sms_reminders())
 
 
+@celery_app.task(name="app.tasks.process_recurring_donations_task")
+def process_recurring_donations_task():
+    """Monthly donations whose day has come: charge saved cards or send the reminder SMS."""
+    from app.services.recurring import run_due
+
+    return asyncio.run(run_due(AsyncSessionLocal))
+
+
+@celery_app.task(name="app.tasks.compute_donor_insights_task")
+def compute_donor_insights_task():
+    """Nightly donor analysis (RFM segments, churn risk, expected next gift) for every organisation."""
+    from app.services.insights import compute_all
+
+    return asyncio.run(compute_all(AsyncSessionLocal))
+
+
 celery_app.conf.beat_schedule = {
+    "recurring-donations-hourly": {
+        "task": "app.tasks.process_recurring_donations_task",
+        "schedule": 3600.0,  # instructions are due at 10:00 Istanbul time; hourly also retries soon after
+    },
+    "donor-insights-nightly": {
+        "task": "app.tasks.compute_donor_insights_task",
+        "schedule": crontab(hour=0, minute=30),  # 03:30 in Türkiye
+    },
     "collect-sms-reports": {
         "task": "app.tasks.collect_sms_reports_task",
         "schedule": 120.0,

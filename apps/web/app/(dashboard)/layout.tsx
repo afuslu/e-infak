@@ -204,6 +204,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const itemLink = (item: NavItem, hint?: string) => {
     const active = currentItem?.href === item.href
+    const itemTone = theme.dark
+      ? active
+        ? 'bg-emerald-500/15 text-white shadow-[inset_3px_0_0_#34D399]'
+        : 'text-[#8FA3B5] hover:bg-white/[0.06] hover:text-white'
+      : active
+        ? 'bg-primary-600 text-white shadow-sm'
+        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+    const hintTone = theme.dark ? 'text-[#5F7488]' : active ? 'text-white/80' : 'text-gray-400'
+
     return (
       <Link
         key={item.href}
@@ -212,13 +221,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         aria-current={active ? 'page' : undefined}
         className={`flex items-center rounded-lg py-2 text-[13.5px] font-semibold transition-colors ${
           collapsed ? 'lg:justify-center lg:px-2 px-3 gap-2.5' : 'gap-2.5 px-3'
-        } ${
-          active ? 'bg-emerald-500/15 text-white shadow-[inset_3px_0_0_#34D399]' : 'text-[#8FA3B5] hover:bg-white/[0.06] hover:text-white'
-        }`}
+        } ${itemTone}`}
       >
         <item.icon className="h-[18px] w-[18px] flex-shrink-0 opacity-90" strokeWidth={1.9} aria-hidden="true" />
         <span className={`min-w-0 flex-1 truncate ${collapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
-        {hint && !collapsed && <span className="flex-shrink-0 text-[10px] font-medium text-[#5F7488]">{hint}</span>}
+        {hint && !collapsed && <span className={`flex-shrink-0 text-[10px] font-medium ${hintTone}`}>{hint}</span>}
+        {!hint && !collapsed && active && !theme.dark && (
+          <span className="h-4 w-[3px] flex-shrink-0 rounded-full bg-white/80" aria-hidden="true" />
+        )}
       </Link>
     )
   }
@@ -231,30 +241,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* Sidebar: fixed drawer on phones, collapsible column from lg up */}
-      <aside className={`fixed inset-y-0 start-0 z-40 flex flex-shrink-0 flex-col text-[#8FA3B5] transition-all duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+      <aside className={`fixed inset-y-0 start-0 z-40 flex flex-shrink-0 flex-col transition-all duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
         collapsed ? 'w-64 lg:w-[68px]' : 'w-64'
       } ${
         drawerOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'
-      } ${theme.dark ? 'bg-[#0B1220] border-e border-white/[0.06]' : 'bg-[#12202E]'}`}>
-        <div className={`flex items-center justify-between border-b border-white/[0.08] py-4 ${collapsed ? 'px-4 lg:justify-center lg:px-2' : 'px-4'}`}>
+      } ${theme.dark ? 'border-e border-white/[0.06] bg-[#0B1220] text-[#8FA3B5]' : 'border-e border-gray-200 bg-white text-gray-600'}`}>
+        <div className={`flex items-center justify-between border-b py-4 ${
+          theme.dark ? 'border-white/[0.08]' : 'border-gray-200'
+        } ${collapsed ? 'px-4 lg:justify-center lg:px-2' : 'px-4'}`}>
           <Link href="/admin" className="flex items-center gap-2.5 min-w-0">
             <img
               src={siteBrand?.logo_url || '/images/e-infak/mark.png'}
               alt={siteBrand?.name || 'E-İnfak'}
-              className="h-9 w-9 shrink-0 rounded-[9px] bg-white object-contain p-1 ring-1 ring-white/15"
+              className={`h-9 w-9 shrink-0 rounded-[9px] object-contain p-1 ring-1 ${
+                theme.dark ? 'bg-white ring-white/15' : 'bg-gray-50 ring-gray-200'
+              }`}
             />
             <div className={`min-w-0 ${collapsed ? 'lg:hidden' : ''}`}>
-              <div className="truncate text-white font-extrabold text-[15px] tracking-wide">{siteBrand?.name || 'E-İNFAK'}</div>
-              <div className="text-[10px] tracking-[1.2px] text-[#5F7488]">E-İNFAK OTOMASYONU</div>
+              <div className={`truncate font-extrabold text-[15px] tracking-wide ${theme.dark ? 'text-white' : 'text-gray-900'}`}>{siteBrand?.name || 'E-İNFAK'}</div>
+              <div className={`text-[10px] tracking-[1.2px] ${theme.dark ? 'text-[#5F7488]' : 'text-gray-400'}`}>E-İNFAK OTOMASYONU</div>
             </div>
           </Link>
           <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Menüyü kapat"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8FA3B5] hover:bg-white/10 hover:text-white lg:hidden">
+            className={`flex h-8 w-8 items-center justify-center rounded-lg lg:hidden ${
+              theme.dark ? 'text-[#8FA3B5] hover:bg-white/10 hover:text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+            }`}>
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
           {!collapsed && (
             <button type="button" onClick={toggleCollapsed} title="Menüyü daralt" aria-label="Menüyü daralt"
-              className="hidden h-7 w-7 items-center justify-center rounded-md text-[#5F7488] hover:bg-white/10 hover:text-white lg:flex">
+              className={`hidden h-7 w-7 items-center justify-center rounded-md lg:flex ${
+                theme.dark ? 'text-[#5F7488] hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+              }`}>
               <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
             </button>
           )}
@@ -263,7 +281,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {collapsed && (
           <div className="hidden justify-center pt-2.5 lg:flex">
             <button type="button" onClick={toggleCollapsed} title="Menüyü genişlet" aria-label="Menüyü genişlet"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-[#5F7488] hover:bg-white/10 hover:text-white">
+              className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                theme.dark ? 'text-[#5F7488] hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
+              }`}>
               <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
@@ -271,6 +291,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         <div className={`px-3 pt-3 ${collapsed ? 'lg:hidden' : ''}`}>
           <div className="relative">
+            <Search className={`pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 ${
+              theme.dark ? 'text-[#5F7488]' : 'text-gray-400'
+            }`} aria-hidden="true" />
             <input
               type="search"
               value={query}
@@ -281,10 +304,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               }}
               placeholder="Menüde ara…"
               aria-label="Menüde ara"
-              className="admin-menu-search w-full rounded-lg border border-white/10 bg-white/[0.06] py-2 ps-3 pe-12 text-[13px] text-white placeholder-[#5F7488] outline-none focus:border-emerald-400/60"
+              className={`admin-menu-search w-full rounded-lg border py-2 ps-8 pe-12 text-[13px] outline-none ${
+                theme.dark
+                  ? 'border-white/10 bg-white/[0.06] text-white placeholder-[#5F7488] focus:border-emerald-400/60'
+                  : 'border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-primary-600 focus:bg-white'
+              }`}
             />
             {!query && (
-              <kbd className="pointer-events-none absolute end-2 top-1/2 hidden -translate-y-1/2 rounded border border-white/10 px-1.5 text-[10px] text-[#5F7488] lg:block">Ctrl K</kbd>
+              <kbd className={`pointer-events-none absolute end-2 top-1/2 hidden -translate-y-1/2 rounded border px-1.5 text-[10px] lg:block ${
+                theme.dark ? 'border-white/10 text-[#5F7488]' : 'border-gray-200 bg-white text-gray-400'
+              }`}>Ctrl K</kbd>
             )}
           </div>
         </div>
@@ -293,7 +322,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {needle && !collapsed ? (
             <div className="flex flex-col gap-0.5">
               {results.map(({ item, group }) => itemLink(item, group))}
-              {results.length === 0 && <p className="px-3 py-6 text-center text-[12.5px] text-[#5F7488]">“{query.trim()}” için sonuç yok.</p>}
+              {results.length === 0 && <p className={`px-3 py-6 text-center text-[12.5px] ${theme.dark ? 'text-[#5F7488]' : 'text-gray-400'}`}>“{query.trim()}” için sonuç yok.</p>}
             </div>
           ) : collapsed ? (
             <div className="hidden flex-col gap-1 lg:flex">
@@ -307,10 +336,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               return (
                 <div key={group.key} className="mb-1">
                   <button type="button" onClick={() => menu.toggle(group.key)} aria-expanded={isOpen}
-                    className="flex w-full items-center justify-between rounded-md px-3 py-2 text-[10.5px] font-bold uppercase tracking-[1.2px] text-[#5F7488] hover:text-white">
+                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-[10.5px] font-bold uppercase tracking-[1.2px] ${
+                      theme.dark ? 'text-[#5F7488] hover:text-white' : 'text-gray-400 hover:text-gray-700'
+                    }`}>
                     <span>{group.label}</span>
                     <span className="flex items-center gap-1.5">
-                      {!isOpen && <span className="rounded-full bg-white/[0.08] px-1.5 text-[10px] font-semibold tracking-normal">{group.items.length}</span>}
+                      {!isOpen && <span className={`rounded-full px-1.5 text-[10px] font-semibold tracking-normal ${theme.dark ? 'bg-white/[0.08]' : 'bg-gray-100 text-gray-500'}`}>{group.items.length}</span>}
                       <svg viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true">
                         <path d="M7.3 4.3a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1 0 1.4l-5 5a1 1 0 0 1-1.4-1.4L11.6 10 7.3 5.7a1 1 0 0 1 0-1.4Z" />
                       </svg>
@@ -323,9 +354,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </nav>
 
-        <div className={`border-t border-white/[0.08] px-4 py-3.5 text-[11px] text-[#5F7488] ${collapsed ? 'lg:hidden' : ''}`}>
+        <div className={`border-t px-4 py-3.5 text-[11px] ${
+          theme.dark ? 'border-white/[0.08] text-[#5F7488]' : 'border-gray-200 text-gray-500'
+        } ${collapsed ? 'lg:hidden' : ''}`}>
           {access ? (
-            <Link href="/admin/paket" className="block truncate hover:text-white">
+            <Link href="/admin/paket" className={`block truncate ${theme.dark ? 'hover:text-white' : 'hover:text-gray-900'}`}>
               {access.plan_label} paket · {access.usage.users}/{access.limits.users} kullanıcı
             </Link>
           ) : (

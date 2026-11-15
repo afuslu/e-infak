@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.core.plans import FEATURE_LABELS, PLAN_ADDONS, PLAN_LABELS, Feature, Plan, org_user_limit
 from app.core.rate_limit import rate_limit
-from app.core.security import create_access_token, decode_token, get_password_hash, verify_password
+from app.core.security import create_access_token, decode_token, get_password_hash, password_fingerprint, verify_password
 from app.models.audit_log import AuditLog
 from app.models.donation import Donation, DonationStatus
 from app.models.organization import Organization, OrganizationDomain
@@ -56,6 +56,13 @@ async def get_platform_user(
         user = None
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Platform hesabı bulunamadı")
+    token_pwd = payload.get("pwd")
+    if token_pwd and token_pwd != password_fingerprint(user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Şifreniz değiştirildiği için platform oturumunuz sonlandırıldı; lütfen yeniden giriş yapın",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return user
 
 
@@ -86,8 +93,10 @@ async def platform_login(payload: LoginIn, request: Request, db: AsyncSession = 
     user.last_login_at = datetime.now(timezone.utc)
     _audit(db, request, user, "platform_giris")
     await db.commit()
-    token = create_access_token({"sub": str(user.id), "scope": "platform"},
-                                expires_delta=timedelta(hours=PLATFORM_TOKEN_HOURS))
+    token = create_access_token(
+        {"sub": str(user.id), "scope": "platform", "pwd": password_fingerprint(user.hashed_password)},
+        expires_delta=timedelta(hours=PLATFORM_TOKEN_HOURS),
+    )
     return {"access_token": token, "token_type": "bearer", "expires_in": PLATFORM_TOKEN_HOURS * 3600,
             "user": {"email": user.email, "full_name": user.full_name}}
 
@@ -110,7 +119,11 @@ async def change_password(payload: PasswordIn, request: Request, db: AsyncSessio
     operator.hashed_password = get_password_hash(payload.new_password)
     _audit(db, request, operator, "platform_sifre_degisti")
     await db.commit()
-    return {"ok": True}
+    new_token = create_access_token(
+        {"sub": str(operator.id), "scope": "platform", "pwd": password_fingerprint(operator.hashed_password)},
+        expires_delta=timedelta(hours=PLATFORM_TOKEN_HOURS),
+    )
+    return {"ok": True, "access_token": new_token}
 
 
 # --- Catalog --------------------------------------------------------------------

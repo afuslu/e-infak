@@ -9,6 +9,7 @@ import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-acce
 interface ApiKey {
   id: string
   name: string
+  key_prefix?: string
   is_active: boolean
   scopes?: string[] | null
   expires_at?: string | null
@@ -313,7 +314,14 @@ export default function AdminIntegrationsPage() {
                       {keys.map((k) => (
                         <Tr key={k.id} className="hover:bg-gray-50/50">
                           <Td>
-                            <div className="font-semibold text-gray-900">{k.name}</div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-gray-900">{k.name}</span>
+                              {k.key_prefix && (
+                                <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-600">
+                                  {k.key_prefix}
+                                </code>
+                              )}
+                            </div>
                             {Array.isArray(k.scopes) && k.scopes.length > 0 && (
                               <div className="mt-1 flex flex-wrap gap-1">
                                 {k.scopes.map((s) => (
@@ -344,6 +352,25 @@ export default function AdminIntegrationsPage() {
                   </Table>
                 </div>
               )}
+            </Card>
+
+            <Card className="mt-6 space-y-3 border border-gray-100 p-6 shadow-sm">
+              <h3 className="text-sm font-bold text-gray-900">Hızlı API Kullanım Örneği (Public API)</h3>
+              <p className="text-xs text-gray-600">
+                Ürettiğiniz anahtarı <code>X-API-Key</code> başlığıyla <code>/api/v1/public-api/...</code> uç noktalarına gönderebilirsiniz:
+              </p>
+              <pre className="overflow-x-auto rounded-lg bg-slate-900 p-3.5 font-mono text-[11px] leading-relaxed text-slate-100">
+{`# Kampanyaları listele (campaigns:read)
+curl -H "X-API-Key: infak_..." https://alanadiniz.org/api/v1/public-api/campaigns
+
+# Onaylı bağışları listele (donations:read)
+curl -H "X-API-Key: infak_..." https://alanadiniz.org/api/v1/public-api/donations?limit=25
+
+# Dış sistemden bağış kaydı oluştur (donations:write)
+curl -X POST https://alanadiniz.org/api/v1/public-api/donations \\
+  -H "X-API-Key: infak_..." -H "Content-Type: application/json" \\
+  -d '{"donor_name":"Ahmet Yılmaz","amount_cents":50000,"currency":"TRY"}'`}
+              </pre>
             </Card>
           </div>
         </div>
@@ -450,6 +477,25 @@ export default function AdminIntegrationsPage() {
                   </Table>
                 </div>
               )}
+            </Card>
+
+            <Card className="mt-6 space-y-3 border border-gray-100 p-6 shadow-sm">
+              <h3 className="text-sm font-bold text-gray-900">Hızlı API Kullanım Örneği (Public API)</h3>
+              <p className="text-xs text-gray-600">
+                Ürettiğiniz anahtarı <code>X-API-Key</code> başlığıyla <code>/api/v1/public-api/...</code> uç noktalarına gönderebilirsiniz:
+              </p>
+              <pre className="overflow-x-auto rounded-lg bg-slate-900 p-3.5 font-mono text-[11px] leading-relaxed text-slate-100">
+{`# Kampanyaları listele (campaigns:read)
+curl -H "X-API-Key: infak_..." https://alanadiniz.org/api/v1/public-api/campaigns
+
+# Onaylı bağışları listele (donations:read)
+curl -H "X-API-Key: infak_..." https://alanadiniz.org/api/v1/public-api/donations?limit=25
+
+# Dış sistemden bağış kaydı oluştur (donations:write)
+curl -X POST https://alanadiniz.org/api/v1/public-api/donations \\
+  -H "X-API-Key: infak_..." -H "Content-Type: application/json" \\
+  -d '{"donor_name":"Ahmet Yılmaz","amount_cents":50000,"currency":"TRY"}'`}
+              </pre>
             </Card>
           </div>
         </div>

@@ -56,6 +56,7 @@ class IyzicoProvider(PaymentProvider):
     credential_fields = {"api_key": "API anahtarı", "secret_key": "Güvenlik anahtarı (secret key)"}
     secret_fields = {"secret_key"}
     currencies = {"TRY", "USD", "EUR", "GBP"}
+    supports_stored_cards = True
 
     @property
     def base_url(self) -> str:
@@ -82,7 +83,26 @@ class IyzicoProvider(PaymentProvider):
         received = str(data.get("signature") or "")
         return bool(received) and hmac.compare_digest(received, signature(self.credentials["secret_key"], *values))
 
-    async def start(self, ctx: CheckoutContext) -> StartResult:
+    async def charge_stored(self, ctx: CheckoutContext, card_ref: dict[str, str]) -> PaymentResult:
+        """Non-3DS payment with a card stored at iyzico (cardUserKey + cardToken)."""
+        payload = self._order_payload(ctx)
+        payload.pop("callbackUrl", None)
+        payload.pop("enabledInstallments", None)
+        payload.update(installment=1, paymentChannel="WEB",
+                       paymentCard={"cardUserKey": card_ref["card_user_key"], "cardToken": card_ref["card_token"]})
+        data = await self._post("/payment/auth", payload)
+        if data.get("status") == "success" and data.get("signature") and not self._verify(
+            data, data.get("paymentId"), data.get("currency"), data.get("basketId"), data.get("conversationId"),
+            strip_zeros(data.get("paidPrice")), strip_zeros(data.get("price")),
+        ):
+            raise PaymentProviderError("iyzico yanıt imzası doğrulanamadı")
+        result = self._result({**data, "paymentStatus": "SUCCESS" if data.get("status") == "success" else "FAILURE"},
+                              ctx.merchant_payment_id)
+        if result.amount_cents is not None and result.amount_cents != ctx.total_cents:
+            result.approved = False
+        return result
+
+    def _order_payload(self, ctx: CheckoutContext) -> dict:
         name = f"{ctx.customer_first_name} {ctx.customer_last_name}".strip()
         address = {"contactName": name or "Bağışçı", "city": "Türkiye", "country": "Türkiye", "address": "Online bağış"}
         phone = "".join(ch for ch in ctx.customer_phone if ch.isdigit())
@@ -119,6 +139,10 @@ class IyzicoProvider(PaymentProvider):
                 for index, line in enumerate(ctx.lines)
             ],
         }
+        return payload
+
+    async def start(self, ctx: CheckoutContext) -> StartResult:
+        payload = self._order_payload(ctx)
         data = await self._post("/payment/iyzipos/checkoutform/initialize/auth/ecom", payload)
         if data.get("status") != "success" or not data.get("token") or not data.get("paymentPageUrl"):
             raise PaymentProviderError(data.get("errorMessage") or "iyzico ödeme sayfası açılamadı")
@@ -154,6 +178,9 @@ class IyzicoProvider(PaymentProvider):
                 "cardAssociation", "cardFamily", "lastFourDigits", "authCode", "hostReference", "errorCode",
                 "errorMessage", "basketId",
             ) if data.get(k) is not None},
+            # Present when the donor ticked "save my card" on iyzico's form (card storage enabled).
+            card_ref={"card_user_key": data["cardUserKey"], "card_token": data["cardToken"]}
+            if data.get("cardUserKey") and data.get("cardToken") else None,
         )
 
     async def parse_callback(self, data: dict[str, Any], expected_session_token: Optional[str]) -> PaymentResult:

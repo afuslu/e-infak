@@ -77,6 +77,8 @@ class PaymentResult:
     code: Optional[str] = None
     message: Optional[str] = None
     safe_response: dict[str, Any] = field(default_factory=dict)
+    # Provider reference of a card the donor chose to save (never the card number); kept encrypted.
+    card_ref: Optional[dict[str, str]] = None
 
 
 @dataclass
@@ -128,6 +130,8 @@ class PaymentProvider(ABC):
     form_hosts: tuple[str, ...] = ()
     frame_hosts: tuple[str, ...] = ()  # hosts our launch page may embed (Content-Security-Policy frame-src)
     uses_notification: bool = False
+    # Can charge a card the donor saved at the provider, without the donor (recurring donations).
+    supports_stored_cards: bool = False
 
     def __init__(self, credentials: dict, live: bool) -> None:
         self.credentials = credentials or {}
@@ -160,6 +164,10 @@ class PaymentProvider(ABC):
     @abstractmethod
     async def refund(self, *, merchant_payment_id: str, provider_transaction_id: Optional[str],
                      amount_cents: int, currency: str, customer_ip: str = "127.0.0.1") -> RefundResult: ...
+
+    async def charge_stored(self, ctx: CheckoutContext, card_ref: dict[str, str]) -> PaymentResult:
+        """Charge a saved card (recurring donations); only for providers with supports_stored_cards."""
+        raise PaymentProviderError(f"{self.label} kayıtlı karttan çekim desteklemiyor")
 
     @classmethod
     def notification_reply(cls, ok: bool) -> CallbackReply:

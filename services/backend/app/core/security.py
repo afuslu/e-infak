@@ -47,6 +47,13 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     return encoded_jwt
 
 
+def password_fingerprint(hashed_password: Optional[str]) -> str:
+    """Short fingerprint of the current password hash so tokens issued before a password change are rejected."""
+    import hashlib
+
+    return hashlib.sha256((hashed_password or "").encode("utf-8")).hexdigest()[:12]
+
+
 def decode_token(token: str) -> Optional[dict]:
     """Decode and verify JWT token"""
     try:

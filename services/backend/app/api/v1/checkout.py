@@ -65,6 +65,8 @@ async def attempt_provider(db: AsyncSession, order: PaymentOrder, attempt: Payme
 
 
 def apply_result(attempt: PaymentAttempt, result: PaymentResult) -> None:
+    # Saved-card reference for recurring donations: only in memory until it is stored encrypted.
+    attempt.__dict__["_card_ref"] = result.card_ref
     attempt.safe_response = result.safe_response
     attempt.response_code = (result.code or ("00" if result.approved else None) or "")[:16] or None
     attempt.response_message = (result.message or "")[:500] or None
@@ -253,6 +255,9 @@ async def _finalize_paid_order(
             payload={"order_id": str(order.id), "total_cents": order.total_cents, "currency": order.currency},
         )
     )
+    from app.services.recurring import open_from_order
+
+    await open_from_order(db, order, attempt)
     if commit:
         await db.commit()
     else:

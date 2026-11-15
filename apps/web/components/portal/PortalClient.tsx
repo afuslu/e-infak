@@ -76,7 +76,19 @@ interface MyWell {
   gallery_urls: string[]
 }
 
-interface Subscription { id: string; amount_lira: number; currency: string; status: string; next_charge_date: string }
+interface Subscription {
+  id: string
+  campaign_title?: string
+  amount_lira: number
+  currency: string
+  frequency?: string
+  day_of_month?: number | null
+  mode?: 'card' | 'reminder' | string
+  card_brand?: string | null
+  card_last4?: string | null
+  status: string
+  next_charge_date: string
+}
 
 interface PaymentOrder {
   id: string
@@ -395,16 +407,65 @@ export function PortalClient({ siteName }: { siteName: string }) {
   const payInstallment = (id: string, method: PayMethod) => pay(`installments/${id}/pay`, {}, id, method)
   const payDues = (ids: string[], method: PayMethod) => pay('member-dues/pay', { due_ids: ids }, ids[0], method)
 
-  const cancelSubscription = async (id: string) => {
-    if (!window.confirm('Düzenli bağış talimatınızı iptal etmek istediğinize emin misiniz?')) return
+  const [newReminderAmount, setNewReminderAmount] = useState('500')
+  const [newReminderDay, setNewReminderDay] = useState('15')
+  const [creatingReminder, setCreatingReminder] = useState(false)
+
+  const createReminderSubscription = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const amountNum = Number(newReminderAmount)
+    if (!Number.isFinite(amountNum) || amountNum < 10) {
+      setErrorMsg('Lütfen en az 10 TL tutar girin.')
+      return
+    }
+    setCreatingReminder(true)
     setErrorMsg('')
     try {
-      await axios.delete(`${apiBase()}/api/v1/portal/subscriptions/${id}`, { headers: authHeaders(token) })
-      setSubscriptions((current) => current.filter((s) => s.id !== id))
-      setSuccessMsg('Düzenli bağış talimatınız iptal edildi.')
+      const res = await axios.post(
+        `${apiBase()}/api/v1/portal/subscriptions`,
+        {
+          amount_cents: Math.round(amountNum * 100),
+          currency: 'TRY',
+          frequency: 'monthly',
+          day_of_month: Number(newReminderDay) || 15,
+        },
+        { headers: authHeaders(token) },
+      )
+      setSubscriptions((current) => [res.data, ...current])
+      setSuccessMsg('Aylık bağış hatırlatma talimatınız oluşturuldu.')
     } catch (err) {
-      if (!expired(err)) setErrorMsg(errorText(err, 'Talimat iptal edilemedi.'))
+      if (!expired(err)) setErrorMsg(errorText(err, 'Talimat oluşturulamadı.'))
+    } finally {
+      setCreatingReminder(false)
     }
+  }
+
+  const updateSubscriptionAction = async (id: string, action: 'pause' | 'resume' | 'cancel') => {
+    if (action === 'cancel' && !window.confirm('Düzenli bağış talimatınızı iptal etmek istediğinize emin misiniz?')) return
+    setErrorMsg('')
+    try {
+      const res = await axios.post(
+        `${apiBase()}/api/v1/portal/subscriptions/${id}/action`,
+        { action },
+        { headers: authHeaders(token) },
+      )
+      setSubscriptions((current) =>
+        current.map((s) => (s.id === id ? { ...s, ...res.data } : s)),
+      )
+      setSuccessMsg(
+        action === 'pause'
+          ? 'Talimatınız duraklatıldı.'
+          : action === 'resume'
+            ? 'Talimatınız yeniden etkinleştirildi.'
+            : 'Düzenli bağış talimatınız iptal edildi.',
+      )
+    } catch (err) {
+      if (!expired(err)) setErrorMsg(errorText(err, 'Talimat güncellenemedi.'))
+    }
+  }
+
+  const cancelSubscription = async (id: string) => {
+    await updateSubscriptionAction(id, 'cancel')
   }
 
   const printReceipt = (donation: Donation) => {
@@ -706,26 +767,110 @@ export function PortalClient({ siteName }: { siteName: string }) {
   )
 
   const recurring = (
-    <Panel title="Düzenli bağış talimatlarım">
-      {subscriptions.length === 0 ? (
-        <Empty icon="🔁" cta={donateLink}>Aktif bir düzenli bağış talimatınız yok.</Empty>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {subscriptions.map((s) => (
-            <div key={s.id} className="flex items-center justify-between gap-3 py-4">
-              <div>
-                <p className="text-sm font-bold text-slate-900">{money(s.amount_lira, s.currency)} / ay</p>
-                <p className="mt-0.5 text-xs text-slate-500">Sonraki çekim: {date(s.next_charge_date)}</p>
+    <div className="space-y-6">
+      <Panel title="Düzenli bağış talimatlarım">
+        {subscriptions.length === 0 ? (
+          <Empty icon="🔁" cta={donateLink}>Aktif bir düzenli bağış talimatınız yok.</Empty>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {subscriptions.map((s) => (
+              <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-slate-900">
+                      {s.campaign_title || 'Genel Bağış'} · {money(s.amount_lira, s.currency)} / {s.frequency === 'weekly' ? 'hafta' : 'ay'}
+                    </p>
+                    <Badge
+                      tone={
+                        s.status === 'active'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : s.status === 'paused'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-200 text-slate-600'
+                      }
+                    >
+                      {s.status === 'active' ? 'Aktif' : s.status === 'paused' ? 'Duraklatıldı' : 'İptal'}
+                    </Badge>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {s.mode === 'card'
+                      ? `Otomatik kart çekimi${s.card_last4 ? ` (•••• ${s.card_last4})` : ''}`
+                      : `Aylık SMS hatırlatma${s.day_of_month ? ` (Ayın ${s.day_of_month}. günü)` : ''}`}
+                    {s.next_charge_date && s.status === 'active' ? ` · Sonraki tarih: ${date(s.next_charge_date)}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {s.status === 'active' && (
+                    <button
+                      type="button"
+                      onClick={() => updateSubscriptionAction(s.id, 'pause')}
+                      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100"
+                    >
+                      Duraklat
+                    </button>
+                  )}
+                  {s.status === 'paused' && (
+                    <button
+                      type="button"
+                      onClick={() => updateSubscriptionAction(s.id, 'resume')}
+                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+                    >
+                      Devam ettir
+                    </button>
+                  )}
+                  {s.status !== 'cancelled' && (
+                    <button
+                      type="button"
+                      onClick={() => cancelSubscription(s.id)}
+                      className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-100"
+                    >
+                      İptal et
+                    </button>
+                  )}
+                </div>
               </div>
-              <button type="button" onClick={() => cancelSubscription(s.id)}
-                className="rounded-lg bg-red-50 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-100">
-                İptal et
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </Panel>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Yeni aylık bağış hatırlatması oluştur">
+        <form onSubmit={createReminderSubscription} className="grid gap-3 sm:grid-cols-3 items-end">
+          <label className="block space-y-1 text-xs font-semibold text-slate-700">
+            <span>Aylık Tutar (TL)</span>
+            <input
+              type="number"
+              min={10}
+              step={10}
+              value={newReminderAmount}
+              onChange={(e) => setNewReminderAmount(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+            />
+          </label>
+          <label className="block space-y-1 text-xs font-semibold text-slate-700">
+            <span>Hatırlatma Günü (1–28)</span>
+            <select
+              value={newReminderDay}
+              onChange={(e) => setNewReminderDay(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            >
+              {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  Her ayın {d}. günü
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={creatingReminder}
+            className="rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-primary-700 disabled:opacity-50"
+          >
+            {creatingReminder ? 'Kaydediliyor…' : 'Hatırlatma Talimatı Ekle'}
+          </button>
+        </form>
+      </Panel>
+    </div>
   )
 
   const orders = (

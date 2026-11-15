@@ -216,38 +216,36 @@ export default function AdminSiteSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <PageHeader title="Site Ayarları" />
-          <p className="-mt-4 text-sm text-gray-500">
-            Web sitenizin iletişim, yasal künye (KVKK), çoklu dil, SEO, canlı destek ve alan adı ayarlarını yönetin.
-          </p>
-        </div>
-        {!loading && tab !== 'support' && (
-          <div className="flex items-center gap-2">
-            {isDirty && (
+      <PageHeader
+        title="Site Ayarları"
+        description="Web sitenizin iletişim, yasal künye (KVKK), çoklu dil, SEO, canlı destek ve alan adı ayarlarını yönetin."
+        actions={
+          !loading && tab !== 'support' ? (
+            <div className="flex items-center gap-2">
+              {isDirty && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => setForm(saved)}
+                  className="text-xs"
+                >
+                  Vazgeç
+                </Button>
+              )}
               <Button
                 type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={() => setForm(saved)}
-                className="text-xs"
+                disabled={saving || !isDirty}
+                onClick={() => handleSave()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700 disabled:opacity-50"
               >
-                Vazgeç
+                <Save className="h-3.5 w-3.5" />
+                {saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
               </Button>
-            )}
-            <Button
-              type="button"
-              disabled={saving || !isDirty}
-              onClick={() => handleSave()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700 disabled:opacity-50"
-            >
-              <Save className="h-3.5 w-3.5" />
-              {saving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet'}
-            </Button>
-          </div>
-        )}
-      </div>
+            </div>
+          ) : undefined
+        }
+      />
 
       {isDirty && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-900">

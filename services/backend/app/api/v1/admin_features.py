@@ -955,9 +955,15 @@ def _serialize_subscription(sub: Subscription) -> Dict[str, Any]:
         "amount_lira": sub.amount_cents / 100,
         "currency": currency,
         "status": sub.status,
-        "has_card_token": bool(sub.card_token),
-        "card_brand": None,
-        "card_last4": None,
+        "mode": sub.mode,
+        "day_of_month": sub.day_of_month,
+        "has_card_token": bool(sub.card_ref),
+        "card_brand": sub.card_brand,
+        "card_last4": sub.card_last_4,
+        "failed_attempts": sub.failed_attempts,
+        "last_error": sub.last_error,
+        "last_charged_at": sub.last_charged_at,
+        "last_reminded_at": sub.last_reminded_at,
         "next_billing_date": sub.next_charge_date,
         "created_at": sub.created_at,
     }
@@ -1057,7 +1063,17 @@ async def update_subscription(
     if not sub:
         raise HTTPException(status_code=404, detail="Düzenli bağış talimatı bulunamadı.")
 
+    if sub.mode == "card" and (
+        (payload.amount_cents is not None and payload.amount_cents != sub.amount_cents)
+        or (payload.currency is not None and payload.currency != sub.currency)
+    ):
+        # A card is charged without the donor present: only the donor may change what is charged.
+        raise HTTPException(status_code=400, detail="Kartlı talimatın tutarını yalnız bağışçı değiştirebilir")
     if payload.status is not None:
+        if payload.status == "active" and sub.status == "cancelled":
+            raise HTTPException(status_code=400, detail="İptal edilmiş talimat yeniden açılamaz")
+        if payload.status == "active":
+            sub.failed_attempts, sub.last_error = 0, None
         sub.status = payload.status
     if payload.amount_cents is not None:
         sub.amount_cents = payload.amount_cents
@@ -1065,6 +1081,8 @@ async def update_subscription(
         sub.currency = payload.currency
     if payload.next_charge_date is not None:
         sub.next_charge_date = payload.next_charge_date
+    await write_audit_log(db, org_id, current_user.id, action="duzenli_bagis_guncelle",
+                          details={"subscription_id": str(sub.id), **payload.model_dump(exclude_none=True, mode="json")})
 
     await db.commit()
     await db.refresh(sub)
@@ -1086,12 +1104,23 @@ async def retry_failed_subscription(
     ).scalar_one_or_none()
     if not sub:
         raise HTTPException(status_code=404, detail="Düzenli bağış talimatı bulunamadı.")
-    if sub.status in ("paused", "cancelled"):
-        raise HTTPException(status_code=400, detail="Duraklatılmış veya iptal edilmiş talimatta tahsilat denenemez.")
-    raise HTTPException(
-        status_code=503,
-        detail="Ziraat Pay tokenlı tahsilat yetkisi etkin değil; sahte tahsilat yapılmadı.",
-    )
+    if sub.status == "cancelled":
+        raise HTTPException(status_code=400, detail="İptal edilmiş talimatta işlem yapılamaz.")
+    from app.services import recurring
+
+    sub = (await db.execute(select(Subscription).options(
+        selectinload(Subscription.donor), selectinload(Subscription.campaign),
+    ).where(Subscription.id == sub.id).with_for_update(of=Subscription))).scalar_one()
+    if sub.mode == "card" and sub.card_ref:
+        outcome = await recurring.charge(db, sub)
+    else:
+        outcome = await recurring.remind(db, sub)
+    await write_audit_log(db, org_id, current_user.id, action="duzenli_bagis_simdi", details={"subscription_id": str(sub.id), **outcome})
+    await db.commit()
+    messages = {"paid": "Kartından çekildi, makbuz oluşturuldu.", "already_paid": "Bu ayın tahsilatı zaten yapılmış.",
+                "failed": "Çekim başarısız; 2 gün sonra yeniden denenecek.", "paused": "Üç kez başarısız oldu; talimat durduruldu ve bağışçıya SMS gönderildi.",
+                "reminded": "Hatırlatma SMS'i kuyruğa alındı.", "skipped": "Bağışçının telefonu yok veya hatırlatma şablonu kapalı."}
+    return {**outcome, "message": messages.get(outcome["status"], outcome["status"])}
 
 # --- Phase 5 Pydantic Schemas ---
 class ApiKeyCreate(BaseModel):
@@ -1120,6 +1149,16 @@ def _webhook_out(hook: WebhookSetting, secret: str | None = None) -> dict:
         out["secret"] = secret
     return out
 
+VALID_API_SCOPES = ("donations:read", "donors:read", "donations:write", "campaigns:read")
+
+
+def _clean_scopes(scopes: List[str] | None) -> List[str]:
+    if not scopes:
+        return ["donations:read", "campaigns:read"]
+    cleaned = [s for s in dict.fromkeys(scopes) if s in VALID_API_SCOPES or s == "read_only"]
+    return cleaned or ["donations:read", "campaigns:read"]
+
+
 # --- Phase 5: Webhooks & API Keys Integration ---
 @router.get("/integrations/api-keys")
 async def list_api_keys(
@@ -1128,14 +1167,15 @@ async def list_api_keys(
     current_user: User = Depends(get_current_user)
 ):
     org_id = UUID(request.state.organization_id)
-    query = select(ApiKey).where(ApiKey.organization_id == org_id)
+    query = select(ApiKey).where(ApiKey.organization_id == org_id).order_by(ApiKey.created_at.desc())
     res = await db.execute(query)
     return [
         {
             "id": str(k.id),
             "name": k.name,
+            "key_prefix": f"infak_…{k.key_hash[:6]}" if k.key_hash else "infak_…",
             "is_active": k.is_active,
-            "scopes": k.scopes,
+            "scopes": k.scopes or [],
             "expires_at": k.expires_at,
             "last_used_at": k.last_used_at,
             "created_at": k.created_at
@@ -1156,12 +1196,13 @@ async def create_api_key(
     import hashlib
     raw_token = "infak_" + secrets.token_urlsafe(32)
     hash_value = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+    scopes = _clean_scopes(payload.scopes)
     
     key = ApiKey(
         organization_id=org_id,
         name=payload.name,
         key_hash=hash_value,
-        scopes=payload.scopes,
+        scopes=scopes,
         expires_at=payload.expires_at,
         is_active=True
     )
@@ -1172,12 +1213,14 @@ async def create_api_key(
     await write_audit_log(
         db, org_id, current_user.id,
         action="api_anahtari_olustur",
-        details={"name": payload.name, "key_id": str(key.id)}
+        details={"name": payload.name, "key_id": str(key.id), "scopes": scopes}
     )
     
     return {
         "id": str(key.id),
         "name": key.name,
+        "key_prefix": f"infak_…{hash_value[:6]}",
+        "scopes": scopes,
         "raw_token": raw_token,
         "message": "Lütfen bu anahtarı güvenli bir yere kaydedin. Bir daha görüntüleyemeyeceksiniz."
     }
@@ -1306,157 +1349,10 @@ async def get_ai_donor_insights(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from app.services.insights import compute_org_insights
+
     org_id = UUID(request.state.organization_id)
-    now = datetime.now(timezone.utc)
-    inactive_cutoff = now - timedelta(days=45)
-
-    analyzed_donors = int(
-        (
-            await db.execute(
-                select(func.count(Donor.id)).where(
-                    Donor.organization_id == org_id,
-                    func.coalesce(Donor.total_donations, 0) >= 1,
-                )
-            )
-        ).scalar()
-        or 0
-    )
-
-    dormant_donors = (
-        await db.execute(
-            select(Donor)
-            .where(
-                Donor.organization_id == org_id,
-                func.coalesce(Donor.total_donations, 0) >= 1,
-                Donor.last_donation_at.isnot(None),
-                Donor.last_donation_at <= inactive_cutoff,
-            )
-            .order_by(Donor.total_donated_cents.desc(), Donor.last_donation_at.asc())
-            .limit(200)
-        )
-    ).scalars().all()
-
-    churn_items = []
-    for d in dormant_donors:
-        last_dt = d.last_donation_at
-        if last_dt.tzinfo is None:
-            last_dt = last_dt.replace(tzinfo=timezone.utc)
-        days_since = max(0, (now - last_dt).days)
-        count = int(d.total_donations or 1)
-        total_cents = int(d.total_donated_cents or 0)
-
-        recency_score = min(62.0, (days_since / 365.0) * 62.0)
-        repeat_bonus = 25.0 if count >= 3 else (15.0 if count == 2 else 5.0)
-        value_bonus = 10.0 if total_cents >= 100_000 else (5.0 if total_cents >= 25_000 else 0.0)
-        risk = round(min(98.0, max(25.0, recency_score + repeat_bonus + value_bonus)), 1)
-
-        if risk >= 80 and count >= 3:
-            action = "Sadık bağışçı — özel teşekkür ve güncel proje SMS'i gönder"
-        elif risk >= 75:
-            action = "Yüksek kayıp riski — yeni kampanya hatırlatma SMS'i gönder"
-        elif days_since >= 180:
-            action = "6+ aydır sessiz — dönemsel bağış daveti paylaş"
-        else:
-            action = "Aktif tutma — güncel faaliyet raporu ilet"
-
-        churn_items.append(
-            {
-                "donor_id": str(d.id),
-                "donor_name": d.full_name,
-                "donor_phone": masked(d.phone),
-                "allow_sms": bool(d.allow_sms),
-                "last_donation_date": last_dt.date().isoformat(),
-                "days_since_last": days_since,
-                "donation_count": count,
-                "total_donated_cents": total_cents,
-                "risk_percentage": risk,
-                "recommended_action": action,
-            }
-        )
-
-    churn_items.sort(key=lambda x: (-x["risk_percentage"], -x["total_donated_cents"]))
-    churn_list = churn_items[:30]
-    high_risk_count = sum(1 for c in churn_items if c["risk_percentage"] >= 75)
-
-    year_ago = now - timedelta(days=365)
-    paid_expr = func.coalesce(Donation.paid_at, Donation.created_at)
-    cat_rows = (
-        await db.execute(
-            select(
-                Campaign.category,
-                Donation.currency,
-                func.count(func.distinct(Donation.donor_id)),
-                func.count(Donation.id),
-                func.avg(Donation.amount_cents),
-                func.sum(Donation.amount_cents),
-            )
-            .join(Campaign, Campaign.id == Donation.campaign_id)
-            .where(
-                Donation.organization_id == org_id,
-                Donation.status == DonationStatus.CONFIRMED,
-                paid_expr >= year_ago,
-            )
-            .group_by(Campaign.category, Donation.currency)
-            .order_by(func.sum(Donation.amount_cents).desc())
-            .limit(10)
-        )
-    ).all()
-
-    predictive_amounts = []
-    for cat, currency, uniq_donors, tx_count, avg_cents, sum_cents in cat_rows:
-        cat_key = cat.value if hasattr(cat, "value") else str(cat)
-        predictive_amounts.append(
-            {
-                "campaign_category": _CAMPAIGN_CATEGORY_LABELS.get(cat_key, cat_key.title()),
-                "currency": (currency or "TRY").upper(),
-                "suggested_avg_cents": int(round(avg_cents or 0)),
-                "suggested_avg_lira": round((avg_cents or 0) / 100, 2),
-                "expected_donor_count": int(uniq_donors or 0),
-                "donation_count": int(tx_count or 0),
-                "total_cents": int(sum_cents or 0),
-            }
-        )
-
-    ninety_days_ago = now - timedelta(days=90)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    try_90_cents = int(
-        (
-            await db.execute(
-                select(func.coalesce(func.sum(Donation.amount_cents), 0)).where(
-                    Donation.organization_id == org_id,
-                    Donation.status == DonationStatus.CONFIRMED,
-                    Donation.currency == "TRY",
-                    paid_expr >= ninety_days_ago,
-                )
-            )
-        ).scalar()
-        or 0
-    )
-    try_month_cents = int(
-        (
-            await db.execute(
-                select(func.coalesce(func.sum(Donation.amount_cents), 0)).where(
-                    Donation.organization_id == org_id,
-                    Donation.status == DonationStatus.CONFIRMED,
-                    Donation.currency == "TRY",
-                    paid_expr >= month_start,
-                )
-            )
-        ).scalar()
-        or 0
-    )
-
-    return {
-        "churn_list": churn_list,
-        "predictive_amounts": predictive_amounts,
-        "summary": {
-            "analyzed_donors": analyzed_donors,
-            "at_risk_count": len(churn_items),
-            "high_risk_count": high_risk_count,
-            "avg_monthly_try_cents": int(round(try_90_cents / 3)),
-            "current_month_try_cents": try_month_cents,
-        },
-    }
+    return await compute_org_insights(db, org_id, mask_fn=masked)
 
 # --- Faz 3: Bağış Kalemleri (Donation Categories) ---
 class DonationCategoryCreate(BaseModel):

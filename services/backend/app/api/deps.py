@@ -8,7 +8,7 @@ from typing import Optional
 import enum
 from uuid import UUID
 from app.core.db import get_db
-from app.core.security import decode_token
+from app.core.security import decode_token, password_fingerprint
 from app.models.user import User, UserRole
 from app.models.organization import Organization
 from app.core.plans import Feature, org_has_feature, FEATURE_LABELS
@@ -85,6 +85,14 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or inactive",
+        )
+
+    token_pwd = payload.get("pwd")
+    if token_pwd and token_pwd != password_fingerprint(user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Şifreniz değiştirildiği için oturumunuz sonlandırıldı; lütfen yeniden giriş yapın",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     
     # Verify organization matches

@@ -89,6 +89,9 @@ SMS_VARIABLES = {
     "kurum_unvan": "Kurumun resmî unvanı / hesap sahibi",
     "kurum_telefon": "Kurum telefonu",
     "iban": "Kurum IBAN",
+    "odeme_linki": "Bağış / ödeme bağlantısı",
+    "yonet_linki": "Düzenli bağışı durdurma / yönetme bağlantısı",
+    "gun": "Ayın günü",
 }
 VARIABLE_ALIASES = {"donor_name": "ad_soyad", "amount_lira": "tutar", "campaign_name": "bagis_kalemi"}
 _VARIABLE = re.compile(r"\{(\w+)\}")
@@ -122,6 +125,16 @@ SMS_EVENTS: dict[str, tuple[str, str, str, str]] = {
         "Sponsorluk / taahhüt taksiti hatırlatması (vade günü)", "off", "Sponsorluk Hatırlatma",
         "Kıymetli destekçimiz, {bagis_kalemi} için {tutar} {para_birimi} tutarındaki desteğinizi bu ay için "
         "hatırlatmak istedik. Allah kabul etsin.\n{kurum}",
+    ),
+    "duzenli_hatirlatma": (
+        "Düzenli bağış hatırlatması (ödeme günü)", "auto", "Düzenli Bağış Hatırlatma",
+        "Sayın {ad_soyad}, her ay {gun}. gün yaptığınız {tutar} {para_birimi} {bagis_kalemi} bağışınızın günü geldi: "
+        "{odeme_linki} Durdurmak için: {yonet_linki}\n{kurum}",
+    ),
+    "duzenli_basarisiz": (
+        "Düzenli bağış kartından çekilemedi", "auto", "Düzenli Bağış Çekilemedi",
+        "Sayın {ad_soyad}, {tutar} {para_birimi} düzenli bağışınız kartınızdan çekilemedi. Bağışınızı buradan "
+        "yapabilirsiniz: {odeme_linki} Talimat: {yonet_linki}\n{kurum}",
     ),
 }
 RECEIPT_EVENTS = ("bagis_alindi", "makbuz", "havale_eslesti")
