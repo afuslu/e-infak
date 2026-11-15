@@ -56,7 +56,7 @@ export default function DonationSuccessPage() {
                     ⬇ Makbuz PDF
                   </a>
                   <a
-                    href={`https://wa.me/?text=${encodeURIComponent(`${item.campaign_title} kampanyasına ${amount} bağışta bulundum. Makbuz: ${shareOrigin}/verify/receipt/${encodeURIComponent(item.receipt_number)}`)}`}
+                    href={`whatsapp://send?text=${encodeURIComponent(`${item.campaign_title} kampanyasına ${amount} bağışta bulundum. Makbuz: ${shareOrigin}/verify/receipt/${encodeURIComponent(item.receipt_number)}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-bold text-green-700 hover:bg-green-100"

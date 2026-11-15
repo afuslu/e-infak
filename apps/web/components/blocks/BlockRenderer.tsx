@@ -2000,7 +2000,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         entries.push({ key: 'phone', label: 'Telefon', value: phone, href: `tel:${phone.replace(/[^\d+]/g, '')}` })
       }
       if (waRaw && waClean) {
-        entries.push({ key: 'whatsapp', label: 'WhatsApp', value: waRaw, href: `https://wa.me/${waClean}`, external: true })
+        entries.push({ key: 'whatsapp', label: 'WhatsApp', value: waRaw, href: `whatsapp://send?phone=${waClean}`, external: true })
       }
       if (o.show_email !== false && email) {
         entries.push({ key: 'email', label: 'E-posta', value: email, href: `mailto:${email}` })

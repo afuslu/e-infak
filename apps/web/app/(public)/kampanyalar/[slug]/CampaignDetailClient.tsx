@@ -148,7 +148,7 @@ export default function CampaignDetailClient({ slug, locale = 'tr', initial }: {
               </Link>
 
               <a
-                href={`https://wa.me/?text=${encodeURIComponent(`${campaign.title} kampanyasına destek olun: ${typeof window !== 'undefined' ? window.location.href : `/kampanyalar/${campaign.slug}`}`)}`}
+                href={`whatsapp://send?text=${encodeURIComponent(`${campaign.title} kampanyasına destek olun: ${typeof window !== 'undefined' ? window.location.href : `/kampanyalar/${campaign.slug}`}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800 transition-colors hover:bg-green-100"

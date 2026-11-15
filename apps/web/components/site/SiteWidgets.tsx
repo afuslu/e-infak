@@ -73,7 +73,7 @@ export function SiteWidgets() {
           </div>
         </div>
       )}
-      {number && <WhatsAppButton href={`https://wa.me/${number}${text}`} />}
+      {number && <WhatsAppButton href={`whatsapp://send?phone=${number}${text.startsWith('?') ? `&${text.slice(1)}` : text}`} />}
     </>
   )
 }
