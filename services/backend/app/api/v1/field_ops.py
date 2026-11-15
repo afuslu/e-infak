@@ -1,6 +1,6 @@
 """Saha operasyonları: bölgeler, kumbara organizasyonu, kumanya dağıtımı ve görev/takvim."""
 from datetime import date, datetime, time, timedelta, timezone
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -171,10 +171,10 @@ async def _apply_box(db: AsyncSession, org_id: UUID, box: MoneyBox, payload: Mon
 async def list_money_boxes(
     request: Request,
     region_id: Optional[UUID] = None,
-    status_filter: Optional[str] = Query(default=None, alias="status"),
-    responsible: Optional[str] = Query(default=None, description="'me' veya personel id"),
-    not_collected_days: Optional[int] = Query(default=None, ge=1, le=3650),
-    q: Optional[str] = Query(default=None, max_length=100),
+    status_filter: Annotated[Optional[str], Query(alias="status")] = None,
+    responsible: Annotated[Optional[str], Query(description="'me' veya personel id")] = None,
+    not_collected_days: Annotated[Optional[int], Query(ge=1, le=3650)] = None,
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -458,7 +458,7 @@ def _recipient_out(r: AidRecipient, region_name: Optional[str] = None, last: Opt
 
 @router.get("/aid-recipients")
 async def list_aid_recipients(
-    request: Request, region_id: Optional[UUID] = None, q: Optional[str] = Query(default=None, max_length=100),
+    request: Request, region_id: Optional[UUID] = None, q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)
@@ -548,7 +548,7 @@ async def plan_distributions(request: Request, payload: DistributionPlan, db: As
 
 @router.get("/aid-distributions")
 async def list_distributions(
-    request: Request, status_filter: Optional[str] = Query(default=None, alias="status"),
+    request: Request, status_filter: Annotated[Optional[str], Query(alias="status")] = None,
     package_id: Optional[UUID] = None, region_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
@@ -731,10 +731,10 @@ async def delete_task_template(request: Request, template_id: UUID, db: AsyncSes
 async def list_tasks(
     request: Request,
     scope: Literal["mine", "created", "department", "all"] = "mine",
-    status_filter: Optional[str] = Query(default=None, alias="status"),
+    status_filter: Annotated[Optional[str], Query(alias="status")] = None,
     priority: Optional[str] = None,
     assigned_to: Optional[UUID] = None,
-    start: Optional[date] = Query(default=None, description="Takvim: bu tarihten itibaren bitenler"),
+    start: Annotated[Optional[date], Query(description="Takvim: bu tarihten itibaren bitenler")] = None,
     end: Optional[date] = None,
     parent_task_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),

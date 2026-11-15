@@ -8,7 +8,7 @@
 """
 import re
 from datetime import date, datetime, time, timedelta, timezone
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -28,7 +28,7 @@ from app.models.user import User
 from app.utils.content import sanitize_public_text
 from app.services.donation_hooks import DonationEffectsLocked, on_donation_cancelled
 from app.services.offline_donation import record_offline_donation
-from app.services.fx import remove_from_campaign
+from app.services.fx import remove_from_campaign, remove_from_donor
 from app.services.receipt_books import take_number
 
 router = APIRouter(
@@ -60,9 +60,17 @@ def _audit(db: AsyncSession, org_id: UUID, user: User, action: str, details: dic
     db.add(AuditLog(organization_id=org_id, user_id=user.id, action=action, details=details))
 
 
-def _normalize_phone(value: Optional[str]) -> Optional[str]:
+MASKED_PHONE = "__masked__"
+
+
+def _normalize_phone(value: Optional[str], allow_masked: bool = False) -> Optional[str]:
     if value is None or not str(value).strip():
         return None
+    if "*" in str(value):
+        # The staff member saw the number masked ("0532 *** ** 12") and sent it back unchanged.
+        if allow_masked:
+            return MASKED_PHONE
+        raise ValueError("Telefon numarasını tam yazın")
     digits = re.sub(r"\D", "", str(value))
     if len(digits) < 10 or len(digits) > 15:
         raise ValueError("Telefon numarası 10-15 rakam olmalıdır")
@@ -136,15 +144,15 @@ async def _staff_names(db: AsyncSession, org_id: UUID) -> dict:
 @router.get("/donors")
 async def list_donors(
     request: Request,
-    q: Optional[str] = Query(default=None, max_length=100),
-    assigned: Optional[str] = Query(default=None, description="'me', 'none' veya personel id"),
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
+    assigned: Annotated[Optional[str], Query(description="'me', 'none' veya personel id")] = None,
     region: Optional[Literal["yurtici", "yurtdisi"]] = None,
     donor_type: Optional[Literal["individual", "corporate"]] = None,
     has_donation: Optional[bool] = None,
-    tag: Optional[str] = Query(default=None, max_length=40),
+    tag: Annotated[Optional[str], Query(max_length=40)] = None,
     sort: Literal["name", "recent", "total"] = "recent",
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=200),
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 50,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -219,7 +227,7 @@ class DonorIn(BaseModel):
     @field_validator("phone", mode="before")
     @classmethod
     def check_phone(cls, value):
-        return _normalize_phone(value)
+        return _normalize_phone(value, allow_masked=True)
 
     @field_validator("first_name", "last_name", "company_name", "address", "city", "country", mode="before")
     @classmethod
@@ -269,6 +277,8 @@ async def create_donor(request: Request, payload: DonorIn, db: AsyncSession = De
                        current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
     ensure_capability(current_user, "donors.create", "Bağışçı ekleme yetkiniz yok")
+    if payload.phone == MASKED_PHONE:
+        raise HTTPException(status_code=422, detail="Telefon numarasını tam yazın")
     await _ensure_no_duplicate(db, org_id, payload.email, payload.phone)
     if payload.assigned_user_id:
         await _ensure_staff(db, org_id, payload.assigned_user_id)
@@ -337,15 +347,18 @@ async def update_donor(request: Request, donor_id: UUID, payload: DonorUpdate, d
     ensure_capability(current_user, "donors.update", "Bağışçı güncelleme yetkiniz yok")
     if donor.assigned_user_id != current_user.id:
         ensure_capability(current_user, "donors.update_all", "Yalnız temsilcisi olduğunuz bağışçıları güncelleyebilirsiniz")
-    await _ensure_no_duplicate(db, org_id, payload.email, payload.phone, exclude_id=donor.id)
+    phone_given = "phone" in payload.model_fields_set and payload.phone != MASKED_PHONE
+    await _ensure_no_duplicate(db, org_id, payload.email, payload.phone if phone_given else None, exclude_id=donor.id)
     changes = {}
     for key in ("first_name", "last_name", "company_name", "phone", "address", "city", "country", "tax_number", "tags", "allow_sms", "allow_email"):
+        if key not in payload.model_fields_set or (key == "phone" and not phone_given):
+            continue  # not sent (or sent back masked): keep the stored value
         value = getattr(payload, key)
         if getattr(donor, key) != value:
             changes[key] = True
             setattr(donor, key, value)
     email = str(payload.email) if payload.email else None
-    if donor.email != email:
+    if "email" in payload.model_fields_set and donor.email != email:
         changes["email"] = True
         donor.email = email
     if payload.tc_no and payload.tc_no != donor.tc_no:
@@ -454,17 +467,17 @@ async def search_donations(
     start: Optional[date] = None,
     end: Optional[date] = None,
     campaign_id: Optional[UUID] = None,
-    status_filter: Optional[DonationStatus] = Query(default=None, alias="status"),
+    status_filter: Annotated[Optional[DonationStatus], Query(alias="status")] = None,
     payment_method: Optional[PaymentMethod] = None,
     currency: Optional[Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"]] = None,
-    min_amount_cents: Optional[int] = Query(default=None, ge=0),
-    max_amount_cents: Optional[int] = Query(default=None, ge=0),
-    issued_by: Optional[str] = Query(default=None, description="'online', 'manual' veya personel id"),
-    assigned: Optional[str] = Query(default=None, description="Bağışçı temsilcisi: 'me' veya personel id"),
+    min_amount_cents: Annotated[Optional[int], Query(ge=0)] = None,
+    max_amount_cents: Annotated[Optional[int], Query(ge=0)] = None,
+    issued_by: Annotated[Optional[str], Query(description="'online', 'manual' veya personel id")] = None,
+    assigned: Annotated[Optional[str], Query(description="Bağışçı temsilcisi: 'me' veya personel id")] = None,
     on_behalf: Optional[bool] = None,
-    q: Optional[str] = Query(default=None, max_length=100),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=50, ge=1, le=500),
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=500)] = 50,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -843,8 +856,7 @@ async def cancel_manual_donation(request: Request, donation_id: UUID, payload: C
             if line.campaign:
                 remove_from_campaign(line, line.campaign)
             if line.donor:
-                line.donor.total_donations = max(0, (line.donor.total_donations or 0) - 1)
-                line.donor.total_donated_cents = max(0, (line.donor.total_donated_cents or 0) - line.amount_cents)
+                remove_from_donor(line.donor, line)
         line.status = DonationStatus.CANCELLED
         line.payment_details = {**(line.payment_details or {}), "cancel_reason": reason, "cancelled_by": str(current_user.id)}
     _audit(db, org_id, current_user, "makbuz_iptal", {

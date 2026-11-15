@@ -142,12 +142,15 @@ async def get_finance_stats(
     organization_id = UUID(request.state.organization_id)
     
     # 1. Total income from confirmed donations
-    income_query = select(func.sum(Donation.amount_cents)).where(
-        Donation.organization_id == organization_id,
-        Donation.status == DonationStatus.CONFIRMED
-    )
-    income_res = await db.execute(income_query)
-    total_income_cents = income_res.scalar() or 0
+    # Sums are per currency: € and $ cents are not lira.
+    income_rows = (await db.execute(
+        select(func.coalesce(Donation.currency, "TRY"), func.sum(Donation.amount_cents)).where(
+            Donation.organization_id == organization_id,
+            Donation.status == DonationStatus.CONFIRMED,
+        ).group_by(func.coalesce(Donation.currency, "TRY"))
+    )).all()
+    income_by_currency = {currency: int(total or 0) for currency, total in income_rows}
+    total_income_cents = income_by_currency.pop("TRY", 0)
     
     # 2. Total expenses
     expense_query = select(func.sum(Expense.amount_cents)).where(
@@ -167,7 +170,8 @@ async def get_finance_stats(
         "total_income_lira": total_income_cents / 100,
         "total_expense_lira": total_expense_cents / 100,
         "balance_lira": (total_income_cents - total_expense_cents) / 100,
-        "category_breakdown_lira": {cat: val / 100 for cat, val in category_breakdown.items()}
+        "category_breakdown_lira": {cat: val / 100 for cat, val in category_breakdown.items()},
+        "other_income": {currency: cents / 100 for currency, cents in income_by_currency.items()},
     }
 
 @router.get("/derbis-export")

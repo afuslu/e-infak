@@ -62,3 +62,20 @@ def remove_from_campaign(donation, campaign) -> None:
         # Donations confirmed before conversion existed were added as-is when in TRY.
         added = donation.amount_cents if (donation.currency or "TRY") == "TRY" else 0
     campaign.collected_cents = max(0, (campaign.collected_cents or 0) - added)
+
+
+async def add_to_donor(db: AsyncSession, donor, donation) -> None:
+    """Count the donation in the donor's totals; totals are kept in TRY (€/$ converted at TCMB rate)."""
+    converted, _ = await convert(db, donation.amount_cents, donation.currency or "TRY", "TRY")
+    added = converted or 0
+    donation.payment_details = {**(donation.payment_details or {}), "donor_total_cents": added}
+    donor.total_donations = (donor.total_donations or 0) + 1
+    donor.total_donated_cents = (donor.total_donated_cents or 0) + added
+
+
+def remove_from_donor(donor, donation) -> None:
+    details = donation.payment_details or {}
+    # Older donations were added as-is in their own currency.
+    added = int(details["donor_total_cents"]) if "donor_total_cents" in details else donation.amount_cents
+    donor.total_donations = max(0, (donor.total_donations or 0) - 1)
+    donor.total_donated_cents = max(0, (donor.total_donated_cents or 0) - added)

@@ -1,5 +1,6 @@
 'use client'
 
+import { errorMessage } from '../../lib/api-error'
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
@@ -143,10 +144,7 @@ const escapeHtml = (value: unknown) =>
 /** Every call goes through the same-origin gateway, which derives the organisation from the host. */
 const apiBase = () => `${window.location.origin}/api/backend`
 
-const errorText = (err: unknown, fallback: string) => {
-  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-  return typeof detail === 'string' ? detail : fallback
-}
+const errorText = errorMessage
 
 /* ---------- small building blocks ---------- */
 
@@ -372,13 +370,16 @@ export function PortalClient({ siteName }: { siteName: string }) {
 
   const pay = async (path: string, body: Record<string, unknown>, busyId: string, method: PayMethod) => {
     if (!token) return
-    if (!window.confirm('Ödeme sayfasına yönlendirileceksiniz. KVKK aydınlatma metnini okuduğunuzu onaylıyor musunuz?')) return
+    const question = method === 'credit_card'
+      ? 'Ödeme sayfasına yönlendirileceksiniz. KVKK aydınlatma metnini, ön bilgilendirme formunu ve mesafeli bağış sözleşmesini (bagis-kosullari sayfası) okuyup kabul ediyor musunuz?'
+      : 'KVKK aydınlatma metnini okuduğunuzu onaylıyor musunuz?'
+    if (!window.confirm(question)) return
     setPayingId(busyId)
     setErrorMsg('')
     setTransferInfo(null)
     try {
       const res = await axios.post(`${apiBase()}/api/v1/portal/me/${path}`,
-        { ...body, payment_method: method, kvkk_accepted: true }, { headers: authHeaders(token) })
+        { ...body, payment_method: method, kvkk_accepted: true, terms_accepted: method === 'credit_card' }, { headers: authHeaders(token) })
       if (res.data.redirect_url) {
         window.location.assign(res.data.redirect_url)
         return

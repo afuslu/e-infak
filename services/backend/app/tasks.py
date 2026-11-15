@@ -447,9 +447,10 @@ def sync_zakat_rates_task():
     from app.utils.tcmb import fetch_tcmb_rates
     from app.models.zakat_setting import ZakatSetting
 
-    rates = fetch_tcmb_rates()
-    gold_price = rates.get("GOLD_GRAM", 3000.0)
-    nisap = rates.get("NISAP_LIRA", 255000.0)
+    rates = fetch_tcmb_rates(force_refresh=True)
+    # Only a fresh price is written; otherwise every organisation keeps its last real one.
+    gold_price = None if rates.get("stale") else rates.get("GOLD_GRAM")
+    nisap = None if rates.get("stale") else rates.get("NISAP_LIRA")
 
     async def _sync_fx(session):
         """Store currency rates only from a successful fetch; conversion refuses stale rates."""
@@ -474,6 +475,9 @@ def sync_zakat_rates_task():
     async def _sync():
         async with AsyncSessionLocal() as session:
             await _sync_fx(session)
+            if not gold_price:
+                await session.commit()
+                return 0
             res = await session.execute(select(ZakatSetting).where(ZakatSetting.is_auto_sync.is_(True)))
             settings_list = res.scalars().all()
             for st in settings_list:

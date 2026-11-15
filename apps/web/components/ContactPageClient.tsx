@@ -1,5 +1,6 @@
 'use client'
 
+import { errorMessage } from '../lib/api-error'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useSendContactMessage, useOrgSettings } from '@e-infak/api-client'
@@ -49,7 +50,7 @@ export function ContactPageClient({ orgName }: ContactPageClientProps) {
     try {
       await sendContact.mutateAsync({ name, phone, message })
     } catch (err: any) {
-      setErrorMsg(err?.response?.data?.detail || 'Mesajınız gönderilemedi. Lütfen tekrar deneyin.')
+      setErrorMsg(errorMessage(err, 'Mesajınız gönderilemedi. Lütfen tekrar deneyin.'))
     }
   }
 

@@ -7,7 +7,7 @@ import unicodedata
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Optional
+from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
@@ -358,9 +358,9 @@ async def _auto_match(db: AsyncSession, transaction: BankTransaction, user_id: U
 async def import_bank_statement(
     request: Request,
     file: UploadFile = File(...),
-    preview: bool = Query(False),
-    bank_account_id: UUID | None = Query(None),
-    column_map: Optional[str] = Query(None),
+    preview: Annotated[bool, Query()] = False,
+    bank_account_id: Annotated[UUID | None, Query()] = None,
+    column_map: Annotated[Optional[str], Query()] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
 ):

@@ -22,8 +22,10 @@ const c = {
 
 export function ZakatCalculatorClient() {
   const { data: zakatInfo } = useZakatInfo()
-  const goldPrice = zakatInfo?.gold_price_per_gram ?? 3000
-  const nisap = zakatInfo?.nisap_amount_lira ?? 85 * goldPrice
+  // No invented price: without a real one the calculator says so instead of guessing.
+  const goldPrice = zakatInfo?.gold_price_per_gram || 0
+  const nisap = zakatInfo?.nisap_amount_lira || 85 * goldPrice
+  const priceKnown = goldPrice > 0
 
   const [altin, setAltin] = useState('')
   const [nakit, setNakit] = useState('')
@@ -36,7 +38,7 @@ export function ZakatCalculatorClient() {
     return altinLira + (Number(nakit) || 0) + (Number(doviz) || 0) + (Number(alacak) || 0) - (Number(borc) || 0)
   }, [altin, nakit, doviz, alacak, borc, goldPrice])
 
-  const isZekatFarz = total >= nisap
+  const isZekatFarz = priceKnown && total >= nisap
   const zekat = isZekatFarz ? total / 40 : 0
 
   const fmt = (n: number) => Math.max(0, Math.round(n)).toLocaleString('tr-TR') + ' ₺'
@@ -50,7 +52,9 @@ export function ZakatCalculatorClient() {
         <h1 className="font-heading text-[38px] font-bold mb-2">Zekât Hesaplama</h1>
         <p className="text-[15px] leading-relaxed mb-7" style={{ color: c.text }}>
           Varlıklarınızı girin; nisab kontrolü ve zekât tutarınız (1/40) otomatik hesaplansın. Güncel gram altın:{' '}
-          <strong>{goldPrice.toLocaleString('tr-TR')} ₺</strong>
+          {priceKnown
+            ? <strong>{goldPrice.toLocaleString('tr-TR', { maximumFractionDigits: 2 })} ₺</strong>
+            : <strong>şu an alınamadı — nisab kontrolü için biraz sonra yeniden deneyin</strong>}
         </p>
 
         <div className="grid md:grid-cols-[1.2fr_1fr] gap-6 items-start">

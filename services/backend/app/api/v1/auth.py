@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from datetime import datetime, timedelta, timezone
 from app.core.db import get_db
 from app.core.security import (
@@ -15,7 +15,7 @@ from app.core.security import (
 )
 from app.core.config import settings
 from app.models.audit_log import AuditLog
-from app.models.user import User, Session as UserSession
+from app.models.user import User, UserRole, Session as UserSession
 from app.services import passwords
 from app.schemas.auth import (
     UserRegister,
@@ -55,31 +55,34 @@ async def login(
     # Safely get organization_id from request state (None for main portal domain)
     organization_id = getattr(request.state, "organization_id", None)
     
-    # Find user
+    # Find user (e-mail addresses are case-insensitive)
+    email = credentials.email.strip().lower()
+    query = select(User).where(func.lower(User.email) == email)
     if organization_id:
-        result = await db.execute(
-            select(User).where(
-                User.email == credentials.email,
-                User.organization_id == organization_id,
+        query = query.where(User.organization_id == organization_id)
+    candidates = (await db.execute(query)).scalars().all()
+    if not organization_id and len(candidates) > 1:
+        # Platform address: the same e-mail may work in several organisations.
+        platform = [u for u in candidates if u.role == UserRole.PLATFORM_ADMIN]
+        if len(platform) != 1:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Bu e-posta birden fazla kurumda kayıtlı; lütfen kurumunuzun kendi adresinden giriş yapın",
             )
-        )
-    else:
-        result = await db.execute(
-            select(User).where(User.email == credentials.email)
-        )
-    user = result.scalar_one_or_none()
-    
+        candidates = platform
+    user = candidates[0] if len(candidates) == 1 else None
+
     if not user or not verify_password(credentials.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="E-posta veya şifre hatalı",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user account",
+            detail="Hesabınız pasif; kurum yöneticinizle görüşün",
         )
 
     from app.services.ip_rules import denial
@@ -128,7 +131,7 @@ async def refresh_token(
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
+            detail="Oturum yenilenemedi; lütfen yeniden giriş yapın",
         )
     
     # Find session
@@ -140,7 +143,7 @@ async def refresh_token(
     if not session or not session.is_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
+            detail="Oturumunuzun süresi doldu; lütfen yeniden giriş yapın",
         )
     
     # Create new tokens
@@ -216,5 +219,114 @@ async def change_my_password(
     await passwords.set_password(db, current_user, payload.new_password, keep_session=keep)
     db.add(AuditLog(organization_id=current_user.organization_id, user_id=current_user.id,
                     action="sifre_degisti", details={"by": "self"}))
+    await db.commit()
+    return {"ok": True}
+
+
+# --- Forgotten password ---------------------------------------------------------------------------
+
+class PasswordResetRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(min_length=20, max_length=2000)
+    new_password: str = Field(min_length=passwords.MIN_LENGTH, max_length=128)
+
+
+def _password_fingerprint(user: User) -> str:
+    import hashlib
+
+    # Changes with every password change, so a reset link works once and dies with the old password.
+    return hashlib.sha256((user.hashed_password or "").encode()).hexdigest()[:16]
+
+
+def _reset_base_url(request: Request) -> str:
+    organization = getattr(request.state, "organization", None)
+    if settings.ENVIRONMENT == "production" and getattr(organization, "primary_domain", None):
+        return f"https://{organization.primary_domain}"
+    return settings.PUBLIC_WEB_URL.rstrip("/")
+
+
+async def _send_reset_link(db: AsyncSession, user: User, link: str) -> None:
+    import asyncio
+    import logging
+    from html import escape
+
+    log = logging.getLogger(__name__)
+    if settings.SENDGRID_API_KEY and user.email:
+        from app.tasks import send_email_task
+
+        html = (
+            f"<p>Merhaba {escape(user.first_name or '')},</p>"
+            "<p>E-İnfak hesabınız için şifre sıfırlama istendi. Yeni şifre belirlemek için 30 dakika içinde "
+            f'<a href="{escape(link)}">bu bağlantıya</a> tıklayın.</p>'
+            "<p>Bu isteği siz yapmadıysanız bu e-postayı yok sayın; şifreniz değişmez.</p>"
+        )
+        try:
+            await asyncio.to_thread(send_email_task, user.email, "Şifre sıfırlama", html)
+            return
+        except Exception as exc:  # pragma: no cover - provider outage
+            log.warning("Şifre sıfırlama e-postası gönderilemedi: %s", exc)
+    if user.phone:
+        from app.services.sms_service import SmsError, enqueue_sms
+
+        try:
+            await enqueue_sms(db, user.organization_id, user.phone,
+                              f"E-Infak sifre sifirlama baglantiniz (30 dk gecerli): {link}", source="system")
+            await db.commit()
+        except SmsError as exc:
+            log.warning("Şifre sıfırlama SMS'i kuyruğa alınamadı: %s", exc)
+
+
+@router.post("/password-reset/request")
+async def request_password_reset(
+    request: Request,
+    payload: PasswordResetRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("staff-password-reset", limit=5, window_seconds=900)),
+):
+    """Always answers the same way, so it cannot be used to find out which e-mails have accounts."""
+    organization_id = getattr(request.state, "organization_id", None)
+    query = select(User).where(func.lower(User.email) == payload.email.strip().lower(), User.is_active.is_(True))
+    if organization_id:
+        query = query.where(User.organization_id == organization_id)
+    users = (await db.execute(query)).scalars().all()
+    if not organization_id and len(users) > 1:
+        users = [u for u in users if u.role == UserRole.PLATFORM_ADMIN]
+    if len(users) == 1:
+        user = users[0]
+        token = create_access_token(
+            {"sub": str(user.id), "purpose": "password_reset", "fp": _password_fingerprint(user)},
+            expires_delta=timedelta(minutes=30),
+        )
+        await _send_reset_link(db, user, f"{_reset_base_url(request)}/sifre-sifirla?token={token}")
+        db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="sifre_sifirlama_istendi",
+                        details={"ip": request.client.host if request.client else None}))
+        await db.commit()
+    return {"ok": True, "message": "Bu e-posta kayıtlıysa şifre sıfırlama bağlantısı gönderildi."}
+
+
+@router.post("/password-reset/confirm")
+async def confirm_password_reset(
+    request: Request,
+    payload: PasswordResetConfirm,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("staff-password-reset-confirm", limit=10, window_seconds=900)),
+):
+    from uuid import UUID as _UUID
+
+    claims = decode_token(payload.token) or {}
+    invalid = HTTPException(status_code=400, detail="Bağlantı geçersiz veya süresi dolmuş; yeniden isteyin")
+    if claims.get("purpose") != "password_reset" or not claims.get("sub"):
+        raise invalid
+    user = await db.get(User, _UUID(claims["sub"]))
+    if not user or not user.is_active or claims.get("fp") != _password_fingerprint(user):
+        raise invalid
+    organization_id = getattr(request.state, "organization_id", None)
+    if organization_id and str(user.organization_id) != str(organization_id):
+        raise invalid
+    await passwords.set_password(db, user, payload.new_password)
+    db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="sifre_degisti", details={"by": "reset"}))
     await db.commit()
     return {"ok": True}

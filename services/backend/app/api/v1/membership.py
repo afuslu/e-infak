@@ -7,7 +7,7 @@ makbuzu kesilir ve `member_due_ids` metadata'sıyla donation_hooks aidatı kapat
 import calendar
 import re
 from datetime import date, datetime, timezone
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -217,10 +217,10 @@ async def _check_member_no(db: AsyncSession, org_id: UUID, member_no: str, exclu
 @router.get("/members")
 async def list_members(
     request: Request,
-    status_filter: Optional[str] = Query(default=None, alias="status"),
+    status_filter: Annotated[Optional[str], Query(alias="status")] = None,
     member_type: Optional[str] = None,
     overdue_only: bool = False,
-    q: Optional[str] = Query(default=None, max_length=100),
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)
@@ -394,7 +394,7 @@ def _vcard(m: Member) -> str:
 
 
 @router.get("/members/vcard")
-async def members_vcard(request: Request, ids: Optional[str] = Query(default=None, max_length=20000),
+async def members_vcard(request: Request, ids: Annotated[Optional[str], Query(max_length=20000)] = None,
                         db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Seçili (ids=uuid,uuid) ya da tüm aktif üyeler için tek .vcf dosyası."""
     org_id = _org_id(request)
@@ -507,9 +507,9 @@ async def generate_dues(request: Request, payload: GenerateIn, db: AsyncSession 
 @router.get("/member-dues")
 async def list_dues(
     request: Request,
-    status_filter: Optional[Literal["open", "overdue", "paid", "waived"]] = Query(default="overdue", alias="status"),
-    period: Optional[str] = Query(default=None, max_length=7),
-    q: Optional[str] = Query(default=None, max_length=100),
+    status_filter: Annotated[Optional[Literal["open", "overdue", "paid", "waived"]], Query(alias="status")] = "overdue",
+    period: Annotated[Optional[str], Query(max_length=7)] = None,
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)
@@ -636,7 +636,7 @@ async def delete_due(request: Request, due_id: UUID, db: AsyncSession = Depends(
 
 
 @router.get("/member-dues-summary")
-async def dues_summary(request: Request, year: Optional[int] = Query(default=None, ge=2000, le=2100),
+async def dues_summary(request: Request, year: Annotated[Optional[int], Query(ge=2000, le=2100)] = None,
                        db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
     today = _today()

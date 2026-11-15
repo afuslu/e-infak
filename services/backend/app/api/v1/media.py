@@ -1,5 +1,5 @@
 """Kurum medya kütüphanesi: listeleme, yükleme, meta veri, kırpma, klasörler, kota, kullanım yerleri."""
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
@@ -93,12 +93,12 @@ def asset_out(asset: MediaAsset) -> dict:
 @router.get("")
 async def list_media(
     request: Request,
-    folder: Optional[str] = Query(None, description="klasör kimliği veya 'root'"),
-    q: Optional[str] = Query(None, max_length=100),
-    tag: Optional[str] = Query(None, max_length=40),
+    folder: Annotated[Optional[str], Query(description="klasör kimliği veya 'root'")] = None,
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
+    tag: Annotated[Optional[str], Query(max_length=40)] = None,
     unused: bool = False,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(40, ge=1, le=100),
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 40,
     db: AsyncSession = Depends(get_db),
 ):
     org = await _org(request, db)
@@ -133,7 +133,7 @@ async def list_media(
 async def upload_media(
     request: Request,
     file: UploadFile = File(...),
-    folder_id: Optional[UUID] = Form(None),
+    folder_id: Annotated[Optional[UUID], Form()] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     _: None = Depends(rate_limit("media-upload", limit=120, window_seconds=300)),

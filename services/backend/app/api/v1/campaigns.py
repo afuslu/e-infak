@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from uuid import UUID
 from app.core.db import get_db
 from app.models.campaign import HIDDEN_CAMPAIGN_TAG, Campaign, CampaignStatus, CampaignCategory
@@ -27,8 +27,8 @@ router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 @router.get("", response_model=CampaignListResponse)
 async def list_campaigns(
     request: Request,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=100),
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 25,
     status: Optional[CampaignStatus] = None,
     category: Optional[CampaignCategory] = None,
     featured: Optional[bool] = None,

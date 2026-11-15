@@ -261,7 +261,7 @@ async def exchange_rates(request: Request, db: AsyncSession = Depends(get_db)):
                         "fetched_at": r.fetched_at} for r in fx],
         "gold": [{"name": name, "price": round(gram * grams, 2)} for name, grams in GOLD_ITEMS] if gram else [],
         "gold_updated_at": zakat.updated_at if zakat else None,
-        "source": "TCMB",
+        "source": "Döviz: TCMB · Altın: uluslararası spot fiyat × TCMB doları (kuyumcu fiyatından biraz farklı olabilir)",
     }
 
 
@@ -285,7 +285,7 @@ async def refresh_exchange_rates(request: Request, db: AsyncSession = Depends(ge
                                                     set_={"rate_try": stmt.excluded.rate_try, "fetched_at": now}))
     rates = await asyncio.to_thread(fetch_tcmb_rates, True)
     zakat = (await db.execute(select(ZakatSetting).where(ZakatSetting.organization_id == org_id))).scalar_one_or_none()
-    if zakat and zakat.is_auto_sync and rates.get("GOLD_GRAM"):
+    if zakat and zakat.is_auto_sync and rates.get("GOLD_GRAM") and not rates.get("stale"):
         zakat.gold_price_per_gram = rates["GOLD_GRAM"]
         zakat.nisap_amount_lira = rates.get("NISAP_LIRA", zakat.nisap_amount_lira)
     _audit(db, org_id, current_user, "kurlari_guncelle", {"currencies": sorted(fx)})

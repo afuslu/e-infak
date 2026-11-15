@@ -1,5 +1,6 @@
 'use client'
 
+import { errorMessage } from '../lib/api-error'
 import { useEffect, useMemo, useState } from 'react'
 import { useCreateCheckout, useOrgSettings, type CheckoutSessionResponse } from '@e-infak/api-client'
 import { trackConversion } from '../lib/analytics'
@@ -70,7 +71,15 @@ export function DonationCart() {
     }
     const add = (event: Event) => {
       const item = (event as CustomEvent<CartItem>).detail
+      const stored: CartItem[] = (() => { try { return JSON.parse(localStorage.getItem('einfak_cart') || '[]') } catch { return [] } })()
+      const cartCurrency = stored.find((entry) => entry.currency)?.currency
+      // One checkout is paid in one currency: amounts typed in € must not be charged as ₺.
+      if (item.currency && cartCurrency && item.currency !== cartCurrency) {
+        if (!window.confirm(`Sepetinizdeki bağışlar ${cartCurrency} cinsinden. ${item.currency} bağışı eklemek için sepet boşaltılsın mı?`)) return
+        localStorage.setItem('einfak_cart', '[]')
+      }
       setCart((current) => {
+        if (item.currency && cartCurrency && item.currency !== cartCurrency) current = []
         const same = (entry: CartItem) => entry.campaignId === item.campaignId && entry.amount === item.amount
           && JSON.stringify(entry.metadata || {}) === JSON.stringify(item.metadata || {})
         const found = current.find(same)
@@ -159,7 +168,7 @@ export function DonationCart() {
       persist([])
     } catch (err: any) {
       trackConversion('payment_failed', { payment_method: paymentMethod, currency })
-      setError(err?.response?.data?.detail || 'Ödeme başlatılamadı. Lütfen tekrar deneyin.')
+      setError(errorMessage(err, 'Ödeme başlatılamadı. Lütfen tekrar deneyin.'))
     }
   }
 
@@ -221,7 +230,7 @@ export function DonationCart() {
                     </select>
                   </label>
                   <label className="block text-xs font-bold text-slate-600">Para birimi
-                    <select value={currency} onChange={(e) => setCurrency(e.target.value as 'TRY' | 'EUR' | 'USD')} disabled={enabledCurrencies.length < 2} className="mt-1 w-full rounded-xl border p-3 disabled:bg-slate-50 disabled:text-slate-500">
+                    <select value={currency} onChange={(e) => setCurrency(e.target.value as 'TRY' | 'EUR' | 'USD')} disabled={enabledCurrencies.length < 2 || cart.some((item) => item.currency)} className="mt-1 w-full rounded-xl border p-3 disabled:bg-slate-50 disabled:text-slate-500">
                       {enabledCurrencies.map((code) => (
                         <option key={code} value={code}>{code} {CURRENCY_SYMBOL[code]}</option>
                       ))}

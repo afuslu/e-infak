@@ -3,7 +3,7 @@
 Hane kaydı kumanya modülüyle ortaktır (aid_recipients); kumanya yalnızca onaylı haneleri görür.
 """
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -239,12 +239,12 @@ async def list_households(
     review: Optional[Literal["applied", "inspecting", "approved", "rejected", "open"]] = None,
     degree: Optional[Degree] = None,
     region_id: Optional[UUID] = None,
-    city: Optional[str] = Query(default=None, max_length=100),
-    district: Optional[str] = Query(default=None, max_length=100),
-    neighborhood: Optional[str] = Query(default=None, max_length=120),
-    min_score: Optional[int] = Query(default=None, ge=0, le=100),
-    not_helped_days: Optional[int] = Query(default=None, ge=1, le=3650),
-    q: Optional[str] = Query(default=None, max_length=100),
+    city: Annotated[Optional[str], Query(max_length=100)] = None,
+    district: Annotated[Optional[str], Query(max_length=100)] = None,
+    neighborhood: Annotated[Optional[str], Query(max_length=120)] = None,
+    min_score: Annotated[Optional[int], Query(ge=0, le=100)] = None,
+    not_helped_days: Annotated[Optional[int], Query(ge=1, le=3650)] = None,
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)
@@ -513,7 +513,7 @@ async def bulk_plan(request: Request, payload: BulkPlanIn, db: AsyncSession = De
 @router.get("/households-stats")
 async def household_stats(
     request: Request, level: Literal["city", "district", "neighborhood"] = "neighborhood",
-    city: Optional[str] = Query(default=None, max_length=100),
+    city: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     """Adres bazlı istatistik: hane sayısı, ortalama puan, acil hane ve son 12 ayda dağıtılan paket."""
@@ -557,7 +557,7 @@ async def household_stats(
 
 
 @router.get("/households-fairness")
-async def household_fairness(request: Request, days: int = Query(default=180, ge=7, le=3650),
+async def household_fairness(request: Request, days: Annotated[int, Query(ge=7, le=3650)] = 180,
                              db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Yardımın ihtiyaca göre dağılıp dağılmadığı: derece bazında yardım oranı, gözden kaçanlar, en çok alanlar."""
     org_id = _org_id(request)

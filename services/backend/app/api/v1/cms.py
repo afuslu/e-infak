@@ -4,7 +4,7 @@ Gövde metinleri düz metin olarak saklanır (HTML temizlenir); public site boş
 satırları paragraf, "## " ile başlayan satırları ara başlık olarak çizer.
 """
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -654,9 +654,9 @@ def _volunteer_out(app: VolunteerApplication) -> dict:
 @admin_router.get("/volunteers")
 async def admin_list_volunteers(
     request: Request,
-    status_filter: Optional[str] = Query(default=None, alias="status"),
-    area: Optional[str] = Query(default=None, max_length=60),
-    q: Optional[str] = Query(default=None, max_length=100),
+    status_filter: Annotated[Optional[str], Query(alias="status")] = None,
+    area: Annotated[Optional[str], Query(max_length=60)] = None,
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -776,8 +776,8 @@ async def admin_volunteer_to_crm(
 async def public_list_posts(
     request: Request,
     kind: Optional[str] = None,
-    limit: int = Query(default=50, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(ContentPost).where(
@@ -864,7 +864,7 @@ async def public_menu(request: Request, db: AsyncSession = Depends(get_db)):
 async def public_gallery(
     request: Request,
     kind: Optional[Literal["photo", "video"]] = None,
-    album: Optional[str] = Query(default=None, max_length=120),
+    album: Annotated[Optional[str], Query(max_length=120)] = None,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(GalleryItem).where(

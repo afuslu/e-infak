@@ -3,7 +3,7 @@ import secrets
 from html import escape as esc
 from uuid import UUID
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List, Dict, Any, Literal
+from typing import Annotated, Optional, List, Dict, Any, Literal
 from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_validator
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
@@ -242,18 +242,22 @@ async def get_zakat_settings(
     res = await db.execute(query)
     setting = res.scalar_one_or_none()
     
+    tcmb_data = fetch_tcmb_rates(force_refresh=refresh)
     if not setting:
+        live_gold = None if tcmb_data.get("stale") else tcmb_data.get("GOLD_GRAM")
+        if not live_gold:
+            raise HTTPException(status_code=503, detail="Güncel altın fiyatına ulaşılamadı; biraz sonra yeniden deneyin "
+                                                        "veya fiyatı elle girin")
         setting = ZakatSetting(
             organization_id=org_id,
-            gold_price_per_gram=3000.0,
-            nisap_amount_lira=255000.0,
+            gold_price_per_gram=live_gold,
+            nisap_amount_lira=tcmb_data["NISAP_LIRA"],
             is_auto_sync=True
         )
         db.add(setting)
         await db.commit()
         await db.refresh(setting)
 
-    tcmb_data = fetch_tcmb_rates(force_refresh=refresh)
     return {
         "id": str(setting.id),
         "gold_price_per_gram": setting.gold_price_per_gram,
@@ -261,10 +265,13 @@ async def get_zakat_settings(
         "is_auto_sync": setting.is_auto_sync,
         "updated_at": setting.updated_at,
         "live_tcmb": {
-            "usd_rate": tcmb_data.get("USD", 33.0),
-            "eur_rate": tcmb_data.get("EUR", 36.0),
-            "gold_price_per_gram": tcmb_data.get("GOLD_GRAM", 3000.0),
-            "nisap_amount_lira": tcmb_data.get("NISAP_LIRA", 255000.0),
+            "usd_rate": tcmb_data.get("USD"),
+            "eur_rate": tcmb_data.get("EUR"),
+            "gold_price_per_gram": tcmb_data.get("GOLD_GRAM"),
+            "nisap_amount_lira": tcmb_data.get("NISAP_LIRA"),
+            "silver_price_per_gram": tcmb_data.get("SILVER_GRAM"),
+            "stale": bool(tcmb_data.get("stale")),
+            "source": tcmb_data.get("source"),
         },
     }
 
@@ -948,10 +955,10 @@ def _serialize_subscription(sub: Subscription) -> Dict[str, Any]:
 @router.get("/subscriptions")
 async def list_subscriptions(
     request: Request,
-    status_filter: Optional[str] = Query(None, alias="status"),
-    q: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    status_filter: Annotated[Optional[str], Query(alias="status")] = None,
+    q: Annotated[Optional[str], Query()] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -994,7 +1001,7 @@ async def list_subscriptions(
     if q and q.strip():
         pattern = f"%{q.strip()}%"
         search_cond = or_(
-            Donor.full_name.ilike(pattern),
+            func.concat(Donor.first_name, " ", func.coalesce(Donor.last_name, "")).ilike(pattern),
             Donor.email.ilike(pattern),
             Donor.phone.ilike(pattern),
             Campaign.title.ilike(pattern),

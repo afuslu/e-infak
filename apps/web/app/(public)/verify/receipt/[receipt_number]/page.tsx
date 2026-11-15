@@ -1,5 +1,6 @@
 'use client'
 
+import { errorMessage } from '../../../../../lib/api-error'
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import axios from 'axios'
@@ -40,7 +41,7 @@ export default function PublicVerifyReceiptPage() {
         setData(res.data)
       } catch (err: any) {
         console.error(err)
-        setErrorMsg(err.response?.data?.detail || 'Makbuz doğrulanamadı. Geçersiz veya hatalı numara.')
+        setErrorMsg(errorMessage(err, 'Makbuz doğrulanamadı. Geçersiz veya hatalı numara.'))
       } finally {
         setLoading(false)
       }

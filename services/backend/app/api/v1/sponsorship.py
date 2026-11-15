@@ -6,7 +6,7 @@ kalemine gelen onaylı bağışlarla otomatik eşleşir (bkz. services.donation_
 gerekirse personel elle eşleştirir.
 """
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -127,8 +127,8 @@ async def list_beneficiaries(
     request: Request,
     kind: Optional[str] = None,
     sponsored: Optional[bool] = None,
-    status_filter: Optional[str] = Query(default=None, alias="status"),
-    q: Optional[str] = Query(default=None, max_length=100),
+    status_filter: Annotated[Optional[str], Query(alias="status")] = None,
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -259,7 +259,7 @@ def _pledge_query(org_id: UUID):
 async def list_pledges(
     request: Request,
     kind: Optional[str] = None,
-    status_filter: Optional[str] = Query(default=None, alias="status"),
+    status_filter: Annotated[Optional[str], Query(alias="status")] = None,
     donor_id: Optional[UUID] = None,
     beneficiary_id: Optional[UUID] = None,
     water_well_id: Optional[UUID] = None,
@@ -530,7 +530,7 @@ async def _apply_well(db: AsyncSession, org_id: UUID, w: WaterWell, payload: Wat
 @router.get("/water-wells")
 async def list_water_wells(
     request: Request,
-    status_filter: Optional[str] = Query(default=None, alias="status"),
+    status_filter: Annotated[Optional[str], Query(alias="status")] = None,
     country: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

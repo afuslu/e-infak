@@ -9,7 +9,7 @@ from app.models.automation import OutboxEvent
 from app.models.campaign import Campaign
 from app.models.donation import Donation, DonationStatus, Donor, PaymentMethod
 from app.services.donation_hooks import on_donation_confirmed
-from app.services.fx import add_to_campaign
+from app.services.fx import add_to_campaign, add_to_donor
 
 
 async def record_offline_donation(
@@ -91,8 +91,7 @@ async def _apply_confirmation(db: AsyncSession, donation: Donation, campaign: Ca
     organization_id, amount_cents, paid_at = donation.organization_id, donation.amount_cents, donation.paid_at
     await add_to_campaign(db, donation, campaign)
     effects = await on_donation_confirmed(db, donation, donor, quantity=quantity, metadata=metadata)
-    donor.total_donations = (donor.total_donations or 0) + 1
-    donor.total_donated_cents = (donor.total_donated_cents or 0) + amount_cents
+    await add_to_donor(db, donor, donation)
     donor.first_donation_at = min(filter(None, [donor.first_donation_at, paid_at]))
     donor.last_donation_at = max(filter(None, [donor.last_donation_at, paid_at]))
 

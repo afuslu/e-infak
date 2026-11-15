@@ -6,7 +6,7 @@ hareket defterine (ledger_entries) yazılır; işlem geri alınınca kaynağına
 Onaylı bağışlar donation_hooks üzerinden, ödeme yöntemine göre varsayılan hesaba otomatik işlenir.
 """
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
@@ -439,7 +439,7 @@ def _cp_out(c: Counterparty) -> dict:
 
 
 @router.get("/counterparties")
-async def list_counterparties(request: Request, q: Optional[str] = Query(default=None, max_length=100),
+async def list_counterparties(request: Request, q: Annotated[Optional[str], Query(max_length=100)] = None,
                               db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
     query = select(Counterparty).where(Counterparty.organization_id == org_id)
@@ -533,7 +533,7 @@ def _cheque_out(c: Cheque, cp: Optional[str] = None) -> dict:
 @router.get("/cheques")
 async def list_cheques(
     request: Request, direction: Optional[Literal["received", "issued"]] = None,
-    status_filter: Optional[str] = Query(default=None, alias="status"), due_within_days: Optional[int] = Query(default=None, ge=0, le=3650),
+    status_filter: Annotated[Optional[str], Query(alias="status")] = None, due_within_days: Annotated[Optional[int], Query(ge=0, le=3650)] = None,
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)

@@ -64,7 +64,7 @@ async def test_members_dues_generation_payment_and_cancel(db_session):
     again = await membership.generate_dues(_request(org, "POST"), membership.GenerateIn(**body), db_session, admin)
     assert (again["created"], again["already_had"]) == (0, 2)
 
-    overdue = await membership.list_dues(_request(org), "overdue", None, db_session, admin)
+    overdue = await membership.list_dues(_request(org), "overdue", db=db_session, current_user=admin)
     assert sorted(d["amount_cents"] for d in overdue) == [5_000, 10_000] and all(d["days_overdue"] >= 40 for d in overdue)
     flagged = await _list(org, admin, db_session, overdue_only=True)
     assert {m["member_no"] for m in flagged} == {"1", "2"}

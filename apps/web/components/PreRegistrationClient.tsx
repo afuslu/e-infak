@@ -1,5 +1,6 @@
 'use client'
 
+import { errorMessage } from '../lib/api-error'
 import { useState } from 'react'
 import Link from 'next/link'
 import { useSendPreRegistration } from '@e-infak/api-client'
@@ -39,7 +40,7 @@ export function PreRegistrationClient() {
     try {
       await sendPreRegistration.mutateAsync({ program, student_name: studentName, student_age: studentAge, parent_name: parentName, parent_phone: parentPhone })
     } catch (err: any) {
-      setErrorMsg(err?.response?.data?.detail || 'Ön kaydınız gönderilemedi. Lütfen tekrar deneyin.')
+      setErrorMsg(errorMessage(err, 'Ön kaydınız gönderilemedi. Lütfen tekrar deneyin.'))
     }
   }
 

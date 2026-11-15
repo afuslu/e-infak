@@ -6,7 +6,7 @@ biriminde, kuruş cinsinden döner.
 """
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from typing import Optional
+from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -198,7 +198,7 @@ async def dashboard_kpis(db: AsyncSession, org_id: UUID, currency: str = "TRY") 
 @router.get("/monthly")
 async def monthly_report(
     request: Request,
-    year: Optional[int] = Query(default=None, ge=2000, le=2100),
+    year: Annotated[Optional[int], Query(ge=2000, le=2100)] = None,
     currency: str = "TRY",
     db: AsyncSession = Depends(get_db),
 ):
@@ -259,7 +259,7 @@ async def daily_report(
 @router.get("/yearly-comparison", dependencies=ADVANCED)
 async def yearly_comparison(
     request: Request,
-    years: int = Query(default=5, ge=2, le=10),
+    years: Annotated[int, Query(ge=2, le=10)] = 5,
     currency: str = "TRY",
     db: AsyncSession = Depends(get_db),
 ):
@@ -297,7 +297,7 @@ async def campaign_report(
     start: Optional[date] = None,
     end: Optional[date] = None,
     currency: str = "TRY",
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
     db: AsyncSession = Depends(get_db),
 ):
     """Kampanya bağış raporu; en çok bağış alan kampanyalar üstte."""

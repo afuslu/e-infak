@@ -4,7 +4,7 @@ Paths contain "/sms", so api.deps requires the SMS module and (for writes) "Bağ
 """
 import json
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -223,7 +223,7 @@ async def _records(db: AsyncSession, org_id: UUID, target: SmsTarget):
 @router.get("/preview")
 async def preview_sms(
     request: Request, template_id: UUID, donor_id: Optional[UUID] = None, donation_id: Optional[UUID] = None,
-    transfer_id: Optional[UUID] = None, variables: Optional[str] = Query(default=None, max_length=2000),
+    transfer_id: Optional[UUID] = None, variables: Annotated[Optional[str], Query(max_length=2000)] = None,
     db: AsyncSession = Depends(get_db), current_user: Optional[User] = Depends(get_current_user),
 ):
     """A template filled in for a donor / receipt / transfer, with its length.
@@ -323,10 +323,10 @@ def _message_row(message: SmsMessage, donor_name: Optional[str], template_name: 
 @router.get("/messages")
 async def list_messages(
     request: Request, db: AsyncSession = Depends(get_db),
-    status: Optional[str] = None, source: Optional[str] = None, q: Optional[str] = Query(default=None, max_length=80),
+    status: Optional[str] = None, source: Optional[str] = None, q: Annotated[Optional[str], Query(max_length=80)] = None,
     donor_id: Optional[UUID] = None, related_type: Optional[str] = None, related_id: Optional[UUID] = None,
     date_from: Optional[date] = None, date_to: Optional[date] = None,
-    page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200),
+    page: Annotated[int, Query(ge=1)] = 1, page_size: Annotated[int, Query(ge=1, le=200)] = 50,
     current_user: Optional[User] = Depends(get_current_user),
 ):
     org_id = _org_id(request)
@@ -535,7 +535,7 @@ async def send_batch(request: Request, payload: BatchIn, db: AsyncSession = Depe
 
 
 @router.get("/batches")
-async def list_batches(request: Request, db: AsyncSession = Depends(get_db), limit: int = Query(default=30, ge=1, le=100)):
+async def list_batches(request: Request, db: AsyncSession = Depends(get_db), limit: Annotated[int, Query(ge=1, le=100)] = 30):
     org_id = _org_id(request)
     rows = (await db.execute(
         select(SmsBatch, User.email).outerjoin(User, User.id == SmsBatch.created_by)

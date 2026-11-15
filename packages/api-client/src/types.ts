@@ -202,8 +202,8 @@ export interface PreRegistrationResponse {
 }
 
 export interface ZakatInfo {
-  gold_price_per_gram: number
-  nisap_amount_lira: number
+  gold_price_per_gram: number | null
+  nisap_amount_lira: number | null
 }
 
 export interface OrgSettingsInfo {

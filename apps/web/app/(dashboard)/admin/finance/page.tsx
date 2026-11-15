@@ -1,5 +1,6 @@
 'use client'
 
+import { errorMessage } from '../../../../lib/api-error'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
@@ -102,7 +103,7 @@ export default function AdminFinancePage() {
       setStatementFile(null)
       await loadData()
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.detail || 'Ekstre içe aktarılamadı.')
+      setErrorMsg(errorMessage(err, 'Ekstre içe aktarılamadı.'))
     } finally {
       setLoading(false)
     }
@@ -148,7 +149,7 @@ export default function AdminFinancePage() {
       loadData()
     } catch (err: any) {
       console.error(err)
-      setErrorMsg(err.response?.data?.detail || 'Gider ekleme işlemi başarısız.')
+      setErrorMsg(errorMessage(err, 'Gider ekleme işlemi başarısız.'))
     } finally {
       setLoading(false)
     }
@@ -179,7 +180,7 @@ export default function AdminFinancePage() {
       setEditingExpense(null)
       await loadData()
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Harcama güncellenemedi')
+      toast.error(errorMessage(err, 'Harcama güncellenemedi'))
     }
   }
 
@@ -190,7 +191,7 @@ export default function AdminFinancePage() {
       toast.ok('Harcama kaydı silindi')
       await loadData()
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Harcama silinemedi')
+      toast.error(errorMessage(err, 'Harcama silinemedi'))
     }
   }
 

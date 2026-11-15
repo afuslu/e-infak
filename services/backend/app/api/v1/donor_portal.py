@@ -421,6 +421,7 @@ async def get_my_water_wells(
 class InstallmentPayment(BaseModel):
     payment_method: str = "credit_card"
     kvkk_accepted: bool = False
+    terms_accepted: bool = False
 
 
 @router.post("/me/installments/{installment_id}/pay")
@@ -473,6 +474,7 @@ async def pay_my_installment(
             currency=installment.pledge.currency,
             idempotency_key=f"installment-{installment.id}-{uuid4().hex[:12]}",
             kvkk_accepted=payload.kvkk_accepted,
+            terms_accepted=payload.terms_accepted,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc).split("\n")[-1][:200])
@@ -568,6 +570,7 @@ class DuesPortalPayment(BaseModel):
     due_ids: List[UUID]
     payment_method: str = "credit_card"
     kvkk_accepted: bool = False
+    terms_accepted: bool = False
 
 
 @router.post("/me/member-dues/pay", dependencies=[Depends(_membership_enabled)])
@@ -624,6 +627,7 @@ async def pay_my_member_dues(
             currency="TRY",
             idempotency_key=f"dues-{uuid4().hex}",
             kvkk_accepted=payload.kvkk_accepted,
+            terms_accepted=payload.terms_accepted,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc).split("\n")[-1][:200])

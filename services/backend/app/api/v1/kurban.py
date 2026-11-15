@@ -8,7 +8,7 @@ işaretlenince hissedarlara bir kez SMS gider, video bağışçı panelinde gör
 """
 from collections import OrderedDict
 from datetime import datetime, timezone
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -392,8 +392,8 @@ def _animal_out(a: KurbanAnimal, shares: list[KurbanShare]) -> dict:
 async def list_animals(
     request: Request,
     campaign_id: Optional[UUID] = None,
-    status_filter: Optional[Literal["waiting", "slaughtered"]] = Query(default=None, alias="status"),
-    q: Optional[str] = Query(default=None, max_length=100),
+    status_filter: Annotated[Optional[Literal["waiting", "slaughtered"]], Query(alias="status")] = None,
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db),
     _: User = READ,
 ):
@@ -607,7 +607,7 @@ async def animal_paper(request: Request, animal_id: UUID, db: AsyncSession = Dep
 async def campaign_papers(
     request: Request,
     campaign_id: UUID,
-    status_filter: Optional[Literal["waiting", "slaughtered"]] = Query(default="waiting", alias="status"),
+    status_filter: Annotated[Optional[Literal["waiting", "slaughtered"]], Query(alias="status")] = "waiting",
     db: AsyncSession = Depends(get_db),
     _: User = READ,
 ):
@@ -629,11 +629,11 @@ async def list_shares(
     request: Request,
     campaign_id: Optional[UUID] = None,
     assigned: Optional[bool] = None,
-    status_filter: Optional[Literal["waiting", "slaughtered"]] = Query(default=None, alias="status"),
-    kurban_type: Optional[str] = Query(default=None, max_length=16),
-    q: Optional[str] = Query(default=None, max_length=100),
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=100, ge=1, le=1000),
+    status_filter: Annotated[Optional[Literal["waiting", "slaughtered"]], Query(alias="status")] = None,
+    kurban_type: Annotated[Optional[str], Query(max_length=16)] = None,
+    q: Annotated[Optional[str], Query(max_length=100)] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=1000)] = 100,
     db: AsyncSession = Depends(get_db),
     _: User = READ,
 ):

@@ -1,5 +1,6 @@
 'use client'
 
+import { errorMessage } from '../../../lib/api-error'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { platformCall, setPlatformToken } from '../../../lib/platform-api'
@@ -20,7 +21,7 @@ export default function PlatformLoginPage() {
       setPlatformToken(res.access_token)
       router.replace('/platform')
     } catch (err) {
-      setError((err as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Giriş yapılamadı')
+      setError(errorMessage(err, 'Giriş yapılamadı'))
     } finally {
       setBusy(false)
     }

@@ -165,7 +165,7 @@ async def test_volunteer_application_requires_consent_and_honeypot_is_dropped(db
     await cms.public_create_volunteer_application(_request(org, "POST"), cms.VolunteerApplicationIn(**base), db_session, None)
     await cms.public_create_volunteer_application(
         _request(org, "POST"), cms.VolunteerApplicationIn(**base, website="spam.example"), db_session, None)
-    rows = await cms.admin_list_volunteers(_request(org), None, None, db_session, admin)
+    rows = await cms.admin_list_volunteers(_request(org), db=db_session, current_user=admin)
     assert len(rows) == 1
     assert rows[0]["areas"] == ["Kumanya", "Eğitim"]
     updated = await cms.admin_update_volunteer(_request(org, "PUT"), uuid.UUID(rows[0]["id"]),

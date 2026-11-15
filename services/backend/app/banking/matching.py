@@ -285,6 +285,7 @@ async def approve(
     automatic: bool = False,
     amount_cents: Optional[int] = None,
     line: int = 0,
+    official_receipt_no: Optional[str] = None,
 ) -> Donation:
     """Record the transfer as a confirmed donation; the caller commits.
 
@@ -311,7 +312,10 @@ async def approve(
         on_behalf_of=on_behalf_of, send_receipt=send_receipt,
         metadata={"kurban_type": kurban_type} if kurban_type else {},
     )
-    if receipt_book_id:
+    if official_receipt_no:
+        # Parts of a split transfer share the first part's paper receipt number.
+        donation.official_receipt_no = official_receipt_no
+    elif receipt_book_id:
         from app.services.receipt_books import take_number
         _, label = await take_number(db, transaction.organization_id, receipt_book_id)
         donation.official_receipt_no = label
@@ -359,7 +363,7 @@ async def unmatch(db: AsyncSession, transaction: BankTransaction, *, user_id: UU
 
     from app.models.sms_message import SMS_OPEN_STATUSES, SmsMessage
     from app.services.donation_hooks import on_donation_cancelled
-    from app.services.fx import remove_from_campaign
+    from app.services.fx import remove_from_campaign, remove_from_donor
 
     if transaction.status != ReconciliationStatus.MATCHED or not transaction.donation_id:
         raise ValueError("Bu hareketin kaldırılacak bir bağış eşleşmesi yok")
@@ -374,8 +378,7 @@ async def unmatch(db: AsyncSession, transaction: BankTransaction, *, user_id: UU
         if donation.campaign:
             remove_from_campaign(donation, donation.campaign)
         if donation.donor:
-            donation.donor.total_donations = max(0, (donation.donor.total_donations or 0) - 1)
-            donation.donor.total_donated_cents = max(0, (donation.donor.total_donated_cents or 0) - donation.amount_cents)
+            remove_from_donor(donation.donor, donation)
     if donations:  # an SMS about a cancelled receipt must not go out
         await db.execute(update(SmsMessage).where(
             SmsMessage.organization_id == transaction.organization_id, SmsMessage.related_type == "donation",

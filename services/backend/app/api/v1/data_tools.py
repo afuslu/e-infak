@@ -11,7 +11,7 @@ import json
 import re
 import unicodedata
 from datetime import date, datetime, time, timezone
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -325,10 +325,10 @@ def _intro(headers: list[str], rows: list[list], fields: dict, sheet_names: list
 async def import_donors(
     request: Request,
     file: UploadFile = File(...),
-    mapping: Optional[str] = Form(default=None),
-    dry_run: bool = Form(default=True),
-    extra_tag: Optional[str] = Form(default=None, max_length=40),
-    sheet_name: Optional[str] = Form(default=None),
+    mapping: Annotated[Optional[str], Form()] = None,
+    dry_run: Annotated[bool, Form()] = True,
+    extra_tag: Annotated[Optional[str], Form(max_length=40)] = None,
+    sheet_name: Annotated[Optional[str], Form()] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -392,10 +392,10 @@ def _method(value: Optional[str]) -> PaymentMethod:
 async def import_receipts(
     request: Request,
     file: UploadFile = File(...),
-    mapping: Optional[str] = Form(default=None),
-    dry_run: bool = Form(default=True),
-    default_campaign_id: Optional[UUID] = Form(default=None),
-    sheet_name: Optional[str] = Form(default=None),
+    mapping: Annotated[Optional[str], Form()] = None,
+    dry_run: Annotated[bool, Form()] = True,
+    default_campaign_id: Annotated[Optional[UUID], Form()] = None,
+    sheet_name: Annotated[Optional[str], Form()] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

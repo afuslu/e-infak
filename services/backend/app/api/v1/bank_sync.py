@@ -232,7 +232,7 @@ async def list_transfers(request: Request, status: Optional[ReconciliationStatus
                          date_to: Optional[date] = None, amount_min: Optional[float] = None,
                          amount_max: Optional[float] = None, account_id: Optional[UUID] = None,
                          duplicates: bool = False,
-                         limit: int = Query(200, le=500), offset: int = Query(0, ge=0),
+                         limit: Annotated[int, Query(le=500)] = 200, offset: Annotated[int, Query(ge=0)] = 0,
                          db: AsyncSession = Depends(get_db), _: User = Depends(finance)):
     """Incoming movements of one status, with search; `duplicates` lists look-alike movements of any status."""
     org_id = _org_id(request)
@@ -366,10 +366,15 @@ async def approve_transfer(transfer_id: UUID, payload: ApproveIn, request: Reque
                 db, transfer, donor=donor, campaign=campaign, user_id=current_user.id,
                 on_behalf_of=line.on_behalf_of or payload.on_behalf_of, kurban_type=line.kurban_type, note=payload.note,
                 receipt_book_id=payload.receipt_book_id, send_receipt=payload.send_receipt and index == 0,
-                amount_cents=line.amount_cents, line=index))
+                amount_cents=line.amount_cents, line=index,
+                official_receipt_no=donations[0].official_receipt_no if donations else None))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     donation = donations[0]
+    if len(donations) > 1:
+        # Parts of one transfer print as one multi-line receipt, like a manual receipt with lines.
+        for index, part in enumerate(donations):
+            part.payment_details = {**(part.payment_details or {}), "receipt_group": str(donation.id), "line": index}
     from app.services.sms_service import queue_receipt_sms, receipt_key, send_event_sms
     from app.sms import SmsError
     try:
@@ -434,7 +439,7 @@ class RuleIn(BaseModel):
 
 
 @router.get("/admin/bank-match-rules")
-async def list_rules(request: Request, kind: str = Query("keyword", pattern="^(keyword|sender)$"),
+async def list_rules(request: Request, kind: Annotated[str, Query(pattern="^(keyword|sender)$")] = "keyword",
                      db: AsyncSession = Depends(get_db), _: User = Depends(finance)):
     org_id = _org_id(request)
     rows = (await db.execute(select(BankMatchRule).where(

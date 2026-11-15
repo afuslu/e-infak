@@ -175,23 +175,23 @@ async def get_public_zakat_info(
 
     from app.utils.tcmb import fetch_tcmb_rates
     tcmb_data = fetch_tcmb_rates()
-
-    if not setting:
-        return {
-            "gold_price_per_gram": tcmb_data.get("GOLD_GRAM", 3000.0),
-            "nisap_amount_lira": tcmb_data.get("NISAP_LIRA", 255000.0),
-            "usd_rate": tcmb_data.get("USD", 33.0),
-            "eur_rate": tcmb_data.get("EUR", 36.0),
-        }
-
-    gold = tcmb_data.get("GOLD_GRAM") if setting.is_auto_sync else setting.gold_price_per_gram
-    nisap = tcmb_data.get("NISAP_LIRA") if setting.is_auto_sync else setting.nisap_amount_lira
-
+    live = not tcmb_data.get("stale")
+    if setting and not setting.is_auto_sync:
+        gold, nisap = setting.gold_price_per_gram, setting.nisap_amount_lira
+    elif live and tcmb_data.get("GOLD_GRAM"):
+        gold, nisap = tcmb_data["GOLD_GRAM"], tcmb_data["NISAP_LIRA"]
+    elif setting:
+        # Last price written by the hourly sync.
+        gold, nisap = setting.gold_price_per_gram, setting.nisap_amount_lira
+    else:
+        gold, nisap = tcmb_data.get("GOLD_GRAM"), tcmb_data.get("NISAP_LIRA")
     return {
         "gold_price_per_gram": gold,
         "nisap_amount_lira": nisap,
-        "usd_rate": tcmb_data.get("USD", 33.0),
-        "eur_rate": tcmb_data.get("EUR", 36.0),
+        "usd_rate": tcmb_data.get("USD"),
+        "eur_rate": tcmb_data.get("EUR"),
+        "updated_at": setting.updated_at if setting else None,
+        "stale": not live,
     }
 
 

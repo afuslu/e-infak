@@ -8,6 +8,7 @@ import { z } from 'zod'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Eye, EyeOff, Lock, Mail, Moon, Sun } from 'lucide-react'
+import { authErrorText } from '../../../components/auth/AuthCard'
 
 const loginSchema = z.object({
   email: z.string().email('Geçerli bir e-posta adresi girin'),
@@ -29,6 +30,8 @@ export default function LoginPage() {
     const match = window.location.hash.match(/^#destek=([A-Za-z0-9._-]+)$/)
     if (!match) return
     window.history.replaceState(null, '', window.location.pathname)
+    // A link with someone else's token would sign this browser into their account: ask first.
+    if (!window.confirm('E-İnfak platform destek oturumu açılacak. Bu bağlantıyı destek ekranından siz mi açtınız?')) return
     localStorage.setItem('access_token', match[1])
     localStorage.removeItem('refresh_token')
     sessionStorage.setItem('support_session', '1')
@@ -48,8 +51,8 @@ export default function LoginPage() {
     try {
       await login.mutateAsync(data)
       router.push('/admin')
-    } catch (error: any) {
-      setErrorMsg(error.response?.data?.detail || 'E-posta veya şifre hatalı')
+    } catch (error) {
+      setErrorMsg(authErrorText(error, 'E-posta veya şifre hatalı'))
     }
   }
 
@@ -128,6 +131,9 @@ export default function LoginPage() {
               {errors.password && (
                 <p className="mt-1.5 text-xs font-medium text-red-600">{errors.password.message}</p>
               )}
+              <div className="mt-2 text-end">
+                <Link href="/sifremi-unuttum" className="text-xs font-semibold text-pt-muted hover:text-pt-brand">Şifremi unuttum</Link>
+              </div>
             </div>
 
             {errorMsg && (

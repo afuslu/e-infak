@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -45,8 +45,8 @@ async def get_donation(
 @router.get("", response_model=list[DonationResponse])
 async def list_donations(
     request: Request,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(25, ge=1, le=100),
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 25,
     status: Optional[DonationStatus] = None,
     campaign_id: Optional[UUID] = None,
     db: AsyncSession = Depends(get_db),

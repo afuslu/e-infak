@@ -4,6 +4,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import func, select
@@ -12,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import Permission, require_permission
 from app.services.donation_hooks import on_donation_cancelled, on_donation_confirmed
-from app.services.fx import add_to_campaign, remove_from_campaign
+from app.services.fx import add_to_campaign, add_to_donor, remove_from_campaign, remove_from_donor
 from app.payments import PROVIDERS, build_provider, provider_for, provider_key_for
 from app.payments.base import CheckoutContext, CheckoutLine, PaymentProviderError, PaymentResult
 from app.services.tenant_credentials import get_credentials
@@ -22,6 +23,7 @@ from app.core.db import get_db
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.donation import Donation, DonationStatus, Donor, PaymentMethod
 from app.models.payment import PaymentAttempt, PaymentOrder, PaymentOrderItem, PaymentOrderStatus
+from app.models.audit_log import AuditLog
 from app.models.automation import ConsentRecord, OutboxEvent, PaymentRefund
 from app.models.user import User, UserRole
 from app.schemas.checkout import (
@@ -231,14 +233,13 @@ async def _finalize_paid_order(
         )
         await db.flush()
         await add_to_campaign(db, donation, item.campaign)
+        await add_to_donor(db, order.donor, donation)
         await on_donation_confirmed(
             db, donation, order.donor, quantity=item.quantity, metadata=item.metadata_json or {},
         )
         donation_ids.append(str(donation.id))
 
     donor = order.donor
-    donor.total_donations += len(order.items)
-    donor.total_donated_cents += order.total_cents
     donor.last_donation_at = now
     donor.first_donation_at = donor.first_donation_at or now
     order.status = PaymentOrderStatus.PAID
@@ -669,14 +670,25 @@ async def checkout_status(
     )
 
 
+class RefundIn(BaseModel):
+    # Donations (receipt lines) of the order to refund; empty = everything not yet refunded.
+    donation_ids: list[UUID] = Field(default_factory=list, max_length=50)
+
+
 @router.post("/admin/payments/{checkout_id}/refund")
 async def refund_payment(
     request: Request,
     checkout_id: UUID,
-    amount_cents: int | None = None,
+    payload: RefundIn | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
 ):
+    """Refund whole receipt lines through the bank.
+
+    Refunds follow donations, never an arbitrary amount: every refunded cent then leaves the
+    donation, campaign and donor totals at once, so reports cannot disagree with the bank.
+    """
+    payload = payload or RefundIn()
     order = await _load_order(db, checkout_id)
     if not order or str(order.organization_id) != request.state.organization_id:
         raise HTTPException(status_code=404, detail="Ödeme bulunamadı")
@@ -686,14 +698,26 @@ async def refund_payment(
     attempt = next((item for item in order.attempts if item.pg_tran_id and item.provider != "bank_transfer"), None)
     if not attempt:
         raise HTTPException(status_code=409, detail="Banka işlem numarası bulunamadı")
-    remaining_cents = order.total_cents - order.refunded_cents
-    cents = amount_cents or remaining_cents
-    if cents <= 0 or cents > remaining_cents:
+    donations = (await db.execute(
+        select(Donation).where(
+            Donation.payment_order_item_id.in_([item.id for item in order.items]),
+            Donation.status == DonationStatus.CONFIRMED,
+        ).with_for_update()
+    )).scalars().all()
+    if payload.donation_ids:
+        wanted = set(payload.donation_ids)
+        donations = [d for d in donations if d.id in wanted]
+        if len(donations) != len(wanted):
+            raise HTTPException(status_code=400, detail="Seçilen bağışlardan biri bu ödemeye ait değil ya da zaten iade edildi")
+    if not donations:
+        raise HTTPException(status_code=409, detail="İade edilecek bağış kalmadı")
+    cents = sum(d.amount_cents for d in donations)
+    if cents <= 0 or cents > order.total_cents - order.refunded_cents:
         raise HTTPException(status_code=400, detail="Geçersiz iade tutarı")
     # Check before calling the bank: a refund cannot be undone, a slaughtered kurban neither.
     slaughtered = (await db.execute(
-        select(KurbanShare.id).join(Donation, Donation.id == KurbanShare.donation_id).where(
-            Donation.payment_order_item_id.in_([item.id for item in order.items]),
+        select(KurbanShare.id).where(
+            KurbanShare.donation_id.in_([d.id for d in donations]),
             KurbanShare.status == KurbanStatus.SLAUGHTERED,
         )
     )).first()
@@ -723,24 +747,27 @@ async def refund_payment(
         refund.failure_message = outcome.message
         await db.commit()
         raise HTTPException(status_code=502, detail=outcome.message or "Banka iadeyi reddetti")
+    now = datetime.now(timezone.utc)
     refund.status = "completed"
     refund.provider_transaction_id = outcome.provider_transaction_id
-    refund.completed_at = datetime.now(timezone.utc)
+    refund.completed_at = now
     order.refunded_cents += cents
-    if order.refunded_cents == order.total_cents:
-        order.status = PaymentOrderStatus.REFUNDED
-        donation_result = await db.execute(
-            select(Donation).where(Donation.payment_order_item_id.in_([item.id for item in order.items]))
-        )
-        for donation in donation_result.scalars().all():
-            donation.status = DonationStatus.REFUNDED
-            donation.refunded_at = datetime.now(timezone.utc)
-            await on_donation_cancelled(db, donation)
-            refunded_campaign = await db.get(Campaign, donation.campaign_id)
-            if refunded_campaign:
-                remove_from_campaign(donation, refunded_campaign)
-    else:
-        order.status = PaymentOrderStatus.PARTIALLY_REFUNDED
+    order.status = (PaymentOrderStatus.REFUNDED if order.refunded_cents >= order.total_cents
+                    else PaymentOrderStatus.PARTIALLY_REFUNDED)
+    for donation in donations:
+        donation.status = DonationStatus.REFUNDED
+        donation.refunded_at = now
+        await on_donation_cancelled(db, donation)
+        refunded_campaign = await db.get(Campaign, donation.campaign_id)
+        if refunded_campaign:
+            remove_from_campaign(donation, refunded_campaign)
+        if order.donor:
+            remove_from_donor(order.donor, donation)
+        db.add(OutboxEvent(
+            organization_id=order.organization_id, aggregate_type="donation", aggregate_id=donation.id,
+            event_type="webhook.donation.refunded",
+            payload={"donation_id": str(donation.id), "order_id": str(order.id), "amount_cents": donation.amount_cents},
+        ))
     db.add(
         OutboxEvent(
             organization_id=order.organization_id,
@@ -750,8 +777,11 @@ async def refund_payment(
             payload={"order_id": str(order.id), "amount_cents": cents},
         )
     )
+    db.add(AuditLog(organization_id=order.organization_id, user_id=current_user.id, action="odeme_iade",
+                    details={"order_id": str(order.id), "amount_cents": cents,
+                             "donations": [str(d.id) for d in donations]}))
     await db.commit()
-    return {"status": "refunded", "amount_cents": cents, "pg_tran_id": outcome.provider_transaction_id}
+    return {"status": order.status.value, "amount_cents": cents, "pg_tran_id": outcome.provider_transaction_id}
 
 
 @router.post("/admin/payments/{checkout_id}/reconcile")

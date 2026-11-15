@@ -26,7 +26,7 @@ async def create_orphan(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission(Permission.OPERATIONS_MANAGE)),
 ):
-    organization_id = request.state.organization_id
+    organization_id = UUID(str(request.state.organization_id))
     orphan = Orphan(
         organization_id=organization_id,
         **orphan_in.model_dump()
@@ -44,7 +44,7 @@ async def list_orphans(
     status: Optional[OrphanStatus] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    organization_id = request.state.organization_id
+    organization_id = UUID(str(request.state.organization_id))
     query = select(Orphan).where(Orphan.organization_id == organization_id)
     if gender:
         query = query.where(Orphan.gender == gender)
@@ -64,7 +64,7 @@ async def sponsor_orphan(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_permission(Permission.OPERATIONS_MANAGE)),
 ):
-    organization_id = request.state.organization_id
+    organization_id = UUID(str(request.state.organization_id))
     # Fetch orphan
     orphan = await db.get(Orphan, orphan_id)
     if not orphan or orphan.organization_id != organization_id:

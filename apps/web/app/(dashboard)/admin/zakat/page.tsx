@@ -10,10 +10,13 @@ import { PageHeader } from '../../../../components/admin/ui'
 import { adminApiBase, adminAuthHeaders, apiErrorMessage } from '../../../../lib/admin-access'
 
 interface LiveTcmb {
-  usd_rate: number
-  eur_rate: number
-  gold_price_per_gram: number
-  nisap_amount_lira: number
+  usd_rate: number | null
+  eur_rate: number | null
+  gold_price_per_gram: number | null
+  nisap_amount_lira: number | null
+  silver_price_per_gram?: number | null
+  stale?: boolean
+  source?: string | null
 }
 
 interface ZakatSetting {
@@ -97,8 +100,10 @@ export default function AdminZakatPage() {
     }
   }
 
-  const activeGold = autoSync && liveTcmb ? liveTcmb.gold_price_per_gram : Number(goldPrice) || 0
-  const activeNisap = autoSync && liveTcmb ? liveTcmb.nisap_amount_lira : Number(nisapLira) || 0
+  // Live price only when it was really fetched; otherwise the last stored one.
+  const live = autoSync && liveTcmb && !liveTcmb.stale && liveTcmb.gold_price_per_gram ? liveTcmb : null
+  const activeGold = live ? live.gold_price_per_gram || 0 : Number(goldPrice) || 0
+  const activeNisap = live ? live.nisap_amount_lira || 0 : Number(nisapLira) || 0
 
   return (
     <div className="space-y-6">
@@ -274,13 +279,13 @@ export default function AdminZakatPage() {
                     <div className="rounded-xl bg-gray-50 p-3">
                       <p className="text-[11px] font-bold text-gray-400">TCMB USD Kuru</p>
                       <p className="mt-1 text-sm font-bold text-gray-800 tabular-nums">
-                        {liveTcmb.usd_rate.toLocaleString('tr-TR')} ₺
+                        {liveTcmb.usd_rate != null ? `${liveTcmb.usd_rate.toLocaleString('tr-TR')} ₺` : '—'}
                       </p>
                     </div>
                     <div className="rounded-xl bg-gray-50 p-3">
                       <p className="text-[11px] font-bold text-gray-400">TCMB EUR Kuru</p>
                       <p className="mt-1 text-sm font-bold text-gray-800 tabular-nums">
-                        {liveTcmb.eur_rate.toLocaleString('tr-TR')} ₺
+                        {liveTcmb.eur_rate != null ? `${liveTcmb.eur_rate.toLocaleString('tr-TR')} ₺` : '—'}
                       </p>
                     </div>
                   </>

@@ -146,3 +146,97 @@ async def test_receipt_details_need_the_printed_code(db_session):
     with pytest.raises(HTTPException) as exc:
         await public_forms.download_public_receipt_pdf(request, donation.receipt_number, "WRONG", db_session)
     assert exc.value.status_code == 403
+
+
+async def test_staff_login_is_case_insensitive_and_reset_link_works_once(db_session, monkeypatch):
+    from app.api.v1 import auth
+    from app.core.config import settings
+    from app.core.security import get_password_hash, verify_password
+    from app.schemas.auth import UserLogin
+    from app.models.user import User, UserRole
+
+    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
+    org, _ = await _setup(db_session)
+    user = User(organization_id=org.id, email=f"Mixed.{org.slug}@Example.com", hashed_password=get_password_hash("eski-sifre-123"),
+                first_name="Can", last_name="T", role=UserRole.CRM)
+    db_session.add(user)
+    await db_session.flush()
+    request = _request(org, "POST")
+    tokens = await auth.login(request, UserLogin(email=user.email.lower(), password="eski-sifre-123"), db_session)
+    assert tokens.access_token
+
+    sent = []
+
+    async def capture(db, target, link):
+        sent.append(link)
+
+    monkeypatch.setattr(auth, "_send_reset_link", capture)
+    reply = await auth.request_password_reset(request, auth.PasswordResetRequest(email=user.email.upper()), db_session)
+    assert reply["ok"] and len(sent) == 1
+    token = sent[0].split("token=")[1]
+    # A reset link is not a session.
+    from app.api import deps
+    from fastapi.security import HTTPAuthorizationCredentials
+    with pytest.raises(HTTPException):
+        await deps.get_current_user(request, HTTPAuthorizationCredentials(scheme="Bearer", credentials=token), db_session)
+    await auth.confirm_password_reset(request, auth.PasswordResetConfirm(token=token, new_password="yeni-sifre-456"), db_session)
+    await db_session.refresh(user)
+    assert verify_password("yeni-sifre-456", user.hashed_password)
+    with pytest.raises(HTTPException):
+        await auth.confirm_password_reset(request, auth.PasswordResetConfirm(token=token, new_password="baska-sifre-789"), db_session)
+    # Unknown e-mail: same answer, nothing sent.
+    await auth.request_password_reset(request, auth.PasswordResetRequest(email="yok@example.com"), db_session)
+    assert len(sent) == 1
+
+
+async def test_masked_phone_sent_back_keeps_the_number(db_session):
+    from app.api.v1 import crm
+
+    org, admin = await _setup(db_session)
+    donor = Donor(organization_id=org.id, first_name="Ali", last_name="K", phone="05321112233", email="ali@example.com",
+                  total_donations=0, total_donated_cents=0)
+    db_session.add(donor)
+    await db_session.flush()
+    payload = crm.DonorUpdate(first_name="Ali Rıza", phone="0532 *** ** 33")
+    await crm.update_donor(_request(org, "PUT"), donor.id, payload, db_session, admin)
+    await db_session.refresh(donor)
+    assert (donor.first_name, donor.phone, donor.email) == ("Ali Rıza", "05321112233", "ali@example.com")
+    with pytest.raises(Exception):
+        crm.ManualDonor(first_name="X", phone="0532 *** ** 33")
+
+
+async def test_foreign_currency_donations_count_in_lira(db_session):
+    from datetime import datetime, timezone
+    from decimal import Decimal
+    from app.models.fx import FxRate
+    from app.services.fx import add_to_donor, remove_from_donor
+
+    org, _ = await _setup(db_session)
+    await db_session.merge(FxRate(currency="EUR", rate_try=Decimal("50"), fetched_at=datetime.now(timezone.utc)))
+    donor = Donor(organization_id=org.id, first_name="Eva", total_donations=0, total_donated_cents=0)
+    donation = Donation(organization_id=org.id, amount_cents=10_00, currency="EUR", payment_details={})
+    await add_to_donor(db_session, donor, donation)
+    assert donor.total_donated_cents == 500_00 and donor.total_donations == 1
+    remove_from_donor(donor, donation)
+    assert donor.total_donated_cents == 0 and donor.total_donations == 0
+
+
+def test_rates_never_invent_a_gold_price(monkeypatch):
+    from app.utils import tcmb
+
+    monkeypatch.setattr(tcmb, "_cached_rates", None)
+
+    def down(*a, **k):
+        raise OSError("offline")
+
+    monkeypatch.setattr(tcmb, "fetch_tcmb_currency_rates", down)
+    rates = tcmb.fetch_tcmb_rates(force_refresh=True)
+    assert rates["GOLD_GRAM"] is None and rates["stale"]
+
+    monkeypatch.setattr(tcmb, "fetch_tcmb_currency_rates", lambda: {"USD": 40.0, "EUR": 45.0})
+    monkeypatch.setattr(tcmb, "fetch_metal_usd", lambda symbol: 3110.35 if symbol == "XAU" else 31.1035)
+    rates = tcmb.fetch_tcmb_rates(force_refresh=True)
+    assert rates["GOLD_GRAM"] == 4000.0 and rates["SILVER_GRAM"] == 40.0 and rates["NISAP_LIRA"] == 340000.0
+    monkeypatch.setattr(tcmb, "fetch_tcmb_currency_rates", down)
+    stale = tcmb.fetch_tcmb_rates(force_refresh=True)
+    assert stale["GOLD_GRAM"] == 4000.0 and stale["stale"]

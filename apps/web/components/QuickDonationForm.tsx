@@ -1,5 +1,6 @@
 'use client'
 
+import { errorMessage } from '../lib/api-error'
 import { useEffect, useMemo, useState } from 'react'
 import { useCreateCheckout, useOrgSettings, type CheckoutSessionResponse } from '@e-infak/api-client'
 import { trackConversion } from '../lib/analytics'
@@ -339,7 +340,7 @@ export function QuickDonationForm({
       setStep(3)
     } catch (error: any) {
       trackConversion('payment_failed', { campaign_id: activeCampaignId, payment_method: paymentMethod, currency })
-      setErrorMsg(error?.response?.data?.detail || 'Bağış işlemi başlatılamadı. Lütfen tekrar deneyin.')
+      setErrorMsg(errorMessage(error, 'Bağış işlemi başlatılamadı. Lütfen tekrar deneyin.'))
     }
   }
 

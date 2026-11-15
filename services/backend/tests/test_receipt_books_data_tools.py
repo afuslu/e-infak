@@ -109,18 +109,18 @@ async def test_donor_import_wizard_matches_and_fills_blanks(db_session):
         [None, "05320000000", None, None, None, None],  # ad yok
         ["Hata Li", "123", None, None, None, None],  # telefon geçersiz
     ])
-    intro = await data_tools.import_donors(_request(org, "POST"), _upload("liste.xlsx", content), None, True, None, db_session, admin)
+    intro = await data_tools.import_donors(_request(org, "POST"), _upload("liste.xlsx", content), None, True, None, db=db_session, current_user=admin)
     mapping = intro["suggested_mapping"]
     assert mapping == {"full_name": 0, "phone": 1, "email": 2, "city": 3, "tags": 4, "allow_sms": 5}
 
     dry = await data_tools.import_donors(_request(org, "POST"), _upload("liste.xlsx", content), json.dumps(mapping), True, None,
-                                         db_session, admin)
+                                         db=db_session, current_user=admin)
     assert (dry["created"], dry["matched"], dry["error_count"]) == (1, 2, 2)
     assert [e["row"] for e in dry["errors"]] == [5, 6]
     assert (await db_session.execute(select(Donor).where(Donor.organization_id == org.id))).scalars().all() == [existing]
 
     done = await data_tools.import_donors(_request(org, "POST"), _upload("liste.xlsx", content), json.dumps(mapping), False, "2026",
-                                          db_session, admin)
+                                          db=db_session, current_user=admin)
     assert done["committed"] and (done["created"], done["matched"]) == (1, 2)
     await db_session.refresh(existing)
     assert existing.email == "ali@example.com" and existing.city == "Bursa" and existing.allow_sms
@@ -141,13 +141,14 @@ async def test_receipt_import_is_idempotent_and_validates(db_session):
         "Fatma Ak;05552223344;abc;06.03.2025;;Nakit;\n"
         "Fatma Ak;05552223344;100;06.03.2025;Bilinmeyen;Nakit;K-100\n"
     ).encode()
-    intro = await data_tools.import_receipts(_request(org, "POST"), _upload("eski.csv", csv_text), None, True, None, db_session, admin)
+    intro = await data_tools.import_receipts(_request(org, "POST"), _upload("eski.csv", csv_text), None, True, None, db=db_session, current_user=admin)
     mapping = intro["suggested_mapping"]
     assert mapping == {"full_name": 0, "phone": 1, "amount": 2, "paid_on": 3, "campaign": 4, "payment_method": 5,
                        "official_receipt_no": 6}
 
-    args = (json.dumps(mapping), False, campaign.id, db_session, admin)
-    done = await data_tools.import_receipts(_request(org, "POST"), _upload("eski.csv", csv_text), *args)
+    args = (json.dumps(mapping), False, campaign.id)
+    kwargs = {"db": db_session, "current_user": admin}
+    done = await data_tools.import_receipts(_request(org, "POST"), _upload("eski.csv", csv_text), *args, **kwargs)
     assert (done["imported"], done["error_count"], done["new_donors"]) == (2, 2, 1)
     assert {e["row"] for e in done["errors"]} == {4, 5}
     donations = (await db_session.execute(select(Donation).where(Donation.organization_id == org.id)
@@ -157,7 +158,7 @@ async def test_receipt_import_is_idempotent_and_validates(db_session):
     hasan = (await db_session.execute(select(Donor).where(Donor.organization_id == org.id, Donor.phone == "05551112233"))).scalar_one()
     assert (hasan.total_donations, hasan.total_donated_cents) == (2, 155_050)
 
-    again = await data_tools.import_receipts(_request(org, "POST"), _upload("eski.csv", csv_text), *args)
+    again = await data_tools.import_receipts(_request(org, "POST"), _upload("eski.csv", csv_text), *args, **kwargs)
     assert (again["imported"], again["already_imported"]) == (0, 2)
 
 

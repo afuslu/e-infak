@@ -15,6 +15,9 @@ export default function DonationSuccessPage() {
     if (verified && !wasTracked.current) {
       trackConversion('payment_succeeded', { checkout_id: checkoutId })
       wasTracked.current = true
+      // The bank returned to this page: the paid cart must not be offered again.
+      try { localStorage.removeItem('einfak_cart') } catch { /* storage blocked */ }
+      window.dispatchEvent(new Event('donation-cart-changed'))
     }
   }, [checkoutId, verified])
   return (
