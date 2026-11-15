@@ -1,9 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, CheckCircle2, Eye, EyeOff, Layers, Link2, Pencil, RefreshCw, Search, Trash2 } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Layers,
+  Link2,
+  Pencil,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import { ExportButtons, FilterBar, PageHeader, StatCard, confirmDialog, toast } from '../../../../components/admin/ui'
+import { ExportButtons, FilterBar, PageHeader, confirmDialog, toast } from '../../../../components/admin/ui'
+import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { adminGet, adminSend, apiErrorMessage, v1Get } from '../../../../lib/admin-access'
 
 interface DonationCategory {
@@ -22,7 +38,16 @@ interface CampaignOption {
   title: string
 }
 
-const PRESET_ICONS = ['🤝', '💧', '🍞', '🕌', '🎓', '🐄', '🩺', '🏠', '❤️', '🌙']
+const PRESET_ICONS = ['🤝', '💧', '🍞', '🕌', '🎓', '🐄', '🩺', '🏠', '❤️', '🌙', '🤲', '🌾', '👶', '📚', '⛺', '🌍']
+
+const QUICK_TEMPLATES = [
+  { icon: '🌙', title: 'Zekât', description: 'Yıllık zekât ibadetinizi ihtiyaç sahiplerine güvenle ulaştırın.' },
+  { icon: '🌾', title: 'Fitre & Fidye', description: 'Ramazan fitre ve fidyelerinizi gerçek muhtaç ailelere teslim edelim.' },
+  { icon: '🤲', title: 'Sadaka', description: 'Gönlünüzden kopan sadakalarla bir ailenin yüzünü güldürün.' },
+  { icon: '💧', title: 'Su Kuyusu', description: 'Kurak bölgelerde temiz içme suyuna erişim için hisse veya kuyu bağışı yapın.' },
+  { icon: '👶', title: 'Yetim Himayesi', description: 'Yetim çocukların eğitim, gıda ve barınma ihtiyaçlarına destek olun.' },
+  { icon: '🐄', title: 'Kurban Bağışı', description: 'Adak, akika ve şükür kurbanlarınızı vekâletle kesip dağıtıyoruz.' },
+]
 
 const EMPTY_FORM = {
   icon: '🤝',
@@ -47,6 +72,9 @@ export default function AdminDonationCategoriesPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [linkFilter, setLinkFilter] = useState<'all' | 'linked' | 'unlinked'>('all')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   const loadCategories = useCallback(async () => {
     setLoading(true)
@@ -201,11 +229,86 @@ export default function AdminDonationCategoriesPage() {
     }
   }
 
+  const duplicateToForm = (c: DonationCategory) => {
+    setEditingId(null)
+    setForm({
+      icon: c.icon || '🤝',
+      title: `${c.title} (Kopya)`,
+      description: c.description,
+      campaign_id: c.campaign_id || '',
+      display_order: categories.length,
+      is_active: c.is_active,
+    })
+    toast.ok('Kalem forma kopyalandı; düzenleyip ekleyebilirsiniz.')
+  }
+
+  const toggleSelectId = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const runBulkActive = async (targetActive: boolean) => {
+    if (selectedIds.size === 0) return
+    setBulkBusy(true)
+    try {
+      const targets = categories.filter((c) => selectedIds.has(c.id))
+      await Promise.all(
+        targets.map((c) =>
+          adminSend('put', `/donation-categories/${c.id}`, {
+            icon: c.icon,
+            title: c.title,
+            description: c.description,
+            campaign_id: c.campaign_id || null,
+            display_order: c.display_order,
+            is_active: targetActive,
+          }),
+        ),
+      )
+      setSelectedIds(new Set())
+      await loadCategories()
+      toast.ok(`${targets.length} kalem ${targetActive ? 'yayına alındı' : 'pasife alındı'}.`)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Toplu güncelleme başarısız oldu.'))
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  const runBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    const ok = await confirmDialog({
+      title: 'Seçili Kalemleri Sil',
+      text: `Seçili ${selectedIds.size} bağış kalemini kalıcı olarak silmek istediğinize emin misiniz?`,
+      confirmLabel: 'Sil',
+      danger: true,
+    })
+    if (!ok) return
+    setBulkBusy(true)
+    try {
+      const ids = Array.from(selectedIds)
+      await Promise.all(ids.map((id) => adminSend('delete', `/donation-categories/${id}`)))
+      if (editingId && selectedIds.has(editingId)) cancelEdit()
+      setSelectedIds(new Set())
+      await loadCategories()
+      toast.ok(`${ids.length} bağış kalemi silindi.`)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Toplu silme sırasında hata oluştu.'))
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase()
     return categories.filter((c) => {
       if (statusFilter === 'active' && !c.is_active) return false
       if (statusFilter === 'inactive' && c.is_active) return false
+      if (linkFilter === 'linked' && !c.campaign_id) return false
+      if (linkFilter === 'unlinked' && Boolean(c.campaign_id)) return false
       if (!term) return true
       return (
         c.title.toLowerCase().includes(term) ||
@@ -213,7 +316,7 @@ export default function AdminDonationCategoriesPage() {
         (c.campaign_title || '').toLowerCase().includes(term)
       )
     })
-  }, [categories, q, statusFilter])
+  }, [categories, q, statusFilter, linkFilter])
 
   const stats = useMemo(() => {
     const active = categories.filter((c) => c.is_active).length
@@ -223,12 +326,27 @@ export default function AdminDonationCategoriesPage() {
       active,
       inactive: categories.length - active,
       linked,
+      unlinked: categories.length - linked,
     }
   }, [categories])
 
   const selectedCampaignTitle = campaigns.find((c) => c.id === form.campaign_id)?.title
 
-  const isFiltered = Boolean(q.trim()) || statusFilter !== 'all'
+  const isFiltered = Boolean(q.trim()) || statusFilter !== 'all' || linkFilter !== 'all'
+  const activeFiltersCount = (q.trim() ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (linkFilter !== 'all' ? 1 : 0)
+  const clearFilters = () => {
+    setQ('')
+    setStatusFilter('all')
+    setLinkFilter('all')
+  }
+  const allFilteredSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))
+  const toggleSelectAllFiltered = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filtered.map((c) => c.id)))
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -263,10 +381,62 @@ export default function AdminDonationCategoriesPage() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Toplam Kalem" value={String(stats.total)} tone="neutral" icon={Layers} />
-        <StatCard label="Yayında (Aktif)" value={String(stats.active)} tone="good" icon={CheckCircle2} />
-        <StatCard label="Kampanyaya Bağlı" value={String(stats.linked)} tone="brand" icon={Link2} />
-        <StatCard label="Pasif" value={String(stats.inactive)} tone="warn" icon={EyeOff} />
+        <GlobalStatCard
+          title="Toplam Kalem"
+          value={stats.total.toLocaleString('tr-TR')}
+          subtitle="Ana sayfa hızlı bağış"
+          gradient="from-slate-600 to-slate-700"
+          icon={<Layers className="w-5 h-5" />}
+        />
+        <GlobalStatCard
+          title="Yayında (Aktif)"
+          value={stats.active.toLocaleString('tr-TR')}
+          subtitle="Sitede ziyaretçiye açık"
+          gradient="from-emerald-600 to-teal-700"
+          icon={<CheckCircle2 className="w-5 h-5" />}
+        />
+        <GlobalStatCard
+          title="Kampanyaya Bağlı"
+          value={stats.linked.toLocaleString('tr-TR')}
+          subtitle={`${stats.unlinked} genel bağış`}
+          gradient="from-sky-600 to-indigo-700"
+          icon={<Link2 className="w-5 h-5" />}
+        />
+        <GlobalStatCard
+          title="Pasif"
+          value={stats.inactive.toLocaleString('tr-TR')}
+          subtitle="Gizlenmiş kalemler"
+          gradient="from-amber-500 to-orange-600"
+          icon={<EyeOff className="w-5 h-5" />}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Bağış kalemi görünümü">
+        {[
+          { key: 'all', label: 'Tümü', count: stats.total, active: statusFilter === 'all' && linkFilter === 'all', onClick: clearFilters },
+          { key: 'active', label: 'Yayında', count: stats.active, active: statusFilter === 'active' && linkFilter === 'all', onClick: () => { setStatusFilter('active'); setLinkFilter('all') } },
+          { key: 'inactive', label: 'Pasif', count: stats.inactive, active: statusFilter === 'inactive' && linkFilter === 'all', onClick: () => { setStatusFilter('inactive'); setLinkFilter('all') } },
+          { key: 'linked', label: 'Kampanyaya Bağlı', count: stats.linked, active: linkFilter === 'linked', onClick: () => { setStatusFilter('all'); setLinkFilter('linked') } },
+          { key: 'unlinked', label: 'Genel Bağış', count: stats.unlinked, active: linkFilter === 'unlinked', onClick: () => { setStatusFilter('all'); setLinkFilter('unlinked') } },
+        ].map((pill) => (
+          <button
+            key={pill.key}
+            type="button"
+            role="tab"
+            aria-selected={pill.active}
+            onClick={pill.onClick}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+              pill.active
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <span>{pill.label}</span>
+            <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${pill.active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              {pill.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       <FilterBar>
@@ -284,14 +454,65 @@ export default function AdminDonationCategoriesPage() {
           onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
           className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
         >
-          <option value="all">Tüm Kalemler</option>
+          <option value="all">Tüm Durumlar</option>
           <option value="active">Yalnızca Aktif</option>
           <option value="inactive">Yalnızca Pasif</option>
         </select>
+        <select
+          value={linkFilter}
+          onChange={(e) => setLinkFilter(e.target.value as 'all' | 'linked' | 'unlinked')}
+          className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+        >
+          <option value="all">Tüm Bağlantılar</option>
+          <option value="linked">Kampanyaya Bağlı</option>
+          <option value="unlinked">Genel Bağış</option>
+        </select>
+        {activeFiltersCount > 0 && (
+          <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+            Temizle ({activeFiltersCount})
+          </Button>
+        )}
       </FilterBar>
+
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-2.5 text-xs">
+          <span className="font-semibold text-emerald-900">
+            {selectedIds.size} kalem seçildi
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant="outline" disabled={bulkBusy} onClick={() => runBulkActive(true)}>
+              Yayına Al
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={bulkBusy} onClick={() => runBulkActive(false)}>
+              Pasife Al
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={bulkBusy} onClick={runBulkDelete}>
+              Seçilenleri Sil
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={bulkBusy} onClick={() => setSelectedIds(new Set())}>
+              Seçimi Temizle
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-7 space-y-3">
+          {!loading && filtered.length > 0 && (
+            <div className="flex items-center justify-between px-1 text-xs text-slate-500">
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAllFiltered}
+                  className="rounded border-slate-300 accent-emerald-600"
+                />
+                <span>Listelenenlerin tümünü seç ({filtered.length})</span>
+              </label>
+              <span>Toplam {categories.length} kalem</span>
+            </div>
+          )}
+
           {loading ? (
             <Card className="p-8 border border-slate-200 text-center text-sm text-slate-500 animate-pulse">
               Bağış kalemleri yükleniyor...
@@ -303,13 +524,25 @@ export default function AdminDonationCategoriesPage() {
           ) : (
             filtered.map((c, idx) => {
               const isBusy = busyId === c.id
+              const isChecked = selectedIds.has(c.id)
               return (
                 <Card
                   key={c.id}
-                  className={`p-4 border transition-colors ${editingId === c.id ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-200 bg-white'}`}
+                  className={`p-4 border transition-all ${
+                    editingId === c.id
+                      ? 'border-emerald-400 bg-emerald-50/30 shadow-sm ring-1 ring-emerald-500/20'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleSelectId(c.id)}
+                        aria-label={`${c.title} seç`}
+                        className="mt-2 rounded border-slate-300 accent-emerald-600 shrink-0"
+                      />
                       <div className="flex flex-col items-center gap-1 pt-0.5">
                         <span className="text-[10px] font-mono font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
                           #{c.display_order}
@@ -378,6 +611,15 @@ export default function AdminDonationCategoriesPage() {
                       <button
                         type="button"
                         disabled={isBusy}
+                        onClick={() => duplicateToForm(c)}
+                        title="Forma Kopyala"
+                        className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBusy}
                         onClick={() => startEdit(c)}
                         title="Düzenle"
                         className="p-1.5 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-50"
@@ -401,11 +643,51 @@ export default function AdminDonationCategoriesPage() {
           )}
         </div>
 
-        <div className="lg:col-span-5 space-y-4">
-          <Card className="p-5 border border-slate-200 bg-white space-y-4">
-            <h2 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2.5">
-              {editingId ? 'Kalemi Düzenle' : 'Yeni Bağış Kalemi'}
-            </h2>
+        <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-4">
+          <Card className="p-5 border border-slate-200 bg-white space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h2 className="text-base font-bold text-slate-900">
+                {editingId ? 'Kalemi Düzenle' : 'Yeni Bağış Kalemi'}
+              </h2>
+              <a
+                href="/bagis"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-emerald-700"
+              >
+                Bağış Sayfası
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            {!editingId && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  Hızlı Şablon Doldur
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_TEMPLATES.map((tpl) => (
+                    <button
+                      key={tpl.title}
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          icon: tpl.icon,
+                          title: tpl.title,
+                          description: tpl.description,
+                        }))
+                      }
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/60"
+                    >
+                      <span>{tpl.icon}</span>
+                      <span>{tpl.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSave} className="space-y-3.5">
               <div className="grid grid-cols-[90px_1fr] gap-3">
@@ -450,7 +732,10 @@ export default function AdminDonationCategoriesPage() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Açıklama *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-600">Açıklama *</label>
+                  <span className="text-[11px] text-slate-400 tabular-nums">{form.description.length}/500</span>
+                </div>
                 <textarea
                   maxLength={500}
                   value={form.description}
