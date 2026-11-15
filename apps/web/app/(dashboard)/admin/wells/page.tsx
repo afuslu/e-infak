@@ -1,12 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Droplets, ExternalLink, MapPin, Plus, Users, Wallet } from 'lucide-react'
-import { Card } from '@e-infak/ui'
+import { ArrowRight, CheckCircle2, Copy, Droplets, ExternalLink, Images, MapPin, Plus, RefreshCw, Users, Wallet } from 'lucide-react'
+import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, can } from '../../../../lib/admin-access'
-import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { ExportButtons, Modal, Tabs } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, Tabs, confirmDialog, toast } from '../../../../components/admin/ui'
 import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, ResponsiveDataToolbar } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 
 interface Well {
@@ -38,6 +39,12 @@ const STATUS: Record<Well['status'], string> = {
   funding: 'Fon Toplanıyor',
   drilling: 'Sondaj / İnşaat',
   completed: 'Tamamlandı (Açıldı)',
+}
+
+const NEXT_STAGE: Partial<Record<Well['status'], { next: Well['status']; label: string }>> = {
+  planned: { next: 'funding', label: 'Fonlamaya Al' },
+  funding: { next: 'drilling', label: 'Sondaja Al' },
+  drilling: { next: 'completed', label: 'Açıldı İşaretle' },
 }
 
 const STATUS_STYLE: Record<Well['status'], string> = {
@@ -73,20 +80,32 @@ export default function WellsPage() {
   const [owner, setOwner] = useState<PickedDonor | null>(null)
   const [clearOwner, setClearOwner] = useState(false)
   const [statModal, setStatModal] = useState<'total' | 'active' | 'completed' | 'collected' | null>(null)
+  const [galleryWell, setGalleryWell] = useState<Well | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const [shares, setShares] = useState<{
     well: Well
     rows: { id: string; share_count: number; donor_name: string; on_behalf_of: string | null; receipt_number: string | null; created_at: string | null }[]
   } | null>(null)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const load = async () => {
     try {
       setWells((await adminGet<Well[]>('/water-wells')).data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Kuyular yüklenemedi') })
+      toast.error(apiErrorMessage(err, 'Kuyular yüklenemedi'))
     }
   }
   useEffect(() => { load() }, [])
+
+  const refreshAll = async () => {
+    setRefreshing(true)
+    try {
+      await load()
+      toast.ok('Su kuyuları yenilendi.')
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   const countries = useMemo(
     () => Array.from(new Set(wells.map((w) => w.country).filter((c): c is string => Boolean(c)))).sort(),
@@ -149,10 +168,50 @@ export default function WellsPage() {
       if (editing) await adminSend('put', `/water-wells/${editing.id}`, body)
       else await adminSend('post', '/water-wells', body)
       setShowForm(false)
-      setMessage({ type: 'ok', text: 'Kuyu kaydedildi' })
+      toast.ok('Su kuyusu kaydedildi.')
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
+    }
+  }
+
+  const advanceStage = async (w: Well) => {
+    const info = NEXT_STAGE[w.status]
+    if (!info) return
+    if (!(await confirmDialog(`${w.name} kuyusu "${STATUS[info.next]}" aşamasına geçirilsin mi?`))) return
+    setBusyId(w.id)
+    try {
+      await adminSend('put', `/water-wells/${w.id}`, {
+        name: w.name,
+        location_name: w.location_name,
+        country: w.country,
+        latitude: w.latitude,
+        longitude: w.longitude,
+        status: info.next,
+        description: w.description,
+        funding_model: w.funding_model,
+        target_cents: w.target_cents,
+        share_count: w.share_count,
+        share_price_cents: w.share_price_cents,
+        donor_id: w.donor_id,
+        gallery_urls: w.gallery_urls,
+        donation_campaign_id: w.donation_campaign_id,
+      })
+      toast.ok(`${w.name} → ${STATUS[info.next]} olarak güncellendi.`)
+      await load()
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const copyCampaignUrl = async (slug: string) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/kampanyalar/${slug}`)
+      toast.ok('Bağış sayfası bağlantısı kopyalandı.')
+    } catch {
+      toast.error('Bağlantı kopyalanamadı.')
     }
   }
 
@@ -160,12 +219,18 @@ export default function WellsPage() {
     try {
       setShares({ well: w, rows: (await adminGet<NonNullable<typeof shares>['rows']>(`/water-wells/${w.id}/shares`)).data })
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
   const set = <K extends keyof typeof empty>(k: K, v: (typeof empty)[K]) => setForm((f) => ({ ...f, [k]: v }))
   const activeFilterCount = [countryFilter, modelFilter].filter(Boolean).length
+  const clearFilters = () => {
+    setStatusFilter('')
+    setCountryFilter('')
+    setModelFilter('')
+    setQuery('')
+  }
 
   return (
     <div className="space-y-5">
@@ -190,16 +255,22 @@ export default function WellsPage() {
           </>
         }
         actions={
-          canEdit ? (
-            <button
-              type="button"
-              onClick={() => open(null)}
-              className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
-            >
-              <Plus className="h-4 w-4" />
-              Yeni Su Kuyusu
-            </button>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={refreshAll} disabled={refreshing} className="h-10 rounded-xl px-3 text-xs font-bold">
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => open(null)}
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                <Plus className="h-4 w-4" />
+                Yeni Su Kuyusu
+              </button>
+            )}
+          </div>
         }
       />
 
@@ -242,8 +313,6 @@ export default function WellsPage() {
         />
       </div>
 
-      <Notice message={message} />
-
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs
           value={statusFilter}
@@ -272,32 +341,39 @@ export default function WellsPage() {
             showOnDesktop: true,
           }}
           extraActions={
-            <ExportButtons
-              filename="su-kuyulari"
-              title="Su Kuyuları Listesi"
-              subtitle={`${filteredWells.length} kuyu`}
-              currencyCols={[5, 6]}
-              summary={[
-                ['Toplam Kuyu', String(kpi.total)],
-                ['Açılan Kuyu', String(kpi.completed)],
-                ['Devam Eden', String(kpi.active)],
-                ['Toplanan Bağış', formatMoney(kpi.collectedCents)],
-              ]}
-              getData={() => ({
-                headers: ['Kuyu Adı', 'Ülke', 'Konum', 'Durum', 'Model', 'Hedef (TL)', 'Toplanan (TL)', 'Hisse', 'Satılan Hisse'],
-                rows: filteredWells.map((w) => [
-                  w.name,
-                  w.country,
-                  w.location_name,
-                  STATUS[w.status],
-                  MODELS[w.funding_model],
-                  w.target_cents / 100,
-                  w.collected_cents / 100,
-                  w.share_count ?? '',
-                  w.shares_sold,
-                ]),
-              })}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              {(activeFilterCount > 0 || statusFilter || query) && (
+                <button type="button" onClick={clearFilters} className="text-xs font-bold text-rose-600 hover:text-rose-700">
+                  Filtreleri Temizle
+                </button>
+              )}
+              <ExportButtons
+                filename="su-kuyulari"
+                title="Su Kuyuları Listesi"
+                subtitle={`${filteredWells.length} kuyu`}
+                currencyCols={[5, 6]}
+                summary={[
+                  ['Toplam Kuyu', String(kpi.total)],
+                  ['Açılan Kuyu', String(kpi.completed)],
+                  ['Devam Eden', String(kpi.active)],
+                  ['Toplanan Bağış', formatMoney(kpi.collectedCents)],
+                ]}
+                getData={() => ({
+                  headers: ['Kuyu Adı', 'Ülke', 'Konum', 'Durum', 'Model', 'Hedef (TL)', 'Toplanan (TL)', 'Hisse', 'Satılan Hisse'],
+                  rows: filteredWells.map((w) => [
+                    w.name,
+                    w.country,
+                    w.location_name,
+                    STATUS[w.status],
+                    MODELS[w.funding_model],
+                    w.target_cents / 100,
+                    w.collected_cents / 100,
+                    w.share_count ?? '',
+                    w.shares_sold,
+                  ]),
+                })}
+              />
+            </div>
           }
         />
 
@@ -322,6 +398,7 @@ export default function WellsPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {filteredWells.map((w) => {
           const stageIndex = ['planned', 'funding', 'drilling', 'completed'].indexOf(w.status)
+          const nextStage = NEXT_STAGE[w.status]
           return (
             <div
               key={w.id}
@@ -329,9 +406,19 @@ export default function WellsPage() {
             >
               <div>
                 {w.gallery_urls[0] && (
-                  <div className="h-44 w-full overflow-hidden bg-slate-100">
-                    <img src={w.gallery_urls[0]} alt={w.name} className="h-full w-full object-cover" />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setGalleryWell(w)}
+                    className="group relative block h-44 w-full cursor-pointer overflow-hidden bg-slate-100 text-left"
+                  >
+                    <img src={w.gallery_urls[0]} alt={w.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                    {w.gallery_urls.length > 1 && (
+                      <span className="absolute right-2.5 bottom-2.5 inline-flex items-center gap-1 rounded-full bg-slate-900/75 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-xs">
+                        <Images className="h-3.5 w-3.5" />
+                        {w.gallery_urls.length} Fotoğraf
+                      </span>
+                    )}
+                  </button>
                 )}
                 <div className="space-y-3.5 p-5">
                   <div className="flex items-start justify-between gap-2">
@@ -412,6 +499,17 @@ export default function WellsPage() {
                     Düzenle
                   </button>
                 )}
+                {canEdit && nextStage && (
+                  <button
+                    type="button"
+                    disabled={busyId === w.id}
+                    onClick={() => advanceStage(w)}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    <ArrowRight className="h-3.5 w-3.5" />
+                    {nextStage.label}
+                  </button>
+                )}
                 {w.funding_model === 'hisseli' && (
                   <button
                     type="button"
@@ -424,7 +522,7 @@ export default function WellsPage() {
                 {w.latitude !== null && w.longitude !== null && (
                   <a
                     className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                    href={`https://www.openstreetmap.org/?mlat=${w.latitude}&mlon=${w.longitude}#map=16/${w.latitude}/${w.longitude}`}
+                    href={`https://maps.google.com/?q=${w.latitude},${w.longitude}`}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -432,14 +530,24 @@ export default function WellsPage() {
                   </a>
                 )}
                 {w.donation_campaign_slug && (
-                  <a
-                    className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:underline"
-                    href={`/kampanyalar/${w.donation_campaign_slug}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Bağış Sayfası <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => copyCampaignUrl(w.donation_campaign_slug!)}
+                      title="Bağış sayfası linkini kopyala"
+                      className="cursor-pointer rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 hover:text-emerald-700"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                    <a
+                      className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:underline"
+                      href={`/kampanyalar/${w.donation_campaign_slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Bağış Sayfası <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
                 )}
               </div>
             </div>
@@ -483,6 +591,30 @@ export default function WellsPage() {
         }
       />
 
+      {galleryWell && (
+        <Modal
+          title={`${galleryWell.name} · Fotoğraf Galerisi`}
+          description={[galleryWell.location_name, galleryWell.country].filter(Boolean).join(', ') || undefined}
+          size="lg"
+          onClose={() => setGalleryWell(null)}
+        >
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {galleryWell.gallery_urls.map((url, idx) => (
+                <a key={`${url}-${idx}`} href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <img src={url} alt={`${galleryWell.name} ${idx + 1}`} className="h-52 w-full object-cover transition hover:scale-105" />
+                </a>
+              ))}
+            </div>
+            {galleryWell.description && (
+              <p className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-700 whitespace-pre-wrap">
+                {galleryWell.description}
+              </p>
+            )}
+          </div>
+        </Modal>
+      )}
+
       {showForm && (
         <Modal
           title={editing ? `${editing.name} · Kuyuyu Düzenle` : 'Yeni Su Kuyusu Oluştur'}
@@ -492,10 +624,16 @@ export default function WellsPage() {
         >
           <form onSubmit={save} className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
             <div className="sm:col-span-2">
-              <TextInput label="Kuyu Adı" required value={form.name} onChange={(v) => set('name', v)} placeholder="Hz. Ömer Su Kuyusu" />
+              <Label label="Kuyu Adı">
+                <Input required value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="Hz. Ömer Su Kuyusu" />
+              </Label>
             </div>
-            <TextInput label="Ülke" value={form.country} onChange={(v) => set('country', v)} placeholder="Nijer" />
-            <TextInput label="Konum / Bölge" required value={form.location_name} onChange={(v) => set('location_name', v)} placeholder="Niamey, Tillabéri" />
+            <Label label="Ülke">
+              <Input value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="Nijer" />
+            </Label>
+            <Label label="Konum / Bölge">
+              <Input required value={form.location_name} onChange={(e) => set('location_name', e.target.value)} placeholder="Niamey, Tillabéri" />
+            </Label>
             <Label label="Fonlama Modeli">
               <select className={inputClass} value={form.funding_model} onChange={(e) => set('funding_model', e.target.value as Well['funding_model'])}>
                 {Object.entries(MODELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
@@ -503,19 +641,29 @@ export default function WellsPage() {
             </Label>
             {form.funding_model === 'hisseli' ? (
               <>
-                <TextInput label="Hisse Sayısı" required type="number" min={1} value={form.share_count} onChange={(v) => set('share_count', v)} />
-                <TextInput label="Hisse Bedeli (₺)" required inputMode="decimal" value={form.share_price} onChange={(v) => set('share_price', v)} />
+                <Label label="Hisse Sayısı">
+                  <Input required type="number" min={1} value={form.share_count} onChange={(e) => set('share_count', e.target.value)} />
+                </Label>
+                <Label label="Hisse Bedeli (₺)">
+                  <Input required inputMode="decimal" value={form.share_price} onChange={(e) => set('share_price', e.target.value)} />
+                </Label>
               </>
             ) : (
-              <TextInput label="Hedef Tutar (₺)" required={form.funding_model === 'fonlama'} inputMode="decimal" value={form.target} onChange={(v) => set('target', v)} />
+              <Label label="Hedef Tutar (₺)">
+                <Input required={form.funding_model === 'fonlama'} inputMode="decimal" value={form.target} onChange={(e) => set('target', e.target.value)} />
+              </Label>
             )}
             <Label label="İnşaat / Proje Aşaması">
               <select className={inputClass} value={form.status} onChange={(e) => set('status', e.target.value as Well['status'])}>
                 {Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
             </Label>
-            <TextInput label="Enlem (GPS)" inputMode="decimal" value={form.latitude} onChange={(v) => set('latitude', v)} />
-            <TextInput label="Boylam (GPS)" inputMode="decimal" value={form.longitude} onChange={(v) => set('longitude', v)} />
+            <Label label="Enlem (GPS)">
+              <Input inputMode="decimal" value={form.latitude} onChange={(e) => set('latitude', e.target.value)} />
+            </Label>
+            <Label label="Boylam (GPS)">
+              <Input inputMode="decimal" value={form.longitude} onChange={(e) => set('longitude', e.target.value)} />
+            </Label>
             <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
               <DonorPicker value={owner} onChange={(d) => { setOwner(d); if (d) setClearOwner(false) }} label="Tek Bağışçılı Kuyu Sahibi (isteğe bağlı)" />
               {editing?.donor_id && !owner && !clearOwner && (
@@ -529,10 +677,14 @@ export default function WellsPage() {
               )}
             </div>
             <div className="sm:col-span-2 lg:col-span-3">
-              <TextArea label="Açıklama" rows={2} value={form.description} onChange={(v) => set('description', v)} />
+              <Label label="Açıklama">
+                <textarea className={`${inputClass} min-h-[72px] py-2`} rows={2} value={form.description} onChange={(e) => set('description', e.target.value)} />
+              </Label>
             </div>
             <div className="sm:col-span-2 lg:col-span-3">
-              <TextArea label="Fotoğraflar (her satıra bir URL)" rows={2} value={form.gallery} onChange={(v) => set('gallery', v)} />
+              <Label label="Fotoğraflar (her satıra bir URL)">
+                <textarea className={`${inputClass} min-h-[72px] py-2`} rows={2} value={form.gallery} onChange={(e) => set('gallery', e.target.value)} />
+              </Label>
             </div>
             {(!editing || !editing.donation_campaign_id) && (
               <label className="flex items-center gap-2 text-xs font-bold text-slate-700 sm:col-span-2 lg:col-span-3">
@@ -541,8 +693,8 @@ export default function WellsPage() {
               </label>
             )}
             <div className="flex justify-end gap-2 pt-2 sm:col-span-2 lg:col-span-3">
-              <button type="button" className={ghostButton} onClick={() => setShowForm(false)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>{editing ? 'Kaydet' : 'Oluştur'}</button>
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Vazgeç</Button>
+              <Button type="submit">{editing ? 'Kaydet' : 'Oluştur'}</Button>
             </div>
           </form>
         </Modal>
@@ -566,7 +718,14 @@ export default function WellsPage() {
                     <div className="text-xs text-slate-500">
                       {s.on_behalf_of && s.donor_name ? `Bağışçı: ${s.donor_name} · ` : ''}
                       {s.created_at ? new Date(s.created_at).toLocaleDateString('tr-TR') : ''}
-                      {s.receipt_number ? ` · Makbuz ${s.receipt_number}` : ''}
+                      {s.receipt_number && (
+                        <>
+                          {' · '}
+                          <Link href={`/admin/bagislar?q=${encodeURIComponent(s.receipt_number)}`} className="font-bold text-emerald-700 hover:underline">
+                            Makbuz {s.receipt_number}
+                          </Link>
+                        </>
+                      )}
                     </div>
                   </div>
                   <span className="rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-bold text-sky-700">{s.share_count} hisse</span>
