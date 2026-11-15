@@ -25,7 +25,7 @@
     },
     "android": {
       "package": "org.einfak.app",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#059669"
@@ -44,7 +44,9 @@
         "expo-build-properties",
         {
           "android": {
-            "kotlinVersion": "1.9.25"
+            "kotlinVersion": "1.9.25",
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
           }
         }
       ],
