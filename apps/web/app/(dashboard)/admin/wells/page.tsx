@@ -71,7 +71,7 @@ export default function WellsPage() {
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Kuyular yüklenemedi') })
     }
   }
-  useEffect(() => { load() }, [statusFilter])
+  useEffect(() => { load() }, [statusFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const countries = useMemo(
     () => Array.from(new Set(wells.map((w) => w.country).filter((c): c is string => Boolean(c)))).sort(),

@@ -24,6 +24,7 @@ import {
   StatCard,
   Tabs,
   toast,
+  confirmDialog,
 } from '../../../../components/admin/ui'
 import { ImageField } from '../../../../components/admin/ImageField'
 import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
@@ -170,6 +171,18 @@ export default function AdminCampaignsPage() {
   // Translations tab state
   const [translations, setTranslations] = useState<Translations>({})
   const [savingI18n, setSavingI18n] = useState(false)
+
+  const deleteCampaign = async (c: Campaign) => {
+    if (!(await confirmDialog(`“${c.title}” kampanyası silinsin mi? Bağış almış kampanyalar silinemez; onları "Tamamlandı" ya da "İptal" yapın.`))) return
+    try {
+      await v1Send('delete', `/campaigns/${c.id}`)
+      setSelected(null)
+      setCampaigns((list) => list.filter((x) => x.id !== c.id))
+      toast.ok('Kampanya silindi.')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Kampanya silinemedi.'))
+    }
+  }
 
   const loadCampaigns = useCallback(async (targetPage = page, q = search, st = statusFilter, cat = categoryFilter) => {
     setLoading(true)
@@ -556,6 +569,14 @@ export default function AdminCampaignsPage() {
                   </div>
                   <h2 className="text-lg font-bold text-slate-900 truncate mt-0.5">{selected.title}</h2>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => deleteCampaign(selected)}
+                  className="ml-auto rounded-md border border-red-200 px-2 py-1 text-[11px] font-bold text-red-600 hover:bg-red-50"
+                  title="Bağış almamış kampanyayı siler"
+                >
+                  Sil
+                </button>
                 <button
                   type="button"
                   onClick={() => setSelected(null)}

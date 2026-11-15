@@ -54,7 +54,7 @@ export default function AdminVolunteersPage() {
   useEffect(() => {
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
-  }, [q])
+  }, [q]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const allAreas = useMemo(() => {
     const set = new Set<string>()

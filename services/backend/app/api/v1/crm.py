@@ -291,6 +291,9 @@ async def create_donor(request: Request, payload: DonorIn, db: AsyncSession = De
     if not has_capability(current_user, "donors.view_all") and not donor.assigned_user_id:
         donor.assigned_user_id = current_user.id  # otherwise its creator could not open the new card
     _audit(db, org_id, current_user, "bagisci_olustur", {"donor_id": str(donor.id)})
+    from app.services.webhooks import queue_webhook
+
+    await queue_webhook(db, org_id, "donor.created", "donor", donor.id, {"donor_id": str(donor.id)})
     await db.commit()
     return _donor_summary(donor, {}, current_user)
 

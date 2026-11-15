@@ -205,7 +205,7 @@ export default function BankAccountsPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <Link href="/admin/gelen-havaleler" className={ghostButton}>Gelen havaleler</Link>
-            <Link href="/admin/reconciliation" className={ghostButton}>Banka mutabakatı</Link>
+            <Link href="/admin/gelen-havaleler?sekme=mutabakat" className={ghostButton}>Banka mutabakatı</Link>
             <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-100">
               <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
             </button>

@@ -155,8 +155,13 @@ const join = (...parts: (string | undefined | false)[]) => twMerge(parts.filter(
  * HTML; spacing, header style and row lines live here.
  */
 /** `inset`: the table touches the card edge, so its outer cells keep their padding. */
+/** Wide tables scroll sideways inside their card instead of stretching the page on phones. */
 export function Table({ className, inset, ...props }: React.TableHTMLAttributes<HTMLTableElement> & { inset?: boolean }) {
-  return <table {...props} className={join('w-full text-left text-[13px] text-gray-700', inset && INSET, className)} />
+  return (
+    <div className="max-w-full overflow-x-auto">
+      <table {...props} className={join('w-full text-left text-[13px] text-gray-700', inset && INSET, className)} />
+    </div>
+  )
 }
 const INSET = '[&_td:first-child]:pl-4 [&_th:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:last-child]:pr-4'
 export function THead({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {

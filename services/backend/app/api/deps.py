@@ -333,7 +333,7 @@ async def require_admin_route_permission(
 
 
 # Admin API path fragment -> module that must be part of the tenant's package.
-ADMIN_ROUTE_FEATURES: tuple[tuple[str, Feature], ...] = (
+ADMIN_ROUTE_FEATURES: tuple[tuple[str, Feature | tuple[Feature, ...]], ...] = (
     ("/kurban", Feature.KURBAN),
     ("/students", Feature.EDUCATION),
     ("/orphans", Feature.SPONSORSHIP),
@@ -359,7 +359,8 @@ ADMIN_ROUTE_FEATURES: tuple[tuple[str, Feature], ...] = (
     ("/members", Feature.MEMBERSHIP),
     ("/member-dues", Feature.MEMBERSHIP),
     ("/admin-features/acc/", Feature.ACCOUNTING),
-    ("/regions", Feature.MONEY_BOX),
+    # Regions are shared by money boxes, food aid and poverty tracking: any of them opens them.
+    ("/regions", (Feature.MONEY_BOX, Feature.FOOD_AID, Feature.POVERTY_TRACKING)),
     ("/tasks", Feature.TASKS),
     ("/staff-roles", Feature.ROLES),
 )
@@ -392,8 +393,9 @@ async def require_admin_route_feature(request: Request) -> None:
         return
     path = request.url.path
     for fragment, feature in ADMIN_ROUTE_FEATURES:
-        if fragment in path and not org_has_feature(organization, feature):
-            raise _feature_denied(feature)
+        options = feature if isinstance(feature, tuple) else (feature,)
+        if fragment in path and not any(org_has_feature(organization, f) for f in options):
+            raise _feature_denied(options[0])
 
 
 async def get_current_organization(

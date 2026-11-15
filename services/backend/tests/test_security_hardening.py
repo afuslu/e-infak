@@ -240,3 +240,51 @@ def test_rates_never_invent_a_gold_price(monkeypatch):
     monkeypatch.setattr(tcmb, "fetch_tcmb_currency_rates", down)
     stale = tcmb.fetch_tcmb_rates(force_refresh=True)
     assert stale["GOLD_GRAM"] == 4000.0 and stale["stale"]
+
+
+async def test_campaign_delete_only_without_donations(db_session):
+    from app.api.v1 import campaigns
+
+    org, admin = await _setup(db_session)
+    empty = Campaign(organization_id=org.id, slug=f"bos-{uuid.uuid4().hex[:6]}", title="Boş", summary="s", target_cents=0)
+    used = Campaign(organization_id=org.id, slug=f"dolu-{uuid.uuid4().hex[:6]}", title="Dolu", summary="s", target_cents=0)
+    donor = Donor(organization_id=org.id, first_name="A")
+    db_session.add_all([empty, used, donor])
+    await db_session.flush()
+    db_session.add(Donation(organization_id=org.id, donor_id=donor.id, campaign_id=used.id, receipt_number=f"R-{uuid.uuid4().hex[:8]}",
+                            amount_cents=100, currency="TRY", payment_method=PaymentMethod.CASH, status=DonationStatus.CONFIRMED))
+    await db_session.flush()
+    request = _request(org, "DELETE")
+    with pytest.raises(HTTPException) as exc:
+        await campaigns.delete_campaign(request, used.id, db_session, admin)
+    assert exc.value.status_code == 409
+    await campaigns.delete_campaign(request, empty.id, db_session, admin)
+    assert await db_session.get(Campaign, empty.id) is None
+
+
+async def test_public_campaign_list_hides_drafts(db_session):
+    from app.api.v1 import campaigns
+    from app.models.campaign import CampaignStatus
+
+    org, _ = await _setup(db_session)
+    db_session.add_all([
+        Campaign(organization_id=org.id, slug=f"t-{uuid.uuid4().hex[:6]}", title="Taslak", summary="s", target_cents=0, status=CampaignStatus.DRAFT),
+        Campaign(organization_id=org.id, slug=f"a-{uuid.uuid4().hex[:6]}", title="Aktif", summary="s", target_cents=0, status=CampaignStatus.ACTIVE),
+    ])
+    await db_session.flush()
+    listed = await campaigns.list_campaigns(_request(org), db=db_session)
+    assert [c.title for c in listed.items] == ["Aktif"]
+
+
+async def test_builder_page_can_be_deleted_but_not_home(db_session):
+    from app.api.v1 import site_builder
+    from app.models.cms import SitePage
+
+    org, admin = await _setup(db_session)
+    page = SitePage(organization_id=org.id, kind="page", slug="eski", title="Eski", body="", translations={})
+    db_session.add(page)
+    await db_session.flush()
+    with pytest.raises(HTTPException):
+        await site_builder.delete_page("home", _request(org, "DELETE"), db_session, admin)
+    await site_builder.delete_page(str(page.id), _request(org, "DELETE"), db_session, admin)
+    assert await db_session.get(SitePage, page.id) is None

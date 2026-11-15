@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import {
   AlertCircle, ArrowDownRight, ArrowDownToLine, ArrowUpRight, Blocks, CalendarDays, ChevronRight, HandCoins, Megaphone,
-  Receipt, RefreshCw, TrendingUp, UserPlus, Users, type LucideIcon,
+  Receipt, RefreshCw, TrendingUp, UserPlus, Users, Clock, type LucideIcon,
 } from 'lucide-react'
 import { adminGet, formatMoney, hasFeature, useAdminAccess, v1Get, hasModule } from '../../../lib/admin-access'
 import { PageHeader, StatCard } from '../../../components/admin/ui'
@@ -76,7 +76,7 @@ const QUICK_LINKS: { href: string; label: string; icon: LucideIcon; feature?: st
   { href: '/admin/bagislar', label: 'Bağışlar', icon: HandCoins, module: 'receipts' },
   { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: Megaphone, module: 'site' },
   { href: '/admin/bagiscilar', label: 'Bağışçılar', icon: Users, feature: 'donor_crm', module: 'donors' },
-  { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: Receipt, feature: 'receipts', module: 'receipts' },
+  { href: '/admin/bagislar?gorunum=elle', label: 'Elle makbuzlar', icon: Receipt, feature: 'receipts', module: 'receipts' },
   { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownToLine, feature: 'bank_transactions', module: 'bank' },
   { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: Blocks, module: 'site' },
 ]
@@ -153,8 +153,8 @@ export default function AdminDashboardPage() {
         ))}
       </div>
 
-      {(!!todo.transfers || !!todo.smsFailed) && (
-        <div className="grid gap-3 sm:grid-cols-2">
+      {(!!todo.transfers || !!todo.smsFailed || !!todo.smsWaiting) && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {!!todo.transfers && (
             <Link href="/admin/gelen-havaleler" className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 hover:border-amber-300">
               <ArrowDownToLine className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -166,6 +166,13 @@ export default function AdminDashboardPage() {
             <Link href="/admin/sms-gonderimleri" className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:border-red-300">
               <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
               <span className="flex-1">{todo.smsFailed.toLocaleString('tr-TR')} SMS gönderilemedi</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
+          {!!todo.smsWaiting && (
+            <Link href="/admin/sms-gonderimleri" className="flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800 hover:border-sky-300">
+              <Clock className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <span className="flex-1">{todo.smsWaiting.toLocaleString('tr-TR')} SMS kuyrukta veya ileri tarihli</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           )}
@@ -201,7 +208,7 @@ export default function AdminDashboardPage() {
                   </table>
                 </div>
                 <div className="flex justify-end">
-                  <Link href="/admin/makbuzlar" className="text-xs font-bold text-primary-700 hover:underline">Tüm makbuzlara git →</Link>
+                  <Link href="/admin/bagislar" className="text-xs font-bold text-primary-700 hover:underline">Tüm bağışlara git →</Link>
                 </div>
               </div>
             ),

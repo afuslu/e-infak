@@ -10,6 +10,7 @@ import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../..
 import { RelatedSms, smsAmount } from '../../../../lib/sms'
 import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 import { downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
+import { BankReconciliationPanel } from '../../../../components/admin/BankReconciliationPanel'
 
 interface DonorHit { id?: string; name?: string; phone?: string | null; confidence: number; reason?: string; candidates: { id: string; name: string; phone: string | null }[] }
 interface CampaignHit { id: string; title: string; category: string; confidence: 'high' | 'medium' | 'low'; reason: string }
@@ -43,6 +44,15 @@ function donorBadge(d?: DonorHit) {
 const when = (iso: string) => new Date(iso).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })
 
 export default function IncomingTransfersPage() {
+  // ?sekme=mutabakat opens the reconciliation tab (old "Banka Mutabakatı" links land there).
+  const [view, setView] = useState<'havaleler' | 'mutabakat'>('havaleler')
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('sekme') === 'mutabakat') setView('mutabakat')
+  }, [])
+  const showView = (next: 'havaleler' | 'mutabakat') => {
+    setView(next)
+    window.history.replaceState(null, '', next === 'mutabakat' ? '?sekme=mutabakat' : window.location.pathname)
+  }
   const { data: access } = useAdminAccess()
   const canEdit = can(access, 'bank.approve')
   const [status, setStatus] = useState<View>('unmatched')
@@ -240,7 +250,6 @@ export default function IncomingTransfersPage() {
     <div className="space-y-6">
       <PageHeader title="Gelen Havaleler" description={<>Bankadan gelen havale ve EFT&apos;ler bağışçı ve kampanya önerisiyle burada bekler; onayladığınızda bağış ve makbuz oluşur.</>} actions={<div className="flex flex-wrap gap-2">
           <Link href="/admin/banka-hesaplari" className={ghostButton}>Banka hesapları ve kurallar</Link>
-          <Link href="/admin/reconciliation" className={ghostButton}>Banka mutabakatı</Link>
           {items.length > 0 && (
             <ExportButtons
               filename={`gelen-havaleler-${status}`}
@@ -262,6 +271,15 @@ export default function IncomingTransfersPage() {
           )}
           {canEdit && <button onClick={reanalyse} disabled={busy} className={ghostButton}>Önerileri yenile</button>}
         </div>} />
+
+      <div className="flex gap-1 border-b text-sm font-semibold">
+        {([['havaleler', 'Havaleler'], ['mutabakat', 'Mutabakat & ekstreler']] as const).map(([key, label]) => (
+          <button key={key} type="button" onClick={() => showView(key)}
+            className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 ${view === key ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}>{label}</button>
+        ))}
+      </div>
+      {view === 'mutabakat' ? <BankReconciliationPanel /> : (
+      <>
 
       <Notice message={message} />
 
@@ -613,6 +631,8 @@ export default function IncomingTransfersPage() {
             setOpen(null)
             setMessage({ type: 'ok', text })
           }} />
+      )}
+      </>
       )}
     </div>
   )

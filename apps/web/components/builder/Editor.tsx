@@ -242,7 +242,7 @@ export function SiteBuilderEditor() {
     } finally {
       savingRef.current = null
     }
-  }, [pageId, conflict])
+  }, [pageId, conflict]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const themeDirtyRef = useRef(themeDirty)
   themeDirtyRef.current = themeDirty
@@ -579,7 +579,7 @@ export function SiteBuilderEditor() {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [sendRender, blockAction, onKey, move])
+  }, [sendRender, blockAction, onKey, move]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Page actions ----------------------------------------------------------------
   const switchPage = async (id: string) => {

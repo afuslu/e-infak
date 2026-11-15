@@ -368,7 +368,7 @@ function DonorCardPanel({
     adminGet<{ items: SmsMessage[] }>('/sms/messages', { donor_id: donorId, page_size: 30 })
       .then((res) => setSmsLog(res.data.items)).catch(() => setSmsLog([]))
   }
-  useEffect(() => { setCard(null); setTab('donations'); setMessage(null); load() }, [donorId])
+  useEffect(() => { setCard(null); setTab('donations'); setMessage(null); load() }, [donorId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!card) return <Card className="border border-gray-100 p-6 shadow-sm"><p className="text-sm text-gray-500 animate-pulse">Yükleniyor...</p></Card>
 

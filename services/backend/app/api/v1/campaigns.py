@@ -176,3 +176,35 @@ async def update_campaign(
     await db.refresh(campaign)
     
     return campaign
+
+
+@router.delete("/{campaign_id}", status_code=204)
+async def delete_campaign(
+    request: Request,
+    campaign_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_module("site")),
+):
+    """Deletes a campaign created by mistake. One with donations or payments is kept for the
+    records: it can be closed (status "completed" or "cancelled") instead."""
+    from app.models.audit_log import AuditLog
+    from app.models.donation import Donation
+    from app.models.payment import PaymentOrderItem
+
+    campaign = (await db.execute(select(Campaign).where(
+        Campaign.id == campaign_id, Campaign.organization_id == request.state.organization_id,
+    ))).scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Kampanya bulunamadı")
+    used = (await db.execute(select(Donation.id).where(Donation.campaign_id == campaign.id).limit(1))).first() or (
+        await db.execute(select(PaymentOrderItem.id).where(PaymentOrderItem.campaign_id == campaign.id).limit(1))).first()
+    if used:
+        raise HTTPException(status_code=409, detail="Bu kampanyaya bağış yapılmış; silinemez. Durumunu 'Tamamlandı' veya 'İptal' yapın.")
+    db.add(AuditLog(organization_id=campaign.organization_id, user_id=current_user.id, action="kampanya_sil",
+                    details={"campaign_id": str(campaign.id), "title": campaign.title}))
+    try:
+        await db.delete(campaign)
+        await db.commit()
+    except Exception as exc:  # other records (kurban, wells, SMS templates…) still point to it
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Kampanya başka kayıtlarda kullanılıyor; silinemez, kapatılabilir.") from exc

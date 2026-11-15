@@ -275,6 +275,20 @@ async def unpublish_chrome(page_id: str, request: Request, db: AsyncSession = De
     return {**_summary(page), "version": page.version}
 
 
+@admin_router.delete("/pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_page(page_id: str, request: Request, db: AsyncSession = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    """Deletes an ordinary page and its revisions; home, header and footer cannot be deleted."""
+    if page_id in SPECIAL:
+        raise HTTPException(status_code=400, detail="Ana sayfa, üst ve alt bilgi silinemez")
+    org_id = _org_id(request)
+    page = await _page(db, org_id, page_id)
+    db.add(AuditLog(organization_id=org_id, user_id=current_user.id, action="sayfa_sil",
+                    details={"page_id": str(page.id), "slug": page.slug, "title": page.title}))
+    await db.delete(page)
+    await db.commit()
+
+
 @admin_router.post("/pages/{page_id}/discard")
 async def discard_draft(page_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     org_id = _org_id(request)

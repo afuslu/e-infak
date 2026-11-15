@@ -130,7 +130,7 @@ export default function KurbanAdminPage() {
     }
   }
 
-  useEffect(() => { loadCampaigns() }, [])
+  useEffect(() => { loadCampaigns() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     setPicked(new Set())
     const t = setTimeout(loadSelected, 250)

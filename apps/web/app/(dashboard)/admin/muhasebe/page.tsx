@@ -22,6 +22,7 @@ interface EmployeeRow { id: string; full_name: string; title: string | null; iba
 interface PayrollRow { id: string; full_name: string; salary_cents: number; overtime_cents: number; bonus_cents: number; deduction_cents: number; advance_cents: number; net_cents: number; status: string; iban: string | null }
 
 type Tab = 'summary' | 'accounts' | 'expenses' | 'invoices' | 'stock' | 'parties' | 'cheques' | 'payroll'
+const TABS: [Tab, string][] = [['summary', 'Özet'], ['accounts', 'Kasa & Banka'], ['expenses', 'Giderler'], ['invoices', 'Faturalar'], ['stock', 'Stok & Depo'], ['parties', 'Cariler'], ['cheques', 'Çek & Senet'], ['payroll', 'Personel & Maaş']]
 type Msg = { type: 'ok' | 'error'; text: string } | null
 const fmt = (v: string | null | undefined) => (v ? new Date(v).toLocaleDateString('tr-TR') : '—')
 /** "1.250,50" (TR) ve "1250.50" yazımlarını kuruşa çevirir; virgül varsa nokta binlik ayırıcıdır. */
@@ -39,6 +40,24 @@ export default function AccountingPage() {
   const { data: access } = useAdminAccess()
   const canEdit = can(access, 'finance.manage')
   const [tab, setTab] = useState<Tab>('summary')
+  // ?sekme=expenses etc. (the old "Kasa & Giderler" menu entry lands on Giderler).
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('sekme') as Tab | null
+    if (wanted && TABS.some(([k]) => k === wanted)) setTab(wanted)
+  }, [])
+  const exportDerbis = async (format: 'xlsx' | 'csv') => {
+    try {
+      const res = await axios.get(`${adminApiBase()}/api/v1/finance/derbis-export`, { headers: adminAuthHeaders(), params: { format }, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `derbis_bagis_defteri.${format}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'DERBİS dosyası indirilemedi') })
+    }
+  }
   const [accounts, setAccounts] = useState<Account[]>([])
   const [parties, setParties] = useState<Party[]>([])
   const [message, setMessage] = useState<Msg>(null)
@@ -54,13 +73,21 @@ export default function AccountingPage() {
         title="Muhasebe"
         description={<>Kasa / banka hesapları, giderler, cari kartlar, çek-senet ve personel maaşı. Onaylanan bağışlar, ödeme yöntemine göre varsayılan hesaba otomatik işlenir.</>}
         actions={
+          <div className="flex flex-wrap gap-2">
+          {can(access, 'receipts.export') && (
+            <>
+              <button type="button" onClick={() => exportDerbis('xlsx')} className={ghostButton} title="Dernekler Bilgi Sistemi bağış defteri (Ek-5/A)">DERBİS (Excel)</button>
+              <button type="button" onClick={() => exportDerbis('csv')} className={ghostButton}>DERBİS (CSV)</button>
+            </>
+          )}
           <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-100">
             <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Yazdır
           </button>
+          </div>
         }
       />
       <div className="flex gap-1 overflow-x-auto border-b text-sm font-semibold">
-        {([['summary', 'Özet'], ['accounts', 'Kasa & Banka'], ['expenses', 'Giderler'], ['invoices', 'Faturalar'], ['stock', 'Stok & Depo'], ['parties', 'Cariler'], ['cheques', 'Çek & Senet'], ['payroll', 'Personel & Maaş']] as [Tab, string][]).map(([k, l]) => (
+        {TABS.map(([k, l]) => (
           <button key={k} onClick={() => { setTab(k); setMessage(null) }} className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}>{l}</button>
         ))}
       </div>

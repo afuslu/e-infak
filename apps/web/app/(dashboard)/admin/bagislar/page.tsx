@@ -80,10 +80,22 @@ const emptyFilters = {
 
 const PAGE_SIZE = 50
 
+// Quick views; "Elle makbuzlar" replaces the former Makbuzlar page (/admin/makbuzlar → ?gorunum=elle).
+const QUICK_VIEWS: [string, string, Partial<typeof emptyFilters>][] = [
+  ['all', 'Tüm bağışlar', {}],
+  ['elle', 'Elle makbuzlar', { issued_by: 'manual' }],
+  ['bekleyen', 'Bekleyen makbuzlar', { issued_by: 'manual', status: 'pending' }],
+  ['online', 'Online bağışlar', { issued_by: 'online' }],
+]
+
 export default function AdminDonationsPage() {
   const { data: access } = useAdminAccess()
   const canIssue = can(access, 'receipts.create')
   const [filters, setFilters] = useState(emptyFilters)
+  useEffect(() => {
+    const view = QUICK_VIEWS.find(([key]) => key === new URLSearchParams(window.location.search).get('gorunum'))
+    if (view) setFilters({ ...emptyFilters, ...view[2] })
+  }, [])
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<SearchResult | null>(null)
   const [campaigns, setCampaigns] = useState<{ id: string; title: string }[]>([])
@@ -326,6 +338,20 @@ export default function AdminDonationsPage() {
           ))}
         </div>
       )}
+
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Görünüm">
+        {QUICK_VIEWS.map(([key, label, preset]) => {
+          const active = Object.entries(preset).every(([k, v]) => filters[k as keyof typeof filters] === v)
+            && (key !== 'all' || (!filters.issued_by && !filters.status))
+          return (
+            <button key={key} type="button" role="tab" aria-selected={active}
+              onClick={() => { setPage(1); setFilters({ ...emptyFilters, q: filters.q, start: filters.start, end: filters.end, ...preset }) }}
+              className={`rounded-full px-4 py-1.5 text-xs font-bold ${active ? 'bg-primary-600 text-white' : 'border bg-white text-gray-700'}`}>
+              {label}
+            </button>
+          )
+        })}
+      </div>
 
       <Card className="space-y-3 border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">

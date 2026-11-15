@@ -77,6 +77,28 @@ function redirectToLogin() {
   }
 }
 
+// Panel pages that call axios directly (file uploads, blobs) get the same token refresh as
+// adminGet/adminSend: a 401 on a signed staff request refreshes once and repeats the request.
+type RetryConfig = { url?: string; headers?: Record<string, unknown>; _einfakRetried?: boolean }
+const axiosFlags = axios as unknown as { _einfakAuthRetry?: boolean }
+if (typeof window !== 'undefined' && !axiosFlags._einfakAuthRetry) {
+  axiosFlags._einfakAuthRetry = true
+  axios.interceptors.response.use(undefined, async (error) => {
+    const config = error?.config as RetryConfig | undefined
+    const signed = !!config?.headers && !!(config.headers.Authorization || config.headers.authorization)
+    if (error?.response?.status === 401 && config && signed && !config._einfakRetried && !String(config.url || '').includes('/auth/')
+        && window.location.pathname.startsWith('/admin')) {
+      config._einfakRetried = true
+      const next = await refreshAccessToken()
+      if (next) {
+        config.headers = { ...config.headers, Authorization: `Bearer ${next}` }
+        return axios.request(config as Parameters<typeof axios.request>[0])
+      }
+    }
+    return Promise.reject(error)
+  })
+}
+
 async function withAuthRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
@@ -168,8 +190,11 @@ export function hasModule(access: AdminAccess | undefined, module?: string | str
   return wanted.some((m) => access.me.modules!.includes(m))
 }
 
+/** Whole amounts without decimals, others with kuruş (1.250 ₺ / 1.250,50 ₺). */
 export const formatMoney = (cents: number, currency = 'TRY') =>
-  (cents / 100).toLocaleString('tr-TR', { style: 'currency', currency, maximumFractionDigits: 0 })
+  (cents / 100).toLocaleString('tr-TR', {
+    style: 'currency', currency, minimumFractionDigits: cents % 100 ? 2 : 0, maximumFractionDigits: 2,
+  })
 
 /** Requests to /api/v1/<path> (modules that are not under /admin-features, e.g. /kurban). */
 export function v1Get<T>(path: string, params?: Record<string, unknown>) {

@@ -2,7 +2,7 @@ import {
   ArrowDownToLine, BarChart3, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, FileUp, Film,
   FolderOpen, Globe2, GraduationCap, HandCoins, HandHelping, HeartHandshake, History, Home, IdCard, KeyRound,
   Landmark, LayoutDashboard, LogIn, type LucideIcon, MailPlus, Megaphone, MessagesSquare, Newspaper, Package,
-  PackageCheck, PiggyBank, Plug, Receipt, Repeat, Scale, Send, Settings, ShieldCheck, Sparkles, Tags, Users, Wallet,
+  PackageCheck, PiggyBank, Plug, Repeat, Send, Settings, ShieldCheck, Sparkles, Tags, Users, Wallet,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -37,7 +37,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: Megaphone, module: 'site' },
       { href: '/admin/bagis-kalemleri', label: 'Bağış Kalemleri', icon: Tags, module: 'site' },
       { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: Repeat, feature: 'recurring', module: ['finance', 'donors', 'receipts'] },
-      { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: Receipt, feature: 'receipts', module: 'receipts' },
       { href: '/admin/makbuz-kocanlari', label: 'Makbuz Koçanları', icon: BookOpen, feature: 'receipts', module: ['receipts', 'finance'] },
       { href: '/admin/zakat', label: 'Zekât Ayarları', icon: Coins, module: ['finance', 'settings', 'site'] },
     ],
@@ -52,11 +51,9 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     key: 'finans', label: 'Finans', items: [
-      { href: '/admin/finance', label: 'Kasa & Giderler', icon: Wallet, module: 'finance' },
       { href: '/admin/muhasebe', label: 'Muhasebe', icon: Calculator, feature: 'accounting', module: 'finance' },
       { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownToLine, feature: 'bank_transactions', module: 'bank' },
       { href: '/admin/banka-hesaplari', label: 'Banka Hesapları', icon: Landmark, feature: 'bank_transactions', module: 'bank' },
-      { href: '/admin/reconciliation', label: 'Banka Mutabakatı', icon: Scale, feature: 'bank_transactions', module: 'bank' },
     ],
   },
   {

@@ -181,6 +181,12 @@ async def pay_member_dues(db: AsyncSession, donation: Donation, metadata: dict) 
     now = datetime.now(timezone.utc)
     for due in dues:
         due.status, due.donation_id, due.paid_at = "paid", donation.id, now
+    from app.services.webhooks import queue_webhook
+
+    await queue_webhook(db, donation.organization_id, "member.dues_paid", "donation", donation.id, {
+        "donation_id": str(donation.id), "due_ids": [str(d.id) for d in dues], "periods": [d.period for d in dues],
+        "amount_cents": donation.amount_cents,
+    })
     return list(dues)
 
 

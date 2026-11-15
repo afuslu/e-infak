@@ -105,4 +105,11 @@ async def _apply_confirmation(db: AsyncSession, donation: Donation, campaign: Ca
         organization_id=organization_id, aggregate_type="donation", aggregate_id=donation.id,
         event_type="webhook.donation.paid", payload={"donation_id": str(donation.id)},
     ))
+    from app.services.webhooks import queue_webhook
+
+    await queue_webhook(db, organization_id, "receipt.created", "donation", donation.id, {
+        "donation_id": str(donation.id), "receipt_number": donation.receipt_number,
+        "official_receipt_no": donation.official_receipt_no, "amount_cents": amount_cents,
+        "currency": donation.currency, "campaign_id": str(donation.campaign_id),
+    })
     return effects

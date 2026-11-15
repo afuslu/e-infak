@@ -519,7 +519,7 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
       setMessage({ type: 'error', text: apiErrorMessage(err) })
     }
   }
-  useEffect(() => { load() }, [filters])
+  useEffect(() => { load() }, [filters]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     adminGet<Beneficiary[]>('/beneficiaries', { status: 'active' }).then((r) => setBeneficiaries(r.data)).catch(() => {})
     adminGet<{ id: string; name: string }[]>('/water-wells').then((r) => setWells(r.data)).catch(() => {})
