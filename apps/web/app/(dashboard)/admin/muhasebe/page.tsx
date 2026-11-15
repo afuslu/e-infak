@@ -74,8 +74,7 @@ const BASE = '/admin-features/acc';
 export type TabKey =
   | 'gelir-gider'
   | 'kasa-banka'
-  | 'gelen-havaleler'
-  | 'tahsilat';
+  | 'gelen-havaleler';
 
 const LEGACY_TAB_MAP: Record<string, TabKey> = {
   summary: 'gelir-gider',
@@ -84,7 +83,6 @@ const LEGACY_TAB_MAP: Record<string, TabKey> = {
   'gelir-gider': 'gelir-gider',
   'kasa-banka': 'kasa-banka',
   'gelen-havaleler': 'gelen-havaleler',
-  tahsilat: 'tahsilat',
 };
 
 const AYLAR = [
@@ -126,34 +124,117 @@ const CARI_SORT_OPTIONS = [
   { value: 'bakiye_asc', label: 'Borç/Bakiye (Küçük -> Büyük)' },
 ];
 
-const VARSAYILAN_GELIR_KATEGORILERI = [
-  'Bağış',
-  'Zekât',
-  'Sadaka / İnfak',
-  'Kurban Bağışı',
-  'Su Kuyusu',
-  'Yetim Sponsorluğu',
-  'Aidat Geliri',
-  'Kumbara Geliri',
-  'Kira Geliri',
-  'Diğer Gelir',
+const GELIR_KATEGORILERI = [
+  { value: 'Aidat', label: 'Aidat' },
+  { value: 'Servis Ücreti', label: 'Servis Ücreti' },
+  { value: 'Kumbara Tahsilatı', label: 'Kumbara Tahsilatı' },
+  { value: 'Kurban', label: 'Kurban' },
+  { value: 'Zekât', label: 'Zekât' },
+  { value: 'Fitre', label: 'Fitre' },
+  { value: 'Fidye', label: 'Fidye' },
+  { value: 'Genel Bağış', label: 'Genel Bağış' },
+  { value: 'Kurs Ücreti', label: 'Kurs Ücreti' },
+  { value: 'Diğer Gelir', label: 'Diğer Gelir' },
 ];
 
-const VARSAYILAN_GIDER_KATEGORILERI = [
-  'Yardım Dağıtımı',
-  'Burs / Eğitim Yardımı',
-  'Gıda & Kumanya',
-  'Kira Gideri',
-  'Elektrik / Su / Doğalgaz',
-  'İnternet / İletişim',
-  'Personel Maaşı',
-  'Mutfak / İkram',
-  'Bakım & Onarım',
-  'Ulaşım / Yakıt',
-  'Kırtasiye & Ofis',
-  'Banka Komisyon / Masraf',
-  'Diğer Gider',
+const GIDER_GRUPLARI: { grup: string; items: { value: string; label: string }[] }[] = [
+  {
+    grup: 'Maaş Giderleri',
+    items: [
+      { value: 'Maaş', label: 'Maaş' },
+      { value: 'Fazla Mesai', label: 'Fazla Mesai' },
+      { value: 'Ek Ders', label: 'Ek Ders' },
+      { value: 'Prim', label: 'Prim' },
+      { value: 'Avans', label: 'Avans' },
+    ],
+  },
+  {
+    grup: 'Enerji Giderleri',
+    items: [
+      { value: 'Elektrik', label: 'Elektrik' },
+      { value: 'Su', label: 'Su' },
+      { value: 'Doğalgaz', label: 'Doğalgaz' },
+    ],
+  },
+  {
+    grup: 'Haberleşme Giderleri',
+    items: [
+      { value: 'Telefon', label: 'Telefon' },
+      { value: 'İnternet', label: 'İnternet' },
+    ],
+  },
+  {
+    grup: 'Kira Giderleri',
+    items: [{ value: 'Kira', label: 'Kira' }],
+  },
+  {
+    grup: 'Bakım ve Onarım',
+    items: [
+      { value: 'Temizlik', label: 'Temizlik' },
+      { value: 'Bakım', label: 'Bakım' },
+      { value: 'Küçük Onarım', label: 'Küçük Onarım' },
+    ],
+  },
+  {
+    grup: 'Ulaşım Giderleri',
+    items: [
+      { value: 'Yolluk', label: 'Yolluk' },
+      { value: 'Araba', label: 'Araba' },
+      { value: 'Muayene', label: 'Muayene' },
+      { value: 'Vergi', label: 'Vergi' },
+    ],
+  },
+  {
+    grup: 'Yemek Giderleri',
+    items: [
+      { value: 'Et', label: 'Et' },
+      { value: 'Bakliyat', label: 'Bakliyat' },
+      { value: 'Ekmek', label: 'Ekmek' },
+      { value: 'Sebze', label: 'Sebze' },
+      { value: 'Meyve', label: 'Meyve' },
+      { value: 'İçecek', label: 'İçecek' },
+      { value: 'Yemek (Diğer)', label: 'Yemek (Diğer)' },
+    ],
+  },
+  {
+    grup: 'İnşaat Giderleri',
+    items: [
+      { value: 'Külliye İnşaatı', label: 'Külliye İnşaatı' },
+      { value: 'Kız Medresesi İnşaatı', label: 'Kız Medresesi İnşaatı' },
+      { value: 'Cami İnşaatı', label: 'Cami İnşaatı' },
+    ],
+  },
+  {
+    grup: 'Hakder / Sosyal Hizmet',
+    items: [
+      { value: 'Hakder Yemek', label: 'Hakder Yemek' },
+      { value: 'Erzak', label: 'Erzak' },
+      { value: 'Su Kuyusu', label: 'Su Kuyusu' },
+      { value: 'Kumanya', label: 'Kumanya' },
+    ],
+  },
+  {
+    grup: 'Diğer',
+    items: [
+      { value: 'Malzeme', label: 'Malzeme' },
+      { value: 'Diğer Gider', label: 'Diğer Gider' },
+    ],
+  },
 ];
+
+const ODEME_YONTEMLERI_GG: Array<{ value: 'NAKIT' | 'BANKA' | 'KREDI_KARTI' | 'POS' | 'DIGER'; label: string }> = [
+  { value: 'NAKIT', label: 'Nakit' },
+  { value: 'BANKA', label: 'Banka Transferi' },
+  { value: 'KREDI_KARTI', label: 'Kredi Kartı' },
+  { value: 'POS', label: 'POS ile Ödeme' },
+  { value: 'DIGER', label: 'Diğer' },
+];
+
+interface OzelKategori {
+  id: string;
+  islem_tipi: 'GELIR' | 'GIDER';
+  ad: string;
+}
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const monthStartISO = () => `${new Date().toISOString().slice(0, 7)}-01`;
@@ -195,9 +276,16 @@ export default function OnMuhasebePage() {
     setTimeout(() => setFlashMsg(null), 4000);
   }, []);
 
-  // Preferences (Sürükle-bırak sıralama, renkler, varsayılan dönem)
+  // Preferences (Sürükle-bırak sıralama, renkler, varsayılan dönem, özel kategoriler)
   const [hesapGorunumu, setHesapGorunumu] = useState<HesapGorunumTercihleri>(BOS_HESAP_GORUNUMU);
   const [defaultGelirGiderView, setDefaultGelirGiderView] = useState<'aylik' | 'yillik'>('yillik');
+  const [ozelKategoriler, setOzelKategoriler] = useState<OzelKategori[]>([]);
+  const [showKategoriYonetimModal, setShowKategoriYonetimModal] = useState(false);
+  const [showYeniKategoriInline, setShowYeniKategoriInline] = useState(false);
+  const [yeniKategoriAd, setYeniKategoriAd] = useState('');
+  const [editingKategoriId, setEditingKategoriId] = useState<string | null>(null);
+  const [editingKategoriAd, setEditingKategoriAd] = useState('');
+  const [deletingKategoriId, setDeletingKategoriId] = useState<string | null>(null);
 
   // Data stores
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -404,6 +492,9 @@ export default function OnMuhasebePage() {
           renkler: d.hesap_renkleri || {},
           varsayilanDonem: donem,
         });
+        if (Array.isArray(d.ozel_kategoriler)) {
+          setOzelKategoriler(d.ozel_kategoriler);
+        }
         setDefaultGelirGiderView(donem);
         if (donem === 'aylik') {
           setGgFilters((prev) => ({ ...prev, yil: currentYear, ay: currentMonth }));
@@ -426,28 +517,21 @@ export default function OnMuhasebePage() {
       if (computedDateRange.start) ggParams.start = computedDateRange.start;
       if (computedDateRange.end) ggParams.end = computedDateRange.end;
 
-      const [accRes, ggRes, tahRes] = await Promise.all([
+      const [accRes, ggRes] = await Promise.all([
         api.get(`${BASE}/accounts`),
         api.get(`${BASE}/gelir-gider`, { params: ggParams }),
-        api.get(`${BASE}/tahsilatlar`, {
-          params: {
-            start: tahsilatFilters.startDate || computedDateRange.start,
-            end: tahsilatFilters.endDate || computedDateRange.end,
-          },
-        }),
       ]);
 
       setAccounts(accRes.data || []);
       setGelirGiderItems(ggRes.data?.items || []);
       if (ggRes.data?.summary) setGelirGiderSummary(ggRes.data.summary);
-      if (tahRes.data) setTahsilatData(tahRes.data);
     } catch (e: any) {
       flash('err', e?.response?.data?.detail || 'Finans verileri yüklenemedi');
     } finally {
       setLoading(false);
       setUpdating(false);
     }
-  }, [computedDateRange.start, computedDateRange.end, tahsilatFilters.startDate, tahsilatFilters.endDate, flash]);
+  }, [computedDateRange.start, computedDateRange.end, flash]);
 
   useEffect(() => {
     loadData();
@@ -628,13 +712,79 @@ export default function OnMuhasebePage() {
     }
   };
 
-  // Open + Gelir Ekle / + Gider Ekle modal
+  // Özel Kategorileri Kaydet / Ekle / Düzenle / Sil (e-Medrese Birebir)
+  const saveOzelKategoriler = useCallback(async (nextList: OzelKategori[]) => {
+    setOzelKategoriler(nextList);
+    try {
+      await api.put(`${BASE}/preferences`, {
+        ozel_kategoriler: nextList,
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleYeniKategoriKaydet = async (tipOverride?: 'GELIR' | 'GIDER') => {
+    const ad = yeniKategoriAd.trim();
+    if (!ad) {
+      flash('err', 'Lütfen kategori adı girin');
+      return;
+    }
+    const tip = tipOverride || ggForm.islem_tipi;
+    const exists = ozelKategoriler.some(
+      (k) => k.islem_tipi === tip && k.ad.toLowerCase() === ad.toLowerCase(),
+    );
+    if (exists) {
+      flash('err', 'Bu isimde bir özel kategori zaten mevcut');
+      return;
+    }
+    const yeniKat: OzelKategori = {
+      id: `ozel_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      ad,
+      islem_tipi: tip,
+    };
+    const nextList = [...ozelKategoriler, yeniKat];
+    await saveOzelKategoriler(nextList);
+    setGgForm((prev) => ({ ...prev, kategori: ad }));
+    setYeniKategoriAd('');
+    setShowYeniKategoriInline(false);
+    flash('ok', `"${ad}" kategorisi eklendi ve seçildi`);
+  };
+
+  const handleKategoriDuzenle = async (id: string) => {
+    const yeniAd = editingKategoriAd.trim();
+    if (!yeniAd) return;
+    const eskiKat = ozelKategoriler.find((k) => k.id === id);
+    const nextList = ozelKategoriler.map((k) => (k.id === id ? { ...k, ad: yeniAd } : k));
+    await saveOzelKategoriler(nextList);
+    if (eskiKat && ggForm.kategori === eskiKat.ad) {
+      setGgForm((prev) => ({ ...prev, kategori: yeniAd }));
+    }
+    setEditingKategoriId(null);
+    setEditingKategoriAd('');
+    flash('ok', 'Kategori güncellendi');
+  };
+
+  const handleKategoriSil = async (id: string) => {
+    const silinen = ozelKategoriler.find((k) => k.id === id);
+    const nextList = ozelKategoriler.filter((k) => k.id !== id);
+    await saveOzelKategoriler(nextList);
+    if (silinen && ggForm.kategori === silinen.ad) {
+      setGgForm((prev) => ({ ...prev, kategori: prev.islem_tipi === 'GELIR' ? 'Genel Bağış' : '' }));
+    }
+    setDeletingKategoriId(null);
+    flash('ok', 'Özel kategori silindi');
+  };
+
+  // Open + Gelir Ekle / + Gider Ekle modal (e-Medrese Birebir)
   const openCreateGgModal = (tip: 'GELIR' | 'GIDER') => {
     setEditingGgItem(null);
-    const defaultCash = siraliKasalar.find((k) => k.is_active)?.id || siraliBankaHesaplari.find((b) => b.is_active)?.id || '';
+    setShowYeniKategoriInline(false);
+    setYeniKategoriAd('');
+    const defaultCash = siraliKasalar.find((k) => k.is_active)?.id || siraliKasalar[0]?.id || '';
     setGgForm({
       islem_tipi: tip,
-      kategori: tip === 'GELIR' ? 'Bağış' : 'Yardım Dağıtımı',
+      kategori: tip === 'GELIR' ? 'Genel Bağış' : '',
       miktar: '',
       para_birimi: 'TRY',
       tarih: todayISO(),
@@ -650,10 +800,12 @@ export default function OnMuhasebePage() {
 
   const openEditGgModal = (item: any) => {
     if (item.source_type === 'donation') {
-      flash('err', 'Bağış makbuzundan oluşan gelirler Tahsilat veya Gelen Havaleler sekmesinden yönetilir.');
+      flash('err', 'Bağış makbuzundan oluşan gelirler Gelen Havaleler veya Bağışlar ekranından yönetilir.');
       return;
     }
     setEditingGgItem(item);
+    setShowYeniKategoriInline(false);
+    setYeniKategoriAd('');
     setGgForm({
       islem_tipi: item.islem_tipi,
       kategori: item.kategori || '',
@@ -677,19 +829,32 @@ export default function OnMuhasebePage() {
       flash('err', 'Lütfen 0’dan büyük geçerli bir tutar girin');
       return;
     }
-    if (ggForm.islem_tipi === 'GELIR' && !ggForm.account_id) {
-      flash('err', 'Gelir kaydı için Kasa veya Banka hesabı seçilmelidir');
+    if (!ggForm.kategori.trim()) {
+      flash('err', 'Lütfen bir kategori seçin');
+      return;
+    }
+    if (ggForm.odeme_yontemi === 'NAKIT' && !ggForm.account_id && siraliKasalar.length > 0) {
+      flash('err', 'Nakit işlem için lütfen bir Kasa seçin');
+      return;
+    }
+    if (
+      (ggForm.odeme_yontemi === 'BANKA' || ggForm.odeme_yontemi === 'KREDI_KARTI' || ggForm.odeme_yontemi === 'POS') &&
+      !ggForm.account_id &&
+      siraliBankaHesaplari.length > 0
+    ) {
+      flash('err', 'Banka / Kart işlemi için lütfen bir Banka Hesabı seçin');
       return;
     }
     setGgSubmitting(true);
     try {
       const payload = {
         islem_tipi: ggForm.islem_tipi,
-        kategori: ggForm.kategori.trim() || (ggForm.islem_tipi === 'GELIR' ? 'Gelir' : 'Gider'),
+        kategori: ggForm.kategori.trim() || (ggForm.islem_tipi === 'GELIR' ? 'Genel Bağış' : 'Diğer Gider'),
         amount_cents: amountCents,
         currency: ggForm.para_birimi,
         tarih: ggForm.tarih,
-        account_id: ggForm.account_id || null,
+        odeme_yontemi: ggForm.odeme_yontemi,
+        account_id: ggForm.odeme_yontemi === 'DIGER' ? null : ggForm.account_id || null,
         counterparty_id: ggForm.counterparty_id || null,
         kisi_adi: ggForm.kisi_adi.trim() || null,
         belge_no: ggForm.belge_no.trim() || null,
@@ -829,7 +994,7 @@ export default function OnMuhasebePage() {
 
   // Export CSV / Excel & DERBİS
   const exportGelirGiderCSV = () => {
-    const headers = ['Tarih', 'Tip', 'Kategori', 'Miktar', 'Para Birimi', 'Ödeme Yöntemi', 'Kasa / Banka', 'Kampanya / Birim', 'Kişi / Kurum', 'Belge No', 'Açıklama'];
+    const headers = ['Tarih', 'Tip', 'Kategori', 'Miktar', 'Para Birimi', 'Ödeme Yöntemi', 'Kasa / Banka', 'Kişi / Kurum', 'Belge No', 'Açıklama'];
     const rows = filteredGelirGiderler.map((it) => [
       it.tarih,
       it.islem_tipi_display,
@@ -838,7 +1003,6 @@ export default function OnMuhasebePage() {
       it.para_birimi,
       it.odeme_yontemi_display,
       it.banka_hesabi_adi || it.kasa_adi || '-',
-      it.kampanya_adi || '-',
       it.kisi_adi || '-',
       it.belge_no || '-',
       (it.aciklama || '').replace(/;/g, ','),
@@ -880,7 +1044,6 @@ export default function OnMuhasebePage() {
     { id: 'gelir-gider', label: 'Gelir/Gider', icon: TrendingUp },
     { id: 'kasa-banka', label: 'Kasa & Banka', icon: Wallet },
     { id: 'gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownLeft, badge: unmatchedTransferCount },
-    { id: 'tahsilat', label: 'Tahsilat', icon: CreditCard },
   ];
 
   const renderTabNavigation = () => (
@@ -1621,7 +1784,7 @@ export default function OnMuhasebePage() {
             ref={tableContainerRef}
             className="hidden min-h-[320px] overflow-x-auto md:block"
           >
-            <table className="w-full min-w-[920px] border-collapse text-xs sm:text-sm">
+            <table className="w-full min-w-[860px] border-collapse text-xs sm:text-sm">
               <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-600">
                 <tr>
                   <th className="border-r border-slate-200/60 px-3 py-3">Tarih</th>
@@ -1630,7 +1793,6 @@ export default function OnMuhasebePage() {
                   <th className="border-r border-slate-200/60 px-4 py-3 text-right">Miktar</th>
                   <th className="border-r border-slate-200/60 px-3 py-3">Ödeme Yöntemi</th>
                   <th className="border-r border-slate-200/60 px-3 py-3">Kasa / Banka</th>
-                  <th className="border-r border-slate-200/60 px-3 py-3">Kampanya / Kapsam</th>
                   <th className="border-r border-slate-200/60 px-3 py-3">Kişi / Kurum</th>
                   <th className="border-r border-slate-200/60 px-3 py-3">Açıklama</th>
                   <th className="px-3 py-3 text-center">İşlemler</th>
@@ -1639,13 +1801,13 @@ export default function OnMuhasebePage() {
               <tbody className="divide-y divide-slate-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-sm text-slate-500">
+                    <td colSpan={9} className="py-12 text-center text-sm text-slate-500">
                       Gelir ve gider kayıtları yükleniyor…
                     </td>
                   </tr>
                 ) : paginatedGelirGiderler.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-sm text-slate-500">
+                    <td colSpan={9} className="py-12 text-center text-sm text-slate-500">
                       Seçilen dönem veya filtreye uygun gelir/gider kaydı bulunamadı.
                     </td>
                   </tr>
@@ -1705,15 +1867,6 @@ export default function OnMuhasebePage() {
                           renderKasaWithIcon(item.kasa_adi, item.account_id)
                         ) : (
                           <span className="text-xs text-slate-400">-</span>
-                        )}
-                      </td>
-                      <td className="border-r border-slate-200/60 px-3 py-2.5">
-                        {item.kampanya_adi ? (
-                          <span className="inline-flex max-w-[170px] truncate rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700">
-                            {item.kampanya_adi}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">Genel Kapsam</span>
                         )}
                       </td>
                       <td className="border-r border-slate-200/60 px-3 py-2.5 text-xs font-semibold text-slate-700">
@@ -2453,229 +2606,6 @@ export default function OnMuhasebePage() {
     );
   };
 
-  // ==================== SEKME 4: TAHSİLAT (e-Medrese Birebir) ====================
-  const renderTahsilat = () => {
-    const sum = tahsilatData.summary || {};
-    const q = tahsilatFilters.search.trim().toLowerCase();
-    const filteredTahsilatlar = (tahsilatData.items || []).filter((t) => {
-      if (tahsilatFilters.odemeYontemi && t.odeme_yontemi !== tahsilatFilters.odemeYontemi) return false;
-      if (tahsilatFilters.tip && t.tip_display !== tahsilatFilters.tip) return false;
-      if (q && !`${t.kisi_adi || ''} ${t.tip_display || ''} ${t.makbuz_no || ''} ${t.aciklama || ''}`.toLowerCase().includes(q)) return false;
-      return true;
-    });
-
-    return (
-      <div className="space-y-6">
-        {/* 1. 4'lü GlobalStatCard */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-600">Tahsilat & Makbuz</p>
-              <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">Bağış ve Aidat Tahsilat Özeti</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => openCreateGgModal('GELIR')}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" /> Yeni Tahsilat / Gelir
-            </button>
-          </div>
-
-          <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <GlobalStatCard
-              id="toplam_tahsilat"
-              title="Toplam Tahsilat"
-              value={formatMoney(sum.toplam_cents || 0)}
-              subtitle={`${sum.toplam_adet || 0} makbuz`}
-              icon={<span className="text-base font-black">₺</span>}
-              gradient="from-emerald-500 to-teal-600"
-            />
-            <GlobalStatCard
-              id="nakit_tahsilat"
-              title="Nakit Tahsilat"
-              value={formatMoney(sum.nakit_cents || 0)}
-              subtitle="Kasa tahsilatları"
-              icon={<Wallet className="h-5 w-5" />}
-              gradient="from-blue-500 to-cyan-600"
-            />
-            <GlobalStatCard
-              id="banka_tahsilat"
-              title="Banka Transferi"
-              value={formatMoney(sum.banka_cents || 0)}
-              subtitle="Havale / EFT bağışları"
-              icon={<Landmark className="h-5 w-5" />}
-              gradient="from-indigo-500 to-violet-600"
-            />
-            <GlobalStatCard
-              id="kart_tahsilat"
-              title="Kart / POS Tahsilatı"
-              value={formatMoney(sum.kart_cents || 0)}
-              subtitle="Online & POS bağışları"
-              icon={<CreditCard className="h-5 w-5" />}
-              gradient="from-amber-500 to-orange-600"
-            />
-          </div>
-        </div>
-
-        {/* 2. Arama & Filtre */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <ResponsiveDataToolbar
-            search={{
-              value: tahsilatFilters.search,
-              onChange: (val) => setTahsilatFilters((p) => ({ ...p, search: val })),
-              placeholder: 'Bağışçı adı, makbuz no, kampanya veya açıklama ara…',
-            }}
-            extraActions={
-              <select
-                value={tahsilatFilters.odemeYontemi}
-                onChange={(e) => setTahsilatFilters((p) => ({ ...p, odemeYontemi: e.target.value }))}
-                className="h-10 rounded-xl border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700"
-              >
-                <option value="">Tüm Ödeme Yöntemleri</option>
-                <option value="NAKIT">Nakit</option>
-                <option value="BANKA">Banka / Havale</option>
-                <option value="KREDI_KARTI">Kredi Kartı / POS</option>
-              </select>
-            }
-          />
-        </section>
-
-        {/* 3. Sekme Çubuğu */}
-        {renderTabNavigation()}
-
-        {/* 4. Tahsilatlar Tablosu */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 p-4">
-            <h3 className="text-lg font-bold text-slate-900">Tahsilat Listesi ({filteredTahsilatlar.length})</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs sm:text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-600">
-                <tr>
-                  <th className="px-4 py-3">Tarih</th>
-                  <th className="px-4 py-3">Kampanya / Tip</th>
-                  <th className="px-4 py-3 text-right">Miktar</th>
-                  <th className="px-4 py-3 text-center">Ödeme Yöntemi</th>
-                  <th className="px-4 py-3">Bağışçı / Kişi</th>
-                  <th className="px-4 py-3">Makbuz / Belge</th>
-                  <th className="px-4 py-3">Açıklama</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredTahsilatlar.slice(0, 100).map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono text-xs text-slate-600">{formatDateTR(t.tarih)}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-700">
-                        {t.tip_display}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-black text-emerald-600 tabular-nums">
-                      +{formatMoney(t.miktar_cents, t.para_birimi)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                        {t.odeme_yontemi_display}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-bold text-slate-900">{t.kisi_adi}</td>
-                    <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-700">{t.makbuz_no || '-'}</td>
-                    <td className="max-w-xs truncate px-4 py-3 text-xs text-slate-600">{t.aciklama || '-'}</td>
-                  </tr>
-                ))}
-                {filteredTahsilatlar.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-sm text-slate-500">
-                      Tahsilat kaydı bulunamadı.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* 5. e-Medrese 3'lü Analiz Kartları (Ödeme Yöntemi Dağılımı | Tahsilat Tipleri | Son 7 Gün Akışı) */}
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900">Ödeme Yöntemi Dağılımı</h3>
-              <PieChart className="h-5 w-5 text-blue-500" />
-            </div>
-            <div className="space-y-3">
-              {(sum.odeme_dagilimi || []).map((item: any) => (
-                <div key={item.yontem}>
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-700">{item.yontem}</span>
-                    <span className="font-bold text-slate-900">{formatMoney(item.tutar_cents)}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500"
-                      style={{ width: `${Math.min(100, Math.max(4, item.oran))}%` }}
-                    />
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-slate-500">{item.adet} işlem</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900">Tahsilat Tipleri</h3>
-              <Layers className="h-5 w-5 text-indigo-500" />
-            </div>
-            <div className="space-y-3">
-              {(sum.tip_dagilimi || []).map((item: any) => (
-                <div key={item.tip}>
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-slate-700">{item.tip}</span>
-                    <span className="font-bold text-slate-900">{formatMoney(item.tutar_cents)}</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500"
-                      style={{ width: `${Math.min(100, Math.max(4, item.oran))}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900">Son 7 Gün Akışı</h3>
-              <Calendar className="h-5 w-5 text-emerald-500" />
-            </div>
-            <div className="space-y-2.5">
-              {(sum.son_7_gun || []).map((day: any) => {
-                const maxVal = Math.max(...(sum.son_7_gun || []).map((d: any) => d.tutar_cents), 1);
-                const w = Math.max(4, Math.round((day.tutar_cents / maxVal) * 100));
-                return (
-                  <div key={day.tarih}>
-                    <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="font-medium text-slate-600">{formatDateTR(day.tarih)}</span>
-                      <span className="font-bold text-slate-900">{formatMoney(day.tutar_cents)}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
-                        style={{ width: `${w}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const activeTabMeta = TABS.find((t) => t.id === activeTab) || TABS[0];
 
   return (
@@ -2725,7 +2655,6 @@ export default function OnMuhasebePage() {
               onUnmatchedCountChange={setUnmatchedTransferCount}
             />
           )}
-          {activeTab === 'tahsilat' && renderTahsilat()}
         </div>
       </div>
 
@@ -2762,13 +2691,10 @@ export default function OnMuhasebePage() {
         />
       ) : null}
 
-      {/* 3. + Gelir Ekle / + Gider Ekle Modalı (e-Medrese Birebir) */}
+      {/* 3. + Gelir Ekle / + Gider Ekle Modalı (e-Medrese 1:1 Birebir, Kayıt Yeri Hariç) */}
       {showGgModal ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <form
-            onSubmit={handleSaveGelirGider}
-            className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-          >
+          <div className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <h3 className="text-lg font-bold text-slate-900">
                 {editingGgItem ? 'İşlem Düzenle' : ggForm.islem_tipi === 'GELIR' ? 'Yeni Gelir' : 'Yeni Gider'}
@@ -2776,182 +2702,697 @@ export default function OnMuhasebePage() {
               <button
                 type="button"
                 onClick={() => setShowGgModal(false)}
-                className="cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+                className="cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveGelirGider} className="flex flex-1 flex-col overflow-hidden">
+              <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+                <div
+                  className={`rounded-xl border p-3 ${
+                    ggForm.islem_tipi === 'GELIR'
+                      ? 'border-green-200 bg-green-50/70'
+                      : 'border-red-200 bg-red-50/70'
+                  }`}
+                >
+                  <p className="text-sm font-bold text-slate-800">
+                    {ggForm.islem_tipi === 'GELIR' ? 'Gelir kaydı oluşturuluyor' : 'Gider kaydı oluşturuluyor'}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    İşlem tipi, kategori ve miktar doğru girildiğinde kayıt otomatik finans özetine yansır.
+                  </p>
+                </div>
+
+                {/* İşlem Tipi * + Kategori * (⚙️ Kategorileri Yönet + ➕ Yeni Kategori Ekle...) */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">İşlem Tipi *</label>
+                    <select
+                      value={ggForm.islem_tipi}
+                      onChange={(e) => {
+                        const yeniTip = e.target.value as 'GELIR' | 'GIDER';
+                        setGgForm({
+                          ...ggForm,
+                          islem_tipi: yeniTip,
+                          kategori: yeniTip === 'GELIR' ? 'Genel Bağış' : '',
+                        });
+                        setShowYeniKategoriInline(false);
+                      }}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    >
+                      <option value="GELIR">Gelir</option>
+                      <option value="GIDER">Gider</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="mb-1 flex items-center justify-between">
+                      <label className="block text-xs font-semibold text-slate-700">Kategori *</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowKategoriYonetimModal(true)}
+                        className="flex cursor-pointer items-center gap-0.5 text-[11px] font-medium text-teal-600 hover:underline"
+                        title="Özel kategorileri yönet"
+                      >
+                        ⚙️ Kategorileri Yönet
+                      </button>
+                    </div>
+                    <select
+                      value={ggForm.kategori}
+                      onChange={(e) => {
+                        if (e.target.value === '__YENI__') {
+                          setShowYeniKategoriInline(true);
+                          setYeniKategoriAd('');
+                        } else {
+                          setGgForm({ ...ggForm, kategori: e.target.value });
+                          setShowYeniKategoriInline(false);
+                        }
+                      }}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                      required
+                    >
+                      <option value="">Seçiniz</option>
+                      {ggForm.islem_tipi === 'GELIR' ? (
+                        <>
+                          <optgroup label="Sistem Kategorileri">
+                            {GELIR_KATEGORILERI.map((k) => (
+                              <option key={k.value} value={k.value}>
+                                {k.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                          {ozelKategoriler.filter((k) => k.islem_tipi === 'GELIR').length > 0 ? (
+                            <optgroup label="Özel Kategoriler">
+                              {ozelKategoriler
+                                .filter((k) => k.islem_tipi === 'GELIR')
+                                .map((k) => (
+                                  <option key={k.id} value={k.ad}>
+                                    🏷️ {k.ad}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          {GIDER_GRUPLARI.map((g) => (
+                            <optgroup key={g.grup} label={g.grup}>
+                              {g.items.map((a) => (
+                                <option key={a.value} value={a.value}>
+                                  {a.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                          {ozelKategoriler.filter((k) => k.islem_tipi === 'GIDER').length > 0 ? (
+                            <optgroup label="Özel Kategoriler">
+                              {ozelKategoriler
+                                .filter((k) => k.islem_tipi === 'GIDER')
+                                .map((k) => (
+                                  <option key={k.id} value={k.ad}>
+                                    🏷️ {k.ad}
+                                  </option>
+                                ))}
+                            </optgroup>
+                          ) : null}
+                        </>
+                      )}
+                      <option value="__YENI__">➕ Yeni Kategori Ekle...</option>
+                    </select>
+
+                    {/* Yeni Kategori Satır İçi Giriş */}
+                    {showYeniKategoriInline ? (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={yeniKategoriAd}
+                          onChange={(e) => setYeniKategoriAd(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              void handleYeniKategoriKaydet();
+                            }
+                            if (e.key === 'Escape') {
+                              setShowYeniKategoriInline(false);
+                            }
+                          }}
+                          placeholder={`Yeni ${ggForm.islem_tipi === 'GELIR' ? 'gelir' : 'gider'} kategorisi adı...`}
+                          className="flex-1 rounded-lg border border-teal-400 bg-white px-2.5 py-1.5 text-xs text-slate-900 focus:ring-2 focus:ring-teal-500"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleYeniKategoriKaydet()}
+                          disabled={!yeniKategoriAd.trim()}
+                          className="cursor-pointer rounded-lg bg-teal-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
+                        >
+                          Ekle
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowYeniKategoriInline(false)}
+                          className="cursor-pointer rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-500 hover:text-slate-700"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Kişi/Kurum + Belge No */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">Kişi/Kurum</label>
+                    <input
+                      type="text"
+                      list="gg-cariler"
+                      value={ggForm.kisi_adi}
+                      onChange={(e) => setGgForm({ ...ggForm, kisi_adi: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    />
+                    <datalist id="gg-cariler">
+                      {parties.map((p) => (
+                        <option key={p.id} value={p.name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">Belge No</label>
+                    <input
+                      type="text"
+                      value={ggForm.belge_no}
+                      onChange={(e) => setGgForm({ ...ggForm, belge_no: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Miktar * + Para Birimi * + Tarih * */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">Miktar *</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">
+                        {ggForm.para_birimi === 'TRY' ? 'TL' : ggForm.para_birimi === 'USD' ? '$' : '€'}
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={ggForm.miktar}
+                        onChange={(e) => setGgForm({ ...ggForm, miktar: e.target.value })}
+                        placeholder="0,00"
+                        className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm font-bold text-slate-900"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">Para Birimi *</label>
+                    <select
+                      value={ggForm.para_birimi}
+                      onChange={(e) => setGgForm({ ...ggForm, para_birimi: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                      required
+                    >
+                      <option value="TRY">TRY (TL)</option>
+                      <option value="USD">USD ($)</option>
+                      <option value="EUR">EUR (€)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-700">Tarih *</label>
+                    <input
+                      type="date"
+                      value={ggForm.tarih}
+                      onChange={(e) => setGgForm({ ...ggForm, tarih: e.target.value })}
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* ÖDEME YÖNTEMİ (5 Butonlu e-Medrese Seçici) */}
+                <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Ödeme Yöntemi
+                  </label>
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                    {ODEME_YONTEMLERI_GG.map((o) => {
+                      const isActive = ggForm.odeme_yontemi === o.value;
+                      return (
+                        <button
+                          key={o.value}
+                          type="button"
+                          onClick={() => {
+                            let nextAccountId = '';
+                            if (o.value === 'NAKIT') {
+                              nextAccountId =
+                                siraliKasalar.find((k) => k.is_active)?.id || siraliKasalar[0]?.id || '';
+                            } else if (o.value === 'BANKA' || o.value === 'KREDI_KARTI' || o.value === 'POS') {
+                              nextAccountId =
+                                siraliBankaHesaplari.find((b) => b.is_active)?.id ||
+                                siraliBankaHesaplari[0]?.id ||
+                                '';
+                            }
+                            setGgForm({
+                              ...ggForm,
+                              odeme_yontemi: o.value,
+                              account_id: nextAccountId,
+                            });
+                          }}
+                          className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border p-2.5 text-center transition-all ${
+                            isActive
+                              ? 'scale-105 border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-500/25'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-blue-400'
+                          }`}
+                        >
+                          <span className="text-[11px] font-bold leading-tight">{o.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* KASA SEÇİMİ (Nakit seçiliyse) */}
+                {ggForm.odeme_yontemi === 'NAKIT' ? (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Kasa Seçimi
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAccount(null);
+                          setAccountForm({
+                            kind: 'cash',
+                            name: '',
+                            currency: ggForm.para_birimi || 'TRY',
+                            bank_name: '',
+                            iban: '',
+                            opening_balance: '0',
+                            default_for: '',
+                            is_active: true,
+                          });
+                          setShowAccountModal(true);
+                        }}
+                        className="flex cursor-pointer items-center gap-0.5 text-[11px] font-medium text-teal-600 hover:underline"
+                      >
+                        <Plus className="h-3 w-3" /> Yeni Kasa
+                      </button>
+                    </div>
+                    {siraliKasalar.length === 0 ? (
+                      <div className="py-3 text-center text-xs text-slate-400">
+                        Henüz kasa tanımlanmamış.{' '}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAccount(null);
+                            setAccountForm({
+                              kind: 'cash',
+                              name: '',
+                              currency: 'TRY',
+                              bank_name: '',
+                              iban: '',
+                              opening_balance: '0',
+                              default_for: '',
+                              is_active: true,
+                            });
+                            setShowAccountModal(true);
+                          }}
+                          className="cursor-pointer font-semibold text-teal-600 underline"
+                        >
+                          İlk kasayı oluşturun
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        {siraliKasalar.map((kasa) => {
+                          const isSelected = String(ggForm.account_id) === String(kasa.id);
+                          return (
+                            <button
+                              key={kasa.id}
+                              type="button"
+                              onClick={() => setGgForm({ ...ggForm, account_id: String(kasa.id) })}
+                              className={`flex cursor-pointer flex-col items-start rounded-xl border p-3 text-left transition-all ${
+                                isSelected
+                                  ? 'border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-500/25'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:border-teal-400'
+                              }`}
+                            >
+                              <div className="mb-1 flex items-center gap-1.5">
+                                {renderKasaWithIcon(kasa.name, kasa.id)}
+                              </div>
+                              <span className={`text-[11px] ${isSelected ? 'text-teal-100' : 'text-slate-400'}`}>
+                                Bakiye: {formatMoney(kasa.balance_cents, kasa.currency)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {/* BANKA HESABI SEÇİMİ (Banka Transferi / Kredi Kartı / POS seçiliyse) */}
+                {ggForm.odeme_yontemi === 'BANKA' ||
+                ggForm.odeme_yontemi === 'KREDI_KARTI' ||
+                ggForm.odeme_yontemi === 'POS' ? (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Banka Hesabı Seçimi
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingAccount(null);
+                          setAccountForm({
+                            kind: ggForm.odeme_yontemi === 'POS' ? 'pos' : 'bank',
+                            name: '',
+                            currency: ggForm.para_birimi || 'TRY',
+                            bank_name: '',
+                            iban: '',
+                            opening_balance: '0',
+                            default_for: '',
+                            is_active: true,
+                          });
+                          setShowAccountModal(true);
+                        }}
+                        className="flex cursor-pointer items-center gap-0.5 text-[11px] font-medium text-teal-600 hover:underline"
+                      >
+                        <Plus className="h-3 w-3" /> Yeni Banka Hesabı
+                      </button>
+                    </div>
+                    {siraliBankaHesaplari.length === 0 ? (
+                      <div className="py-3 text-center text-xs text-slate-400">
+                        Henüz banka hesabı tanımlanmamış.{' '}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAccount(null);
+                            setAccountForm({
+                              kind: 'bank',
+                              name: '',
+                              currency: 'TRY',
+                              bank_name: '',
+                              iban: '',
+                              opening_balance: '0',
+                              default_for: '',
+                              is_active: true,
+                            });
+                            setShowAccountModal(true);
+                          }}
+                          className="cursor-pointer font-semibold text-teal-600 underline"
+                        >
+                          İlk banka hesabını oluşturun
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        {siraliBankaHesaplari.map((b) => {
+                          const isSelected = String(ggForm.account_id) === String(b.id);
+                          const bankaRenkSinifi = getHesapRenkSinifi(
+                            'banka',
+                            b.id,
+                            b.bank_name || b.name,
+                            hesapGorunumu.renkler,
+                          );
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => setGgForm({ ...ggForm, account_id: String(b.id) })}
+                              className={`flex cursor-pointer flex-col items-start rounded-xl border p-3 text-left transition-all ${
+                                isSelected
+                                  ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-500/25'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400'
+                              }`}
+                            >
+                              <div className="mb-1 flex items-center gap-1.5">
+                                <span className={`h-4 w-1.5 shrink-0 rounded-full border ${bankaRenkSinifi}`} />
+                                {renderBankaWithLogo(b.bank_name || b.name)}
+                                <span
+                                  className={`ml-auto rounded px-1.5 py-0.5 text-[10px] ${
+                                    isSelected ? 'bg-blue-500 text-blue-100' : 'bg-slate-100 text-slate-500'
+                                  }`}
+                                >
+                                  {b.name}
+                                </span>
+                              </div>
+                              <span
+                                className={`max-w-full truncate text-[10px] ${
+                                  isSelected ? 'text-blue-200' : 'text-slate-400'
+                                }`}
+                              >
+                                IBAN: {b.iban ? formatIban(b.iban) : 'Belirtilmemiş'}
+                              </span>
+                              <span
+                                className={`mt-1 text-[11px] font-semibold ${
+                                  isSelected ? 'text-blue-100' : 'text-slate-500'
+                                }`}
+                              >
+                                Bakiye: {formatMoney(b.balance_cents, b.currency)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+
+                {/* Açıklama */}
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Açıklama</label>
+                  <textarea
+                    rows={2}
+                    value={ggForm.aciklama}
+                    onChange={(e) => setGgForm({ ...ggForm, aciklama: e.target.value })}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setShowGgModal(false)}
+                  className="cursor-pointer rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  İptal
+                </button>
+                <button
+                  type="submit"
+                  disabled={ggSubmitting}
+                  className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 ${
+                    ggForm.islem_tipi === 'GELIR'
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  {ggSubmitting ? 'Kaydediliyor...' : 'Kaydet'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 3B. Kategori Yönetimi Modalı (e-Medrese Birebir) */}
+      {showKategoriYonetimModal ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <h3 className="text-lg font-bold text-slate-900">Özel Kategori Yönetimi</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowKategoriYonetimModal(false);
+                  setEditingKategoriId(null);
+                  setDeletingKategoriId(null);
+                }}
+                className="cursor-pointer rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
-              <div
-                className={`rounded-xl border p-3 ${
-                  ggForm.islem_tipi === 'GELIR'
-                    ? 'border-green-200 bg-green-50/70'
-                    : 'border-red-200 bg-red-50/70'
-                }`}
-              >
-                <p className="text-sm font-bold text-slate-800">
-                  {ggForm.islem_tipi === 'GELIR' ? 'Gelir kaydı oluşturuluyor' : 'Gider kaydı oluşturuluyor'}
-                </p>
-                <p className="mt-0.5 text-xs text-slate-600">
-                  İşlem tipi, kategori ve miktar girildiğinde kayıt otomatik finans özetine ve hesap bakiyesine yansır.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Kategori *</label>
-                  <input
-                    list="gg-kategoriler"
-                    required
-                    value={ggForm.kategori}
-                    onChange={(e) => setGgForm({ ...ggForm, kategori: e.target.value })}
-                    placeholder="Kategori seçin veya yazın…"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  />
-                  <datalist id="gg-kategoriler">
-                    {(ggForm.islem_tipi === 'GELIR' ? VARSAYILAN_GELIR_KATEGORILERI : VARSAYILAN_GIDER_KATEGORILERI).map((k) => (
-                      <option key={k} value={k} />
-                    ))}
-                  </datalist>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Tarih *</label>
-                  <input
-                    type="date"
-                    required
-                    value={ggForm.tarih}
-                    onChange={(e) => setGgForm({ ...ggForm, tarih: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2">
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Miktar *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    required
-                    value={ggForm.miktar}
-                    onChange={(e) => setGgForm({ ...ggForm, miktar: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Para Birimi</label>
-                  <select
-                    value={ggForm.para_birimi}
-                    onChange={(e) => setGgForm({ ...ggForm, para_birimi: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold"
-                  >
-                    {Object.keys(CURRENCY_SYMBOLS).map((c) => (
-                      <option key={c} value={c}>
-                        {c} ({CURRENCY_SYMBOLS[c]})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">
-                  Kasa / Banka Hesabı {ggForm.islem_tipi === 'GELIR' ? '*' : '(Boş bırakılırsa borç yazılır)'}
+              {/* Yeni Özel Kategori Ekleme Kutusu */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                  Yeni Özel Kategori Ekle ({ggForm.islem_tipi === 'GELIR' ? 'Gelir' : 'Gider'})
                 </label>
-                <select
-                  required={ggForm.islem_tipi === 'GELIR'}
-                  value={ggForm.account_id}
-                  onChange={(e) => setGgForm({ ...ggForm, account_id: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="">
-                    {ggForm.islem_tipi === 'GELIR' ? 'Hesap seçiniz…' : 'Ödenmedi (Cariye Borç Yaz)'}
-                  </option>
-                  <optgroup label="Kasalar">
-                    {siraliKasalar
-                      .filter((k) => k.is_active && k.currency === ggForm.para_birimi)
-                      .map((k) => (
-                        <option key={k.id} value={k.id}>
-                          {k.name} ({formatMoney(k.balance_cents, k.currency)})
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="Banka & POS Hesapları">
-                    {siraliBankaHesaplari
-                      .filter((b) => b.is_active && b.currency === ggForm.para_birimi)
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name} ({formatMoney(b.balance_cents, b.currency)})
-                        </option>
-                      ))}
-                  </optgroup>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Kişi / Kurum (Cari)</label>
+                <div className="flex items-center gap-1.5">
                   <input
-                    list="gg-cariler"
-                    value={ggForm.kisi_adi}
-                    onChange={(e) => setGgForm({ ...ggForm, kisi_adi: e.target.value })}
-                    placeholder="Kişi veya firma adı…"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                    type="text"
+                    value={yeniKategoriAd}
+                    onChange={(e) => setYeniKategoriAd(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void handleYeniKategoriKaydet();
+                      }
+                    }}
+                    placeholder="Kategori adı yazın..."
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-900"
                   />
-                  <datalist id="gg-cariler">
-                    {parties.map((p) => (
-                      <option key={p.id} value={p.name} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-700">Belge / Fiş / Makbuz No</label>
-                  <input
-                    value={ggForm.belge_no}
-                    onChange={(e) => setGgForm({ ...ggForm, belge_no: e.target.value })}
-                    placeholder="Örn: FTR-2026-001"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleYeniKategoriKaydet('GELIR')}
+                    disabled={!yeniKategoriAd.trim()}
+                    className="cursor-pointer rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    + Gelir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleYeniKategoriKaydet('GIDER')}
+                    disabled={!yeniKategoriAd.trim()}
+                    className="cursor-pointer rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                  >
+                    + Gider
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-bold text-slate-700">Açıklama</label>
-                <textarea
-                  rows={2}
-                  value={ggForm.aciklama}
-                  onChange={(e) => setGgForm({ ...ggForm, aciklama: e.target.value })}
-                  placeholder="İşlem açıklaması…"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                />
-              </div>
+              {ozelKategoriler.length === 0 ? (
+                <div className="py-8 text-center text-sm text-slate-400">
+                  Henüz özel kategori eklenmemiş.
+                  <p className="mt-1 text-xs">
+                    Yukarıdaki alandan veya kategori seçicisindeki &ldquo;➕ Yeni Kategori Ekle...&rdquo; seçeneğinden ekleyebilirsiniz.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {(['GELIR', 'GIDER'] as const).map((tip) => {
+                    const list = ozelKategoriler.filter((k) => k.islem_tipi === tip);
+                    if (list.length === 0) return null;
+                    return (
+                      <div key={tip}>
+                        <h4
+                          className={`mb-2 text-xs font-bold uppercase tracking-wider ${
+                            tip === 'GELIR' ? 'text-green-600' : 'text-red-600'
+                          }`}
+                        >
+                          {tip === 'GELIR' ? '📈 Gelir Kategorileri' : '📉 Gider Kategorileri'} ({list.length})
+                        </h4>
+                        <div className="space-y-1.5">
+                          {list.map((k) => (
+                            <div
+                              key={k.id}
+                              className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2"
+                            >
+                              {editingKategoriId === k.id ? (
+                                <div className="flex flex-1 items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={editingKategoriAd}
+                                    onChange={(e) => setEditingKategoriAd(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') void handleKategoriDuzenle(k.id);
+                                      if (e.key === 'Escape') setEditingKategoriId(null);
+                                    }}
+                                    className="flex-1 rounded border border-teal-400 bg-white px-2 py-1 text-xs text-slate-900"
+                                    autoFocus
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleKategoriDuzenle(k.id)}
+                                    className="cursor-pointer rounded bg-teal-600 px-2 py-1 text-xs font-semibold text-white hover:bg-teal-700"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingKategoriId(null)}
+                                    className="cursor-pointer rounded border border-slate-300 px-1.5 py-1 text-xs text-slate-500"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ) : deletingKategoriId === k.id ? (
+                                <div className="flex flex-1 items-center justify-between">
+                                  <span className="text-xs font-medium text-red-600">
+                                    &ldquo;{k.ad}&rdquo; silinsin mi?
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleKategoriSil(k.id)}
+                                      className="cursor-pointer rounded bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700"
+                                    >
+                                      Evet, Sil
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDeletingKategoriId(null)}
+                                      className="cursor-pointer rounded border border-slate-300 px-2 py-1 text-xs text-slate-600"
+                                    >
+                                      Hayır
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="text-sm font-medium text-slate-800">🏷️ {k.ad}</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingKategoriId(k.id);
+                                        setEditingKategoriAd(k.ad);
+                                        setDeletingKategoriId(null);
+                                      }}
+                                      className="cursor-pointer rounded p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                                      title="Düzenle"
+                                    >
+                                      <Edit2 className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setDeletingKategoriId(k.id);
+                                        setEditingKategoriId(null);
+                                      }}
+                                      className="cursor-pointer rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                      title="Sil"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
 
-            <div className="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
+            <div className="flex justify-end border-t border-slate-200 px-6 py-3">
               <button
                 type="button"
-                onClick={() => setShowGgModal(false)}
-                className="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+                onClick={() => {
+                  setShowKategoriYonetimModal(false);
+                  setEditingKategoriId(null);
+                  setDeletingKategoriId(null);
+                }}
+                className="cursor-pointer rounded-lg border border-slate-300 px-4 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
               >
-                Vazgeç
-              </button>
-              <button
-                type="submit"
-                disabled={ggSubmitting}
-                className={`cursor-pointer rounded-xl px-5 py-2 text-sm font-bold text-white disabled:opacity-50 ${
-                  ggForm.islem_tipi === 'GELIR'
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
-              >
-                {ggSubmitting ? 'Kaydediliyor…' : 'Kaydet'}
+                Kapat
               </button>
             </div>
-          </form>
+          </div>
         </div>
       ) : null}
 

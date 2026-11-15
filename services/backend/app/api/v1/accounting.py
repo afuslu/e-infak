@@ -932,6 +932,7 @@ class FinancePreferencesIn(BaseModel):
     banka_sirasi: Optional[List[str]] = None
     hesap_renkleri: Optional[dict[str, int]] = None
     varsayilan_donem: Optional[Literal["aylik", "yillik"]] = None
+    ozel_kategoriler: Optional[List[dict]] = None
 
 
 @router.get("/preferences")
@@ -946,6 +947,7 @@ async def get_finance_preferences(request: Request, db: AsyncSession = Depends(g
         "banka_sirasi": prefs.get("banka_sirasi") or [],
         "hesap_renkleri": prefs.get("hesap_renkleri") or {},
         "varsayilan_donem": prefs.get("varsayilan_donem") or "yillik",
+        "ozel_kategoriler": prefs.get("ozel_kategoriler") or [],
     }
 
 
@@ -969,6 +971,16 @@ async def save_finance_preferences(request: Request, payload: FinancePreferences
         prefs["hesap_renkleri"] = {str(k): int(v) for k, v in payload.hesap_renkleri.items() if isinstance(v, int)}
     if payload.varsayilan_donem is not None:
         prefs["varsayilan_donem"] = payload.varsayilan_donem
+    if payload.ozel_kategoriler is not None:
+        cleaned_cats = []
+        for c in payload.ozel_kategoriler[:200]:
+            if isinstance(c, dict) and c.get("ad"):
+                cleaned_cats.append({
+                    "id": str(c.get("id") or uuid4()),
+                    "tur": "GELIR" if c.get("tur") == "GELIR" else "GIDER",
+                    "ad": str(c.get("ad")).strip()[:80],
+                })
+        prefs["ozel_kategoriler"] = cleaned_cats
     settings["finance_preferences"] = prefs
     org.settings = settings
     flag_modified(org, "settings")
@@ -1267,6 +1279,7 @@ class GelirGiderCreateIn(BaseModel):
     amount_cents: int = Field(gt=0, le=10_000_000_000)
     currency: Currency = "TRY"
     tarih: Optional[date] = None
+    odeme_yontemi: Optional[str] = None
     account_id: Optional[UUID] = None
     counterparty_id: Optional[UUID] = None
     kisi_adi: Optional[str] = Field(default=None, max_length=200)
@@ -1274,7 +1287,7 @@ class GelirGiderCreateIn(BaseModel):
     aciklama: Optional[str] = Field(default=None, max_length=1000)
 
     clean_text = field_validator("kategori", "kisi_adi", "belge_no", "aciklama", mode="before")(lambda cls, v: _clean(v))
-    empty_to_none = field_validator("account_id", "counterparty_id", "kisi_adi", "belge_no", "aciklama", mode="before")(
+    empty_to_none = field_validator("account_id", "counterparty_id", "kisi_adi", "belge_no", "aciklama", "odeme_yontemi", mode="before")(
         lambda cls, v: v or None)
 
 
@@ -1324,9 +1337,22 @@ async def create_gelir_gider(
     )
 
     if payload.islem_tipi == "GELIR":
-        if not payload.account_id:
-            raise HTTPException(status_code=422, detail="Gelir kaydı için Kasa veya Banka hesabı seçilmelidir")
-        acc = await ledger.account(db, org_id, payload.account_id, currency=payload.currency)
+        if payload.account_id:
+            acc = await ledger.account(db, org_id, payload.account_id, currency=payload.currency)
+        else:
+            # 'Diğer' ödeme yönteminde veya hesap seçilmediğinde varsayılan kasayı kullan
+            acc = (await db.execute(select(FinanceAccount).where(
+                FinanceAccount.organization_id == org_id,
+                FinanceAccount.currency == payload.currency,
+                FinanceAccount.is_active.is_(True),
+            ).order_by(FinanceAccount.created_at))).scalars().first()
+            if not acc:
+                acc = FinanceAccount(
+                    organization_id=org_id, name=f"Merkez Kasa ({payload.currency})",
+                    kind="cash", currency=payload.currency, is_active=True,
+                )
+                db.add(acc)
+                await db.flush()
         desc_parts = [p for p in (payload.aciklama, f"Belge: {payload.belge_no}" if payload.belge_no else None) if p]
         desc = " · ".join(desc_parts)[:500] if desc_parts else None
         entry = ledger.post(
