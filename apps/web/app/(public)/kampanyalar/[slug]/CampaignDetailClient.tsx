@@ -1,15 +1,20 @@
 'use client'
 
-import { useCampaign, useOrgSettings } from '@e-infak/api-client'
+import { useCampaign, useOrgSettings, type Campaign } from '@e-infak/api-client'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Button } from '@e-infak/ui'
 import { ApproxCurrency, CURRENCY_SYMBOL } from '../../../../components/site/ApproxCurrency'
 import { translator } from '../../../../lib/i18n'
 
-export default function CampaignDetailClient({ slug, locale = 'tr' }: { slug: string; locale?: string }) {
+export default function CampaignDetailClient({ slug, locale = 'tr', initial }: { slug: string; locale?: string; initial?: Campaign | null }) {
   const t = translator(locale)
-  const { data: campaign, isLoading, error } = useCampaign(slug)
+  const query = useCampaign(slug)
+  // Rendered on the server with the campaign already loaded (search engines see the content);
+  // the client query only refreshes it.
+  const campaign = query.data ?? initial ?? undefined
+  const isLoading = query.isLoading && !campaign
+  const error = campaign ? null : query.error
   const { data: orgSettings } = useOrgSettings()
   const taxDeduction = orgSettings?.legal?.tax_deduction_eligible === true
   const addToCart = (amountCents: number) => {
@@ -56,6 +61,7 @@ export default function CampaignDetailClient({ slug, locale = 'tr' }: { slug: st
         {campaign.cover_image_url ? (
           <Image
             src={campaign.cover_image_url}
+            unoptimized={/^https?:\/\//.test(campaign.cover_image_url || '')}
             alt={campaign.title}
             fill
             className="object-cover"

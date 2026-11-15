@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ConsentLink } from './ConsentLink'
 import type { ReactNode } from 'react'
 import {
   currentLocale, defaultFooterLinks, defaultHeaderLinks, getPublic,
@@ -179,6 +180,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
           <div className="border-t border-white/10">
             <div className="mx-auto flex max-w-[var(--site-container)] flex-wrap items-center justify-between gap-2 px-6 py-5 text-xs text-primary-100/60">
               <span>© {new Date().getFullYear()} {site.name}</span>
+              <ConsentLink />
               <span>E-İnfak altyapısıyla</span>
             </div>
           </div>

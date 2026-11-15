@@ -121,16 +121,17 @@ function RichTextField({ spec, value, base, onChange }: { spec: FieldSpec; value
   const addLink = () => {
     const url = window.prompt('Bağlantı adresi (https://… veya /sayfa):', 'https://')
     if (!url?.trim()) return
-    wrap(`<a href="${url.trim()}">`, '</a>', 'Bağlantı')
+    wrap('[', `](${url.trim()})`, 'Bağlantı')
   }
   return (
     <Label spec={spec}>
       <div className="mb-1 flex flex-wrap gap-1 rounded-t-md border border-b-0 border-gray-300 bg-gray-50 px-1.5 py-1">
-        <button type="button" onClick={() => wrap('<strong>', '</strong>')} className="rounded px-1.5 py-0.5 text-[11px] font-bold hover:bg-white" title="Kalın">B</button>
-        <button type="button" onClick={() => wrap('<em>', '</em>')} className="rounded px-1.5 py-0.5 text-[11px] italic hover:bg-white" title="İtalik">I</button>
-        <button type="button" onClick={() => wrap('<h2>', '</h2>', 'Başlık')} className="rounded px-1.5 py-0.5 text-[11px] font-semibold hover:bg-white" title="Başlık 2">H2</button>
-        <button type="button" onClick={() => wrap('<h3>', '</h3>', 'Alt başlık')} className="rounded px-1.5 py-0.5 text-[11px] font-semibold hover:bg-white" title="Başlık 3">H3</button>
-        <button type="button" onClick={() => wrap('<ul>\n  <li>', '</li>\n</ul>', 'Madde')} className="rounded px-1.5 py-0.5 text-[11px] hover:bg-white" title="Madde listesi">• Liste</button>
+        {/* Markdown, as the site renders it (components/blocks/BlockText.tsx): no raw HTML reaches visitors. */}
+        <button type="button" onClick={() => wrap('**', '**')} className="rounded px-1.5 py-0.5 text-[11px] font-bold hover:bg-white" title="Kalın">B</button>
+        <button type="button" onClick={() => wrap('*', '*')} className="rounded px-1.5 py-0.5 text-[11px] italic hover:bg-white" title="İtalik">I</button>
+        <button type="button" onClick={() => wrap('\n\n## ', '\n\n', 'Başlık')} className="rounded px-1.5 py-0.5 text-[11px] font-semibold hover:bg-white" title="Başlık 2">H2</button>
+        <button type="button" onClick={() => wrap('\n\n### ', '\n\n', 'Alt başlık')} className="rounded px-1.5 py-0.5 text-[11px] font-semibold hover:bg-white" title="Başlık 3">H3</button>
+        <button type="button" onClick={() => wrap('\n\n- ', '\n\n', 'Madde')} className="rounded px-1.5 py-0.5 text-[11px] hover:bg-white" title="Madde listesi">• Liste</button>
         <button type="button" onClick={addLink} className="rounded px-1.5 py-0.5 text-[11px] hover:bg-white" title="Bağlantı ekle">🔗</button>
       </div>
       <textarea ref={ref} className={`${input} rounded-t-none resize-y`} rows={8} value={val} maxLength={spec.max}

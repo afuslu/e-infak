@@ -16,6 +16,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
           {campaign.cover_image_url ? (
             <Image
               src={campaign.cover_image_url}
+              unoptimized={/^https?:\/\//.test(campaign.cover_image_url || '')}
               alt={campaign.title}
               fill
               className="object-cover transition-transform duration-500 group-hover:scale-105"

@@ -4,7 +4,7 @@ import { BlockRenderer } from '../../components/blocks/BlockRenderer'
 import { HomeTemplate } from '../../components/templates/HomeTemplate'
 import type { Block } from '../../lib/blocks'
 import { loadHomeData } from '../../lib/home-data'
-import { getPublic, getSite } from '../../lib/public-content'
+import { currentOrgSlug, getPublic, getSite } from '../../lib/public-content'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +18,11 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
 export default async function HomePage({ searchParams }: Props) {
   const site = await getSite()
-  if (!site) return <EInfakPortal />
+  if (!site) {
+    // An organisation address whose site could not be loaded must not show the platform's landing page.
+    if (await currentOrgSlug()) return <SiteUnavailable />
+    return <EInfakPortal />
+  }
 
   const token = previewToken((await searchParams).onizleme)
   const [data, home] = await Promise.all([
@@ -49,5 +53,19 @@ function PreviewBar() {
     <div className="sticky top-0 z-50 bg-amber-400 px-4 py-2 text-center text-sm font-bold text-amber-950">
       Önizleme — bu sayfa henüz yayınlanmadı; yalnızca bu bağlantıya sahip olanlar görür.
     </div>
+  )
+}
+
+
+function SiteUnavailable() {
+  return (
+    <main className="flex min-h-[70vh] items-center justify-center bg-gray-50 px-4 py-16 text-center">
+      <div className="max-w-md">
+        <h1 className="text-2xl font-bold text-gray-900">Site şu an açılamıyor</h1>
+        <p className="mt-3 text-sm leading-6 text-gray-600">
+          Kısa bir bakım ya da bağlantı sorunu olabilir. Lütfen birkaç dakika sonra sayfayı yenileyin.
+        </p>
+      </div>
+    </main>
   )
 }

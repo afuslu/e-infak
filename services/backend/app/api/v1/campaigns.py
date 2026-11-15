@@ -6,7 +6,7 @@ from uuid import UUID
 from app.core.db import get_db
 from app.models.campaign import HIDDEN_CAMPAIGN_TAG, Campaign, CampaignStatus, CampaignCategory
 from app.schemas.campaign import CampaignCreate, CampaignUpdate, CampaignResponse, CampaignListResponse
-from app.api.deps import Permission, require_permission, require_module
+from app.api.deps import Permission, optional_staff, require_permission, require_module
 from app.models.user import User, UserRole
 from slugify import slugify
 from app.schemas.campaign import CAMPAIGN_I18N
@@ -22,13 +22,14 @@ def _localized(campaign: Campaign, lang: Optional[str]) -> CampaignResponse:
     return response
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+PUBLIC_STATUSES = (CampaignStatus.ACTIVE, CampaignStatus.PAUSED, CampaignStatus.COMPLETED)
 
 
 @router.get("", response_model=CampaignListResponse)
 async def list_campaigns(
     request: Request,
     page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=100)] = 25,
+    page_size: Annotated[int, Query(ge=1, le=500)] = 25,
     status: Optional[CampaignStatus] = None,
     category: Optional[CampaignCategory] = None,
     featured: Optional[bool] = None,
@@ -46,6 +47,10 @@ async def list_campaigns(
         or_(Campaign.tags.is_(None), ~Campaign.tags.any(HIDDEN_CAMPAIGN_TAG)),
     )
     
+    staff = await optional_staff(request, db)
+    if not staff:
+        # Drafts and cancelled campaigns are for the panel only.
+        query = query.where(Campaign.status.in_(PUBLIC_STATUSES))
     if status:
         query = query.where(Campaign.status == status)
     if category:
@@ -91,12 +96,14 @@ async def get_campaign(
         Campaign.organization_id == organization_id,
         Campaign.slug == slug,
     )
-    
+    if not await optional_staff(request, db):
+        query = query.where(Campaign.status.in_(PUBLIC_STATUSES))
+
     result = await db.execute(query)
     campaign = result.scalar_one_or_none()
-    
+
     if not campaign:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+        raise HTTPException(status_code=404, detail="Kampanya bulunamadı")
     
     return _localized(campaign, request_language(request))
 

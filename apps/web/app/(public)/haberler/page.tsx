@@ -16,12 +16,16 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   return { title: known ? t(kindKey(tur!)) : t('news.title'), alternates: { canonical: tur ? `/haberler?tur=${tur}` : '/haberler' } }
 }
 
-export default async function NewsListPage({ searchParams }: { searchParams: Promise<{ tur?: string }> }) {
-  const { tur } = await searchParams
+export default async function NewsListPage({ searchParams }: { searchParams: Promise<{ tur?: string; q?: string }> }) {
+  const { tur, q } = await searchParams
+  const needle = (q || '').trim().slice(0, 100).toLocaleLowerCase('tr')
   const kind = KINDS.includes(tur as (typeof KINDS)[number]) ? tur : undefined
   const locale = await currentLocale()
   const t = translator(locale)
-  const posts = await getPublic<PublicPost[]>(`content-posts?limit=100${kind ? `&kind=${kind}` : ''}`, [])
+  const all = await getPublic<PublicPost[]>(`content-posts?limit=100${kind ? `&kind=${kind}` : ''}`, [])
+  const posts = needle
+    ? all.filter((post) => `${post.title} ${post.summary || ''}`.toLocaleLowerCase('tr').includes(needle))
+    : all
 
   return (
     <>
@@ -35,6 +39,12 @@ export default async function NewsListPage({ searchParams }: { searchParams: Pro
             </Link>
           ))}
         </nav>
+        <form method="get" className="mt-4 flex max-w-md gap-2">
+          {kind && <input type="hidden" name="tur" value={kind} />}
+          <input type="search" name="q" defaultValue={q || ''} placeholder="Haberlerde ara" aria-label="Haberlerde ara"
+            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm outline-none focus:border-primary-500" />
+          <button type="submit" className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700">Ara</button>
+        </form>
 
         {posts.length === 0 ? (
           <p className="mt-16 text-center text-gray-500">{t('news.empty')}</p>

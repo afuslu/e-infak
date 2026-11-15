@@ -947,7 +947,7 @@ export function FeaturedCampaign({ data, t, o = {}, editing = false }: { data: H
     if (ytId && !editing) {
       return (
         <iframe
-          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&playsinline=1&rel=0`}
+          src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&loop=1&playlist=${ytId}&controls=0&playsinline=1&rel=0`}
           title={title}
           allow="autoplay; encrypted-media"
           className="pointer-events-none absolute left-1/2 top-1/2 h-[140%] w-[140%] -translate-x-1/2 -translate-y-1/2 border-0"
@@ -1372,7 +1372,7 @@ export function ZakatBand({ t, o = {}, tpl = 'klasik', locale = 'tr' }: { t: T; 
   const btnLabel = o.button_label || t('home.zakat.cta')
   const btnUrl = o.button_url || '/zekat-hesapla'
   const btn2Label = o.button2_label
-  const btn2Url = o.button2_url || '/bagis?kategori=zekat'
+  const btn2Url = o.button2_url || '/kampanyalar?kategori=zekat'
   const imageUrl = o.image_url
   const presets =
     typeof o.quick_amounts === 'string' && o.quick_amounts.trim()

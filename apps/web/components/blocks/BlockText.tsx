@@ -30,9 +30,27 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
   return out
 }
 
+/** Text saved by the older editor, which inserted HTML tags, shown the same way as Markdown. */
+function htmlToMarkdown(text: string): string {
+  if (!/<\/?(strong|b|em|i|h[1-4]|ul|ol|li|a|br|p)\b/i.test(text)) return text
+  return text
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(strong|b)>/gi, '**')
+    .replace(/<\/?(em|i)>/gi, '*')
+    .replace(/<h([1-4])>([\s\S]*?)<\/h\1>/gi, (_m, level, inner) => `\n\n${'#'.repeat(Math.max(2, Number(level)))} ${inner.trim()}\n\n`)
+    .replace(/<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => `[${label}](${href})`)
+    .replace(/<li>([\s\S]*?)<\/li>/gi, (_m, inner) => `\n- ${inner.trim()}`)
+    .replace(/<\/?(ul|ol)>/gi, '\n\n')
+    .replace(/<\/?p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/^[ \t]+/gm, '')
+    .replace(/(\n- [^\n]*)\n+(?=- )/g, '$1\n')
+    .replace(/\n{3,}/g, '\n\n')
+}
+
 export function BlockText({ text, className = '' }: { text?: string | null; className?: string }) {
   if (!text) return null
-  const chunks = text.split(/\n{2,}/).map((c) => c.trim()).filter(Boolean)
+  const chunks = htmlToMarkdown(text).split(/\n{2,}/).map((c) => c.trim()).filter(Boolean)
   return (
     <div className={`space-y-4 text-[17px] leading-relaxed ${className}`}>
       {chunks.map((chunk, i) => {

@@ -15,8 +15,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = requestHeaders.get('x-forwarded-proto') || 'https'
   const metadataBase = host ? new URL(`${protocol}://${host}`) : undefined
   const site = await getSite()
+  const pathname = requestHeaders.get('x-pathname') || '/'
+  // Pages that only make sense for one visitor (payments, portals, panels) stay out of search engines.
+  const PRIVATE = ['/admin', '/giris', '/sifre', '/platform', '/portal', '/bagis/basarili', '/bagis/hata', '/bagis/sepetim', '/verify/receipt', '/site-yapici-cerceve']
+  const robots = PRIVATE.some((p) => pathname === p || pathname.startsWith(`${p}/`) || pathname.startsWith(p)) ? { index: false, follow: false } : undefined
+  // Each page is its own canonical address (pages with query-dependent content set their own).
+  const canonical = pathname
   if (!site) {
     return {
+      robots,
       metadataBase,
       title: { default: 'e-infak.org — Online Bağış Platformu', template: '%s | e-infak.org' },
       description: 'Dernek ve vakıflar için bağış sitesi, online ödeme, havale eşleştirme, makbuz, SMS ve bağışçı yönetimi tek panelde.',
@@ -29,7 +36,7 @@ export async function generateMetadata(): Promise<Metadata> {
         siteName: 'e-infak.org',
         images: [{ url: '/og-einfak', width: 1200, height: 630, alt: 'e-infak.org' }],
       },
-      alternates: { canonical: '/' },
+      alternates: { canonical },
     }
   }
   // Organisation SEO settings (Site Ayarları) win over the generated defaults.
@@ -41,9 +48,10 @@ export async function generateMetadata(): Promise<Metadata> {
     description,
     keywords: site.seo.keywords ? site.seo.keywords.split(',').map((k) => k.trim()).filter(Boolean) : undefined,
     icons: site.favicon_url ? { icon: site.favicon_url } : undefined,
-    alternates: { canonical: '/' },
+    alternates: { canonical },
+    robots,
     openGraph: {
-      title, description, type: 'website', url: '/', siteName: site.name,
+      title, description, type: 'website', url: canonical, siteName: site.name,
       images: site.hero.image_url ? [site.hero.image_url] : site.logo_url ? [site.logo_url] : undefined,
     },
   }

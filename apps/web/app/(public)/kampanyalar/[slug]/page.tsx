@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import type { Campaign } from '@e-infak/api-client'
 import CampaignDetailClient from './CampaignDetailClient'
@@ -46,6 +47,7 @@ export async function generateMetadata({
   return {
     title: campaign.title,
     description,
+    alternates: { canonical: `/kampanyalar/${campaign.slug}` },
     openGraph: {
       title: campaign.title,
       description,
@@ -67,6 +69,9 @@ export default async function CampaignDetailPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const locale = (await headers()).get('x-locale') || 'tr'
-  return <CampaignDetailClient slug={slug} locale={locale} />
+  const headersList = await headers()
+  const locale = headersList.get('x-locale') || 'tr'
+  const campaign = await fetchCampaign(slug, headersList.get('x-organization-slug') || '')
+  if (!campaign) notFound()
+  return <CampaignDetailClient slug={slug} locale={locale} initial={campaign} />
 }

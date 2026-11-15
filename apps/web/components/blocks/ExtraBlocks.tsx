@@ -77,7 +77,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         if (yt) {
           return (
             <iframe
-              src={`https://www.youtube.com/embed/${yt}?rel=0&playsinline=1`}
+              src={`https://www.youtube-nocookie.com/embed/${yt}?rel=0&playsinline=1`}
               title={item.title || 'Video'}
               allow="encrypted-media"
               className={`${className} border-0`}

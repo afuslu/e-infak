@@ -103,6 +103,25 @@ async def get_current_user(
     return user
 
 
+async def optional_staff(request: Request, db: AsyncSession) -> Optional[User]:
+    """The signed-in staff member of this organisation, or None (public visitors, donors)."""
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        return None
+    payload = decode_token(auth[7:].strip()) or {}
+    if (payload.get("type") != "access" or payload.get("scope") == "platform" or payload.get("purpose")
+            or payload.get("role") in ("donor", "parent") or not payload.get("sub")):
+        return None
+    try:
+        user = await db.get(User, UUID(str(payload["sub"])))
+    except ValueError:
+        return None
+    org_id = getattr(request.state, "organization_id", None)
+    if not user or not user.is_active or (org_id and str(user.organization_id) != str(org_id)):
+        return None
+    return user
+
+
 async def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:

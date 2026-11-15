@@ -1001,7 +1001,7 @@ export interface VideoItem { title?: string; video_url?: string; thumbnail_url?:
 function embedUrl(raw?: string): string | null {
   if (!raw) return null
   const yt = raw.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/)
-  if (yt) return `https://www.youtube.com/embed/${yt[1]}?autoplay=1`
+  if (yt) return `https://www.youtube-nocookie.com/embed/${yt[1]}?autoplay=1`
   return null
 }
 

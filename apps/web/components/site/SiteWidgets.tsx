@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { CONSENT_EVENT, CONSENT_OPEN_EVENT, readConsent, saveConsent, type Consent } from '../../lib/consent'
 import { usePathname } from 'next/navigation'
 import { useOrgSettings } from '@e-infak/api-client'
 
@@ -26,8 +28,21 @@ export function SiteWidgets() {
     ? settings.live_chat_id
     : null
 
+  // Optional services wait for the visitor's permission (KVKK / ePrivacy); essential ones need none.
+  const [consent, setConsent] = useState<Consent | null | undefined>(undefined)
+  const [asking, setAsking] = useState(false)
   useEffect(() => {
-    if (staffArea || !chatId || document.getElementById('tawk-loader')) return
+    setConsent(readConsent())
+    const changed = (event: Event) => { setConsent((event as CustomEvent<Consent>).detail); setAsking(false) }
+    const open = () => setAsking(true)
+    window.addEventListener(CONSENT_EVENT, changed)
+    window.addEventListener(CONSENT_OPEN_EVENT, open)
+    return () => { window.removeEventListener(CONSENT_EVENT, changed); window.removeEventListener(CONSENT_OPEN_EVENT, open) }
+  }, [])
+  const hasOptional = !!chatId
+
+  useEffect(() => {
+    if (staffArea || !chatId || consent !== 'all' || document.getElementById('tawk-loader')) return
     window.Tawk_API = window.Tawk_API || {}
     window.Tawk_LoadStart = new Date()
     const script = document.createElement('script')
@@ -37,15 +52,36 @@ export function SiteWidgets() {
     script.charset = 'UTF-8'
     script.setAttribute('crossorigin', '*')
     document.body.appendChild(script)
-  }, [chatId, staffArea])
+  }, [chatId, staffArea, consent])
 
   const number = settings?.whatsapp_number?.replace(/\D/g, '')
-  if (staffArea || !number) return null
+  if (staffArea) return null
   const text = settings?.whatsapp_message ? `?text=${encodeURIComponent(settings.whatsapp_message)}` : ''
+  const showBanner = hasOptional && (asking || consent === null)
 
   return (
+    <>
+      {showBanner && (
+        <div role="dialog" aria-label="Çerez tercihleri" className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-xl rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-700 shadow-2xl sm:p-5">
+          <p className="leading-6">
+            Sitenin çalışması için gerekli çerezleri kullanıyoruz. İzin verirseniz canlı destek penceresi de yüklenir ve kendi
+            çerezlerini kullanır. Ayrıntılar: <Link href="/gizlilik#cerezler" className="font-semibold text-primary-700 underline">Gizlilik ve Çerez Politikası</Link>.
+          </p>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => saveConsent('essential')} className="rounded-xl border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:border-gray-400">Yalnız gerekli</button>
+            <button type="button" onClick={() => saveConsent('all')} className="rounded-xl bg-primary-600 px-4 py-2 font-bold text-white hover:bg-primary-700">Tümüne izin ver</button>
+          </div>
+        </div>
+      )}
+      {number && <WhatsAppButton href={`https://wa.me/${number}${text}`} />}
+    </>
+  )
+}
+
+function WhatsAppButton({ href }: { href: string }) {
+  return (
     <a
-      href={`https://wa.me/${number}${text}`}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="WhatsApp ile yazın"

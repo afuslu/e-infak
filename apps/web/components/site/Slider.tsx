@@ -321,7 +321,7 @@ export function Slider({
           )}
           {active && !editing && (
             <iframe
-              src={`https://www.youtube.com/embed/${yt}?autoplay=1&mute=1&loop=1&playlist=${yt}&controls=0&showinfo=0&rel=0&playsinline=1&modestbranding=1`}
+              src={`https://www.youtube-nocookie.com/embed/${yt}?autoplay=1&mute=1&loop=1&playlist=${yt}&controls=0&showinfo=0&rel=0&playsinline=1&modestbranding=1`}
               title={s.title || 'Arka plan videosu'}
               allow="autoplay; encrypted-media"
               className="pointer-events-none absolute left-1/2 top-1/2 h-[140%] w-[140%] -translate-x-1/2 -translate-y-1/2 border-0 object-cover"

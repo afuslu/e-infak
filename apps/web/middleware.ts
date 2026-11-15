@@ -46,6 +46,8 @@ export async function middleware(request: NextRequest) {
   // Set organization context in headers for backend requests
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-locale', locale)
+  // Root metadata uses it for the canonical address and noindex of private pages.
+  requestHeaders.set('x-pathname', url.pathname)
   const nonce = createNonce()
   const contentSecurityPolicy = [
     "default-src 'self'",
@@ -57,8 +59,9 @@ export async function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://*.tawk.to",
     "font-src 'self' data: https://*.tawk.to",
     "media-src 'self' https://*.tawk.to",
-    // Site builder canvas (same origin), CMS videos (YouTube privacy mode / Vimeo) and the Tawk.to chat widget
-    "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com https://*.tawk.to",
+    // Site builder canvas (same origin), CMS videos (YouTube privacy mode, plus youtube.com for links
+    // pasted as-is / Vimeo), map blocks (Google Maps embed) and the Tawk.to chat widget
+    "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://player.vimeo.com https://www.google.com https://maps.google.com https://*.tawk.to",
     // 'strict-dynamic' lets the nonce'd app bundle inject the Tawk.to loader
     // `next dev` evaluates modules with eval (React Refresh); production never needs it.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"}`,

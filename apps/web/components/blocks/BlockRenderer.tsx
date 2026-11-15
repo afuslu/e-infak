@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ConsentLink } from '../site/ConsentLink'
 import type { ReactNode } from 'react'
 import type { Campaign } from '@e-infak/api-client'
 import { type Block, compileCss, localizedProps } from '../../lib/blocks'
@@ -2118,7 +2119,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       if (o.show_volunteer) {
         accLinks.push({
           key: 'volunteer',
-          href: '/gonullu-ol',
+          href: '/gonullu',
           label: t('nav.volunteer'),
           icon: <path d="M12 20s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9z" />,
         })
@@ -2171,7 +2172,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       return (
         <div className={container}>
           <div className="border-t pt-4 text-center text-xs opacity-70" style={{ borderColor: 'color-mix(in srgb, currentColor 15%, transparent)' }}>
-            {text}{o.show_powered !== false && ' · E-İnfak altyapısıyla'}
+            {text}{o.show_powered !== false && ' · E-İnfak altyapısıyla'} · <ConsentLink className="hover:underline" />
           </div>
         </div>
       )
