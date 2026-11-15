@@ -65,13 +65,199 @@ def local_day(value: Optional[datetime]) -> date:
 
 
 async def post_donation(db: AsyncSession, donation) -> Optional[LedgerEntry]:
-    """Onaylı bağışı, ödeme yöntemi için varsayılan işaretlenen hesaba giriş olarak işler."""
-    method = getattr(donation.payment_method, "value", donation.payment_method)
-    acc = (await db.execute(select(FinanceAccount).where(
-        FinanceAccount.organization_id == donation.organization_id, FinanceAccount.default_for == method,
-        FinanceAccount.currency == donation.currency, FinanceAccount.is_active.is_(True),
-    ).order_by(FinanceAccount.created_at))).scalars().first()
+    """Onaylı bağışı, ödeme yöntemi veya banka hesabına göre ilgili hesaba giriş olarak işler."""
+    from app.models.automation import BankAccount
+
+    existing = (await db.execute(select(LedgerEntry).where(
+        LedgerEntry.organization_id == donation.organization_id,
+        LedgerEntry.source_type == "donation",
+        LedgerEntry.source_id == donation.id,
+    ))).scalars().first()
+    if existing:
+        return existing
+
+    method = getattr(donation.payment_method, "value", donation.payment_method) or "credit_card"
+    currency = donation.currency or "TRY"
+    details = donation.payment_details or {}
+    acc: Optional[FinanceAccount] = None
+
+    # 1. Banka havalesinden geldiyse ilgili BankAccount ile eşleşen FinanceAccount'u bul/oluştur
+    bank_acc_id = details.get("bank_account_id")
+    if bank_acc_id:
+        try:
+            ba = await db.get(BankAccount, UUID(str(bank_acc_id)))
+        except ValueError:
+            ba = None
+        if ba and ba.organization_id == donation.organization_id:
+            acc = await ensure_finance_account_for_bank(db, ba)
+
+    # 2. Ödeme yöntemi için varsayılan işaretlenen aktif hesabı ara
     if not acc:
-        return None
-    return post(db, acc, direction="in", amount_cents=donation.amount_cents, entry_date=local_day(donation.paid_at),
-                category="Bağış", description=f"Makbuz {donation.receipt_number}", source_type="donation", source_id=donation.id)
+        acc = (await db.execute(select(FinanceAccount).where(
+            FinanceAccount.organization_id == donation.organization_id,
+            FinanceAccount.default_for == method,
+            FinanceAccount.currency == currency,
+            FinanceAccount.is_active.is_(True),
+        ).order_by(FinanceAccount.created_at))).scalars().first()
+
+    # 3. Aynı tipte (cash / bank / pos) aktif bir hesap ara
+    if not acc:
+        target_kinds = ["cash"] if method == "cash" else (["bank"] if method == "bank_transfer" else ["pos", "bank"])
+        acc = (await db.execute(select(FinanceAccount).where(
+            FinanceAccount.organization_id == donation.organization_id,
+            FinanceAccount.kind.in_(target_kinds),
+            FinanceAccount.currency == currency,
+            FinanceAccount.is_active.is_(True),
+        ).order_by(FinanceAccount.created_at))).scalars().first()
+
+    # 4. Hiç hesap yoksa otomatik varsayılan hesap oluştur
+    if not acc:
+        default_names = {
+            "cash": ("Merkez Kasa", "cash"),
+            "bank_transfer": ("Ana Banka Hesabı", "bank"),
+            "credit_card": ("Sanal POS / Kart Hesabı", "pos"),
+        }
+        acc_name, acc_kind = default_names.get(method, ("Merkez Kasa", "cash"))
+        acc = FinanceAccount(
+            organization_id=donation.organization_id,
+            name=acc_name if currency == "TRY" else f"{acc_name} ({currency})",
+            kind=acc_kind,
+            currency=currency,
+            default_for=method,
+            opening_balance_cents=0,
+            is_active=True,
+        )
+        db.add(acc)
+        await db.flush()
+
+    return post(
+        db, acc, direction="in", amount_cents=donation.amount_cents,
+        entry_date=local_day(donation.paid_at or donation.created_at),
+        category="Bağış", description=f"Makbuz {donation.official_receipt_no or donation.receipt_number}",
+        source_type="donation", source_id=donation.id,
+    )
+
+
+def _clean_iban(iban: Optional[str]) -> str:
+    return "".join((iban or "").split()).upper()
+
+
+async def ensure_finance_account_for_bank(db: AsyncSession, ba) -> FinanceAccount:
+    """BankAccount (otomasyon/ekstre) kaydının FinanceAccount (muhasebe) karşılığını bulur veya oluşturur."""
+    from app.banking import CONNECTORS
+
+    clean_iban = _clean_iban(ba.iban)
+    accounts = (await db.execute(select(FinanceAccount).where(
+        FinanceAccount.organization_id == ba.organization_id,
+        FinanceAccount.kind == "bank",
+    ))).scalars().all()
+    for acc in accounts:
+        if clean_iban and _clean_iban(acc.iban) == clean_iban:
+            return acc
+        if acc.name.strip().lower() == (ba.label or "").strip().lower() and acc.currency == (ba.currency or "TRY"):
+            if clean_iban and not acc.iban:
+                acc.iban = clean_iban
+            return acc
+
+    connector = CONNECTORS.get(ba.bank_key)
+    bank_label = connector.label if connector else ba.bank_key
+    new_acc = FinanceAccount(
+        organization_id=ba.organization_id,
+        name=(ba.label or bank_label)[:120],
+        kind="bank",
+        currency=(ba.currency or "TRY")[:3],
+        bank_name=bank_label[:120],
+        iban=clean_iban[:40] if clean_iban else None,
+        opening_balance_cents=0,
+        is_active=bool(ba.enabled),
+    )
+    db.add(new_acc)
+    await db.flush()
+    return new_acc
+
+
+async def sync_organization_finance(db: AsyncSession, org_id: UUID) -> bool:
+    """Mevcut BankAccount, onaylı Donation ve eski Expense kayıtlarını muhasebe defteriyle (LedgerEntry) senkronize eder."""
+    from app.models.automation import BankAccount
+    from app.models.donation import Donation, DonationStatus
+    from app.models.expense import Expense
+
+    changed = False
+
+    # 1. BankAccount -> FinanceAccount eşitlemesi
+    bank_accounts = (await db.execute(select(BankAccount).where(BankAccount.organization_id == org_id))).scalars().all()
+    for ba in bank_accounts:
+        before_count = len((await db.execute(select(FinanceAccount.id).where(FinanceAccount.organization_id == org_id))).all())
+        await ensure_finance_account_for_bank(db, ba)
+        after_count = len((await db.execute(select(FinanceAccount.id).where(FinanceAccount.organization_id == org_id))).all())
+        if after_count > before_count:
+            changed = True
+
+    # 2. En az 1 aktif Kasa (Merkez Kasa) olduğundan emin ol
+    cash_acc = (await db.execute(select(FinanceAccount).where(
+        FinanceAccount.organization_id == org_id, FinanceAccount.kind == "cash", FinanceAccount.currency == "TRY"
+    ).order_by(FinanceAccount.created_at))).scalars().first()
+    if not cash_acc:
+        cash_acc = FinanceAccount(
+            organization_id=org_id,
+            name="Merkez Kasa",
+            kind="cash",
+            currency="TRY",
+            default_for="cash",
+            opening_balance_cents=0,
+            is_active=True,
+        )
+        db.add(cash_acc)
+        await db.flush()
+        changed = True
+
+    # 3. Geçmiş onaylı bağışlardan LedgerEntry kaydı olmayanları deftere işle
+    existing_donation_ids = set((await db.execute(select(LedgerEntry.source_id).where(
+        LedgerEntry.organization_id == org_id,
+        LedgerEntry.source_type == "donation",
+        LedgerEntry.source_id.isnot(None),
+    ))).scalars().all())
+
+    unposted_donations = (await db.execute(select(Donation).where(
+        Donation.organization_id == org_id,
+        Donation.status == DonationStatus.CONFIRMED,
+    ).order_by(Donation.created_at))).scalars().all()
+
+    for don in unposted_donations:
+        if don.id not in existing_donation_ids and don.amount_cents > 0:
+            await post_donation(db, don)
+            changed = True
+
+    # 4. Geçmiş giderlerden (Expense) LedgerEntry kaydı olmayanları işle
+    existing_expense_ids = set((await db.execute(select(LedgerEntry.source_id).where(
+        LedgerEntry.organization_id == org_id,
+        LedgerEntry.source_type == "expense",
+        LedgerEntry.source_id.isnot(None),
+    ))).scalars().all())
+
+    all_expenses = (await db.execute(select(Expense).where(
+        Expense.organization_id == org_id
+    ).order_by(Expense.expense_date))).scalars().all()
+
+    for exp in all_expenses:
+        if exp.id in existing_expense_ids or exp.amount_cents <= 0:
+            continue
+        # Eski "Kasa & Giderler" ekranından girilmiş (account_id ve expense_card_id olmayan) giderleri Merkez Kasa'ya bağla
+        if exp.account_id is None and exp.expense_card_id is None and (exp.currency or "TRY") == "TRY":
+            exp.account_id = cash_acc.id
+        if exp.account_id:
+            acc = await db.get(FinanceAccount, exp.account_id)
+            if acc and acc.organization_id == org_id:
+                post(
+                    db, acc, direction="out", amount_cents=exp.amount_cents,
+                    entry_date=local_day(exp.expense_date),
+                    category=(exp.category or "Gider")[:60],
+                    description=(exp.description or exp.title)[:500] if (exp.description or exp.title) else None,
+                    source_type="expense", source_id=exp.id,
+                    counterparty_id=exp.counterparty_id, user_id=exp.created_by_id,
+                )
+                changed = True
+
+    if changed:
+        await db.commit()
+    return changed

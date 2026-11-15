@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-// Kasa & Giderler moved into Muhasebe (same expense records); DERBİS export is in its header.
+// Kasa & Giderler artık Ön Muhasebe (Gelir/Gider sekmesi) altında birleştirildi.
 export default function FinanceRedirect() {
-  redirect('/admin/muhasebe?sekme=expenses')
+  redirect('/admin/muhasebe?sekme=gelir-gider')
 }

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-// Banka Mutabakatı is now a tab of Gelen Havaleler.
+// Banka Mutabakatı artık Ön Muhasebe (Gelen Havaleler sekmesi) altında birleştirildi.
 export default function ReconciliationRedirect() {
-  redirect('/admin/gelen-havaleler?sekme=mutabakat')
+  redirect('/admin/muhasebe?sekme=gelen-havaleler')
 }

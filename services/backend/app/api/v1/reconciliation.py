@@ -729,6 +729,22 @@ async def convert_to_expense(
     if tx.amount_cents >= 0:
         raise HTTPException(status_code=422, detail="Yalnız giden ödemeler (negatif tutar) gidere dönüştürülebilir")
 
+    from app.models.accounting import FinanceAccount
+    from app.services import ledger
+
+    fin_acc: Optional[FinanceAccount] = None
+    if tx.bank_account_id:
+        ba = await db.get(BankAccount, tx.bank_account_id)
+        if ba and ba.organization_id == org_id:
+            fin_acc = await ledger.ensure_finance_account_for_bank(db, ba)
+    if not fin_acc:
+        fin_acc = (await db.execute(select(FinanceAccount).where(
+            FinanceAccount.organization_id == org_id,
+            FinanceAccount.kind == "bank",
+            FinanceAccount.currency == (tx.currency or "TRY"),
+            FinanceAccount.is_active.is_(True),
+        ).order_by(FinanceAccount.created_at))).scalars().first()
+
     expense = Expense(
         organization_id=org_id,
         title=payload.title.strip(),
@@ -737,11 +753,19 @@ async def convert_to_expense(
         currency=tx.currency or "TRY",
         receipt_no=(payload.receipt_no or tx.external_id)[:100],
         expense_date=tx.booked_at,
+        account_id=fin_acc.id if fin_acc else None,
         description=tx.description[:1000] if tx.description else None,
         created_by_id=current_user.id,
     )
     db.add(expense)
     await db.flush()
+    if fin_acc:
+        ledger.post(
+            db, fin_acc, direction="out", amount_cents=expense.amount_cents,
+            entry_date=ledger.local_day(tx.booked_at), category=expense.category[:60],
+            description=(expense.description or expense.title)[:500],
+            source_type="expense", source_id=expense.id, user_id=current_user.id,
+        )
     tx.status = ReconciliationStatus.MATCHED
     tx.matched_by_id = current_user.id
     tx.matched_at = datetime.now(timezone.utc)

@@ -51,9 +51,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     key: 'finans', label: 'Finans', items: [
-      { href: '/admin/muhasebe', label: 'Muhasebe', icon: Calculator, feature: 'accounting', module: 'finance' },
-      { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownToLine, feature: 'bank_transactions', module: 'bank' },
-      { href: '/admin/banka-hesaplari', label: 'Banka Hesapları', icon: Landmark, feature: 'bank_transactions', module: 'bank' },
+      { href: '/admin/muhasebe', label: 'Ön Muhasebe', icon: Calculator, module: ['finance', 'bank'] },
     ],
   },
   {

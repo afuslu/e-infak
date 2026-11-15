@@ -91,11 +91,22 @@ class AccountIn(BaseModel):
     empty_to_none = field_validator("default_for", "iban", "opening_date", mode="before")(lambda cls, v: v or None)
 
 
-def _account_out(a: FinanceAccount, balance: int) -> dict:
+def _account_out(a: FinanceAccount, balance: int, bank_acc=None) -> dict:
+    from app.banking import CONNECTORS
+    cls = CONNECTORS.get(bank_acc.bank_key) if bank_acc else None
     return {
         "id": str(a.id), "name": a.name, "kind": a.kind, "kind_label": ACCOUNT_KINDS.get(a.kind, a.kind), "currency": a.currency,
-        "bank_name": a.bank_name, "iban": a.iban, "opening_balance_cents": a.opening_balance_cents, "opening_date": a.opening_date,
+        "bank_name": a.bank_name or (cls.label if cls else None), "iban": a.iban or (bank_acc.iban if bank_acc else None),
+        "opening_balance_cents": a.opening_balance_cents, "opening_date": a.opening_date,
         "default_for": a.default_for, "is_active": a.is_active, "balance_cents": balance,
+        "bank_account_id": str(bank_acc.id) if bank_acc else None,
+        "bank_key": bank_acc.bank_key if bank_acc else None,
+        "account_no": bank_acc.account_no if bank_acc else None,
+        "auto_approve": bank_acc.auto_approve if bank_acc else False,
+        "default_campaign_id": str(bank_acc.default_campaign_id) if (bank_acc and bank_acc.default_campaign_id) else None,
+        "last_synced_at": bank_acc.last_synced_at if bank_acc else None,
+        "last_error": bank_acc.last_error if bank_acc else None,
+        "ready": bool(cls and cls.ready) if bank_acc else False,
     }
 
 
@@ -113,11 +124,21 @@ async def _clear_default(db: AsyncSession, org_id: UUID, default_for: Optional[s
 
 @router.get("/accounts")
 async def list_accounts(request: Request, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.automation import BankAccount
     org_id = _org_id(request)
+    await ledger.sync_organization_finance(db, org_id)
     rows = (await db.execute(select(FinanceAccount).where(FinanceAccount.organization_id == org_id)
                              .order_by(FinanceAccount.is_active.desc(), FinanceAccount.kind, FinanceAccount.name))).scalars().all()
+    bank_rows = (await db.execute(select(BankAccount).where(BankAccount.organization_id == org_id))).scalars().all()
+    by_iban = {"".join((b.iban or "").split()).upper(): b for b in bank_rows if b.iban}
+    by_label = {(b.label or "").strip().lower(): b for b in bank_rows if b.label}
     bal = await ledger.balances(db, org_id)
-    return [_account_out(a, bal.get(a.id, a.opening_balance_cents)) for a in rows]
+    out = []
+    for a in rows:
+        clean_iban = "".join((a.iban or "").split()).upper()
+        matched_ba = (by_iban.get(clean_iban) if clean_iban else None) or (by_label.get(a.name.strip().lower()) if a.kind == "bank" else None)
+        out.append(_account_out(a, bal.get(a.id, a.opening_balance_cents), matched_ba))
+    return out
 
 
 @router.post("/accounts", status_code=status.HTTP_201_CREATED)
@@ -145,6 +166,23 @@ async def update_account(request: Request, account_id: UUID, payload: AccountIn,
         setattr(acc, key, value)
     await db.commit()
     return _account_out(acc, (await ledger.balances(db, org_id))[acc.id])
+
+
+@router.delete("/accounts/{account_id}")
+async def delete_finance_account(request: Request, account_id: UUID, db: AsyncSession = Depends(get_db),
+                                 current_user: User = Depends(get_current_user)):
+    org_id = _org_id(request)
+    acc = await _owned(db, FinanceAccount, org_id, account_id, "Hesap", lock=True)
+    has_entry = (await db.execute(select(LedgerEntry.id).where(LedgerEntry.account_id == acc.id).limit(1))).first()
+    if has_entry:
+        acc.is_active = False
+        _audit(db, org_id, current_user, "hesap_pasife_al", {"name": acc.name})
+        await db.commit()
+        return {"deleted": False, "deactivated": True, "detail": "Hareketi olan hesap silinmedi, pasife alındı"}
+    _audit(db, org_id, current_user, "hesap_sil", {"name": acc.name})
+    await db.delete(acc)
+    await db.commit()
+    return {"deleted": True, "deactivated": False}
 
 
 class EntryIn(BaseModel):
@@ -884,4 +922,722 @@ async def accounting_summary(request: Request, start: Optional[date] = None, end
         "upcoming_cheques": upcoming,
         "unpaid_expense_cents": int(unpaid_expenses),
         "draft_payroll_cents": sum(p.net_cents for p in draft_payroll),
+    }
+
+
+# --- Ön Muhasebe: Görünüm Tercihleri (Sıralama, Renkler, Varsayılan Dönem) -----------------
+
+class FinancePreferencesIn(BaseModel):
+    kasa_sirasi: Optional[List[str]] = None
+    banka_sirasi: Optional[List[str]] = None
+    hesap_renkleri: Optional[dict[str, int]] = None
+    varsayilan_donem: Optional[Literal["aylik", "yillik"]] = None
+
+
+@router.get("/preferences")
+async def get_finance_preferences(request: Request, db: AsyncSession = Depends(get_db),
+                                  current_user: User = Depends(get_current_user)):
+    from app.models.organization import Organization
+    org = await db.get(Organization, _org_id(request))
+    settings = (org.settings if org and isinstance(org.settings, dict) else {}) or {}
+    prefs = settings.get("finance_preferences") or {}
+    return {
+        "kasa_sirasi": prefs.get("kasa_sirasi") or [],
+        "banka_sirasi": prefs.get("banka_sirasi") or [],
+        "hesap_renkleri": prefs.get("hesap_renkleri") or {},
+        "varsayilan_donem": prefs.get("varsayilan_donem") or "yillik",
+    }
+
+
+@router.put("/preferences")
+async def save_finance_preferences(request: Request, payload: FinancePreferencesIn,
+                                   db: AsyncSession = Depends(get_db),
+                                   current_user: User = Depends(get_current_user)):
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.models.organization import Organization
+
+    org = await db.get(Organization, _org_id(request))
+    if not org:
+        raise HTTPException(status_code=404, detail="Kurum bulunamadı")
+    settings = dict(org.settings or {})
+    prefs = dict(settings.get("finance_preferences") or {})
+    if payload.kasa_sirasi is not None:
+        prefs["kasa_sirasi"] = [str(x) for x in payload.kasa_sirasi[:200]]
+    if payload.banka_sirasi is not None:
+        prefs["banka_sirasi"] = [str(x) for x in payload.banka_sirasi[:200]]
+    if payload.hesap_renkleri is not None:
+        prefs["hesap_renkleri"] = {str(k): int(v) for k, v in payload.hesap_renkleri.items() if isinstance(v, int)}
+    if payload.varsayilan_donem is not None:
+        prefs["varsayilan_donem"] = payload.varsayilan_donem
+    settings["finance_preferences"] = prefs
+    org.settings = settings
+    flag_modified(org, "settings")
+    await db.commit()
+    return prefs
+
+
+# --- Ön Muhasebe: Birleşik Gelir/Gider Listesi & İşlemleri (e-Medrese Uyumlu) --------------
+
+def _infer_odeme_yontemi(account_kind: Optional[str], donation_method: Optional[str] = None) -> str:
+    if donation_method:
+        m = str(donation_method).lower()
+        if "cash" in m:
+            return "NAKIT"
+        if "bank" in m:
+            return "BANKA"
+        if "card" in m or "credit" in m:
+            return "KREDI_KARTI"
+    if account_kind == "cash":
+        return "NAKIT"
+    if account_kind == "bank":
+        return "BANKA"
+    if account_kind == "pos":
+        return "KREDI_KARTI"
+    return "DIGER"
+
+
+ODEME_YONTEMI_LABELS = {
+    "NAKIT": "Nakit",
+    "BANKA": "Banka / Havale",
+    "KREDI_KARTI": "Kredi Kartı",
+    "POS": "POS",
+    "DIGER": "Diğer",
+}
+
+
+@router.get("/gelir-gider")
+async def list_gelir_gider(
+    request: Request,
+    start: Optional[date] = None,
+    end: Optional[date] = None,
+    islem_tipi: Optional[Literal["GELIR", "GIDER"]] = None,
+    kategori: Optional[str] = None,
+    account_id: Optional[UUID] = None,
+    odeme_yontemi: Optional[str] = None,
+    q: Optional[str] = None,
+    min_cents: Optional[int] = None,
+    max_cents: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """e-Medrese Ön Muhasebe Gelir/Gider birleşik akışı ve istatistik özeti."""
+    from app.models.campaign import Campaign
+    from app.models.donation import Donation, Donor
+
+    org_id = _org_id(request)
+    await ledger.sync_organization_finance(db, org_id)
+
+    # 1. Tüm hesapları yükle
+    acc_rows = (await db.execute(select(FinanceAccount).where(FinanceAccount.organization_id == org_id))).scalars().all()
+    acc_map = {a.id: a for a in acc_rows}
+
+    # 2. Cari kartları yükle
+    cp_rows = (await db.execute(select(Counterparty).where(Counterparty.organization_id == org_id))).scalars().all()
+    cp_map = {c.id: c.name for c in cp_rows}
+
+    # 3. Düzeltme geçmişini (AuditLog) yükle
+    audit_rows = (await db.execute(
+        select(AuditLog, User.full_name, User.email)
+        .outerjoin(User, User.id == AuditLog.user_id)
+        .where(AuditLog.organization_id == org_id, AuditLog.action == "gelir_gider_duzenle")
+        .order_by(AuditLog.created_at.desc())
+        .limit(1000)
+    )).all()
+    revisions_by_item: dict[str, list[dict]] = {}
+    for log, u_name, u_email in audit_rows:
+        det = log.details or {}
+        item_key = str(det.get("item_id") or "")
+        if item_key:
+            revisions_by_item.setdefault(item_key, []).append({
+                "id": str(log.id),
+                "tarih": log.created_at.isoformat() if log.created_at else None,
+                "kullanici": u_name or u_email or "Yetkili",
+                "degisiklikler": det.get("changes") or {},
+            })
+
+    # 4. LedgerEntry sorgusu (virmanlar hariç tüm giriş/çıkışlar)
+    l_query = select(LedgerEntry).where(
+        LedgerEntry.organization_id == org_id,
+        LedgerEntry.source_type != "transfer",
+    )
+    if start:
+        l_query = l_query.where(LedgerEntry.entry_date >= start)
+    if end:
+        l_query = l_query.where(LedgerEntry.entry_date <= end)
+    l_entries = (await db.execute(l_query.order_by(LedgerEntry.entry_date.desc(), LedgerEntry.created_at.desc()).limit(5000))).scalars().all()
+
+    # Bağlı bağış ve gider detaylarını tek seferde çek
+    donation_ids = {e.source_id for e in l_entries if e.source_type == "donation" and e.source_id}
+    expense_ids = {e.source_id for e in l_entries if e.source_type == "expense" and e.source_id}
+
+    don_map: dict[UUID, tuple[Donation, Optional[str], Optional[str]]] = {}
+    if donation_ids:
+        d_rows = (await db.execute(
+            select(Donation, Donor.first_name, Donor.last_name, Donor.company_name, Campaign.title)
+            .outerjoin(Donor, Donor.id == Donation.donor_id)
+            .outerjoin(Campaign, Campaign.id == Donation.campaign_id)
+            .where(Donation.id.in_(donation_ids))
+        )).all()
+        for d, fn, ln, comp, camp_title in d_rows:
+            donor_name = comp or f"{fn or ''} {ln or ''}".strip() or d.on_behalf_of or "Hayırsever"
+            don_map[d.id] = (d, donor_name, camp_title)
+
+    exp_map: dict[UUID, Expense] = {}
+    if expense_ids:
+        e_rows = (await db.execute(select(Expense).where(Expense.id.in_(expense_ids)))).scalars().all()
+        exp_map = {e.id: e for e in e_rows}
+
+    items: list[dict] = []
+    seen_expense_ids: set[UUID] = set()
+
+    for le in l_entries:
+        acc = acc_map.get(le.account_id)
+        tip = "GELIR" if le.direction == "in" else "GIDER"
+        para_birimi = acc.currency if acc else "TRY"
+        kisi_adi = cp_map.get(le.counterparty_id) if le.counterparty_id else None
+        kampanya_adi = None
+        belge_no = None
+        aciklama = le.description
+        kat = le.category or ("Gelir" if tip == "GELIR" else "Gider")
+        odeme = _infer_odeme_yontemi(acc.kind if acc else None)
+
+        if le.source_type == "donation" and le.source_id in don_map:
+            don, donor_name, camp_title = don_map[le.source_id]
+            kisi_adi = donor_name
+            kampanya_adi = camp_title or "Genel Bağış"
+            belge_no = don.official_receipt_no or don.receipt_number
+            kat = camp_title or "Bağış"
+            odeme = _infer_odeme_yontemi(acc.kind if acc else None, getattr(don.payment_method, "value", don.payment_method))
+            if don.donor_message:
+                aciklama = f"{aciklama} · {don.donor_message}" if aciklama else don.donor_message
+        elif le.source_type == "expense" and le.source_id in exp_map:
+            exp = exp_map[le.source_id]
+            seen_expense_ids.add(exp.id)
+            belge_no = exp.receipt_no or None
+            aciklama = exp.description or exp.title or aciklama
+            kat = exp.category or kat
+            if not kisi_adi and exp.counterparty_id:
+                kisi_adi = cp_map.get(exp.counterparty_id)
+
+        item_id_str = str(le.id)
+        rev_list = revisions_by_item.get(item_id_str) or (revisions_by_item.get(str(le.source_id)) if le.source_id else []) or []
+
+        items.append({
+            "id": item_id_str,
+            "source_type": le.source_type,
+            "source_id": str(le.source_id) if le.source_id else None,
+            "tarih": le.entry_date.isoformat(),
+            "olusturma_tarihi": le.created_at.isoformat() if le.created_at else None,
+            "islem_tipi": tip,
+            "islem_tipi_display": "Gelir" if tip == "GELIR" else "Gider",
+            "kategori": kat,
+            "kategori_display": kat,
+            "miktar_cents": le.amount_cents,
+            "miktar": round(le.amount_cents / 100.0, 2),
+            "para_birimi": para_birimi,
+            "odeme_yontemi": odeme,
+            "odeme_yontemi_display": ODEME_YONTEMI_LABELS.get(odeme, odeme),
+            "account_id": str(acc.id) if acc else None,
+            "account_name": acc.name if acc else None,
+            "account_kind": acc.kind if acc else None,
+            "kasa_adi": acc.name if (acc and acc.kind == "cash") else None,
+            "banka_hesabi_adi": (f"{acc.bank_name} - {acc.name}" if (acc and acc.bank_name and acc.bank_name.lower() not in acc.name.lower()) else (acc.name if acc else None)) if (acc and acc.kind in ("bank", "pos")) else None,
+            "kampanya_adi": kampanya_adi,
+            "kisi_adi": kisi_adi,
+            "counterparty_id": str(le.counterparty_id) if le.counterparty_id else None,
+            "belge_no": belge_no,
+            "aciklama": aciklama,
+            "paid": True,
+            "duzeltme_sayisi": len(rev_list),
+            "duzeltme_gecmisi": rev_list,
+        })
+
+    # 5. Henüz ödenmemiş (borç bekleyen, account_id=None) giderleri de GIDER olarak dahil et
+    u_query = select(Expense).where(Expense.organization_id == org_id, Expense.account_id.is_(None))
+    if start:
+        u_query = u_query.where(Expense.expense_date >= datetime.combine(start, datetime.min.time(), TZ))
+    if end:
+        u_query = u_query.where(Expense.expense_date < datetime.combine(end + timedelta(days=1), datetime.min.time(), TZ))
+    unpaid_exps = (await db.execute(u_query.order_by(Expense.expense_date.desc()))).scalars().all()
+    for exp in unpaid_exps:
+        if exp.id in seen_expense_ids:
+            continue
+        exp_day = ledger.local_day(exp.expense_date)
+        exp_id_str = str(exp.id)
+        rev_list = revisions_by_item.get(exp_id_str) or []
+        items.append({
+            "id": exp_id_str,
+            "source_type": "expense_unpaid",
+            "source_id": exp_id_str,
+            "tarih": exp_day.isoformat(),
+            "olusturma_tarihi": exp.created_at.isoformat() if exp.created_at else None,
+            "islem_tipi": "GIDER",
+            "islem_tipi_display": "Gider",
+            "kategori": exp.category or "Gider",
+            "kategori_display": exp.category or "Gider",
+            "miktar_cents": exp.amount_cents,
+            "miktar": round(exp.amount_cents / 100.0, 2),
+            "para_birimi": exp.currency or "TRY",
+            "odeme_yontemi": "DIGER",
+            "odeme_yontemi_display": "Borç (Ödenmedi)",
+            "account_id": None,
+            "account_name": None,
+            "account_kind": None,
+            "kasa_adi": None,
+            "banka_hesabi_adi": None,
+            "kampanya_adi": "Ödenmemiş Gider",
+            "kisi_adi": cp_map.get(exp.counterparty_id) if exp.counterparty_id else None,
+            "counterparty_id": str(exp.counterparty_id) if exp.counterparty_id else None,
+            "belge_no": exp.receipt_no or None,
+            "aciklama": exp.description or exp.title,
+            "paid": False,
+            "duzeltme_sayisi": len(rev_list),
+            "duzeltme_gecmisi": rev_list,
+        })
+
+    # 6. Filtreleri uygula
+    filtered: list[dict] = []
+    q_fold = (q or "").strip().lower()
+    for it in items:
+        if islem_tipi and it["islem_tipi"] != islem_tipi:
+            continue
+        if kategori and it["kategori"].lower() != kategori.strip().lower():
+            continue
+        if account_id and it["account_id"] != str(account_id):
+            continue
+        if odeme_yontemi and it["odeme_yontemi"] != odeme_yontemi:
+            continue
+        if min_cents is not None and it["miktar_cents"] < min_cents:
+            continue
+        if max_cents is not None and it["miktar_cents"] > max_cents:
+            continue
+        if q_fold:
+            haystack = " ".join(str(it.get(k) or "") for k in ("kategori", "aciklama", "kisi_adi", "belge_no", "kampanya_adi", "account_name")).lower()
+            if q_fold not in haystack:
+                continue
+        filtered.append(it)
+
+    filtered.sort(key=lambda x: (x["tarih"], x.get("olusturma_tarihi") or ""), reverse=True)
+
+    # 7. Özet hesaplamaları (TRY ve döviz kırılımlı)
+    toplam_gelir_cents = sum(x["miktar_cents"] for x in filtered if x["islem_tipi"] == "GELIR" and x["para_birimi"] == "TRY")
+    toplam_gider_cents = sum(x["miktar_cents"] for x in filtered if x["islem_tipi"] == "GIDER" and x["para_birimi"] == "TRY")
+    gelir_adedi = sum(1 for x in filtered if x["islem_tipi"] == "GELIR")
+    gider_adedi = sum(1 for x in filtered if x["islem_tipi"] == "GIDER")
+
+    doviz_gelir: dict[str, int] = {}
+    doviz_gider: dict[str, int] = {}
+    kategori_ozet: dict[str, dict[str, int]] = {}
+    for x in filtered:
+        cur = x["para_birimi"]
+        if cur != "TRY":
+            if x["islem_tipi"] == "GELIR":
+                doviz_gelir[cur] = doviz_gelir.get(cur, 0) + x["miktar_cents"]
+            else:
+                doviz_gider[cur] = doviz_gider.get(cur, 0) + x["miktar_cents"]
+        else:
+            k_key = f"{x['islem_tipi']}:{x['kategori']}"
+            if k_key not in kategori_ozet:
+                kategori_ozet[k_key] = {"tip": x["islem_tipi"], "kategori": x["kategori"], "toplam_cents": 0, "adet": 0}
+            kategori_ozet[k_key]["toplam_cents"] += x["miktar_cents"]
+            kategori_ozet[k_key]["adet"] += 1
+
+    all_categories = sorted({x["kategori"] for x in items if x.get("kategori")})
+
+    return {
+        "items": filtered,
+        "summary": {
+            "toplam_gelir_cents": toplam_gelir_cents,
+            "toplam_gider_cents": toplam_gider_cents,
+            "net_cents": toplam_gelir_cents - toplam_gider_cents,
+            "gelir_adedi": gelir_adedi,
+            "gider_adedi": gider_adedi,
+            "toplam_kayit": len(filtered),
+            "doviz_gelir": doviz_gelir,
+            "doviz_gider": doviz_gider,
+            "kategori_dagilimi": list(kategori_ozet.values()),
+            "mevcut_kategoriler": all_categories,
+        },
+    }
+
+
+class GelirGiderCreateIn(BaseModel):
+    islem_tipi: Literal["GELIR", "GIDER"]
+    kategori: str = Field(min_length=2, max_length=100)
+    amount_cents: int = Field(gt=0, le=10_000_000_000)
+    currency: Currency = "TRY"
+    tarih: Optional[date] = None
+    account_id: Optional[UUID] = None
+    counterparty_id: Optional[UUID] = None
+    kisi_adi: Optional[str] = Field(default=None, max_length=200)
+    belge_no: Optional[str] = Field(default=None, max_length=100)
+    aciklama: Optional[str] = Field(default=None, max_length=1000)
+
+    clean_text = field_validator("kategori", "kisi_adi", "belge_no", "aciklama", mode="before")(lambda cls, v: _clean(v))
+    empty_to_none = field_validator("account_id", "counterparty_id", "kisi_adi", "belge_no", "aciklama", mode="before")(
+        lambda cls, v: v or None)
+
+
+async def _resolve_or_create_expense_card(db: AsyncSession, org_id: UUID, name: str) -> ExpenseCard:
+    clean_name = name.strip()[:120]
+    card = (await db.execute(select(ExpenseCard).where(
+        ExpenseCard.organization_id == org_id,
+        func.lower(ExpenseCard.name) == clean_name.lower(),
+    ))).scalars().first()
+    if not card:
+        card = ExpenseCard(organization_id=org_id, name=clean_name, group="Genel", is_active=True)
+        db.add(card)
+        await db.flush()
+    return card
+
+
+async def _resolve_or_create_counterparty(db: AsyncSession, org_id: UUID, cp_id: Optional[UUID], kisi_adi: Optional[str], kind: str = "other") -> Optional[Counterparty]:
+    if cp_id:
+        return await _owned(db, Counterparty, org_id, cp_id, "Cari kart")
+    if kisi_adi and kisi_adi.strip():
+        clean_name = kisi_adi.strip()[:200]
+        cp = (await db.execute(select(Counterparty).where(
+            Counterparty.organization_id == org_id,
+            func.lower(Counterparty.name) == clean_name.lower(),
+        ))).scalars().first()
+        if not cp:
+            cp = Counterparty(organization_id=org_id, name=clean_name, kind=kind, is_active=True)
+            db.add(cp)
+            await db.flush()
+        return cp
+    return None
+
+
+@router.post("/gelir-gider", status_code=status.HTTP_201_CREATED)
+async def create_gelir_gider(
+    request: Request,
+    payload: GelirGiderCreateIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """e-Medrese '+ Gelir Ekle' ve '+ Gider Ekle' modalları için birleşik kayıt oluşturucu."""
+    org_id = _org_id(request)
+    day = _not_future(payload.tarih)
+    cp = await _resolve_or_create_counterparty(
+        db, org_id, payload.counterparty_id, payload.kisi_adi,
+        kind="customer" if payload.islem_tipi == "GELIR" else "supplier",
+    )
+
+    if payload.islem_tipi == "GELIR":
+        if not payload.account_id:
+            raise HTTPException(status_code=422, detail="Gelir kaydı için Kasa veya Banka hesabı seçilmelidir")
+        acc = await ledger.account(db, org_id, payload.account_id, currency=payload.currency)
+        desc_parts = [p for p in (payload.aciklama, f"Belge: {payload.belge_no}" if payload.belge_no else None) if p]
+        desc = " · ".join(desc_parts)[:500] if desc_parts else None
+        entry = ledger.post(
+            db, acc, direction="in", amount_cents=payload.amount_cents,
+            entry_date=day, category=payload.kategori[:60], description=desc,
+            source_type="manual", counterparty_id=cp.id if cp else None, user_id=current_user.id,
+        )
+        _audit(db, org_id, current_user, "gelir_ekle", {
+            "category": payload.kategori, "amount_cents": payload.amount_cents, "account": acc.name
+        })
+        await db.commit()
+        return {"id": str(entry.id), "islem_tipi": "GELIR"}
+
+    # GIDER
+    card = await _resolve_or_create_expense_card(db, org_id, payload.kategori)
+    acc = await ledger.account(db, org_id, payload.account_id, currency=payload.currency) if payload.account_id else None
+    e = Expense(
+        organization_id=org_id,
+        title=(payload.aciklama or card.name)[:300],
+        category=card.name[:100],
+        amount_cents=payload.amount_cents,
+        receipt_no=payload.belge_no or "",
+        currency=payload.currency,
+        expense_date=datetime.combine(day, datetime.min.time().replace(hour=12), TZ),
+        expense_card_id=card.id,
+        counterparty_id=cp.id if cp else None,
+        account_id=acc.id if acc else None,
+        description=payload.aciklama,
+        created_by_id=current_user.id,
+    )
+    db.add(e)
+    await db.flush()
+    if acc:
+        _post_expense(db, acc, e, card, cp, day, current_user)
+    _audit(db, org_id, current_user, "gider_ekle", {
+        "card": card.name, "amount_cents": e.amount_cents, "paid": acc is not None
+    })
+    await db.commit()
+    return {"id": str(e.id), "islem_tipi": "GIDER"}
+
+
+@router.put("/gelir-gider/{item_id}")
+async def update_gelir_gider(
+    request: Request,
+    item_id: UUID,
+    payload: GelirGiderCreateIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Gelir veya gider kaydını günceller ve denetim geçmişine (Düzeltildi rozeti için) revizyon yazar."""
+    org_id = _org_id(request)
+    day = _not_future(payload.tarih)
+    cp = await _resolve_or_create_counterparty(
+        db, org_id, payload.counterparty_id, payload.kisi_adi,
+        kind="customer" if payload.islem_tipi == "GELIR" else "supplier",
+    )
+
+    # Önce LedgerEntry olarak ara
+    le = (await db.execute(select(LedgerEntry).where(
+        LedgerEntry.id == item_id, LedgerEntry.organization_id == org_id
+    ).with_for_update())).scalar_one_or_none()
+
+    if le:
+        if le.source_type == "donation":
+            raise HTTPException(status_code=409, detail="Bağış makbuzundan oluşan gelirler doğrudan Bağışlar / Gelen Havaleler ekranından yönetilir")
+        changes: dict = {}
+        if le.amount_cents != payload.amount_cents:
+            changes["miktar_cents"] = {"eski": le.amount_cents, "yeni": payload.amount_cents}
+        if le.category != payload.kategori[:60]:
+            changes["kategori"] = {"eski": le.category, "yeni": payload.kategori[:60]}
+        if (le.description or "") != (payload.aciklama or ""):
+            changes["aciklama"] = {"eski": le.description, "yeni": payload.aciklama}
+
+        if payload.account_id and payload.account_id != le.account_id:
+            acc = await ledger.account(db, org_id, payload.account_id, currency=payload.currency)
+            le.account_id = acc.id
+
+        le.amount_cents = payload.amount_cents
+        le.category = payload.kategori[:60]
+        le.entry_date = day
+        le.description = (payload.aciklama or None) and payload.aciklama[:500]
+        le.counterparty_id = cp.id if cp else None
+
+        if le.source_type == "expense" and le.source_id:
+            exp = await db.get(Expense, le.source_id)
+            if exp and exp.organization_id == org_id:
+                card = await _resolve_or_create_expense_card(db, org_id, payload.kategori)
+                exp.amount_cents = payload.amount_cents
+                exp.category = card.name[:100]
+                exp.expense_card_id = card.id
+                exp.title = (payload.aciklama or card.name)[:300]
+                exp.description = payload.aciklama
+                exp.receipt_no = payload.belge_no or exp.receipt_no
+                exp.counterparty_id = cp.id if cp else None
+                exp.account_id = le.account_id
+                exp.expense_date = datetime.combine(day, datetime.min.time().replace(hour=12), TZ)
+
+        if changes:
+            _audit(db, org_id, current_user, "gelir_gider_duzenle", {"item_id": str(le.id), "changes": changes})
+        await db.commit()
+        return {"id": str(le.id), "updated": True}
+
+    # Ödenmemiş Expense olarak ara
+    exp = (await db.execute(select(Expense).where(
+        Expense.id == item_id, Expense.organization_id == org_id
+    ).with_for_update())).scalar_one_or_none()
+    if not exp:
+        raise HTTPException(status_code=404, detail="Kayıt bulunamadı")
+
+    changes = {}
+    if exp.amount_cents != payload.amount_cents:
+        changes["miktar_cents"] = {"eski": exp.amount_cents, "yeni": payload.amount_cents}
+    if exp.category != payload.kategori:
+        changes["kategori"] = {"eski": exp.category, "yeni": payload.kategori}
+
+    card = await _resolve_or_create_expense_card(db, org_id, payload.kategori)
+    exp.amount_cents = payload.amount_cents
+    exp.category = card.name[:100]
+    exp.expense_card_id = card.id
+    exp.title = (payload.aciklama or card.name)[:300]
+    exp.description = payload.aciklama
+    exp.receipt_no = payload.belge_no or ""
+    exp.counterparty_id = cp.id if cp else None
+    exp.expense_date = datetime.combine(day, datetime.min.time().replace(hour=12), TZ)
+    if payload.account_id:
+        acc = await ledger.account(db, org_id, payload.account_id, currency=payload.currency)
+        exp.account_id = acc.id
+        _post_expense(db, acc, exp, card, cp, day, current_user)
+    if changes:
+        _audit(db, org_id, current_user, "gelir_gider_duzenle", {"item_id": str(exp.id), "changes": changes})
+    await db.commit()
+    return {"id": str(exp.id), "updated": True}
+
+
+class CancelGelirGiderIn(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+@router.post("/gelir-gider/{item_id}/cancel")
+async def cancel_gelir_gider(
+    request: Request,
+    item_id: UUID,
+    payload: CancelGelirGiderIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Gelir veya gider kaydını iptal sebebiyle denetim izi bırakarak iptal eder."""
+    org_id = _org_id(request)
+    le = (await db.execute(select(LedgerEntry).where(
+        LedgerEntry.id == item_id, LedgerEntry.organization_id == org_id
+    ).with_for_update())).scalar_one_or_none()
+
+    if le:
+        if le.source_type == "donation":
+            raise HTTPException(status_code=409, detail="Bağış makbuzundan oluşan kayıtlar Bağışlar veya Gelen Havaleler ekranından iptal edilir")
+        if le.source_type == "expense" and le.source_id:
+            exp = await db.get(Expense, le.source_id)
+            if exp and exp.organization_id == org_id:
+                await db.delete(exp)
+        _audit(db, org_id, current_user, "gelir_gider_iptal", {
+            "item_id": str(le.id), "category": le.category, "amount_cents": le.amount_cents,
+            "direction": le.direction, "reason": _clean(payload.reason),
+        })
+        await db.delete(le)
+        await db.commit()
+        return {"cancelled": True}
+
+    exp = (await db.execute(select(Expense).where(
+        Expense.id == item_id, Expense.organization_id == org_id
+    ).with_for_update())).scalar_one_or_none()
+    if not exp:
+        raise HTTPException(status_code=404, detail="Kayıt bulunamadı")
+    await ledger.remove_source(db, org_id, "expense", exp.id)
+    _audit(db, org_id, current_user, "gelir_gider_iptal", {
+        "item_id": str(exp.id), "category": exp.category, "amount_cents": exp.amount_cents,
+        "direction": "out", "reason": _clean(payload.reason),
+    })
+    await db.delete(exp)
+    await db.commit()
+    return {"cancelled": True}
+
+
+# --- Ön Muhasebe: Tahsilat Sekmesi (Bağış, Aidat, Makbuz Analizi) --------------------------
+
+@router.get("/tahsilatlar")
+async def list_tahsilatlar(
+    request: Request,
+    start: Optional[date] = None,
+    end: Optional[date] = None,
+    odeme_yontemi: Optional[str] = None,
+    tip: Optional[str] = None,
+    q: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Onaylanmış bağış ve tahsilatların ödeme yöntemi, kampanya ve son 7 gün analizleriyle listesi."""
+    from app.models.campaign import Campaign
+    from app.models.donation import Donation, DonationStatus, Donor
+
+    org_id = _org_id(request)
+    await ledger.sync_organization_finance(db, org_id)
+
+    query = (
+        select(Donation, Donor.first_name, Donor.last_name, Donor.company_name, Campaign.title, Campaign.category)
+        .outerjoin(Donor, Donor.id == Donation.donor_id)
+        .outerjoin(Campaign, Campaign.id == Donation.campaign_id)
+        .where(Donation.organization_id == org_id, Donation.status == DonationStatus.CONFIRMED)
+    )
+    if start:
+        query = query.where(func.coalesce(Donation.paid_at, Donation.created_at) >= datetime.combine(start, datetime.min.time(), TZ))
+    if end:
+        query = query.where(func.coalesce(Donation.paid_at, Donation.created_at) < datetime.combine(end + timedelta(days=1), datetime.min.time(), TZ))
+
+    rows = (await db.execute(query.order_by(func.coalesce(Donation.paid_at, Donation.created_at).desc()).limit(3000))).all()
+
+    items: list[dict] = []
+    q_fold = (q or "").strip().lower()
+
+    for d, fn, ln, comp, camp_title, camp_cat in rows:
+        kisi_adi = comp or f"{fn or ''} {ln or ''}".strip() or d.on_behalf_of or "Hayırsever"
+        raw_method = getattr(d.payment_method, "value", d.payment_method) or "credit_card"
+        yontem = _infer_odeme_yontemi(None, raw_method)
+        tip_val = str(getattr(camp_cat, "value", camp_cat) or "BAGIS").upper()
+        tip_label = camp_title or "Genel Bağış"
+        day_val = ledger.local_day(d.paid_at or d.created_at)
+        makbuz = d.official_receipt_no or d.receipt_number
+
+        if odeme_yontemi and yontem != odeme_yontemi:
+            continue
+        if tip and tip_label.lower() != tip.strip().lower() and tip_val.lower() != tip.strip().lower():
+            continue
+        if q_fold:
+            haystack = f"{kisi_adi} {tip_label} {makbuz} {d.donor_message or ''} {d.on_behalf_of or ''}".lower()
+            if q_fold not in haystack:
+                continue
+
+        items.append({
+            "id": str(d.id),
+            "tarih": day_val.isoformat(),
+            "tip": tip_val,
+            "tip_display": tip_label,
+            "miktar_cents": d.amount_cents,
+            "miktar": round(d.amount_cents / 100.0, 2),
+            "para_birimi": d.currency or "TRY",
+            "odeme_yontemi": yontem,
+            "odeme_yontemi_display": ODEME_YONTEMI_LABELS.get(yontem, yontem),
+            "kisi_id": str(d.donor_id) if d.donor_id else None,
+            "kisi_adi": kisi_adi,
+            "makbuz_no": makbuz,
+            "belge_no": d.transaction_id or None,
+            "aciklama": d.donor_message or (f"{d.on_behalf_of} adına" if d.on_behalf_of else None),
+        })
+
+    try_items = [x for x in items if x["para_birimi"] == "TRY"]
+    toplam_cents = sum(x["miktar_cents"] for x in try_items)
+    nakit_cents = sum(x["miktar_cents"] for x in try_items if x["odeme_yontemi"] == "NAKIT")
+    banka_cents = sum(x["miktar_cents"] for x in try_items if x["odeme_yontemi"] == "BANKA")
+    kart_cents = sum(x["miktar_cents"] for x in try_items if x["odeme_yontemi"] in ("KREDI_KARTI", "POS"))
+
+    # Ödeme yöntemi dağılımı
+    by_method: dict[str, dict] = {}
+    for x in try_items:
+        lbl = x["odeme_yontemi_display"]
+        entry = by_method.setdefault(lbl, {"yontem": lbl, "tutar_cents": 0, "adet": 0})
+        entry["tutar_cents"] += x["miktar_cents"]
+        entry["adet"] += 1
+    odeme_dagilimi = [
+        {**v, "oran": round((v["tutar_cents"] / toplam_cents) * 100, 1) if toplam_cents > 0 else 0}
+        for v in sorted(by_method.values(), key=lambda i: i["tutar_cents"], reverse=True)
+    ]
+
+    # Tahsilat tipleri (kampanya) dağılımı
+    by_tip: dict[str, dict] = {}
+    for x in try_items:
+        lbl = x["tip_display"]
+        entry = by_tip.setdefault(lbl, {"tip": lbl, "tutar_cents": 0, "adet": 0})
+        entry["tutar_cents"] += x["miktar_cents"]
+        entry["adet"] += 1
+    tip_dagilimi = [
+        {**v, "oran": round((v["tutar_cents"] / toplam_cents) * 100, 1) if toplam_cents > 0 else 0}
+        for v in sorted(by_tip.values(), key=lambda i: i["tutar_cents"], reverse=True)[:8]
+    ]
+
+    # Son 7 gün akışı
+    today = _today()
+    day_totals = {(today - timedelta(days=i)).isoformat(): 0 for i in range(6, -1, -1)}
+    for x in try_items:
+        if x["tarih"] in day_totals:
+            day_totals[x["tarih"]] += x["miktar_cents"]
+    son_7_gun = [{"tarih": k, "tutar_cents": v} for k, v in day_totals.items()]
+
+    # Tahsilat liderleri (En çok bağış yapanlar)
+    by_donor: dict[str, dict] = {}
+    for x in try_items:
+        name = x["kisi_adi"] or "Hayırsever"
+        entry = by_donor.setdefault(name, {"kisi_adi": name, "kisi_id": x["kisi_id"], "tutar_cents": 0, "adet": 0})
+        entry["tutar_cents"] += x["miktar_cents"]
+        entry["adet"] += 1
+    liderler = sorted(by_donor.values(), key=lambda i: i["tutar_cents"], reverse=True)[:10]
+
+    return {
+        "items": items,
+        "summary": {
+            "toplam_cents": toplam_cents,
+            "nakit_cents": nakit_cents,
+            "banka_cents": banka_cents,
+            "kart_cents": kart_cents,
+            "toplam_adet": len(items),
+            "odeme_dagilimi": odeme_dagilimi,
+            "tip_dagilimi": tip_dagilimi,
+            "son_7_gun": son_7_gun,
+            "liderler": liderler,
+        },
     }
