@@ -1,30 +1,38 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Card } from '@e-infak/ui'
+import { Button, Card, Input } from '@e-infak/ui'
 import {
   Beef,
-  Calculator,
   CheckCircle2,
   Clock,
   Coins,
   FileText,
-  Filter,
   HandCoins,
   MessageSquare,
   Plus,
+  RefreshCw,
   Settings,
   Shuffle,
   Trash2,
   Users,
   Video,
-  X,
 } from 'lucide-react'
 import { apiErrorMessage, downloadFile, formatMoney, useAdminAccess, v1Get, v1Send, whatsappUrl, can } from '../../../../lib/admin-access'
-import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm } from '../../../../components/admin/ManualReceiptForm'
-import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, ResponsiveDataToolbar } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+
+const SHARE_PAGE_SIZE = 500
+
+function formatDateTime(iso: string | null) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('tr-TR', { dateStyle: 'short', timeStyle: 'short' }).format(d)
+}
 
 interface KurbanCampaign {
   id: string
@@ -100,21 +108,27 @@ export default function KurbanAdminPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [animals, setAnimals] = useState<Animal[]>([])
   const [shares, setShares] = useState<Share[]>([])
+  const [sharesTotal, setSharesTotal] = useState(0)
+  const [sharePage, setSharePage] = useState(1)
   const [tab, setTab] = useState<Tab>('animals')
   const [animalFilter, setAnimalFilter] = useState<'' | 'waiting' | 'slaughtered'>('')
+  const [animalPartialOnly, setAnimalPartialOnly] = useState(false)
   const [search, setSearch] = useState('')
   const [shareFilter, setShareFilter] = useState<'' | 'true' | 'false'>('')
   const [shareKurbanType, setShareKurbanType] = useState('')
   const [shareStatus, setShareStatus] = useState<'' | 'waiting' | 'slaughtered'>('')
+  const [shareNotifiedOnly, setShareNotifiedOnly] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [pickedShares, setPickedShares] = useState<Set<string>>(new Set())
+  const [bulkAnimalId, setBulkAnimalId] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [statModal, setStatModal] = useState<'shares' | 'unassigned' | 'animals' | 'notified' | null>(null)
   const [slaughterModal, setSlaughterModal] = useState<{ ids: string[]; videoUrl: string; notify: boolean } | null>(null)
   const [animalEditModal, setAnimalEditModal] = useState<{ animal: Animal; animalNumber: string; videoUrl: string } | null>(null)
   const [addAnimalModal, setAddAnimalModal] = useState<{ count: string; animalNumber: string } | null>(null)
   const [shareEditModal, setShareEditModal] = useState<{ share: Share; onBehalfOf: string; kurbanType: string } | null>(null)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const loadCampaigns = async () => {
@@ -124,7 +138,7 @@ export default function KurbanAdminPage() {
       setTypes(t.data)
       if (!selectedId && c.data.length) setSelectedId(c.data[0].id)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Kurban kampanyaları yüklenemedi') })
+      toast.error(apiErrorMessage(err, 'Kurban kampanyaları yüklenemedi'))
     }
   }
 
@@ -134,17 +148,28 @@ export default function KurbanAdminPage() {
       const [s, a, sh] = await Promise.all([
         v1Get<Summary>(`/kurban/campaigns/${selectedId}/summary`),
         v1Get<Animal[]>('/kurban/animals', { campaign_id: selectedId, status: animalFilter || undefined, q: search || undefined }),
-        v1Get<{ items: Share[] }>('/kurban/shares', {
+        v1Get<{ total?: number; items: Share[] }>('/kurban/shares', {
           campaign_id: selectedId, assigned: shareFilter || undefined,
           kurban_type: shareKurbanType || undefined, status: shareStatus || undefined,
-          q: search || undefined, page_size: 1000,
+          q: search || undefined, page: sharePage, page_size: SHARE_PAGE_SIZE,
         }),
       ])
       setSummary(s.data)
       setAnimals(a.data)
       setShares(sh.data.items)
+      setSharesTotal(sh.data.total ?? sh.data.items.length)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
+    }
+  }
+
+  const refreshAll = async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([loadCampaigns(), loadSelected()])
+      toast.ok('Kurban verileri yenilendi.')
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -152,6 +177,7 @@ export default function KurbanAdminPage() {
   const didMountRef = useRef(false)
   useEffect(() => {
     setPicked(new Set())
+    setPickedShares(new Set())
     if (!didMountRef.current) {
       didMountRef.current = true
       loadSelected()
@@ -160,17 +186,16 @@ export default function KurbanAdminPage() {
     const t = setTimeout(loadSelected, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, animalFilter, search, shareFilter, shareKurbanType, shareStatus])
+  }, [selectedId, animalFilter, search, shareFilter, shareKurbanType, shareStatus, sharePage])
 
   const run = async (fn: () => Promise<unknown>, ok: string | ((r: any) => string)) => {
     setBusy(true)
-    setMessage(null)
     try {
       const res: any = await fn()
-      setMessage({ type: 'ok', text: typeof ok === 'function' ? ok(res?.data) : ok })
+      toast.ok(typeof ok === 'function' ? ok(res?.data) : ok)
       await Promise.all([loadCampaigns(), loadSelected()])
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     } finally {
       setBusy(false)
     }
@@ -272,6 +297,15 @@ export default function KurbanAdminPage() {
 
   const selected = campaigns.find((c) => c.id === selectedId)
   const waitingAnimals = useMemo(() => animals.filter((a) => a.status === 'waiting'), [animals])
+  const visibleAnimals = useMemo(
+    () => (animalPartialOnly ? animals.filter((a) => a.status === 'waiting' && a.shares.length < a.capacity) : animals),
+    [animals, animalPartialOnly],
+  )
+  const visibleShares = useMemo(
+    () => (shareNotifiedOnly ? shares.filter((s) => s.notified) : shares),
+    [shares, shareNotifiedOnly],
+  )
+  const assignableShares = useMemo(() => visibleShares.filter((s) => s.status !== 'slaughtered'), [visibleShares])
 
   const togglePick = (id: string) => setPicked((prev) => {
     const next = new Set(prev)
@@ -279,11 +313,47 @@ export default function KurbanAdminPage() {
     return next
   })
 
+  const toggleSharePick = (id: string) => setPickedShares((prev) => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+
+  const toggleAllShares = () => {
+    if (pickedShares.size === assignableShares.length && assignableShares.length > 0) {
+      setPickedShares(new Set())
+    } else {
+      setPickedShares(new Set(assignableShares.map((s) => s.id)))
+    }
+  }
+
+  const assignBulkShares = async () => {
+    if (pickedShares.size === 0) return
+    const ids = [...pickedShares]
+    const payload = bulkAnimalId ? { animal_id: bulkAnimalId } : { unassign: true }
+    await run(async () => {
+      await Promise.all(ids.map((id) => v1Send('put', `/kurban/shares/${id}`, payload)))
+      setPickedShares(new Set())
+      setBulkAnimalId('')
+    }, bulkAnimalId ? `${ids.length} hisse seçilen hayvana atandı` : `${ids.length} hissenin hayvan ataması kaldırıldı`)
+  }
+
+  const clearFilters = () => {
+    setSearch('')
+    setAnimalFilter('')
+    setAnimalPartialOnly(false)
+    setShareFilter('')
+    setShareKurbanType('')
+    setShareStatus('')
+    setShareNotifiedOnly(false)
+    setSharePage(1)
+  }
+
   const activeFilterCount = useMemo(() => {
-    if (tab === 'animals') return [animalFilter].filter(Boolean).length
-    if (tab === 'shares') return [shareFilter, shareKurbanType, shareStatus].filter(Boolean).length
+    if (tab === 'animals') return [animalFilter, animalPartialOnly ? '1' : ''].filter(Boolean).length
+    if (tab === 'shares') return [shareFilter, shareKurbanType, shareStatus, shareNotifiedOnly ? '1' : ''].filter(Boolean).length
     return 0
-  }, [tab, animalFilter, shareFilter, shareKurbanType, shareStatus])
+  }, [tab, animalFilter, animalPartialOnly, shareFilter, shareKurbanType, shareStatus, shareNotifiedOnly])
 
   return (
     <div className="space-y-5">
@@ -316,7 +386,10 @@ export default function KurbanAdminPage() {
             <select
               className="h-10 rounded-xl border border-slate-300 bg-slate-50/80 px-3 text-xs font-bold text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
               value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={(e) => {
+                setSelectedId(e.target.value)
+                setSharePage(1)
+              }}
             >
               {campaigns.length === 0 && <option value="">Kampanya yok</option>}
               {campaigns.map((c) => (
@@ -325,6 +398,10 @@ export default function KurbanAdminPage() {
                 </option>
               ))}
             </select>
+            <Button type="button" variant="outline" size="sm" onClick={refreshAll} disabled={refreshing} className="h-10 rounded-xl px-3 text-xs font-bold">
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
             {canWrite && summary && summary.unassigned_shares > 0 && (
               <button
                 type="button"
@@ -341,7 +418,7 @@ export default function KurbanAdminPage() {
                 type="button"
                 onClick={() => downloadFile(`/kurban/campaigns/${selectedId}/papers.pdf`, 'kurban-kagitlari.pdf', {
                   status: animalFilter === 'slaughtered' ? 'slaughtered' : 'waiting',
-                }).catch((err) => setMessage({ type: 'error', text: apiErrorMessage(err, 'PDF indirilemedi') }))}
+                }).catch((err) => toast.error(apiErrorMessage(err, 'PDF indirilemedi')))}
                 className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
               >
                 <FileText className="h-4 w-4 text-emerald-600" />
@@ -362,7 +439,54 @@ export default function KurbanAdminPage() {
         }
       />
 
-      <Notice message={message} />
+      {campaigns.length > 1 && (
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          {campaigns.map((c) => {
+            const totalA = c.animals || 0
+            const doneA = c.slaughtered_animals || 0
+            const pct = totalA > 0 ? Math.round((doneA / totalA) * 100) : 0
+            const isSelected = c.id === selectedId
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  setSelectedId(c.id)
+                  setSharePage(1)
+                }}
+                className={`flex flex-col justify-between rounded-2xl border p-3.5 text-left transition ${
+                  isSelected
+                    ? 'border-emerald-500 bg-emerald-50/40 ring-2 ring-emerald-500/20'
+                    : 'border-slate-200/80 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-bold text-slate-900">{c.title}</div>
+                    <div className="mt-0.5 text-[11px] text-slate-500">
+                      {c.country || c.animal_type_label} · {c.shares ?? 0} hisse
+                    </div>
+                  </div>
+                  {(c.unassigned_shares ?? 0) > 0 && (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                      {c.unassigned_shares} bekleyen
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2.5">
+                  <div className="mb-1 flex items-center justify-between text-[10px] font-semibold text-slate-500">
+                    <span>Kesim İlerlemesi</span>
+                    <span className="font-mono text-slate-700">{doneA}/{totalA} (%{pct})</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-emerald-600 transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {selected && summary && (
         <>
@@ -410,8 +534,8 @@ export default function KurbanAdminPage() {
               value={tab}
               onChange={(k) => setTab(k)}
               tabs={[
-                { key: 'animals', label: 'Hayvanlar & Çadırlar', count: animals.length, icon: Beef },
-                { key: 'shares', label: 'Hisseler & Hissedarlar', count: shares.length, icon: Users },
+                { key: 'animals', label: 'Hayvanlar & Çadırlar', count: visibleAnimals.length, icon: Beef },
+                { key: 'shares', label: 'Hisseler & Hissedarlar', count: sharesTotal || visibleShares.length, icon: Users },
                 ...(canIssue ? [{ key: 'entry' as Tab, label: 'Elden Hisse Kaydı', icon: HandCoins }] : []),
                 ...(canWrite ? [{ key: 'settings' as Tab, label: 'Kampanya Ayarları', icon: Settings }] : []),
               ]}
@@ -423,7 +547,10 @@ export default function KurbanAdminPage() {
               <ResponsiveDataToolbar
                 search={{
                   value: search,
-                  onChange: setSearch,
+                  onChange: (v) => {
+                    setSearch(v)
+                    setSharePage(1)
+                  },
                   placeholder: 'Hayvan no, hissedar, bağışçı veya telefon ara...',
                 }}
                 filter={{
@@ -467,7 +594,7 @@ export default function KurbanAdminPage() {
                     <ExportButtons
                       filename={tab === 'animals' ? 'kurban-hayvanlar' : 'kurban-hisseleri'}
                       title={tab === 'animals' ? `${selected.title} - Kurban Hayvanları` : `${selected.title} - Kurban Hisseleri`}
-                      subtitle={tab === 'animals' ? `${animals.length} hayvan` : `${shares.length} hisse`}
+                      subtitle={tab === 'animals' ? `${visibleAnimals.length} hayvan` : `${visibleShares.length} hisse`}
                       summary={[
                         ['Kampanya', selected.title],
                         ['Hisse Bedeli', formatMoney(selected.price_per_share_cents)],
@@ -477,18 +604,19 @@ export default function KurbanAdminPage() {
                       getData={() =>
                         tab === 'animals'
                           ? {
-                              headers: ['Hayvan No', 'Kapasite', 'Dolu Hisse', 'Durum', 'Hissedarlar'],
-                              rows: animals.map((a) => [
+                              headers: ['Hayvan No', 'Kapasite', 'Dolu Hisse', 'Durum', 'Kesim Tarihi', 'Hissedarlar'],
+                              rows: visibleAnimals.map((a) => [
                                 a.animal_number,
                                 a.capacity,
                                 a.shares.length,
                                 a.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor',
+                                formatDateTime(a.slaughtered_at),
                                 a.shares.map((s) => `${s.share_number}. ${s.name}`).join(', '),
                               ]),
                             }
                           : {
                               headers: ['Hayvan', 'Hisse', 'Hissedar', 'Bağışçı', 'Telefon', 'Tür', 'Durum', 'Makbuz'],
-                              rows: shares.map((s) => [
+                              rows: visibleShares.map((s) => [
                                 s.animal_number || 'Atanmadı',
                                 s.share_number || '',
                                 s.on_behalf_of || s.donor_name,
@@ -505,33 +633,118 @@ export default function KurbanAdminPage() {
                 }
               />
 
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {tab === 'animals' ? (
+                    <>
+                      {[
+                        { label: 'Tümü', active: !animalFilter && !animalPartialOnly, onClick: () => { setAnimalFilter(''); setAnimalPartialOnly(false) } },
+                        { label: 'Kesim Bekleyen', active: animalFilter === 'waiting' && !animalPartialOnly, onClick: () => { setAnimalFilter('waiting'); setAnimalPartialOnly(false) } },
+                        { label: 'Boş Yeri Olan', active: animalPartialOnly, onClick: () => { setAnimalFilter('waiting'); setAnimalPartialOnly(true) } },
+                        { label: 'Kesilenler', active: animalFilter === 'slaughtered', onClick: () => { setAnimalFilter('slaughtered'); setAnimalPartialOnly(false) } },
+                      ].map((p) => (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={p.onClick}
+                          className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                            p.active
+                              ? 'border-emerald-600 bg-emerald-600 text-white'
+                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {[
+                        { label: 'Tümü', active: !shareFilter && !shareStatus && !shareNotifiedOnly, onClick: () => { setShareFilter(''); setShareStatus(''); setShareNotifiedOnly(false); setSharePage(1) } },
+                        { label: 'Atanmamış', active: shareFilter === 'false', onClick: () => { setShareFilter('false'); setShareStatus(''); setShareNotifiedOnly(false); setSharePage(1) } },
+                        { label: 'Atanmış', active: shareFilter === 'true' && !shareStatus && !shareNotifiedOnly, onClick: () => { setShareFilter('true'); setShareStatus(''); setShareNotifiedOnly(false); setSharePage(1) } },
+                        { label: 'Kesim Bekleyen', active: shareStatus === 'waiting', onClick: () => { setShareStatus('waiting'); setShareFilter(''); setShareNotifiedOnly(false); setSharePage(1) } },
+                        { label: 'Kesilenler', active: shareStatus === 'slaughtered', onClick: () => { setShareStatus('slaughtered'); setShareFilter(''); setShareNotifiedOnly(false); setSharePage(1) } },
+                        { label: 'SMS Gönderilen', active: shareNotifiedOnly, onClick: () => { setShareNotifiedOnly((v) => !v) } },
+                      ].map((p) => (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={p.onClick}
+                          className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                            p.active
+                              ? 'border-emerald-600 bg-emerald-600 text-white'
+                              : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+                {(activeFilterCount > 0 || search) && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="text-xs font-bold text-rose-600 hover:text-rose-700"
+                  >
+                    Filtreleri Temizle
+                  </button>
+                )}
+              </div>
+
               {showFilters && (
                 <div className="grid gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-3">
                   {tab === 'animals' ? (
-                    <Label label="Kesim Durumu">
-                      <select className={inputClass} value={animalFilter} onChange={(e) => setAnimalFilter(e.target.value as typeof animalFilter)}>
-                        <option value="">Tüm hayvanlar</option>
-                        <option value="waiting">Kesim bekleyen</option>
-                        <option value="slaughtered">Kesilen</option>
-                      </select>
-                    </Label>
+                    <>
+                      <Label label="Kesim Durumu">
+                        <select
+                          className={inputClass}
+                          value={animalFilter}
+                          onChange={(e) => {
+                            const val = e.target.value as typeof animalFilter
+                            setAnimalFilter(val)
+                            if (val === 'slaughtered') setAnimalPartialOnly(false)
+                          }}
+                        >
+                          <option value="">Tüm hayvanlar</option>
+                          <option value="waiting">Kesim bekleyen</option>
+                          <option value="slaughtered">Kesilen</option>
+                        </select>
+                      </Label>
+                      <div className="flex items-end">
+                        <label className="flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={animalPartialOnly}
+                            onChange={(e) => {
+                              setAnimalPartialOnly(e.target.checked)
+                              if (e.target.checked) setAnimalFilter('waiting')
+                            }}
+                            className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+                          />
+                          Sadece boş yeri olanlar
+                        </label>
+                      </div>
+                    </>
                   ) : (
                     <>
                       <Label label="Atama Durumu">
-                        <select className={inputClass} value={shareFilter} onChange={(e) => setShareFilter(e.target.value as typeof shareFilter)}>
+                        <select className={inputClass} value={shareFilter} onChange={(e) => { setShareFilter(e.target.value as typeof shareFilter); setSharePage(1) }}>
                           <option value="">Tüm hisseler</option>
                           <option value="false">Dağıtılmamış (Bekleyen)</option>
                           <option value="true">Hayvana atanmış</option>
                         </select>
                       </Label>
                       <Label label="Niyet Türü">
-                        <select className={inputClass} value={shareKurbanType} onChange={(e) => setShareKurbanType(e.target.value)}>
+                        <select className={inputClass} value={shareKurbanType} onChange={(e) => { setShareKurbanType(e.target.value); setSharePage(1) }}>
                           <option value="">Tüm niyetler</option>
                           {types.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                         </select>
                       </Label>
                       <Label label="Kesim Durumu">
-                        <select className={inputClass} value={shareStatus} onChange={(e) => setShareStatus(e.target.value as typeof shareStatus)}>
+                        <select className={inputClass} value={shareStatus} onChange={(e) => { setShareStatus(e.target.value as typeof shareStatus); setSharePage(1) }}>
                           <option value="">Tüm durumlar</option>
                           <option value="waiting">Bekliyor</option>
                           <option value="slaughtered">Kesildi</option>
@@ -546,17 +759,18 @@ export default function KurbanAdminPage() {
 
           {tab === 'animals' && (
             <div className="space-y-3">
-              {animals.length === 0 ? (
+              {visibleAnimals.length === 0 ? (
                 <Card className="border border-slate-200/80 p-12 text-center shadow-xs">
                   <Beef className="mx-auto h-10 w-10 text-slate-300" />
-                  <p className="mt-2 text-sm font-bold text-slate-700">Henüz hayvan kaydı bulunmuyor</p>
-                  <p className="mt-1 text-xs text-slate-500">Hisseler geldikçe &quot;Hisseleri Dağıt&quot; butonuyla hayvanlar otomatik oluşturulur veya elle ekleyebilirsiniz.</p>
+                  <p className="mt-2 text-sm font-bold text-slate-700">Uygun hayvan kaydı bulunmuyor</p>
+                  <p className="mt-1 text-xs text-slate-500">Hisseler geldikçe &quot;Hisseleri Dağıt&quot; butonuyla hayvanlar otomatik oluşturulur veya filtreleri temizleyebilirsiniz.</p>
                 </Card>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {animals.map((a) => {
+                  {visibleAnimals.map((a) => {
                     const fillPct = a.capacity > 0 ? Math.min(100, Math.round((a.shares.length / a.capacity) * 100)) : 0
                     const isSlaughtered = a.status === 'slaughtered'
+                    const emptySlots = Math.max(0, a.capacity - a.shares.length)
                     return (
                       <div
                         key={a.id}
@@ -577,17 +791,29 @@ export default function KurbanAdminPage() {
                                   className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                                 />
                               )}
-                              <span className="font-mono text-lg font-black tracking-tight text-slate-900">{a.animal_number}</span>
+                              <div>
+                                <span className="font-mono text-lg font-black tracking-tight text-slate-900">{a.animal_number}</span>
+                                {isSlaughtered && a.slaughtered_at && (
+                                  <div className="text-[11px] font-medium text-emerald-700">
+                                    Kesim: {formatDateTime(a.slaughtered_at)}
+                                  </div>
+                                )}
+                              </div>
                             </label>
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${
-                                isSlaughtered
-                                  ? 'border-emerald-300 bg-emerald-100/70 text-emerald-800'
-                                  : 'border-amber-200 bg-amber-50 text-amber-800'
-                              }`}
-                            >
-                              {isSlaughtered ? '✓ Kesildi' : '⏳ Bekliyor'} · {a.shares.length}/{a.capacity}
-                            </span>
+                            <div className="flex flex-col items-end gap-1">
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${
+                                  isSlaughtered
+                                    ? 'border-emerald-300 bg-emerald-100/70 text-emerald-800'
+                                    : 'border-amber-200 bg-amber-50 text-amber-800'
+                                }`}
+                              >
+                                {isSlaughtered ? '✓ Kesildi' : '⏳ Bekliyor'} · {a.shares.length}/{a.capacity}
+                              </span>
+                              {!isSlaughtered && emptySlots > 0 && (
+                                <span className="text-[10px] font-bold text-slate-500">{emptySlots} boş hisse</span>
+                              )}
+                            </div>
                           </div>
 
                           <div className="mt-2.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -673,92 +899,184 @@ export default function KurbanAdminPage() {
           )}
 
           {tab === 'shares' && (
-            <Card className="overflow-hidden rounded-2xl border border-slate-200/80 p-0 shadow-xs">
-              <div className="overflow-x-auto">
-                <Table inset>
-                  <THead className="bg-slate-50/80">
-                    <Tr>
-                      <Th>Hissedar (Vekâlet)</Th>
-                      <Th>Bağışçı & İletişim</Th>
-                      <Th>Niyet Türü</Th>
-                      <Th>Hayvan / Hisse</Th>
-                      <Th>Makbuz No</Th>
-                      <Th className="text-right">İşlem</Th>
-                    </Tr>
-                  </THead>
-                  <TBody>
-                    {shares.map((s) => (
-                      <Tr key={s.id} className="hover:bg-slate-50/70">
-                        <Td className="font-bold text-slate-900">{s.on_behalf_of || s.donor_name}</Td>
-                        <Td>
-                          <div className="font-medium text-slate-800">{s.donor_name}</div>
-                          <div className="text-[11px] text-slate-500">{s.donor_phone}</div>
-                        </Td>
-                        <Td>
-                          <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                            {s.kurban_type_label}
-                          </span>
-                        </Td>
-                        <Td>
-                          {canWrite && s.status !== 'slaughtered' ? (
-                            <select
-                              className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
-                              value={s.animal_id || ''}
-                              onChange={(e) => moveShare(s, e.target.value)}
-                            >
-                              <option value="">— Atanmamış</option>
-                              {waitingAnimals.map((a) => (
-                                <option key={a.id} value={a.id}>
-                                  {a.animal_number} ({a.shares.length}/{a.capacity})
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="font-mono text-xs font-bold text-slate-800">
-                              {s.animal_number || '—'}
-                              {s.share_number ? ` / ${s.share_number}. Hisse` : ''}
-                              {s.status === 'slaughtered' ? ' ✓' : ''}
-                            </span>
-                          )}
-                        </Td>
-                        <Td className="font-mono text-xs text-slate-500">{s.receipt_number || '—'}</Td>
-                        <Td className="text-right">
-                          <div className="inline-flex items-center gap-2">
-                            {(() => {
-                              const wa = whatsappUrl(
-                                s.donor_phone,
-                                `Merhaba ${s.donor_name}, ${s.on_behalf_of || s.donor_name} adına alınan ${s.kurban_type_label} kurban hisseniz${s.animal_number ? ` (${s.animal_number})` : ''} ${s.status === 'slaughtered' ? 'kesilmiştir. Allah kabul etsin.' : 'kayıt altına alınmıştır.'}`,
-                              )
-                              return wa ? (
-                                <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp ile mesaj gönder" className="inline-flex hover:opacity-80">
-                                  <WhatsAppIcon className="h-4 w-4" />
-                                </a>
-                              ) : null
-                            })()}
-                            {canWrite && s.status !== 'slaughtered' && (
-                              <button
-                                type="button"
-                                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
-                                onClick={() => editShare(s)}
-                              >
-                                Düzenle
-                              </button>
-                            )}
-                          </div>
-                        </Td>
-                      </Tr>
-                    ))}
-                    {shares.length === 0 && (
+            <div className="space-y-3">
+              {canWrite && pickedShares.size > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                  <span className="text-xs font-bold text-emerald-900">
+                    {pickedShares.size} hisse seçildi
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className="h-9 rounded-xl border border-emerald-300 bg-white px-3 text-xs font-bold text-slate-800 outline-none focus:border-emerald-500"
+                      value={bulkAnimalId}
+                      onChange={(e) => setBulkAnimalId(e.target.value)}
+                    >
+                      <option value="">Atamayı kaldır (Boşa çıkar)</option>
+                      {waitingAnimals.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.animal_number} ({a.shares.length}/{a.capacity})
+                        </option>
+                      ))}
+                    </select>
+                    <Button type="button" size="sm" disabled={busy} onClick={assignBulkShares}>
+                      Seçilenleri Uygula
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => setPickedShares(new Set())}>
+                      Temizle
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <Card className="overflow-hidden rounded-2xl border border-slate-200/80 p-0 shadow-xs">
+                <div className="overflow-x-auto">
+                  <Table inset>
+                    <THead className="bg-slate-50/80">
                       <Tr>
-                        <Td colSpan={6} className="py-10 text-center text-slate-400">
-                          Seçili filtrelere uygun hisse kaydı bulunamadı.
-                        </Td>
+                        {canWrite && (
+                          <Th className="w-10">
+                            <input
+                              type="checkbox"
+                              checked={assignableShares.length > 0 && pickedShares.size === assignableShares.length}
+                              onChange={toggleAllShares}
+                              aria-label="Tüm atanabilir hisseleri seç"
+                              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                          </Th>
+                        )}
+                        <Th>Hissedar (Vekâlet)</Th>
+                        <Th>Bağışçı & İletişim</Th>
+                        <Th>Niyet Türü</Th>
+                        <Th>Hayvan / Hisse</Th>
+                        <Th>Makbuz No</Th>
+                        <Th className="text-right">İşlem</Th>
                       </Tr>
-                    )}
-                  </TBody>
-                </Table>
-              </div>
-            </Card>
+                    </THead>
+                    <TBody>
+                      {visibleShares.map((s) => (
+                        <Tr key={s.id} className="hover:bg-slate-50/70">
+                          {canWrite && (
+                            <Td>
+                              {s.status !== 'slaughtered' && (
+                                <input
+                                  type="checkbox"
+                                  checked={pickedShares.has(s.id)}
+                                  onChange={() => toggleSharePick(s.id)}
+                                  aria-label={`${s.on_behalf_of || s.donor_name} seç`}
+                                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                              )}
+                            </Td>
+                          )}
+                          <Td className="font-bold text-slate-900">{s.on_behalf_of || s.donor_name}</Td>
+                          <Td>
+                            <Link
+                              href={`/admin/bagiscilar?q=${encodeURIComponent(s.donor_phone || s.donor_name)}`}
+                              className="font-medium text-slate-800 hover:text-emerald-700 hover:underline"
+                            >
+                              {s.donor_name}
+                            </Link>
+                            <div className="text-[11px] text-slate-500">{s.donor_phone}</div>
+                          </Td>
+                          <Td>
+                            <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                              {s.kurban_type_label}
+                            </span>
+                          </Td>
+                          <Td>
+                            {canWrite && s.status !== 'slaughtered' ? (
+                              <select
+                                className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none"
+                                value={s.animal_id || ''}
+                                onChange={(e) => moveShare(s, e.target.value)}
+                              >
+                                <option value="">— Atanmamış</option>
+                                {waitingAnimals.map((a) => (
+                                  <option key={a.id} value={a.id}>
+                                    {a.animal_number} ({a.shares.length}/{a.capacity})
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="font-mono text-xs font-bold text-slate-800">
+                                {s.animal_number || '—'}
+                                {s.share_number ? ` / ${s.share_number}. Hisse` : ''}
+                                {s.status === 'slaughtered' ? ' ✓' : ''}
+                              </span>
+                            )}
+                          </Td>
+                          <Td className="font-mono text-xs">
+                            {s.receipt_number ? (
+                              <Link
+                                href={`/admin/bagislar?q=${encodeURIComponent(s.receipt_number)}`}
+                                className="font-bold text-emerald-700 hover:underline"
+                              >
+                                {s.receipt_number}
+                              </Link>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </Td>
+                          <Td className="text-right">
+                            <div className="inline-flex items-center gap-2">
+                              {(() => {
+                                const wa = whatsappUrl(
+                                  s.donor_phone,
+                                  `Merhaba ${s.donor_name}, ${s.on_behalf_of || s.donor_name} adına alınan ${s.kurban_type_label} kurban hisseniz${s.animal_number ? ` (${s.animal_number})` : ''} ${s.status === 'slaughtered' ? 'kesilmiştir. Allah kabul etsin.' : 'kayıt altına alınmıştır.'}`,
+                                )
+                                return wa ? (
+                                  <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp ile mesaj gönder" className="inline-flex hover:opacity-80">
+                                    <WhatsAppIcon className="h-4 w-4" />
+                                  </a>
+                                ) : null
+                              })()}
+                              {canWrite && s.status !== 'slaughtered' && (
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+                                  onClick={() => editShare(s)}
+                                >
+                                  Düzenle
+                                </button>
+                              )}
+                            </div>
+                          </Td>
+                        </Tr>
+                      ))}
+                      {visibleShares.length === 0 && (
+                        <Tr>
+                          <Td colSpan={canWrite ? 7 : 6} className="py-10 text-center text-slate-400">
+                            Seçili filtrelere uygun hisse kaydı bulunamadı.
+                          </Td>
+                        </Tr>
+                      )}
+                    </TBody>
+                  </Table>
+                </div>
+              </Card>
+
+              {sharesTotal > SHARE_PAGE_SIZE && (
+                <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-xs font-semibold text-slate-600 shadow-xs">
+                  <span>
+                    Toplam {sharesTotal} hisseden {((sharePage - 1) * SHARE_PAGE_SIZE) + 1}–{Math.min(sharePage * SHARE_PAGE_SIZE, sharesTotal)} arası gösteriliyor
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" size="sm" variant="outline" disabled={sharePage <= 1} onClick={() => setSharePage((p) => Math.max(1, p - 1))}>
+                      Önceki
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={sharePage * SHARE_PAGE_SIZE >= sharesTotal}
+                      onClick={() => setSharePage((p) => p + 1)}
+                    >
+                      Sonraki
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {tab === 'entry' && (
@@ -767,7 +1085,7 @@ export default function KurbanAdminPage() {
                 <ManualReceiptForm
                   kurban={{ campaignId: selected.donation_campaign_id, pricePerShareCents: selected.price_per_share_cents, types }}
                   onDone={(r) => {
-                    setMessage({ type: 'ok', text: `${r.receipt_number} numaralı makbuz kesildi, hisseler oluşturuldu` })
+                    toast.ok(`${r.receipt_number} numaralı makbuz kesildi, hisseler oluşturuldu`)
                     setTab('shares')
                     loadSelected()
                   }}
@@ -871,13 +1189,14 @@ export default function KurbanAdminPage() {
           onClose={() => setSlaughterModal(null)}
         >
           <form onSubmit={submitSlaughter} className="space-y-4">
-            <TextInput
-              label="Kesim Videosu Bağlantısı (isteğe bağlı)"
-              value={slaughterModal.videoUrl}
-              onChange={(v) => setSlaughterModal({ ...slaughterModal, videoUrl: v })}
-              placeholder="https://..."
-              hint="Bağışçı panelinde ve SMS içinde görüntülenecektir."
-            />
+            <Label label="Kesim Videosu Bağlantısı (isteğe bağlı)">
+              <Input
+                value={slaughterModal.videoUrl}
+                onChange={(e) => setSlaughterModal({ ...slaughterModal, videoUrl: e.target.value })}
+                placeholder="https://..."
+              />
+              <span className="mt-1 block text-[11px] text-slate-500">Bağışçı panelinde ve SMS içinde görüntülenecektir.</span>
+            </Label>
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <input
                 type="checkbox"
@@ -888,8 +1207,8 @@ export default function KurbanAdminPage() {
               Hissedarlara kesim SMS bildirimi gönder
             </label>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className={ghostButton} onClick={() => setSlaughterModal(null)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>Kesildi İşaretle</button>
+              <Button type="button" variant="outline" onClick={() => setSlaughterModal(null)}>Vazgeç</Button>
+              <Button type="submit">Kesildi İşaretle</Button>
             </div>
           </form>
         </Modal>
@@ -902,21 +1221,23 @@ export default function KurbanAdminPage() {
           onClose={() => setAnimalEditModal(null)}
         >
           <form onSubmit={submitAnimalEdit} className="space-y-4">
-            <TextInput
-              label="Hayvan Numarası"
-              required
-              value={animalEditModal.animalNumber}
-              onChange={(v) => setAnimalEditModal({ ...animalEditModal, animalNumber: v })}
-            />
-            <TextInput
-              label="Kesim Videosu Bağlantısı"
-              value={animalEditModal.videoUrl}
-              onChange={(v) => setAnimalEditModal({ ...animalEditModal, videoUrl: v })}
-              placeholder="https://..."
-            />
+            <Label label="Hayvan Numarası">
+              <Input
+                required
+                value={animalEditModal.animalNumber}
+                onChange={(e) => setAnimalEditModal({ ...animalEditModal, animalNumber: e.target.value })}
+              />
+            </Label>
+            <Label label="Kesim Videosu Bağlantısı">
+              <Input
+                value={animalEditModal.videoUrl}
+                onChange={(e) => setAnimalEditModal({ ...animalEditModal, videoUrl: e.target.value })}
+                placeholder="https://..."
+              />
+            </Label>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className={ghostButton} onClick={() => setAnimalEditModal(null)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>Kaydet</button>
+              <Button type="button" variant="outline" onClick={() => setAnimalEditModal(null)}>Vazgeç</Button>
+              <Button type="submit">Kaydet</Button>
             </div>
           </form>
         </Modal>
@@ -930,24 +1251,26 @@ export default function KurbanAdminPage() {
           onClose={() => setAddAnimalModal(null)}
         >
           <form onSubmit={submitAddAnimals} className="space-y-4">
-            <TextInput
-              label="Hayvan Adedi"
-              type="number"
-              min={1}
-              max={500}
-              required
-              value={addAnimalModal.count}
-              onChange={(v) => setAddAnimalModal({ ...addAnimalModal, count: v })}
-            />
-            <TextInput
-              label="Özel Hayvan No (isteğe bağlı, tek hayvan için)"
-              value={addAnimalModal.animalNumber}
-              onChange={(v) => setAddAnimalModal({ ...addAnimalModal, animalNumber: v })}
-              placeholder="Örn: K-105"
-            />
+            <Label label="Hayvan Adedi">
+              <Input
+                type="number"
+                min={1}
+                max={500}
+                required
+                value={addAnimalModal.count}
+                onChange={(e) => setAddAnimalModal({ ...addAnimalModal, count: e.target.value })}
+              />
+            </Label>
+            <Label label="Özel Hayvan No (isteğe bağlı, tek hayvan için)">
+              <Input
+                value={addAnimalModal.animalNumber}
+                onChange={(e) => setAddAnimalModal({ ...addAnimalModal, animalNumber: e.target.value })}
+                placeholder="Örn: K-105"
+              />
+            </Label>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className={ghostButton} onClick={() => setAddAnimalModal(null)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>Ekle</button>
+              <Button type="button" variant="outline" onClick={() => setAddAnimalModal(null)}>Vazgeç</Button>
+              <Button type="submit">Ekle</Button>
             </div>
           </form>
         </Modal>
@@ -960,12 +1283,13 @@ export default function KurbanAdminPage() {
           onClose={() => setShareEditModal(null)}
         >
           <form onSubmit={submitShareEdit} className="space-y-4">
-            <TextInput
-              label="Hissedar Adı (kurban kağıdında yazar)"
-              required
-              value={shareEditModal.onBehalfOf}
-              onChange={(v) => setShareEditModal({ ...shareEditModal, onBehalfOf: v })}
-            />
+            <Label label="Hissedar Adı (kurban kağıdında yazar)">
+              <Input
+                required
+                value={shareEditModal.onBehalfOf}
+                onChange={(e) => setShareEditModal({ ...shareEditModal, onBehalfOf: e.target.value })}
+              />
+            </Label>
             <Label label="Niyet Türü">
               <select
                 className={inputClass}
@@ -976,8 +1300,8 @@ export default function KurbanAdminPage() {
               </select>
             </Label>
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className={ghostButton} onClick={() => setShareEditModal(null)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>Kaydet</button>
+              <Button type="button" variant="outline" onClick={() => setShareEditModal(null)}>Vazgeç</Button>
+              <Button type="submit">Kaydet</Button>
             </div>
           </form>
         </Modal>
@@ -1000,22 +1324,38 @@ function CampaignForm({
   const set = <K extends keyof CampaignFormValues>(k: K, v: CampaignFormValues[K]) => setForm((f) => ({ ...f, [k]: v }))
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(form) }} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="sm:col-span-2"><TextInput label="Kampanya adı" required value={form.title} onChange={(v) => set('title', v)} placeholder="Çad Büyükbaş Kurban 2026" /></div>
-      <TextInput label="Hisse bedeli (₺)" required inputMode="decimal" value={form.price} onChange={(v) => set('price', v)} />
+      <div className="sm:col-span-2">
+        <Label label="Kampanya adı">
+          <Input required value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="Çad Büyükbaş Kurban 2026" />
+        </Label>
+      </div>
+      <Label label="Hisse bedeli (₺)">
+        <Input required inputMode="decimal" value={form.price} onChange={(e) => set('price', e.target.value)} />
+      </Label>
       <Label label="Hayvan türü">
         <select className={inputClass} value={form.animal_type} onChange={(e) => set('animal_type', e.target.value as 'cow' | 'sheep')}>
           <option value="cow">Büyükbaş (7 hisse)</option><option value="sheep">Küçükbaş (1 hisse)</option>
         </select>
       </Label>
-      <TextInput label="Kesim ülkesi" value={form.country} onChange={(v) => set('country', v)} placeholder="Çad" />
-      <TextInput label="Sezon (yıl)" inputMode="numeric" value={form.season_year} onChange={(v) => set('season_year', v)} />
-      <TextInput label="Hayvan no ön eki" value={form.animal_prefix} onChange={(v) => set('animal_prefix', v.toUpperCase())} hint="ör. CD → CD-001" />
+      <Label label="Kesim ülkesi">
+        <Input value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="Çad" />
+      </Label>
+      <Label label="Sezon (yıl)">
+        <Input inputMode="numeric" value={form.season_year} onChange={(e) => set('season_year', e.target.value)} />
+      </Label>
+      <Label label="Hayvan no ön eki">
+        <Input value={form.animal_prefix} onChange={(e) => set('animal_prefix', e.target.value.toUpperCase())} placeholder="Örn: CD" />
+      </Label>
       <Label label="Durum">
         <select className={inputClass} value={form.status} onChange={(e) => set('status', e.target.value as 'active' | 'completed')}>
           <option value="active">Aktif</option><option value="completed">Tamamlandı</option>
         </select>
       </Label>
-      <div className="sm:col-span-2 lg:col-span-4"><TextInput label="Açıklama" value={form.description} onChange={(v) => set('description', v)} /></div>
+      <div className="sm:col-span-2 lg:col-span-4">
+        <Label label="Açıklama">
+          <Input value={form.description} onChange={(e) => set('description', e.target.value)} />
+        </Label>
+      </div>
       {!linked && (
         <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 sm:col-span-2 lg:col-span-4">
           <input type="checkbox" checked={form.create_donation_campaign} onChange={(e) => set('create_donation_campaign', e.target.checked)} />
@@ -1023,7 +1363,7 @@ function CampaignForm({
         </label>
       )}
       <div className="flex justify-end sm:col-span-2 lg:col-span-4">
-        <button type="submit" className={primaryButton}>{isNew ? 'Oluştur' : 'Kaydet'}</button>
+        <Button type="submit">{isNew ? 'Oluştur' : 'Kaydet'}</Button>
       </div>
     </form>
   )
