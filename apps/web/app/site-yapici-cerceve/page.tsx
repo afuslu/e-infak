@@ -118,7 +118,7 @@ export default function BuilderCanvas() {
       : (block.props || {})
     return Object.entries(spec.fields)
       .filter(([, f]) => TEXT_FIELD_TYPES.has(f.kind))
-      .slice(0, 4)
+      .slice(0, 6)
       .map(([key, f]) => ({
         key,
         label: f.label,
@@ -144,6 +144,7 @@ export default function BuilderCanvas() {
     const isColumn = FIXED_CHILD.has(block.type)
     const dropHere = drop?.targetId === block.id ? drop.position : null
     const hasTextFields = getTextFields(block, spec).length > 0
+    const hasImageField = Object.values(spec?.fields || {}).some((f) => f.kind === 'image')
     return (
       <div key={block.id} data-block-id={block.id}
         className={`group/blk relative ${block.type === 'column' ? 'min-h-[60px]' : block.type === 'header_slot' ? 'min-h-[40px] min-w-[48px]' : ''}`}
@@ -199,6 +200,12 @@ export default function BuilderCanvas() {
               <button type="button" title="Metni tuvalde düzenle (Çift tık)" className="px-2 py-1 hover:bg-white/20"
                 onClick={(e) => { e.stopPropagation(); openInlineEdit(block, (e.currentTarget as HTMLElement).closest('[data-block-id]') as HTMLElement) }}>
                 ✏️
+              </button>
+            )}
+            {selected && hasImageField && (
+              <button type="button" title="Görseli değiştir" className="px-2 py-1 hover:bg-white/20"
+                onClick={(e) => { e.stopPropagation(); post({ type: 'focus-image', id: block.id }) }}>
+                🖼️
               </button>
             )}
             {selected && !isColumn && (
@@ -314,6 +321,7 @@ export default function BuilderCanvas() {
         const b = ctxMenu.block
         const isCol = FIXED_CHILD.has(b.type)
         const hasText = getTextFields(b, state.specs[b.type]).length > 0
+        const hasImage = Object.values(state.specs[b.type]?.fields || {}).some((f) => f.kind === 'image')
         const hideKey = device === 'desktop' ? 'hide_desktop' : device === 'tablet' ? 'hide_tablet' : 'hide_mobile'
         const isHiddenOnDevice = Boolean(b.advanced?.[hideKey])
         const deviceName = device === 'desktop' ? 'Bilgisayarda' : device === 'tablet' ? 'Tablette' : 'Telefonda'
@@ -332,6 +340,15 @@ export default function BuilderCanvas() {
                 }}>
                 <span className="flex items-center gap-2"><span>✏️</span><span>Metni Düzenle</span></span>
                 <span className="text-[10px] text-gray-400">Çift tık</span>
+              </button>
+            )}
+            {hasImage && (
+              <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-blue-50 hover:text-blue-700"
+                onClick={() => {
+                  post({ type: 'focus-image', id: b.id })
+                  setCtxMenu(null)
+                }}>
+                <span>🖼️</span><span>Görseli Değiştir</span>
               </button>
             )}
             {!isCol && (

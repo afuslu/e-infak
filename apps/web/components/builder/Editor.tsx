@@ -498,6 +498,13 @@ export function SiteBuilderEditor() {
       if (msg?.source !== 'einfak-builder-frame') return
       if (msg.type === 'ready') { frameReady.current = true; sendRender() }
       if (msg.type === 'select') { dispatch({ type: 'select', id: msg.id }); setInsertTarget(null) }
+      if (msg.type === 'focus-image') {
+        dispatch({ type: 'select', id: msg.id })
+        setInsertTarget(null)
+        setRightOpen(true)
+        setRightTab('content')
+        setMobilePane('right')
+      }
       if (msg.type === 'action') {
         if (msg.action === 'copy') copySelected()
         else if (msg.action === 'paste') paste()
