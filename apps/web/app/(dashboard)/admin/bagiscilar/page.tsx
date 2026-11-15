@@ -3,15 +3,15 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Building2, Check, ChevronDown, Copy, MapPin, MessageSquare, SlidersHorizontal, Tag, Trash2, TrendingUp, UserCheck, Users, X } from 'lucide-react'
-import { Card } from '@e-infak/ui'
+import { Building2, Check, ChevronDown, Copy, MapPin, MessageSquare, Plus, RefreshCw, SlidersHorizontal, Tag, Trash2, TrendingUp, UserCheck, Users, X } from 'lucide-react'
+import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
-import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
-import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { STATUS_CLASS, STATUS_LABEL, SmsMessage } from '../../../../lib/sms'
-import { ExportButtons, PageHeader, TBody, Table, Td, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
+import { EmptyState, ExportButtons, Modal, Pagination, TBody, Table, Td, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 
 interface DonorRow {
   id: string
@@ -97,6 +97,7 @@ function DonorsPage() {
     imports: can(access, 'donors.import'), sms: can(access, 'sms.send'), notes: can(access, 'donors.notes_write'),
   }
   const canIssue = can(access, 'receipts.create')
+  const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
 
   const emptyDonorFilters = {
     q: '',
@@ -117,15 +118,16 @@ function DonorsPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(1)
   const [list, setList] = useState<{ total: number; items: DonorRow[] }>({ total: 0, items: [] })
+  const [loading, setLoading] = useState(true)
   const [staff, setStaff] = useState<Staff[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkTag, setBulkTag] = useState('')
   const [bulkStaffId, setBulkStaffId] = useState('')
   const [bulkBusy, setBulkBusy] = useState(false)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const load = async () => {
+    setLoading(true)
     try {
       const toCents = (v: string) => (v ? Math.round(Number(v.replace(',', '.')) * 100) : undefined)
       const res = await adminGet<{ total: number; items: DonorRow[] }>('/donors', {
@@ -147,7 +149,9 @@ function DonorsPage() {
       })
       setList(res.data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Bağışçılar yüklenemedi') })
+      toast.error(apiErrorMessage(err, 'Bağışçılar yüklenemedi'))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -183,7 +187,6 @@ function DonorsPage() {
     const tag = bulkTag.trim()
     if (!tag || !selectedIds.length || bulkBusy) return
     setBulkBusy(true)
-    setMessage(null)
     let ok = 0
     for (const id of selectedIds) {
       const row = list.items.find((d) => d.id === id)
@@ -198,14 +201,13 @@ function DonorsPage() {
     setBulkBusy(false)
     setBulkTag('')
     setSelectedIds([])
-    setMessage({ type: 'ok', text: `${ok} bağışçıya "${tag}" etiketi eklendi.` })
+    toast.ok(`${ok} bağışçıya "${tag}" etiketi eklendi.`)
     load()
   }
 
   const runBulkAssign = async () => {
     if (!bulkStaffId || !selectedIds.length || bulkBusy) return
     setBulkBusy(true)
-    setMessage(null)
     let ok = 0
     const body = bulkStaffId === 'none' ? { clear_assignment: true } : { assigned_user_id: bulkStaffId }
     for (const id of selectedIds) {
@@ -219,19 +221,44 @@ function DonorsPage() {
     setBulkBusy(false)
     setBulkStaffId('')
     setSelectedIds([])
-    setMessage({ type: 'ok', text: `${ok} bağışçının temsilcisi güncellendi.` })
+    toast.ok(`${ok} bağışçının temsilcisi güncellendi.`)
     load()
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Bağışçılar" description={<>{list.total.toLocaleString('tr-TR')} kayıt</>} actions={<div className="flex flex-wrap gap-2">
-          <Link href="/admin/bagiscilar/mukerrer" className={ghostButton}>Mükerrer kayıtlar</Link>
-          {perms.imports && <Link href="/admin/veri-aktarma" className={ghostButton}>Excel&apos;den aktar</Link>}
-          {perms.create && <button onClick={() => setShowCreate((v) => !v)} className={primaryButton}>{showCreate ? 'Vazgeç' : '+ Yeni Bağışçı'}</button>}
-        </div>} />
-
-      <Notice message={message} />
+      <AppPageHeader
+        eyebrow="Bağışçı CRM"
+        title="Bağışçılar"
+        meta={`${list.total.toLocaleString('tr-TR')} kayıtlı bağışçı · Segmentasyon, temsilci atama, etiket ve bağış geçmişi`}
+        icon={<Users className="h-5 w-5" />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="secondary" size="sm" onClick={load} disabled={loading}>
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
+            <Link href="/admin/bagiscilar/mukerrer">
+              <Button type="button" variant="outline" size="sm">
+                Mükerrer Kayıtlar
+              </Button>
+            </Link>
+            {perms.imports && (
+              <Link href="/admin/veri-aktarma">
+                <Button type="button" variant="outline" size="sm">
+                  Excel&apos;den Aktar
+                </Button>
+              </Link>
+            )}
+            {perms.create && (
+              <Button type="button" size="sm" onClick={() => setShowCreate(true)}>
+                <Plus className="h-3.5 w-3.5" />
+                Yeni Bağışçı
+              </Button>
+            )}
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <GlobalStatCard
@@ -241,6 +268,21 @@ function DonorsPage() {
           subtitle="Filtreye uyan kayıt"
           icon={<Users className="h-5 w-5" />}
           gradient="from-emerald-500 to-teal-600"
+          onClick={() => {
+            const top = [...list.items].sort((a, b) => b.total_donated_cents - a.total_donated_cents).slice(0, 10)
+            const maxCents = Math.max(1, ...top.map((d) => d.total_donated_cents))
+            setStatModal({
+              title: 'Toplam Bağışçı Özeti',
+              subtitle: `Toplam ${list.total.toLocaleString('tr-TR')} bağışçı · Bu sayfadaki en yüksek bağış yapanlar`,
+              items: top.map((d) => ({
+                label: d.full_name,
+                value: formatMoney(d.total_donated_cents),
+                sub: `${d.total_donations} bağış${d.city ? ` · ${d.city}` : ''}${d.phone ? ` · ${d.phone}` : ''}`,
+                color: 'emerald' as const,
+                percent: Math.round((d.total_donated_cents / maxCents) * 100),
+              })),
+            })
+          }}
         />
         <GlobalStatCard
           id="active_donors"
@@ -249,6 +291,19 @@ function DonorsPage() {
           subtitle="Bu sayfadaki aktifler"
           icon={<TrendingUp className="h-5 w-5" />}
           gradient="from-cyan-500 to-blue-600"
+          onClick={() => {
+            const actives = list.items.filter((d) => d.last_donation_at && (Date.now() - new Date(d.last_donation_at).getTime()) / 86_400_000 <= 90)
+            setStatModal({
+              title: 'Son 90 Günde Aktif Bağışçılar',
+              subtitle: `Bu sayfadaki ${list.items.length} bağışçıdan ${actives.length} tanesi aktif`,
+              items: actives.map((d) => ({
+                label: d.full_name,
+                value: d.last_donation_at ? new Date(d.last_donation_at).toLocaleDateString('tr-TR') : '—',
+                sub: `Toplam ${formatMoney(d.total_donated_cents)} (${d.total_donations} bağış)`,
+                color: 'blue' as const,
+              })),
+            })
+          }}
         />
         <GlobalStatCard
           id="sms_allowed"
@@ -257,6 +312,19 @@ function DonorsPage() {
           subtitle={`Sayfadaki ${list.items.length} kişiden`}
           icon={<MessageSquare className="h-5 w-5" />}
           gradient="from-indigo-500 to-violet-600"
+          onClick={() => {
+            const allowed = list.items.filter((d) => d.allow_sms)
+            setStatModal({
+              title: 'SMS İzni Olan Bağışçılar',
+              subtitle: `${allowed.length} / ${list.items.length} bağışçı SMS bildirimlerine açık`,
+              items: allowed.map((d) => ({
+                label: d.full_name,
+                value: d.phone || 'Telefon yok',
+                sub: `${d.allow_email ? 'E-posta izinli · ' : ''}${formatMoney(d.total_donated_cents)}`,
+                color: 'indigo' as const,
+              })),
+            })
+          }}
         />
         <GlobalStatCard
           id="corporate_donors"
@@ -265,41 +333,64 @@ function DonorsPage() {
           subtitle="Şirket / kurum kaydı"
           icon={<Building2 className="h-5 w-5" />}
           gradient="from-amber-500 to-orange-600"
+          onClick={() => {
+            const corps = list.items.filter((d) => d.donor_type === 'corporate')
+            setStatModal({
+              title: 'Kurumsal Bağışçılar',
+              subtitle: `Sayfadaki ${corps.length} kurumsal kayıt`,
+              items: corps.map((d) => ({
+                label: d.company_name || d.full_name,
+                value: formatMoney(d.total_donated_cents),
+                sub: `${d.total_donations} bağış${d.city ? ` · ${d.city}` : ''}`,
+                color: 'amber' as const,
+              })),
+            })
+          }}
         />
       </div>
+      <MuhasebeStatModal
+        isOpen={!!statModal}
+        onClose={() => setStatModal(null)}
+        title={statModal?.title || ''}
+        subtitle={statModal?.subtitle}
+        items={statModal?.items || []}
+      />
 
       {showCreate && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
-          onClick={() => setShowCreate(false)}
+        <Modal
+          title="Yeni Bağışçı Ekle"
+          description="Bireysel veya kurumsal bağışçı kaydı oluşturun."
+          size="lg"
+          onClose={() => setShowCreate(false)}
         >
-          <div
-            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Yeni Bağışçı Ekle</h2>
-                <p className="text-xs text-gray-500">Bireysel veya kurumsal bağışçı kaydı oluşturun.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreate(false)}
-                className="cursor-pointer rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                aria-label="Kapat"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <DonorForm staff={staff} onSaved={(d) => { setShowCreate(false); load(); select(d.id) }} />
-          </div>
-        </div>
+          <DonorForm staff={staff} onSaved={(d) => { setShowCreate(false); toast.ok('Bağışçı eklendi'); load(); select(d.id) }} />
+        </Modal>
       )}
 
-      <Card className="space-y-3 border border-gray-100 p-4 shadow-sm">
+      <Card className="space-y-3 rounded-2xl border border-slate-200/80 p-4 shadow-xs">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {[
+            { label: 'Tümü', active: !filters.assigned && !filters.donor_type && !filters.has_donation && !filters.allow_sms, apply: () => { setPage(1); setFilters((f) => ({ ...f, assigned: '', donor_type: '', has_donation: '', allow_sms: '' })) } },
+            { label: 'Bana Atananlar', active: filters.assigned === 'me', apply: () => setFilter('assigned', filters.assigned === 'me' ? '' : 'me') },
+            { label: 'Kurumsal', active: filters.donor_type === 'corporate', apply: () => setFilter('donor_type', filters.donor_type === 'corporate' ? '' : 'corporate') },
+            { label: 'Bağışı Olanlar', active: filters.has_donation === 'true', apply: () => setFilter('has_donation', filters.has_donation === 'true' ? '' : 'true') },
+            { label: 'SMS İzinli', active: filters.allow_sms === 'true', apply: () => setFilter('allow_sms', filters.allow_sms === 'true' ? '' : 'true') },
+          ].map((pill) => (
+            <button
+              key={pill.label}
+              type="button"
+              onClick={pill.apply}
+              className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-bold transition ${
+                pill.active ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="min-w-[220px] flex-1">
-            <input className={inputClass} placeholder="Ad, telefon, e-posta, şehir ara" value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
+            <Input placeholder="Ad, telefon, e-posta, şehir ara" value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
           </div>
           <select className={`${inputClass} w-44`} value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
             <option value="recent">Son bağış</option>
@@ -478,9 +569,19 @@ function DonorsPage() {
       )}
 
       <div className="grid items-start gap-6 xl:grid-cols-12">
-        <Card className={`border border-gray-100 p-2 shadow-sm ${selectedId ? 'xl:col-span-5' : 'xl:col-span-12'}`}>
-          {list.items.length === 0 ? (
-            <p className="py-10 text-center text-xs text-gray-400">Bağışçı bulunamadı.</p>
+        <Card className={`rounded-2xl border border-slate-200/80 p-3 shadow-xs ${selectedId ? 'xl:col-span-5' : 'xl:col-span-12'}`}>
+          {loading && list.items.length === 0 ? (
+            <div className="space-y-2 p-2">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-100" />
+              ))}
+            </div>
+          ) : list.items.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="Bağışçı bulunamadı"
+              text="Arama veya filtre kriterlerini değiştirip tekrar deneyebilirsiniz."
+            />
           ) : (
             <>
               {perms.update && (
@@ -553,10 +654,8 @@ function DonorsPage() {
             </>
           )}
           {pages > 1 && (
-            <div className="flex items-center justify-end gap-2 p-2 text-sm">
-              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className={ghostButton}>←</button>
-              <span className="text-gray-500">{page} / {pages}</span>
-              <button disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className={ghostButton}>→</button>
+            <div className="px-2 pt-2">
+              <Pagination page={page} pages={pages} total={list.total} onChange={setPage} />
             </div>
           )}
         </Card>
@@ -573,7 +672,7 @@ function DonorsPage() {
               onDeleted={() => {
                 select(null)
                 load()
-                setMessage({ type: 'ok', text: 'Bağışçı kaydı silindi' })
+                toast.ok('Bağışçı kaydı silindi')
               }}
             />
           </div>
@@ -649,18 +748,44 @@ function DonorForm({ donor, staff, onSaved }: { donor?: DonorCard; staff: Staff[
           <option value="individual">Bireysel</option><option value="corporate">Kurumsal</option>
         </select>
       </Label>
-      <TextInput label="Ad" required value={form.first_name} onChange={(v) => set('first_name', v)} />
-      <TextInput label="Soyad" value={form.last_name} onChange={(v) => set('last_name', v)} />
-      {form.donor_type === 'corporate'
-        ? <TextInput label="Kurum adı" required value={form.company_name} onChange={(v) => set('company_name', v)} />
-        : <TextInput label="TC Kimlik No" hint={donor?.tc_no_masked ? `Kayıtlı: ${donor.tc_no_masked}` : undefined} inputMode="numeric" maxLength={11} value={form.tc_no} onChange={(v) => set('tc_no', v)} />}
-      <TextInput label="Telefon" value={form.phone} onChange={(v) => set('phone', v)} />
-      <TextInput label="E-posta" type="email" value={form.email} onChange={(v) => set('email', v)} />
-      <TextInput label="Şehir" value={form.city} onChange={(v) => set('city', v)} />
-      <TextInput label="Ülke" value={form.country} onChange={(v) => set('country', v)} />
-      <div className="sm:col-span-2"><TextInput label="Adres" value={form.address} onChange={(v) => set('address', v)} /></div>
-      <TextInput label="Vergi No" value={form.tax_number} onChange={(v) => set('tax_number', v)} />
-      <TextInput label="Etiketler (virgülle)" placeholder="vip, kurban" value={form.tags} onChange={(v) => set('tags', v)} />
+      <Label label="Ad *">
+        <Input required value={form.first_name} onChange={(e) => set('first_name', e.target.value)} />
+      </Label>
+      <Label label="Soyad">
+        <Input value={form.last_name} onChange={(e) => set('last_name', e.target.value)} />
+      </Label>
+      {form.donor_type === 'corporate' ? (
+        <Label label="Kurum Adı *">
+          <Input required value={form.company_name} onChange={(e) => set('company_name', e.target.value)} />
+        </Label>
+      ) : (
+        <Label label="TC Kimlik No" hint={donor?.tc_no_masked ? `Kayıtlı: ${donor.tc_no_masked}` : undefined}>
+          <Input inputMode="numeric" maxLength={11} value={form.tc_no} onChange={(e) => set('tc_no', e.target.value)} />
+        </Label>
+      )}
+      <Label label="Telefon">
+        <Input value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+      </Label>
+      <Label label="E-posta">
+        <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
+      </Label>
+      <Label label="Şehir">
+        <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
+      </Label>
+      <Label label="Ülke">
+        <Input value={form.country} onChange={(e) => set('country', e.target.value)} />
+      </Label>
+      <div className="sm:col-span-2">
+        <Label label="Adres">
+          <Input value={form.address} onChange={(e) => set('address', e.target.value)} />
+        </Label>
+      </div>
+      <Label label="Vergi No">
+        <Input value={form.tax_number} onChange={(e) => set('tax_number', e.target.value)} />
+      </Label>
+      <Label label="Etiketler (virgülle)">
+        <Input placeholder="vip, kurban" value={form.tags} onChange={(e) => set('tags', e.target.value)} />
+      </Label>
       <Label label="Temsilci (sorumlu personel)">
         <select className={inputClass} value={form.assigned_user_id} onChange={(e) => set('assigned_user_id', e.target.value)}>
           <option value="">— Atanmamış</option>
@@ -668,16 +793,16 @@ function DonorForm({ donor, staff, onSaved }: { donor?: DonorCard; staff: Staff[
         </select>
       </Label>
       <div className="flex flex-wrap items-center gap-4 sm:col-span-2 lg:col-span-4">
-        <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
           <input type="checkbox" checked={form.allow_sms} onChange={(e) => setForm((f) => ({ ...f, allow_sms: e.target.checked }))} /> SMS İzni (İYS)
         </label>
-        <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
           <input type="checkbox" checked={form.allow_email} onChange={(e) => setForm((f) => ({ ...f, allow_email: e.target.checked }))} /> E-posta İzni (İYS)
         </label>
       </div>
       <div className="flex items-end justify-end sm:col-span-2 lg:col-span-4">
-        {error && <span className="mr-3 text-sm font-semibold text-red-600">{error}</span>}
-        <button type="submit" className={primaryButton}>{donor ? 'Kaydet' : 'Bağışçıyı Ekle'}</button>
+        {error && <span className="mr-3 text-sm font-semibold text-rose-600">{error}</span>}
+        <Button type="submit">{donor ? 'Kaydet' : 'Bağışçıyı Ekle'}</Button>
       </div>
     </form>
   )
@@ -695,7 +820,7 @@ function DonorCardPanel({
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [smsOpen, setSmsOpen] = useState(false)
   const [smsLog, setSmsLog] = useState<SmsMessage[]>([])
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [cardStatModal, setCardStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
 
   const copyField = (k: string, v: string) => {
     if (typeof navigator === 'undefined' || !navigator.clipboard) return
@@ -709,24 +834,25 @@ function DonorCardPanel({
     try {
       setCard((await adminGet<DonorCard>(`/donors/${donorId}`)).data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Bağışçı yüklenemedi') })
+      toast.error(apiErrorMessage(err, 'Bağışçı yüklenemedi'))
     }
     // The SMS module may not be in the package; the history is simply left empty then.
     adminGet<{ items: SmsMessage[] }>('/sms/messages', { donor_id: donorId, page_size: 30 })
       .then((res) => setSmsLog(res.data.items)).catch(() => setSmsLog([]))
   }
-  useEffect(() => { setCard(null); setTab('donations'); setMessage(null); load() }, [donorId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setCard(null); setTab('donations'); load() }, [donorId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!card) return <Card className="border border-gray-100 p-6 shadow-sm"><p className="text-sm text-gray-500 animate-pulse">Yükleniyor...</p></Card>
+  if (!card) return <Card className="rounded-2xl border border-slate-200/80 p-6 shadow-xs"><div className="h-32 animate-pulse rounded-xl bg-slate-100" /></Card>
 
   const addNote = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       await adminSend('post', `/donors/${card.id}/notes`, { content: note })
       setNote('')
+      toast.ok('Not eklendi')
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
@@ -738,10 +864,11 @@ function DonorCardPanel({
     try {
       await adminSend('put', `/donors/${card.id}`, { tags: nextTags })
       setQuickTag('')
+      toast.ok(`"${tag}" etiketi eklendi`)
       await load()
       onChanged()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
@@ -751,17 +878,18 @@ function DonorCardPanel({
       await load()
       onChanged()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
   const quickAssign = async (staffId: string) => {
     try {
       await adminSend('put', `/donors/${card.id}`, staffId ? { assigned_user_id: staffId } : { clear_assignment: true })
+      toast.ok('Temsilci güncellendi')
       await load()
       onChanged()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
@@ -865,7 +993,7 @@ function DonorCardPanel({
               </a>
             ) : null
           })()}
-          {perms.sms && <button onClick={() => setSmsOpen(true)} className={primaryButton}>SMS Gönder</button>}
+          {perms.sms && <Button type="button" size="sm" onClick={() => setSmsOpen(true)}>SMS Gönder</Button>}
           {perms.remove && card.total_donations === 0 && (
             <button
               type="button"
@@ -881,15 +1009,15 @@ function DonorCardPanel({
                   await adminSend('delete', `/donors/${card.id}`)
                   onDeleted()
                 } catch (err) {
-                  setMessage({ type: 'error', text: apiErrorMessage(err, 'Bağışçı silinemedi') })
+                  toast.error(apiErrorMessage(err, 'Bağışçı silinemedi'))
                 }
               }}
-              className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-600"
+              className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
             >
               <Trash2 className="h-4 w-4" />
             </button>
           )}
-          <button onClick={onClose} className="text-xl leading-none text-gray-400 hover:text-gray-700" aria-label="Kapat">✕</button>
+          <button onClick={onClose} className="text-xl leading-none text-slate-400 hover:text-slate-700" aria-label="Kapat">✕</button>
         </div>
       </div>
 
@@ -897,20 +1025,116 @@ function DonorCardPanel({
         <QuickSmsDialog
           target={{ donorId: card.id, name: card.full_name, phone: card.phone, allowSms: card.allow_sms }}
           onClose={() => setSmsOpen(false)}
-          onSent={(r) => { setMessage({ type: 'ok', text: sentNotice(r) }); load() }}
+          onSent={(r) => { toast.ok(sentNotice(r)); load() }}
         />
       )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Toplam</div><div className="text-lg font-black">{formatMoney(card.total_donated_cents)}</div></div>
-        <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Bağış sayısı</div><div className="text-lg font-black">{card.total_donations}</div></div>
-        <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Ortalama</div><div className="text-lg font-black">{avgDonationCents > 0 ? formatMoney(avgDonationCents) : '—'}</div></div>
-        <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Son bağış</div><div className="text-lg font-black">{card.last_donation_at ? new Date(card.last_donation_at).toLocaleDateString('tr-TR') : '—'}</div></div>
+        <button
+          type="button"
+          onClick={() => {
+            const byCampaign = new Map<string, number>()
+            for (const d of card.donations) {
+              if (d.status !== 'confirmed') continue
+              const key = d.campaign_title || 'Genel Bağış'
+              byCampaign.set(key, (byCampaign.get(key) || 0) + d.amount_cents)
+            }
+            const max = Math.max(1, ...byCampaign.values())
+            setCardStatModal({
+              title: `${card.full_name} — Bağış Kalemi Dağılımı`,
+              subtitle: `Toplam ${formatMoney(card.total_donated_cents)} (${card.total_donations} bağış)`,
+              items: Array.from(byCampaign.entries())
+                .sort((a, b) => b[1] - a[1])
+                .map(([label, cents]) => ({
+                  label,
+                  value: formatMoney(cents),
+                  color: 'emerald' as const,
+                  percent: Math.round((cents / max) * 100),
+                })),
+            })
+          }}
+          className="cursor-pointer rounded-lg bg-gray-50 p-3 text-left transition hover:bg-emerald-50/70 hover:ring-1 hover:ring-emerald-200"
+        >
+          <div className="text-[10px] font-bold uppercase text-gray-500">Toplam</div>
+          <div className="text-lg font-black">{formatMoney(card.total_donated_cents)}</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setCardStatModal({
+              title: `${card.full_name} — Yıllık Bağış Özeti`,
+              subtitle: `Toplam ${card.total_donations} bağış kaydı`,
+              items: card.yearly.length > 0
+                ? card.yearly.map((y) => ({
+                    label: `${y.year} Yılı`,
+                    value: Object.entries(y.totals).map(([c, v]) => formatMoney(v, c)).join(' + '),
+                    sub: `${y.count} adet bağış`,
+                    color: 'blue' as const,
+                  }))
+                : card.donations.map((d) => ({
+                    label: d.campaign_title || 'Bağış',
+                    value: formatMoney(d.amount_cents, d.currency),
+                    sub: new Date(d.paid_at).toLocaleDateString('tr-TR'),
+                    color: 'blue' as const,
+                  })),
+            })
+          }}
+          className="cursor-pointer rounded-lg bg-gray-50 p-3 text-left transition hover:bg-blue-50/70 hover:ring-1 hover:ring-blue-200"
+        >
+          <div className="text-[10px] font-bold uppercase text-gray-500">Bağış sayısı</div>
+          <div className="text-lg font-black">{card.total_donations}</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const sorted = [...card.donations].sort((a, b) => b.amount_cents - a.amount_cents)
+            const max = Math.max(1, ...sorted.map((d) => d.amount_cents))
+            setCardStatModal({
+              title: `${card.full_name} — Tutar Dağılımı`,
+              subtitle: `Ortalama bağış: ${avgDonationCents > 0 ? formatMoney(avgDonationCents) : '—'}`,
+              items: sorted.slice(0, 10).map((d) => ({
+                label: `${d.campaign_title || 'Bağış'} (#${d.receipt_number})`,
+                value: formatMoney(d.amount_cents, d.currency),
+                sub: new Date(d.paid_at).toLocaleDateString('tr-TR'),
+                color: 'indigo' as const,
+                percent: Math.round((d.amount_cents / max) * 100),
+              })),
+            })
+          }}
+          className="cursor-pointer rounded-lg bg-gray-50 p-3 text-left transition hover:bg-indigo-50/70 hover:ring-1 hover:ring-indigo-200"
+        >
+          <div className="text-[10px] font-bold uppercase text-gray-500">Ortalama</div>
+          <div className="text-lg font-black">{avgDonationCents > 0 ? formatMoney(avgDonationCents) : '—'}</div>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setCardStatModal({
+              title: `${card.full_name} — Son Bağışlar`,
+              subtitle: card.last_donation_at ? `Son bağış tarihi: ${new Date(card.last_donation_at).toLocaleDateString('tr-TR')}` : 'Henüz bağış yok',
+              items: card.donations.slice(0, 10).map((d) => ({
+                label: `${new Date(d.paid_at).toLocaleDateString('tr-TR')} · ${d.campaign_title || 'Bağış'}`,
+                value: formatMoney(d.amount_cents, d.currency),
+                sub: `${d.payment_method_label} · Makbuz #${d.receipt_number}`,
+                color: 'amber' as const,
+              })),
+            })
+          }}
+          className="cursor-pointer rounded-lg bg-gray-50 p-3 text-left transition hover:bg-amber-50/70 hover:ring-1 hover:ring-amber-200"
+        >
+          <div className="text-[10px] font-bold uppercase text-gray-500">Son bağış</div>
+          <div className="text-lg font-black">{card.last_donation_at ? new Date(card.last_donation_at).toLocaleDateString('tr-TR') : '—'}</div>
+        </button>
       </div>
+      <MuhasebeStatModal
+        isOpen={!!cardStatModal}
+        onClose={() => setCardStatModal(null)}
+        title={cardStatModal?.title || ''}
+        subtitle={cardStatModal?.subtitle}
+        items={cardStatModal?.items || []}
+      />
 
-      <Notice message={message} />
-
-      <div className="flex flex-wrap gap-1 border-b text-sm font-semibold">
+      <div className="flex flex-wrap gap-1 border-b border-slate-200 text-sm font-semibold">
         {([
           ['donations', `Bağışlar (${card.donations.length})`],
           ['notes', `Notlar & SMS (${card.notes.length + smsLog.length})`],
@@ -944,7 +1168,21 @@ function DonorCardPanel({
                     </Td>
                     <Td className="text-right font-bold tabular-nums">{formatMoney(d.amount_cents, d.currency)}</Td>
                     <Td className="text-right">
-                      <button onClick={() => downloadReceiptPdf(d.id, d.receipt_number).catch(() => setMessage({ type: 'error', text: 'PDF indirilemedi' }))} className="font-bold text-primary-700">PDF</button>
+                      <div className="inline-flex items-center justify-end gap-2">
+                        {(() => {
+                          const origin = typeof window !== 'undefined' ? window.location.origin : ''
+                          const wa = whatsappUrl(
+                            card.phone,
+                            `Merhaba ${card.full_name}, ${formatMoney(d.amount_cents, d.currency)}${d.campaign_title ? ` (${d.campaign_title})` : ''} bağışınız için teşekkür ederiz. Makbuzunuz (#${d.receipt_number}): ${origin}/verify/receipt/${encodeURIComponent(d.receipt_number)}`,
+                          )
+                          return wa ? (
+                            <a href={wa} target="_blank" rel="noreferrer" title="WhatsApp ile makbuz gönder" className="inline-flex items-center text-emerald-600 hover:text-emerald-700">
+                              <WhatsAppIcon className="h-4 w-4" />
+                            </a>
+                          ) : null
+                        })()}
+                        <button onClick={() => downloadReceiptPdf(d.id, d.receipt_number).catch(() => toast.error('PDF indirilemedi'))} className="font-bold text-emerald-700 hover:underline">PDF</button>
+                      </div>
                     </Td>
                   </Tr>
                 ))}
@@ -959,8 +1197,8 @@ function DonorCardPanel({
         <div className="space-y-4">
           {perms.notes && (
             <form onSubmit={addNote} className="flex gap-2">
-              <input required className={inputClass} placeholder="Görüşme notu ekle..." value={note} onChange={(e) => setNote(e.target.value)} />
-              <button type="submit" className={primaryButton}>Ekle</button>
+              <Input required placeholder="Görüşme notu ekle..." value={note} onChange={(e) => setNote(e.target.value)} />
+              <Button type="submit" size="sm">Ekle</Button>
             </form>
           )}
           {smsLog.length > 0 && (
@@ -994,13 +1232,13 @@ function DonorCardPanel({
       )}
 
       {tab === 'edit' && (
-        <DonorForm donor={card} staff={staff} onSaved={() => { setMessage({ type: 'ok', text: 'Bağışçı güncellendi' }); load(); onChanged() }} />
+        <DonorForm donor={card} staff={staff} onSaved={() => { toast.ok('Bağışçı güncellendi'); load(); onChanged() }} />
       )}
 
       {tab === 'receipt' && (
         <ManualReceiptForm
           presetDonor={{ id: card.id, full_name: card.full_name, phone: card.phone, email: card.email }}
-          onDone={(r) => { setMessage({ type: 'ok', text: `${r.receipt_number} numaralı makbuz kesildi` }); setTab('donations'); load(); onChanged() }}
+          onDone={(r) => { toast.ok(`${r.receipt_number} numaralı makbuz kesildi`); setTab('donations'); load(); onChanged() }}
         />
       )}
     </Card>
