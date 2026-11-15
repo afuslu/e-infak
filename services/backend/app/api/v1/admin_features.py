@@ -935,6 +935,14 @@ async def get_public_active_banners(
     return res.scalars().all()
 
 # --- Phase 4: Subscriptions & Recurring Payments ---
+class SubscriptionCreate(BaseModel):
+    donor_id: UUID
+    campaign_id: UUID
+    amount_cents: int = Field(..., ge=100)
+    currency: Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"] = "TRY"
+    day_of_month: int = Field(default=1, ge=1, le=28)
+
+
 class SubscriptionUpdate(BaseModel):
     status: Optional[Literal["active", "paused", "cancelled", "past_due"]] = None
     amount_cents: Optional[int] = Field(None, ge=100)
@@ -1068,6 +1076,102 @@ async def list_subscriptions(
             "monthly_totals": monthly_totals,
         },
     }
+
+
+@router.post("/subscriptions")
+async def create_subscription(
+    request: Request,
+    payload: SubscriptionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.services.recurring import next_date
+
+    org_id = UUID(request.state.organization_id)
+    donor = (
+        await db.execute(select(Donor).where(Donor.id == payload.donor_id, Donor.organization_id == org_id))
+    ).scalar_one_or_none()
+    if not donor:
+        raise HTTPException(status_code=404, detail="Bağışçı bulunamadı.")
+    campaign = (
+        await db.execute(select(Campaign).where(Campaign.id == payload.campaign_id, Campaign.organization_id == org_id))
+    ).scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Kampanya bulunamadı.")
+
+    now = datetime.now(timezone.utc)
+    sub = Subscription(
+        organization_id=org_id,
+        donor_id=donor.id,
+        campaign_id=campaign.id,
+        amount_cents=payload.amount_cents,
+        currency=payload.currency,
+        status="active",
+        mode="reminder",
+        day_of_month=payload.day_of_month,
+        next_charge_date=next_date(now, payload.day_of_month),
+        manage_token=secrets.token_urlsafe(24),
+    )
+    db.add(sub)
+    await db.flush()
+    await write_audit_log(
+        db,
+        org_id,
+        current_user.id,
+        action="duzenli_bagis_olustur",
+        details={"subscription_id": str(sub.id), "donor_id": str(donor.id), "amount_cents": payload.amount_cents},
+    )
+    await db.commit()
+    loaded = (
+        await db.execute(
+            select(Subscription)
+            .options(selectinload(Subscription.donor), selectinload(Subscription.campaign))
+            .where(Subscription.id == sub.id)
+        )
+    ).scalar_one()
+    return _serialize_subscription(loaded)
+
+
+@router.get("/subscriptions/{subscription_id}/donations")
+async def list_subscription_donations(
+    request: Request,
+    subscription_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = UUID(request.state.organization_id)
+    sub = (
+        await db.execute(
+            select(Subscription).where(Subscription.id == subscription_id, Subscription.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Düzenli bağış talimatı bulunamadı.")
+
+    rows = (
+        await db.execute(
+            select(Donation)
+            .where(
+                Donation.organization_id == org_id,
+                Donation.donor_id == sub.donor_id,
+                Donation.campaign_id == sub.campaign_id,
+            )
+            .order_by(Donation.created_at.desc())
+            .limit(20)
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": str(d.id),
+            "amount_cents": d.amount_cents,
+            "currency": d.currency,
+            "status": d.status.value if hasattr(d.status, "value") else str(d.status),
+            "payment_method": d.payment_method.value if hasattr(d.payment_method, "value") else str(d.payment_method),
+            "receipt_number": d.receipt_number,
+            "created_at": d.created_at,
+        }
+        for d in rows
+    ]
 
 
 @router.patch("/subscriptions/{subscription_id}")
