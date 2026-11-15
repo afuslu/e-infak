@@ -1,23 +1,37 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import {
   AlertCircle,
   CalendarClock,
   CheckCircle2,
+  Eye,
   HeartHandshake,
   Plus,
+  RefreshCw,
   Users,
   Wallet,
   X,
 } from 'lucide-react'
-import { Card } from '@e-infak/ui'
+import { Button, Card, Input } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
-import { Label, Notice, TextArea, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { DonorPicker, type PickedDonor } from '../../../../components/admin/DonorPicker'
-import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, ResponsiveDataToolbar } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+
+function calcAge(birthDate: string | null): number | null {
+  if (!birthDate) return null
+  const dob = new Date(birthDate)
+  if (Number.isNaN(dob.getTime())) return null
+  const today = new Date()
+  let age = today.getFullYear() - dob.getFullYear()
+  const m = today.getMonth() - dob.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age -= 1
+  return age >= 0 ? age : null
+}
 
 interface Beneficiary {
   id: string
@@ -88,20 +102,39 @@ export default function SponsorshipPage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([])
   const [allPledges, setAllPledges] = useState<PledgeRow[]>([])
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [pledgeFor, setPledgeFor] = useState<Beneficiary | null>(null)
-  const [onlyWaiting, setOnlyWaiting] = useState(false)
-  const [onlyOverdue, setOnlyOverdue] = useState(false)
   const [statModal, setStatModal] = useState<'beneficiaries' | 'due' | 'paid' | 'overdue' | null>(null)
   const [triggerNewBeneficiary, setTriggerNewBeneficiary] = useState(0)
   const [triggerNewPledge, setTriggerNewPledge] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
 
-  const loadSummary = () => {
-    adminGet<Summary>('/pledges/summary').then((r) => setSummary(r.data)).catch(() => {})
-    adminGet<Beneficiary[]>('/beneficiaries').then((r) => setAllBeneficiaries(r.data)).catch(() => {})
-    adminGet<PledgeRow[]>('/pledges', { status: 'active' }).then((r) => setAllPledges(r.data)).catch(() => {})
+  const loadSummary = async () => {
+    try {
+      const [s, b, p] = await Promise.all([
+        adminGet<Summary>('/pledges/summary'),
+        adminGet<Beneficiary[]>('/beneficiaries'),
+        adminGet<PledgeRow[]>('/pledges', { status: 'active' }),
+      ])
+      setSummary(s.data)
+      setAllBeneficiaries(b.data)
+      setAllPledges(p.data)
+    } catch {
+      // ignore initial summary fetch errors
+    }
   }
   useEffect(() => { loadSummary() }, [])
+
+  const refreshAll = async () => {
+    setRefreshing(true)
+    try {
+      await loadSummary()
+      setRefreshTick((n) => n + 1)
+      toast.ok('Sponsorluk verileri yenilendi.')
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -129,6 +162,10 @@ export default function SponsorshipPage() {
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={refreshAll} disabled={refreshing} className="h-10 rounded-xl px-3 text-xs font-bold">
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
             {canOps && (
               <button
                 type="button"
@@ -214,15 +251,11 @@ export default function SponsorshipPage() {
         />
       </div>
 
-      <Notice message={message} />
-
       {tab === 'beneficiaries' ? (
         <BeneficiariesTab
           canEdit={canOps}
           canPledge={canDonor}
-          setMessage={setMessage}
-          initialWaiting={onlyWaiting}
-          onClearInitialWaiting={() => setOnlyWaiting(false)}
+          refreshTick={refreshTick}
           triggerNew={triggerNewBeneficiary}
           onChanged={loadSummary}
           onPledge={(b) => { setPledgeFor(b); setTab('pledges') }}
@@ -230,11 +263,9 @@ export default function SponsorshipPage() {
       ) : (
         <PledgesTab
           canEdit={canDonor}
-          setMessage={setMessage}
+          refreshTick={refreshTick}
           presetBeneficiary={pledgeFor}
-          initialOverdue={onlyOverdue}
           triggerNew={triggerNewPledge}
-          onClearInitialOverdue={() => setOnlyOverdue(false)}
           onClearPreset={() => setPledgeFor(null)}
           onChanged={() => { loadSummary(); setPledgeFor(null) }}
         />
@@ -294,34 +325,26 @@ export default function SponsorshipPage() {
   )
 }
 
-type SetMessage = (m: { type: 'ok' | 'error'; text: string } | null) => void
-
 const emptyBeneficiary = {
   kind: 'talebe', code: '', first_name: '', last_name: '', gender: '', birth_date: '', country: '', city: '', school: '',
   guardian_name: '', guardian_phone: '', photo_url: '', description: '', monthly_need: '', status: 'active',
 }
 
-function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWaiting, onClearInitialWaiting, triggerNew, onChanged }: {
-  canEdit: boolean; canPledge: boolean; setMessage: SetMessage; onPledge: (b: Beneficiary) => void;
-  initialWaiting: boolean; onClearInitialWaiting: () => void; triggerNew: number; onChanged: () => void;
+function BeneficiariesTab({ canEdit, canPledge, refreshTick, onPledge, triggerNew, onChanged }: {
+  canEdit: boolean; canPledge: boolean; refreshTick: number; onPledge: (b: Beneficiary) => void;
+  triggerNew: number; onChanged: () => void;
 }) {
   const [rows, setRows] = useState<Beneficiary[]>([])
   const [filters, setFilters] = useState({ kind: '', sponsored: '', status: '', q: '' })
   const [showFilters, setShowFilters] = useState(false)
   const [editing, setEditing] = useState<Beneficiary | null>(null)
+  const [detailModal, setDetailModal] = useState<Beneficiary | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyBeneficiary)
 
   useEffect(() => {
     if (triggerNew > 0) open(null)
   }, [triggerNew])
-
-  useEffect(() => {
-    if (initialWaiting) {
-      setFilters((f) => ({ ...f, sponsored: 'false' }))
-      onClearInitialWaiting()
-    }
-  }, [initialWaiting, onClearInitialWaiting])
 
   const load = async () => {
     try {
@@ -330,7 +353,7 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
         status: filters.status || undefined, q: filters.q || undefined,
       })).data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
   const didMountRef = useRef(false)
@@ -343,7 +366,7 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters])
+  }, [filters, refreshTick])
 
   const open = (b: Beneficiary | null) => {
     setEditing(b)
@@ -366,16 +389,17 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
       if (editing) await adminSend('put', `/beneficiaries/${editing.id}`, payload)
       else await adminSend('post', '/beneficiaries', payload)
       setShowForm(false)
-      setMessage({ type: 'ok', text: 'Kayıt kaydedildi' })
+      toast.ok('Yararlanıcı kaydı kaydedildi.')
       await load()
       onChanged()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
   const set = (k: keyof typeof emptyBeneficiary, v: string) => setForm((f) => ({ ...f, [k]: v }))
   const activeFilterCount = [filters.kind, filters.sponsored, filters.status].filter(Boolean).length
+  const clearFilters = () => setFilters({ kind: '', sponsored: '', status: '', q: '' })
 
   return (
     <div className="space-y-4">
@@ -414,6 +438,37 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
           }
         />
 
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { label: 'Tümü', active: !filters.kind && !filters.sponsored && !filters.status, onClick: () => setFilters((f) => ({ ...f, kind: '', sponsored: '', status: '' })) },
+              { label: 'Talebe', active: filters.kind === 'talebe', onClick: () => setFilters((f) => ({ ...f, kind: f.kind === 'talebe' ? '' : 'talebe' })) },
+              { label: 'Yetim', active: filters.kind === 'yetim', onClick: () => setFilters((f) => ({ ...f, kind: f.kind === 'yetim' ? '' : 'yetim' })) },
+              { label: 'Hoca', active: filters.kind === 'hoca', onClick: () => setFilters((f) => ({ ...f, kind: f.kind === 'hoca' ? '' : 'hoca' })) },
+              { label: 'Sponsor Bekleyen', active: filters.sponsored === 'false', onClick: () => setFilters((f) => ({ ...f, sponsored: f.sponsored === 'false' ? '' : 'false' })) },
+              { label: 'Sponsorlu', active: filters.sponsored === 'true', onClick: () => setFilters((f) => ({ ...f, sponsored: f.sponsored === 'true' ? '' : 'true' })) },
+            ].map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={p.onClick}
+                className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                  p.active
+                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {(activeFilterCount > 0 || filters.q) && (
+            <button type="button" onClick={clearFilters} className="text-xs font-bold text-rose-600 hover:text-rose-700">
+              Filtreleri Temizle
+            </button>
+          )}
+        </div>
+
         {showFilters && (
           <div className="grid gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-3">
             <Label label="Yararlanıcı Türü">
@@ -441,69 +496,99 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
       </section>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((b) => (
-          <div
-            key={b.id}
-            className={`flex gap-3.5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all hover:shadow-md ${
-              b.status === 'passive' ? 'opacity-60' : ''
-            }`}
-          >
-            {b.photo_url ? (
-              <img src={b.photo_url} alt="" className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200" />
-            ) : (
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-xl font-black text-white shadow-inner">
-                {b.first_name[0]}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <div className="truncate text-base font-black text-slate-900">{b.full_name}</div>
-                <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                  {b.kind_label}
-                </span>
-              </div>
-              <div className="mt-0.5 truncate text-xs font-medium text-slate-500">
-                {[b.code && `#${b.code}`, b.school, b.city, b.country].filter(Boolean).join(' · ') || 'Konum / kurum belirtilmedi'}
-              </div>
-              {b.monthly_need_cents > 0 && (
-                <div className="mt-1.5 text-xs text-slate-600">
-                  Aylık ihtiyaç: <span className="font-bold text-slate-900 tabular-nums">{formatMoney(b.monthly_need_cents)}</span>
+        {rows.map((b) => {
+          const age = calcAge(b.birth_date)
+          const guardianWa = whatsappUrl(
+            b.guardian_phone,
+            `Merhaba ${b.guardian_name || ''}, ${b.full_name} hakkında bilgi paylaşmak isteriz.`,
+          )
+          return (
+            <div
+              key={b.id}
+              className={`flex gap-3.5 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs transition-all hover:shadow-md ${
+                b.status === 'passive' ? 'opacity-60' : ''
+              }`}
+            >
+              {b.photo_url ? (
+                <img src={b.photo_url} alt="" className="h-16 w-16 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200" />
+              ) : (
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-xl font-black text-white shadow-inner">
+                  {b.first_name[0]}
                 </div>
               )}
-              <div className="mt-1.5">
-                {b.active_pledges ? (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
-                    ✓ Sponsor: {b.sponsors.join(', ')}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="truncate text-base font-black text-slate-900">
+                    {b.full_name}
+                    {age !== null && <span className="ml-1.5 text-xs font-semibold text-slate-500">({age} yaş)</span>}
+                  </div>
+                  <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                    {b.kind_label}
                   </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
-                    ⏳ Sponsor bekliyor
-                  </span>
+                </div>
+                <div className="mt-0.5 truncate text-xs font-medium text-slate-500">
+                  {[b.code && `#${b.code}`, b.school, b.city, b.country].filter(Boolean).join(' · ') || 'Konum / kurum belirtilmedi'}
+                </div>
+                {(b.guardian_name || b.guardian_phone) && (
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <span className="truncate">
+                      Veli: {[b.guardian_name, b.guardian_phone].filter(Boolean).join(' · ')}
+                    </span>
+                    {guardianWa && (
+                      <a href={guardianWa} target="_blank" rel="noreferrer" title="Veliye WhatsApp mesajı" className="shrink-0 hover:opacity-80">
+                        <WhatsAppIcon className="h-3.5 w-3.5" />
+                      </a>
+                    )}
+                  </div>
                 )}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-2.5">
-                {canEdit && (
+                {b.monthly_need_cents > 0 && (
+                  <div className="mt-1.5 text-xs text-slate-600">
+                    Aylık ihtiyaç: <span className="font-bold text-slate-900 tabular-nums">{formatMoney(b.monthly_need_cents)}</span>
+                  </div>
+                )}
+                <div className="mt-1.5">
+                  {b.active_pledges ? (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                      ✓ Sponsor: {b.sponsors.join(', ')}
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">
+                      ⏳ Sponsor bekliyor
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-2.5">
                   <button
                     type="button"
-                    onClick={() => open(b)}
-                    className="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    onClick={() => setDetailModal(b)}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100"
                   >
-                    Düzenle
+                    <Eye className="h-3.5 w-3.5" />
+                    Detay
                   </button>
-                )}
-                {canPledge && b.status === 'active' && (
-                  <button
-                    type="button"
-                    onClick={() => onPledge(b)}
-                    className="cursor-pointer rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700"
-                  >
-                    + Sponsor Eşleştir
-                  </button>
-                )}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => open(b)}
+                      className="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                      Düzenle
+                    </button>
+                  )}
+                  {canPledge && b.status === 'active' && (
+                    <button
+                      type="button"
+                      onClick={() => onPledge(b)}
+                      className="cursor-pointer rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white hover:bg-emerald-700"
+                    >
+                      + Sponsor Eşleştir
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         {rows.length === 0 && (
           <Card className="border border-slate-200/80 p-12 text-center shadow-xs md:col-span-2 xl:col-span-3">
             <Users className="mx-auto h-10 w-10 text-slate-300" />
@@ -512,6 +597,71 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
           </Card>
         )}
       </div>
+
+      {detailModal && (
+        <Modal
+          title={`${detailModal.full_name} · ${detailModal.kind_label}`}
+          description={[detailModal.code && `#${detailModal.code}`, detailModal.school, detailModal.city, detailModal.country].filter(Boolean).join(' · ') || undefined}
+          size="md"
+          onClose={() => setDetailModal(null)}
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              {detailModal.photo_url ? (
+                <img src={detailModal.photo_url} alt="" className="h-20 w-20 rounded-2xl object-cover ring-1 ring-slate-200" />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-2xl font-black text-white">
+                  {detailModal.first_name[0]}
+                </div>
+              )}
+              <div className="space-y-1 text-xs text-slate-600">
+                <div>
+                  <span className="font-bold text-slate-800">Durum:</span>{' '}
+                  {detailModal.status === 'active' ? 'Aktif' : 'Pasif'} ·{' '}
+                  {detailModal.active_pledges ? `Sponsorlu (${detailModal.sponsors.join(', ')})` : 'Sponsor Bekliyor'}
+                </div>
+                {detailModal.birth_date && (
+                  <div>
+                    <span className="font-bold text-slate-800">Doğum Tarihi:</span>{' '}
+                    {new Date(detailModal.birth_date).toLocaleDateString('tr-TR')}
+                    {calcAge(detailModal.birth_date) !== null ? ` (${calcAge(detailModal.birth_date)} yaş)` : ''}
+                  </div>
+                )}
+                {detailModal.monthly_need_cents > 0 && (
+                  <div>
+                    <span className="font-bold text-slate-800">Aylık İhtiyaç:</span>{' '}
+                    <span className="font-bold text-emerald-700">{formatMoney(detailModal.monthly_need_cents)}</span>
+                  </div>
+                )}
+                {(detailModal.guardian_name || detailModal.guardian_phone) && (
+                  <div>
+                    <span className="font-bold text-slate-800">Veli / İletişim:</span>{' '}
+                    {[detailModal.guardian_name, detailModal.guardian_phone].filter(Boolean).join(' · ')}
+                  </div>
+                )}
+              </div>
+            </div>
+            {detailModal.description && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-700">
+                <div className="mb-1 font-bold text-slate-900">Kurum İçi Not (Sponsora Gösterilmez)</div>
+                <p className="whitespace-pre-wrap">{detailModal.description}</p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              {canEdit && (
+                <Button type="button" variant="outline" onClick={() => { const b = detailModal; setDetailModal(null); open(b) }}>
+                  Düzenle
+                </Button>
+              )}
+              {canPledge && detailModal.status === 'active' && (
+                <Button type="button" onClick={() => { const b = detailModal; setDetailModal(null); onPledge(b) }}>
+                  + Sponsor Eşleştir
+                </Button>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {showForm && (
         <Modal
@@ -526,23 +676,45 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
                 {KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
             </Label>
-            <TextInput label="Ad" required value={form.first_name} onChange={(v) => set('first_name', v)} />
-            <TextInput label="Soyad" value={form.last_name} onChange={(v) => set('last_name', v)} />
-            <TextInput label="Kurum içi kod" value={form.code} onChange={(v) => set('code', v)} />
+            <Label label="Ad">
+              <Input required value={form.first_name} onChange={(e) => set('first_name', e.target.value)} />
+            </Label>
+            <Label label="Soyad">
+              <Input value={form.last_name} onChange={(e) => set('last_name', e.target.value)} />
+            </Label>
+            <Label label="Kurum içi kod">
+              <Input value={form.code} onChange={(e) => set('code', e.target.value)} />
+            </Label>
             <Label label="Cinsiyet">
               <select className={inputClass} value={form.gender} onChange={(e) => set('gender', e.target.value)}>
                 <option value="">—</option><option value="erkek">Erkek</option><option value="kadin">Kadın</option>
               </select>
             </Label>
-            <TextInput label="Doğum tarihi" type="date" value={form.birth_date} onChange={(v) => set('birth_date', v)} />
-            <TextInput label="Ülke" value={form.country} onChange={(v) => set('country', v)} />
-            <TextInput label="Şehir" value={form.city} onChange={(v) => set('city', v)} />
-            <TextInput label="Okul / medrese / görev yeri" value={form.school} onChange={(v) => set('school', v)} />
-            <TextInput label="Veli / yakını" value={form.guardian_name} onChange={(v) => set('guardian_name', v)} />
-            <TextInput label="Veli telefonu" value={form.guardian_phone} onChange={(v) => set('guardian_phone', v)} />
-            <TextInput label="Aylık ihtiyaç (₺)" inputMode="decimal" value={form.monthly_need} onChange={(v) => set('monthly_need', v)} />
+            <Label label="Doğum tarihi">
+              <Input type="date" value={form.birth_date} onChange={(e) => set('birth_date', e.target.value)} />
+            </Label>
+            <Label label="Ülke">
+              <Input value={form.country} onChange={(e) => set('country', e.target.value)} />
+            </Label>
+            <Label label="Şehir">
+              <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
+            </Label>
+            <Label label="Okul / medrese / görev yeri">
+              <Input value={form.school} onChange={(e) => set('school', e.target.value)} />
+            </Label>
+            <Label label="Veli / yakını">
+              <Input value={form.guardian_name} onChange={(e) => set('guardian_name', e.target.value)} />
+            </Label>
+            <Label label="Veli telefonu">
+              <Input value={form.guardian_phone} onChange={(e) => set('guardian_phone', e.target.value)} />
+            </Label>
+            <Label label="Aylık ihtiyaç (₺)">
+              <Input inputMode="decimal" value={form.monthly_need} onChange={(e) => set('monthly_need', e.target.value)} />
+            </Label>
             <div className="sm:col-span-2">
-              <TextInput label="Fotoğraf adresi" placeholder="https://..." value={form.photo_url} onChange={(v) => set('photo_url', v)} />
+              <Label label="Fotoğraf adresi">
+                <Input placeholder="https://..." value={form.photo_url} onChange={(e) => set('photo_url', e.target.value)} />
+              </Label>
             </div>
             <Label label="Durum">
               <select className={inputClass} value={form.status} onChange={(e) => set('status', e.target.value)}>
@@ -550,11 +722,18 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
               </select>
             </Label>
             <div className="sm:col-span-2 lg:col-span-3">
-              <TextArea label="Açıklama (sponsora gösterilmez)" rows={2} value={form.description} onChange={(v) => set('description', v)} />
+              <Label label="Açıklama (sponsora gösterilmez)">
+                <textarea
+                  className={`${inputClass} min-h-[72px] py-2`}
+                  rows={2}
+                  value={form.description}
+                  onChange={(e) => set('description', e.target.value)}
+                />
+              </Label>
             </div>
             <div className="flex justify-end gap-2 pt-2 sm:col-span-2 lg:col-span-3">
-              <button type="button" className={ghostButton} onClick={() => setShowForm(false)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>{editing ? 'Kaydet' : 'Oluştur'}</button>
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Vazgeç</Button>
+              <Button type="submit">{editing ? 'Kaydet' : 'Oluştur'}</Button>
             </div>
           </form>
         </Modal>
@@ -563,9 +742,9 @@ function BeneficiariesTab({ canEdit, canPledge, setMessage, onPledge, initialWai
   )
 }
 
-function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initialOverdue, onClearInitialOverdue, onClearPreset, triggerNew }: {
-  canEdit: boolean; setMessage: SetMessage; presetBeneficiary: Beneficiary | null; onChanged: () => void;
-  initialOverdue: boolean; onClearInitialOverdue: () => void; onClearPreset: () => void; triggerNew: number;
+function PledgesTab({ canEdit, refreshTick, presetBeneficiary, onChanged, onClearPreset, triggerNew }: {
+  canEdit: boolean; refreshTick: number; presetBeneficiary: Beneficiary | null; onChanged: () => void;
+  onClearPreset: () => void; triggerNew: number;
 }) {
   const [rows, setRows] = useState<PledgeRow[]>([])
   const [filters, setFilters] = useState({ kind: '', status: 'active', overdue: '' })
@@ -591,13 +770,6 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
       }))
     }
   }, [presetBeneficiary])
-
-  useEffect(() => {
-    if (initialOverdue) {
-      setFilters((f) => ({ ...f, overdue: 'true' }))
-      onClearInitialOverdue()
-    }
-  }, [initialOverdue, onClearInitialOverdue])
 
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -626,10 +798,10 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
         kind: filters.kind || undefined, status: filters.status || undefined, overdue: filters.overdue || undefined,
       })).data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
-  useEffect(() => { load() }, [filters]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [filters, refreshTick]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     adminGet<Beneficiary[]>('/beneficiaries', { status: 'active' }).then((r) => setBeneficiaries(r.data)).catch(() => {})
     adminGet<{ id: string; name: string }[]>('/water-wells').then((r) => setWells(r.data)).catch(() => {})
@@ -641,14 +813,14 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
     try {
       setDetail((await adminGet<PledgeRow>(`/pledges/${p.id}`)).data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!donor) {
-      setMessage({ type: 'error', text: 'Bağışçı seçin' })
+      toast.error('Lütfen sponsor / bağışçı seçin.')
       return
     }
     try {
@@ -663,12 +835,12 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
       setShowForm(false)
       setDonor(null)
       onClearPreset()
-      setMessage({ type: 'ok', text: 'Taahhüt oluşturuldu, taksitler planlandı' })
+      toast.ok('Taahhüt oluşturuldu, taksitler planlandı.')
       setDetail(res.data)
       onChanged()
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
@@ -676,10 +848,11 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
     if (status === 'cancelled' && !(await confirmDialog('Taahhüt iptal edilsin mi? Ödenmemiş taksitler iptal edilir.'))) return
     try {
       setDetail((await adminSend<PledgeRow>('put', `/pledges/${p.id}/status`, { status })).data)
+      toast.ok(status === 'cancelled' ? 'Taahhüt iptal edildi.' : 'Taahhüt yeniden etkinleştirildi.')
       onChanged()
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
@@ -696,23 +869,27 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
       const found = await adminGet<{ items: { id: string; donor_id: string }[] }>('/donations', { q: receipt, status: 'confirmed', page_size: 5 })
       const donation = found.data.items.find((d) => d.donor_id === detail.donor_id) || found.data.items[0]
       if (!donation) {
-        setMessage({ type: 'error', text: 'Bu makbuz numarasıyla onaylı bağış bulunamadı' })
+        toast.error('Bu makbuz numarasıyla onaylı bağış bulunamadı.')
         return
       }
       await adminSend('post', `/pledges/installments/${matchModal.id}/match`, { donation_id: donation.id })
-      setMessage({ type: 'ok', text: 'Taksit bağışla eşleştirildi' })
+      toast.ok('Taksit bağışla eşleştirildi.')
       setMatchModal(null)
       setReceiptInput('')
       await openDetail(detail)
       onChanged()
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }))
   const activeFilterCount = [filters.kind, filters.status !== 'active' ? filters.status : '', filters.overdue].filter(Boolean).length
+  const clearFilters = () => {
+    setFilters({ kind: '', status: 'active', overdue: '' })
+    setQuery('')
+  }
 
   return (
     <div className="space-y-4">
@@ -752,6 +929,36 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
             />
           }
         />
+
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {[
+              { label: 'Aktif Taahhütler', active: filters.status === 'active' && !filters.overdue, onClick: () => setFilters((f) => ({ ...f, status: 'active', overdue: '' })) },
+              { label: 'Gecikmiş Taksitli', active: filters.overdue === 'true', onClick: () => setFilters((f) => ({ ...f, status: 'active', overdue: f.overdue === 'true' ? '' : 'true' })) },
+              { label: 'Tamamlananlar', active: filters.status === 'completed', onClick: () => setFilters((f) => ({ ...f, status: 'completed', overdue: '' })) },
+              { label: 'İptal Edilenler', active: filters.status === 'cancelled', onClick: () => setFilters((f) => ({ ...f, status: 'cancelled', overdue: '' })) },
+              { label: 'Tümü', active: filters.status === '' && !filters.overdue, onClick: () => setFilters((f) => ({ ...f, status: '', overdue: '' })) },
+            ].map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={p.onClick}
+                className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                  p.active
+                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {(activeFilterCount > 0 || query) && (
+            <button type="button" onClick={clearFilters} className="text-xs font-bold text-rose-600 hover:text-rose-700">
+              Filtreleri Temizle
+            </button>
+          )}
+        </div>
 
         {showFilters && (
           <div className="grid items-end gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-3">
@@ -837,7 +1044,13 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
               <div>
                 <div className="text-lg font-black text-slate-900">{detail.title || detail.beneficiary_name}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
-                  <span>{detail.donor_name} · {detail.donor_phone} · {detail.campaign_title}</span>
+                  <Link
+                    href={`/admin/bagiscilar?q=${encodeURIComponent(detail.donor_phone || detail.donor_name || '')}`}
+                    className="font-bold text-emerald-700 hover:underline"
+                  >
+                    {detail.donor_name}
+                  </Link>
+                  <span>· {detail.donor_phone} · {detail.campaign_title}</span>
                   {(() => {
                     const wa = whatsappUrl(
                       detail.donor_phone,
@@ -864,6 +1077,28 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
                 <X className="h-5 w-5" />
               </button>
             </div>
+
+            {(() => {
+              const totalCents = detail.installment_amount_cents * detail.installment_count
+              const paidCents = detail.installment_amount_cents * detail.paid_count
+              const remainCents = Math.max(0, totalCents - paidCents)
+              return (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2">
+                    <div className="text-[10px] font-bold uppercase text-slate-500">Toplam Taahhüt</div>
+                    <div className="mt-0.5 text-sm font-black text-slate-900 tabular-nums">{formatMoney(totalCents, detail.currency)}</div>
+                  </div>
+                  <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/70 px-3 py-2">
+                    <div className="text-[10px] font-bold uppercase text-emerald-700">Tahsil Edilen</div>
+                    <div className="mt-0.5 text-sm font-black text-emerald-800 tabular-nums">{formatMoney(paidCents, detail.currency)}</div>
+                  </div>
+                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/70 px-3 py-2">
+                    <div className="text-[10px] font-bold uppercase text-amber-700">Kalan Tutar</div>
+                    <div className="mt-0.5 text-sm font-black text-amber-800 tabular-nums">{formatMoney(remainCents, detail.currency)}</div>
+                  </div>
+                </div>
+              )
+            })()}
 
             <Table>
               <THead>
@@ -913,9 +1148,13 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
             {canEdit && (
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
                 {detail.status === 'cancelled' ? (
-                  <button className={ghostButton} onClick={() => setStatus(detail, 'active')}>Yeniden Etkinleştir</button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setStatus(detail, 'active')}>
+                    Yeniden Etkinleştir
+                  </Button>
                 ) : detail.status === 'active' ? (
-                  <button className={`${ghostButton} text-rose-600`} onClick={() => setStatus(detail, 'cancelled')}>Taahhüdü İptal Et</button>
+                  <Button type="button" variant="outline" size="sm" className="text-rose-600 hover:text-rose-700" onClick={() => setStatus(detail, 'cancelled')}>
+                    Taahhüdü İptal Et
+                  </Button>
                 ) : null}
               </div>
             )}
@@ -964,31 +1203,43 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
                 </select>
               </Label>
             )}
-            {form.kind === 'general' && <TextInput label="Başlık" value={form.title} onChange={(v) => set('title', v)} />}
+            {form.kind === 'general' && (
+              <Label label="Başlık">
+                <Input value={form.title} onChange={(e) => set('title', e.target.value)} />
+              </Label>
+            )}
             <Label label="Tahsil Edilecek Bağış Kalemi">
               <select className={inputClass} value={form.campaign_id} onChange={(e) => set('campaign_id', e.target.value)} required={form.kind !== 'water_well'}>
                 <option value="">{form.kind === 'water_well' ? 'Kuyunun kalemi' : 'Seçin'}</option>
                 {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
             </Label>
-            <TextInput label="Aylık Taksit Tutarı (₺)" required inputMode="decimal" value={form.amount} onChange={(v) => set('amount', v)} />
-            <TextInput label="Taksit Sayısı (Ay)" required type="number" min={1} max={120} value={form.count} onChange={(v) => set('count', v)} />
-            <TextInput label="İlk Taksit Tarihi" required type="date" value={form.start_date} onChange={(v) => set('start_date', v)} />
+            <Label label="Aylık Taksit Tutarı (₺)">
+              <Input required inputMode="decimal" value={form.amount} onChange={(e) => set('amount', e.target.value)} />
+            </Label>
+            <Label label="Taksit Sayısı (Ay)">
+              <Input required type="number" min={1} max={120} value={form.count} onChange={(e) => set('count', e.target.value)} />
+            </Label>
+            <Label label="İlk Taksit Tarihi">
+              <Input required type="date" value={form.start_date} onChange={(e) => set('start_date', e.target.value)} />
+            </Label>
             <div className="sm:col-span-2">
-              <TextInput label="Not" value={form.notes} onChange={(v) => set('notes', v)} />
+              <Label label="Not">
+                <Input value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+              </Label>
             </div>
             <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
-              <button
+              <Button
                 type="button"
-                className={ghostButton}
+                variant="outline"
                 onClick={() => {
                   setShowForm(false)
                   onClearPreset()
                 }}
               >
                 Vazgeç
-              </button>
-              <button type="submit" className={primaryButton}>Taahhüt Oluştur</button>
+              </Button>
+              <Button type="submit">Taahhüt Oluştur</Button>
             </div>
           </form>
         </Modal>
@@ -1002,17 +1253,18 @@ function PledgesTab({ canEdit, setMessage, presetBeneficiary, onChanged, initial
           onClose={() => setMatchModal(null)}
         >
           <form onSubmit={submitMatch} className="space-y-4">
-            <TextInput
-              label="Eşleştirilecek Bağışın Makbuz Numarası"
-              required
-              value={receiptInput}
-              onChange={setReceiptInput}
-              placeholder="Örn: MKB-2026-0001"
-              hint="Bağışçının onaylanmış bağışlarından makbuz numarası ile eşleştirilir."
-            />
+            <Label label="Eşleştirilecek Bağışın Makbuz Numarası">
+              <Input
+                required
+                value={receiptInput}
+                onChange={(e) => setReceiptInput(e.target.value)}
+                placeholder="Örn: MKB-2026-0001"
+              />
+              <span className="mt-1 block text-[11px] text-slate-500">Bağışçının onaylanmış bağışlarından makbuz numarası ile eşleştirilir.</span>
+            </Label>
             <div className="flex justify-end gap-2 pt-1">
-              <button type="button" className={ghostButton} onClick={() => setMatchModal(null)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>Eşleştir</button>
+              <Button type="button" variant="outline" onClick={() => setMatchModal(null)}>Vazgeç</Button>
+              <Button type="submit">Eşleştir</Button>
             </div>
           </form>
         </Modal>
