@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 from app.schemas.contact import ContactMessageCreate, ContactMessageResponse
 from app.schemas.preregistration import PreRegistrationCreate, PreRegistrationResponse
 from app.core.rate_limit import rate_limit
+from app.utils.i18n import request_language
 
 router = APIRouter(prefix="/public", tags=["public-forms"])
 
@@ -202,13 +203,31 @@ async def get_public_donation_categories(
 ):
     """Ana sayfadaki 'Bağış Kategorileri' / hızlı bağış kalemleri grid'i"""
     organization_id = request.state.organization_id
+    lang = request_language(request)
 
     result = await db.execute(
         select(DonationCategory)
         .where(DonationCategory.organization_id == organization_id, DonationCategory.is_active == True)
         .order_by(DonationCategory.display_order)
     )
-    return result.scalars().all()
+    rows = result.scalars().all()
+    items = []
+    for c in rows:
+        overlay = (c.translations or {}).get(lang) if lang else None
+        items.append({
+            "id": str(c.id),
+            "icon": c.icon,
+            "image_url": c.image_url,
+            "title": (overlay or {}).get("title") or c.title,
+            "description": (overlay or {}).get("description") or c.description,
+            "campaign_id": str(c.campaign_id) if c.campaign_id else None,
+            "donation_type": c.donation_type,
+            "target_url": c.target_url,
+            "suggested_amounts_cents": c.suggested_amounts_cents or [],
+            "display_order": c.display_order,
+            "is_active": c.is_active,
+        })
+    return items
 
 
 @router.get("/org-settings")

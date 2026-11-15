@@ -12,7 +12,17 @@ import { GalleryStripClient } from './GalleryStripClient'
 import { ZakatMiniCalc } from './ZakatMiniCalc'
 
 export interface NewsPostDto { id: string; slug?: string | null; title: string; image_url?: string | null; published_at?: string | null; summary?: string | null }
-export interface CategoryDto { id: string; title: string; description: string; icon: string; campaign_id?: string | null }
+export interface CategoryDto {
+  id: string
+  title: string
+  description: string
+  icon: string
+  image_url?: string | null
+  campaign_id?: string | null
+  donation_type?: string | null
+  target_url?: string | null
+  suggested_amounts_cents?: number[]
+}
 
 export interface HomeData {
   site: SiteData
@@ -435,7 +445,12 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
         url: x.url ? String(x.url) : undefined,
         campaign_id: x.campaign_id ? String(x.campaign_id) : undefined,
       }))
-    : data.categories.map((k) => ({ ...k, image_url: undefined as string | undefined, badge: undefined as string | undefined, url: undefined as string | undefined }))
+    : data.categories.map((k) => ({
+        ...k,
+        image_url: k.image_url || undefined,
+        badge: undefined as string | undefined,
+        url: k.target_url || undefined,
+      }))
 
   if (!sourceList.length) {
     return editing
@@ -452,7 +467,15 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
   const hrefFor = (k: (typeof sourceList)[number]) => {
     if (k.url) return k.url
     const slug = k.campaign_id ? slugById.get(k.campaign_id) : undefined
-    return slug ? `/kampanyalar/${slug}` : '/kampanyalar'
+    if (slug) return `/kampanyalar/${slug}`
+    const extra = k as CategoryDto
+    if (extra.donation_type || extra.suggested_amounts_cents?.length) {
+      const qs = new URLSearchParams()
+      if (extra.donation_type) qs.set('category', extra.donation_type)
+      if (extra.suggested_amounts_cents?.[0]) qs.set('amount', String(Math.round(extra.suggested_amounts_cents[0] / 100)))
+      return `/bagis?${qs.toString()}`
+    }
+    return '/kampanyalar'
   }
 
   const isGlass = look === 'glass'

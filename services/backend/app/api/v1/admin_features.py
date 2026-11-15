@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import func, or_
 
 from app.core.db import get_db
+from app.utils.i18n import clean_translations
 from app.models.donor_note import DonorNote
 from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign
@@ -1380,20 +1381,43 @@ async def get_ai_donor_insights(
     return await compute_org_insights(db, org_id, mask_fn=masked)
 
 # --- Faz 3: Bağış Kalemleri (Donation Categories) ---
+DONATION_CATEGORY_I18N = ("title", "description")
+
+
 class DonationCategoryCreate(BaseModel):
     icon: str = Field(default="🤝", min_length=1, max_length=10)
+    image_url: Optional[str] = Field(None, max_length=500)
     title: str = Field(..., min_length=1, max_length=200)
     description: str = Field(..., min_length=1, max_length=500)
     campaign_id: Optional[UUID] = None
+    donation_type: Optional[str] = Field(None, max_length=40)
+    target_url: Optional[str] = Field(None, max_length=500)
+    suggested_amounts_cents: List[int] = Field(default_factory=list)
+    translations: Dict[str, Dict[str, str]] = Field(default_factory=dict)
     display_order: int = 0
     is_active: bool = True
 
-    @field_validator("icon", "title", "description", mode="before")
+    @field_validator("icon", "title", "description", "image_url", "donation_type", "target_url", mode="before")
     @classmethod
     def _strip_text(cls, v: Any) -> Any:
         if isinstance(v, str):
-            return v.strip()
+            stripped = v.strip()
+            return stripped or None if v is not None else None
         return v
+
+    @field_validator("suggested_amounts_cents", mode="before")
+    @classmethod
+    def _clean_amounts(cls, v: Any) -> List[int]:
+        if not v:
+            return []
+        return [int(x) for x in v if isinstance(x, (int, float)) and int(x) > 0][:12]
+
+    @field_validator("translations", mode="before")
+    @classmethod
+    def _clean_i18n(cls, v: Any) -> Dict[str, Dict[str, str]]:
+        if not v:
+            return {}
+        return clean_translations(v, DONATION_CATEGORY_I18N, max_lengths={"title": 200, "description": 500}) or {}
 
 
 def _serialize_donation_category(category: DonationCategory) -> Dict[str, Any]:
@@ -1403,8 +1427,13 @@ def _serialize_donation_category(category: DonationCategory) -> Dict[str, Any]:
         "campaign_id": str(category.campaign_id) if category.campaign_id else None,
         "campaign_title": category.campaign.title if category.campaign else None,
         "icon": category.icon,
+        "image_url": category.image_url,
         "title": category.title,
         "description": category.description,
+        "donation_type": category.donation_type,
+        "target_url": category.target_url,
+        "suggested_amounts_cents": category.suggested_amounts_cents or [],
+        "translations": category.translations or {},
         "display_order": category.display_order,
         "is_active": category.is_active,
         "created_at": category.created_at,

@@ -18,19 +18,56 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import { ExportButtons, FilterBar, PageHeader, confirmDialog, toast } from '../../../../components/admin/ui'
+import { ExportButtons, FilterBar, PageHeader, Tabs, confirmDialog, toast } from '../../../../components/admin/ui'
+import { ImageField } from '../../../../components/admin/ImageField'
+import { TranslationEditor, type Translations } from '../../../../components/admin/TranslationEditor'
 import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { adminGet, adminSend, apiErrorMessage, v1Get } from '../../../../lib/admin-access'
 
 interface DonationCategory {
   id: string
   icon: string
+  image_url?: string | null
   title: string
   description: string
   campaign_id?: string | null
   campaign_title?: string | null
+  donation_type?: string | null
+  target_url?: string | null
+  suggested_amounts_cents?: number[]
+  translations?: Translations
   display_order: number
   is_active: boolean
+}
+
+const DONATION_TYPES = [
+  ['', 'Otomatik / Seçilmedi'],
+  ['genel', 'Genel Bağış'],
+  ['zekat', 'Zekât'],
+  ['fitre', 'Fitre'],
+  ['fidye', 'Fidye'],
+  ['sadaka', 'Sadaka'],
+  ['su', 'Su Kuyusu'],
+  ['yetim', 'Yetim'],
+  ['kurban', 'Kurban'],
+  ['egitim', 'Eğitim'],
+  ['gida', 'Gıda / Kumanya'],
+  ['saglik', 'Sağlık'],
+  ['insaat', 'İnşaat'],
+] as const
+
+function parseAmounts(text: string): number[] {
+  return text
+    .split(',')
+    .map((s) => Number(s.trim().replace(',', '.')))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .slice(0, 12)
+    .map((n) => Math.round(n * 100))
+}
+
+function formatAmounts(cents?: number[]): string {
+  if (!cents || cents.length === 0) return ''
+  return cents.map((c) => String(c / 100)).join(', ')
 }
 
 interface CampaignOption {
@@ -51,9 +88,14 @@ const QUICK_TEMPLATES = [
 
 const EMPTY_FORM = {
   icon: '🤝',
+  image_url: '',
   title: '',
   description: '',
   campaign_id: '' as string,
+  donation_type: '' as string,
+  target_url: '',
+  suggested_amounts: '',
+  translations: {} as Translations,
   display_order: 0,
   is_active: true,
 }
@@ -66,6 +108,7 @@ export default function AdminDonationCategoriesPage() {
   const [categories, setCategories] = useState<DonationCategory[]>([])
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editorTab, setEditorTab] = useState<'general' | 'i18n'>('general')
   const [form, setForm] = useState(EMPTY_FORM)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -97,11 +140,17 @@ export default function AdminDonationCategoriesPage() {
 
   const startEdit = (c: DonationCategory) => {
     setEditingId(c.id)
+    setEditorTab('general')
     setForm({
       icon: c.icon || '🤝',
+      image_url: c.image_url || '',
       title: c.title,
       description: c.description,
       campaign_id: c.campaign_id || '',
+      donation_type: c.donation_type || '',
+      target_url: c.target_url || '',
+      suggested_amounts: formatAmounts(c.suggested_amounts_cents),
+      translations: c.translations || {},
       display_order: c.display_order,
       is_active: c.is_active,
     })
@@ -109,8 +158,23 @@ export default function AdminDonationCategoriesPage() {
 
   const cancelEdit = () => {
     setEditingId(null)
+    setEditorTab('general')
     setForm({ ...EMPTY_FORM, display_order: categories.length })
   }
+
+  const buildPayloadFromCategory = (c: DonationCategory, overrides: Partial<DonationCategory> = {}) => ({
+    icon: overrides.icon ?? c.icon,
+    image_url: (overrides.image_url !== undefined ? overrides.image_url : c.image_url) || null,
+    title: overrides.title ?? c.title,
+    description: overrides.description ?? c.description,
+    campaign_id: (overrides.campaign_id !== undefined ? overrides.campaign_id : c.campaign_id) || null,
+    donation_type: (overrides.donation_type !== undefined ? overrides.donation_type : c.donation_type) || null,
+    target_url: (overrides.target_url !== undefined ? overrides.target_url : c.target_url) || null,
+    suggested_amounts_cents: overrides.suggested_amounts_cents ?? c.suggested_amounts_cents ?? [],
+    translations: overrides.translations ?? c.translations ?? {},
+    display_order: overrides.display_order ?? c.display_order,
+    is_active: overrides.is_active ?? c.is_active,
+  })
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -121,9 +185,14 @@ export default function AdminDonationCategoriesPage() {
 
     const payload = {
       icon: (form.icon || '🤝').trim().slice(0, 10),
+      image_url: form.image_url.trim() || null,
       title: form.title.trim(),
       description: form.description.trim(),
       campaign_id: form.campaign_id ? form.campaign_id : null,
+      donation_type: form.donation_type.trim() || null,
+      target_url: form.target_url.trim() || null,
+      suggested_amounts_cents: parseAmounts(form.suggested_amounts),
+      translations: form.translations || {},
       display_order: Number(form.display_order) || 0,
       is_active: form.is_active,
     }
@@ -151,14 +220,11 @@ export default function AdminDonationCategoriesPage() {
   const toggleActive = async (c: DonationCategory) => {
     setBusyId(c.id)
     try {
-      const res = await adminSend<DonationCategory>('put', `/donation-categories/${c.id}`, {
-        icon: c.icon,
-        title: c.title,
-        description: c.description,
-        campaign_id: c.campaign_id || null,
-        display_order: c.display_order,
-        is_active: !c.is_active,
-      })
+      const res = await adminSend<DonationCategory>(
+        'put',
+        `/donation-categories/${c.id}`,
+        buildPayloadFromCategory(c, { is_active: !c.is_active }),
+      )
       setCategories((prev) => sortCategories(prev.map((item) => (item.id === c.id ? res.data : item))))
       toast.ok(res.data.is_active ? 'Kalem yayına alındı.' : 'Kalem pasife alındı.')
     } catch (err) {
@@ -182,22 +248,8 @@ export default function AdminDonationCategoriesPage() {
     setBusyId(current.id)
     try {
       await Promise.all([
-        adminSend('put', `/donation-categories/${current.id}`, {
-          icon: current.icon,
-          title: current.title,
-          description: current.description,
-          campaign_id: current.campaign_id || null,
-          display_order: targetOrder,
-          is_active: current.is_active,
-        }),
-        adminSend('put', `/donation-categories/${target.id}`, {
-          icon: target.icon,
-          title: target.title,
-          description: target.description,
-          campaign_id: target.campaign_id || null,
-          display_order: currentOrder,
-          is_active: target.is_active,
-        }),
+        adminSend('put', `/donation-categories/${current.id}`, buildPayloadFromCategory(current, { display_order: targetOrder })),
+        adminSend('put', `/donation-categories/${target.id}`, buildPayloadFromCategory(target, { display_order: currentOrder })),
       ])
       await loadCategories()
     } catch (err) {
@@ -231,11 +283,17 @@ export default function AdminDonationCategoriesPage() {
 
   const duplicateToForm = (c: DonationCategory) => {
     setEditingId(null)
+    setEditorTab('general')
     setForm({
       icon: c.icon || '🤝',
+      image_url: c.image_url || '',
       title: `${c.title} (Kopya)`,
       description: c.description,
       campaign_id: c.campaign_id || '',
+      donation_type: c.donation_type || '',
+      target_url: c.target_url || '',
+      suggested_amounts: formatAmounts(c.suggested_amounts_cents),
+      translations: c.translations || {},
       display_order: categories.length,
       is_active: c.is_active,
     })
@@ -258,14 +316,7 @@ export default function AdminDonationCategoriesPage() {
       const targets = categories.filter((c) => selectedIds.has(c.id))
       await Promise.all(
         targets.map((c) =>
-          adminSend('put', `/donation-categories/${c.id}`, {
-            icon: c.icon,
-            title: c.title,
-            description: c.description,
-            campaign_id: c.campaign_id || null,
-            display_order: c.display_order,
-            is_active: targetActive,
-          }),
+          adminSend('put', `/donation-categories/${c.id}`, buildPayloadFromCategory(c, { is_active: targetActive })),
         ),
       )
       setSelectedIds(new Set())
@@ -571,8 +622,13 @@ export default function AdminDonationCategoriesPage() {
                         )}
                       </div>
 
-                      <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-xl shrink-0">
-                        {c.icon}
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-xl shrink-0 overflow-hidden">
+                        {c.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={c.image_url} alt={c.title} className="w-full h-full object-cover" />
+                        ) : (
+                          c.icon
+                        )}
                       </div>
 
                       <div className="min-w-0">
@@ -591,6 +647,16 @@ export default function AdminDonationCategoriesPage() {
                             <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
                               <Link2 className="w-2.5 h-2.5" />
                               {c.campaign_title}
+                            </span>
+                          )}
+                          {c.donation_type && (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">
+                              {DONATION_TYPES.find(([v]) => v === c.donation_type)?.[1] || c.donation_type}
+                            </span>
+                          )}
+                          {c.suggested_amounts_cents && c.suggested_amounts_cents.length > 0 && (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                              {c.suggested_amounts_cents.map((a) => `${a / 100}₺`).join(' · ')}
                             </span>
                           )}
                         </div>
@@ -689,104 +755,167 @@ export default function AdminDonationCategoriesPage() {
               </div>
             )}
 
+            <Tabs
+              value={editorTab}
+              onChange={setEditorTab}
+              tabs={[
+                { key: 'general', label: 'Genel & Yönlendirme' },
+                { key: 'i18n', label: 'Çeviriler' },
+              ]}
+            />
+
             <form onSubmit={handleSave} className="space-y-3.5">
-              <div className="grid grid-cols-[90px_1fr] gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">İkon</label>
-                  <Input
-                    type="text"
-                    maxLength={10}
-                    value={form.icon}
-                    onChange={(e) => setForm({ ...form, icon: e.target.value })}
-                    className="text-center text-lg"
+              {editorTab === 'general' ? (
+                <>
+                  <div className="grid grid-cols-[90px_1fr] gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">İkon</label>
+                      <Input
+                        type="text"
+                        maxLength={10}
+                        value={form.icon}
+                        onChange={(e) => setForm({ ...form, icon: e.target.value })}
+                        className="text-center text-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Başlık *</label>
+                      <Input
+                        type="text"
+                        maxLength={200}
+                        value={form.title}
+                        onChange={(e) => setForm({ ...form, title: e.target.value })}
+                        placeholder="Örn: Su Kuyusu Bağışı"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {PRESET_ICONS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setForm({ ...form, icon: emoji })}
+                        className={`w-8 h-8 rounded-lg border text-base flex items-center justify-center transition ${
+                          form.icon === emoji
+                            ? 'border-emerald-500 bg-emerald-50'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+
+                  <ImageField
+                    label="Özel Görsel / İkon (Opsiyonel)"
+                    value={form.image_url}
+                    onChange={(url) => setForm({ ...form, image_url: url })}
                   />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Başlık *</label>
-                  <Input
-                    type="text"
-                    maxLength={200}
-                    value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
-                    placeholder="Örn: Su Kuyusu Bağışı"
-                    required
-                  />
-                </div>
-              </div>
 
-              <div className="flex flex-wrap gap-1.5">
-                {PRESET_ICONS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => setForm({ ...form, icon: emoji })}
-                    className={`w-8 h-8 rounded-lg border text-base flex items-center justify-center transition ${
-                      form.icon === emoji
-                        ? 'border-emerald-500 bg-emerald-50'
-                        : 'border-slate-200 bg-white hover:bg-slate-50'
-                    }`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-medium text-slate-600">Açıklama *</label>
-                  <span className="text-[11px] text-slate-400 tabular-nums">{form.description.length}/500</span>
-                </div>
-                <textarea
-                  maxLength={500}
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={3}
-                  placeholder="Ana sayfada kart altında görünecek kısa açıklama..."
-                  className="w-full rounded-lg border border-slate-200 p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Bağlı Kampanya (Opsiyonel)</label>
-                <select
-                  value={form.campaign_id}
-                  onChange={(e) => setForm({ ...form, campaign_id: e.target.value })}
-                  className="w-full h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
-                >
-                  <option value="">Genel Bağış / Kampanya Seçilmedi</option>
-                  {campaigns.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.title}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Seçilirse ziyaretçi bu kaleme tıkladığında doğrudan ilgili kampanya sayfasına gider.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Gösterim Sırası</label>
-                  <Input
-                    type="number"
-                    value={form.display_order}
-                    onChange={(e) => setForm({ ...form, display_order: Number(e.target.value) })}
-                  />
-                </div>
-                <div className="flex items-end pb-2">
-                  <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.is_active}
-                      onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                      className="h-4 w-4 accent-emerald-600 rounded"
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-slate-600">Açıklama *</label>
+                      <span className="text-[11px] text-slate-400 tabular-nums">{form.description.length}/500</span>
+                    </div>
+                    <textarea
+                      maxLength={500}
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      rows={3}
+                      placeholder="Ana sayfada kart altında görünecek kısa açıklama..."
+                      className="w-full rounded-lg border border-slate-200 p-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
+                      required
                     />
-                    Ana sayfada göster (Aktif)
-                  </label>
-                </div>
-              </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Bağlı Kampanya (Opsiyonel)</label>
+                      <select
+                        value={form.campaign_id}
+                        onChange={(e) => setForm({ ...form, campaign_id: e.target.value })}
+                        className="w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-700"
+                      >
+                        <option value="">Seçilmedi</option>
+                        {campaigns.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Bağış Türü Ön Seçimi</label>
+                      <select
+                        value={form.donation_type}
+                        onChange={(e) => setForm({ ...form, donation_type: e.target.value })}
+                        className="w-full h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-700"
+                      >
+                        {DONATION_TYPES.map(([val, lbl]) => (
+                          <option key={val} value={val}>
+                            {lbl}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Önerilen Tutarlar (virgülle)</label>
+                      <Input
+                        type="text"
+                        value={form.suggested_amounts}
+                        onChange={(e) => setForm({ ...form, suggested_amounts: e.target.value })}
+                        placeholder="Örn: 180, 360, 720"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Özel Yönlendirme URL</label>
+                      <Input
+                        type="text"
+                        maxLength={500}
+                        value={form.target_url}
+                        onChange={(e) => setForm({ ...form, target_url: e.target.value })}
+                        placeholder="/bagis?category=zekat"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Gösterim Sırası</label>
+                      <Input
+                        type="number"
+                        value={form.display_order}
+                        onChange={(e) => setForm({ ...form, display_order: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="flex items-end pb-2">
+                      <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.is_active}
+                          onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                          className="h-4 w-4 accent-emerald-600 rounded"
+                        />
+                        Ana sayfada göster (Aktif)
+                      </label>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <TranslationEditor
+                  value={form.translations}
+                  onChange={(next) => setForm({ ...form, translations: next })}
+                  fields={[
+                    { key: 'title', label: 'Kalem başlığı' },
+                    { key: 'description', label: 'Açıklama', long: true },
+                  ]}
+                />
+              )}
 
               <div className="flex gap-2 pt-2">
                 {editingId && (
@@ -806,8 +935,13 @@ export default function AdminDonationCategoriesPage() {
               Ana Sayfa Kart Önizlemesi
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4 flex items-start gap-3">
-              <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-2xl shrink-0">
-                {form.icon || '🤝'}
+              <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-2xl shrink-0 overflow-hidden">
+                {form.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={form.image_url} alt={form.title || 'Önizleme'} className="w-full h-full object-cover" />
+                ) : (
+                  form.icon || '🤝'
+                )}
               </div>
               <div className="min-w-0">
                 <div className="font-semibold text-sm text-slate-900 truncate">
