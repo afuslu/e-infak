@@ -973,6 +973,13 @@ def _serialize_subscription(sub: Subscription) -> Dict[str, Any]:
 async def list_subscriptions(
     request: Request,
     status_filter: Annotated[Optional[str], Query(alias="status")] = None,
+    currency: Optional[str] = None,
+    mode: Optional[Literal["card", "reminder"]] = None,
+    min_amount_cents: Annotated[Optional[int], Query(ge=0)] = None,
+    max_amount_cents: Annotated[Optional[int], Query(ge=0)] = None,
+    next_start: Optional[date] = None,
+    next_end: Optional[date] = None,
+    sort: Literal["recent", "next_asc", "amount_desc", "amount_asc"] = "recent",
     q: Annotated[Optional[str], Query()] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -1007,6 +1014,18 @@ async def list_subscriptions(
     base_filters = [Subscription.organization_id == org_id]
     if status_filter and status_filter in {"active", "paused", "cancelled", "past_due"}:
         base_filters.append(Subscription.status == status_filter)
+    if currency and currency.strip():
+        base_filters.append(func.upper(Subscription.currency) == currency.strip().upper())
+    if mode in {"card", "reminder"}:
+        base_filters.append(Subscription.mode == mode)
+    if min_amount_cents is not None:
+        base_filters.append(Subscription.amount_cents >= min_amount_cents)
+    if max_amount_cents is not None:
+        base_filters.append(Subscription.amount_cents <= max_amount_cents)
+    if next_start:
+        base_filters.append(Subscription.next_charge_date >= datetime.combine(next_start, time.min, tzinfo=timezone.utc))
+    if next_end:
+        base_filters.append(Subscription.next_charge_date < datetime.combine(next_end + timedelta(days=1), time.min, tzinfo=timezone.utc))
 
     query = (
         select(Subscription)
@@ -1026,10 +1045,16 @@ async def list_subscriptions(
         query = query.join(Subscription.donor).join(Subscription.campaign).where(search_cond)
         count_query = count_query.join(Subscription.donor).join(Subscription.campaign).where(search_cond)
 
+    order_expr = {
+        "recent": Subscription.created_at.desc(),
+        "next_asc": Subscription.next_charge_date.asc(),
+        "amount_desc": Subscription.amount_cents.desc(),
+        "amount_asc": Subscription.amount_cents.asc(),
+    }[sort]
     total = int((await db.execute(count_query)).scalar() or 0)
     rows = (
         await db.execute(
-            query.order_by(Subscription.created_at.desc()).offset(offset).limit(limit)
+            query.order_by(order_expr).offset(offset).limit(limit)
         )
     ).scalars().all()
 

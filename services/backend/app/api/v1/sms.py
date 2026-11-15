@@ -324,9 +324,10 @@ def _message_row(message: SmsMessage, donor_name: Optional[str], template_name: 
 async def list_messages(
     request: Request, db: AsyncSession = Depends(get_db),
     status: Optional[str] = None, source: Optional[str] = None, q: Annotated[Optional[str], Query(max_length=80)] = None,
-    donor_id: Optional[UUID] = None, related_type: Optional[str] = None, related_id: Optional[UUID] = None,
+    donor_id: Optional[UUID] = None, batch_id: Optional[UUID] = None, related_type: Optional[str] = None, related_id: Optional[UUID] = None,
     date_from: Optional[date] = None, date_to: Optional[date] = None,
-    page: Annotated[int, Query(ge=1)] = 1, page_size: Annotated[int, Query(ge=1, le=200)] = 50,
+    sort: Literal["date_desc", "date_asc", "parts_desc"] = "date_desc",
+    page: Annotated[int, Query(ge=1)] = 1, page_size: Annotated[int, Query(ge=1, le=500)] = 50,
     current_user: Optional[User] = Depends(get_current_user),
 ):
     org_id = _org_id(request)
@@ -335,6 +336,8 @@ async def list_messages(
         scope.append(SmsMessage.source == source)
     if donor_id:
         scope.append(SmsMessage.donor_id == donor_id)
+    if batch_id:
+        scope.append(SmsMessage.batch_id == batch_id)
     if related_type and related_id:
         scope += [SmsMessage.related_type == related_type, SmsMessage.related_id == related_id]
     if date_from:
@@ -357,12 +360,17 @@ async def list_messages(
         .outerjoin(Donor, Donor.id == SmsMessage.donor_id).where(*scope).group_by(SmsMessage.status)
     )).all())
     where = scope + ([SmsMessage.status == status] if status else [])
+    order_cols = {
+        "date_desc": (SmsMessage.created_at.desc(), SmsMessage.seq_no.desc()),
+        "date_asc": (SmsMessage.created_at.asc(), SmsMessage.seq_no.asc()),
+        "parts_desc": (SmsMessage.parts.desc(), SmsMessage.created_at.desc()),
+    }[sort]
     rows = (await db.execute(
         select(SmsMessage, Donor, SmsTemplate.name, User.email)
         .outerjoin(Donor, Donor.id == SmsMessage.donor_id)
         .outerjoin(SmsTemplate, SmsTemplate.id == SmsMessage.template_id)
         .outerjoin(User, User.id == SmsMessage.created_by)
-        .where(*where).order_by(SmsMessage.created_at.desc(), SmsMessage.seq_no.desc())
+        .where(*where).order_by(*order_cols)
         .offset((page - 1) * page_size).limit(page_size)
     )).all()
     return {

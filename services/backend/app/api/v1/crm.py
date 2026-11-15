@@ -149,6 +149,12 @@ async def list_donors(
     region: Optional[Literal["yurtici", "yurtdisi"]] = None,
     donor_type: Optional[Literal["individual", "corporate"]] = None,
     has_donation: Optional[bool] = None,
+    allow_sms: Optional[bool] = None,
+    allow_email: Optional[bool] = None,
+    min_total_cents: Annotated[Optional[int], Query(ge=0)] = None,
+    max_total_cents: Annotated[Optional[int], Query(ge=0)] = None,
+    last_donation_start: Optional[date] = None,
+    last_donation_end: Optional[date] = None,
     tag: Annotated[Optional[str], Query(max_length=40)] = None,
     sort: Literal["name", "recent", "total"] = "recent",
     page: Annotated[int, Query(ge=1)] = 1,
@@ -193,6 +199,19 @@ async def list_donors(
         conditions.append(Donor.total_donations > 0)
     elif has_donation is False:
         conditions.append(func.coalesce(Donor.total_donations, 0) == 0)
+    if allow_sms is not None:
+        conditions.append(Donor.allow_sms.is_(allow_sms))
+    if allow_email is not None:
+        conditions.append(Donor.allow_email.is_(allow_email))
+    if min_total_cents is not None:
+        conditions.append(func.coalesce(Donor.total_donated_cents, 0) >= min_total_cents)
+    if max_total_cents is not None:
+        conditions.append(func.coalesce(Donor.total_donated_cents, 0) <= max_total_cents)
+    d_lower, d_upper = _local_date_bounds(last_donation_start, last_donation_end)
+    if d_lower:
+        conditions.append(Donor.last_donation_at >= d_lower)
+    if d_upper:
+        conditions.append(Donor.last_donation_at < d_upper)
 
     total = (await db.execute(select(func.count(Donor.id)).where(*conditions))).scalar_one()
     order = {
@@ -479,6 +498,7 @@ async def search_donations(
     assigned: Annotated[Optional[str], Query(description="Bağışçı temsilcisi: 'me' veya personel id")] = None,
     on_behalf: Optional[bool] = None,
     q: Annotated[Optional[str], Query(max_length=100)] = None,
+    sort: Literal["date_desc", "date_asc", "amount_desc", "amount_asc"] = "date_desc",
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=500)] = 50,
     db: AsyncSession = Depends(get_db),
@@ -545,9 +565,15 @@ async def search_donations(
         select(Donation.currency, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
         .join(Donor, Donor.id == Donation.donor_id).where(*conditions).group_by(Donation.currency)
     )).all()
+    order_col = {
+        "date_desc": paid.desc(),
+        "date_asc": paid.asc(),
+        "amount_desc": Donation.amount_cents.desc(),
+        "amount_asc": Donation.amount_cents.asc(),
+    }[sort]
     rows = (await db.execute(
         filtered.options(selectinload(Donation.campaign), selectinload(Donation.donor))
-        .order_by(paid.desc()).offset((page - 1) * page_size).limit(page_size)
+        .order_by(order_col).offset((page - 1) * page_size).limit(page_size)
     )).scalars().all()
     names = await _staff_names(db, org_id)
     items = []

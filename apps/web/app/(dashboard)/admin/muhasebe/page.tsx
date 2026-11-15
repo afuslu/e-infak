@@ -1329,25 +1329,47 @@ export default function OnMuhasebePage() {
     );
   };
 
-  const renderKasaWithIcon = (kasaAdi?: string | null, kasaId?: string | null) => {
+  const renderKasaWithIcon = (kasaAdi?: string | null, kasaId?: string | null, selected = false) => {
     const label = kasaAdi || 'Merkez Kasa';
     const renkSinifi = getHesapRenkSinifi('kasa', kasaId, label, hesapGorunumu.renkler);
     return (
-      <div className="flex items-center gap-2" title={label}>
-        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border ${renkSinifi}`}>
+      <div className="flex min-w-0 items-center gap-2" title={label}>
+        <div
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${
+            selected ? 'border-white/40 bg-white/20 text-white' : renkSinifi
+          }`}
+        >
           <Wallet className="h-3.5 w-3.5" />
         </div>
-        <span className="max-w-[140px] truncate text-xs font-semibold text-slate-700">{label}</span>
+        <span
+          className={`truncate ${
+            selected ? 'text-sm font-bold text-white drop-shadow-xs' : 'max-w-[140px] text-xs font-semibold text-slate-700'
+          }`}
+        >
+          {label}
+        </span>
       </div>
     );
   };
 
-  const renderBankaWithLogo = (bankaAdi?: string | null) => {
+  const renderBankaWithLogo = (bankaAdi?: string | null, selected = false) => {
     if (!bankaAdi) return null;
     return (
-      <div className="flex items-center gap-2" title={bankaAdi}>
-        {getBankLogoOrIcon(bankaAdi, 'w-6 h-6')}
-        <span className="max-w-[150px] truncate text-xs font-semibold text-slate-700">{bankaAdi}</span>
+      <div className="flex min-w-0 items-center gap-2" title={bankaAdi}>
+        <div
+          className={`flex shrink-0 items-center justify-center rounded-lg ${
+            selected ? 'bg-white/95 p-0.5 shadow-xs' : ''
+          }`}
+        >
+          {getBankLogoOrIcon(bankaAdi, 'w-6 h-6')}
+        </div>
+        <span
+          className={`truncate ${
+            selected ? 'text-sm font-bold text-white drop-shadow-xs' : 'max-w-[150px] text-xs font-semibold text-slate-700'
+          }`}
+        >
+          {bankaAdi}
+        </span>
       </div>
     );
   };
@@ -3519,7 +3541,7 @@ export default function OnMuhasebePage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         {siraliKasalar.map((kasa) => {
                           const isSelected = String(ggForm.account_id) === String(kasa.id);
                           return (
@@ -3527,16 +3549,27 @@ export default function OnMuhasebePage() {
                               key={kasa.id}
                               type="button"
                               onClick={() => setGgForm({ ...ggForm, account_id: String(kasa.id) })}
-                              className={`flex cursor-pointer flex-col items-start rounded-xl border p-3 text-left transition-all ${
+                              className={`relative flex w-full min-w-0 cursor-pointer flex-col items-start overflow-hidden rounded-xl border p-3.5 text-left transition-all ${
                                 isSelected
-                                  ? 'border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-500/25'
-                                  : 'border-slate-200 bg-white text-slate-700 hover:border-teal-400'
+                                  ? 'border-teal-600 bg-gradient-to-br from-teal-600 to-emerald-600 text-white shadow-md shadow-teal-600/25 ring-2 ring-teal-500/20'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:bg-teal-50/30'
                               }`}
                             >
-                              <div className="mb-1 flex items-center gap-1.5">
-                                {renderKasaWithIcon(kasa.name, kasa.id)}
+                              <div className="mb-1.5 flex w-full min-w-0 items-center justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  {renderKasaWithIcon(kasa.name, kasa.id, isSelected)}
+                                </div>
+                                {isSelected ? (
+                                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/25 text-white">
+                                    <Check className="h-3 w-3" />
+                                  </span>
+                                ) : null}
                               </div>
-                              <span className={`text-[11px] ${isSelected ? 'text-teal-100' : 'text-slate-400'}`}>
+                              <span
+                                className={`w-full truncate text-xs font-semibold ${
+                                  isSelected ? 'text-white/90' : 'text-slate-500'
+                                }`}
+                              >
                                 Bakiye: {formatMoney(kasa.balance_cents, kasa.currency)}
                               </span>
                             </button>
@@ -3610,7 +3643,7 @@ export default function OnMuhasebePage() {
                         </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         {siraliBankaHesaplari.map((b) => {
                           const isSelected = String(ggForm.account_id) === String(b.id);
                           const bankaRenkSinifi = getHesapRenkSinifi(
@@ -3619,38 +3652,52 @@ export default function OnMuhasebePage() {
                             b.bank_name || b.name,
                             hesapGorunumu.renkler,
                           );
+                          const hasDistinctAccountName = Boolean(b.bank_name && b.name && b.bank_name !== b.name);
                           return (
                             <button
                               key={b.id}
                               type="button"
                               onClick={() => setGgForm({ ...ggForm, account_id: String(b.id) })}
-                              className={`flex cursor-pointer flex-col items-start rounded-xl border p-3 text-left transition-all ${
+                              className={`relative flex w-full min-w-0 cursor-pointer flex-col items-start overflow-hidden rounded-xl border p-3.5 text-left transition-all ${
                                 isSelected
-                                  ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                                  : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400'
+                                  ? 'border-blue-600 bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 ring-2 ring-blue-500/20'
+                                  : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:bg-blue-50/30'
                               }`}
                             >
-                              <div className="mb-1 flex items-center gap-1.5">
-                                <span className={`h-4 w-1.5 shrink-0 rounded-full border ${bankaRenkSinifi}`} />
-                                {renderBankaWithLogo(b.bank_name || b.name)}
+                              <div className="mb-1 flex w-full min-w-0 items-center justify-between gap-2">
+                                <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                                  <span
+                                    className={`h-4 w-1.5 shrink-0 rounded-full border ${
+                                      isSelected ? 'border-white/50 bg-white/80' : bankaRenkSinifi
+                                    }`}
+                                  />
+                                  {renderBankaWithLogo(b.bank_name || b.name, isSelected)}
+                                </div>
+                                {isSelected ? (
+                                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/25 text-white">
+                                    <Check className="h-3 w-3" />
+                                  </span>
+                                ) : null}
+                              </div>
+                              {hasDistinctAccountName ? (
                                 <span
-                                  className={`ml-auto rounded px-1.5 py-0.5 text-[10px] ${
-                                    isSelected ? 'bg-blue-500 text-blue-100' : 'bg-slate-100 text-slate-500'
+                                  className={`mb-0.5 w-full truncate text-[11px] font-medium ${
+                                    isSelected ? 'text-blue-100' : 'text-slate-600'
                                   }`}
                                 >
                                   {b.name}
                                 </span>
-                              </div>
+                              ) : null}
                               <span
-                                className={`max-w-full truncate text-[10px] ${
-                                  isSelected ? 'text-blue-200' : 'text-slate-400'
+                                className={`w-full truncate text-[11px] ${
+                                  isSelected ? 'text-blue-100/90' : 'text-slate-400'
                                 }`}
                               >
                                 IBAN: {b.iban ? formatIban(b.iban) : 'Belirtilmemiş'}
                               </span>
                               <span
-                                className={`mt-1 text-[11px] font-semibold ${
-                                  isSelected ? 'text-blue-100' : 'text-slate-500'
+                                className={`mt-1 w-full truncate text-xs font-semibold ${
+                                  isSelected ? 'text-white/95' : 'text-slate-600'
                                 }`}
                               >
                                 Bakiye: {formatMoney(b.balance_cents, b.currency)}

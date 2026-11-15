@@ -3,9 +3,10 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Trash2 } from 'lucide-react'
+import { Building2, Check, ChevronDown, Copy, MapPin, MessageSquare, SlidersHorizontal, Tag, Trash2, TrendingUp, UserCheck, Users, X } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
+import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
@@ -49,6 +50,16 @@ interface Staff { id: string; first_name: string; last_name: string; is_active: 
 
 const PAGE_SIZE = 50
 
+function donorHealthBadge(totalDonations: number, lastDonationAt: string | null) {
+  if (!totalDonations || !lastDonationAt) {
+    return { label: 'Bağışsız', cls: 'border-slate-200 bg-slate-50 text-slate-600' }
+  }
+  const days = Math.floor((Date.now() - new Date(lastDonationAt).getTime()) / 86_400_000)
+  if (days <= 90) return { label: 'Aktif', cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' }
+  if (days <= 180) return { label: 'Takipte', cls: 'border-amber-200 bg-amber-50 text-amber-700' }
+  return { label: 'Riskte (6+ ay)', cls: 'border-rose-200 bg-rose-50 text-rose-700' }
+}
+
 export default function DonorsPageWrapper() {
   return (
     <Suspense fallback={<p className="py-12 text-center text-sm text-gray-500">Yükleniyor...</p>}>
@@ -68,21 +79,52 @@ function DonorsPage() {
   }
   const canIssue = can(access, 'receipts.create')
 
-  const [filters, setFilters] = useState({ q: '', assigned: '', region: '', donor_type: '', has_donation: '', tag: '', sort: 'recent' })
+  const emptyDonorFilters = {
+    q: '',
+    assigned: '',
+    region: '',
+    donor_type: '',
+    has_donation: '',
+    allow_sms: '',
+    allow_email: '',
+    min_total: '',
+    max_total: '',
+    last_donation_start: '',
+    last_donation_end: '',
+    tag: '',
+    sort: 'recent',
+  }
+  const [filters, setFilters] = useState(emptyDonorFilters)
+  const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(1)
   const [list, setList] = useState<{ total: number; items: DonorRow[] }>({ total: 0, items: [] })
   const [staff, setStaff] = useState<Staff[]>([])
   const [showCreate, setShowCreate] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkTag, setBulkTag] = useState('')
+  const [bulkStaffId, setBulkStaffId] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const load = async () => {
     try {
+      const toCents = (v: string) => (v ? Math.round(Number(v.replace(',', '.')) * 100) : undefined)
       const res = await adminGet<{ total: number; items: DonorRow[] }>('/donors', {
-        q: filters.q || undefined, assigned: filters.assigned || undefined, region: filters.region || undefined,
+        q: filters.q || undefined,
+        assigned: filters.assigned || undefined,
+        region: filters.region || undefined,
         donor_type: filters.donor_type || undefined,
         has_donation: filters.has_donation === '' ? undefined : filters.has_donation === 'true',
+        allow_sms: filters.allow_sms === '' ? undefined : filters.allow_sms === 'true',
+        allow_email: filters.allow_email === '' ? undefined : filters.allow_email === 'true',
+        min_total_cents: toCents(filters.min_total),
+        max_total_cents: toCents(filters.max_total),
+        last_donation_start: filters.last_donation_start || undefined,
+        last_donation_end: filters.last_donation_end || undefined,
         tag: filters.tag || undefined,
-        sort: filters.sort, page, page_size: PAGE_SIZE,
+        sort: filters.sort,
+        page,
+        page_size: PAGE_SIZE,
       })
       setList(res.data)
     } catch (err) {
@@ -107,8 +149,60 @@ function DonorsPage() {
   }, [])
 
   const select = (id: string | null) => router.replace(id ? `/admin/bagiscilar?donor=${id}` : '/admin/bagiscilar', { scroll: false })
-  const setFilter = (key: keyof typeof filters, value: string) => { setPage(1); setFilters((f) => ({ ...f, [key]: value })) }
+  const setFilter = (key: keyof typeof filters, value: string) => { setPage(1); setSelectedIds([]); setFilters((f) => ({ ...f, [key]: value })) }
   const pages = Math.max(1, Math.ceil(list.total / PAGE_SIZE))
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  const allPageSelected = list.items.length > 0 && list.items.every((d) => selectedIds.includes(d.id))
+  const toggleSelectAll = () => {
+    if (allPageSelected) setSelectedIds([])
+    else setSelectedIds(list.items.map((d) => d.id))
+  }
+
+  const runBulkTag = async () => {
+    const tag = bulkTag.trim()
+    if (!tag || !selectedIds.length || bulkBusy) return
+    setBulkBusy(true)
+    setMessage(null)
+    let ok = 0
+    for (const id of selectedIds) {
+      const row = list.items.find((d) => d.id === id)
+      const nextTags = Array.from(new Set([...(row?.tags || []), tag]))
+      try {
+        await adminSend('put', `/donors/${id}`, { tags: nextTags })
+        ok++
+      } catch {
+        // continue
+      }
+    }
+    setBulkBusy(false)
+    setBulkTag('')
+    setSelectedIds([])
+    setMessage({ type: 'ok', text: `${ok} bağışçıya "${tag}" etiketi eklendi.` })
+    load()
+  }
+
+  const runBulkAssign = async () => {
+    if (!bulkStaffId || !selectedIds.length || bulkBusy) return
+    setBulkBusy(true)
+    setMessage(null)
+    let ok = 0
+    const body = bulkStaffId === 'none' ? { clear_assignment: true } : { assigned_user_id: bulkStaffId }
+    for (const id of selectedIds) {
+      try {
+        await adminSend('put', `/donors/${id}`, body)
+        ok++
+      } catch {
+        // continue
+      }
+    }
+    setBulkBusy(false)
+    setBulkStaffId('')
+    setSelectedIds([])
+    setMessage({ type: 'ok', text: `${ok} bağışçının temsilcisi güncellendi.` })
+    load()
+  }
 
   return (
     <div className="space-y-6">
@@ -120,106 +214,322 @@ function DonorsPage() {
 
       <Notice message={message} />
 
-      {showCreate && (
-        <Card className="border border-primary-100 p-6 shadow-sm">
-          <DonorForm staff={staff} onSaved={(d) => { setShowCreate(false); load(); select(d.id) }} />
-        </Card>
-      )}
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <GlobalStatCard
+          id="total_donors"
+          title="Toplam Bağışçı"
+          value={list.total.toLocaleString('tr-TR')}
+          subtitle="Filtreye uyan kayıt"
+          icon={<Users className="h-5 w-5" />}
+          gradient="from-emerald-500 to-teal-600"
+        />
+        <GlobalStatCard
+          id="active_donors"
+          title="Aktif (Son 90 Gün)"
+          value={list.items.filter((d) => d.last_donation_at && (Date.now() - new Date(d.last_donation_at).getTime()) / 86_400_000 <= 90).length}
+          subtitle="Bu sayfadaki aktifler"
+          icon={<TrendingUp className="h-5 w-5" />}
+          gradient="from-cyan-500 to-blue-600"
+        />
+        <GlobalStatCard
+          id="sms_allowed"
+          title="SMS İzinli"
+          value={list.items.filter((d) => d.allow_sms).length}
+          subtitle={`Sayfadaki ${list.items.length} kişiden`}
+          icon={<MessageSquare className="h-5 w-5" />}
+          gradient="from-indigo-500 to-violet-600"
+        />
+        <GlobalStatCard
+          id="corporate_donors"
+          title="Kurumsal Bağışçı"
+          value={list.items.filter((d) => d.donor_type === 'corporate').length}
+          subtitle="Şirket / kurum kaydı"
+          icon={<Building2 className="h-5 w-5" />}
+          gradient="from-amber-500 to-orange-600"
+        />
+      </div>
 
-      <Card className="border border-gray-100 p-4 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <div className="lg:col-span-2">
-            <input className={inputClass} placeholder="Ad, telefon, e-posta, şehir ara" value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
-          </div>
-          <select className={inputClass} value={filters.assigned} onChange={(e) => setFilter('assigned', e.target.value)}>
-            <option value="">Tüm temsilciler</option>
-            <option value="me">Bana atananlar</option>
-            <option value="none">Temsilcisi olmayanlar</option>
-            {staff.map((s) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
-          </select>
-          <select className={inputClass} value={filters.region} onChange={(e) => setFilter('region', e.target.value)}>
-            <option value="">Yurt içi + yurt dışı</option>
-            <option value="yurtici">Yurt içi</option>
-            <option value="yurtdisi">Yurt dışı</option>
-          </select>
-          <select className={inputClass} value={filters.has_donation} onChange={(e) => setFilter('has_donation', e.target.value)}>
-            <option value="">Tüm bağış durumları</option>
-            <option value="true">Bağış yapanlar</option>
-            <option value="false">Hiç bağışı olmayanlar</option>
-          </select>
-          <input className={inputClass} placeholder="Etiket (ör. vip)" value={filters.tag} onChange={(e) => setFilter('tag', e.target.value)} />
-          <div className="flex gap-2 sm:col-span-2 lg:col-span-6">
-            <select className={`${inputClass} w-40`} value={filters.donor_type} onChange={(e) => setFilter('donor_type', e.target.value)}>
-              <option value="">Tüm türler</option><option value="individual">Bireysel</option><option value="corporate">Kurumsal</option>
-            </select>
-            <select className={`${inputClass} w-40`} value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
-              <option value="recent">Son bağış</option><option value="total">Toplam bağış</option><option value="name">Ad</option>
-            </select>
-            <div className="ml-auto shrink-0">
-              <ExportButtons
-                filename="bagiscilar"
-                title="Bağışçı Listesi"
-                subtitle={`${list.items.length} bağışçı (sayfa görünümü)`}
-                currencyCols={[7]}
-                getData={() => ({
-                  headers: ['Ad Soyad', 'Tür', 'Telefon', 'E-posta', 'Şehir', 'Ülke', 'Bağış Sayısı', 'Toplam (TL)', 'Temsilci'],
-                  rows: list.items.map((d) => [
-                    d.full_name,
-                    d.donor_type === 'corporate' ? 'Kurumsal' : 'Bireysel',
-                    d.phone || '',
-                    d.email || '',
-                    d.city || '',
-                    d.country || '',
-                    d.total_donations,
-                    d.total_donated_cents / 100,
-                    d.assigned_user_name || '',
-                  ]),
-                })}
-              />
+      {showCreate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+          onClick={() => setShowCreate(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between border-b border-gray-100 pb-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Yeni Bağışçı Ekle</h2>
+                <p className="text-xs text-gray-500">Bireysel veya kurumsal bağışçı kaydı oluşturun.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                className="cursor-pointer rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Kapat"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
+            <DonorForm staff={staff} onSaved={(d) => { setShowCreate(false); load(); select(d.id) }} />
           </div>
         </div>
+      )}
+
+      <Card className="space-y-3 border border-gray-100 p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="min-w-[220px] flex-1">
+            <input className={inputClass} placeholder="Ad, telefon, e-posta, şehir ara" value={filters.q} onChange={(e) => setFilter('q', e.target.value)} />
+          </div>
+          <select className={`${inputClass} w-44`} value={filters.sort} onChange={(e) => setFilter('sort', e.target.value)}>
+            <option value="recent">Son bağış</option>
+            <option value="total">Toplam bağış</option>
+            <option value="name">Ad (A-Z)</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${
+              showFilters ? 'border-primary-500 bg-primary-50 text-primary-800' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span>Gelişmiş Filtreler</span>
+            {[filters.assigned, filters.region, filters.donor_type, filters.has_donation, filters.allow_sms, filters.allow_email, filters.min_total, filters.max_total, filters.last_donation_start, filters.last_donation_end, filters.tag].filter(Boolean).length > 0 && (
+              <span className="rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] text-white">
+                {[filters.assigned, filters.region, filters.donor_type, filters.has_donation, filters.allow_sms, filters.allow_email, filters.min_total, filters.max_total, filters.last_donation_start, filters.last_donation_end, filters.tag].filter(Boolean).length}
+              </span>
+            )}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+          </button>
+          <div className="ml-auto shrink-0">
+            <ExportButtons
+              filename="bagiscilar"
+              title="Bağışçı Listesi"
+              subtitle={`${list.items.length} bağışçı (sayfa görünümü)`}
+              currencyCols={[7]}
+              getData={() => ({
+                headers: ['Ad Soyad', 'Tür', 'Telefon', 'E-posta', 'Şehir', 'Ülke', 'Bağış Sayısı', 'Toplam (TL)', 'Temsilci'],
+                rows: list.items.map((d) => [
+                  d.full_name,
+                  d.donor_type === 'corporate' ? 'Kurumsal' : 'Bireysel',
+                  d.phone || '',
+                  d.email || '',
+                  d.city || '',
+                  d.country || '',
+                  d.total_donations,
+                  d.total_donated_cents / 100,
+                  d.assigned_user_name || '',
+                ]),
+              })}
+            />
+          </div>
+        </div>
+
+        {showFilters && (
+          <div className="space-y-3 border-t border-gray-100 pt-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Label label="Temsilci">
+                <select className={inputClass} value={filters.assigned} onChange={(e) => setFilter('assigned', e.target.value)}>
+                  <option value="">Tüm temsilciler</option>
+                  <option value="me">Bana atananlar</option>
+                  <option value="none">Temsilcisi olmayanlar</option>
+                  {staff.map((s) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                </select>
+              </Label>
+              <Label label="Bölge">
+                <select className={inputClass} value={filters.region} onChange={(e) => setFilter('region', e.target.value)}>
+                  <option value="">Yurt içi + yurt dışı</option>
+                  <option value="yurtici">Yurt içi</option>
+                  <option value="yurtdisi">Yurt dışı</option>
+                </select>
+              </Label>
+              <Label label="Bağışçı Türü">
+                <select className={inputClass} value={filters.donor_type} onChange={(e) => setFilter('donor_type', e.target.value)}>
+                  <option value="">Tüm türler</option>
+                  <option value="individual">Bireysel</option>
+                  <option value="corporate">Kurumsal</option>
+                </select>
+              </Label>
+              <Label label="Bağış Durumu">
+                <select className={inputClass} value={filters.has_donation} onChange={(e) => setFilter('has_donation', e.target.value)}>
+                  <option value="">Tüm bağış durumları</option>
+                  <option value="true">Bağış yapanlar</option>
+                  <option value="false">Hiç bağışı olmayanlar</option>
+                </select>
+              </Label>
+              <Label label="SMS İzni">
+                <select className={inputClass} value={filters.allow_sms} onChange={(e) => setFilter('allow_sms', e.target.value)}>
+                  <option value="">Tümü</option>
+                  <option value="true">SMS izni olanlar</option>
+                  <option value="false">SMS izni olmayanlar</option>
+                </select>
+              </Label>
+              <Label label="E-posta İzni">
+                <select className={inputClass} value={filters.allow_email} onChange={(e) => setFilter('allow_email', e.target.value)}>
+                  <option value="">Tümü</option>
+                  <option value="true">E-posta izni olanlar</option>
+                  <option value="false">E-posta izni olmayanlar</option>
+                </select>
+              </Label>
+              <Label label="Etiket">
+                <input className={inputClass} placeholder="Etiket (ör. vip)" value={filters.tag} onChange={(e) => setFilter('tag', e.target.value)} />
+              </Label>
+              <Label label="Toplam Bağış (Min - Maks TL)">
+                <div className="flex gap-1.5">
+                  <input className={inputClass} inputMode="decimal" placeholder="Min" value={filters.min_total} onChange={(e) => setFilter('min_total', e.target.value)} />
+                  <input className={inputClass} inputMode="decimal" placeholder="Maks" value={filters.max_total} onChange={(e) => setFilter('max_total', e.target.value)} />
+                </div>
+              </Label>
+              <Label label="Son Bağış Başlangıç">
+                <input type="date" className={inputClass} value={filters.last_donation_start} onChange={(e) => setFilter('last_donation_start', e.target.value)} />
+              </Label>
+              <Label label="Son Bağış Bitiş">
+                <input type="date" className={inputClass} value={filters.last_donation_end} onChange={(e) => setFilter('last_donation_end', e.target.value)} />
+              </Label>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => { setFilters(emptyDonorFilters); setPage(1) }}
+                className="cursor-pointer text-xs font-semibold text-rose-600 hover:underline"
+              >
+                Tüm filtreleri temizle
+              </button>
+            </div>
+          </div>
+        )}
       </Card>
+
+      {selectedIds.length > 0 && perms.update && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-xs shadow-xs">
+          <span className="font-bold text-primary-900">{selectedIds.length} bağışçı seçildi</span>
+          <div className="flex items-center gap-1.5">
+            <select
+              className="rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700"
+              value={bulkStaffId}
+              onChange={(e) => setBulkStaffId(e.target.value)}
+            >
+              <option value="">Temsilci seç...</option>
+              <option value="none">Temsilciyi kaldır</option>
+              {staff.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.first_name} {s.last_name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={!bulkStaffId || bulkBusy}
+              onClick={runBulkAssign}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary-600 px-3 py-1.5 font-bold text-white hover:bg-primary-700 disabled:opacity-50"
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Ata
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="text"
+              value={bulkTag}
+              onChange={(e) => setBulkTag(e.target.value)}
+              placeholder="Etiket (ör. vip)"
+              className="w-36 rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 text-xs"
+            />
+            <button
+              type="button"
+              disabled={!bulkTag.trim() || bulkBusy}
+              onClick={runBulkTag}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-primary-300 bg-white px-3 py-1.5 font-bold text-primary-800 hover:bg-primary-100 disabled:opacity-50"
+            >
+              <Tag className="h-3.5 w-3.5" />
+              Etiket Ekle
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedIds([])}
+            className="ml-auto inline-flex cursor-pointer items-center gap-1 font-semibold text-gray-600 hover:text-gray-900"
+          >
+            <X className="h-3.5 w-3.5" />
+            Seçimi Temizle
+          </button>
+        </div>
+      )}
 
       <div className="grid items-start gap-6 xl:grid-cols-12">
         <Card className={`border border-gray-100 p-2 shadow-sm ${selectedId ? 'xl:col-span-5' : 'xl:col-span-12'}`}>
           {list.items.length === 0 ? (
             <p className="py-10 text-center text-xs text-gray-400">Bağışçı bulunamadı.</p>
           ) : (
-            <ul className="divide-y divide-gray-100">
-              {list.items.map((d) => (
-                <li key={d.id}>
-                  <button onClick={() => select(d.id)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-gray-50 ${selectedId === d.id ? 'bg-primary-50' : ''}`}>
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-800">
-                      {d.full_name?.[0]?.toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate font-semibold text-gray-900">{d.full_name}</span>
-                        {d.donor_type === 'corporate' && (
-                          <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Kurumsal</span>
-                        )}
-                      </div>
-                      <div className="truncate text-xs text-gray-500">
-                        {[d.phone, d.city, d.country && d.country !== 'Türkiye' ? d.country : null].filter(Boolean).join(' · ') || '—'}
-                      </div>
-                      {d.tags?.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {d.tags.slice(0, 2).map((t) => (
-                            <span key={t} className="rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700">{t}</span>
-                          ))}
-                          {d.tags.length > 2 && <span className="text-[10px] text-gray-400">+{d.tags.length - 2}</span>}
+            <>
+              {perms.update && (
+                <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2 text-[11px] font-semibold text-gray-500">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input type="checkbox" checked={allPageSelected} onChange={toggleSelectAll} />
+                    <span>Bu sayfadaki tümünü seç ({list.items.length})</span>
+                  </label>
+                </div>
+              )}
+              <ul className="divide-y divide-gray-100">
+                {list.items.map((d) => {
+                  const health = donorHealthBadge(d.total_donations, d.last_donation_at)
+                  const isChecked = selectedIds.includes(d.id)
+                  return (
+                    <li key={d.id} className="flex items-center gap-1">
+                      {perms.update && (
+                        <div className="pl-2">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleSelect(d.id)}
+                            aria-label={`${d.full_name} seç`}
+                            className="cursor-pointer"
+                          />
                         </div>
                       )}
-                    </div>
-                    <div className="text-right text-xs">
-                      <div className="font-bold text-gray-900">{formatMoney(d.total_donated_cents)}</div>
-                      <div className="text-gray-400">{d.total_donations} bağış{d.assigned_user_name ? ` · ${d.assigned_user_name}` : ''}</div>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      <button
+                        onClick={() => select(d.id)}
+                        className={`flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2.5 text-left hover:bg-gray-50 ${
+                          selectedId === d.id ? 'bg-primary-50' : ''
+                        }`}
+                      >
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-800">
+                          {d.full_name?.[0]?.toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="truncate font-semibold text-gray-900">{d.full_name}</span>
+                            {d.donor_type === 'corporate' && (
+                              <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Kurumsal</span>
+                            )}
+                            <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${health.cls}`}>
+                              {health.label}
+                            </span>
+                          </div>
+                          <div className="truncate text-xs text-gray-500">
+                            {[d.phone, d.city, d.country && d.country !== 'Türkiye' ? d.country : null].filter(Boolean).join(' · ') || '—'}
+                          </div>
+                          {d.tags?.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {d.tags.slice(0, 2).map((t) => (
+                                <span key={t} className="rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-semibold text-primary-700">{t}</span>
+                              ))}
+                              {d.tags.length > 2 && <span className="text-[10px] text-gray-400">+{d.tags.length - 2}</span>}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right text-xs">
+                          <div className="font-bold text-gray-900">{formatMoney(d.total_donated_cents)}</div>
+                          <div className="text-gray-400">{d.total_donations} bağış{d.assigned_user_name ? ` · ${d.assigned_user_name}` : ''}</div>
+                        </div>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
           )}
           {pages > 1 && (
             <div className="flex items-center justify-end gap-2 p-2 text-sm">
@@ -360,9 +670,19 @@ function DonorCardPanel({
   const [card, setCard] = useState<DonorCard | null>(null)
   const [tab, setTab] = useState<'donations' | 'notes' | 'edit' | 'receipt'>('donations')
   const [note, setNote] = useState('')
+  const [quickTag, setQuickTag] = useState('')
+  const [copiedField, setCopiedField] = useState<string | null>(null)
   const [smsOpen, setSmsOpen] = useState(false)
   const [smsLog, setSmsLog] = useState<SmsMessage[]>([])
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+
+  const copyField = (k: string, v: string) => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return
+    navigator.clipboard.writeText(v).then(() => {
+      setCopiedField(k)
+      setTimeout(() => setCopiedField(null), 1500)
+    })
+  }
 
   const load = async () => {
     try {
@@ -389,22 +709,123 @@ function DonorCardPanel({
     }
   }
 
+  const addQuickTag = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const tag = quickTag.trim()
+    if (!tag) return
+    const nextTags = Array.from(new Set([...card.tags, tag]))
+    try {
+      await adminSend('put', `/donors/${card.id}`, { tags: nextTags })
+      setQuickTag('')
+      await load()
+      onChanged()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const removeQuickTag = async (tag: string) => {
+    try {
+      await adminSend('put', `/donors/${card.id}`, { tags: card.tags.filter((t) => t !== tag) })
+      await load()
+      onChanged()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const quickAssign = async (staffId: string) => {
+    try {
+      await adminSend('put', `/donors/${card.id}`, staffId ? { assigned_user_id: staffId } : { clear_assignment: true })
+      await load()
+      onChanged()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err) })
+    }
+  }
+
+  const health = donorHealthBadge(card.total_donations, card.last_donation_at)
+  const avgDonationCents = card.total_donations > 0 ? Math.round(card.total_donated_cents / card.total_donations) : 0
+
   return (
     <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">{card.full_name}</h2>
-          <div className="mt-1 flex flex-wrap gap-x-3 text-sm text-gray-600">
-            {card.phone && <a href={`tel:${card.phone}`} className="text-primary-700">{card.phone}</a>}
-            {card.email && <a href={`mailto:${card.email}`} className="text-primary-700">{card.email}</a>}
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-bold text-gray-900">{card.full_name}</h2>
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${health.cls}`}>{health.label}</span>
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
+            {card.phone && (
+              <span className="inline-flex items-center gap-1">
+                <a href={`tel:${card.phone}`} className="text-primary-700 hover:underline">{card.phone}</a>
+                <button type="button" onClick={() => copyField('phone', card.phone || '')} title="Telefonu kopyala" className="cursor-pointer rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+                  {copiedField === 'phone' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                </button>
+              </span>
+            )}
+            {card.email && (
+              <span className="inline-flex items-center gap-1">
+                <a href={`mailto:${card.email}`} className="text-primary-700 hover:underline">{card.email}</a>
+                <button type="button" onClick={() => copyField('email', card.email || '')} title="E-postayı kopyala" className="cursor-pointer rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+                  {copiedField === 'email' ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                </button>
+              </span>
+            )}
             <span>{[card.city, card.country].filter(Boolean).join(', ')}</span>
           </div>
-          <div className="mt-2 flex flex-wrap gap-1 text-[10px] font-bold">
+          {(card.address || card.tax_number || card.tc_no_masked) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+              {card.address && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3 w-3 shrink-0 text-gray-400" />
+                  {card.address}
+                </span>
+              )}
+              {card.tc_no_masked && <span>TC: <strong className="font-mono text-gray-700">{card.tc_no_masked}</strong></span>}
+              {card.tax_number && <span>Vergi No: <strong className="font-mono text-gray-700">{card.tax_number}</strong></span>}
+            </div>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-bold">
             <span className="rounded border px-1.5 py-0.5">{card.donor_type === 'corporate' ? 'Kurumsal' : 'Bireysel'}</span>
             <span className={`rounded border px-1.5 py-0.5 ${card.allow_sms ? 'border-green-200 text-green-700' : 'text-gray-400'}`}>SMS izni {card.allow_sms ? 'var' : 'yok'}</span>
             <span className={`rounded border px-1.5 py-0.5 ${card.allow_email ? 'border-green-200 text-green-700' : 'text-gray-400'}`}>E-posta izni {card.allow_email ? 'var' : 'yok'}</span>
-            <span className="rounded border px-1.5 py-0.5">Temsilci: {card.assigned_user_name || '—'}</span>
-            {card.tags.map((t) => <span key={t} className="rounded border border-primary-200 bg-primary-50 px-1.5 py-0.5 text-primary-800">{t}</span>)}
+            {perms.update ? (
+              <select
+                value={card.assigned_user_id || ''}
+                onChange={(e) => quickAssign(e.target.value)}
+                title="Hızlı temsilci ata"
+                className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-gray-700"
+              >
+                <option value="">Temsilci: —</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.id}>Temsilci: {s.first_name} {s.last_name}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="rounded border px-1.5 py-0.5">Temsilci: {card.assigned_user_name || '—'}</span>
+            )}
+            {card.tags.map((t) => (
+              <span key={t} className="inline-flex items-center gap-1 rounded border border-primary-200 bg-primary-50 px-1.5 py-0.5 text-primary-800">
+                {t}
+                {perms.update && (
+                  <button type="button" onClick={() => removeQuickTag(t)} className="cursor-pointer text-primary-500 hover:text-rose-600" aria-label={`${t} etiketini kaldır`}>
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+            {perms.update && (
+              <form onSubmit={addQuickTag} className="inline-flex items-center gap-1">
+                <input
+                  type="text"
+                  value={quickTag}
+                  onChange={(e) => setQuickTag(e.target.value)}
+                  placeholder="+ etiket"
+                  className="w-20 rounded border border-dashed border-gray-300 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 outline-none focus:border-primary-400 focus:bg-white"
+                />
+              </form>
+            )}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -452,9 +873,10 @@ function DonorCardPanel({
         />
       )}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Toplam</div><div className="text-lg font-black">{formatMoney(card.total_donated_cents)}</div></div>
         <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Bağış sayısı</div><div className="text-lg font-black">{card.total_donations}</div></div>
+        <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Ortalama</div><div className="text-lg font-black">{avgDonationCents > 0 ? formatMoney(avgDonationCents) : '—'}</div></div>
         <div className="rounded-lg bg-gray-50 p-3"><div className="text-[10px] font-bold uppercase text-gray-500">Son bağış</div><div className="text-lg font-black">{card.last_donation_at ? new Date(card.last_donation_at).toLocaleDateString('tr-TR') : '—'}</div></div>
       </div>
 

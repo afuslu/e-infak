@@ -219,6 +219,10 @@ async def list_members(
     request: Request,
     status_filter: Annotated[Optional[str], Query(alias="status")] = None,
     member_type: Optional[str] = None,
+    dues_period: Optional[Literal["monthly", "yearly"]] = None,
+    joined_start: Optional[date] = None,
+    joined_end: Optional[date] = None,
+    sort: Literal["member_no", "joined_desc", "debt_desc"] = "member_no",
     overdue_only: bool = False,
     q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
@@ -248,6 +252,12 @@ async def list_members(
         query = query.where(Member.status == status_filter)
     if member_type in MEMBER_TYPES:
         query = query.where(Member.member_type == member_type)
+    if dues_period in {"monthly", "yearly"}:
+        query = query.where(Member.dues_period == dues_period)
+    if joined_start:
+        query = query.where(Member.joined_on >= joined_start)
+    if joined_end:
+        query = query.where(Member.joined_on <= joined_end)
     if overdue_only:
         query = query.where(open_dues.c.overdue > 0)
     if q:
@@ -255,7 +265,13 @@ async def list_members(
         query = query.where(or_(Member.member_no.ilike(like), Donor.first_name.ilike(like), Donor.last_name.ilike(like),
                                 Donor.phone.ilike(like), Donor.email.ilike(like),
                                 (Donor.first_name + " " + func.coalesce(Donor.last_name, "")).ilike(like)))
-    rows = (await db.execute(query.order_by(func.length(Member.member_no), Member.member_no).limit(5000))).all()
+    if sort == "joined_desc":
+        order_cols = (Member.joined_on.desc().nullslast(), Member.created_at.desc())
+    elif sort == "debt_desc":
+        order_cols = (func.coalesce(open_dues.c.open_cents, 0).desc(), func.length(Member.member_no), Member.member_no)
+    else:
+        order_cols = (func.length(Member.member_no), Member.member_no)
+    rows = (await db.execute(query.order_by(*order_cols).limit(5000))).all()
     return [_member_out(m, int(oc or 0), int(od or 0), lp) for m, oc, od, lp in rows]
 
 
@@ -445,6 +461,30 @@ async def update_member(request: Request, member_id: UUID, payload: MemberIn, db
     return _member_out(await _member(db, org_id, m.id))
 
 
+class BulkMemberStatusIn(BaseModel):
+    member_ids: List[UUID] = Field(min_length=1, max_length=500)
+    status: Literal["active", "passive", "resigned", "expelled", "deceased"]
+
+
+@router.post("/members/bulk-status", dependencies=[Depends(require_capability("members.manage"))])
+async def bulk_member_status(request: Request, payload: BulkMemberStatusIn, db: AsyncSession = Depends(get_db),
+                             current_user: User = Depends(get_current_user)):
+    org_id = _org_id(request)
+    rows = (await db.execute(select(Member).where(
+        Member.organization_id == org_id, Member.id.in_(payload.member_ids)
+    ).with_for_update())).scalars().all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="Üye bulunamadı")
+    today = _today()
+    for m in rows:
+        m.status = payload.status
+        if payload.status in ("resigned", "expelled", "deceased") and not m.left_on:
+            m.left_on = today
+    _audit(db, org_id, current_user, "uye_toplu_durum", {"count": len(rows), "status": payload.status})
+    await db.commit()
+    return {"updated": len(rows)}
+
+
 # --- Dues --------------------------------------------------------------------------------
 
 class GenerateIn(BaseModel):
@@ -512,6 +552,7 @@ async def list_dues(
     status_filter: Annotated[Optional[Literal["open", "overdue", "paid", "waived"]], Query(alias="status")] = "overdue",
     period: Annotated[Optional[str], Query(max_length=7)] = None,
     q: Annotated[Optional[str], Query(max_length=100)] = None,
+    sort: Literal["due_date", "amount_desc", "overdue_desc", "member_no"] = "due_date",
     db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)
@@ -533,14 +574,19 @@ async def list_dues(
             Donor.phone.ilike(like),
             (Donor.first_name + " " + func.coalesce(Donor.last_name, "")).ilike(like),
         ))
-    rows = (await db.execute(query.order_by(MemberDue.due_date, Member.member_no).limit(10000))).all()
+    order = (MemberDue.amount_cents.desc(), MemberDue.due_date) if sort == "amount_desc" else (
+        (MemberDue.due_date.asc(), MemberDue.amount_cents.desc()) if sort == "overdue_desc" else (
+            (Member.member_no, MemberDue.due_date) if sort == "member_no" else (MemberDue.due_date, Member.member_no)
+        )
+    )
+    rows = (await db.execute(query.order_by(*order).limit(10000))).all()
     return [_due_out(d, m) for d, m in rows]
 
 
 class DuesPaymentIn(BaseModel):
     due_ids: List[UUID] = Field(min_length=1, max_length=60)
     idempotency_key: str = Field(min_length=16, max_length=100)
-    payment_method: Literal["cash", "bank_transfer"] = "cash"
+    payment_method: Literal["cash", "bank_transfer", "credit_card"] = "cash"
     paid_on: Optional[date] = None
     bank_reference: Optional[str] = Field(default=None, max_length=100)
     receipt_book_id: Optional[UUID] = None
@@ -584,7 +630,7 @@ async def pay_dues(request: Request, payload: DuesPaymentIn, db: AsyncSession = 
     paid_at = datetime.combine(payload.paid_on, datetime.min.time().replace(hour=12), TZ) if payload.paid_on else datetime.now(timezone.utc)
     donation, effects = await record_offline_donation(
         db, organization_id=org_id, campaign=campaign, donor=member.donor, amount_cents=total, currency="TRY",
-        method=PaymentMethod.CASH if payload.payment_method == "cash" else PaymentMethod.BANK_TRANSFER,
+        method=PaymentMethod(payload.payment_method),
         paid_at=paid_at, issued_by_id=current_user.id, provider="manual", idempotency_key=key,
         details={"member_no": member.member_no, "periods": periods, "bank_reference": payload.bank_reference},
         note=f"Üye aidatı ({member.member_no}): {periods}", transaction_id=payload.bank_reference,

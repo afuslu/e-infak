@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { Trash2 } from 'lucide-react'
+import { AlertTriangle, Check, Copy, CreditCard, MessageSquare, SlidersHorizontal, Trash2, Users, Wallet } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
+import { GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { ExportButtons, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
 
 interface MemberRow {
@@ -42,15 +45,52 @@ const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${Str
 
 const emptyMember = { member_no: '', member_type: 'asil', status: 'active', joined_on: '', left_on: '', dues: '', dues_period: '', notes: '', first_name: '', last_name: '', phone: '', email: '', tc_no: '', city: '' }
 
+function CopyButton({ value, label }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      title={`${label || value} kopyala`}
+      onClick={(e) => {
+        e.stopPropagation()
+        navigator.clipboard?.writeText(value).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        }).catch(() => {})
+      }}
+      className="inline-flex items-center rounded p-0.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  )
+}
+
 export default function MembersPage() {
+  const router = useRouter()
   const { data: access } = useAdminAccess()
   const canEdit = can(access, 'members.manage')
   const canCollect = (can(access, 'members.manage') || can(access, 'receipts.create'))
+  const canSms = can(access, 'sms.send')
+  const canBulkSms = can(access, 'sms.bulk')
   const [tab, setTab] = useState<Tab>('members')
   const [settings, setSettings] = useState<Settings | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [members, setMembers] = useState<MemberRow[]>([])
-  const [filters, setFilters] = useState({ status: 'active', member_type: '', overdue_only: false, q: '' })
+  const [pickedMembers, setPickedMembers] = useState<Set<string>>(new Set())
+  const [bulkStatus, setBulkStatus] = useState('passive')
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const emptyMemberFilters = {
+    status: 'active',
+    member_type: '',
+    dues_period: '',
+    joined_start: '',
+    joined_end: '',
+    sort: 'member_no',
+    overdue_only: false,
+    q: '',
+  }
+  const [filters, setFilters] = useState(emptyMemberFilters)
+  const [showFilters, setShowFilters] = useState(false)
   const [page, setPage] = useState(1)
   const [detail, setDetail] = useState<MemberDetail | null>(null)
   const [form, setForm] = useState<(typeof emptyMember & { id?: string }) | null>(null)
@@ -64,12 +104,60 @@ export default function MembersPage() {
   const load = async () => {
     try {
       setMembers((await adminGet<MemberRow[]>('/members', {
-        status: filters.status || undefined, member_type: filters.member_type || undefined,
-        overdue_only: filters.overdue_only || undefined, q: filters.q || undefined,
+        status: filters.status || undefined,
+        member_type: filters.member_type || undefined,
+        dues_period: filters.dues_period || undefined,
+        joined_start: filters.joined_start || undefined,
+        joined_end: filters.joined_end || undefined,
+        sort: filters.sort || 'member_no',
+        overdue_only: filters.overdue_only || undefined,
+        q: filters.q || undefined,
       })).data)
+      setPickedMembers(new Set())
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Üyeler yüklenemedi') })
     }
+  }
+
+  const applyBulkStatus = async () => {
+    if (!pickedMembers.size) return
+    const label = settings?.statuses?.[bulkStatus] || bulkStatus
+    const ok = await confirmDialog({
+      title: `${pickedMembers.size} üyenin durumu "${label}" yapılsın mı?`,
+      text: 'Seçili üyelerin üyelik durumu toplu olarak güncellenecektir.',
+    })
+    if (!ok) return
+    setBulkBusy(true)
+    try {
+      const res = await adminSend<{ updated: number }>('post', '/members/bulk-status', {
+        member_ids: [...pickedMembers],
+        status: bulkStatus,
+      })
+      setMessage({ type: 'ok', text: `${res.data.updated} üyenin durumu güncellendi` })
+      await load()
+      refreshSummary()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Toplu güncelleme başarısız') })
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
+  const sendBulkSmsToMembers = () => {
+    const phones = Array.from(new Set(
+      members
+        .filter((m) => pickedMembers.has(m.id) && m.phone)
+        .map((m) => m.phone!.trim())
+        .filter(Boolean)
+    ))
+    if (!phones.length) {
+      setMessage({ type: 'error', text: 'Seçili üyelerde kayıtlı telefon numarası bulunamadı' })
+      return
+    }
+    try {
+      sessionStorage.setItem('broadcast_prefill_numbers', phones.join('\n'))
+    } catch { /* ignore */ }
+    router.push('/admin/broadcast?kind=numbers')
   }
   const didMountMembersRef = useRef(false)
   useEffect(() => {
@@ -132,15 +220,35 @@ export default function MembersPage() {
       />
 
       {summary && (
-        <div className="grid gap-3 sm:grid-cols-4">
-          {[
-            ['Aktif üye', summary.members.active.toLocaleString('tr-TR')],
-            ['Geciken aidat', `${formatMoney(summary.overdue_cents)} · ${summary.overdue_members} üye`],
-            ['Açık aidat toplamı', formatMoney(summary.open_cents)],
-            [`${summary.year} tahsilat`, formatMoney(summary.collected_cents)],
-          ].map(([k, v]) => (
-            <div key={k} className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm"><p className="text-xs font-bold text-gray-400">{k}</p><p className="mt-1 text-lg font-bold text-gray-900">{v}</p></div>
-          ))}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <GlobalStatCard
+            title="Aktif Üye"
+            value={summary.members.active.toLocaleString('tr-TR')}
+            subtitle={`Toplam ${Object.values(summary.members).reduce((a, b) => a + b, 0).toLocaleString('tr-TR')} kayıtlı üye`}
+            gradient="from-emerald-600 to-teal-700"
+            icon={<Users className="h-5 w-5" />}
+          />
+          <GlobalStatCard
+            title="Geciken Aidat"
+            value={formatMoney(summary.overdue_cents)}
+            subtitle={`${summary.overdue_members} üye gecikmede`}
+            gradient={summary.overdue_cents > 0 ? 'from-rose-600 to-red-700' : 'from-slate-600 to-slate-700'}
+            icon={<AlertTriangle className="h-5 w-5" />}
+          />
+          <GlobalStatCard
+            title="Açık Aidat Toplamı"
+            value={formatMoney(summary.open_cents)}
+            subtitle="Bekleyen toplam alacak"
+            gradient="from-amber-500 to-orange-600"
+            icon={<Wallet className="h-5 w-5" />}
+          />
+          <GlobalStatCard
+            title={`${summary.year} Tahsilat`}
+            value={formatMoney(summary.collected_cents)}
+            subtitle="Bu yıl tahsil edilen"
+            gradient="from-sky-600 to-blue-700"
+            icon={<CreditCard className="h-5 w-5" />}
+          />
         </div>
       )}
 
@@ -153,9 +261,8 @@ export default function MembersPage() {
       <Notice message={message} />
 
       {form && settings && (
-        <Card className="border border-gray-100 p-6 shadow-sm">
+        <Modal title={form.id ? `${form.member_no} Numaralı Üyeyi Düzenle` : 'Yeni Üye Kaydı'} size="lg" onClose={() => setForm(null)}>
           <form onSubmit={save} className="space-y-4">
-            <h2 className="text-lg font-bold text-gray-900">{form.id ? `${form.member_no} numaralı üyeyi düzenle` : 'Yeni üye'}</h2>
             {!form.id && (
               <div className="grid gap-3 sm:grid-cols-3">
                 <TextInput label="Ad" required value={form.first_name} onChange={(v) => s('first_name', v)} />
@@ -190,59 +297,208 @@ export default function MembersPage() {
               </Label>
             </div>
             <TextInput label="Not" value={form.notes} onChange={(v) => s('notes', v)} />
-            <div className="flex gap-2">
-              <button type="submit" className={primaryButton}>Kaydet</button>
+            <div className="flex justify-end gap-2 pt-2">
               <button type="button" className={ghostButton} onClick={() => setForm(null)}>Vazgeç</button>
+              <button type="submit" className={primaryButton}>Kaydet</button>
             </div>
           </form>
-        </Card>
+        </Modal>
       )}
 
       {detail && !form && (
-        <MemberCard key={detail.id} detail={detail} canEdit={canEdit} canCollect={canCollect} onEdit={() => setForm({
-          id: detail.id, member_no: detail.member_no, member_type: detail.member_type, status: detail.status,
-          joined_on: detail.joined_on || '', left_on: detail.left_on || '', dues: detail.dues_cents !== null ? String(detail.dues_cents / 100) : '',
-          dues_period: detail.dues_period || '', notes: detail.notes || '', first_name: '', last_name: '', phone: '', email: '', tc_no: '', city: '',
-        })} onClose={() => setDetail(null)} onChanged={async (text) => { setMessage({ type: 'ok', text }); await open(detail.id); await load(); refreshSummary() }}
-          onError={(text) => setMessage({ type: 'error', text })} />
+        <Modal title={`${detail.full_name || detail.member_no} · Üye #${detail.member_no}`} size="lg" onClose={() => setDetail(null)}>
+          <MemberCard key={detail.id} detail={detail} canEdit={canEdit} canCollect={canCollect} canSms={canSms} onEdit={() => setForm({
+            id: detail.id, member_no: detail.member_no, member_type: detail.member_type, status: detail.status,
+            joined_on: detail.joined_on || '', left_on: detail.left_on || '', dues: detail.dues_cents !== null ? String(detail.dues_cents / 100) : '',
+            dues_period: detail.dues_period || '', notes: detail.notes || '', first_name: '', last_name: '', phone: '', email: '', tc_no: '', city: '',
+          })} onClose={() => setDetail(null)} onChanged={async (text) => { setMessage({ type: 'ok', text }); await open(detail.id); await load(); refreshSummary() }}
+            onError={(text) => setMessage({ type: 'error', text })} />
+        </Modal>
       )}
 
       {tab === 'members' && settings && (
         <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            <select className={`${inputClass} w-40`} value={filters.status} onChange={(e) => { setFilters({ ...filters, status: e.target.value }); setPage(1) }}>
-              <option value="">Tüm durumlar</option>{Object.entries(settings.statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-            <select className={`${inputClass} w-40`} value={filters.member_type} onChange={(e) => { setFilters({ ...filters, member_type: e.target.value }); setPage(1) }}>
-              <option value="">Tüm türler</option>{Object.entries(settings.types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-            <input className={`${inputClass} w-56`} placeholder="Üye no, ad, telefon…" value={filters.q} onChange={(e) => { setFilters({ ...filters, q: e.target.value }); setPage(1) }} />
-            <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
-              <input type="checkbox" checked={filters.overdue_only} onChange={(e) => { setFilters({ ...filters, overdue_only: e.target.checked }); setPage(1) }} /> Yalnız aidatı gecikenler
-            </label>
-            <div className="ml-auto flex gap-2">
-              <ExportButtons
-                filename="uyeler"
-                title="Üye Listesi"
-                subtitle={`${members.length} üye`}
-                currencyCols={[7]}
-                getData={() => ({
-                  headers: ['Üye no', 'Ad', 'Telefon', 'E-posta', 'Tür', 'Durum', 'Kayıt', 'Açık aidat', 'Geciken dönem'],
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                className={`${inputClass} min-w-[200px] flex-1 sm:max-w-xs`}
+                placeholder="Üye no, ad, telefon…"
+                value={filters.q}
+                onChange={(e) => { setFilters({ ...filters, q: e.target.value }); setPage(1) }}
+              />
+              <select
+                className={`${inputClass} w-44`}
+                value={filters.sort}
+                onChange={(e) => { setFilters({ ...filters, sort: e.target.value }); setPage(1) }}
+              >
+                <option value="member_no">Üye no</option>
+                <option value="joined_desc">Kayıt tarihi (Yeni)</option>
+                <option value="debt_desc">Açık aidat (Yüksek)</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowFilters((v) => !v)}
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition ${
+                  showFilters ? 'border-primary-500 bg-primary-50 text-primary-800' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>Gelişmiş Filtreler</span>
+                {[filters.status !== 'active' ? filters.status || 'all' : '', filters.member_type, filters.dues_period, filters.joined_start, filters.joined_end, filters.overdue_only ? '1' : ''].filter(Boolean).length > 0 && (
+                  <span className="rounded-full bg-primary-600 px-1.5 py-0.5 text-[10px] text-white">
+                    {[filters.status !== 'active' ? filters.status || 'all' : '', filters.member_type, filters.dues_period, filters.joined_start, filters.joined_end, filters.overdue_only ? '1' : ''].filter(Boolean).length}
+                  </span>
+                )}
+              </button>
+              <div className="ml-auto flex gap-2">
+                <ExportButtons
+                  filename="uyeler"
+                  title="Üye Listesi"
+                  subtitle={`${members.length} üye`}
+                  currencyCols={[7]}
+                  getData={() => ({
+                    headers: ['Üye no', 'Ad', 'Telefon', 'E-posta', 'Tür', 'Durum', 'Kayıt', 'Açık aidat', 'Geciken dönem'],
                   rows: members.map((m) => [m.member_no, m.full_name, m.phone, m.email, m.member_type_label, m.status_label, fmt(m.joined_on), m.open_dues_cents / 100, m.overdue_count]),
                 })}
               />
               <button className={ghostButton} onClick={() => downloadVcard(members.map((m) => m.id)).catch(() => setMessage({ type: 'error', text: 'vCard indirilemedi' }))}>⬇ vCard</button>
             </div>
+            </div>
+
+            {showFilters && (
+              <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <Label label="Durum">
+                    <select className={inputClass} value={filters.status} onChange={(e) => { setFilters({ ...filters, status: e.target.value }); setPage(1) }}>
+                      <option value="">Tüm durumlar</option>{Object.entries(settings.statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </Label>
+                  <Label label="Üye Türü">
+                    <select className={inputClass} value={filters.member_type} onChange={(e) => { setFilters({ ...filters, member_type: e.target.value }); setPage(1) }}>
+                      <option value="">Tüm türler</option>{Object.entries(settings.types).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </Label>
+                  <Label label="Aidat Periyodu">
+                    <select className={inputClass} value={filters.dues_period} onChange={(e) => { setFilters({ ...filters, dues_period: e.target.value }); setPage(1) }}>
+                      <option value="">Tümü</option>
+                      <option value="monthly">Aylık</option>
+                      <option value="yearly">Yıllık</option>
+                    </select>
+                  </Label>
+                  <Label label="Kayıt Başlangıç">
+                    <input type="date" className={inputClass} value={filters.joined_start} onChange={(e) => { setFilters({ ...filters, joined_start: e.target.value }); setPage(1) }} />
+                  </Label>
+                  <Label label="Kayıt Bitiş">
+                    <input type="date" className={inputClass} value={filters.joined_end} onChange={(e) => { setFilters({ ...filters, joined_end: e.target.value }); setPage(1) }} />
+                  </Label>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">
+                    <input type="checkbox" checked={filters.overdue_only} onChange={(e) => { setFilters({ ...filters, overdue_only: e.target.checked }); setPage(1) }} /> Yalnız aidatı gecikenler
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { setFilters(emptyMemberFilters); setPage(1) }}
+                    className="cursor-pointer text-xs font-semibold text-rose-600 hover:underline"
+                  >
+                    Filtreleri temizle
+                  </button>
+                </div>
+              </div>
+            )}
+            {pickedMembers.size > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary-200 bg-primary-50/70 px-3 py-2 text-xs">
+                <span className="font-bold text-primary-900">{pickedMembers.size} üye seçildi</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {canBulkSms && (
+                    <button
+                      type="button"
+                      onClick={sendBulkSmsToMembers}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1.5 font-semibold text-white hover:bg-primary-700"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> Seçilenlere Toplu SMS
+                    </button>
+                  )}
+                  {canEdit && (
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-semibold text-gray-700"
+                        value={bulkStatus}
+                        onChange={(e) => setBulkStatus(e.target.value)}
+                      >
+                        {Object.entries(settings.statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={bulkBusy}
+                        onClick={applyBulkStatus}
+                        className="cursor-pointer rounded-lg border border-gray-200 bg-white px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {bulkBusy ? 'Uygulanıyor…' : 'Durumu Güncelle'}
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => downloadVcard([...pickedMembers]).catch(() => setMessage({ type: 'error', text: 'vCard indirilemedi' }))}
+                    className="cursor-pointer rounded-lg border border-gray-200 bg-white px-2.5 py-1 font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    ⬇ Seçili vCard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPickedMembers(new Set())}
+                    className="cursor-pointer font-semibold text-gray-500 hover:text-gray-800"
+                  >
+                    Temizle
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <Table>
-              <THead><Tr><Th>No</Th><Th>Ad</Th><Th>Telefon</Th><Th>Tür</Th><Th>Durum</Th><Th>Kayıt</Th><Th>Açık aidat</Th><Th>Son ödeme</Th></Tr></THead>
+              <THead>
+                <Tr>
+                  <Th className="w-8">
+                    <input
+                      type="checkbox"
+                      aria-label="Sayfadaki tüm üyeleri seç"
+                      checked={members.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).length > 0 && members.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).every((m) => pickedMembers.has(m.id))}
+                      onChange={(e) => {
+                        const pageIds = members.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((m) => m.id)
+                        setPickedMembers((prev) => {
+                          const next = new Set(prev)
+                          if (e.target.checked) pageIds.forEach((id) => next.add(id))
+                          else pageIds.forEach((id) => next.delete(id))
+                          return next
+                        })
+                      }}
+                    />
+                  </Th>
+                  <Th>No</Th><Th>Ad</Th><Th>Telefon</Th><Th>Tür</Th><Th>Durum</Th><Th>Kayıt</Th><Th>Açık aidat</Th><Th>Son ödeme</Th>
+                </Tr>
+              </THead>
               <TBody>
                 {members.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((m) => (
                   <Tr key={m.id} onClick={() => open(m.id)} className={`cursor-pointer border-t hover:bg-gray-50 ${detail?.id === m.id ? 'bg-primary-50/30' : ''}`}>
+                    <Td onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={pickedMembers.has(m.id)}
+                        onChange={() => setPickedMembers((p) => { const n = new Set(p); n.has(m.id) ? n.delete(m.id) : n.add(m.id); return n })}
+                      />
+                    </Td>
                     <Td className="font-bold">{m.member_no}</Td>
                     <Td className="font-semibold text-gray-900">{m.full_name}</Td>
-                    <Td>{m.phone || '—'}</Td>
+                    <Td>
+                      {m.phone ? (
+                        <div className="flex items-center gap-1">
+                          <span>{m.phone}</span>
+                          <CopyButton value={m.phone} label="Telefon" />
+                        </div>
+                      ) : '—'}
+                    </Td>
                     <Td>{m.member_type_label}</Td>
                     <Td>
                       <span className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE[m.status] || 'border-gray-200 bg-gray-100 text-gray-700'}`}>
@@ -254,9 +510,43 @@ export default function MembersPage() {
                     <Td>{fmt(m.last_paid_at)}</Td>
                   </Tr>
                 ))}
-                {!members.length && <Tr><Td colSpan={8} className="text-center text-gray-400">Üye yok.</Td></Tr>}
+                {!members.length && <Tr><Td colSpan={9} className="text-center text-gray-400">Üye yok.</Td></Tr>}
               </TBody>
             </Table>
+          </div>
+          <div className="space-y-2 md:hidden">
+            {members.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((m) => (
+              <div
+                key={m.id}
+                onClick={() => open(m.id)}
+                className={`cursor-pointer rounded-xl border p-3.5 transition ${detail?.id === m.id ? 'border-primary-400 bg-primary-50/30' : 'border-gray-200 bg-white'}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={pickedMembers.has(m.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => setPickedMembers((p) => { const n = new Set(p); n.has(m.id) ? n.delete(m.id) : n.add(m.id); return n })}
+                    />
+                    <div>
+                      <p className="font-bold text-gray-900">{m.full_name}</p>
+                      <p className="text-xs text-gray-500">#{m.member_no} · {m.member_type_label}</p>
+                    </div>
+                  </div>
+                  <span className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE[m.status] || 'border-gray-200 bg-gray-100 text-gray-700'}`}>
+                    {m.status_label}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-2 text-xs text-gray-600">
+                  <span>{m.phone || 'Telefon yok'}</span>
+                  <span className={m.overdue_count ? 'font-bold text-red-700' : 'font-semibold text-gray-800'}>
+                    {m.open_dues_cents ? `${formatMoney(m.open_dues_cents)}${m.overdue_count ? ` (${m.overdue_count} gecikmiş)` : ''}` : 'Borç yok'}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {!members.length && <p className="py-6 text-center text-sm text-gray-400">Üye yok.</p>}
           </div>
           {members.length > PAGE_SIZE && (
             <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
@@ -272,7 +562,7 @@ export default function MembersPage() {
         </Card>
       )}
 
-      {tab === 'dues' && <DuesTab canCollect={canCollect} onMessage={setMessage} onChanged={refreshSummary} onOpenMember={async (memberId) => { setTab('members'); await open(memberId) }} />}
+      {tab === 'dues' && <DuesTab canCollect={canCollect} canSms={canSms} canBulkSms={canBulkSms} onMessage={setMessage} onChanged={refreshSummary} onOpenMember={async (memberId) => { setTab('members'); await open(memberId) }} />}
       {tab === 'duplicates' && <DuplicatesTab canEdit={canEdit} onMessage={setMessage} />}
       {tab === 'settings' && settings && <SettingsTab settings={settings} canEdit={canEdit} onSaved={(v) => setSettings({ ...settings, ...v })} onMessage={setMessage} />}
     </div>
@@ -316,11 +606,15 @@ function CollectForm({ dues, onDone, onError }: { dues: Due[]; onDone: (text: st
       <div className="grid gap-3 sm:grid-cols-4">
         <Label label="Ödeme şekli">
           <select className={inputClass} value={f.payment_method} onChange={(e) => setF({ ...f, payment_method: e.target.value })}>
-            <option value="cash">Nakit</option><option value="bank_transfer">Havale / EFT</option>
+            <option value="cash">Nakit</option>
+            <option value="bank_transfer">Havale / EFT</option>
+            <option value="credit_card">Kredi Kartı / POS</option>
           </select>
         </Label>
         <TextInput label="Tarih" type="date" value={f.paid_on} onChange={(v) => setF({ ...f, paid_on: v })} hint="Boşsa bugün" />
-        {f.payment_method === 'bank_transfer' && <TextInput label="Dekont no" value={f.bank_reference} onChange={(v) => setF({ ...f, bank_reference: v })} />}
+        {(f.payment_method === 'bank_transfer' || f.payment_method === 'credit_card') && (
+          <TextInput label={f.payment_method === 'credit_card' ? 'POS / Referans no' : 'Dekont no'} value={f.bank_reference} onChange={(v) => setF({ ...f, bank_reference: v })} />
+        )}
         {books.length > 0 && (
           <Label label="Matbu koçan">
             <select className={inputClass} value={f.book} onChange={(e) => setF({ ...f, book: e.target.value, number: '' })}>
@@ -336,12 +630,13 @@ function CollectForm({ dues, onDone, onError }: { dues: Due[]; onDone: (text: st
   )
 }
 
-function MemberCard({ detail, canEdit, canCollect, onEdit, onClose, onChanged, onError }: {
-  detail: MemberDetail; canEdit: boolean; canCollect: boolean; onEdit: () => void; onClose: () => void
+function MemberCard({ detail, canEdit, canCollect, canSms, onEdit, onClose, onChanged, onError }: {
+  detail: MemberDetail; canEdit: boolean; canCollect: boolean; canSms: boolean; onEdit: () => void; onClose: () => void
   onChanged: (text: string) => void; onError: (text: string) => void
 }) {
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [collect, setCollect] = useState(false)
+  const [smsOpen, setSmsOpen] = useState(false)
   const openDues = detail.dues.filter((d) => d.status === 'open')
   const selected = openDues.filter((d) => picked.has(d.id))
   const wa = whatsappUrl(detail.phone, `Merhaba ${detail.full_name}, dernek üyeliğiniz hakkında iletişime geçiyoruz.`)
@@ -360,34 +655,51 @@ function MemberCard({ detail, canEdit, canCollect, onEdit, onClose, onChanged, o
     }
   }
   return (
-    <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-bold text-gray-900">{detail.full_name} <span className="text-sm font-semibold text-gray-500">· Üye no {detail.member_no}</span></h2>
             <span className={`inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE[detail.status] || 'border-gray-200 bg-gray-100 text-gray-700'}`}>
               {detail.status_label}
             </span>
+            <span className="text-xs font-semibold text-gray-500">{[detail.member_type_label, detail.city].filter(Boolean).join(' · ')}</span>
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500">
-            <span>{[detail.member_type_label, detail.city].filter(Boolean).join(' · ')}</span>
-            {detail.phone && <a href={`tel:${detail.phone}`} className="font-semibold text-primary-700 hover:underline">{detail.phone}</a>}
-            {detail.email && <a href={`mailto:${detail.email}`} className="text-primary-700 hover:underline">{detail.email}</a>}
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+            {detail.phone && (
+              <span className="inline-flex items-center gap-1">
+                <a href={`tel:${detail.phone}`} className="font-semibold text-primary-700 hover:underline">{detail.phone}</a>
+                <CopyButton value={detail.phone} label="Telefon" />
+              </span>
+            )}
+            {detail.email && (
+              <span className="inline-flex items-center gap-1">
+                <a href={`mailto:${detail.email}`} className="text-primary-700 hover:underline">{detail.email}</a>
+                <CopyButton value={detail.email} label="E-posta" />
+              </span>
+            )}
             {wa && (
               <a href={wa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-[#25D366]/40 bg-[#25D366]/10 px-2 py-0.5 text-xs font-semibold text-[#128C7E] hover:bg-[#25D366]/20">
                 <WhatsAppIcon className="h-3.5 w-3.5" /> WhatsApp
               </a>
             )}
+            {canSms && detail.phone && (
+              <button
+                type="button"
+                onClick={() => setSmsOpen(true)}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-primary-200 bg-primary-50 px-2 py-0.5 text-xs font-semibold text-primary-700 hover:bg-primary-100"
+              >
+                <MessageSquare className="h-3.5 w-3.5" /> SMS Gönder
+              </button>
+            )}
           </div>
-          <p className="mt-0.5 text-xs text-gray-400">Kayıt {fmt(detail.joined_on)}{detail.left_on ? ` · Ayrılış ${fmt(detail.left_on)}` : ''}{detail.dues_cents !== null ? ` · Özel aidat ${formatMoney(detail.dues_cents)}` : ''}</p>
+          <p className="mt-1 text-xs text-gray-400">Kayıt {fmt(detail.joined_on)}{detail.left_on ? ` · Ayrılış ${fmt(detail.left_on)}` : ''}{detail.dues_cents !== null ? ` · Özel aidat ${formatMoney(detail.dues_cents)}` : ''}</p>
         </div>
         <div className="flex gap-2">
           {canEdit && <button className={ghostButton} onClick={onEdit}>Düzenle</button>}
           <a className={ghostButton} href={`/admin/bagiscilar?donor=${detail.donor_id}`}>Bağışçı kartı</a>
-          <button className={ghostButton} onClick={onClose}>Kapat</button>
         </div>
       </div>
-      {detail.notes && <p className="whitespace-pre-line text-sm text-gray-700">{detail.notes}</p>}
+      {detail.notes && <p className="whitespace-pre-line rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{detail.notes}</p>}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-gray-900">Aidatlar · açık {formatMoney(detail.open_dues_cents)}</h3>
         {canCollect && openDues.length > 0 && (
@@ -425,30 +737,58 @@ function MemberCard({ detail, canEdit, canCollect, onEdit, onClose, onChanged, o
           {!detail.dues.length && <Tr><Td colSpan={7} className="text-center text-gray-400">Bu üyeye henüz aidat dönemi açılmamış.</Td></Tr>}
         </TBody>
       </Table>
-    </Card>
+      {smsOpen && (
+        <QuickSmsDialog
+          title={`${detail.full_name || detail.member_no} — Hızlı SMS`}
+          target={{ donorId: detail.donor_id, name: detail.full_name, phone: detail.phone }}
+          onClose={() => setSmsOpen(false)}
+          onSent={(res) => { setSmsOpen(false); onChanged(sentNotice(res)) }}
+        />
+      )}
+    </div>
   )
 }
 
-function DuesTab({ canCollect, onMessage, onChanged, onOpenMember }: {
-  canCollect: boolean; onMessage: (m: { type: 'ok' | 'error'; text: string } | null) => void; onChanged: () => void; onOpenMember: (memberId: string) => void
+function DuesTab({ canCollect, canSms, canBulkSms, onMessage, onChanged, onOpenMember }: {
+  canCollect: boolean; canSms: boolean; canBulkSms: boolean; onMessage: (m: { type: 'ok' | 'error'; text: string } | null) => void; onChanged: () => void; onOpenMember: (memberId: string) => void
 }) {
+  const router = useRouter()
   const [status, setStatus] = useState<'overdue' | 'open' | 'paid' | 'waived'>('overdue')
   const [periodFilter, setPeriodFilter] = useState('')
   const [q, setQ] = useState('')
+  const [sort, setSort] = useState<'due_date' | 'overdue_desc' | 'amount_desc' | 'member_no'>('due_date')
   const [page, setPage] = useState(1)
   const [rows, setRows] = useState<Due[]>([])
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [waiveModal, setWaiveModal] = useState(false)
   const [waiveReason, setWaiveReason] = useState('Yönetim kurulu kararı')
+  const [smsTarget, setSmsTarget] = useState<Due | null>(null)
   const [gen, setGen] = useState({ period: thisMonth(), due_date: '', amount: '' })
   const [preview, setPreview] = useState<{ created: number; total_cents: number; already_had: number; no_amount: number; other_period: number } | null>(null)
-  const load = () => adminGet<Due[]>('/member-dues', { status, period: periodFilter.trim() || undefined, q: q.trim() || undefined })
+  const load = () => adminGet<Due[]>('/member-dues', { status, period: periodFilter.trim() || undefined, q: q.trim() || undefined, sort })
     .then((r) => { setRows(r.data); setPicked(new Set()) }).catch((err) => onMessage({ type: 'error', text: apiErrorMessage(err) }))
   useEffect(() => {
     const t = setTimeout(load, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, periodFilter, q])
+  }, [status, periodFilter, q, sort])
+
+  const sendSmsForPicked = () => {
+    const phones = Array.from(new Set(
+      rows
+        .filter((r) => picked.has(r.id) && r.phone)
+        .map((r) => r.phone!.trim())
+        .filter(Boolean)
+    ))
+    if (!phones.length) {
+      onMessage({ type: 'error', text: 'Seçili aidatlarda kayıtlı telefon numarası yok' })
+      return
+    }
+    try {
+      sessionStorage.setItem('broadcast_prefill_numbers', phones.join('\n'))
+    } catch { /* ignore */ }
+    router.push('/admin/broadcast?kind=numbers')
+  }
 
   const generate = async (dryRun: boolean) => {
     onMessage(null)
@@ -522,10 +862,34 @@ function DuesTab({ canCollect, onMessage, onChanged, onOpenMember }: {
           {([['overdue', 'Gecikmiş'], ['open', 'Tüm açık'], ['paid', 'Ödenmiş'], ['waived', 'Muaf']] as const).map(([k, l]) => (
             <button key={k} onClick={() => { setStatus(k); setPage(1) }} className={`rounded-full border px-3 py-1 text-xs font-semibold ${status === k ? 'border-primary-600 bg-primary-50 text-primary-700' : 'bg-white text-gray-600'}`}>{l}</button>
           ))}
-          <input className={`${inputClass} w-48`} placeholder="Üye no, ad, telefon…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+          <input className={`${inputClass} w-44`} placeholder="Üye no, ad, telefon…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
           <input className={`${inputClass} w-32`} placeholder="Dönem (2026-11)" value={periodFilter} onChange={(e) => { setPeriodFilter(e.target.value); setPage(1) }} />
+          <select className={`${inputClass} w-44`} value={sort} onChange={(e) => { setSort(e.target.value as typeof sort); setPage(1) }}>
+            <option value="due_date">Vade (Yakın)</option>
+            <option value="overdue_desc">En çok geciken</option>
+            <option value="amount_desc">Tutar (Yüksek)</option>
+            <option value="member_no">Üye no</option>
+          </select>
           <span className="text-xs text-gray-500">{rows.length} kayıt · {formatMoney(rows.reduce((s, r) => s + r.amount_cents, 0))}</span>
-          <div className="ml-auto flex gap-2">
+          <div className="ml-auto flex flex-wrap gap-2">
+            {canBulkSms && picked.size > 0 && (
+              <button
+                type="button"
+                onClick={sendSmsForPicked}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-xl bg-primary-600 px-3 py-2 text-xs font-bold text-white hover:bg-primary-700"
+              >
+                <MessageSquare className="h-3.5 w-3.5" /> Seçilenlere SMS ({picked.size})
+              </button>
+            )}
+            {canBulkSms && status === 'overdue' && picked.size === 0 && rows.length > 0 && (
+              <button
+                type="button"
+                onClick={() => router.push('/admin/broadcast?kind=dues_overdue')}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-bold text-primary-700 hover:bg-primary-100"
+              >
+                <MessageSquare className="h-3.5 w-3.5" /> Gecikenlere Toplu SMS
+              </button>
+            )}
             {canCollect && (status === 'overdue' || status === 'open') && picked.size > 0 && <button className={ghostButton} onClick={() => setWaiveModal(true)}>Seçilenleri muaf tut</button>}
             <ExportButtons
               filename={`aidat-${status}`}
@@ -539,30 +903,65 @@ function DuesTab({ canCollect, onMessage, onChanged, onOpenMember }: {
             />
           </div>
         </div>
-        <p className="text-[11px] text-gray-400">Tahsilat için üye adına veya &quot;Tahsilat&quot; butonuna tıklayarak üye kartını açabilirsiniz. Gecikenlere hatırlatma için listeyi CSV alıp Toplu SMS ekranını kullanabilirsiniz.</p>
-        <div className="overflow-x-auto">
+        <p className="text-[11px] text-gray-400">Tahsilat için üye adına veya &quot;Tahsilat&quot; butonuna tıklayarak üye kartını açabilirsiniz. Gecikenlere WhatsApp veya Toplu SMS ile tek tıkla hatırlatma gönderebilirsiniz.</p>
+        <div className="hidden overflow-x-auto md:block">
           <Table>
-            <THead><Tr><Th /><Th>Üye no</Th><Th>Ad</Th><Th>Telefon</Th><Th>Dönem</Th><Th>Son ödeme</Th><Th>Tutar</Th><Th>Durum</Th><Th className="text-right">İşlem</Th></Tr></THead>
+            <THead>
+              <Tr>
+                <Th className="w-8">
+                  {(status === 'overdue' || status === 'open') && (
+                    <input
+                      type="checkbox"
+                      aria-label="Sayfadaki tüm aidatları seç"
+                      checked={rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).length > 0 && rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).every((r) => picked.has(r.id))}
+                      onChange={(e) => {
+                        const pageIds = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).filter((r) => r.status === 'open').map((r) => r.id)
+                        setPicked((prev) => {
+                          const next = new Set(prev)
+                          if (e.target.checked) pageIds.forEach((id) => next.add(id))
+                          else pageIds.forEach((id) => next.delete(id))
+                          return next
+                        })
+                      }}
+                    />
+                  )}
+                </Th>
+                <Th>Üye no</Th><Th>Ad</Th><Th>Telefon</Th><Th>Dönem</Th><Th>Son ödeme</Th><Th>Tutar</Th><Th>Durum</Th><Th className="text-right">İşlem</Th>
+              </Tr>
+            </THead>
             <TBody>
               {rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => {
                 const wa = whatsappUrl(r.phone, `Merhaba ${r.full_name}, ${r.period} dönemi (${formatMoney(r.amount_cents)}) aidatınız hakkında bilgilendirmek isteriz.`)
                 return (
                   <Tr key={r.id} className="border-t hover:bg-gray-50">
-                    <Td>{r.status === 'open' && canCollect && <input type="checkbox" checked={picked.has(r.id)} onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })} />}</Td>
+                    <Td>{r.status === 'open' && <input type="checkbox" checked={picked.has(r.id)} onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })} />}</Td>
                     <Td className="font-bold">{r.member_no}</Td>
                     <Td>
                       <button type="button" onClick={() => onOpenMember(r.member_id)} className="font-semibold text-primary-700 hover:underline text-left">
                         {r.full_name}
                       </button>
                     </Td>
-                    <Td>{r.phone || '—'}</Td><Td>{r.period}</Td><Td>{fmt(r.due_date)}</Td>
-                    <Td>{formatMoney(r.amount_cents)}</Td>
+                    <Td>
+                      {r.phone ? (
+                        <div className="flex items-center gap-1">
+                          <span>{r.phone}</span>
+                          <CopyButton value={r.phone} label="Telefon" />
+                        </div>
+                      ) : '—'}
+                    </Td>
+                    <Td>{r.period}</Td><Td>{fmt(r.due_date)}</Td>
+                    <Td className="font-semibold">{formatMoney(r.amount_cents)}</Td>
                     <Td className={r.overdue ? 'font-bold text-red-700' : ''}>{r.overdue ? `${r.days_overdue} gün gecikmiş` : r.status_label}</Td>
                     <Td className="text-right">
                       <div className="inline-flex items-center gap-2">
                         {r.status === 'open' && canCollect && (
                           <button type="button" onClick={() => onOpenMember(r.member_id)} className="rounded border border-primary-200 bg-primary-50 px-2 py-0.5 text-[11px] font-semibold text-primary-700 hover:bg-primary-100">
                             Tahsilat
+                          </button>
+                        )}
+                        {canSms && r.phone && (
+                          <button type="button" title="Hızlı SMS gönder" onClick={() => setSmsTarget(r)} className="rounded p-1 text-gray-500 hover:bg-primary-50 hover:text-primary-700">
+                            <MessageSquare className="h-3.5 w-3.5" />
                           </button>
                         )}
                         {wa && (
@@ -583,6 +982,46 @@ function DuesTab({ canCollect, onMessage, onChanged, onOpenMember }: {
               {!rows.length && <Tr><Td colSpan={9} className="text-center text-gray-400">Kayıt yok.</Td></Tr>}
             </TBody>
           </Table>
+        </div>
+        <div className="space-y-2 md:hidden">
+          {rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => {
+            const wa = whatsappUrl(r.phone, `Merhaba ${r.full_name}, ${r.period} dönemi (${formatMoney(r.amount_cents)}) aidatınız hakkında bilgilendirmek isteriz.`)
+            return (
+              <div key={r.id} className="rounded-xl border border-gray-200 bg-white p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {r.status === 'open' && (
+                      <input type="checkbox" checked={picked.has(r.id)} onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })} />
+                    )}
+                    <div>
+                      <button type="button" onClick={() => onOpenMember(r.member_id)} className="text-left font-bold text-primary-700 hover:underline">
+                        {r.full_name}
+                      </button>
+                      <p className="text-xs text-gray-500">#{r.member_no} · Dönem {r.period} · Vade {fmt(r.due_date)}</p>
+                    </div>
+                  </div>
+                  <span className="font-bold text-gray-900">{formatMoney(r.amount_cents)}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-2 text-xs">
+                  <span className={r.overdue ? 'font-bold text-red-700' : 'text-gray-600'}>{r.overdue ? `${r.days_overdue} gün gecikmiş` : r.status_label}</span>
+                  <div className="flex items-center gap-2">
+                    {r.status === 'open' && canCollect && (
+                      <button type="button" onClick={() => onOpenMember(r.member_id)} className="rounded border border-primary-200 bg-primary-50 px-2 py-0.5 text-[11px] font-semibold text-primary-700">
+                        Tahsilat
+                      </button>
+                    )}
+                    {canSms && r.phone && (
+                      <button type="button" onClick={() => setSmsTarget(r)} className="rounded p-1 text-gray-500 hover:bg-primary-50 hover:text-primary-700">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {wa && <a href={wa} target="_blank" rel="noreferrer"><WhatsAppIcon className="h-4 w-4" /></a>}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {!rows.length && <p className="py-6 text-center text-sm text-gray-400">Kayıt yok.</p>}
         </div>
         {rows.length > PAGE_SIZE && (
           <div className="flex items-center justify-between pt-2 text-xs text-gray-500">
@@ -606,6 +1045,18 @@ function DuesTab({ canCollect, onMessage, onChanged, onOpenMember }: {
             </div>
           </form>
         </Modal>
+      )}
+      {smsTarget && (
+        <QuickSmsDialog
+          title={`${smsTarget.full_name || smsTarget.member_no} — Aidat Hatırlatma`}
+          target={{
+            name: smsTarget.full_name,
+            phone: smsTarget.phone,
+            variables: { tutar: formatMoney(smsTarget.amount_cents), donem: smsTarget.period },
+          }}
+          onClose={() => setSmsTarget(null)}
+          onSent={(res) => { setSmsTarget(null); onMessage({ type: 'ok', text: sentNotice(res) }) }}
+        />
       )}
     </div>
   )

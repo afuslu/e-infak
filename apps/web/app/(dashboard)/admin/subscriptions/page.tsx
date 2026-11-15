@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Ban, CalendarClock, CreditCard, Download, Edit3, Info, Pause, Play, RefreshCw, Repeat, Search, Wallet } from 'lucide-react'
+import { Ban, CalendarClock, ChevronDown, CreditCard, Download, Edit3, Info, Pause, Play, RefreshCw, Repeat, Search, SlidersHorizontal, Wallet } from 'lucide-react'
 import { Button, Input } from '@e-infak/ui'
 import {
   Column,
@@ -118,6 +118,14 @@ export default function AdminSubscriptionsPage() {
 
   const [q, setQ] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [currencyFilter, setCurrencyFilter] = useState('')
+  const [modeFilter, setModeFilter] = useState('')
+  const [minAmount, setMinAmount] = useState('')
+  const [maxAmount, setMaxAmount] = useState('')
+  const [nextStart, setNextStart] = useState('')
+  const [nextEnd, setNextEnd] = useState('')
+  const [sort, setSort] = useState('recent')
+  const [showFilters, setShowFilters] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   const [editing, setEditing] = useState<SubscriptionItem | null>(null)
@@ -130,12 +138,22 @@ export default function AdminSubscriptionsPage() {
   const load = useCallback(async (targetPage = page, search = q, st = statusFilter) => {
     setLoading(true)
     try {
+      const toCents = (v: string) => (v ? Math.round(Number(v.replace(',', '.')) * 100) : undefined)
       const params: Record<string, unknown> = {
         limit: PAGE_SIZE,
         offset: (targetPage - 1) * PAGE_SIZE,
+        sort,
       }
       if (search.trim()) params.q = search.trim()
       if (st !== 'all') params.status = st
+      if (currencyFilter) params.currency = currencyFilter
+      if (modeFilter) params.mode = modeFilter
+      const minC = toCents(minAmount)
+      const maxC = toCents(maxAmount)
+      if (minC !== undefined) params.min_amount_cents = minC
+      if (maxC !== undefined) params.max_amount_cents = maxC
+      if (nextStart) params.next_start = nextStart
+      if (nextEnd) params.next_end = nextEnd
 
       const res = await adminGet<SubscriptionListResponse>('/subscriptions', params)
       setItems(res.data.items || [])
@@ -147,7 +165,7 @@ export default function AdminSubscriptionsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, q, statusFilter])
+  }, [page, q, statusFilter, currencyFilter, modeFilter, minAmount, maxAmount, nextStart, nextEnd, sort])
 
   const didMountRef = useRef(false)
   useEffect(() => {
@@ -483,34 +501,123 @@ export default function AdminSubscriptionsPage() {
         />
       </div>
 
-      <FilterBar>
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <Input
-            value={q}
+      <div className="space-y-3">
+        <FilterBar>
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Input
+              value={q}
+              onChange={(e) => {
+                setPage(1)
+                setQ(e.target.value)
+              }}
+              placeholder="Bağışçı adı, telefon, e-posta veya kampanya ara..."
+              className="pl-9"
+            />
+          </div>
+          <select
+            value={sort}
             onChange={(e) => {
               setPage(1)
-              setQ(e.target.value)
+              setSort(e.target.value)
             }}
-            placeholder="Bağışçı adı, telefon, e-posta veya kampanya ara..."
-            className="pl-9"
-          />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => {
-            setPage(1)
-            setStatusFilter(e.target.value)
-          }}
-          className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-        >
-          <option value="all">Tüm Durumlar</option>
-          <option value="active">Aktif</option>
-          <option value="paused">Duraklatıldı</option>
-          <option value="past_due">Tahsilat Bekliyor</option>
-          <option value="cancelled">İptal Edildi</option>
-        </select>
-      </FilterBar>
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          >
+            <option value="recent">Son eklenen</option>
+            <option value="next_asc">Tahsilat tarihi (Yakın)</option>
+            <option value="amount_desc">Tutar (Yüksek → Düşük)</option>
+            <option value="amount_asc">Tutar (Düşük → Yüksek)</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition ${
+              showFilters ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span>Gelişmiş Filtreler</span>
+            {[statusFilter !== 'all' ? statusFilter : '', currencyFilter, modeFilter, minAmount, maxAmount, nextStart, nextEnd].filter(Boolean).length > 0 && (
+              <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] text-white">
+                {[statusFilter !== 'all' ? statusFilter : '', currencyFilter, modeFilter, minAmount, maxAmount, nextStart, nextEnd].filter(Boolean).length}
+              </span>
+            )}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+          </button>
+        </FilterBar>
+
+        {showFilters && (
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div>
+                <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Durum</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => { setPage(1); setStatusFilter(e.target.value) }}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                >
+                  <option value="all">Tüm Durumlar</option>
+                  <option value="active">Aktif</option>
+                  <option value="paused">Duraklatıldı</option>
+                  <option value="past_due">Tahsilat Bekliyor</option>
+                  <option value="cancelled">İptal Edildi</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Para Birimi</label>
+                <select
+                  value={currencyFilter}
+                  onChange={(e) => { setPage(1); setCurrencyFilter(e.target.value) }}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                >
+                  <option value="">Tümü</option>
+                  <option value="TRY">TRY</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="GBP">GBP</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Tahsilat Şekli</label>
+                <select
+                  value={modeFilter}
+                  onChange={(e) => { setPage(1); setModeFilter(e.target.value) }}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                >
+                  <option value="">Tümü</option>
+                  <option value="card">Otomatik Kart</option>
+                  <option value="reminder">SMS Hatırlatma</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Tutar (Min - Maks)</label>
+                <div className="flex gap-1.5">
+                  <Input inputMode="decimal" placeholder="Min" value={minAmount} onChange={(e) => { setPage(1); setMinAmount(e.target.value) }} />
+                  <Input inputMode="decimal" placeholder="Maks" value={maxAmount} onChange={(e) => { setPage(1); setMaxAmount(e.target.value) }} />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">Sonraki Tahsilat</label>
+                <div className="flex gap-1.5">
+                  <Input type="date" value={nextStart} onChange={(e) => { setPage(1); setNextStart(e.target.value) }} />
+                  <Input type="date" value={nextEnd} onChange={(e) => { setPage(1); setNextEnd(e.target.value) }} />
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('all'); setCurrencyFilter(''); setModeFilter(''); setMinAmount(''); setMaxAmount(''); setNextStart(''); setNextEnd(''); setPage(1)
+                }}
+                className="cursor-pointer text-xs font-semibold text-rose-600 hover:underline"
+              >
+                Filtreleri temizle
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <DataTable
         columns={columns}

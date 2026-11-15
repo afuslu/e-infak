@@ -16,6 +16,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +28,7 @@ from app.core.db import Base, get_db
 from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign
 from app.models.donation import Donation, DonationStatus, Donor, DonorType, PaymentMethod
+from app.models.membership import Member
 from app.models.user import User
 from app.services.offline_donation import record_offline_donation
 from app.utils.content import sanitize_public_text
@@ -69,6 +71,15 @@ RECEIPT_FIELDS = {
     "on_behalf_of": "Adına bağış",
     "note": "Açıklama",
 }
+MEMBER_FIELDS = {
+    **{k: v for k, v in DONOR_FIELDS.items() if k not in ("tags", "allow_sms", "allow_email", "company_name")},
+    "member_no": "Üye no",
+    "member_type": "Üyelik türü (asil/fahri/onursal)",
+    "member_status": "Durum (aktif/pasif...)",
+    "joined_on": "Kayıt tarihi",
+    "dues": "Özel aidat (₺)",
+    "dues_period": "Aidat dönemi (aylık/yıllık)",
+}
 # Başlık eş anlamlıları (normalize edilmiş: küçük harf, aksansız)
 SYNONYMS = {
     "full_name": ["ad soyad", "adi soyadi", "isim", "isim soyisim", "bagisci", "bagisci adi", "name", "full name"],
@@ -93,6 +104,12 @@ SYNONYMS = {
     "official_receipt_no": ["makbuz no", "makbuz numarasi", "seri no", "koçan no", "kocan no", "receipt no"],
     "on_behalf_of": ["adina", "adina bagis", "kimin adina"],
     "note": ["aciklama", "not", "note"],
+    "member_no": ["uye no", "uye numarasi", "sicil no", "member no"],
+    "member_type": ["uyelik turu", "uye turu", "tur", "member type"],
+    "member_status": ["durum", "uyelik durumu", "status"],
+    "joined_on": ["kayit tarihi", "uyelik tarihi", "baslangic", "joined"],
+    "dues": ["aidat", "ozel aidat", "aidat tutari", "dues"],
+    "dues_period": ["aidat donemi", "donem", "periyot", "dues period"],
 }
 YES = {"evet", "e", "var", "1", "true", "x", "yes", "izinli"}
 METHODS = {
@@ -361,7 +378,7 @@ async def import_donors(
                         details={"file": file.filename, "created": created, "matched": matched, "errors": len(errors)}))
         await db.commit()
     return {"row_count": len(rows), "created": created, "matched": matched, "error_count": len(errors),
-            "errors": errors[:200], "preview": preview, "committed": not dry_run}
+            "errors": errors[:1000], "preview": preview, "committed": not dry_run}
 
 
 # --- Receipt import ------------------------------------------------------------------------
@@ -480,7 +497,204 @@ async def import_receipts(
         await db.commit()
     return {"row_count": len(rows), "imported": imported, "already_imported": skipped, "new_donors": new_donors,
             "totals": [{"currency": c, "total_cents": v} for c, v in total_cents.items()],
-            "error_count": len(errors), "errors": errors[:200], "preview": preview, "committed": not dry_run}
+            "error_count": len(errors), "errors": errors[:1000], "preview": preview, "committed": not dry_run}
+
+
+# --- Member import -------------------------------------------------------------------------
+
+MEMBER_TYPES = {"asil": "asil", "fahri": "fahri", "onursal": "onursal"}
+MEMBER_STATUSES = {
+    "aktif": "active", "active": "active",
+    "pasif": "passive", "passive": "passive",
+    "istifa": "resigned", "ayrilmis": "resigned", "resigned": "resigned",
+    "ihrac": "expelled", "expelled": "expelled",
+    "vefat": "deceased", "deceased": "deceased",
+}
+
+
+@router.post("/members/import", dependencies=[Depends(require_capability("members.manage"))])
+async def import_members(
+    request: Request,
+    file: UploadFile = File(...),
+    mapping: Annotated[Optional[str], Form()] = None,
+    dry_run: Annotated[bool, Form()] = True,
+    sheet_name: Annotated[Optional[str], Form()] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Excel/CSV'den dernek üyelerini toplu aktarır; mevcut kişiyle eşleştirir veya yeni kişi açar."""
+    from app.api.v1.membership import _next_member_no
+
+    org_id = _org_id(request)
+    _, headers, rows, sheet_names, active_sheet = await _load(file, sheet_name=sheet_name)
+    columns = _mapping(mapping, headers, MEMBER_FIELDS)
+    if columns is None:
+        return _intro(headers, rows, MEMBER_FIELDS, sheet_names, active_sheet)
+    if not {"first_name", "full_name"} & set(columns):
+        raise HTTPException(status_code=422, detail="Ad veya ad soyad sütunu eşlenmeli")
+
+    existing_by_no = {
+        m.member_no: m
+        for m in (await db.execute(select(Member).where(Member.organization_id == org_id))).scalars().all()
+    }
+    existing_by_donor = {m.donor_id: m for m in existing_by_no.values()}
+    resolver = DonorResolver(db, org_id)
+    created = matched = 0
+    errors, preview = [], []
+    seen_nos = set(existing_by_no.keys())
+
+    for line, row in enumerate(rows, start=2):
+        values = _row_values(row, columns)
+        try:
+            data = _donor_data(values)
+            m_no = _clean(values.get("member_no"), 30)
+            raw_type = _fold(values.get("member_type"))
+            m_type = MEMBER_TYPES.get(raw_type, "asil") if raw_type else "asil"
+            if raw_type and raw_type not in MEMBER_TYPES:
+                raise ValueError(f"Geçersiz üyelik türü: {values.get('member_type')}")
+            raw_status = _fold(values.get("member_status"))
+            m_status = MEMBER_STATUSES.get(raw_status) if raw_status else "active"
+            if raw_status and not m_status:
+                raise ValueError(f"Geçersiz durum: {values.get('member_status')}")
+            joined_on = _parse_day(values.get("joined_on")) if values.get("joined_on") else None
+            dues_cents = _amount_to_cents(values.get("dues")) if values.get("dues") else None
+            raw_period = _fold(values.get("dues_period"))
+            dues_period = "yearly" if raw_period in ("yillik", "yearly", "yil") else ("monthly" if raw_period in ("aylik", "monthly", "ay") else None)
+            if raw_period and not dues_period:
+                raise ValueError(f"Geçersiz aidat dönemi: {values.get('dues_period')}")
+        except ValueError as exc:
+            errors.append({"row": line, "message": str(exc)})
+            continue
+
+        donor, _ = await resolver.upsert(data, write=not dry_run)
+        existing = existing_by_no.get(m_no) if m_no else None
+        if existing is None and donor.id in existing_by_donor:
+            existing = existing_by_donor[donor.id]
+
+        if existing:
+            matched += 1
+            if not dry_run:
+                if not existing.joined_on and joined_on:
+                    existing.joined_on = joined_on
+                if existing.dues_cents is None and dues_cents is not None:
+                    existing.dues_cents = dues_cents
+                if not existing.dues_period and dues_period:
+                    existing.dues_period = dues_period
+            assigned_no = existing.member_no
+        else:
+            if m_no and m_no in seen_nos:
+                errors.append({"row": line, "message": f"Üye no tekrar ediyor: {m_no}"})
+                continue
+            created += 1
+            if not dry_run:
+                assigned_no = m_no or await _next_member_no(db, org_id)
+                member = Member(
+                    organization_id=org_id,
+                    donor_id=donor.id,
+                    member_no=assigned_no,
+                    member_type=m_type,
+                    status=m_status,
+                    joined_on=joined_on,
+                    dues_cents=dues_cents,
+                    dues_period=dues_period,
+                    notes=_clean(values.get("notes"), 1000),
+                )
+                db.add(member)
+                existing_by_donor[donor.id] = member
+            else:
+                assigned_no = m_no or "(otomatik)"
+            if m_no:
+                seen_nos.add(m_no)
+
+        if len(preview) < 20:
+            preview.append({
+                "row": line,
+                "action": "mevcut" if existing else "yeni",
+                "member_no": assigned_no,
+                "name": donor.full_name,
+                "phone": data["phone"],
+                "member_type": m_type,
+                "status": m_status,
+            })
+
+    if not dry_run:
+        db.add(AuditLog(organization_id=org_id, user_id=current_user.id, action="uye_aktar", details={
+            "file": file.filename, "created": created, "matched": matched, "errors": len(errors)}))
+        await db.commit()
+    return {"row_count": len(rows), "created": created, "matched": matched, "error_count": len(errors),
+            "errors": errors[:1000], "preview": preview, "committed": not dry_run}
+
+
+# --- Templates & Import History ------------------------------------------------------------
+
+IMPORT_TEMPLATES = {
+    "donors": (
+        "bagisci-sablonu.xlsx",
+        ["Ad Soyad", "Telefon", "E-posta", "TC Kimlik No", "Şehir", "Adres", "Grup", "SMS İzni", "E-posta İzni"],
+        ["Ahmet Yılmaz", "05321112233", "ahmet@ornek.com", "", "İstanbul", "Fatih Mah. No:1", "2026 Ramazan", "Evet", "Evet"],
+    ),
+    "donations": (
+        "makbuz-sablonu.xlsx",
+        ["Ad Soyad", "Telefon", "Tutar", "Para Birimi", "Bağış Tarihi", "Kampanya", "Ödeme Yöntemi", "Matbu Makbuz No", "Açıklama"],
+        ["Ahmet Yılmaz", "05321112233", 1500, "TRY", "2026-03-15", "Genel Bağış", "Nakit", "A-00125", "Elden teslim"],
+    ),
+    "members": (
+        "uye-sablonu.xlsx",
+        ["Üye No", "Ad Soyad", "Telefon", "E-posta", "Üyelik Türü", "Durum", "Kayıt Tarihi", "Özel Aidat", "Aidat Dönemi", "Şehir"],
+        ["UYE-001", "Ahmet Yılmaz", "05321112233", "ahmet@ornek.com", "asil", "aktif", "2026-01-15", 250, "aylık", "İstanbul"],
+    ),
+}
+
+
+@router.get("/import-template/{kind}")
+async def download_import_template(kind: str):
+    if kind not in IMPORT_TEMPLATES:
+        raise HTTPException(status_code=404, detail="Şablon bulunamadı")
+    import openpyxl
+    from openpyxl.styles import Font
+
+    filename, headers, sample_row = IMPORT_TEMPLATES[kind]
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sablon"
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    ws.append(sample_row)
+    for col in ws.columns:
+        max_len = max((len(str(c.value or "")) for c in col), default=12)
+        ws.column_dimensions[col[0].column_letter].width = min(max(max_len + 4, 14), 36)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/import-history", dependencies=[Depends(require_capability("donors.import"))])
+async def list_import_history(request: Request, db: AsyncSession = Depends(get_db),
+                              current_user: User = Depends(get_current_user)):
+    org_id = _org_id(request)
+    rows = (await db.execute(
+        select(AuditLog, User)
+        .outerjoin(User, User.id == AuditLog.user_id)
+        .where(AuditLog.organization_id == org_id, AuditLog.action.in_(["bagisci_aktar", "makbuz_aktar", "uye_aktar"]))
+        .order_by(AuditLog.created_at.desc())
+        .limit(25)
+    )).all()
+    return [
+        {
+            "id": str(log.id),
+            "action": log.action,
+            "details": log.details or {},
+            "user_name": f"{u.first_name} {u.last_name}".strip() if u else None,
+            "created_at": log.created_at,
+        }
+        for log, u in rows
+    ]
 
 
 # --- Duplicates & merge --------------------------------------------------------------------

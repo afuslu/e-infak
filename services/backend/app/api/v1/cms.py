@@ -3,7 +3,7 @@
 Gövde metinleri düz metin olarak saklanır (HTML temizlenir); public site boş
 satırları paragraf, "## " ile başlayan satırları ara başlık olarak çizer.
 """
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 
@@ -635,6 +635,32 @@ class VolunteerUpdate(BaseModel):
     staff_notes: Optional[str] = Field(default=None, max_length=2000)
 
 
+class VolunteerAdminCreate(BaseModel):
+    full_name: str = Field(min_length=2, max_length=120)
+    phone: str = Field(min_length=10, max_length=30)
+    email: Optional[EmailStr] = None
+    city: Optional[str] = Field(default=None, max_length=80)
+    areas: List[str] = Field(default_factory=list, max_length=20)
+    availability: Optional[str] = Field(default=None, max_length=200)
+    message: Optional[str] = Field(default=None, max_length=2000)
+    status: Literal["new", "contacted", "accepted", "rejected"] = "new"
+    staff_notes: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("email", "city", "availability", "message", "staff_notes", mode="before")
+    @classmethod
+    def empty_to_none(cls, value):
+        return None if value == "" else value
+
+
+class VolunteerBulkStatusIn(BaseModel):
+    ids: List[UUID] = Field(min_length=1, max_length=500)
+    status: Literal["new", "contacted", "accepted", "rejected"]
+
+
+class VolunteerBulkDeleteIn(BaseModel):
+    ids: List[UUID] = Field(min_length=1, max_length=500)
+
+
 def _volunteer_out(app: VolunteerApplication) -> dict:
     return {
         "id": str(app.id),
@@ -656,6 +682,10 @@ async def admin_list_volunteers(
     request: Request,
     status_filter: Annotated[Optional[str], Query(alias="status")] = None,
     area: Annotated[Optional[str], Query(max_length=60)] = None,
+    city: Annotated[Optional[str], Query(max_length=80)] = None,
+    date_start: Optional[date] = None,
+    date_end: Optional[date] = None,
+    sort: Literal["newest", "oldest", "name"] = "newest",
     q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -665,6 +695,12 @@ async def admin_list_volunteers(
         query = query.where(VolunteerApplication.status == status_filter)
     if area and area.strip():
         query = query.where(VolunteerApplication.areas.contains([area.strip()]))
+    if city and city.strip():
+        query = query.where(VolunteerApplication.city.ilike(f"%{city.strip()}%"))
+    if date_start:
+        query = query.where(VolunteerApplication.created_at >= datetime.combine(date_start, datetime.min.time()))
+    if date_end:
+        query = query.where(VolunteerApplication.created_at < datetime.combine(date_end + timedelta(days=1), datetime.min.time()))
     if q:
         like = f"%{q.strip()}%"
         query = query.where(or_(
@@ -673,8 +709,77 @@ async def admin_list_volunteers(
             VolunteerApplication.email.ilike(like),
             VolunteerApplication.city.ilike(like),
         ))
-    rows = (await db.execute(query.order_by(VolunteerApplication.created_at.desc()).limit(1000))).scalars().all()
+    order = (
+        VolunteerApplication.created_at.asc() if sort == "oldest"
+        else (VolunteerApplication.full_name.asc() if sort == "name" else VolunteerApplication.created_at.desc())
+    )
+    rows = (await db.execute(query.order_by(order).limit(1000))).scalars().all()
     return [_volunteer_out(v) for v in rows]
+
+
+@admin_router.post("/volunteers", status_code=status.HTTP_201_CREATED)
+async def admin_create_volunteer(
+    request: Request,
+    payload: VolunteerAdminCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = _org_id(request)
+    app = VolunteerApplication(
+        organization_id=org_id,
+        full_name=payload.full_name.strip(),
+        phone=payload.phone.strip(),
+        email=payload.email,
+        city=payload.city,
+        areas=[a.strip()[:60] for a in payload.areas if a and a.strip()],
+        availability=payload.availability,
+        message=payload.message,
+        status=payload.status,
+        staff_notes=payload.staff_notes,
+        consent_version="admin_manual",
+    )
+    db.add(app)
+    await db.flush()
+    _audit(db, org_id, current_user, "gonullu_ekle", {"application_id": str(app.id), "full_name": app.full_name})
+    await db.commit()
+    await db.refresh(app)
+    return _volunteer_out(app)
+
+
+@admin_router.post("/volunteers/bulk-status")
+async def admin_bulk_volunteer_status(
+    request: Request,
+    payload: VolunteerBulkStatusIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = _org_id(request)
+    rows = (await db.execute(select(VolunteerApplication).where(
+        VolunteerApplication.organization_id == org_id, VolunteerApplication.id.in_(payload.ids)
+    ).with_for_update())).scalars().all()
+    for row in rows:
+        row.status = payload.status
+    _audit(db, org_id, current_user, "gonullu_toplu_durum", {"count": len(rows), "status": payload.status})
+    await db.commit()
+    return {"updated": len(rows)}
+
+
+@admin_router.post("/volunteers/bulk-delete")
+async def admin_bulk_volunteer_delete(
+    request: Request,
+    payload: VolunteerBulkDeleteIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = _org_id(request)
+    rows = (await db.execute(select(VolunteerApplication).where(
+        VolunteerApplication.organization_id == org_id, VolunteerApplication.id.in_(payload.ids)
+    ))).scalars().all()
+    for row in rows:
+        await db.delete(row)
+    _audit(db, org_id, current_user, "gonullu_toplu_sil", {"count": len(rows)})
+    await db.commit()
+    return {"deleted": len(rows)}
 
 
 @admin_router.put("/volunteers/{application_id}")

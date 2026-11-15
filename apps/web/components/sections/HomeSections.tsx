@@ -167,28 +167,6 @@ function heroSlides(data: HomeData, variant: Tpl, o: Overrides, t: T): SlideView
     }
     return slides
   }
-  const withSlides = (o.slider ?? site.hero.slider) !== false
-  if (!withSlides) return slides
-  const ranked = [...data.campaigns.filter((c) => c.is_featured), ...data.campaigns.filter((c) => !c.is_featured)]
-  for (const c of ranked.filter((c) => c.cover_image_url).slice(0, 4)) {
-    const progress = c.show_collected && c.target_lira > 0
-    slides.push({
-      image_url: c.cover_image_url,
-      badge: (c.is_featured ? t('home.campaigns.urgent') : categoryLabel(c.category) || t('home.campaigns.kicker')).toLocaleUpperCase(data.locale),
-      title: c.title,
-      text: c.summary,
-      button_label: t('campaign.donate'),
-      button_url: `/kampanyalar/${c.slug}`,
-      button2_label: t('campaign.details'),
-      button2_url: `/kampanyalar/${c.slug}`,
-      align,
-      overlay: 40,
-      campaign: progress
-        ? { slug: c.slug, title: c.title, collected: money(c.collected_lira, c, data.locale), target: money(c.target_lira, c, data.locale), progress: c.progress_percentage || 0 }
-        : null,
-      donateLabel: t('campaign.donate'),
-    })
-  }
   return slides
 }
 

@@ -48,7 +48,7 @@ export function VolunteerForm({ locale = 'tr' }: { locale?: string }) {
 
   if (state === 'done') {
     return (
-      <div className="mt-10 rounded-2xl border border-black/5 bg-white p-8 text-center shadow-sm">
+      <div className="py-6 text-center">
         <div className="text-5xl">🤝</div>
         <h2 className="mt-3 text-2xl font-bold">{t('volunteer.doneTitle')}</h2>
         <p className="mt-2 text-[#6B7A70]">{t('volunteer.doneText')}</p>
@@ -59,7 +59,7 @@ export function VolunteerForm({ locale = 'tr' }: { locale?: string }) {
   const input = 'mt-1 w-full rounded-xl border border-black/10 bg-white p-3 outline-none focus:border-primary-600'
 
   return (
-    <form onSubmit={submit} className="mt-10 space-y-4 rounded-2xl border border-black/5 bg-white p-6 shadow-sm sm:p-8">
+    <form onSubmit={submit} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="text-sm font-semibold">{t('volunteer.fullName')} *<input required minLength={3} className={input} value={form.full_name} onChange={(e) => set('full_name', e.target.value)} /></label>
         <label className="text-sm font-semibold">{t('volunteer.phone')} *<input required type="tel" minLength={10} className={input} value={form.phone} onChange={(e) => set('phone', e.target.value)} /></label>
