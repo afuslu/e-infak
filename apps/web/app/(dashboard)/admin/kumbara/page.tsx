@@ -1,12 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
-import { AlertCircle, BarChart3, History, MapPin, PiggyBank, Plus, Wallet } from 'lucide-react'
-import { Card } from '@e-infak/ui'
+import { AlertCircle, BarChart3, History, MapPin, PiggyBank, Plus, RefreshCw, Wallet } from 'lucide-react'
+import { Button, Card, Input } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
-import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon } from '../../../../components/admin/ui'
+import { Label, inputClass } from '../../../../components/admin/FormKit'
+import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, toast } from '../../../../components/admin/ui'
 import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, ResponsiveDataToolbar } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 
 interface Region { id: string; name: string; description: string | null }
@@ -73,9 +74,15 @@ export default function KumbaraPage() {
   const [collection, setCollection] = useState({ amount: '', date: new Date().toISOString().slice(0, 10), notes: '', key: newKey() })
   const [history, setHistory] = useState<{ box: Box; rows: any[] } | null>(null)
   const [showRegionModal, setShowRegionModal] = useState(false)
+  const [editingRegion, setEditingRegion] = useState<Region | null>(null)
   const [regionForm, setRegionForm] = useState({ name: '', description: '' })
   const [statModal, setStatModal] = useState<'total' | 'active' | 'collections' | 'stale' | null>(null)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [bulkRegion, setBulkRegion] = useState('')
+  const [bulkStaff, setBulkStaff] = useState('')
+  const [bulkStatus, setBulkStatus] = useState('')
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const staffMap = useMemo(
     () => new Map(staff.map((s) => [s.id, `${s.first_name} ${s.last_name}`.trim()])),
@@ -100,11 +107,23 @@ export default function KumbaraPage() {
       setRegions(r.data)
       setReport(rep.data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Kumbaralar yüklenemedi') })
+      toast.error(apiErrorMessage(err, 'Kumbaralar yüklenemedi'))
     }
   }
+
+  const refreshAll = async () => {
+    setRefreshing(true)
+    try {
+      await load()
+      toast.ok('Kumbara verileri yenilendi.')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   const didMountRef = useRef(false)
   useEffect(() => {
+    setPicked(new Set())
     if (!didMountRef.current) {
       didMountRef.current = true
       load()
@@ -138,10 +157,10 @@ export default function KumbaraPage() {
       if (editing) await adminSend('put', `/money-boxes/${editing.id}`, { ...body, code: editing.code })
       else await adminSend('post', '/money-boxes', body)
       setShowForm(false)
-      setMessage({ type: 'ok', text: 'Kumbara kaydedildi' })
+      toast.ok('Kumbara kaydedildi.')
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
@@ -149,16 +168,22 @@ export default function KumbaraPage() {
     e.preventDefault()
     if (!regionForm.name.trim()) return
     try {
-      await adminSend('post', '/regions', {
+      const payload = {
         name: regionForm.name.trim(),
         description: regionForm.description.trim() || null,
-      })
-      setShowRegionModal(false)
+      }
+      if (editingRegion) {
+        await adminSend('put', `/regions/${editingRegion.id}`, payload)
+        toast.ok('Bölge güncellendi.')
+      } else {
+        await adminSend('post', '/regions', payload)
+        toast.ok('Bölge eklendi.')
+      }
+      setEditingRegion(null)
       setRegionForm({ name: '', description: '' })
-      setMessage({ type: 'ok', text: 'Bölge eklendi' })
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
@@ -172,12 +197,12 @@ export default function KumbaraPage() {
         collected_on: collection.date || null,
         notes: collection.notes || null,
       })
-      setMessage({ type: 'ok', text: `${collecting.code} boşaltıldı, ${res.data.receipt_number || ''} numaralı bağış kaydı oluşturuldu` })
+      toast.ok(`${collecting.code} boşaltıldı, ${res.data.receipt_number || ''} numaralı bağış kaydı oluşturuldu.`)
       setCollecting(null)
       setCollection({ amount: '', date: new Date().toISOString().slice(0, 10), notes: '', key: newKey() })
       await load()
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
     }
   }
 
@@ -185,12 +210,57 @@ export default function KumbaraPage() {
     try {
       setHistory({ box: b, rows: (await adminGet<any[]>(`/money-boxes/${b.id}/collections`)).data })
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
+    }
+  }
+
+  const togglePick = (id: string) => setPicked((prev) => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+
+  const toggleAllBoxes = () => {
+    if (picked.size === boxes.length && boxes.length > 0) setPicked(new Set())
+    else setPicked(new Set(boxes.map((b) => b.id)))
+  }
+
+  const applyBulkUpdate = async () => {
+    if (picked.size === 0 || (!bulkRegion && !bulkStaff && !bulkStatus)) return
+    setBulkBusy(true)
+    try {
+      const targets = boxes.filter((b) => picked.has(b.id))
+      await Promise.all(targets.map((b) => adminSend('put', `/money-boxes/${b.id}`, {
+        code: b.code,
+        region_id: bulkRegion ? (bulkRegion === '__clear__' ? null : bulkRegion) : b.region_id,
+        location_name: b.location_name,
+        address: b.address,
+        city: b.city,
+        district: b.district,
+        contact_name: b.contact_name,
+        contact_phone: b.contact_phone,
+        responsible_user_id: bulkStaff ? (bulkStaff === '__clear__' ? null : bulkStaff) : b.responsible_user_id,
+        campaign_id: b.campaign_id,
+        status: (bulkStatus as Box['status']) || b.status,
+        placed_at: b.placed_at ? b.placed_at.slice(0, 10) : null,
+        notes: b.notes,
+      })))
+      toast.ok(`${targets.length} kumbara topluca güncellendi.`)
+      setPicked(new Set())
+      setBulkRegion('')
+      setBulkStaff('')
+      setBulkStatus('')
+      await load()
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
+    } finally {
+      setBulkBusy(false)
     }
   }
 
   const set = (k: keyof typeof emptyBox, v: string) => setForm((f) => ({ ...f, [k]: v }))
   const activeFilterCount = [filters.region_id, filters.status !== 'active' ? filters.status : '', filters.responsible, filters.stale].filter(Boolean).length
+  const clearFilters = () => setFilters({ region_id: '', status: 'active', responsible: '', stale: '', q: '' })
 
   return (
     <div className="space-y-5">
@@ -217,26 +287,36 @@ export default function KumbaraPage() {
           ) : undefined
         }
         actions={
-          canEdit ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowRegionModal(true)}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
-              >
-                <MapPin className="h-4 w-4 text-emerald-600" />
-                + Saha Bölgesi
-              </button>
-              <button
-                type="button"
-                onClick={() => open(null)}
-                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
-              >
-                <Plus className="h-4 w-4" />
-                Kumbara Ekle
-              </button>
-            </div>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={refreshAll} disabled={refreshing} className="h-10 rounded-xl px-3 text-xs font-bold">
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              Yenile
+            </Button>
+            {canEdit && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingRegion(null)
+                    setRegionForm({ name: '', description: '' })
+                    setShowRegionModal(true)
+                  }}
+                  className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
+                >
+                  <MapPin className="h-4 w-4 text-emerald-600" />
+                  Saha Bölgeleri
+                </button>
+                <button
+                  type="button"
+                  onClick={() => open(null)}
+                  className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  Kumbara Ekle
+                </button>
+              </>
+            )}
+          </div>
         }
       />
 
@@ -280,8 +360,6 @@ export default function KumbaraPage() {
           />
         </div>
       )}
-
-      <Notice message={message} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs
@@ -344,6 +422,38 @@ export default function KumbaraPage() {
               }
             />
 
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { label: 'Aktifler', active: filters.status === 'active' && !filters.stale && !filters.responsible, onClick: () => setFilters((f) => ({ ...f, status: 'active', stale: '', responsible: '' })) },
+                  { label: '30+ Gün Geciken', active: filters.stale === '30', onClick: () => setFilters((f) => ({ ...f, status: 'active', stale: f.stale === '30' ? '' : '30' })) },
+                  { label: '90+ Gün Geciken', active: filters.stale === '90', onClick: () => setFilters((f) => ({ ...f, status: 'active', stale: f.stale === '90' ? '' : '90' })) },
+                  { label: 'Bana Ait', active: filters.responsible === 'me', onClick: () => setFilters((f) => ({ ...f, responsible: f.responsible === 'me' ? '' : 'me' })) },
+                  { label: 'Pasif', active: filters.status === 'passive', onClick: () => setFilters((f) => ({ ...f, status: 'passive', stale: '' })) },
+                  { label: 'Kayıp', active: filters.status === 'lost', onClick: () => setFilters((f) => ({ ...f, status: 'lost', stale: '' })) },
+                  { label: 'Tümü', active: filters.status === '' && !filters.stale && !filters.responsible, onClick: () => setFilters((f) => ({ ...f, status: '', stale: '', responsible: '' })) },
+                ].map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={p.onClick}
+                    className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                      p.active
+                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              {(activeFilterCount > 0 || filters.q) && (
+                <button type="button" onClick={clearFilters} className="text-xs font-bold text-rose-600 hover:text-rose-700">
+                  Filtreleri Temizle
+                </button>
+              )}
+            </div>
+
             {showFilters && (
               <div className="grid gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-2 lg:grid-cols-4">
                 <Label label="Saha Bölgesi">
@@ -376,11 +486,62 @@ export default function KumbaraPage() {
             )}
           </section>
 
+          {canEdit && picked.size > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+              <span className="text-xs font-bold text-emerald-900">{picked.size} kumbara seçildi</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  className="h-9 rounded-xl border border-emerald-300 bg-white px-2.5 text-xs font-bold text-slate-800 outline-none"
+                  value={bulkRegion}
+                  onChange={(e) => setBulkRegion(e.target.value)}
+                >
+                  <option value="">Bölge değiştirme</option>
+                  <option value="__clear__">Bölgeyi temizle</option>
+                  {regions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                <select
+                  className="h-9 rounded-xl border border-emerald-300 bg-white px-2.5 text-xs font-bold text-slate-800 outline-none"
+                  value={bulkStaff}
+                  onChange={(e) => setBulkStaff(e.target.value)}
+                >
+                  <option value="">Sorumlu değiştirme</option>
+                  <option value="__clear__">Sorumluyu kaldır</option>
+                  {staff.map((s) => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                </select>
+                <select
+                  className="h-9 rounded-xl border border-emerald-300 bg-white px-2.5 text-xs font-bold text-slate-800 outline-none"
+                  value={bulkStatus}
+                  onChange={(e) => setBulkStatus(e.target.value)}
+                >
+                  <option value="">Durum değiştirme</option>
+                  {Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+                <Button type="button" size="sm" disabled={bulkBusy || (!bulkRegion && !bulkStaff && !bulkStatus)} onClick={applyBulkUpdate}>
+                  Uygula
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setPicked(new Set())}>
+                  Temizle
+                </Button>
+              </div>
+            </div>
+          )}
+
           <Card className="overflow-hidden rounded-2xl border border-slate-200/80 p-0 shadow-xs">
             <div className="overflow-x-auto">
               <Table inset>
                 <THead className="bg-slate-50/80">
                   <Tr>
+                    {canEdit && (
+                      <Th className="w-10">
+                        <input
+                          type="checkbox"
+                          checked={boxes.length > 0 && picked.size === boxes.length}
+                          onChange={toggleAllBoxes}
+                          aria-label="Tüm kumbaraları seç"
+                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                      </Th>
+                    )}
                     <Th>Kumbara Kodu</Th>
                     <Th>Yer / Esnaf / Adres</Th>
                     <Th>Bölge & Sorumlu</Th>
@@ -393,8 +554,20 @@ export default function KumbaraPage() {
                 <TBody>
                   {boxes.map((b) => {
                     const isStale = b.days_since_collection !== null && b.days_since_collection > 90
+                    const fullAddr = [b.address, b.district, b.city].filter(Boolean).join(', ')
                     return (
                       <Tr key={b.id} className={`hover:bg-slate-50/70 ${b.status !== 'active' ? 'opacity-60' : ''}`}>
+                        {canEdit && (
+                          <Td>
+                            <input
+                              type="checkbox"
+                              checked={picked.has(b.id)}
+                              onChange={() => togglePick(b.id)}
+                              aria-label={`${b.code} seç`}
+                              className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                          </Td>
+                        )}
                         <Td>
                           <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-xs font-black text-slate-900">
                             {b.code}
@@ -402,10 +575,20 @@ export default function KumbaraPage() {
                         </Td>
                         <Td>
                           <div className="font-bold text-slate-900">{b.location_name}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {[b.address, b.district, b.city].filter(Boolean).join(', ')}
-                            {b.contact_name ? ` · ${b.contact_name}` : ''}
-                            {b.contact_phone ? ` (${b.contact_phone})` : ''}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                            {fullAddr && (
+                              <a
+                                href={`https://maps.google.com/?q=${encodeURIComponent(fullAddr)}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="hover:text-emerald-700 hover:underline"
+                                title="Google Haritalarda Aç"
+                              >
+                                📍 {fullAddr}
+                              </a>
+                            )}
+                            {b.contact_name ? `· ${b.contact_name}` : ''}
+                            {b.contact_phone ? `(${b.contact_phone})` : ''}
                           </div>
                         </Td>
                         <Td>
@@ -485,7 +668,7 @@ export default function KumbaraPage() {
                   })}
                   {boxes.length === 0 && (
                     <Tr>
-                      <Td colSpan={7} className="py-12 text-center text-slate-400">
+                      <Td colSpan={canEdit ? 8 : 7} className="py-12 text-center text-slate-400">
                         Seçili filtrelere uygun kumbara bulunamadı.
                       </Td>
                     </Tr>
@@ -597,10 +780,14 @@ export default function KumbaraPage() {
         >
           <form onSubmit={save} className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
             {!editing && (
-              <TextInput label="Kumbara Kodu" hint="Boş bırakılırsa otomatik verilir" value={form.code} onChange={(v) => set('code', v)} />
+              <Label label="Kumbara Kodu">
+                <Input placeholder="Boş bırakılırsa otomatik verilir" value={form.code} onChange={(e) => set('code', e.target.value)} />
+              </Label>
             )}
             <div className="sm:col-span-2">
-              <TextInput label="Yer (Dükkan / Cami / Kurum)" required value={form.location_name} onChange={(v) => set('location_name', v)} />
+              <Label label="Yer (Dükkan / Cami / Kurum)">
+                <Input required value={form.location_name} onChange={(e) => set('location_name', e.target.value)} />
+              </Label>
             </div>
             <Label label="Saha Bölgesi">
               <select className={inputClass} value={form.region_id} onChange={(e) => set('region_id', e.target.value)}>
@@ -609,12 +796,22 @@ export default function KumbaraPage() {
               </select>
             </Label>
             <div className="sm:col-span-2">
-              <TextInput label="Açık Adres" value={form.address} onChange={(v) => set('address', v)} />
+              <Label label="Açık Adres">
+                <Input value={form.address} onChange={(e) => set('address', e.target.value)} />
+              </Label>
             </div>
-            <TextInput label="İlçe" value={form.district} onChange={(v) => set('district', v)} />
-            <TextInput label="Şehir" value={form.city} onChange={(v) => set('city', v)} />
-            <TextInput label="Yetkili Kişi" value={form.contact_name} onChange={(v) => set('contact_name', v)} />
-            <TextInput label="Yetkili Telefonu" value={form.contact_phone} onChange={(v) => set('contact_phone', v)} />
+            <Label label="İlçe">
+              <Input value={form.district} onChange={(e) => set('district', e.target.value)} />
+            </Label>
+            <Label label="Şehir">
+              <Input value={form.city} onChange={(e) => set('city', e.target.value)} />
+            </Label>
+            <Label label="Yetkili Kişi">
+              <Input value={form.contact_name} onChange={(e) => set('contact_name', e.target.value)} />
+            </Label>
+            <Label label="Yetkili Telefonu">
+              <Input value={form.contact_phone} onChange={(e) => set('contact_phone', e.target.value)} />
+            </Label>
             <Label label="Sorumlu Personel">
               <select className={inputClass} value={form.responsible_user_id} onChange={(e) => set('responsible_user_id', e.target.value)}>
                 <option value="">—</option>
@@ -632,13 +829,17 @@ export default function KumbaraPage() {
                 {Object.entries(STATUS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
             </Label>
-            <TextInput label="Yerleştirme Tarihi" type="date" value={form.placed_at} onChange={(v) => set('placed_at', v)} />
+            <Label label="Yerleştirme Tarihi">
+              <Input type="date" value={form.placed_at} onChange={(e) => set('placed_at', e.target.value)} />
+            </Label>
             <div className="sm:col-span-2">
-              <TextInput label="Not" value={form.notes} onChange={(v) => set('notes', v)} />
+              <Label label="Not">
+                <Input value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+              </Label>
             </div>
             <div className="flex justify-end gap-2 pt-2 sm:col-span-2 lg:col-span-3">
-              <button type="button" className={ghostButton} onClick={() => setShowForm(false)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>{editing ? 'Kaydet' : 'Ekle'}</button>
+              <Button type="button" variant="outline" onClick={() => setShowForm(false)}>Vazgeç</Button>
+              <Button type="submit">{editing ? 'Kaydet' : 'Ekle'}</Button>
             </div>
           </form>
         </Modal>
@@ -652,9 +853,15 @@ export default function KumbaraPage() {
           onClose={() => setCollecting(null)}
         >
           <form onSubmit={collect} className="space-y-4">
-            <TextInput label="Çıkan Tutar (₺)" required inputMode="decimal" value={collection.amount} onChange={(v) => setCollection({ ...collection, amount: v })} />
-            <TextInput label="Boşaltma Tarihi" type="date" value={collection.date} onChange={(v) => setCollection({ ...collection, date: v })} />
-            <TextInput label="Not" value={collection.notes} onChange={(v) => setCollection({ ...collection, notes: v })} />
+            <Label label="Çıkan Tutar (₺)">
+              <Input required inputMode="decimal" value={collection.amount} onChange={(e) => setCollection({ ...collection, amount: e.target.value })} />
+            </Label>
+            <Label label="Boşaltma Tarihi">
+              <Input type="date" value={collection.date} onChange={(e) => setCollection({ ...collection, date: e.target.value })} />
+            </Label>
+            <Label label="Not">
+              <Input value={collection.notes} onChange={(e) => setCollection({ ...collection, notes: e.target.value })} />
+            </Label>
             {!collecting.campaign_id && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
                 Bu kumbaranın aktarılacağı bağış kalemi seçili değil. Önce kumbarayı düzenleyip bağış kalemi seçin.
@@ -672,8 +879,8 @@ export default function KumbaraPage() {
               </div>
             )}
             <div className="flex justify-end gap-2 pt-1">
-              <button type="button" className={ghostButton} onClick={() => setCollecting(null)}>Vazgeç</button>
-              <button type="submit" disabled={!collecting.campaign_id} className={primaryButton}>Kaydet</button>
+              <Button type="button" variant="outline" onClick={() => setCollecting(null)}>Vazgeç</Button>
+              <Button type="submit" disabled={!collecting.campaign_id}>Kaydet</Button>
             </div>
           </form>
         </Modal>
@@ -691,7 +898,14 @@ export default function KumbaraPage() {
               <li key={c.id} className={`flex items-center justify-between py-2.5 ${c.cancelled ? 'line-through opacity-50' : ''}`}>
                 <span>
                   {new Date(c.collected_at).toLocaleDateString('tr-TR')} · {c.collected_by} ·{' '}
-                  <span className="font-mono text-xs text-slate-500">{c.receipt_number}</span>
+                  {c.receipt_number ? (
+                    <Link
+                      href={`/admin/bagislar?q=${encodeURIComponent(c.receipt_number)}`}
+                      className="font-mono text-xs font-bold text-emerald-700 hover:underline"
+                    >
+                      {c.receipt_number}
+                    </Link>
+                  ) : null}
                 </span>
                 <strong className="font-black text-emerald-700 tabular-nums">{formatMoney(c.amount_cents, c.currency)}</strong>
               </li>
@@ -703,18 +917,66 @@ export default function KumbaraPage() {
 
       {showRegionModal && (
         <Modal
-          title="Yeni Saha Bölgesi"
-          size="sm"
-          onClose={() => setShowRegionModal(false)}
+          title="Saha Bölgeleri"
+          description="Mevcut bölgeleri düzenleyebilir veya yeni saha bölgesi ekleyebilirsiniz."
+          size="md"
+          onClose={() => {
+            setShowRegionModal(false)
+            setEditingRegion(null)
+            setRegionForm({ name: '', description: '' })
+          }}
         >
-          <form onSubmit={saveRegion} className="space-y-4">
-            <TextInput label="Bölge Adı" required value={regionForm.name} onChange={(v) => setRegionForm({ ...regionForm, name: v })} placeholder="ör. Fatih / Merkez" />
-            <TextInput label="Açıklama (isteğe bağlı)" value={regionForm.description} onChange={(v) => setRegionForm({ ...regionForm, description: v })} />
-            <div className="flex justify-end gap-2 pt-1">
-              <button type="button" className={ghostButton} onClick={() => setShowRegionModal(false)}>Vazgeç</button>
-              <button type="submit" className={primaryButton}>Bölge Ekle</button>
-            </div>
-          </form>
+          <div className="space-y-4">
+            {regions.length > 0 && (
+              <ul className="max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200/80 bg-slate-50/50 px-3 text-xs">
+                {regions.map((r) => (
+                  <li key={r.id} className="flex items-center justify-between gap-2 py-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-bold text-slate-900">{r.name}</div>
+                      {r.description && <div className="truncate text-[11px] text-slate-500">{r.description}</div>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingRegion(r)
+                        setRegionForm({ name: r.name, description: r.description || '' })
+                      }}
+                      className="shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50"
+                    >
+                      Düzenle
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <form onSubmit={saveRegion} className="space-y-3 border-t border-slate-100 pt-3">
+              <div className="text-xs font-bold text-slate-700">
+                {editingRegion ? `Düzenleniyor: ${editingRegion.name}` : 'Yeni Saha Bölgesi Ekle'}
+              </div>
+              <Label label="Bölge Adı">
+                <Input required value={regionForm.name} onChange={(e) => setRegionForm({ ...regionForm, name: e.target.value })} placeholder="ör. Fatih / Merkez" />
+              </Label>
+              <Label label="Açıklama (isteğe bağlı)">
+                <Input value={regionForm.description} onChange={(e) => setRegionForm({ ...regionForm, description: e.target.value })} />
+              </Label>
+              <div className="flex justify-end gap-2 pt-1">
+                {editingRegion && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingRegion(null)
+                      setRegionForm({ name: '', description: '' })
+                    }}
+                  >
+                    Yeni Ekleme Modu
+                  </Button>
+                )}
+                <Button type="submit">{editingRegion ? 'Bölgeyi Güncelle' : 'Bölge Ekle'}</Button>
+              </div>
+            </form>
+          </div>
         </Modal>
       )}
     </div>
