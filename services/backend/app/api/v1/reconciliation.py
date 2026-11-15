@@ -14,10 +14,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Upl
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.api.deps import Permission, require_capability, require_feature, require_permission
+from app.api.deps import Permission, mask_phone, require_capability, require_feature, require_permission
 from app.core.plans import Feature
-from app.api.v1.checkout import _finalize_paid_order, _load_order
+from app.api.v1.checkout import _finalize_paid_order, _load_order, lock_order
 from app.core.db import get_db
 from app.models.automation import BankAccount, BankStatementImport, BankTransaction, ReconciliationStatus
 from app.models.expense import Expense
@@ -587,7 +588,7 @@ async def reconciliation_candidates(
     request: Request,
     transaction_id: UUID,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
+    current_user: User = Depends(require_permission(Permission.FINANCE_MANAGE)),
 ):
     org_id = UUID(request.state.organization_id)
     tx = (
@@ -603,6 +604,7 @@ async def reconciliation_candidates(
     orders = (
         await db.execute(
             select(PaymentOrder)
+            .options(selectinload(PaymentOrder.donor))
             .where(
                 PaymentOrder.organization_id == org_id,
                 PaymentOrder.payment_method == "bank_transfer",
@@ -620,8 +622,9 @@ async def reconciliation_candidates(
             "transfer_reference": o.transfer_reference,
             "total_cents": o.total_cents,
             "currency": o.currency,
-            "donor_email": o.donor_email,
-            "donor_phone": o.donor_phone,
+            "donor_name": f"{o.donor.first_name or ''} {o.donor.last_name or ''}".strip() if o.donor else None,
+            "donor_email": o.donor.email if o.donor else None,
+            "donor_phone": mask_phone(o.donor.phone, current_user) if o.donor else None,
             "created_at": o.created_at,
         }
         for o in orders
@@ -639,11 +642,14 @@ async def resolve_reconciliation(
     org_id = UUID(request.state.organization_id)
     result = await db.execute(select(BankTransaction).where(
         BankTransaction.id == transaction_id, BankTransaction.organization_id == org_id
-    ))
+    ).with_for_update())
     transaction = result.scalar_one_or_none()
     order = await _load_order(db, payment_order_id)
     if not transaction or not order or order.organization_id != org_id:
         raise HTTPException(status_code=404, detail="Hareket veya ödeme bulunamadı")
+    if transaction.status == ReconciliationStatus.MATCHED or transaction.payment_order_id or transaction.donation_id:
+        raise HTTPException(status_code=409, detail="Bu banka hareketi zaten eşleştirildi")
+    await lock_order(db, order)
     if order.payment_method != "bank_transfer" or order.status != PaymentOrderStatus.AWAITING_TRANSFER:
         raise HTTPException(status_code=409, detail="Ödeme eşleştirmeye uygun değil")
     if transaction.amount_cents != order.total_cents or transaction.currency != order.currency:

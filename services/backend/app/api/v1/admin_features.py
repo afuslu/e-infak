@@ -1,4 +1,6 @@
 import logging
+import secrets
+from html import escape as esc
 from uuid import UUID
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any, Literal
@@ -29,7 +31,7 @@ from app.models.organization import Organization
 from app.models.organization_settings import OrganizationSettings
 from app.models.content_post import ContentPost
 from app.models.subscription import Subscription
-from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability
+from app.api.deps import Permission, get_current_user, require_admin_route_feature, require_admin_route_permission, require_capability, require_permission
 from app.utils.content import sanitize_public_text
 
 logger = logging.getLogger(__name__)
@@ -319,7 +321,8 @@ async def get_donation_receipt(
 
     # Generate digital verification signature checksum
     import hashlib
-    verification_hash = hashlib.sha256(f"receipt-{donation.receipt_number}-{donation.amount_cents}".encode('utf-8')).hexdigest()[:16]
+    from app.utils.receipt_pdf import verification_hash as _receipt_code
+    verification_hash = _receipt_code(donation.receipt_number, donation.amount_cents)
 
     donor = donation.donor
     if donor and not donation.is_anonymous:
@@ -337,7 +340,7 @@ async def get_donation_receipt(
         "receipt_number": donation.receipt_number,
         "official_receipt_no": donation.official_receipt_no,
         "verification_hash": verification_hash,
-        "verify_url": f"{await _public_site_url(db, request)}/verify/receipt/{donation.receipt_number}",
+        "verify_url": f"{await _public_site_url(db, request)}/verify/receipt/{donation.receipt_number}?k={verification_hash}",
         "status": "valid" if donation.status == "confirmed" else donation.status,
         "donor_name": donor_name,
         "amount_lira": donation.amount_cents / 100,
@@ -721,12 +724,12 @@ async def add_student_progress(
                 email_html = f"""
                 <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
                     <h2 style="color: #0284c7; text-align: center;">ÖĞRENCİ GELİŞİM RAPORU</h2>
-                    <p>Sayın <b>{sponsor.first_name} {sponsor.last_name or ''}</b>,</p>
-                    <p>Hamisi olduğunuz <b>{student.full_name}</b> isimli öğrencimizin yeni gelişim/karne raporu eklenmiştir:</p>
+                    <p>Sayın <b>{esc(f"{sponsor.first_name} {sponsor.last_name or ''}".strip())}</b>,</p>
+                    <p>Hamisi olduğunuz <b>{esc(student.full_name or '')}</b> isimli öğrencimizin yeni gelişim/karne raporu eklenmiştir:</p>
                     <ul>
-                        <li><b>Mevcut Sure/Ders:</b> {payload.current_surah or '-'}</li>
-                        <li><b>Ezberlenen Sayfa:</b> {payload.memorized_pages}</li>
-                        <li><b>Hoca Notu:</b> {payload.instructor_notes or '-'}</li>
+                        <li><b>Mevcut Sure/Ders:</b> {esc(payload.current_surah or '-')}</li>
+                        <li><b>Ezberlenen Sayfa:</b> {esc(str(payload.memorized_pages))}</li>
+                        <li><b>Hoca Notu:</b> {esc(payload.instructor_notes or '-')}</li>
                     </ul>
                 </div>
                 """
@@ -1078,10 +1081,26 @@ class ApiKeyCreate(BaseModel):
     scopes: List[str] = Field(default_factory=list)
     expires_at: Optional[datetime] = None
 
+WEBHOOK_EVENTS = ("donation.paid", "donation.refunded", "donor.created", "receipt.created", "member.dues_paid")
+
+
 class WebhookSettingCreate(BaseModel):
-    target_url: str
-    secret_ref: str
+    target_url: str = Field(max_length=500)
     subscribed_events: List[str] = Field(default_factory=lambda: ["donation.paid"])
+
+
+def _webhook_out(hook: WebhookSetting, secret: str | None = None) -> dict:
+    out = {
+        "id": str(hook.id),
+        "target_url": hook.target_url,
+        "subscribed_events": hook.subscribed_events,
+        "is_active": hook.is_active,
+        "created_at": hook.created_at,
+        "secret_hint": "whsec_••••" if (hook.secret_ref or "").startswith("enc:") else "eski ayar",
+    }
+    if secret:
+        out["secret"] = secret
+    return out
 
 # --- Phase 5: Webhooks & API Keys Integration ---
 @router.get("/integrations/api-keys")
@@ -1174,46 +1193,57 @@ async def delete_api_key(
 async def list_webhooks(
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission(Permission.SETTINGS_MANAGE)),
 ):
     org_id = UUID(request.state.organization_id)
-    query = select(WebhookSetting).where(WebhookSetting.organization_id == org_id)
-    res = await db.execute(query)
-    return res.scalars().all()
+    res = await db.execute(select(WebhookSetting).where(WebhookSetting.organization_id == org_id))
+    return [_webhook_out(hook) for hook in res.scalars().all()]
+
 
 @router.post("/integrations/webhooks")
 async def create_webhook(
     request: Request,
     payload: WebhookSettingCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission(Permission.SETTINGS_MANAGE)),
 ):
+    from app.services.tenant_credentials import CredentialsUnavailable, encrypt
+    from app.utils.net import UnsafeUrl, assert_public_url
+
     org_id = UUID(request.state.organization_id)
+    try:
+        target_url = assert_public_url(payload.target_url)
+    except UnsafeUrl as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    events = [event for event in dict.fromkeys(payload.subscribed_events) if event in WEBHOOK_EVENTS]
+    if not events:
+        raise HTTPException(status_code=400, detail="En az bir geçerli olay seçin")
+    # The signing secret is generated here and shown once; it is stored encrypted, never read from env.
+    secret = "whsec_" + secrets.token_urlsafe(32)
+    try:
+        secret_ref = "enc:" + encrypt({"secret": secret})
+    except CredentialsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     hook = WebhookSetting(
         organization_id=org_id,
-        target_url=payload.target_url,
-        secret_ref=payload.secret_ref,
-        subscribed_events=",".join(payload.subscribed_events),
-        is_active=True
+        target_url=target_url,
+        secret_ref=secret_ref,
+        subscribed_events=",".join(events),
+        is_active=True,
     )
     db.add(hook)
     await db.commit()
     await db.refresh(hook)
-    
-    # Audit log
-    await write_audit_log(
-        db, org_id, current_user.id,
-        action="webhook_ekle",
-        details={"target_url": payload.target_url}
-    )
-    return hook
+    await write_audit_log(db, org_id, current_user.id, action="webhook_ekle", details={"target_url": target_url})
+    return _webhook_out(hook, secret)
+
 
 @router.delete("/integrations/webhooks/{hook_id}")
 async def delete_webhook(
     request: Request,
     hook_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission(Permission.SETTINGS_MANAGE))
 ):
     org_id = UUID(request.state.organization_id)
     query = select(WebhookSetting).where(WebhookSetting.id == hook_id, WebhookSetting.organization_id == org_id)

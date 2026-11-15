@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import axios from 'axios'
 import Link from 'next/link'
 import { Card, Button } from '@e-infak/ui'
@@ -9,7 +9,9 @@ import { Card, Button } from '@e-infak/ui'
 interface ReceiptData {
   status: string
   receipt_number: string
-  donor_name: string
+  donor_name: string | null
+  code_verified?: boolean
+  currency?: string
   amount_lira: number
   created_at: string
   payment_method: string
@@ -18,6 +20,8 @@ interface ReceiptData {
 export default function PublicVerifyReceiptPage() {
   const params = useParams()
   const receiptNumber = params.receipt_number as string
+  const code = (useSearchParams().get('k') || '').trim()
+  const codeQuery = code ? `?k=${encodeURIComponent(code)}` : ''
   
   const [data, setData] = useState<ReceiptData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -32,7 +36,7 @@ export default function PublicVerifyReceiptPage() {
       setLoading(true)
       setErrorMsg('')
       try {
-        const res = await axios.get(`${API_BASE}/api/v1/public/receipts/${receiptNumber}`)
+        const res = await axios.get(`${API_BASE}/api/v1/public/receipts/${encodeURIComponent(receiptNumber)}${codeQuery}`)
         setData(res.data)
       } catch (err: any) {
         console.error(err)
@@ -43,7 +47,7 @@ export default function PublicVerifyReceiptPage() {
     }
     
     verifyReceipt()
-  }, [receiptNumber, API_BASE])
+  }, [receiptNumber, API_BASE, codeQuery])
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -56,7 +60,7 @@ export default function PublicVerifyReceiptPage() {
           
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-black tracking-tight text-gray-900">E-İnfak Makbuz Doğrulama</h1>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Resmi Dijital Doğrulama Servisi</p>
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Makbuz Doğrulama</p>
           </div>
 
           {loading ? (
@@ -82,7 +86,7 @@ export default function PublicVerifyReceiptPage() {
                   <div className="mx-auto h-16 w-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-3xl font-bold">
                     ✓
                   </div>
-                  <h3 className="text-emerald-800 font-bold text-sm uppercase tracking-wide">✓ Resmi Olarak Doğrulandı</h3>
+                  <h3 className="text-emerald-800 font-bold text-sm uppercase tracking-wide">✓ Kayıtlarda Doğrulandı</h3>
                 </div>
               ) : (
                 <div className="text-center space-y-2 py-2">
@@ -104,7 +108,7 @@ export default function PublicVerifyReceiptPage() {
                 </div>
                 <div className="flex justify-between items-center border-b pb-2">
                   <span className="font-bold text-gray-400 uppercase text-[10px]">Bağışçı</span>
-                  <span className="font-bold text-gray-900">{data.donor_name}</span>
+                  <span className="font-bold text-gray-900">{data.donor_name ?? 'Doğrulama koduyla görünür'}</span>
                 </div>
                 <div className="flex justify-between items-center border-b pb-2">
                   <span className="font-bold text-gray-400 uppercase text-[10px]">Bağış Tarihi</span>
@@ -116,19 +120,26 @@ export default function PublicVerifyReceiptPage() {
                 </div>
                 <div className="flex justify-between items-center pt-1">
                   <span className="font-bold text-gray-400 uppercase text-[10px]">Bağış Tutarı</span>
-                  <span className="font-black text-emerald-700 text-lg">{data.amount_lira.toLocaleString('tr-TR')} ₺</span>
+                  <span className="font-black text-emerald-700 text-lg">{data.amount_lira.toLocaleString('tr-TR', { style: 'currency', currency: data.currency || 'TRY' })}</span>
                 </div>
               </div>
 
-              {/* PDF İndir */}
+              {!data.code_verified && (
+                <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  Makbuz kayıtlarda bulundu. Bağışçı adını görmek ve PDF indirmek için makbuzdaki karekodu okutun
+                  ya da doğrulama sayfasına makbuzdaki doğrulama kodunu da girin.
+                </p>
+              )}
+              {data.code_verified && (
               <a
-                href={`${API_BASE}/api/v1/public/receipts/${receiptNumber}/pdf`}
+                href={`${API_BASE}/api/v1/public/receipts/${encodeURIComponent(receiptNumber)}/pdf${codeQuery}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 w-full rounded-xl bg-[#1B5E20] hover:bg-[#154a19] text-white text-sm font-bold py-3 transition-colors"
               >
-                <span>⬇</span> Resmi Makbuzu PDF İndir
+                <span>⬇</span> Makbuzu PDF İndir
               </a>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
                 <button

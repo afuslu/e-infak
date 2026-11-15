@@ -1,11 +1,13 @@
 """Small Redis-backed fixed-window rate limiting dependencies.
 
-The limiter intentionally fails open when Redis is unavailable: availability of
-donations is preferable to an outage, while the error is logged for alerting.
+When Redis is unavailable the limiter falls back to a per-process in-memory window, so an
+outage never turns into unlimited OTP/SMS sending; the error is logged for alerting.
 """
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from typing import Callable
 
 import redis.asyncio as redis
@@ -15,6 +17,23 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 _redis: redis.Redis | None = None
+_memory: dict[str, tuple[int, float]] = {}
+_memory_lock = threading.Lock()
+
+
+def memory_hit(key: str, window: int) -> tuple[int, int]:
+    """Count a hit in the in-process fallback window; returns (count, seconds left)."""
+    now = time.monotonic()
+    with _memory_lock:
+        if len(_memory) > 50_000:
+            for stale in [k for k, (_, end) in _memory.items() if end <= now]:
+                _memory.pop(stale, None)
+        count, end = _memory.get(key, (0, now + window))
+        if end <= now:
+            count, end = 0, now + window
+        count += 1
+        _memory[key] = (count, end)
+        return count, max(int(end - now), 1)
 
 
 def _client() -> redis.Redis:
@@ -41,8 +60,8 @@ def rate_limit(scope: str, *, limit: int, window_seconds: int | None = None) -> 
                 await client.expire(key, window)
             ttl = max(await client.ttl(key), 1)
         except Exception as exc:  # pragma: no cover - depends on infrastructure
-            logger.warning("Rate limiter unavailable for %s: %s", scope, exc)
-            return
+            logger.warning("Rate limiter Redis unavailable for %s, using memory: %s", scope, exc)
+            count, ttl = memory_hit(key, window)
         response.headers["X-RateLimit-Limit"] = str(limit)
         response.headers["X-RateLimit-Remaining"] = str(max(limit - count, 0))
         if count > limit:

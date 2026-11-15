@@ -1,4 +1,3 @@
-import random
 import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -8,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-import redis
 
 from app.core.db import get_db
 from app.core.config import settings
@@ -22,22 +20,14 @@ from app.models.water_well import WaterWell
 from app.models.orphan import Orphan, OrphanSponsorship
 from app.models.student import Student
 from app.models.student_sponsorship import StudentSponsorship
+from app.services import otp
+from app.utils.phone import phone_matches
+from app.utils.receipt_pdf import verification_hash
 from app.utils.sms import send_sms
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/portal", tags=["donor-portal"])
 security = HTTPBearer()
-
-# In-memory fallback if Redis is not available
-_otp_fallback_store = {}
-_otp_attempts_fallback_store = {}
-
-def get_redis_client():
-    try:
-        return redis.from_url(settings.REDIS_URL, decode_responses=True)
-    except Exception as e:
-        logger.warning(f"Redis connection failed: {e}. Using in-memory fallback for OTP.")
-        return None
 
 # Pydantic schemas for requests/responses
 class OTPRequest(BaseModel):
@@ -96,45 +86,15 @@ async def send_portal_otp(
     payload: OTPRequest,
     _: None = Depends(rate_limit("donor-otp-send", limit=5, window_seconds=300)),
 ):
-    phone = payload.phone.strip()
-    if not phone:
-        raise HTTPException(status_code=400, detail="Telefon numarası gereklidir.")
-        
-    # Generate 6-digit OTP
-    code = f"{random.randint(100000, 999999)}"
-    
-    # Store OTP with 3-minute expiry
-    tenant = request.state.organization_id
+    tenant = str(request.state.organization_id)
     client_ip = request.client.host if request.client else "unknown"
-    otp_key = f"{tenant}:{phone}"
-    r = get_redis_client()
-    if r:
-        try:
-            ip_limit_key = f"otp-ip:{tenant}:{client_ip}"
-            ip_count = r.incr(ip_limit_key)
-            r.expire(ip_limit_key, 3600)
-            if ip_count > 20:
-                raise HTTPException(status_code=429, detail="Bu bağlantıdan çok fazla kod istendi.")
-            cooldown_key = f"otp-cooldown:{otp_key}"
-            if not r.set(cooldown_key, "1", ex=60, nx=True):
-                raise HTTPException(status_code=429, detail="Yeni kod istemeden önce 60 saniye bekleyin.")
-            r.setex(f"otp:{otp_key}", 180, code)
-            r.delete(f"otp-attempts:{otp_key}")
-        except HTTPException:
-            raise
-        except Exception:
-            _otp_fallback_store[otp_key] = (code, datetime.now(timezone.utc) + timedelta(minutes=3))
-    else:
-        _otp_fallback_store[otp_key] = (code, datetime.now(timezone.utc) + timedelta(minutes=3))
-        
-    # Send SMS
+    code = otp.issue("donor", tenant, payload.phone, client_ip)
     org_name = getattr(getattr(request.state, "organization", None), "name", "") or "E-Infak"
     org_name = org_name.translate(str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU"))
     sms_message = f"{org_name} bagisci giris kodunuz: {code}. Bu kod 3 dakika gecerlidir."
-    await send_sms(phone, sms_message, getattr(request.state, "organization_id", None),
-                   log_text=sms_message.replace(code, "******"))
-    
+    await send_sms(payload.phone.strip(), sms_message, tenant, log_text=sms_message.replace(code, "******"))
     return {"status": "success", "message": "OTP kodu başarıyla gönderildi."}
+
 
 @router.post("/verify-otp")
 async def verify_portal_otp(
@@ -143,97 +103,43 @@ async def verify_portal_otp(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit("donor-otp-verify", limit=10, window_seconds=300)),
 ):
-    phone = payload.phone.strip()
-    code = payload.code.strip()
-    organization_id = request.state.organization_id
-    otp_key = f"{organization_id}:{phone}"
-    
-    if not phone or not code:
-        raise HTTPException(status_code=400, detail="Telefon numarası ve OTP kodu gereklidir.")
-        
-    # Retrieve OTP
-    saved_code = None
-    r = get_redis_client()
-    if r:
-        try:
-            saved_code = r.get(f"otp:{otp_key}")
-        except Exception:
-            pass
-            
-    if not saved_code:
-        # Check fallback store
-        entry = _otp_fallback_store.get(otp_key)
-        if entry:
-            val, expiry = entry
-            if datetime.now(timezone.utc) < expiry:
-                saved_code = val
-            else:
-                _otp_fallback_store.pop(otp_key, None)
-
-    if r:
-        attempts = r.incr(f"otp-attempts:{otp_key}")
-        r.expire(f"otp-attempts:{otp_key}", 180)
-        if attempts > 5:
-            raise HTTPException(status_code=429, detail="Çok fazla hatalı deneme. Yeni kod isteyin.")
-    else:
-        now = datetime.now(timezone.utc)
-        count, exp = _otp_attempts_fallback_store.get(otp_key, (0, now + timedelta(minutes=3)))
-        if now >= exp:
-            count, exp = 0, now + timedelta(minutes=3)
-        count += 1
-        _otp_attempts_fallback_store[otp_key] = (count, exp)
-        if count > 5:
-            raise HTTPException(status_code=429, detail="Çok fazla hatalı deneme. Yeni kod isteyin.")
-
-    if saved_code and saved_code == code:
-        # Remove used OTP
-        if r:
-            try: r.delete(f"otp:{otp_key}")
-            except Exception: pass
-        _otp_fallback_store.pop(otp_key, None)
-        _otp_attempts_fallback_store.pop(otp_key, None)
-        
-        # Check if donor exists in this organization
-        result = await db.execute(
-            select(Donor).where(
-                Donor.phone == phone,
-                Donor.organization_id == UUID(organization_id)
-            )
+    organization_id = str(request.state.organization_id)
+    key = otp.verify("donor", organization_id, payload.phone, payload.code)
+    # Several records can share a phone (imports, old duplicates): the oldest one is the donor.
+    donor = (await db.execute(
+        select(Donor).where(phone_matches(Donor.phone, key), Donor.organization_id == UUID(organization_id))
+        .order_by(Donor.created_at)
+    )).scalars().first()
+    if not donor:
+        donor = Donor(
+            organization_id=UUID(organization_id),
+            first_name="Değerli",
+            last_name="Bağışçı",
+            phone="0" + key,
+            donor_type="individual",
+            allow_email=False,
+            allow_sms=False,
         )
-        donor = result.scalar_one_or_none()
-        
-        if not donor:
-            # Create a passwordless basic donor profile
-            donor = Donor(
-                organization_id=UUID(organization_id),
-                first_name="Değerli",
-                last_name="Bağışçı",
-                phone=phone,
-                donor_type="individual",
-                allow_email=False,
-                allow_sms=False
-            )
-            db.add(donor)
-            await db.commit()
-            await db.refresh(donor)
-            
-        # Generate access/refresh tokens specifically for donor
-        access_token = create_access_token({"sub": str(donor.id), "role": "donor"})
-        refresh_token = create_refresh_token({"sub": str(donor.id), "role": "donor"})
-        
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "donor": {
-                "id": donor.id,
-                "first_name": donor.first_name,
-                "last_name": donor.last_name,
-                "phone": donor.phone
-            }
+        db.add(donor)
+        await db.commit()
+        await db.refresh(donor)
+
+    # Generate access/refresh tokens specifically for donor
+    access_token = create_access_token({"sub": str(donor.id), "role": "donor"})
+    refresh_token = create_refresh_token({"sub": str(donor.id), "role": "donor"})
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "donor": {
+            "id": donor.id,
+            "first_name": donor.first_name,
+            "last_name": donor.last_name,
+            "phone": donor.phone
         }
-    else:
-        raise HTTPException(status_code=400, detail="Hatalı veya süresi geçmiş tek kullanımlık şifre (OTP).")
+    }
+
 
 @router.get("/me/donations")
 async def get_my_donations(
@@ -252,6 +158,7 @@ async def get_my_donations(
         {
             "id": d.id,
             "receipt_number": d.receipt_number,
+            "verify_code": verification_hash(d.receipt_number, d.amount_cents) if d.receipt_number else None,
             "amount_lira": d.amount_lira,
             "currency": d.currency,
             "status": d.status,

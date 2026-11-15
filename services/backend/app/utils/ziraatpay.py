@@ -50,10 +50,20 @@ class ZiraatPayClient:
                 credentials = json.loads(settings.ZIRAATPAY_TENANT_CREDENTIALS).get(tenant_slug, {})
             except (TypeError, ValueError):
                 credentials = {}
-        self.merchant = credentials.get("merchant") or settings.ZIRAATPAY_MERCHANT
-        self.merchant_user = credentials.get("merchant_user") or settings.ZIRAATPAY_MERCHANT_USER
-        self.merchant_password = credentials.get("merchant_password") or settings.ZIRAATPAY_MERCHANT_PASSWORD
-        self.secret_key = credentials.get("secret_key") or settings.ZIRAATPAY_SECRET_KEY
+        if not credentials and tenant_slug:
+            # An organisation without its own merchant must not take payments: the single
+            # ZIRAATPAY_* account belongs to the platform, so donations would land in the wrong bank.
+            credentials = {}
+        elif not credentials:
+            credentials = {
+                "merchant": settings.ZIRAATPAY_MERCHANT, "merchant_user": settings.ZIRAATPAY_MERCHANT_USER,
+                "merchant_password": settings.ZIRAATPAY_MERCHANT_PASSWORD, "secret_key": settings.ZIRAATPAY_SECRET_KEY,
+            }
+        # Never mix fields from two merchants.
+        self.merchant = credentials.get("merchant", "")
+        self.merchant_user = credentials.get("merchant_user", "")
+        self.merchant_password = credentials.get("merchant_password", "")
+        self.secret_key = credentials.get("secret_key", "")
 
     @property
     def configured(self) -> bool:

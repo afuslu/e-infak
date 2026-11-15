@@ -87,9 +87,20 @@ def _fmt_amount(amount_cents: int, currency: str) -> str:
 
 
 def verification_hash(receipt_number: str, amount_cents: int) -> str:
-    return hashlib.sha256(
-        f"receipt-{receipt_number}-{amount_cents}".encode("utf-8")
-    ).hexdigest()[:16]
+    """Code printed on the receipt. Keyed with the server secret, so it cannot be computed from the
+    receipt number alone: whoever shows the code has seen the real receipt."""
+    import hmac
+
+    from app.core.config import settings
+
+    digest = hmac.new(settings.SECRET_KEY.encode(), f"receipt:{receipt_number}:{amount_cents}".encode(), hashlib.sha256)
+    return digest.hexdigest()[:12].upper()
+
+
+def code_matches(receipt_number: str, amount_cents: int, code: str | None) -> bool:
+    import hmac
+
+    return bool(code) and hmac.compare_digest(verification_hash(receipt_number, amount_cents), code.strip().upper())
 
 
 def resolve_local_logo(organization: Any) -> ImageReader | None:
@@ -352,7 +363,7 @@ def build_receipt_pdf(
 
     # --- Dijital Doğrulama & QR Kod Kartı ---
     vhash = verification_hash(receipt_number, amount_cents)
-    verify_url = f"{verify_base_url.rstrip('/')}/verify/receipt/{receipt_number}"
+    verify_url = f"{verify_base_url.rstrip('/')}/verify/receipt/{receipt_number}?k={vhash}"
     y -= box_h + 8 * mm
     card_h = 26 * mm
     pdf.setFillColor(zebra)
@@ -362,7 +373,7 @@ def build_receipt_pdf(
 
     pdf.setFillColor(ink)
     pdf.setFont(FONT_BOLD, 9.5)
-    pdf.drawString(margin + 5 * mm, y - 6.5 * mm, "Dijital Doğrulama ve Elektronik Onay")
+    pdf.drawString(margin + 5 * mm, y - 6.5 * mm, "Makbuz Doğrulama")
     pdf.setFillColor(muted)
     pdf.setFont(FONT, 8)
     pdf.drawString(margin + 5 * mm, y - 11.5 * mm, f"Doğrulama Kodu: {vhash}")
@@ -395,8 +406,8 @@ def build_receipt_pdf(
     pdf.line(margin, footer_y + 4 * mm, width - margin, footer_y + 4 * mm)
 
     footer_text = (
-        "Bu belge, kurum muhasebe sistemindeki resmi kayıtlar esas alınarak dijital olarak "
-        "oluşturulmuş ve doğrulanmıştır."
+        "Bu belge, kurum muhasebe sistemindeki kayıtlar esas alınarak elektronik ortamda "
+        "oluşturulmuştur; doğrulama koduyla kayıttan teyit edilebilir."
     )
     if _is_tax_exempt(organization):
         footer_text += " Bağışlarınız ilgili mevzuat çerçevesinde vergi indirimi kapsamındadır."

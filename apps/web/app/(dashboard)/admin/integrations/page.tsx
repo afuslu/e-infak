@@ -19,7 +19,8 @@ interface ApiKey {
 interface Webhook {
   id: string
   target_url: string
-  secret_ref: string
+  secret_hint?: string
+  secret?: string
   subscribed_events: string
   is_active: boolean
 }
@@ -34,10 +35,10 @@ const SCOPE_OPTIONS = [
 
 const WEBHOOK_EVENTS = [
   ['donation.paid', 'Bağış Onaylandı (donation.paid)'],
-  ['donation.failed', 'Bağış Başarısız (donation.failed)'],
   ['donation.refunded', 'Bağış İade Edildi (donation.refunded)'],
-  ['kurban.created', 'Kurban Kaydı Oluşturuldu (kurban.created)'],
+  ['receipt.created', 'Elle Makbuz Kesildi (receipt.created)'],
   ['donor.created', 'Yeni Bağışçı Kaydı (donor.created)'],
+  ['member.dues_paid', 'Aidat Ödendi (member.dues_paid)'],
 ] as const
 
 const EXPIRY_OPTIONS = [
@@ -60,7 +61,7 @@ export default function AdminIntegrationsPage() {
 
   const [webhooks, setWebhooks] = useState<Webhook[]>([])
   const [targetUrl, setTargetUrl] = useState('')
-  const [secretRef, setSecretRef] = useState('')
+  const [webhookSecret, setWebhookSecret] = useState('')
   const [selectedEvents, setSelectedEvents] = useState<string[]>(['donation.paid'])
   const [creatingWebhook, setCreatingWebhook] = useState(false)
 
@@ -138,7 +139,7 @@ export default function AdminIntegrationsPage() {
 
   const handleCreateWebhook = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!targetUrl.trim() || !secretRef.trim() || creatingWebhook) return
+    if (!targetUrl.trim() || creatingWebhook) return
     if (selectedEvents.length === 0) {
       toast.error('En az bir webhook olayı seçin.')
       return
@@ -148,12 +149,12 @@ export default function AdminIntegrationsPage() {
     try {
       const res = await adminSend<Webhook>('post', '/integrations/webhooks', {
         target_url: targetUrl.trim(),
-        secret_ref: secretRef.trim(),
         subscribed_events: selectedEvents,
       })
-      setWebhooks((prev) => [...prev, res.data])
+      const { secret, ...hook } = res.data
+      setWebhooks((prev) => [...prev, hook])
+      setWebhookSecret(secret || '')
       setTargetUrl('')
-      setSecretRef('')
       toast.ok('Webhook başarıyla eklendi!')
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Webhook eklenemedi.'))
@@ -364,17 +365,6 @@ export default function AdminIntegrationsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-gray-700">Secret Store Referansı *</label>
-                  <input
-                    type="text"
-                    placeholder="Örn: env:EINFAK_WEBHOOK_KURUM"
-                    value={secretRef}
-                    onChange={(e) => setSecretRef(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs outline-none focus:border-primary-500"
-                    required
-                  />
-                </div>
-                <div>
                   <label className="mb-1.5 block text-xs font-bold text-gray-700">Dinlenecek Olaylar *</label>
                   <div className="space-y-1.5 rounded-lg border border-gray-200 bg-gray-50/70 p-2.5">
                     {WEBHOOK_EVENTS.map(([code, label]) => (
@@ -394,6 +384,15 @@ export default function AdminIntegrationsPage() {
                 </Button>
               </form>
             </Card>
+            {webhookSecret && (
+              <Card className="mt-4 space-y-3 border border-amber-200 bg-amber-50/70 p-5 shadow-sm">
+                <p className="text-xs font-semibold leading-relaxed text-gray-700">
+                  İmza sırrı oluşturuldu; bir daha gösterilmez. Alıcı sistem her isteğin <code>X-EInfak-Signature</code> başlığını
+                  bu sırla HMAC-SHA256 olarak doğrulamalıdır.
+                </p>
+                <div className="select-all break-all rounded-lg border bg-white p-2.5 font-mono text-xs font-bold text-gray-900">{webhookSecret}</div>
+              </Card>
+            )}
           </div>
 
           <div className="lg:col-span-7">
@@ -409,7 +408,7 @@ export default function AdminIntegrationsPage() {
                     <THead>
                       <Tr>
                         <Th>Hedef URL &amp; Olaylar</Th>
-                        <Th>Secret Referansı</Th>
+                        <Th>İmza sırrı</Th>
                         <Th>Durum</Th>
                         <Th className="text-right">İşlem</Th>
                       </Tr>
@@ -428,7 +427,7 @@ export default function AdminIntegrationsPage() {
                             )}
                           </Td>
                           <Td className="font-mono text-[10px] text-gray-500">
-                            {h.secret_ref}
+                            {h.secret_hint}
                           </Td>
                           <Td>
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${h.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-500'}`}>

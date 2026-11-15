@@ -13,6 +13,20 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def csv_safe(value: Any) -> Any:
+    """Neutralise spreadsheet formulas in user-typed text (CSV/formula injection).
+
+    Donor names, notes and bank descriptions come from the public; a cell starting with "=" would
+    run as a formula in Excel. Numbers stay numbers.
+    """
+    if isinstance(value, str) and value.startswith(FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 def _clean_hex(hex_color: str | None, default: str = "065F46") -> str:
     raw = (hex_color or "").strip().lstrip("#")
     if len(raw) == 6 and all(c in "0123456789abcdefABCDEF" for c in raw):
@@ -132,7 +146,7 @@ def build_corporate_xlsx(
         ws.row_dimensions[r_idx].height = 20
         is_zebra = (r_idx - header_row) % 2 == 0
         for c_idx, val in enumerate(row, start=1):
-            cell = ws.cell(row=r_idx, column=c_idx, value=val)
+            cell = ws.cell(row=r_idx, column=c_idx, value=csv_safe(val))
             cell.font = Font(name="Calibri", size=10, color="111827")
             if is_zebra:
                 cell.fill = zebra_fill

@@ -331,8 +331,27 @@ def reconcile_pending_ziraat_payments_task():
     return asyncio.run(_reconcile_pending_ziraat_payments())
 
 
+def _webhook_secret(hook) -> str:
+    ref = hook.secret_ref or ""
+    if ref.startswith("enc:"):
+        from app.services.tenant_credentials import decrypt
+        return decrypt(ref[4:])["secret"]
+    # Older hooks named an environment variable. Only dedicated variables are honoured, so a hook
+    # cannot sign with (and leak through signatures) DATABASE_URL, SECRET_KEY and the like.
+    env_name = ref.removeprefix("env:")
+    if not env_name.startswith("EINFAK_WEBHOOK_"):
+        raise RuntimeError("Webhook sırrı geçersiz; webhook'u silip yeniden ekleyin")
+    secret = os.environ.get(env_name)
+    if not secret:
+        raise RuntimeError(f"Webhook secret bulunamadı: {env_name}")
+    return secret
+
+
 async def _deliver_webhooks(event):
     from app.models.webhook_setting import WebhookSetting
+    from app.utils.net import assert_public_url
+
+    event_name = event.event_type.removeprefix("webhook.")
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(WebhookSetting).where(
@@ -340,27 +359,32 @@ async def _deliver_webhooks(event):
                 WebhookSetting.is_active.is_(True),
             )
         )
-        body = json.dumps(event.payload, separators=(",", ":"), sort_keys=True).encode()
+        body = json.dumps({"event": event_name, "data": event.payload}, separators=(",", ":"), sort_keys=True).encode()
+        failures = []
         for hook in result.scalars().all():
-            if "donation.paid" not in hook.subscribed_events.split(","):
+            if event_name not in hook.subscribed_events.split(","):
                 continue
-            env_name = hook.secret_ref.removeprefix("env:")
-            secret = os.environ.get(env_name)
-            if not secret:
-                raise RuntimeError(f"Webhook secret bulunamadı: {env_name}")
-            signature = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-            response = requests.post(
-                hook.target_url,
-                data=body,
-                headers={
-                    "Content-Type": "application/json",
-                    "X-EInfak-Event": "donation.paid",
-                    "X-EInfak-Signature": f"sha256={signature}",
-                    "X-EInfak-Delivery": str(event.id),
-                },
-                timeout=15,
-            )
-            response.raise_for_status()
+            try:
+                # Checked again at send time: DNS may have changed since the hook was saved.
+                url = assert_public_url(hook.target_url)
+                signature = hmac.new(_webhook_secret(hook).encode(), body, hashlib.sha256).hexdigest()
+                response = requests.post(
+                    url,
+                    data=body,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-EInfak-Event": event_name,
+                        "X-EInfak-Signature": f"sha256={signature}",
+                        "X-EInfak-Delivery": str(event.id),
+                    },
+                    timeout=10,
+                    allow_redirects=False,
+                )
+                response.raise_for_status()
+            except Exception as exc:
+                failures.append(f"{hook.target_url}: {exc}")
+        if failures:
+            raise RuntimeError("; ".join(failures)[:1500])
 
 
 async def _process_outbox():
@@ -399,7 +423,7 @@ async def _process_outbox():
                     ok = await _fetch_donation_and_send_receipt(str(current.aggregate_id))
                     if not ok:
                         raise RuntimeError("Makbuz verisi bulunamadı")
-                elif current.event_type == "webhook.donation.paid":
+                elif current.event_type.startswith("webhook."):
                     await _deliver_webhooks(current)
                 current.status = OutboxStatus.DELIVERED
                 current.processing_started_at = None
@@ -415,59 +439,6 @@ async def _process_outbox():
                 current.next_attempt_at = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
             await session.commit()
     return {"processed": processed, "total": len(events)}
-
-
-@celery_app.task(name="app.tasks.notify_kurban_slaughter_task")
-def notify_kurban_slaughter_task(animal_id: str, video_url: str):
-    """Notify all shareholders via SMS and Email when their kurban animal is slaughtered."""
-    from app.models.kurban import KurbanShare
-    from app.models.donation import Donor
-    import uuid
-
-    async def _notify():
-        async with AsyncSessionLocal() as session:
-            try:
-                anim_uuid = uuid.UUID(animal_id) if isinstance(animal_id, str) else animal_id
-            except ValueError:
-                return False
-
-            res = await session.execute(
-                select(KurbanShare, Donor)
-                .outerjoin(Donor, KurbanShare.donor_id == Donor.id)
-                .where(KurbanShare.animal_id == anim_uuid)
-            )
-            rows = res.all()
-            for share, donor in rows:
-                phone = share.donor_phone or (donor.phone if donor else None)
-                email = donor.email if donor else None
-                donor_name = share.donor_name or (f"{donor.first_name} {donor.last_name or ''}" if donor else "Bağışçımız")
-
-                # Send SMS
-                if phone:
-                    from app.services.tenant_credentials import sms_account
-                    sms_msg = f"Sayin {donor_name}, kurbaniniz kesilmistir. Kesim videosunu izlemek icin: {video_url or 'Dernek paneli'}"
-                    try:
-                        deliver_sms(phone, sms_msg, await sms_account(session, share.organization_id))
-                    except Exception as e:
-                        print(f"Kurban SMS error: {e}")
-
-                # Send Email
-                if email and settings.SENDGRID_API_KEY:
-                    email_html = f"""
-                    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 12px;">
-                        <h2 style="color: #16a34a; text-align: center;">KURBANINIZ KESİLDİ</h2>
-                        <p>Sayın <b>{donor_name}</b>,</p>
-                        <p>Kurban vekâletiniz başarıyla yerine getirilmiş ve kurbanınız kesilmiştir. Allah kabul eylesin.</p>
-                        {f'<p style="text-align: center; margin: 25px 0;"><a href="{video_url}" style="background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">🎥 Kesim Videosunu İzle</a></p>' if video_url else ''}
-                    </div>
-                    """
-                    try:
-                        send_email_task(email, "Kurban Kesim Bilgilendirmesi", email_html)
-                    except Exception as e:
-                        print(f"Kurban Email error: {e}")
-            return True
-
-    return asyncio.run(_notify())
 
 
 @celery_app.task(name="app.tasks.sync_zakat_rates_task")

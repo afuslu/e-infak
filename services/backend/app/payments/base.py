@@ -50,6 +50,7 @@ class CheckoutContext:
     notify_url: str  # server-to-server notification URL (providers that use one)
     success_url: str  # website page shown after a successful payment
     fail_url: str  # website page shown after a failed payment
+    customer_identity: str = ""  # T.C. kimlik no when the donor gave one
 
 
 @dataclass

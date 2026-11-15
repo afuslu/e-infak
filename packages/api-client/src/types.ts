@@ -126,6 +126,7 @@ export interface CheckoutStatus {
     quantity: number
     total_amount_cents: number
     receipt_number?: string
+    verify_code?: string
   }>
 }
 

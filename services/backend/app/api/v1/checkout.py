@@ -1,3 +1,4 @@
+import hashlib
 import json
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -5,7 +6,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,6 +30,7 @@ from app.schemas.checkout import (
     CheckoutStatusItem,
     CheckoutStatusResponse,
 )
+from app.utils.phone import phone_digits, phone_matches
 from app.utils.ziraatpay import ZiraatPayClient
 from app.core.rate_limit import rate_limit
 
@@ -82,27 +84,44 @@ def _receipt_number(org_id: UUID) -> str:
     return f"BG-{str(org_id)[:6].upper()}-{datetime.now():%Y%m%d}-{secrets.token_hex(4).upper()}"
 
 
-async def _get_or_create_donor(org_id: UUID, payload, db: AsyncSession) -> Donor:
+async def _get_or_create_donor(org_id: UUID, payload, db: AsyncSession) -> tuple[Donor, dict | None]:
+    """Find the donor by e-mail or phone, or create one.
+
+    A public checkout is unauthenticated, so it must never rewrite an existing donor's contact
+    details: whoever knows a donor's e-mail could otherwise put their own phone on the record and
+    take over the donor portal (OTP goes to that phone). Only empty fields are filled; contact
+    details that differ are returned so they can be kept on the order instead.
+    """
+    email = str(payload.email).strip().lower()
+    phone = phone_digits(payload.phone) or payload.phone
     result = await db.execute(
         select(Donor).where(
             Donor.organization_id == org_id,
-            (Donor.email == str(payload.email)) | (Donor.phone == payload.phone),
-        )
+            (func.lower(Donor.email) == email) | phone_matches(Donor.phone, phone),
+        ).order_by(Donor.created_at)
     )
     donor = result.scalars().first()
     values = payload.model_dump()
-    values["email"] = str(values["email"])
+    values["email"] = email
+    values["phone"] = phone
     if donor:
         # An unticked box on a later donation is not a withdrawal of an earlier permission.
         for consent in ("allow_sms", "allow_email"):
-            values[consent] = bool(values.get(consent) or getattr(donor, consent))
-        for key, value in values.items():
-            setattr(donor, key, value)
-        return donor
+            setattr(donor, consent, bool(values.get(consent) or getattr(donor, consent)))
+        donor.is_anonymous = bool(values.get("is_anonymous"))
+        for key in ("first_name", "last_name", "email", "phone"):
+            if not getattr(donor, key):
+                setattr(donor, key, values[key])
+        payer = {
+            key: values[key]
+            for key in ("first_name", "last_name", "email", "phone")
+            if (getattr(donor, key) or "").strip().lower() != (values[key] or "").strip().lower()
+        }
+        return donor, (payer or None)
     donor = Donor(organization_id=org_id, donor_type="individual", **values)
     db.add(donor)
     await db.flush()
-    return donor
+    return donor, None
 
 
 async def _load_order(db: AsyncSession, checkout_id: UUID) -> PaymentOrder | None:
@@ -119,6 +138,23 @@ async def _load_order(db: AsyncSession, checkout_id: UUID) -> PaymentOrder | Non
     return result.scalar_one_or_none()
 
 
+async def lock_order(db: AsyncSession, order: PaymentOrder) -> PaymentOrderStatus:
+    """Row-lock the order and return its committed status.
+
+    Every path that credits or refunds an order (bank callback, status query, staff confirmation,
+    reconciliation, refund) takes this lock first, so two concurrent requests cannot both see an
+    unpaid order and create donations twice.
+    """
+    status = (await db.execute(
+        select(PaymentOrder.status).where(PaymentOrder.id == order.id).with_for_update()
+    )).scalar_one()
+    order.status = status
+    order.refunded_cents = (await db.execute(
+        select(PaymentOrder.refunded_cents).where(PaymentOrder.id == order.id)
+    )).scalar_one()
+    return status
+
+
 async def _finalize_paid_order(
     db: AsyncSession,
     order: PaymentOrder,
@@ -126,6 +162,7 @@ async def _finalize_paid_order(
     commit: bool = True,
     issued_by_id: UUID | None = None,
 ) -> list[str]:
+    await lock_order(db, order)
     if order.status == PaymentOrderStatus.PAID:
         result = await db.execute(
             select(Donation.id).where(
@@ -164,7 +201,8 @@ async def _finalize_paid_order(
             donor_message=item.donor_message,
             on_behalf_of=(item.metadata_json or {}).get("on_behalf_of"),
             is_anonymous=order.donor.is_anonymous,
-            idempotency_key=f"{order.idempotency_key}:{item.id}",
+            # Order keys are up to 128 chars; the donation column is 100.
+            idempotency_key="co:" + hashlib.sha256(f"{order.idempotency_key}:{item.id}".encode()).hexdigest(),
             payment_order_item_id=item.id,
             issued_by_id=issued_by_id,
         )
@@ -295,7 +333,7 @@ async def create_checkout_session(
                 raise HTTPException(status_code=400, detail=f"{campaign.title}: {key} liste olmalıdır")
         total_cents += item.unit_amount_cents * item.quantity
 
-    donor = await _get_or_create_donor(org_id, payload.donor, db)
+    donor, payer_contact = await _get_or_create_donor(org_id, payload.donor, db)
     for consent_type, granted in (
         ("kvkk_notice", payload.kvkk_accepted),
         ("distance_contract", payload.terms_accepted),
@@ -352,7 +390,12 @@ async def create_checkout_session(
                 unit_amount_cents=item.unit_amount_cents,
                 total_amount_cents=item.unit_amount_cents * item.quantity,
                 donor_message=item.donor_message,
-                metadata_json={**item.metadata, **({"on_behalf_of": item.on_behalf_of} if item.on_behalf_of else {})},
+                metadata_json={
+                    **item.metadata,
+                    **({"on_behalf_of": item.on_behalf_of} if item.on_behalf_of else {}),
+                    # Contact details typed at checkout that differ from the stored donor.
+                    **({"payer_contact": payer_contact} if payer_contact else {}),
+                },
             )
         )
 
@@ -385,6 +428,7 @@ async def create_checkout_session(
         customer_last_name=donor.last_name or "",
         customer_email=donor.email or "",
         customer_phone=donor.phone or "",
+        customer_identity=donor.tc_no or "",
         customer_ip=request.client.host if request.client else "127.0.0.1",
         user_agent=request.headers.get("user-agent", ""),
         return_url=f"{callback_base}/api/v1/payments/{provider.key}/return",
@@ -599,7 +643,10 @@ async def checkout_status(
             Donation.payment_order_item_id.in_([item.id for item in order.items])
         )
     )
-    receipts = {d.payment_order_item_id: d.receipt_number for d in donation_result.scalars().all()}
+    from app.utils.receipt_pdf import verification_hash
+
+    receipts = {d.payment_order_item_id: (d.receipt_number, verification_hash(d.receipt_number, d.amount_cents))
+                for d in donation_result.scalars().all() if d.receipt_number}
     return CheckoutStatusResponse(
         checkout_id=order.id,
         status=order.status.value,
@@ -614,7 +661,8 @@ async def checkout_status(
                 campaign_title=item.campaign.title,
                 quantity=item.quantity,
                 total_amount_cents=item.total_amount_cents,
-                receipt_number=receipts.get(item.id),
+                receipt_number=(receipts.get(item.id) or (None, None))[0],
+                verify_code=(receipts.get(item.id) or (None, None))[1],
             )
             for item in order.items
         ],
@@ -632,6 +680,7 @@ async def refund_payment(
     order = await _load_order(db, checkout_id)
     if not order or str(order.organization_id) != request.state.organization_id:
         raise HTTPException(status_code=404, detail="Ödeme bulunamadı")
+    await lock_order(db, order)
     if order.status not in (PaymentOrderStatus.PAID, PaymentOrderStatus.PARTIALLY_REFUNDED):
         raise HTTPException(status_code=409, detail="Yalnızca tamamlanan ödeme iade edilebilir")
     attempt = next((item for item in order.attempts if item.pg_tran_id and item.provider != "bank_transfer"), None)
@@ -748,8 +797,24 @@ async def confirm_bank_transfer(
         raise HTTPException(status_code=404, detail="Havale kaydı bulunamadı")
     if order.payment_method != "bank_transfer":
         raise HTTPException(status_code=409, detail="Bu sipariş havale/EFT değildir")
+    await lock_order(db, order)
     if order.status == PaymentOrderStatus.PAID:
         return {"status": "paid", "message": "Havale daha önce eşleştirildi"}
+    if order.status not in (PaymentOrderStatus.AWAITING_TRANSFER, PaymentOrderStatus.REVIEW):
+        raise HTTPException(status_code=409, detail="Bu havale kaydı onaylanamaz (iptal veya iade edilmiş)")
+    bank_transaction_id = bank_transaction_id.strip()[:64]
+    if not bank_transaction_id:
+        raise HTTPException(status_code=400, detail="Banka işlem numarası gereklidir")
+    reused = (await db.execute(
+        select(PaymentAttempt.id).join(PaymentOrder, PaymentOrder.id == PaymentAttempt.order_id).where(
+            PaymentOrder.organization_id == order.organization_id,
+            PaymentAttempt.provider == "bank_transfer",
+            PaymentAttempt.pg_tran_id == bank_transaction_id,
+            PaymentOrder.status.in_([PaymentOrderStatus.PAID, PaymentOrderStatus.PARTIALLY_REFUNDED]),
+        )
+    )).first()
+    if reused:
+        raise HTTPException(status_code=409, detail="Bu banka hareketi başka bir havaleyle zaten eşleştirildi")
     attempt = PaymentAttempt(
         order_id=order.id,
         provider="bank_transfer",

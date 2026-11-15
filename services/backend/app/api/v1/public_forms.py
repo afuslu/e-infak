@@ -30,6 +30,7 @@ def _verify_base_url(organization) -> str:
 async def verify_public_receipt(
     request: Request,
     receipt_number: str,
+    k: str | None = None,
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit("receipt-verify", limit=30)),
 ):
@@ -40,19 +41,28 @@ async def verify_public_receipt(
             Donation.organization_id == request.state.organization_id,
             Donation.receipt_number == receipt_number,
             Donation.status.in_([DonationStatus.CONFIRMED, DonationStatus.REFUNDED, DonationStatus.CANCELLED]),
-        )
+        ).limit(1)
     )
     donation = result.scalar_one_or_none()
     if not donation:
         raise HTTPException(status_code=404, detail="Makbuz bulunamadı")
-    donor_name = "Anonim Bağışçı"
-    if donation.donor and not donation.is_anonymous:
-        last_initial = f"{donation.donor.last_name[0]}." if donation.donor.last_name else ""
-        donor_name = f"{donation.donor.first_name} {last_initial}".strip()
+    from app.utils.receipt_pdf import code_matches
+
+    # Receipt numbers can be sequential (receipt books); without the code printed on the receipt
+    # only validity, amount and date are shown, not who gave.
+    verified = code_matches(donation.receipt_number, donation.amount_cents, k)
+    donor_name = None
+    if verified:
+        donor_name = "Anonim Bağışçı"
+        if donation.donor and not donation.is_anonymous:
+            last_initial = f"{donation.donor.last_name[0]}." if donation.donor.last_name else ""
+            donor_name = f"{donation.donor.first_name} {last_initial}".strip()
     return {
         "status": {DonationStatus.REFUNDED: "refunded", DonationStatus.CANCELLED: "cancelled"}.get(donation.status, "valid"),
         "receipt_number": donation.receipt_number,
+        "code_verified": verified,
         "donor_name": donor_name,
+        "currency": donation.currency or "TRY",
         "amount_lira": donation.amount_cents / 100,
         "created_at": donation.paid_at or donation.created_at,
         "payment_method": "Kredi Kartı" if donation.payment_method == "credit_card" else "Havale / EFT",
@@ -63,6 +73,7 @@ async def verify_public_receipt(
 async def download_public_receipt_pdf(
     request: Request,
     receipt_number: str,
+    k: str | None = None,
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit("receipt-pdf", limit=15)),
 ):
@@ -76,11 +87,15 @@ async def download_public_receipt_pdf(
             Donation.organization_id == request.state.organization_id,
             Donation.receipt_number == receipt_number,
             Donation.status.in_([DonationStatus.CONFIRMED, DonationStatus.REFUNDED, DonationStatus.CANCELLED]),
-        )
+        ).limit(1)
     )
     donation = result.scalar_one_or_none()
     if not donation:
         raise HTTPException(status_code=404, detail="Makbuz bulunamadı")
+    from app.utils.receipt_pdf import code_matches
+
+    if not code_matches(donation.receipt_number, donation.amount_cents, k):
+        raise HTTPException(status_code=403, detail="Makbuzu indirmek için makbuzdaki doğrulama kodu gerekir")
 
     donor_name = "Anonim Bağışçı"
     if donation.donor and not donation.is_anonymous:

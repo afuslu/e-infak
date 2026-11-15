@@ -14,7 +14,8 @@ from app.core.db import get_db
 from app.models.audit_log import AuditLog
 from app.models.expense import Expense
 from app.models.donation import Donation, DonationStatus, Donor
-from app.api.deps import get_current_user, require_admin_route_permission
+from app.api.deps import Permission, ensure_capability, get_current_user, require_admin_route_permission, require_permission
+from app.utils.excel_export import csv_safe
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
@@ -176,9 +177,14 @@ async def export_derbis_report(
     end: Optional[date] = None,
     format: Literal["csv", "xlsx"] = "csv",
     db: AsyncSession = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_permission(Permission.FINANCE_MANAGE)),
 ):
+    # The DERBİS book lists every donor's T.C. number: only finance staff allowed to export receipts.
+    ensure_capability(current_user, "receipts.export", "Bağış ve makbuzları dışa aktarma yetkiniz yok")
     organization_id = UUID(request.state.organization_id)
+    db.add(AuditLog(organization_id=organization_id, user_id=current_user.id, action="finance.derbis_export",
+                    details={"start": str(start) if start else None, "end": str(end) if end else None, "format": format}))
+    await db.commit()
     
     # Query confirmed donations with donor details
     query = (
@@ -251,7 +257,8 @@ async def export_derbis_report(
         payment_method = method_map.get(pm_val, pm_val)
         msg = (donation.donor_message or "Bağış").replace(";", " ").replace("\n", " ")
         
-        output.write(f"{idx};{donation.receipt_number};{full_name};{tc_no};{date_str};{amount};{payment_method};{msg}\n")
+        cells = [str(idx), donation.receipt_number or "", full_name, tc_no, date_str, amount, payment_method, msg]
+        output.write(";".join(str(csv_safe(cell)) for cell in cells) + "\n")
         
     csv_data = output.getvalue()
     output.close()

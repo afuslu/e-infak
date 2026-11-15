@@ -36,22 +36,24 @@ export default function DonationSuccessPage() {
         {data && <div className="mt-6 rounded-xl border border-gray-100 bg-gray-50 p-4 text-start">{data.items.map((item) => {
           const apiBase = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || ''
           const shareOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+          const codeQuery = item.verify_code ? `?k=${encodeURIComponent(item.verify_code)}` : ''
+          const amount = (item.total_amount_cents / 100).toLocaleString('tr-TR', { style: 'currency', currency: data.currency || 'TRY' })
           return (
             <div key={item.campaign_id} className="border-b border-gray-200/70 py-3 last:border-0">
-              <div className="flex justify-between gap-3 text-sm"><b className="text-gray-900">{item.campaign_title}</b><span className="font-bold text-primary-700">{(item.total_amount_cents / 100).toLocaleString('tr-TR')} ₺</span></div>
+              <div className="flex justify-between gap-3 text-sm"><b className="text-gray-900">{item.campaign_title}</b><span className="font-bold text-primary-700">{amount}</span></div>
               {item.receipt_number && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Link className="inline-flex text-xs font-bold text-primary-700 hover:underline" href={`/verify/receipt/${item.receipt_number}`}>Makbuzu Doğrula: {item.receipt_number} →</Link>
+                  <Link className="inline-flex text-xs font-bold text-primary-700 hover:underline" href={`/verify/receipt/${encodeURIComponent(item.receipt_number)}${codeQuery}`}>Makbuzu Doğrula: {item.receipt_number} →</Link>
                   <a
-                    href={`${apiBase}/api/v1/public/receipts/${encodeURIComponent(item.receipt_number)}/pdf`}
+                    href={`${apiBase}/api/v1/public/receipts/${encodeURIComponent(item.receipt_number)}/pdf${codeQuery}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100"
                   >
-                    ⬇ Resmi PDF
+                    ⬇ Makbuz PDF
                   </a>
                   <a
-                    href={`https://wa.me/?text=${encodeURIComponent(`${item.campaign_title} kampanyasına ${(item.total_amount_cents / 100).toLocaleString('tr-TR')} ₺ bağışta bulundum. Makbuz: ${shareOrigin}/verify/receipt/${encodeURIComponent(item.receipt_number)}`)}`}
+                    href={`https://wa.me/?text=${encodeURIComponent(`${item.campaign_title} kampanyasına ${amount} bağışta bulundum. Makbuz: ${shareOrigin}/verify/receipt/${encodeURIComponent(item.receipt_number)}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-bold text-green-700 hover:bg-green-100"

@@ -70,6 +70,7 @@ class CheckoutStatusItem(BaseModel):
     quantity: int
     total_amount_cents: int
     receipt_number: Optional[str] = None
+    verify_code: Optional[str] = None
 
 
 class CheckoutStatusResponse(BaseModel):

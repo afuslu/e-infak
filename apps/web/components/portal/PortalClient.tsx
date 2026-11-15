@@ -10,6 +10,7 @@ import { ExcelIcon, PdfIcon } from '../admin/ui'
 interface Donation {
   id: string
   receipt_number: string
+  verify_code?: string | null
   amount_lira: number
   currency: string
   status: string
@@ -491,7 +492,7 @@ export function PortalClient({ siteName }: { siteName: string }) {
                 Makbuz
               </button>
               <a
-                href={`${apiBase()}/api/v1/public/receipts/${encodeURIComponent(d.receipt_number)}/pdf`}
+                href={`${apiBase()}/api/v1/public/receipts/${encodeURIComponent(d.receipt_number)}/pdf${d.verify_code ? `?k=${encodeURIComponent(d.verify_code)}` : ''}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"

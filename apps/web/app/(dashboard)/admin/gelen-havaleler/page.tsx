@@ -8,7 +8,8 @@ import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from
 import { DonorPicker, PickedDonor } from '../../../../components/admin/DonorPicker'
 import { QuickSmsDialog, SmsStatusPill, loadRelatedSms, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { RelatedSms, smsAmount } from '../../../../lib/sms'
-import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
+import { ExportButtons, PageHeader, StatCard, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
+import { downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 
 interface DonorHit { id?: string; name?: string; phone?: string | null; confidence: number; reason?: string; candidates: { id: string; name: string; phone: string | null }[] }
 interface CampaignHit { id: string; title: string; category: string; confidence: 'high' | 'medium' | 'low'; reason: string }
@@ -523,14 +524,13 @@ export default function IncomingTransfersPage() {
                               <span className="text-gray-500"> · {r.campaign_title}</span>
                               {t.receipts.length > 1 && <span className="font-mono text-gray-500"> · {(r.amount_cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>}
                               <div className="mt-1 flex flex-wrap gap-1.5">
-                                <a
-                                  href={`${adminApiBase()}/api/v1/public/receipts/${encodeURIComponent(r.receipt_number)}/pdf`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <button
+                                  type="button"
+                                  onClick={() => downloadReceiptPdf(r.donation_id, r.receipt_number).catch((err) => toast.error(apiErrorMessage(err, 'PDF indirilemedi')))}
                                   className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-100"
                                 >
                                   PDF
-                                </a>
+                                </button>
                                 {t.donor?.phone && whatsappUrl(t.donor.phone, '') && (
                                   <a
                                     href={whatsappUrl(

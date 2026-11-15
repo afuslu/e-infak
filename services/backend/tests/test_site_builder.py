@@ -150,7 +150,8 @@ async def test_draft_publish_revisions_preview(db_session, http):
     token = link.split("onizleme=")[1]
     preview = (await http.get(f"/api/v1/public/home?onizleme={token}", headers={"Host": host})).json()
     assert preview["preview"] and preview["blocks"][-1]["props"]["text"] == "Yeni bölüm"
-    forged = (await http.get(f"/api/v1/public/home?onizleme={token[:-1]}0", headers={"Host": host})).json()
+    tampered = token[:-1] + ("1" if token[-1] == "0" else "0")
+    forged = (await http.get(f"/api/v1/public/home?onizleme={tampered}", headers={"Host": host})).json()
     assert forged["preview"] is False
 
     published = await http.post(f"{base}/pages/home/publish", headers=auth)

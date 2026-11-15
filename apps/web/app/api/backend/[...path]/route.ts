@@ -18,13 +18,16 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const timestamp = Math.floor(Date.now() / 1000).toString()
   const secret = process.env.TENANT_PROXY_SECRET || ''
   const headers = new Headers()
-  // x-forwarded-for comes from nginx (it appends the real client last); uvicorn
-  // --proxy-headers trusts it from 127.0.0.1 so rate limits and payment
-  // providers see the donor's address instead of the gateway's.
-  for (const header of ['accept', 'authorization', 'content-type', 'x-locale', 'user-agent', 'x-forwarded-for', 'x-forwarded-proto']) {
+  for (const header of ['accept', 'authorization', 'content-type', 'x-locale', 'user-agent', 'x-forwarded-proto']) {
     const value = request.headers.get(header)
     if (value) headers.set(header, value)
   }
+  // Our proxy (nginx / Caddy) appends the address it saw last; anything before it was typed by
+  // the client. uvicorn trusts the first entry, so only the proxy-added one is passed on —
+  // otherwise IP blocks, rate limits and login logs could be spoofed.
+  const forwarded = request.headers.get('x-forwarded-for')
+  const clientIp = forwarded?.split(',').map((part) => part.trim()).filter(Boolean).pop()
+  if (clientIp) headers.set('x-forwarded-for', clientIp)
   // Platform-level calls (platform console, directory) carry no tenant.
   if (orgSlug) {
     headers.set('x-organization-slug', orgSlug)

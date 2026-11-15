@@ -7,6 +7,7 @@ import Link from 'next/link'
 export default function ReceiptVerifyLanding() {
   const router = useRouter()
   const [receiptNumber, setReceiptNumber] = useState('')
+  const [code, setCode] = useState('')
   const [error, setError] = useState('')
 
   const submit = (event: FormEvent) => {
@@ -16,7 +17,8 @@ export default function ReceiptVerifyLanding() {
       setError('Geçerli bir makbuz numarası giriniz.')
       return
     }
-    router.push(`/verify/receipt/${encodeURIComponent(normalized)}`)
+    const k = code.trim().toUpperCase()
+    router.push(`/verify/receipt/${encodeURIComponent(normalized)}${k ? `?k=${encodeURIComponent(k)}` : ''}`)
   }
 
   return (
@@ -46,6 +48,17 @@ export default function ReceiptVerifyLanding() {
             autoComplete="off"
             placeholder="Örn. HCR-2026-000123"
             className="w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-sm font-semibold uppercase text-gray-900 outline-none transition focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/15"
+          />
+          <label htmlFor="receipt-code" className="block text-sm font-semibold text-gray-700">
+            Doğrulama kodu <span className="font-normal text-gray-400">(makbuzun altında, isteğe bağlı)</span>
+          </label>
+          <input
+            id="receipt-code"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            autoComplete="off"
+            placeholder="Örn. 3FA9C21B07DE"
+            className="w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 font-mono text-sm font-semibold uppercase text-gray-900 outline-none transition focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/15"
           />
           {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}
           <button type="submit" className="w-full rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-primary-700">

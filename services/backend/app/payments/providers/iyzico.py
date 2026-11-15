@@ -20,8 +20,14 @@ from app.payments.base import (
 
 LIVE_URL = "https://api.iyzipay.com"
 SANDBOX_URL = "https://sandbox-api.iyzipay.com"
-# iyzico requires a Turkish ID number for the buyer; donors are not asked for one.
+# iyzico requires a buyer ID number. The donor's own T.C. number is sent when we have it;
+# otherwise the placeholder iyzico documents for buyers whose identity is not collected.
 PLACEHOLDER_IDENTITY = "11111111111"
+
+
+def buyer_identity(value: str) -> str:
+    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+    return digits if len(digits) == 11 and digits[0] != "0" else PLACEHOLDER_IDENTITY
 
 
 def strip_zeros(value: Any) -> str:
@@ -98,7 +104,7 @@ class IyzicoProvider(PaymentProvider):
                 "id": ctx.customer_id,
                 "name": ctx.customer_first_name or "Bağışçı",
                 "surname": ctx.customer_last_name or "-",
-                "identityNumber": PLACEHOLDER_IDENTITY,
+                "identityNumber": buyer_identity(ctx.customer_identity),
                 "email": ctx.customer_email,
                 "gsmNumber": f"+{phone}" if phone else "",
                 "registrationAddress": address["address"],
