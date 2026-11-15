@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "expo": "~52.0.0",
+    "expo-asset": "~11.0.5",
+    "expo-build-properties": "^0.13.3",
     "expo-camera": "~16.0.0",
     "expo-constants": "~17.0.0",
     "expo-device": "~7.0.0",
@@ -23,6 +25,7 @@
     "expo-secure-store": "~14.0.0",
     "expo-status-bar": "~2.0.0",
     "lucide-react-native": "^0.460.0",
+    "query-string": "^9.5.1",
     "react": "18.3.1",
     "react-native": "0.76.5",
     "react-native-safe-area-context": "4.12.0",
