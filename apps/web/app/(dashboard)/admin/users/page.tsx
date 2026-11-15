@@ -1,12 +1,28 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQueryClient } from '@tanstack/react-query'
-import { Copy, KeyRound, Pencil, Plus, Search, Shield, X } from 'lucide-react'
-import { Card } from '@e-infak/ui'
+import {
+  Building2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Shield,
+  Trash2,
+  UserCheck,
+  Users,
+  X,
+} from 'lucide-react'
+import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, useAdminAccess, whatsappUrl, type CapabilityGroup, can } from '../../../../lib/admin-access'
-import { ExportButtons, PageHeader, TBody, THead, Table, Td, Th, Tr, WhatsAppIcon, confirmDialog } from '../../../../components/admin/ui'
+import { Label, inputClass } from '../../../../components/admin/FormKit'
+import { AppPageHeader, GlobalStatCard } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
+import { EmptyState, ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 
 interface StaffUser {
   id: string
@@ -42,9 +58,14 @@ interface StaffRole {
 }
 
 type Tab = 'users' | 'departments' | 'roles'
+type Run = (action: () => Promise<unknown>, success: string) => Promise<boolean>
 
-const inputClass = 'w-full rounded-lg border border-gray-300 p-2 text-sm outline-none focus:border-primary-600 bg-white'
-const buttonClass = 'rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50'
+function formatLastLogin(value: string | null) {
+  if (!value) return 'Henüz giriş yok'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })
+}
 
 export default function AdminUsersPage() {
   const queryClient = useQueryClient()
@@ -55,9 +76,8 @@ export default function AdminUsersPage() {
   const [departments, setDepartments] = useState<Department[]>([])
   const [roles, setRoles] = useState<StaffRole[]>([])
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const [u, d, r] = await Promise.all([
@@ -69,65 +89,98 @@ export default function AdminUsersPage() {
       setDepartments(d.data)
       setRoles(r.data)
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err, 'Personel bilgileri yüklenemedi') })
+      toast.error(apiErrorMessage(err, 'Personel bilgileri yüklenemedi'))
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
-  const run = async (action: () => Promise<unknown>, success: string) => {
-    setMessage(null)
+  const run: Run = async (action, success) => {
     try {
       await action()
-      setMessage({ type: 'ok', text: success })
+      toast.ok(success)
       await load()
       queryClient.invalidateQueries({ queryKey: ['admin-access'] })
       return true
     } catch (err) {
-      setMessage({ type: 'error', text: apiErrorMessage(err) })
+      toast.error(apiErrorMessage(err))
       return false
     }
   }
 
-  const permissionLabel = (key: string) => access?.permission_catalog.find((p) => p.key === key)?.label || key
   const seatsFull = access ? access.usage.users >= access.limits.users : false
+  const activeUsersCount = users.filter((u) => u.is_active).length
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <AppPageHeader
+        eyebrow="Ekip & Erişim Yönetimi"
         title="Personel & Yetkiler"
-        description={access && <>{access.plan_label} paket · aktif kullanıcı <strong>{access.usage.users}</strong> / {access.limits.users}</>}
+        meta={
+          access
+            ? `${access.plan_label} paket · aktif kullanıcı ${access.usage.users} / ${access.limits.users}`
+            : 'Kurum personeli, birimler ve modül bazlı özel yetki rolleri'
+        }
+        icon={<Users className="h-5 w-5" />}
         actions={
-          <div className="flex rounded-lg border bg-white p-1 text-sm font-semibold">
-            {([
-              ['users', 'Personel'],
-              ['departments', 'Birimler'],
-              ['roles', 'Roller'],
-            ] as [Tab, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`rounded-md px-4 py-1.5 ${tab === key ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-900'}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <Button type="button" variant="secondary" size="sm" onClick={load} disabled={loading}>
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Yenile
+          </Button>
         }
       />
 
-      {message && (
-        <div className={`rounded-lg border p-3 text-sm font-semibold ${message.type === 'ok' ? 'border-green-100 bg-green-50 text-green-700' : 'border-red-100 bg-red-50 text-red-700'}`}>
-          {message.text}
-        </div>
-      )}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <GlobalStatCard
+          title="Aktif Personel"
+          value={activeUsersCount}
+          subtitle={`${users.length} toplam hesap`}
+          gradient="from-emerald-500 to-teal-600"
+          icon={<UserCheck className="h-4 w-4" />}
+        />
+        <GlobalStatCard
+          title="Kullanıcı Kotası"
+          value={access ? `${access.usage.users} / ${access.limits.users}` : `${users.length}`}
+          subtitle={seatsFull ? 'Kota doldu' : access?.plan_label || 'Aktif paket'}
+          gradient={seatsFull ? 'from-amber-500 to-orange-600' : 'from-blue-500 to-indigo-600'}
+          icon={<Users className="h-4 w-4" />}
+        />
+        <GlobalStatCard
+          title="Birimler"
+          value={departments.length}
+          subtitle="Operasyonel departman"
+          gradient="from-violet-500 to-purple-600"
+          icon={<Building2 className="h-4 w-4" />}
+        />
+        <GlobalStatCard
+          title="Özel Roller"
+          value={roles.length}
+          subtitle="Kuruma özel yetki şablonu"
+          gradient="from-slate-600 to-slate-800"
+          icon={<Shield className="h-4 w-4" />}
+        />
+      </div>
+
+      <Tabs
+        tabs={[
+          { key: 'users' as const, label: 'Personel', icon: Users, count: users.length },
+          { key: 'departments' as const, label: 'Birimler', icon: Building2, count: departments.length },
+          { key: 'roles' as const, label: 'Roller & Yetkiler', icon: Shield, count: roles.length },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
 
       {loading && users.length === 0 ? (
-        <p className="py-12 text-center text-sm text-gray-500 animate-pulse">Yükleniyor...</p>
+        <Card className="space-y-3 rounded-2xl border border-slate-200/80 p-6 shadow-xs">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100" />
+          ))}
+        </Card>
       ) : tab === 'users' ? (
         <UsersTab
           users={users}
@@ -154,17 +207,15 @@ export default function AdminUsersPage() {
   )
 }
 
-type Run = (action: () => Promise<unknown>, success: string) => Promise<boolean>
-
-function formatLastLogin(value: string | null) {
-  if (!value) return 'Henüz giriş yok'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })
-}
-
 function UsersTab({
-  users, departments, roles, canManage, seatsFull, builtinRoles, currentUserId, run,
+  users,
+  departments,
+  roles,
+  canManage,
+  seatsFull,
+  builtinRoles,
+  currentUserId,
+  run,
 }: {
   users: StaffUser[]
   departments: Department[]
@@ -175,19 +226,28 @@ function UsersTab({
   currentUserId?: string
   run: Run
 }) {
-  const empty = { first_name: '', last_name: '', email: '', phone: '', password: '', role: 'readonly', department_id: '', staff_role_id: '' }
+  const empty = {
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    password: '',
+    role: 'readonly',
+    department_id: '',
+    staff_role_id: '',
+  }
   const [form, setForm] = useState(empty)
   const [showForm, setShowForm] = useState(false)
+  const [showCreatePwd, setShowCreatePwd] = useState(false)
   const [passwordFor, setPasswordFor] = useState<string | null>(null)
   const [newPassword, setNewPassword] = useState('')
+  const [showResetPwd, setShowResetPwd] = useState(false)
 
-  // Search & filter state
   const [query, setQuery] = useState('')
   const [deptFilter, setDeptFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
 
-  // Edit profile modal state
   const [editingUser, setEditingUser] = useState<StaffUser | null>(null)
   const [editForm, setEditForm] = useState({
     first_name: '',
@@ -229,24 +289,34 @@ function UsersTab({
 
   const setPassword = async (e: React.FormEvent, user: StaffUser) => {
     e.preventDefault()
-    if (await run(() => adminSend('post', `/users/${user.id}/password`, { password: newPassword }),
-      `${user.email} için şifre belirlendi; açık oturumları kapatıldı`)) {
+    if (
+      await run(
+        () => adminSend('post', `/users/${user.id}/password`, { password: newPassword }),
+        `${user.email} için şifre belirlendi; açık oturumları kapatıldı`,
+      )
+    ) {
       setPasswordFor(null)
       setNewPassword('')
+      setShowResetPwd(false)
     }
   }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const ok = await run(() => adminSend('post', '/users', {
-      ...form,
-      phone: form.phone || null,
-      department_id: form.department_id || null,
-      staff_role_id: form.staff_role_id || null,
-    }), 'Personel hesabı oluşturuldu')
+    const ok = await run(
+      () =>
+        adminSend('post', '/users', {
+          ...form,
+          phone: form.phone || null,
+          department_id: form.department_id || null,
+          staff_role_id: form.staff_role_id || null,
+        }),
+      'Personel hesabı oluşturuldu',
+    )
     if (ok) {
       setForm(empty)
       setShowForm(false)
+      setShowCreatePwd(false)
     }
   }
 
@@ -292,119 +362,182 @@ function UsersTab({
             subtitle={`${users.length} personel`}
             getData={() => ({
               headers: ['Ad', 'Soyad', 'E-posta', 'Telefon', 'Rol', 'Birim', 'Durum'],
-              rows: users.map((u) => [u.first_name, u.last_name, u.email, u.phone || '', u.staff_role_name || u.role_label, u.department_name || '', u.is_active ? 'Aktif' : 'Pasif']),
+              rows: users.map((u) => [
+                u.first_name,
+                u.last_name,
+                u.email,
+                u.phone || '',
+                u.staff_role_name || u.role_label,
+                u.department_name || '',
+                u.is_active ? 'Aktif' : 'Pasif',
+              ]),
             })}
           />
-          <button className={`inline-flex items-center gap-1.5 ${buttonClass}`} disabled={seatsFull} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? <><X className="h-4 w-4" /> Vazgeç</> : <><Plus className="h-4 w-4" /> Personel Ekle</>}
-          </button>
+          <Button
+            type="button"
+            variant={showForm ? 'secondary' : 'primary'}
+            size="sm"
+            disabled={seatsFull}
+            onClick={() => setShowForm((v) => !v)}
+          >
+            {showForm ? (
+              <>
+                <X className="h-4 w-4" /> Vazgeç
+              </>
+            ) : (
+              <>
+                <Plus className="h-4 w-4" /> Personel Ekle
+              </>
+            )}
+          </Button>
         </div>
       )}
 
       {showForm && (
-        <Card className="border border-gray-100 p-6 shadow-sm">
+        <Card className="rounded-2xl border border-slate-200/80 p-6 shadow-xs">
           <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="text-xs font-semibold text-gray-600">Ad
-              <input required className={inputClass} value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
-            </label>
-            <label className="text-xs font-semibold text-gray-600">Soyad
-              <input required className={inputClass} value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
-            </label>
-            <label className="text-xs font-semibold text-gray-600">E-posta
-              <input required type="email" className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            </label>
-            <label className="text-xs font-semibold text-gray-600">Telefon
-              <input className={inputClass} placeholder="05xx xxx xx xx" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-            </label>
-            <label className="text-xs font-semibold text-gray-600">Geçici parola (en az 10 karakter)
-              <input required minLength={10} type="password" autoComplete="new-password" className={inputClass} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-            </label>
-            <label className="text-xs font-semibold text-gray-600">
-              Hazır rol {form.staff_role_id && <span className="font-normal text-amber-700">(özel rol öncelikli)</span>}
+            <Label label="Ad *">
+              <Input required value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
+            </Label>
+            <Label label="Soyad *">
+              <Input required value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+            </Label>
+            <Label label="E-posta *">
+              <Input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            </Label>
+            <Label label="Telefon">
+              <Input placeholder="05xx xxx xx xx" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            </Label>
+            <Label label="Geçici Parola (en az 10 karakter) *">
+              <div className="relative">
+                <Input
+                  required
+                  minLength={10}
+                  type={showCreatePwd ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  className="pr-9"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowCreatePwd((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  aria-label={showCreatePwd ? 'Parolayı gizle' : 'Parolayı göster'}
+                >
+                  {showCreatePwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </Label>
+            <Label label="Hazır Rol" hint={form.staff_role_id ? 'Özel rol öncelikli' : undefined}>
               <select className={inputClass} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                {builtinRoles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                {builtinRoles.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.label}
+                  </option>
+                ))}
               </select>
-            </label>
-            <label className="text-xs font-semibold text-gray-600">Özel rol (hazır rolün yerine geçer)
+            </Label>
+            <Label label="Özel Rol (hazır rolün yerine geçer)">
               <select className={inputClass} value={form.staff_role_id} onChange={(e) => setForm({ ...form, staff_role_id: e.target.value })}>
                 <option value="">— (hazır rol geçerli)</option>
-                {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
               </select>
-            </label>
-            <label className="text-xs font-semibold text-gray-600">Birim
+            </Label>
+            <Label label="Birim">
               <select className={inputClass} value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.target.value })}>
                 <option value="">—</option>
-                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
               </select>
-            </label>
-            <div className="sm:col-span-2 lg:col-span-4 flex justify-end">
-              <button type="submit" className={buttonClass}>Hesabı Oluştur</button>
+            </Label>
+            <div className="flex justify-end sm:col-span-2 lg:col-span-4">
+              <Button type="submit">Hesabı Oluştur</Button>
             </div>
           </form>
         </Card>
       )}
 
-      <Card className="border border-gray-100 p-6 shadow-sm space-y-4">
-        {/* Search & filter bar */}
+      <Card className="space-y-4 rounded-2xl border border-slate-200/80 p-6 shadow-xs">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-56 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Ad, e-posta veya telefon ara..."
-              className="w-full rounded-lg border border-gray-300 bg-white py-1.5 pl-9 pr-3 text-sm outline-none focus:border-primary-600"
+              className="pl-9"
             />
           </div>
-          <select
-            value={deptFilter}
-            onChange={(e) => setDeptFilter(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700"
-          >
+          <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className={`${inputClass} w-auto`}>
             <option value="all">Tüm birimler</option>
             <option value="none">Birimsiz</option>
-            {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
           </select>
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700"
-          >
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={`${inputClass} w-auto`}>
             <option value="all">Tüm roller</option>
             <optgroup label="Hazır Roller">
-              {builtinRoles.map((r) => <option key={r.key} value={`builtin:${r.key}`}>{r.label}</option>)}
+              {builtinRoles.map((r) => (
+                <option key={r.key} value={`builtin:${r.key}`}>
+                  {r.label}
+                </option>
+              ))}
             </optgroup>
             {roles.length > 0 && (
               <optgroup label="Özel Roller">
-                {roles.map((r) => <option key={r.id} value={`custom:${r.id}`}>{r.name}</option>)}
+                {roles.map((r) => (
+                  <option key={r.id} value={`custom:${r.id}`}>
+                    {r.name}
+                  </option>
+                ))}
               </optgroup>
             )}
           </select>
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700"
+            className={`${inputClass} w-auto`}
           >
             <option value="all">Tüm durumlar</option>
             <option value="active">Yalnızca aktif</option>
             <option value="inactive">Yalnızca pasif</option>
           </select>
           {hasFilters && (
-            <button
+            <Button
               type="button"
-              onClick={() => { setQuery(''); setDeptFilter('all'); setRoleFilter('all'); setStatusFilter('all') }}
-              className="text-xs font-semibold text-primary-700 hover:underline"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setQuery('')
+                setDeptFilter('all')
+                setRoleFilter('all')
+                setStatusFilter('all')
+              }}
             >
-              Filtreyi temizle ({filteredUsers.length}/{users.length})
-            </button>
+              Filtreyi Temizle ({filteredUsers.length}/{users.length})
+            </Button>
           )}
         </div>
 
         {filteredUsers.length === 0 ? (
-          <p className="py-8 text-center text-xs text-gray-400">
-            {users.length === 0 ? 'Kayıtlı personel bulunmuyor.' : 'Filtreye uygun personel bulunamadı.'}
-          </p>
+          <EmptyState
+            icon={Users}
+            title={users.length === 0 ? 'Kayıtlı personel yok' : 'Filtreye uygun personel bulunamadı'}
+            text={users.length === 0 ? 'Sağ üstteki “Personel Ekle” butonuyla yeni ekip üyesi tanımlayabilirsiniz.' : 'Arama veya filtre kriterlerini temizleyip tekrar deneyin.'}
+          />
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -425,15 +558,19 @@ function UsersTab({
                   const locked = !canManage || user.role === 'platform_admin'
                   const hasCustomRole = Boolean(user.staff_role_id)
                   return (
-                    <Tr key={user.id} className={user.is_active ? '' : 'opacity-60'}>
+                    <Tr key={user.id} className={user.is_active ? 'hover:bg-slate-50/70' : 'opacity-60'}>
                       <Td>
-                        <div className="font-semibold text-gray-900">
+                        <div className="font-semibold text-slate-900">
                           {user.first_name} {user.last_name}
-                          {isSelf && <span className="ml-1.5 rounded bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold text-primary-700">siz</span>}
+                          {isSelf && (
+                            <span className="ml-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                              siz
+                            </span>
+                          )}
                         </div>
-                        <div className="font-mono text-[11px] text-gray-500">{user.email}</div>
+                        <div className="font-mono text-[11px] text-slate-500">{user.email}</div>
                         {user.phone && (
-                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500">
+                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                             <span>{user.phone}</span>
                             {(() => {
                               const wa = whatsappUrl(user.phone, `Merhaba ${user.first_name},`)
@@ -458,51 +595,80 @@ function UsersTab({
                           value={user.role}
                           onChange={(e) => update(user, { role: e.target.value }, 'Rol güncellendi')}
                           title={hasCustomRole ? 'Özel rol atandığı için yetkiler özel rolden alınır' : undefined}
-                          className={`rounded-lg border bg-white p-1.5 text-xs font-semibold disabled:bg-gray-50 ${hasCustomRole ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-800'}`}
+                          className={`rounded-lg border bg-white p-1.5 text-xs font-semibold disabled:bg-slate-50 ${
+                            hasCustomRole ? 'border-slate-200 text-slate-400' : 'border-slate-300 text-slate-800'
+                          }`}
                         >
                           {user.role === 'platform_admin' && <option value="platform_admin">Sistem Yöneticisi</option>}
-                          {builtinRoles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                          {builtinRoles.map((r) => (
+                            <option key={r.key} value={r.key}>
+                              {r.label}
+                            </option>
+                          ))}
                         </select>
-                        {hasCustomRole && <div className="mt-0.5 text-[10px] text-amber-700">Özel rol aktif</div>}
+                        {hasCustomRole && <div className="mt-0.5 text-[10px] font-semibold text-amber-700">Özel rol aktif</div>}
                       </Td>
                       <Td>
                         <select
                           disabled={locked || isSelf}
                           value={user.staff_role_id || ''}
-                          onChange={(e) => update(
-                            user,
-                            e.target.value ? { staff_role_id: e.target.value } : { clear_staff_role: true },
-                            'Özel rol güncellendi',
-                          )}
-                          className="rounded-lg border border-gray-300 bg-white p-1.5 text-xs font-semibold disabled:bg-gray-50"
+                          onChange={(e) =>
+                            update(
+                              user,
+                              e.target.value ? { staff_role_id: e.target.value } : { clear_staff_role: true },
+                              'Özel rol güncellendi',
+                            )
+                          }
+                          className="rounded-lg border border-slate-300 bg-white p-1.5 text-xs font-semibold disabled:bg-slate-50"
                         >
                           <option value="">— (hazır rol geçerli)</option>
-                          {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                          {roles.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name}
+                            </option>
+                          ))}
                         </select>
                       </Td>
                       <Td>
                         <select
                           disabled={locked}
                           value={user.department_id || ''}
-                          onChange={(e) => update(
-                            user,
-                            e.target.value ? { department_id: e.target.value } : { clear_department: true },
-                            'Birim güncellendi',
-                          )}
-                          className="rounded-lg border border-gray-300 bg-white p-1.5 text-xs font-semibold disabled:bg-gray-50"
+                          onChange={(e) =>
+                            update(
+                              user,
+                              e.target.value ? { department_id: e.target.value } : { clear_department: true },
+                              'Birim güncellendi',
+                            )
+                          }
+                          className="rounded-lg border border-slate-300 bg-white p-1.5 text-xs font-semibold disabled:bg-slate-50"
                         >
                           <option value="">—</option>
-                          {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                          {departments.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name}
+                            </option>
+                          ))}
                         </select>
                       </Td>
                       <Td>
-                        <span className="text-xs text-gray-500">{formatLastLogin(user.last_login_at)}</span>
+                        <span className="text-xs text-slate-500">{formatLastLogin(user.last_login_at)}</span>
                       </Td>
                       <Td>
                         <button
+                          type="button"
                           disabled={locked || isSelf}
-                          onClick={() => update(user, { is_active: !user.is_active }, user.is_active ? 'Hesap pasifleştirildi' : 'Hesap aktifleştirildi')}
-                          className={`rounded border px-2 py-0.5 text-[10px] font-bold disabled:cursor-not-allowed ${user.is_active ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-100 text-gray-600'}`}
+                          onClick={() =>
+                            update(
+                              user,
+                              { is_active: !user.is_active },
+                              user.is_active ? 'Hesap pasifleştirildi' : 'Hesap aktifleştirildi',
+                            )
+                          }
+                          className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold disabled:cursor-not-allowed ${
+                            user.is_active
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-slate-200 bg-slate-100 text-slate-600'
+                          }`}
                         >
                           {user.is_active ? 'Aktif' : 'Pasif'}
                         </button>
@@ -511,29 +677,67 @@ function UsersTab({
                         <Td>
                           <div className="flex flex-wrap items-center gap-1.5">
                             {!locked && (
-                              <button
-                                type="button"
-                                onClick={() => openEdit(user)}
-                                className="inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-0.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50"
-                              >
+                              <Button type="button" variant="secondary" size="sm" onClick={() => openEdit(user)}>
                                 <Pencil className="h-3 w-3" /> Düzenle
-                              </button>
+                              </Button>
                             )}
                             {isSelf ? (
-                              <Link href="/admin/sifre" className="text-[11px] font-semibold text-primary-700 hover:underline">Şifremi değiştir</Link>
+                              <Link href="/admin/sifre" className="text-[11px] font-semibold text-emerald-700 hover:underline">
+                                Şifremi değiştir
+                              </Link>
                             ) : locked ? null : passwordFor === user.id ? (
                               <form onSubmit={(e) => setPassword(e, user)} className="flex items-center gap-1">
-                                <input required minLength={10} type="password" autoComplete="new-password" autoFocus
-                                  placeholder="en az 10 karakter" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                                  className="w-36 rounded border border-gray-300 p-1 text-xs" />
-                                <button type="submit" className="rounded bg-primary-600 px-2 py-1 text-[11px] font-semibold text-white">Kaydet</button>
-                                <button type="button" onClick={() => { setPasswordFor(null); setNewPassword('') }} className="px-1 text-[11px] text-gray-500">Vazgeç</button>
+                                <div className="relative">
+                                  <Input
+                                    required
+                                    minLength={10}
+                                    type={showResetPwd ? 'text' : 'password'}
+                                    autoComplete="new-password"
+                                    autoFocus
+                                    placeholder="en az 10 karakter"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    className="w-40 pr-8 text-xs"
+                                  />
+                                  <button
+                                    type="button"
+                                    tabIndex={-1}
+                                    onClick={() => setShowResetPwd((v) => !v)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                                    aria-label={showResetPwd ? 'Gizle' : 'Göster'}
+                                  >
+                                    {showResetPwd ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                  </button>
+                                </div>
+                                <Button type="submit" size="sm">
+                                  Kaydet
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setPasswordFor(null)
+                                    setNewPassword('')
+                                    setShowResetPwd(false)
+                                  }}
+                                >
+                                  Vazgeç
+                                </Button>
                               </form>
                             ) : (
-                              <button onClick={() => { setPasswordFor(user.id); setNewPassword('') }}
-                                className="inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-0.5 text-[11px] font-semibold text-gray-700 hover:bg-gray-50">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  setPasswordFor(user.id)
+                                  setNewPassword('')
+                                  setShowResetPwd(false)
+                                }}
+                              >
                                 <KeyRound className="h-3 w-3" /> Şifre
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </Td>
@@ -548,59 +752,91 @@ function UsersTab({
       </Card>
 
       {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditingUser(null)}>
-          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-gray-900">Personel Bilgilerini Düzenle</h3>
-                <p className="font-mono text-xs text-gray-500">{editingUser.email}</p>
-              </div>
-              <button type="button" onClick={() => setEditingUser(null)} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
-                <X className="h-5 w-5" />
-              </button>
+        <Modal
+          title="Personel Bilgilerini Düzenle"
+          description={editingUser.email}
+          size="md"
+          onClose={() => setEditingUser(null)}
+        >
+          <form onSubmit={submitEdit} className="grid gap-4 sm:grid-cols-2">
+            <Label label="Ad *">
+              <Input
+                required
+                value={editForm.first_name}
+                onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+              />
+            </Label>
+            <Label label="Soyad *">
+              <Input
+                required
+                value={editForm.last_name}
+                onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+              />
+            </Label>
+            <div className="sm:col-span-2">
+              <Label label="Telefon">
+                <Input
+                  placeholder="05xx xxx xx xx"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                />
+              </Label>
             </div>
-            <form onSubmit={submitEdit} className="grid gap-4 sm:grid-cols-2">
-              <label className="text-xs font-semibold text-gray-600">Ad
-                <input required className={inputClass} value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })} />
-              </label>
-              <label className="text-xs font-semibold text-gray-600">Soyad
-                <input required className={inputClass} value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })} />
-              </label>
-              <label className="sm:col-span-2 text-xs font-semibold text-gray-600">Telefon
-                <input className={inputClass} placeholder="05xx xxx xx xx" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
-              </label>
-              {editingUser.id !== currentUserId && (
-                <>
-                  <label className="text-xs font-semibold text-gray-600">
-                    Hazır rol
-                    <select className={inputClass} value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
-                      {builtinRoles.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-                    </select>
-                  </label>
-                  <label className="text-xs font-semibold text-gray-600">
-                    Özel rol
-                    <select className={inputClass} value={editForm.staff_role_id} onChange={(e) => setEditForm({ ...editForm, staff_role_id: e.target.value })}>
-                      <option value="">— (hazır rol geçerli)</option>
-                      {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                  </label>
-                </>
-              )}
-              <label className="sm:col-span-2 text-xs font-semibold text-gray-600">Birim
-                <select className={inputClass} value={editForm.department_id} onChange={(e) => setEditForm({ ...editForm, department_id: e.target.value })}>
+            {editingUser.id !== currentUserId && (
+              <>
+                <Label label="Hazır Rol">
+                  <select
+                    className={inputClass}
+                    value={editForm.role}
+                    onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                  >
+                    {builtinRoles.map((r) => (
+                      <option key={r.key} value={r.key}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </select>
+                </Label>
+                <Label label="Özel Rol">
+                  <select
+                    className={inputClass}
+                    value={editForm.staff_role_id}
+                    onChange={(e) => setEditForm({ ...editForm, staff_role_id: e.target.value })}
+                  >
+                    <option value="">— (hazır rol geçerli)</option>
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </Label>
+              </>
+            )}
+            <div className="sm:col-span-2">
+              <Label label="Birim">
+                <select
+                  className={inputClass}
+                  value={editForm.department_id}
+                  onChange={(e) => setEditForm({ ...editForm, department_id: e.target.value })}
+                >
                   <option value="">—</option>
-                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
                 </select>
-              </label>
-              <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setEditingUser(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                  Vazgeç
-                </button>
-                <button type="submit" className={buttonClass}>Kaydet</button>
-              </div>
-            </form>
-          </div>
-        </div>
+              </Label>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
+              <Button type="button" variant="secondary" onClick={() => setEditingUser(null)}>
+                Vazgeç
+              </Button>
+              <Button type="submit">Kaydet</Button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   )
@@ -629,13 +865,24 @@ function DepartmentsTab({ departments, canManage, run }: { departments: Departme
 
   const saveEdit = async (e: React.FormEvent, d: Department) => {
     e.preventDefault()
-    if (await run(() => adminSend('put', `/departments/${d.id}`, { name: editName, description: editDesc.trim() || null }), 'Birim güncellendi')) {
+    if (
+      await run(
+        () => adminSend('put', `/departments/${d.id}`, { name: editName, description: editDesc.trim() || null }),
+        'Birim güncellendi',
+      )
+    ) {
       setEditingId(null)
     }
   }
 
   const remove = async (d: Department) => {
-    if ((await confirmDialog(`"${d.name}" birimi silinsin mi? ${d.user_count} personelin birimi boşaltılacak.`))) {
+    const ok = await confirmDialog({
+      title: `"${d.name}" birimi silinsin mi?`,
+      text: `${d.user_count} personelin birimi boşaltılacak.`,
+      confirmLabel: 'Sil',
+      danger: true,
+    })
+    if (ok) {
       run(() => adminSend('delete', `/departments/${d.id}`), 'Birim silindi')
     }
   }
@@ -643,59 +890,79 @@ function DepartmentsTab({ departments, canManage, run }: { departments: Departme
   return (
     <div className="space-y-4">
       {canManage && (
-        <Card className="border border-gray-100 p-6 shadow-sm">
+        <Card className="rounded-2xl border border-slate-200/80 p-6 shadow-xs">
           <form onSubmit={create} className="flex flex-wrap items-end gap-3">
-            <label className="min-w-48 flex-1 text-xs font-semibold text-gray-600">Birim adı
-              <input required minLength={2} className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="ör. Kurban Birimi" />
-            </label>
-            <label className="min-w-64 flex-[2] text-xs font-semibold text-gray-600">Açıklama
-              <input className={inputClass} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="ör. Kurban kesim ve dağıtım ekibi" />
-            </label>
-            <button type="submit" className={`inline-flex items-center gap-1.5 ${buttonClass}`}>
+            <div className="min-w-48 flex-1">
+              <Label label="Birim Adı *">
+                <Input required minLength={2} value={name} onChange={(e) => setName(e.target.value)} placeholder="ör. Kurban Birimi" />
+              </Label>
+            </div>
+            <div className="min-w-64 flex-[2]">
+              <Label label="Açıklama">
+                <Input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="ör. Kurban kesim ve dağıtım ekibi"
+                />
+              </Label>
+            </div>
+            <Button type="submit">
               <Plus className="h-4 w-4" /> Birim Ekle
-            </button>
+            </Button>
           </form>
         </Card>
       )}
-      <Card className="border border-gray-100 p-6 shadow-sm">
+      <Card className="rounded-2xl border border-slate-200/80 p-6 shadow-xs">
         {departments.length === 0 ? (
-          <p className="py-6 text-center text-xs text-gray-400">Henüz birim tanımlanmadı. Personeli birimlere ayırmak için birim ekleyin.</p>
+          <EmptyState
+            icon={Building2}
+            title="Henüz birim tanımlanmadı"
+            text="Personeli operasyonel departmanlara ayırmak için yukarıdan yeni birim ekleyin."
+          />
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-slate-100">
             {departments.map((d) => (
-              <li key={d.id} className="py-3 text-sm">
+              <li key={d.id} className="py-3.5 text-sm">
                 {editingId === d.id ? (
                   <form onSubmit={(e) => saveEdit(e, d)} className="flex flex-wrap items-end gap-3">
-                    <label className="min-w-44 flex-1 text-xs font-semibold text-gray-600">Birim adı
-                      <input required minLength={2} className={inputClass} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
-                    </label>
-                    <label className="min-w-56 flex-[2] text-xs font-semibold text-gray-600">Açıklama
-                      <input className={inputClass} value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
-                    </label>
+                    <div className="min-w-44 flex-1">
+                      <Label label="Birim Adı *">
+                        <Input required minLength={2} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
+                      </Label>
+                    </div>
+                    <div className="min-w-56 flex-[2]">
+                      <Label label="Açıklama">
+                        <Input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
+                      </Label>
+                    </div>
                     <div className="flex gap-2">
-                      <button type="submit" className={buttonClass}>Kaydet</button>
-                      <button type="button" onClick={() => setEditingId(null)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                      <Button type="submit" size="sm">
+                        Kaydet
+                      </Button>
+                      <Button type="button" variant="secondary" size="sm" onClick={() => setEditingId(null)}>
                         Vazgeç
-                      </button>
+                      </Button>
                     </div>
                   </form>
                 ) : (
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <div className="font-semibold text-gray-900">
+                      <div className="font-semibold text-slate-900">
                         {d.name}
-                        <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">{d.user_count} personel</span>
+                        <span className="ml-2 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+                          {d.user_count} personel
+                        </span>
                       </div>
-                      <div className="mt-0.5 text-xs text-gray-500">{d.description || 'Açıklama yok'}</div>
+                      <div className="mt-0.5 text-xs text-slate-500">{d.description || 'Açıklama yok'}</div>
                     </div>
                     {canManage && (
-                      <div className="flex gap-2 text-xs font-semibold">
-                        <button type="button" onClick={() => startEdit(d)} className="inline-flex items-center gap-1 rounded border border-gray-200 px-2.5 py-1 text-gray-700 hover:bg-gray-50">
+                      <div className="flex gap-2">
+                        <Button type="button" variant="secondary" size="sm" onClick={() => startEdit(d)}>
                           <Pencil className="h-3 w-3" /> Düzenle
-                        </button>
-                        <button type="button" onClick={() => remove(d)} className="rounded border border-red-200 px-2.5 py-1 text-red-600 hover:bg-red-50">
-                          Sil
-                        </button>
+                        </Button>
+                        <Button type="button" variant="danger" size="sm" onClick={() => remove(d)}>
+                          <Trash2 className="h-3 w-3" /> Sil
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -713,7 +980,13 @@ function DepartmentsTab({ departments, canManage, run }: { departments: Departme
  * STK PRO style role editor: role tabs, then one card per module. The card switch turns the whole
  * module on or off; ticks are single rules. Red ticks widen what the person sees beyond their own records.
  */
-function RolesTab({ roles, canManage, catalog, mine, run }: {
+function RolesTab({
+  roles,
+  canManage,
+  catalog,
+  mine,
+  run,
+}: {
   roles: StaffRole[]
   canManage: boolean
   catalog: CapabilityGroup[]
@@ -724,15 +997,31 @@ function RolesTab({ roles, canManage, catalog, mine, run }: {
   const [ticks, setTicks] = useState<string[]>([])
   const [dirty, setDirty] = useState(false)
   const [newName, setNewName] = useState<string | null>(null)
+  const [capQuery, setCapQuery] = useState('')
   const selected = roles.find((r) => r.id === selectedId) || null
 
   useEffect(() => {
     if (!selectedId && roles[0]) setSelectedId(roles[0].id)
   }, [roles, selectedId])
+
   useEffect(() => {
     setTicks(selected?.capabilities || [])
     setDirty(false)
   }, [selected])
+
+  const selectRole = async (nextId: string) => {
+    if (nextId === selectedId) return
+    if (dirty) {
+      const ok = await confirmDialog({
+        title: 'Kaydedilmemiş yetki değişiklikleri var',
+        text: 'Değişiklikleri kaydetmeden başka role geçerseniz düzenlemeleriniz kaybolacak.',
+        confirmLabel: 'Yine de Geç',
+        danger: true,
+      })
+      if (!ok) return
+    }
+    setSelectedId(nextId)
+  }
 
   const grantable = (key: string) => mine.includes(key)
   const setGroup = (group: CapabilityGroup, on: boolean) => {
@@ -747,81 +1036,184 @@ function RolesTab({ roles, canManage, catalog, mine, run }: {
 
   const save = async () => {
     if (!selected) return
-    const ok = await run(() => adminSend('put', `/staff-roles/${selected.id}`, {
-      name: selected.name, description: selected.description, permissions: [], capabilities: ticks,
-    }), `"${selected.name}" rolü kaydedildi`)
+    const ok = await run(
+      () =>
+        adminSend('put', `/staff-roles/${selected.id}`, {
+          name: selected.name,
+          description: selected.description,
+          permissions: [],
+          capabilities: ticks,
+        }),
+      `"${selected.name}" rolü kaydedildi`,
+    )
     if (ok) setDirty(false)
   }
+
   const create = async () => {
     const name = (newName || '').trim()
-    if (name.length < 2) return
+    if (name.length < 2) {
+      toast.error('Rol adı en az 2 karakter olmalıdır.')
+      return
+    }
     const ok = await run(() => adminSend('post', '/staff-roles', { name, permissions: [], capabilities: [] }), 'Rol eklendi')
     if (ok) setNewName(null)
   }
+
   const remove = async () => {
     if (!selected) return
-    if (!(await confirmDialog({ title: `"${selected.name}" rolü kaldırılsın mı?`,
-      text: selected.user_count ? `${selected.user_count} personelin rolü boşalır; hazır rollerinden yetki alırlar.` : undefined }))) return
+    const okConfirm = await confirmDialog({
+      title: `"${selected.name}" rolü kaldırılsın mı?`,
+      text: selected.user_count ? `${selected.user_count} personelin rolü boşalır; hazır rollerinden yetki alırlar.` : undefined,
+      confirmLabel: 'Kaldır',
+      danger: true,
+    })
+    if (!okConfirm) return
     const ok = await run(() => adminSend('delete', `/staff-roles/${selected.id}`), 'Rol kaldırıldı')
     if (ok) setSelectedId(null)
   }
+
+  const filteredCatalog = useMemo(() => {
+    const q = capQuery.trim().toLowerCase()
+    if (!q) return catalog
+    return catalog.filter(
+      (g) => g.label.toLowerCase().includes(q) || g.capabilities.some((c) => c.label.toLowerCase().includes(q)),
+    )
+  }, [catalog, capQuery])
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         {roles.map((role) => (
-          <button key={role.id} type="button" onClick={() => setSelectedId(role.id)}
-            className={`rounded-lg px-3.5 py-2 text-sm font-semibold ${role.id === selectedId ? 'bg-primary-600 text-white' : 'border border-gray-200 bg-white text-gray-700 hover:border-primary-600'}`}>
-            {role.name}<span className="ml-1.5 text-xs opacity-70">{role.user_count}</span>
+          <button
+            key={role.id}
+            type="button"
+            onClick={() => selectRole(role.id)}
+            className={`cursor-pointer rounded-xl px-3.5 py-2 text-xs font-bold transition ${
+              role.id === selectedId
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'border border-slate-200 bg-white text-slate-700 hover:border-emerald-500'
+            }`}
+          >
+            {role.name}
+            <span className="ml-1.5 text-[11px] opacity-75">{role.user_count}</span>
           </button>
         ))}
-        {canManage && (newName === null ? (
-          <button type="button" onClick={() => setNewName('')} className="inline-flex items-center gap-1 rounded-lg border border-dashed border-primary-400 px-3.5 py-2 text-sm font-semibold text-primary-700">
-            <Plus className="h-4 w-4" /> Yeni Rol Ekle
-          </button>
-        ) : (
-          <span className="flex items-center gap-2">
-            <input autoFocus className={`${inputClass} w-48`} placeholder="Rol adı" value={newName}
-              onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') create() }} />
-            <button type="button" onClick={create} className={buttonClass}>Ekle</button>
-            <button type="button" onClick={() => setNewName(null)} className="text-sm text-gray-500">İptal</button>
-          </span>
-        ))}
+        {canManage &&
+          (newName === null ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setNewName('')}>
+              <Plus className="h-3.5 w-3.5" /> Yeni Rol Ekle
+            </Button>
+          ) : (
+            <span className="flex items-center gap-2">
+              <Input
+                autoFocus
+                className="w-48"
+                placeholder="Rol adı"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') create()
+                }}
+              />
+              <Button type="button" size="sm" onClick={create}>
+                Ekle
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setNewName(null)}>
+                İptal
+              </Button>
+            </span>
+          ))}
       </div>
 
       {!selected ? (
-        <p className="py-10 text-center text-sm text-gray-400">Henüz kuruma özel rol yok. “Yeni Rol Ekle” ile başlayın; hazır roller (Muhasebe, Çağrı Merkezi…) kullanıcı düzenlemede seçilebilir.</p>
+        <Card className="rounded-2xl border border-slate-200/80 p-6 shadow-xs">
+          <EmptyState
+            icon={Shield}
+            title="Henüz kuruma özel rol yok"
+            text="“Yeni Rol Ekle” ile başlayın; hazır roller (Muhasebe, Çağrı Merkezi…) kullanıcı düzenlemede seçilebilir."
+          />
+        </Card>
       ) : (
-        <Card className="space-y-4 border border-gray-100 p-5 shadow-sm">
+        <Card className="space-y-4 rounded-2xl border border-slate-200/80 p-6 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900">
-              <Shield className="h-4 w-4 text-primary-600" /> “{selected.name}” rolü için yetki ve görev tanımlama
-            </h2>
-            {canManage && (
-              <div className="flex gap-2">
-                <button type="button" onClick={remove} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Bu rolü kaldır</button>
-                <button type="button" disabled={!dirty} onClick={save} className={buttonClass}>Bu Rolü Kaydet</button>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="flex items-center gap-2 text-sm font-black text-slate-900">
+                <Shield className="h-4 w-4 text-emerald-600" /> “{selected.name}” rolü için yetki ve görev tanımlama
+              </h2>
+              {dirty && (
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-800">
+                  Kaydedilmemiş değişiklik
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-52">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <Input
+                  type="search"
+                  value={capQuery}
+                  onChange={(e) => setCapQuery(e.target.value)}
+                  placeholder="Modül veya yetki ara…"
+                  className="pl-8 text-xs"
+                />
               </div>
-            )}
+              {canManage && (
+                <>
+                  <Button type="button" variant="danger" size="sm" onClick={remove}>
+                    <Trash2 className="h-3.5 w-3.5" /> Bu Rolü Kaldır
+                  </Button>
+                  <Button type="button" size="sm" disabled={!dirty} onClick={save}>
+                    Bu Rolü Kaydet
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {catalog.map((group) => {
+            {filteredCatalog.map((group) => {
               const on = group.capabilities.some((c) => ticks.includes(c.key))
               return (
-                <div key={group.key} className="rounded-xl border border-gray-200 bg-white p-4">
+                <div key={group.key} className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold text-gray-900">{group.label}</span>
-                    <button type="button" role="switch" aria-checked={on} aria-label={`${group.label} modülü`} disabled={!canManage}
+                    <span className="text-sm font-bold text-slate-900">{group.label}</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={on}
+                      aria-label={`${group.label} modülü`}
+                      disabled={!canManage}
                       onClick={() => setGroup(group, !on)}
-                      className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${on ? 'bg-primary-600' : 'bg-gray-300'} disabled:opacity-50`}>
-                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
+                      className={`relative h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${
+                        on ? 'bg-emerald-600' : 'bg-slate-300'
+                      } disabled:cursor-not-allowed disabled:opacity-50`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+                          on ? 'left-[18px]' : 'left-0.5'
+                        }`}
+                      />
                     </button>
                   </div>
                   <div className="space-y-2">
                     {group.capabilities.map((cap) => (
-                      <label key={cap.key} className={`flex items-start gap-2 text-[13px] leading-snug ${!grantable(cap.key) ? 'text-gray-400' : cap.rule ? 'text-red-600' : 'text-gray-700'}`}>
-                        <input type="checkbox" className="mt-0.5" checked={ticks.includes(cap.key)} disabled={!canManage || !grantable(cap.key)} onChange={() => toggle(cap.key)} />
-                        <span>{cap.label}{!grantable(cap.key) && <span className="text-[10px]"> (sizde yok)</span>}</span>
+                      <label
+                        key={cap.key}
+                        className={`flex items-start gap-2 text-[13px] leading-snug ${
+                          !grantable(cap.key) ? 'text-slate-400' : cap.rule ? 'text-rose-600' : 'text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={ticks.includes(cap.key)}
+                          disabled={!canManage || !grantable(cap.key)}
+                          onChange={() => toggle(cap.key)}
+                        />
+                        <span>
+                          {cap.label}
+                          {!grantable(cap.key) && <span className="text-[10px]"> (sizde yok)</span>}
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -829,7 +1221,10 @@ function RolesTab({ roles, canManage, catalog, mine, run }: {
               )
             })}
           </div>
-          <p className="text-xs text-gray-500">Kırmızı yetkiler kapalıyken personel yalnızca temsilcisi olduğu bağışçıları ve kendi kestiği makbuzları görür. Telefon yetkisi kapalıysa numaralar <span className="font-mono">0532 *** ** 12</span> biçiminde görünür.</p>
+          <p className="text-xs text-slate-500">
+            Kırmızı yetkiler kapalıyken personel yalnızca temsilcisi olduğu bağışçıları ve kendi kestiği makbuzları görür. Telefon yetkisi kapalıysa numaralar{' '}
+            <span className="font-mono">0532 *** ** 12</span> biçiminde görünür.
+          </p>
         </Card>
       )}
     </div>
