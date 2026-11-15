@@ -60,6 +60,25 @@ function donorHealthBadge(totalDonations: number, lastDonationAt: string | null)
   return { label: 'Riskte (6+ ay)', cls: 'border-rose-200 bg-rose-50 text-rose-700' }
 }
 
+const DONOR_AVATAR_TONES = [
+  'bg-emerald-100 text-emerald-700',
+  'bg-sky-100 text-sky-700',
+  'bg-amber-100 text-amber-700',
+  'bg-violet-100 text-violet-700',
+  'bg-rose-100 text-rose-700',
+]
+function donorInitials(name: string | null | undefined) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return 'B'
+  return parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() : `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+}
+function donorAvatarTone(name: string | null | undefined) {
+  const text = name || ''
+  let sum = 0
+  for (let i = 0; i < text.length; i++) sum += text.charCodeAt(i)
+  return DONOR_AVATAR_TONES[sum % DONOR_AVATAR_TONES.length]
+}
+
 export default function DonorsPageWrapper() {
   return (
     <Suspense fallback={<p className="py-12 text-center text-sm text-gray-500">Yükleniyor...</p>}>
@@ -495,8 +514,10 @@ function DonorsPage() {
                           selectedId === d.id ? 'bg-primary-50' : ''
                         }`}
                       >
-                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-800">
-                          {d.full_name?.[0]?.toUpperCase()}
+                        <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                          d.donor_type === 'corporate' ? 'bg-slate-100 text-slate-700' : donorAvatarTone(d.full_name)
+                        }`}>
+                          {d.donor_type === 'corporate' ? <Building2 className="h-4 w-4" /> : donorInitials(d.full_name)}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -541,7 +562,7 @@ function DonorsPage() {
         </Card>
 
         {selectedId && (
-          <div className="xl:col-span-7">
+          <div className="xl:sticky xl:top-4 xl:col-span-7">
             <DonorCardPanel
               donorId={selectedId}
               staff={staff}
@@ -750,11 +771,17 @@ function DonorCardPanel({
   return (
     <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-bold text-gray-900">{card.full_name}</h2>
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${health.cls}`}>{health.label}</span>
+        <div className="flex min-w-0 items-start gap-3">
+          <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+            card.donor_type === 'corporate' ? 'bg-slate-100 text-slate-700' : donorAvatarTone(card.full_name)
+          }`}>
+            {card.donor_type === 'corporate' ? <Building2 className="h-5 w-5" /> : donorInitials(card.full_name)}
           </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-bold text-gray-900">{card.full_name}</h2>
+              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${health.cls}`}>{health.label}</span>
+            </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
             {card.phone && (
               <span className="inline-flex items-center gap-1">
@@ -826,6 +853,7 @@ function DonorCardPanel({
                 />
               </form>
             )}
+          </div>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
