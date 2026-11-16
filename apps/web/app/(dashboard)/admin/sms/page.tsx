@@ -8,6 +8,7 @@ import { adminGet, adminSend, apiErrorMessage, useAdminAccess, v1Get, can } from
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { MODE_LABEL, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
 import { PageHeader, confirmDialog } from '../../../../components/admin/ui'
+import { SmsPhonePreview } from '../../../../components/admin/SmsPhonePreview'
 
 type Draft = {
   id: string | null
@@ -692,25 +693,14 @@ export default function SmsTemplatesPage() {
                   Kullanımda
                 </label>
                 <div>
-                  <div className="mb-1.5 text-xs font-bold text-gray-600">Telefon Önizlemesi</div>
-                  <div className="overflow-hidden rounded-[1.5rem] border-[4px] border-slate-800 bg-slate-950 p-3 shadow-md">
-                    <div className="mb-2 flex items-center justify-between border-b border-white/10 pb-1.5 text-[10px] text-slate-400">
-                      <span className="font-semibold text-white">Kurumunuz</span>
-                      <span>09:41 · 5G</span>
-                    </div>
-                    <div className="min-h-[80px] whitespace-pre-line rounded-2xl rounded-bl-sm bg-emerald-500/95 p-3 text-xs leading-relaxed font-medium text-white">
-                      {fill(draft.body) || '…'}
-                    </div>
-                    {draftCount && (
-                      <p
-                        className={`mt-2 text-[11px] font-semibold ${
-                          draftCount.info.encoding === 'unicode' || draftCount.info.parts > 3 ? 'text-amber-300' : 'text-slate-400'
-                        }`}
-                      >
-                        {draftCount.text} <span className="font-normal opacity-75">(örnek değerlerle)</span>
-                      </p>
-                    )}
-                  </div>
+                  <div className="mb-2 text-xs font-bold text-gray-600">Telefon Önizlemesi</div>
+                  <SmsPhonePreview
+                    senderTitle="Kurumunuz"
+                    body={fill(draft.body) || '…'}
+                    counterText={draftCount ? `${draftCount.text} (örnek değerlerle)` : undefined}
+                    counterWarn={Boolean(draftCount && (draftCount.info.encoding === 'unicode' || draftCount.info.parts > 3))}
+                    compact
+                  />
                 </div>
                 {draft.body.trim().length >= 2 && (
                   <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">

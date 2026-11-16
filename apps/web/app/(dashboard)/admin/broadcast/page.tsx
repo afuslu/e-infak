@@ -8,6 +8,7 @@ import { adminGet, adminSend, apiErrorMessage, useAdminAccess, can } from '../..
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { SegmentInfo, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
 import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
+import { SmsPhonePreview } from '../../../../components/admin/SmsPhonePreview'
 
 interface Options {
   kinds: { key: string; label: string }[]
@@ -1035,58 +1036,15 @@ export default function BulkSmsPage() {
                   )}
                 </p>
                 {preview.sample && (
-                  <div className="overflow-hidden rounded-[1.75rem] border-[5px] border-slate-800 bg-slate-950 shadow-lg">
-                    <div className="flex items-center justify-between bg-slate-900/90 px-4 pt-2 pb-1 text-[10px] font-semibold text-slate-400">
-                      <span>09:41</span>
-                      <span className="h-3 w-16 rounded-full bg-slate-800" />
-                      <span>5G</span>
-                    </div>
-                    <div className="flex items-center justify-between border-b border-white/10 bg-slate-900/60 px-3.5 py-2 text-[11px] text-slate-300">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-bold text-emerald-300">
-                          SMS
-                        </span>
-                        <div>
-                          <div className="font-semibold text-white">{preview.sample.name || 'Alıcı Önizleme'}</div>
-                          <div className="font-mono text-[10px] text-slate-400">{preview.sample.phone || '05XX...'}</div>
-                        </div>
-                      </div>
-                      {preview.ab_sample && (
-                        <div className="flex rounded-lg bg-slate-800 p-0.5 text-[10px] font-bold">
-                          <button
-                            type="button"
-                            onClick={() => setPreviewVariant('A')}
-                            className={`cursor-pointer rounded-md px-2 py-0.5 ${previewVariant === 'A' ? 'bg-emerald-500 text-white' : 'text-slate-400'}`}
-                          >
-                            A
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPreviewVariant('B')}
-                            className={`cursor-pointer rounded-md px-2 py-0.5 ${previewVariant === 'B' ? 'bg-indigo-500 text-white' : 'text-slate-400'}`}
-                          >
-                            B
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3.5">
-                      <div
-                        className={`whitespace-pre-line rounded-2xl rounded-bl-sm p-3 text-xs leading-relaxed font-medium text-white shadow-xs ${
-                          previewVariant === 'B' && preview.ab_sample ? 'bg-indigo-500/95' : 'bg-emerald-500/95'
-                        }`}
-                      >
-                        {previewVariant === 'B' && preview.ab_sample ? preview.ab_sample.body : preview.sample.body}
-                      </div>
-                      <p
-                        className={`mt-2.5 text-[11px] font-semibold ${
-                          counter.info.encoding === 'unicode' || counter.info.parts > 3 ? 'text-amber-300' : 'text-slate-400'
-                        }`}
-                      >
-                        {counter.text}
-                      </p>
-                    </div>
-                  </div>
+                  <SmsPhonePreview
+                    senderTitle={preview.sample.name || 'Alıcı Önizleme'}
+                    senderSubtitle={preview.sample.phone || '05XX...'}
+                    body={previewVariant === 'B' && preview.ab_sample ? preview.ab_sample.body : preview.sample.body}
+                    counterText={counter.text}
+                    counterWarn={counter.info.encoding === 'unicode' || counter.info.parts > 3}
+                    variant={previewVariant}
+                    onVariantChange={preview.ab_sample ? setPreviewVariant : undefined}
+                  />
                 )}
                 {preview.send_at && (
                   <p className="rounded-xl border border-sky-200 bg-sky-50 p-2.5 text-xs font-semibold text-sky-800">
