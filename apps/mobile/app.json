@@ -25,7 +25,7 @@
     },
     "android": {
       "package": "org.einfak.app",
-      "versionCode": 5,
+      "versionCode": 13,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#059669"

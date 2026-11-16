@@ -78,7 +78,7 @@ export default function LoginPage() {
               alt="E-İnfak"
               width={48}
               height={48}
-              className="h-12 w-12 rounded-2xl bg-white object-contain p-1.5 ring-1 ring-pt-line pt-shadow"
+              className="h-12 w-12 rounded-2xl object-cover ring-1 ring-pt-line pt-shadow"
             />
           </Link>
           <h1 className="text-2xl font-extrabold tracking-tight text-pt-text sm:text-[1.75rem]">Kurum Girişi</h1>

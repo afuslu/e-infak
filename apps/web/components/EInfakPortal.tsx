@@ -166,7 +166,7 @@ export async function EInfakPortal() {
       <header className="sticky top-0 z-20 relative border-b border-pt-line bg-pt-bg/90 backdrop-blur">
         <div className={`${container} flex items-center justify-between gap-4 py-3.5`}>
           <Link href="/" className="flex items-center gap-3">
-            <img src="/images/e-infak/mark.png" alt="" width={36} height={36} className="h-9 w-9 rounded-xl bg-white object-contain p-1 ring-1 ring-pt-line" />
+            <img src="/images/e-infak/mark.png" alt="" width={36} height={36} className="h-9 w-9 rounded-xl object-cover ring-1 ring-pt-line" />
             <div>
               <span className="text-lg font-extrabold tracking-tight">e-infak.org</span>
               <p className="hidden text-[10px] uppercase tracking-widest text-pt-faint sm:block">Dernek otomasyonu</p>

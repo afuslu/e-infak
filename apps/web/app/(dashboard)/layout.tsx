@@ -253,8 +253,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <img
               src={siteBrand?.logo_url || '/images/e-infak/mark.png'}
               alt={siteBrand?.name || 'E-İnfak'}
-              className={`h-9 w-9 shrink-0 rounded-[9px] object-contain p-1 ring-1 ${
-                theme.dark ? 'bg-white ring-white/15' : 'bg-gray-50 ring-gray-200'
+              className={`h-9 w-9 shrink-0 rounded-[9px] ring-1 ${
+                siteBrand?.logo_url
+                  ? `object-contain p-1 ${theme.dark ? 'bg-white ring-white/15' : 'bg-gray-50 ring-gray-200'}`
+                  : `object-cover ${theme.dark ? 'ring-white/15' : 'ring-gray-200'}`
               }`}
             />
             <div className={`min-w-0 ${collapsed ? 'lg:hidden' : ''}`}>
