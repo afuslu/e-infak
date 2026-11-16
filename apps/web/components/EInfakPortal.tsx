@@ -15,6 +15,22 @@ const API_URL = (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL
 interface DirectoryEntry { slug: string; name: string; tagline: string | null; logo_url: string | null; primary_color: string | null; url: string }
 interface PlanInfo { key: string; label: string; users: number; bank_accounts?: number }
 
+function OrgLogo({ org, size = 'md' }: { org: DirectoryEntry; size?: 'sm' | 'md' }) {
+  const dim = size === 'sm' ? 'h-7 w-7 rounded-lg text-xs p-0.5' : 'h-14 w-14 rounded-xl text-xl p-1'
+  const px = size === 'sm' ? 28 : 56
+  if (org.logo_url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={org.logo_url} alt="" width={px} height={px} className={`${dim} shrink-0 bg-white object-contain ring-1 ring-pt-line`} />
+    )
+  }
+  return (
+    <span className={`${dim} flex shrink-0 items-center justify-center font-black text-white`} style={{ backgroundColor: org.primary_color || '#047857' }}>
+      {org.name.charAt(0)}
+    </span>
+  )
+}
+
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
     const res = await fetch(`${API_URL}${path}`, { next: { revalidate: 300 } })
@@ -218,7 +234,10 @@ export async function EInfakPortal() {
             <div className={`${container} flex flex-wrap items-center justify-center gap-x-10 gap-y-3 py-5 text-sm`}>
               <span className="font-semibold text-pt-faint">{organisations.length} kurum bağışını E-İnfak ile topluyor</span>
               {organisations.slice(0, 6).map((org) => (
-                <a key={org.slug} href={org.url} className="font-bold text-pt-muted hover:text-pt-brand">{org.name}</a>
+                <a key={org.slug} href={org.url} className="flex items-center gap-2 font-bold text-pt-muted transition-colors hover:text-pt-brand">
+                  <OrgLogo org={org} size="sm" />
+                  <span>{org.name}</span>
+                </a>
               ))}
             </div>
           </section>
@@ -348,9 +367,7 @@ export async function EInfakPortal() {
               <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {organisations.map((org) => (
                   <a key={org.slug} href={org.url} className="group flex items-center gap-4 rounded-2xl border border-pt-line bg-pt-card p-5 hover:border-pt-brand">
-                    {org.logo_url
-                      ? <img src={org.logo_url} alt="" width={56} height={56} className="h-14 w-14 shrink-0 rounded-xl bg-white object-contain p-1 ring-1 ring-pt-line" />
-                      : <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-xl font-black text-white" style={{ backgroundColor: org.primary_color || '#047857' }}>{org.name.charAt(0)}</span>}
+                    <OrgLogo org={org} size="md" />
                     <span className="min-w-0">
                       <span className="block truncate font-bold text-pt-text">{org.name}</span>
                       {org.tagline && <span className="block truncate text-sm text-pt-muted">{org.tagline}</span>}
