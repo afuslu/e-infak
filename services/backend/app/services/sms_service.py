@@ -869,11 +869,20 @@ _balance_cache: dict = {}
 
 async def provider_balance(db: AsyncSession, org_id: UUID) -> dict:
     """The organisation's own SMS account and its remaining credit (asked at most once a minute)."""
+    from app.models.organization import Organization
     from app.services.tenant_credentials import sms_account
 
     account = await sms_account(db, org_id)
+    org = await db.get(Organization, org_id)
     cls = PROVIDERS.get(account.get("provider") or "")
-    info = {"provider": cls.label if cls else None, "own_account": False, "balance": None}
+    sender = (account.get("sender") or account.get("header") or account.get("originator") or "").strip() or None
+    info = {
+        "provider": cls.label if cls else None,
+        "own_account": False,
+        "balance": None,
+        "org_name": org.name if org else None,
+        "sender": sender,
+    }
     if not cls or account.get("disabled") or account.get("platform") or not cls(account).configured:
         return info  # the platform account's credit is not the organisation's to see
     info["own_account"] = True

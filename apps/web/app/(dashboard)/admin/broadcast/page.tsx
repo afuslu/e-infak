@@ -27,6 +27,7 @@ interface Preview {
   send_at: string | null
   moved_for_quiet_hours: boolean
   label: string
+  org_name?: string | null
 }
 interface Batch {
   id: string
@@ -57,6 +58,8 @@ interface SmsAccount {
   provider: string | null
   own_account: boolean
   balance: { text: string; amount: number | null; unit: string } | null
+  org_name?: string | null
+  sender?: string | null
 }
 
 const KIND_LABEL: Record<string, string> = {
@@ -1037,8 +1040,8 @@ export default function BulkSmsPage() {
                 </p>
                 {preview.sample && (
                   <SmsPhonePreview
-                    senderTitle={preview.sample.name || 'Alıcı Önizleme'}
-                    senderSubtitle={preview.sample.phone || '05XX...'}
+                    senderTitle={account?.org_name || preview.org_name || 'Kurumunuz'}
+                    senderSubtitle={account?.sender ? `SMS Başlığı: ${account.sender}` : 'SMS Başlığı'}
                     body={previewVariant === 'B' && preview.ab_sample ? preview.ab_sample.body : preview.sample.body}
                     counterText={counter.text}
                     counterWarn={counter.info.encoding === 'unicode' || counter.info.parts > 3}

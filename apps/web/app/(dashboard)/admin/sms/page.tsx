@@ -89,6 +89,7 @@ export default function SmsTemplatesPage() {
   const canEdit = can(access, 'sms.templates')
   const [templates, setTemplates] = useState<SmsTemplate[] | null>(null)
   const [meta, setMeta] = useState<SmsMeta | null>(null)
+  const [smsAccount, setSmsAccount] = useState<{ org_name?: string | null; sender?: string | null } | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -112,6 +113,7 @@ export default function SmsTemplatesPage() {
   useEffect(() => {
     load()
     adminGet<SmsMeta>('/sms/meta').then((r) => setMeta(r.data)).catch(() => {})
+    adminGet<{ org_name?: string | null; sender?: string | null }>('/sms/account').then((r) => setSmsAccount(r.data)).catch(() => {})
     v1Get<{ items: { id: string; title: string }[] }>('/campaigns', { page_size: 100 })
       .then((r) => setCampaigns(r.data.items || []))
       .catch(() => {})
@@ -695,7 +697,8 @@ export default function SmsTemplatesPage() {
                 <div>
                   <div className="mb-2 text-xs font-bold text-gray-600">Telefon Önizlemesi</div>
                   <SmsPhonePreview
-                    senderTitle="Kurumunuz"
+                    senderTitle={smsAccount?.org_name || 'Kurumunuz'}
+                    senderSubtitle={smsAccount?.sender ? `SMS Başlığı: ${smsAccount.sender}` : 'SMS Başlığı'}
                     body={fill(draft.body) || '…'}
                     counterText={draftCount ? `${draftCount.text} (örnek değerlerle)` : undefined}
                     counterWarn={Boolean(draftCount && (draftCount.info.encoding === 'unicode' || draftCount.info.parts > 3))}

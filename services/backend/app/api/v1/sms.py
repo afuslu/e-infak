@@ -730,6 +730,7 @@ async def preview_batch(request: Request, payload: BatchIn, db: AsyncSession = D
     return {
         "recipients": len(recipients), "stats": stats, "parts_total": sum(info["parts"] for _r, _t, info in rendered),
         "max_parts": max((info["parts"] for _r, _t, info in rendered), default=0),
+        "org_name": org.name if org else None,
         "sample": {"name": sample[0].name, "phone": masked(sample[0].phone), "body": sample[1], "segments": sample[2]} if sample else None,
         "ab_sample": {"body": sample_b[1], "segments": sample_b[2]} if sample_b else None,
         "send_at": send_at, "moved_for_quiet_hours": moved,
