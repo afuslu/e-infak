@@ -2,7 +2,7 @@ import logging
 import secrets
 from html import escape as esc
 from uuid import UUID
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Optional, List, Dict, Any, Literal
 from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_validator
