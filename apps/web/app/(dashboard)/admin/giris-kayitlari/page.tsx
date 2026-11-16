@@ -53,7 +53,7 @@ function parseDevice(ua: string | null): { label: string; isMobile: boolean } {
   return { label: browser ? `${os} · ${browser}` : os, isMobile }
 }
 
-/** STK PRO's "Kullanıcı Giriş Logları". */
+/** e-Infak "Kullanıcı Giriş Logları". */
 export default function LoginLogsPage() {
   const [data, setData] = useState<{ items: Row[]; total: number; open_sessions: number } | null>(null)
   const [loading, setLoading] = useState(true)

@@ -1,4 +1,4 @@
-"""Fine-grained staff permissions ("yetenekler"), grouped by module like STK PRO's role screen.
+"""Fine-grained staff permissions ("yetenekler"), grouped by module for e-Infak's role screen.
 
 A module card's switch is the module's broad permission (app.api.deps.Permission); the ticks inside
 are capabilities. Custom roles store both in StaffRole.permissions (a JSON list of strings):

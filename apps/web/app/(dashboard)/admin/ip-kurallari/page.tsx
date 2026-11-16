@@ -39,7 +39,7 @@ function isValidNetwork(raw: string): boolean {
   return s.includes(':') && /^[0-9a-fA-F:]+(\/\d{1,3})?$/.test(s)
 }
 
-/** STK PRO's "IP İzinleri" and "IP Engellemeleri" on one screen. */
+/** e-Infak "IP İzinleri" and "IP Engellemeleri" on one screen. */
 export default function IpRulesPage() {
   const [kind, setKind] = useState<Kind>('allow')
   const [allowRows, setAllowRows] = useState<Rule[]>([])

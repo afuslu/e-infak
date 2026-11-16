@@ -17,7 +17,7 @@ interface Rates {
 const tl = (value: number, maxDigits = 4) =>
   value.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: maxDigits })
 
-/** STK PRO's "Döviz Kurları": rates used for foreign-currency donations and zakat. */
+/** e-Infak "Döviz Kurları": rates used for foreign-currency donations and zakat. */
 export default function RatesPage() {
   const { data: access } = useAdminAccess()
   const [rates, setRates] = useState<Rates | null>(null)

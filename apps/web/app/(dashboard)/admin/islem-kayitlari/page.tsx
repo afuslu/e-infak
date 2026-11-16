@@ -41,7 +41,7 @@ function actionBadgeClass(action: string): string {
   return 'bg-slate-100 text-slate-700 border-slate-200'
 }
 
-/** STK PRO's "Loglar": who did what, when. */
+/** e-Infak "Loglar": who did what, when. */
 export default function ActivityLogPage() {
   const [data, setData] = useState<{ items: Row[]; total: number; actions: { key: string; label: string }[] } | null>(null)
   const [loading, setLoading] = useState(true)

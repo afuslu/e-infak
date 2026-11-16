@@ -977,7 +977,7 @@ function DepartmentsTab({ departments, canManage, run }: { departments: Departme
 }
 
 /**
- * STK PRO style role editor: role tabs, then one card per module. The card switch turns the whole
+ * e-Infak style role editor: role tabs, then one card per module. The card switch turns the whole
  * module on or off; ticks are single rules. Red ticks widen what the person sees beyond their own records.
  */
 function RolesTab({
