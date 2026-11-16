@@ -1,24 +1,52 @@
-'use client'
+import type { Metadata } from 'next'
+import { CmsPageView, cmsMetadata, loadPage, previewToken } from '../../../../components/site/CmsPageView'
+import type { Block } from '../../../../lib/blocks'
+import { SingleCampaignDonation } from './SingleCampaignDonation'
 
-import { use } from 'react'
-import { useCampaign } from '@e-infak/api-client'
-import { QuickDonationForm } from '../../../../components/QuickDonationForm'
+export const dynamic = 'force-dynamic'
 
-export default function DonationPage({ params }: { params: Promise<{ campaign: string }> }) {
-  const { campaign: slug } = use(params)
-  const { data: campaign, isLoading, error } = useCampaign(slug)
+type Props = {
+  params: Promise<{ campaign: string }>
+  searchParams: Promise<{ onizleme?: string }>
+}
 
-  if (isLoading) return <div className="mx-auto my-20 h-96 max-w-lg animate-pulse rounded-3xl bg-slate-100" />
-  if (error || !campaign) return <div className="mx-auto my-20 max-w-lg rounded-2xl bg-red-50 p-8 text-center text-red-700">Kampanya bulunamadı.</div>
+function findCategoryTab(blocks: Block[] | null | undefined, tag: string): { label: string; tag: string } | null {
+  if (!blocks?.length) return null
+  for (const b of blocks) {
+    if (b.type === 'donation_cards' && b.props?.source === 'tabs' && Array.isArray(b.props.tabs)) {
+      const hit = (b.props.tabs as Array<{ label?: string; tag?: string }>).find((t) => t?.tag === tag && t?.label)
+      if (hit && hit.tag && hit.label) return { tag: hit.tag, label: hit.label }
+    }
+    const nested = findCategoryTab(b.children, tag)
+    if (nested) return nested
+  }
+  return null
+}
 
-  return (
-    <main className="min-h-screen bg-slate-50 px-4 py-14">
-      <QuickDonationForm
-        campaignId={campaign.id}
-        campaignTitle={campaign.title}
-        suggestedAmounts={campaign.suggested_amounts_cents.map((value) => value / 100)}
-        checkoutFieldsSchema={campaign.checkout_fields_schema}
-      />
-    </main>
-  )
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const { campaign } = await params
+  const slug = decodeURIComponent(campaign)
+  const page = await loadPage('bagis', previewToken((await searchParams).onizleme))
+  const tab = findCategoryTab(page?.blocks, slug)
+  if (page && tab) {
+    const base = cmsMetadata(page, `/bagis/${encodeURIComponent(tab.tag)}`)
+    return {
+      ...base,
+      title: `${tab.label} — ${page.seo_title || page.title}`,
+    }
+  }
+  return {}
+}
+
+export default async function DonationOrCategoryPage({ params, searchParams }: Props) {
+  const { campaign } = await params
+  const slug = decodeURIComponent(campaign)
+  const page = await loadPage('bagis', previewToken((await searchParams).onizleme))
+  const tab = findCategoryTab(page?.blocks, slug)
+
+  if (page && tab) {
+    return <CmsPageView page={page} />
+  }
+
+  return <SingleCampaignDonation slug={slug} />
 }

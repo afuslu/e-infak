@@ -7,6 +7,7 @@
  * the blocks work anywhere on a page and with the site-wide DonationCart.
  */
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { Carousel } from '../site/Carousel'
@@ -952,12 +953,33 @@ export function DonationCards({
   title?: string
 }) {
   const l = CARD_L10N[locale] || CARD_L10N.tr
-  const [tab, setTab] = useState(tabs?.[0]?.tag || '')
+  const pathname = usePathname()
+  const isBagisRoute = pathname === '/bagis' || Boolean(pathname?.startsWith('/bagis/'))
+  const pathTag = useMemo(() => {
+    const m = pathname?.match(/^\/bagis\/([^/]+)$/)
+    return m ? decodeURIComponent(m[1]) : null
+  }, [pathname])
+  const [tab, setTab] = useState(() => (pathTag && tabs?.some((t) => t.tag === pathTag) ? pathTag : tabs?.[0]?.tag || ''))
   useEffect(() => {
-    // Old links like /bagis?tab=kurban open that tab.
+    if (pathTag && tabs?.some((t) => t.tag === pathTag)) {
+      setTab(pathTag)
+      return
+    }
+    // Old links like /bagis?tab=kurban open that tab (and normalize URL on /bagis).
     const wanted = new URLSearchParams(window.location.search).get('tab')
-    if (wanted && tabs?.some((t) => t.tag === wanted)) setTab(wanted)
-  }, [tabs])
+    if (wanted && tabs?.some((t) => t.tag === wanted)) {
+      setTab(wanted)
+      if (isBagisRoute && !editing) {
+        window.history.replaceState(null, '', `/bagis/${encodeURIComponent(wanted)}`)
+      }
+    }
+  }, [tabs, pathTag, isBagisRoute, editing])
+  const selectTab = (nextTag: string) => {
+    setTab(nextTag)
+    if (isBagisRoute && !editing) {
+      window.history.replaceState(null, '', `/bagis/${encodeURIComponent(nextTag)}`)
+    }
+  }
   const shown = useMemo(() => (tabs?.length ? cards.filter((c) => c.tags.includes(tab)) : cards), [cards, tabs, tab])
   const cols =
     shown.length === 1
@@ -976,7 +998,7 @@ export function DonationCards({
           {!!tabs?.length && (
             <div role="tablist" aria-label="Bağış türleri" className="flex flex-wrap gap-2">
               {tabs.map((t) => (
-                <button key={t.tag} role="tab" type="button" aria-selected={tab === t.tag} onClick={() => setTab(t.tag)}
+                <button key={t.tag} role="tab" type="button" aria-selected={tab === t.tag} onClick={() => selectTab(t.tag)}
                   className={`rounded-full px-5 py-2 text-[15px] font-semibold transition-colors ${tab === t.tag ? 'bg-primary-700 text-white' : 'bg-white text-gray-700 shadow-sm hover:bg-primary-50'}`}>
                   {t.label}
                 </button>
