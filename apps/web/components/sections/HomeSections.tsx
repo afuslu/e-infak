@@ -10,6 +10,7 @@ import { Slider, type SlideView } from '../site/Slider'
 import { CampaignsFilterClient } from './CampaignsFilterClient'
 import { GalleryStripClient } from './GalleryStripClient'
 import { ZakatMiniCalc } from './ZakatMiniCalc'
+import { resolveCategoryIcon } from '../../lib/donation-category-icons'
 
 export interface NewsPostDto { id: string; slug?: string | null; title: string; image_url?: string | null; published_at?: string | null; summary?: string | null }
 export interface CategoryDto {
@@ -488,12 +489,15 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
   const renderCard = (k: (typeof sourceList)[number], idx: number) => {
     const href = hrefFor(k)
     const isFeaturedBento = look === 'bento' && idx === 0
+    const { Icon: CatIcon } = resolveCategoryIcon(k.icon, (k as CategoryDto).donation_type)
 
     if (look === 'compact') {
       return (
         <Link key={k.id || k.title} href={href}
           className="group flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:border-primary-500 hover:shadow-md">
-          <div className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-primary-50 text-2xl transition group-hover:bg-primary-600">{k.icon}</div>
+          <div className="flex h-12 w-12 flex-none items-center justify-center rounded-xl bg-primary-50 text-primary-600 transition group-hover:bg-primary-600 group-hover:text-white overflow-hidden">
+            {k.image_url ? <img src={k.image_url} alt={k.title} className="h-full w-full object-cover" loading="lazy" /> : <CatIcon className="h-6 w-6" />}
+          </div>
           <div className="min-w-0 flex-1">
             <div className="truncate font-heading text-base font-bold text-gray-900 group-hover:text-primary-700">{k.title}</div>
             {showDesc && k.description && <div className="truncate text-xs text-gray-500">{k.description}</div>}
@@ -513,7 +517,9 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/15" />
           <div className="relative space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 text-2xl backdrop-blur-sm">{k.icon}</span>
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-sm">
+                <CatIcon className="h-5 w-5" />
+              </span>
               {k.badge && <span className="rounded-full bg-accent-500 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white">{k.badge}</span>}
             </div>
             <div className="font-heading text-xl font-bold">{k.title}</div>
@@ -529,7 +535,9 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
         <Link key={k.id || k.title} href={href}
           className="group flex flex-col gap-3 rounded-3xl border border-white/15 bg-white/10 p-6 text-white backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:border-accent-400/60 hover:bg-white/15">
           <div className="flex items-center justify-between">
-            <span className="flex h-13 w-13 items-center justify-center rounded-2xl bg-white/15 text-2xl">{k.icon}</span>
+            <span className="flex h-13 w-13 items-center justify-center rounded-2xl bg-white/15 text-white">
+              <CatIcon className="h-6 w-6" />
+            </span>
             {k.badge && <span className="rounded-full bg-accent-500/90 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">{k.badge}</span>}
           </div>
           <div className="font-heading text-lg font-bold text-white">{k.title}</div>
@@ -547,7 +555,9 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
             {k.image_url ? (
               <img src={k.image_url} alt={k.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
             ) : (
-              <span className="text-5xl transition-transform duration-300 group-hover:scale-110">{k.icon}</span>
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 text-primary-600 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                <CatIcon className="h-8 w-8" />
+              </span>
             )}
             {k.badge && <span className="absolute end-3 top-3 rounded-full bg-primary-600 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white">{k.badge}</span>}
           </div>
@@ -569,7 +579,9 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
         }`}>
         <span className="absolute -end-8 -top-8 h-24 w-24 rounded-full bg-primary-50 transition-transform duration-500 group-hover:scale-[3]" aria-hidden />
         <div className="relative flex items-center justify-between gap-2">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600 text-[28px] shadow-lg shadow-primary-600/20">{k.icon}</div>
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600 text-white shadow-lg shadow-primary-600/20 overflow-hidden">
+            {k.image_url ? <img src={k.image_url} alt={k.title} className="h-full w-full object-cover" loading="lazy" /> : <CatIcon className="h-7 w-7" />}
+          </div>
           {k.badge && <span className="rounded-full bg-accent-500 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white">{k.badge}</span>}
         </div>
         <div className={`relative mt-2 font-bold text-gray-900 ${isFeaturedBento ? 'font-heading text-2xl' : 'text-lg'}`}>{k.title}</div>
@@ -599,12 +611,16 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
         />
         {look === 'pills' ? (
           <div className="flex flex-wrap justify-center gap-3">
-            {sourceList.map((k) => (
-              <Link key={k.id || k.title} href={hrefFor(k)}
-                className="inline-flex items-center gap-2.5 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm font-bold text-gray-800 shadow-sm transition hover:border-primary-600 hover:bg-primary-50 hover:text-primary-800">
-                <span className="text-lg">{k.icon}</span>{k.title}
-              </Link>
-            ))}
+            {sourceList.map((k) => {
+              const { Icon: PillIcon } = resolveCategoryIcon(k.icon, (k as CategoryDto).donation_type)
+              return (
+                <Link key={k.id || k.title} href={hrefFor(k)}
+                  className="inline-flex items-center gap-2.5 rounded-full border border-gray-200 bg-white px-5 py-3 text-sm font-bold text-gray-800 shadow-sm transition hover:border-primary-600 hover:bg-primary-50 hover:text-primary-800">
+                  <PillIcon className="h-4 w-4 text-primary-600" />
+                  <span>{k.title}</span>
+                </Link>
+              )
+            })}
           </div>
         ) : look === 'carousel' ? (
           <Carousel label={o.title || t('home.categories.title')} items={carouselWidthMap[cols] || carouselWidthMap[4]} dots arrows>
