@@ -229,13 +229,13 @@ export function KurbanBulkEntry({
             <Button type="button" size="sm" variant="outline" onClick={() => downloadFile('/kurban/bulk-template.xlsx', 'kurban-toplu-giris-sablonu.xlsx').catch((err) => toast.error(apiErrorMessage(err, 'Şablon indirilemedi')))}><FileDown className="mr-1.5 h-3.5 w-3.5" />Excel şablonu</Button>
             <input ref={fileInput} type="file" accept=".xlsx,.csv" className="hidden" onChange={upload} />
             <Button type="button" size="sm" variant="outline" onClick={() => fileInput.current?.click()}><FileUp className="mr-1.5 h-3.5 w-3.5" />Excel dosyası yükle</Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => setPasteOpen((v) => !v)}><ClipboardPaste className="mr-1.5 h-3.5 w-3.5" />Excel'den yapıştır</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setPasteOpen((v) => !v)}><ClipboardPaste className="mr-1.5 h-3.5 w-3.5" />Excel&apos;den yapıştır</Button>
           </div>
         </div>
 
         {pasteOpen && (
           <div className="space-y-2 border-b border-slate-200 p-3">
-            <p className="text-xs text-slate-500">Excel'de sütunları şu sırayla seçip kopyalayın: <b>Bağışçı · Telefon · Kimin adına · Hisse</b>. Dosya yüklemede sütunlar başlık adıyla tanınır (Bağışçı, Telefon, Kimin Adına, Niyet, Hisse, Ödeme, Ödeme Yöntemi).</p>
+            <p className="text-xs text-slate-500">Excel&apos;de sütunları şu sırayla seçip kopyalayın: <b>Bağışçı · Telefon · Kimin adına · Hisse</b>. Dosya yüklemede sütunlar başlık adıyla tanınır (Bağışçı, Telefon, Kimin Adına, Niyet, Hisse, Ödeme, Ödeme Yöntemi).</p>
             <textarea className={`${inputClass} h-32 font-mono text-xs`} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder={'Ahmet Yılmaz\t0555 111 22 33\tMerhum Mehmet Yılmaz\t1'} />
             <Button type="button" size="sm" onClick={paste}>Satırlara ekle</Button>
           </div>
