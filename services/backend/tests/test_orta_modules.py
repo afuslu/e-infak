@@ -56,6 +56,7 @@ async def test_kurban_flow_shares_distribution_slaughter_and_papers(db_session):
     created = await kurban.create_campaign(_request(org, "POST"), kurban.KurbanCampaignIn(
         title="Çad Büyükbaş 2026", price_per_share_cents=500_000, country="Çad", season_year=2026,
         animal_prefix="CD", create_donation_campaign=True,
+        auto_assign=False,  # bu test elle "Hisseleri dağıt" akışını ölçer
     ), db_session, admin)
     donation_campaign_id = uuid.UUID(created["donation_campaign_id"])
     campaign = await db_session.get(Campaign, donation_campaign_id)

@@ -74,6 +74,12 @@ async def create_kurban_shares(db: AsyncSession, donation: Donation, donor: Dono
         )
         db.add(share)
         shares.append(share)
+    if campaign.auto_assign:
+        # Kurban numarası kayıt anında belli olsun: hisseler hemen bir hayvana yerleşir.
+        from app.services.kurban_placement import place_shares
+
+        await db.flush()
+        await place_shares(db, campaign, shares)
     return shares
 
 

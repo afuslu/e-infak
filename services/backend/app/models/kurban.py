@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey, Enum
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey, Enum, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -35,6 +35,15 @@ KURBAN_TYPES = {
 
 SHARES_PER_ANIMAL = {KurbanAnimalType.COW: 7, KurbanAnimalType.SHEEP: 1}
 
+# Cins adı: kâğıtta ve ekranda görünür ("Keçi", "Dana"); hisse sayısını yine büyükbaş/küçükbaş belirler.
+ANIMAL_LABELS = {
+    KurbanAnimalType.COW: ("Sığır", "Dana", "Deve", "Manda"),
+    KurbanAnimalType.SHEEP: ("Koyun", "Keçi", "Koç"),
+}
+
+# Kesim videosu takibi: bağlantı olması, videonun bağışçıya gönderildiğini söylemez.
+VIDEO_STATUSES = {"none": "Video yok", "recorded": "Video çekildi", "sent": "Video gönderildi"}
+
 
 class KurbanCampaign(Base):
     """A kurban offering for one season / country / animal type (e.g. 'Çad Büyükbaş 2026')."""
@@ -52,6 +61,10 @@ class KurbanCampaign(Base):
     country = Column(String(100))
     season_year = Column(Integer)
     animal_prefix = Column(String(10), nullable=False, default="K", server_default="K")
+    animal_label = Column(String(30))
+    # Açıkken her onaylı bağışın hisseleri kaydedilir kaydedilmez bir hayvana yerleşir ve
+    # kurban numarası hemen belli olur; kapalıyken "Hisseleri dağıt" beklenir.
+    auto_assign = Column(Boolean, nullable=False, default=True, server_default="true")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -60,6 +73,7 @@ class KurbanCampaign(Base):
 
 class KurbanAnimal(Base):
     __tablename__ = "kurban_animals"
+    __table_args__ = (UniqueConstraint("campaign_id", "animal_number", name="uq_kurban_animal_campaign_number"),)
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
@@ -68,6 +82,7 @@ class KurbanAnimal(Base):
     type = Column(Enum(KurbanAnimalType), nullable=False, default=KurbanAnimalType.COW)
     status = Column(Enum(KurbanStatus), nullable=False, default=KurbanStatus.WAITING)
     video_url = Column(String(500))
+    video_status = Column(String(12), nullable=False, default="none", server_default="none")
     country = Column(String(100))
     slaughtered_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())

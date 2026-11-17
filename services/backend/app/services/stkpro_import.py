@@ -242,9 +242,12 @@ class StkProImporter:
         linked = (await self.db.execute(select(KurbanCampaign.id).where(
             KurbanCampaign.donation_campaign_id == campaign.id))).first()
         if not linked:
+            # Cins adı korunur ("Keçi", "Koç"); aktarılan geçmiş kayıtlar kendiliğinden hayvana
+            # yerleştirilmez (eski sistemdeki kurban numaralarıyla karışmasın), dağıtım elle yapılır.
+            label = {"koyun": "Koyun", "keci": "Keçi", "koc": "Koç"}.get(key.animal_word or "")
             self.db.add(KurbanCampaign(organization_id=self.org_id, title=campaign.title, price_per_share_cents=0,
                                        donation_campaign_id=campaign.id, animal_type=key.animal or KurbanAnimalType.SHEEP,
-                                       season_year=self.season_year))
+                                       season_year=self.season_year, animal_label=label, auto_assign=False))
             await self.db.flush()
             self.report.kurban_campaigns_linked.append(campaign.title)
         self._kurban_linked.add(fold(campaign.title))

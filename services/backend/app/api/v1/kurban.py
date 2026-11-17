@@ -6,15 +6,14 @@ onaylı bağış (online veya elle makbuz) otomatik olarak hisse(ler)e dönüş�
 yerleştirir; aynı bağışın hisseleri mümkünse aynı hayvana konur → kesim
 işaretlenince hissedarlara bir kez SMS gider, video bağışçı panelinde görünür.
 """
-from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import Permission, require_capability, require_feature, require_permission, require_module, masked
@@ -25,11 +24,12 @@ from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign, CampaignCategory, CampaignStatus
 from app.models.donation import Donation
 from app.models.kurban import (
-    KURBAN_TYPES, SHARES_PER_ANIMAL, KurbanAnimal, KurbanAnimalType, KurbanCampaign, KurbanCampaignStatus,
-    KurbanShare, KurbanStatus,
+    ANIMAL_LABELS, KURBAN_TYPES, SHARES_PER_ANIMAL, VIDEO_STATUSES, KurbanAnimal, KurbanAnimalType, KurbanCampaign,
+    KurbanCampaignStatus, KurbanShare, KurbanStatus,
 )
 from app.models.user import User
 from app.services.donation_hooks import normalize_kurban_type
+from app.services.kurban_placement import free_numbers as _free_numbers, place_shares
 from app.utils.cms import slugify
 from app.utils.content import sanitize_public_text
 
@@ -42,6 +42,12 @@ router = APIRouter(
 READ = Depends(require_module("kurban", write=False))
 WRITE = Depends(require_module("kurban"))
 TYPE_LABELS = {KurbanAnimalType.COW: "Büyükbaş", KurbanAnimalType.SHEEP: "Küçükbaş"}
+VideoStatus = Literal["none", "recorded", "sent"]
+
+
+def _animal_label(kc: Optional[KurbanCampaign], animal_type: KurbanAnimalType) -> str:
+    """Cins adı: kampanyada yazılıysa o ("Keçi"), yoksa Büyükbaş / Küçükbaş."""
+    return (kc.animal_label if kc is not None and kc.animal_label else None) or TYPE_LABELS[animal_type]
 
 KURBAN_CHECKOUT_FIELDS = [
     {"key": "kurban_type", "label": "Kurban türü", "type": "select", "required": True,
@@ -87,12 +93,14 @@ class KurbanCampaignIn(BaseModel):
     country: Optional[str] = Field(default=None, max_length=100)
     season_year: Optional[int] = Field(default=None, ge=2000, le=2100)
     animal_prefix: str = Field(default="K", min_length=1, max_length=10, pattern=r"^[A-Za-z0-9]+$")
+    animal_label: Optional[str] = Field(default=None, max_length=30)
+    auto_assign: bool = True
     status: Literal["active", "completed"] = "active"
     # Link to an existing website donation item, or let the system create one.
     donation_campaign_id: Optional[UUID] = None
     create_donation_campaign: bool = False
 
-    @field_validator("title", "description", "country", mode="before")
+    @field_validator("title", "description", "country", "animal_label", mode="before")
     @classmethod
     def clean(cls, value):
         return sanitize_public_text(value) if value else value
@@ -106,6 +114,9 @@ def _campaign_out(c: KurbanCampaign, stats: dict | None = None) -> dict:
         "price_per_share_cents": c.price_per_share_cents,
         "animal_type": c.animal_type.value,
         "animal_type_label": TYPE_LABELS[c.animal_type],
+        "animal_label": c.animal_label,
+        "animal_label_options": {t.value: list(labels) for t, labels in ANIMAL_LABELS.items()},
+        "auto_assign": c.auto_assign,
         "country": c.country,
         "season_year": c.season_year,
         "animal_prefix": c.animal_prefix,
@@ -202,6 +213,7 @@ async def create_campaign(request: Request, payload: KurbanCampaignIn, db: Async
         organization_id=org_id, title=payload.title, description=payload.description,
         price_per_share_cents=payload.price_per_share_cents, animal_type=KurbanAnimalType(payload.animal_type),
         country=payload.country, season_year=payload.season_year, animal_prefix=payload.animal_prefix.upper(),
+        animal_label=payload.animal_label or None, auto_assign=payload.auto_assign,
         status=KurbanCampaignStatus(payload.status),
     )
     db.add(kc)
@@ -225,6 +237,7 @@ async def update_campaign(request: Request, campaign_id: UUID, payload: KurbanCa
     kc.animal_type = KurbanAnimalType(payload.animal_type)
     kc.country, kc.season_year = payload.country, payload.season_year
     kc.animal_prefix = payload.animal_prefix.upper()
+    kc.animal_label, kc.auto_assign = payload.animal_label or None, payload.auto_assign
     kc.status = KurbanCampaignStatus(payload.status)
     await _link_donation_campaign(db, org_id, kc, payload)
     _audit(db, org_id, current_user, "kurban_kampanya_guncelle", {"kurban_campaign_id": str(kc.id)})
@@ -282,83 +295,15 @@ async def _next_numbers(db: AsyncSession, kc: KurbanCampaign, count: int) -> lis
     return numbers
 
 
-def _free_numbers(taken: set[int], capacity: int) -> list[int]:
-    return [n for n in range(1, capacity + 1) if n not in taken]
-
-
 @router.post("/campaigns/{campaign_id}/distribute", dependencies=[Depends(require_capability("kurban.manage"))])
 async def distribute_shares(request: Request, campaign_id: UUID, db: AsyncSession = Depends(get_db),
                             current_user: User = WRITE):
-    """Atanmamış hisseleri hayvanlara dağıtır; gerekirse yeni hayvan oluşturur."""
+    """Atanmamış hisseleri hayvanlara dağıtır; gerekirse yeni hayvan oluşturur (kural: kurban_placement)."""
     org_id = _org_id(request)
-    kc = (await db.execute(
-        select(KurbanCampaign).where(KurbanCampaign.id == campaign_id, KurbanCampaign.organization_id == org_id).with_for_update()
-    )).scalar_one_or_none()
-    if not kc:
-        raise HTTPException(status_code=404, detail="Kurban kampanyası bulunamadı")
-    capacity = SHARES_PER_ANIMAL[kc.animal_type]
-    pending = (await db.execute(
-        select(KurbanShare).where(KurbanShare.campaign_id == kc.id, KurbanShare.animal_id.is_(None))
-        .order_by(KurbanShare.created_at, KurbanShare.id).with_for_update()
-    )).scalars().all()
-    if not pending:
+    kc = await _campaign(db, org_id, campaign_id)
+    assigned, new_animals = await place_shares(db, kc)
+    if not assigned:
         return {"assigned": 0, "new_animals": 0}
-
-    animals = (await db.execute(
-        select(KurbanAnimal).where(KurbanAnimal.campaign_id == kc.id, KurbanAnimal.status == KurbanStatus.WAITING)
-        .order_by(KurbanAnimal.animal_number).with_for_update()
-    )).scalars().all()
-    taken: dict[UUID, set[int]] = {a.id: set() for a in animals}
-    for animal_id, number in (await db.execute(
-        select(KurbanShare.animal_id, KurbanShare.share_number).where(KurbanShare.animal_id.in_([a.id for a in animals]))
-    )).all():
-        taken[animal_id].add(number or 0)
-
-    # Keep each donation's shares together; groups larger than one animal are split.
-    groups: "OrderedDict[UUID | str, list[KurbanShare]]" = OrderedDict()
-    for share in pending:
-        groups.setdefault(share.donation_id or f"share-{share.id}", []).append(share)
-    chunks = []
-    for shares in groups.values():
-        for i in range(0, len(shares), capacity):
-            chunks.append(shares[i:i + capacity])
-    # Largest first packs animals tighter (first-fit decreasing), order is otherwise stable.
-    chunks.sort(key=len, reverse=True)
-
-    used_numbers = set((await db.execute(
-        select(KurbanAnimal.animal_number).where(KurbanAnimal.campaign_id == kc.id)
-    )).scalars().all())
-    counter = 0
-
-    def next_number() -> str:
-        nonlocal counter
-        while True:
-            counter += 1
-            candidate = f"{kc.animal_prefix}-{counter:03d}"
-            if candidate not in used_numbers:
-                used_numbers.add(candidate)
-                return candidate
-
-    new_animals: list[KurbanAnimal] = []
-    assigned = 0
-    for chunk in chunks:
-        target = next((a for a in animals if capacity - len(taken[a.id]) >= len(chunk)), None)
-        if target is None:
-            number = next_number()
-            target = KurbanAnimal(
-                organization_id=org_id, campaign_id=kc.id, animal_number=number, type=kc.animal_type,
-                status=KurbanStatus.WAITING, country=kc.country,
-            )
-            db.add(target)
-            await db.flush()
-            animals.append(target)
-            new_animals.append(target)
-            taken[target.id] = set()
-        free = _free_numbers(taken[target.id], capacity)
-        for share, number in zip(chunk, free):
-            share.animal_id, share.share_number = target.id, number
-            taken[target.id].add(number)
-            assigned += 1
     _audit(db, org_id, current_user, "kurban_hisse_dagit", {
         "kurban_campaign_id": str(kc.id), "assigned": assigned, "new_animals": len(new_animals),
     })
@@ -366,19 +311,171 @@ async def distribute_shares(request: Request, campaign_id: UUID, db: AsyncSessio
     return {"assigned": assigned, "new_animals": len(new_animals)}
 
 
+# --- Bulk entry -----------------------------------------------------------------
+
+class BulkRow(BaseModel):
+    donor_name: str = Field(min_length=1, max_length=200)
+    phone: Optional[str] = Field(default=None, max_length=30)
+    # Hissedar adları; birden çok hisse için ";" ile ayrılır. Boşsa bağışçının adı.
+    on_behalf_of: Optional[str] = Field(default=None, max_length=1000)
+    kurban_type: str = "vacip"
+    shares: int = Field(default=1, ge=1, le=70)
+    payment_method: Literal["cash", "bank_transfer", "credit_card"] = "cash"
+    status: Literal["paid", "pending"] = "paid"
+
+    @field_validator("donor_name", "on_behalf_of", mode="before")
+    @classmethod
+    def clean(cls, value):
+        return sanitize_public_text(value) if value else value
+
+
+class BulkReceiptsIn(BaseModel):
+    # İstemcinin ürettiği toplu iş anahtarı: aynı liste iki kez gönderilirse makbuzlar çoğalmaz.
+    batch_key: str = Field(min_length=16, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+    rows: List[BulkRow] = Field(min_length=1, max_length=500)
+    paid_on: Optional[date] = None
+    send_receipt: bool = False
+
+
+@router.post("/campaigns/{campaign_id}/bulk-receipts")
+async def bulk_receipts(request: Request, campaign_id: UUID, payload: BulkReceiptsIn, db: AsyncSession = Depends(get_db),
+                        current_user: User = WRITE):
+    """Toplu kurban girişi: her satır, elle makbuzla aynı yoldan (crm.create_manual_donation) kaydedilir.
+
+    Bütün satırlar önce doğrulanır; biri bile geçersizse hiçbir şey kaydedilmez. Kayıt sırasında bir
+    satır reddedilirse (ör. yetki, koçan) orada durulur: önceki satırlar kayıtlıdır ve yanıtta
+    görünür; aynı `batch_key` ile yeniden gönderilince kayıtlı satırlar tekrar kesilmez.
+    """
+    from pydantic import ValidationError
+
+    from app.api.v1 import crm
+    from app.services.kurban_placement import kurban_numbers
+
+    org_id = _org_id(request)
+    kc = await _campaign(db, org_id, campaign_id)
+    if not kc.donation_campaign_id:
+        raise HTTPException(status_code=409, detail="Bu kurban kampanyası bir bağış kalemine bağlı değil; önce Kampanya Ayarları'ndan bağlayın")
+    manual: list[crm.ManualDonationIn] = []
+    for index, row in enumerate(payload.rows, start=1):
+        names = [n.strip() for n in (row.on_behalf_of or "").replace("\n", ";").split(";") if n.strip()]
+        if len(names) > row.shares:
+            raise HTTPException(status_code=422, detail=f"{index}. satır: {row.shares} hisse için {len(names)} isim yazılmış")
+        first, _, last = row.donor_name.strip().rpartition(" ")
+        try:
+            manual.append(crm.ManualDonationIn(
+                idempotency_key=f"{payload.batch_key}-{index:04d}",
+                donor=crm.ManualDonor(first_name=first or last, last_name=last if first else None, phone=row.phone or None),
+                campaign_id=kc.donation_campaign_id, amount_cents=kc.price_per_share_cents * row.shares,
+                payment_method=row.payment_method, status=row.status, paid_on=payload.paid_on,
+                on_behalf_of=names[0] if names else None, send_receipt=payload.send_receipt, quantity=row.shares,
+                metadata={"kurban_type": normalize_kurban_type(row.kurban_type), "kurban_names": names},
+            ))
+        except ValidationError as exc:
+            message = "; ".join(str(e.get("msg", "")).removeprefix("Value error, ") for e in exc.errors())
+            raise HTTPException(status_code=422, detail=f"{index}. satır: {message}") from exc
+
+    results, failed = [], None
+    for index, item in enumerate(manual, start=1):
+        try:
+            receipt = await crm.create_manual_donation(request, item, db, current_user)
+        except HTTPException as exc:
+            await db.rollback()
+            failed = {"row": index, "detail": str(exc.detail)}
+            break
+        results.append({"row": index, "donation_id": receipt["id"], "receipt_number": receipt["receipt_number"],
+                        "status": receipt["status"], "donor_name": payload.rows[index - 1].donor_name})
+    numbers = await kurban_numbers(db, [UUID(r["donation_id"]) for r in results])
+    for r in results:
+        r["kurban_shares"] = numbers.get(UUID(r["donation_id"]), [])
+    return {"created": results, "failed": failed, "total": len(manual)}
+
+
+BULK_COLUMNS = {  # folded header -> row field
+    "bagisci": "donor_name", "bagisciadi": "donor_name", "adsoyad": "donor_name", "ad": "donor_name", "isim": "donor_name",
+    "telefon": "phone", "tel": "phone", "cep": "phone", "ceptelefonu": "phone", "gsm": "phone",
+    "kiminadina": "on_behalf_of", "adina": "on_behalf_of", "hissedar": "on_behalf_of", "hissedarlar": "on_behalf_of",
+    "niyet": "kurban_type", "kurbanturu": "kurban_type", "tur": "kurban_type",
+    "hisse": "shares", "hisseadedi": "shares", "adet": "shares", "hissesayisi": "shares",
+    "odeme": "status", "odemedurumu": "status", "durum": "status",
+    "odemeyontemi": "payment_method", "yontem": "payment_method",
+}
+
+
+def _fold_header(value) -> str:
+    text = str(value or "").strip().lower()
+    for src, dst in (("ı", "i"), ("İ".lower(), "i"), ("ğ", "g"), ("ü", "u"), ("ş", "s"), ("ö", "o"), ("ç", "c")):
+        text = text.replace(src, dst)
+    return "".join(ch for ch in text if ch.isalnum())
+
+
+@router.post("/bulk-parse")
+async def bulk_parse(file: UploadFile = File(...), _: User = WRITE):
+    """Toplu giriş için Excel/CSV dosyasını okur; kaydetmez, satırları ekrana döndürür.
+
+    Sütunlar başlık adıyla eşleşir (Bağışçı, Telefon, Kimin Adına, Niyet, Hisse, Ödeme, Ödeme Yöntemi).
+    """
+    from app.api.v1.data_tools import MAX_FILE_BYTES, _cell, _read_table
+
+    content = await file.read()
+    if len(content) > MAX_FILE_BYTES:
+        raise HTTPException(status_code=413, detail="Dosya çok büyük")
+    try:
+        headers, data, _sheets, _active = _read_table(content, file.filename or "")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    columns = {index: BULK_COLUMNS[_fold_header(h)] for index, h in enumerate(headers) if _fold_header(h) in BULK_COLUMNS}
+    if "donor_name" not in columns.values():
+        raise HTTPException(status_code=422, detail='Dosyanın ilk satırında "Bağışçı" başlığı olmalı')
+    rows = []
+    for raw in data[:500]:
+        row: dict = {}
+        for index, field in columns.items():
+            value = _cell(raw[index]) if index < len(raw) else None
+            if value is None or field in row:
+                continue
+            if field == "shares":
+                try:
+                    row[field] = max(1, int(float(str(value).replace(",", "."))))
+                except ValueError:
+                    continue
+            elif field == "kurban_type":
+                row[field] = normalize_kurban_type(str(value).lower().replace("kurbanı", "").replace("kurban", "").strip())
+            elif field == "status":
+                folded = _fold_header(value)
+                row[field] = "paid" if folded.startswith(("alindi", "odendi", "evet", "tamam")) else "pending"
+            elif field == "payment_method":
+                folded = _fold_header(value)
+                row[field] = ("bank_transfer" if folded.startswith(("banka", "havale", "eft"))
+                              else "credit_card" if folded.startswith(("kart", "kredi", "pos")) else "cash")
+            elif field == "phone":
+                text = str(value)
+                # Excel telefonu sayı yapar: 5551234567.0 → 05551234567
+                if text.endswith(".0"):
+                    text = text[:-2]
+                row[field] = ("0" + text) if len(text) == 10 and text.startswith("5") else text
+            else:
+                row[field] = str(value)
+        if row.get("donor_name"):
+            rows.append(row)
+    return {"rows": rows, "skipped_columns": [h for i, h in enumerate(headers) if i not in columns]}
+
+
 # --- Animals ------------------------------------------------------------------------
 
-def _animal_out(a: KurbanAnimal, shares: list[KurbanShare]) -> dict:
+def _animal_out(a: KurbanAnimal, shares: list[KurbanShare], kc: Optional[KurbanCampaign] = None) -> dict:
     return {
         "id": str(a.id),
         "campaign_id": str(a.campaign_id),
         "animal_number": a.animal_number,
         "type": a.type.value,
         "type_label": TYPE_LABELS[a.type],
+        "animal_label": _animal_label(kc, a.type),
         "capacity": a.capacity,
         "country": a.country,
         "status": a.status.value,
         "video_url": a.video_url,
+        "video_status": a.video_status,
+        "video_status_label": VIDEO_STATUSES.get(a.video_status, a.video_status),
         "slaughtered_at": a.slaughtered_at,
         "shares": [
             {"id": str(s.id), "share_number": s.share_number, "name": s.on_behalf_of or s.donor_name,
@@ -396,6 +493,8 @@ async def list_animals(
     q: Annotated[Optional[str], Query(max_length=100)] = None,
     db: AsyncSession = Depends(get_db),
     _: User = READ,
+    has_free: Optional[bool] = None,
+    video_status: Optional[VideoStatus] = None,
 ):
     org_id = _org_id(request)
     query = select(KurbanAnimal).where(KurbanAnimal.organization_id == org_id)
@@ -403,6 +502,14 @@ async def list_animals(
         query = query.where(KurbanAnimal.campaign_id == campaign_id)
     if status_filter:
         query = query.where(KurbanAnimal.status == KurbanStatus(status_filter))
+    if video_status:
+        query = query.where(KurbanAnimal.video_status == video_status)
+    if has_free is not None:
+        # Boş hissesi olan (ya da dolu) hayvanlar: kapasite türden gelir (büyükbaş 7, küçükbaş 1).
+        filled = select(func.count(KurbanShare.id)).where(KurbanShare.animal_id == KurbanAnimal.id).scalar_subquery()
+        capacity = case((KurbanAnimal.type == KurbanAnimalType.COW, SHARES_PER_ANIMAL[KurbanAnimalType.COW]),
+                        else_=SHARES_PER_ANIMAL[KurbanAnimalType.SHEEP])
+        query = query.where(filled < capacity if has_free else filled >= capacity)
     if q:
         like = f"%{q.strip()}%"
         query = query.where(or_(
@@ -419,7 +526,15 @@ async def list_animals(
     by_animal: dict = {}
     for s in shares:
         by_animal.setdefault(s.animal_id, []).append(s)
-    return [_animal_out(a, by_animal.get(a.id, [])) for a in animals]
+    campaigns = await _campaigns_of(db, animals)
+    return [_animal_out(a, by_animal.get(a.id, []), campaigns.get(a.campaign_id)) for a in animals]
+
+
+async def _campaigns_of(db: AsyncSession, animals) -> dict:
+    ids = {a.campaign_id for a in animals}
+    if not ids:
+        return {}
+    return {c.id: c for c in (await db.execute(select(KurbanCampaign).where(KurbanCampaign.id.in_(ids)))).scalars().all()}
 
 
 class AnimalCreate(BaseModel):
@@ -452,12 +567,15 @@ async def create_animals(request: Request, payload: AnimalCreate, db: AsyncSessi
     await db.flush()
     _audit(db, org_id, current_user, "kurban_hayvan_ekle", {"kurban_campaign_id": str(kc.id), "count": len(created)})
     await db.commit()
-    return [_animal_out(a, []) for a in created]
+    return [_animal_out(a, [], kc) for a in created]
 
 
 class AnimalUpdate(BaseModel):
     animal_number: Optional[str] = Field(default=None, max_length=50)
     video_url: Optional[str] = Field(default=None, max_length=500)
+    # Verilmezse dokunulmaz (eski istemciler yalnız numara ve bağlantı gönderir).
+    video_status: Optional[VideoStatus] = None
+    slaughtered_on: Optional[date] = None
 
     @field_validator("video_url", mode="before")
     @classmethod
@@ -475,11 +593,37 @@ async def update_animal(request: Request, animal_id: UUID, payload: AnimalUpdate
     org_id = _org_id(request)
     animal = await _animal(db, org_id, animal_id)
     if payload.animal_number:
-        animal.animal_number = sanitize_public_text(payload.animal_number)
+        number = sanitize_public_text(payload.animal_number)
+        if number != animal.animal_number and (await db.execute(select(KurbanAnimal.id).where(
+                KurbanAnimal.campaign_id == animal.campaign_id, KurbanAnimal.animal_number == number))).first():
+            raise HTTPException(status_code=409, detail="Bu numarada bir hayvan zaten var")
+        animal.animal_number = number
     animal.video_url = payload.video_url
+    _set_video_status(animal, payload.video_status)
+    if payload.slaughtered_on:
+        if animal.status != KurbanStatus.SLAUGHTERED:
+            raise HTTPException(status_code=409, detail="Kesim tarihi yalnız kesilmiş hayvanda değiştirilir")
+        animal.slaughtered_at = _slaughter_moment(payload.slaughtered_on)
     await db.commit()
     shares = (await db.execute(select(KurbanShare).where(KurbanShare.animal_id == animal.id))).scalars().all()
-    return _animal_out(animal, shares)
+    return _animal_out(animal, shares, await _campaign(db, org_id, animal.campaign_id))
+
+
+def _set_video_status(animal: KurbanAnimal, wanted: Optional[str]) -> None:
+    """Açık seçim varsa o; yoksa bağlantı girilen hayvan en az "çekildi" olur, bağlantısı silinen "yok"."""
+    if wanted:
+        animal.video_status = wanted
+    elif animal.video_url and animal.video_status == "none":
+        animal.video_status = "recorded"
+    elif not animal.video_url and animal.video_status == "recorded":
+        animal.video_status = "none"
+
+
+def _slaughter_moment(day: date) -> datetime:
+    """Elle girilen kesim günü: gün ortası (saat bilinmiyor), gelecekte olamaz."""
+    if day > datetime.now(timezone.utc).date():
+        raise HTTPException(status_code=422, detail="Kesim tarihi gelecekte olamaz")
+    return datetime.combine(day, time(12, 0), timezone.utc)
 
 
 @router.delete("/animals/{animal_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_capability("kurban.delete"))])
@@ -507,6 +651,9 @@ class SlaughterItem(BaseModel):
 class SlaughterRequest(BaseModel):
     items: List[SlaughterItem] = Field(min_length=1, max_length=500)
     notify: bool = True
+    # Kesim günü geriye dönük girilebilir; boşsa şimdi.
+    slaughtered_on: Optional[date] = None
+    video_status: Optional[VideoStatus] = None
 
 
 def _portal_url(organization) -> str:
@@ -525,15 +672,17 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
     # The organisation can switch the "kurban kesildi" SMS off in its SMS templates.
     notify = payload.notify and (await event_template(db, org_id, "kurban_kesildi"))[1] == "auto"
     now = datetime.now(timezone.utc)
+    slaughtered_at = _slaughter_moment(payload.slaughtered_on) if payload.slaughtered_on else now
     portal = _portal_url(getattr(request.state, "organization", None))
     marked, sms_queued, sms_failed = 0, 0, 0
     for item in payload.items:
         animal = await _animal(db, org_id, item.animal_id, lock=True)
         if item.video_url:
             animal.video_url = item.video_url
+        _set_video_status(animal, payload.video_status)
         if animal.status != KurbanStatus.SLAUGHTERED:
             animal.status = KurbanStatus.SLAUGHTERED
-            animal.slaughtered_at = now
+            animal.slaughtered_at = slaughtered_at
             marked += 1
         shares = (await db.execute(
             select(KurbanShare).where(KurbanShare.animal_id == animal.id).with_for_update()
@@ -549,7 +698,9 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
             queued = await send_event_sms(
                 db, org_id, "kurban_kesildi", share.donor_phone, related=("kurban_share", share.id), source="kurban",
                 extra={"ad_soyad": share.donor_name, "kimin_adina": share.on_behalf_of or share.donor_name,
-                       "kurban_no": animal.animal_number, "portal": portal},
+                       "kurban_no": animal.animal_number, "portal": portal,
+                       # {video}: kesim videosunun bağlantısı; yoksa bağışçı paneli.
+                       "video": animal.video_url or portal},
             )
             if queued:
                 queued.donor_id = share.donor_id
@@ -563,6 +714,105 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
     })
     await db.commit()
     return {"marked": marked, "sms_queued": sms_queued, "sms_failed": sms_failed}
+
+
+class VideoUpdate(BaseModel):
+    animal_ids: List[UUID] = Field(min_length=1, max_length=500)
+    video_status: VideoStatus
+    video_url: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("video_url", mode="before")
+    @classmethod
+    def https_only(cls, value):
+        return AnimalUpdate.https_only(value)
+
+
+@router.post("/animals/video", dependencies=[Depends(require_capability("kurban.manage"))])
+async def update_videos(request: Request, payload: VideoUpdate, db: AsyncSession = Depends(get_db),
+                        current_user: User = WRITE):
+    """Seçilen hayvanların video durumu (ve verilirse bağlantısı) toplu yazılır."""
+    org_id = _org_id(request)
+    animals = (await db.execute(select(KurbanAnimal).where(
+        KurbanAnimal.organization_id == org_id, KurbanAnimal.id.in_(payload.animal_ids)).with_for_update())).scalars().all()
+    for animal in animals:
+        animal.video_status = payload.video_status
+        if payload.video_url:
+            animal.video_url = payload.video_url
+    _audit(db, org_id, current_user, "kurban_video_durumu", {
+        "animals": [str(a.id) for a in animals], "video_status": payload.video_status})
+    await db.commit()
+    return {"updated": len(animals)}
+
+
+async def _cards(db: AsyncSession, shares: list[KurbanShare], organization=None) -> Response:
+    """Kişiye özel isim kartları: hissedar başına bir sayfa."""
+    from app.utils.kurban_pdf import build_kurban_cards
+
+    animal_ids = {s.animal_id for s in shares if s.animal_id}
+    animals = {a.id: a for a in (await db.execute(
+        select(KurbanAnimal).where(KurbanAnimal.id.in_(animal_ids)))).scalars().all()} if animal_ids else {}
+    campaign_ids = {s.campaign_id for s in shares if s.campaign_id}
+    campaigns = {c.id: c for c in (await db.execute(
+        select(KurbanCampaign).where(KurbanCampaign.id.in_(campaign_ids)))).scalars().all()} if campaign_ids else {}
+    data = []
+    for s in sorted(shares, key=lambda s: ((animals[s.animal_id].animal_number if s.animal_id in animals else "~"),
+                                           s.share_number or 0, str(s.id))):
+        animal, kc = animals.get(s.animal_id), campaigns.get(s.campaign_id)
+        animal_type = animal.type if animal else (kc.animal_type if kc else KurbanAnimalType.SHEEP)
+        data.append({
+            "number": animal.animal_number if animal else "",
+            "name": s.on_behalf_of or s.donor_name,
+            "kurban_type": KURBAN_TYPES.get(s.kurban_type, s.kurban_type),
+            "animal_label": _animal_label(kc, animal_type),
+            "country": (animal.country if animal else None) or (kc.country if kc else "") or "",
+            "year": kc.season_year if kc and kc.season_year else "",
+            "share_number": s.share_number if animal and animal.capacity > 1 else None,
+            "capacity": animal.capacity if animal else None,
+        })
+    pdf = build_kurban_cards(getattr(organization, "name", "") or "", data, organization=organization)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="kurban-isim-kartlari.pdf"'})
+
+
+@router.get("/animals/{animal_id}/cards.pdf", dependencies=[Depends(require_capability("kurban.pdf"))])
+async def animal_cards(request: Request, animal_id: UUID, db: AsyncSession = Depends(get_db), _: User = READ):
+    org_id = _org_id(request)
+    animal = await _animal(db, org_id, animal_id)
+    shares = (await db.execute(select(KurbanShare).where(KurbanShare.animal_id == animal.id))).scalars().all()
+    return await _cards(db, list(shares), organization=getattr(request.state, "organization", None))
+
+
+@router.get("/campaigns/{campaign_id}/cards.pdf", dependencies=[Depends(require_capability("kurban.pdf"))])
+async def campaign_cards(
+    request: Request,
+    campaign_id: UUID,
+    status_filter: Annotated[Optional[Literal["waiting", "slaughtered"]], Query(alias="status")] = "waiting",
+    db: AsyncSession = Depends(get_db),
+    _: User = READ,
+):
+    """Kampanyadaki hayvana yerleşmiş bütün hissedarların isim kartları."""
+    org_id = _org_id(request)
+    kc = await _campaign(db, org_id, campaign_id)
+    query = select(KurbanShare).where(KurbanShare.campaign_id == kc.id, KurbanShare.animal_id.is_not(None))
+    if status_filter:
+        query = query.where(KurbanShare.status == KurbanStatus(status_filter))
+    shares = (await db.execute(query)).scalars().all()
+    return await _cards(db, list(shares), organization=getattr(request.state, "organization", None))
+
+
+class CardsRequest(BaseModel):
+    share_ids: List[UUID] = Field(min_length=1, max_length=2000)
+
+
+@router.post("/shares/cards.pdf", dependencies=[Depends(require_capability("kurban.pdf"))])
+async def share_cards(request: Request, payload: CardsRequest, db: AsyncSession = Depends(get_db), _: User = READ):
+    """Seçilen hisselerin isim kartları (ör. toplu girişten hemen sonra)."""
+    org_id = _org_id(request)
+    shares = (await db.execute(select(KurbanShare).where(
+        KurbanShare.organization_id == org_id, KurbanShare.id.in_(payload.share_ids)))).scalars().all()
+    if not shares:
+        raise HTTPException(status_code=404, detail="Hisse bulunamadı")
+    return await _cards(db, list(shares), organization=getattr(request.state, "organization", None))
 
 
 async def _papers(db: AsyncSession, org_id: UUID, animals: list[KurbanAnimal], org_name: str, organization=None) -> Response:
@@ -582,7 +832,7 @@ async def _papers(db: AsyncSession, org_id: UUID, animals: list[KurbanAnimal], o
         kc = campaigns.get(a.campaign_id)
         data.append({
             "number": a.animal_number,
-            "type_label": TYPE_LABELS[a.type],
+            "type_label": _animal_label(kc, a.type),
             "country": a.country or (kc.country if kc else ""),
             "season": f"Kurban {kc.season_year}" if kc and kc.season_year else "",
             "shares": [
@@ -595,7 +845,7 @@ async def _papers(db: AsyncSession, org_id: UUID, animals: list[KurbanAnimal], o
                     headers={"Content-Disposition": 'attachment; filename="kurban-kagitlari.pdf"'})
 
 
-@router.get("/animals/{animal_id}/paper.pdf")
+@router.get("/animals/{animal_id}/paper.pdf", dependencies=[Depends(require_capability("kurban.pdf"))])
 async def animal_paper(request: Request, animal_id: UUID, db: AsyncSession = Depends(get_db), _: User = READ):
     org_id = _org_id(request)
     animal = await _animal(db, org_id, animal_id)

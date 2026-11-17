@@ -97,3 +97,66 @@ def build_kurban_papers(org_name: str, animals: list[dict], organization: Any = 
         pdf.showPage()
     pdf.save()
     return buffer.getvalue()
+
+
+def tr_upper(text: str) -> str:
+    """Türkçe büyük harf: i→İ, ı→I (str.upper 'i'yi 'I' yapar)."""
+    return (text or "").replace("i", "İ").replace("ı", "I").upper()
+
+
+def build_kurban_cards(org_name: str, cards: list[dict], organization: Any = None) -> bytes:
+    """Kişiye özel isim kartı: hissedar başına bir A4 yatay sayfa, kesim videosunda gösterilir.
+
+    cards: [{"number", "name", "kurban_type", "animal_label", "country", "year", "share_number", "capacity"}]
+    """
+    font, bold = receipt_pdf.FONT, receipt_pdf.FONT_BOLD
+    logo = receipt_pdf.resolve_local_logo(organization) if organization is not None else None
+    red = colors.HexColor("#dc2626")
+    muted = colors.HexColor("#4b5563")
+
+    buffer = BytesIO()
+    page = landscape(A4)
+    width, height = page
+    pdf = canvas.Canvas(buffer, pagesize=page)
+    pdf.setTitle("Kurban İsim Kartları")
+    margin = 15 * mm
+    usable = width - 2 * margin
+
+    for card in cards or [{"number": "-", "name": "", "kurban_type": "", "animal_label": "", "country": "", "year": ""}]:
+        if logo is not None:
+            logo_h = 24 * mm
+            pdf.drawImage(logo, (width - 60 * mm) / 2, height - margin - logo_h, width=60 * mm, height=logo_h,
+                          preserveAspectRatio=True, mask="auto")
+        else:
+            pdf.setFillColor(muted)
+            pdf.setFont(bold, 20)
+            pdf.drawCentredString(width / 2, height - margin - 12 * mm, tr_upper(org_name)[:60])
+
+        number = f"KURBAN NO: {card.get('number') or '-'}"
+        pdf.setFillColor(red)
+        pdf.setFont(bold, _fit(pdf, number, bold, 44, usable))
+        pdf.drawCentredString(width / 2, height - margin - 48 * mm, number)
+
+        name = tr_upper(str(card.get("name") or ""))
+        size = _fit(pdf, name, bold, 110, usable)
+        pdf.setFillColor(colors.black)
+        pdf.setFont(bold, size)
+        pdf.drawCentredString(width / 2, height / 2 - size * 0.32, name)
+
+        title = tr_upper(" – ".join(x for x in (
+            f"{card.get('kurban_type')} Kurban" if card.get("kurban_type") else "", card.get("animal_label") or "") if x))
+        pdf.setFillColor(red)
+        pdf.setFont(bold, _fit(pdf, title, bold, 38, usable))
+        pdf.drawCentredString(width / 2, margin + 34 * mm, title)
+
+        place = " - ".join(str(x) for x in (card.get("country"), card.get("year")) if x)
+        pdf.setFillColor(colors.black)
+        pdf.setFont(font, 28)
+        pdf.drawCentredString(width / 2, margin + 18 * mm, place[:60])
+        if card.get("share_number") and card.get("capacity"):
+            pdf.setFillColor(muted)
+            pdf.setFont(font, 14)
+            pdf.drawCentredString(width / 2, margin + 6 * mm, f"{card['share_number']}. hisse / {card['capacity']}")
+        pdf.showPage()
+    pdf.save()
+    return buffer.getvalue()

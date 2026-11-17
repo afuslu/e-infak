@@ -810,6 +810,12 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
     row = _donation_row(first, await _staff_names(db, org_id))
     row["receipt_numbers"] = [d.receipt_number for d in donations]
     row["total_cents"] = sum(d.amount_cents for d in donations)
+    if effects.get("kurban_shares"):
+        # Kurban numarası kayıt anında belli olur (kampanyada otomatik yerleştirme açıksa).
+        from app.services.kurban_placement import kurban_numbers
+
+        numbers = await kurban_numbers(db, [d.id for d in donations])
+        row["kurban_shares"] = [share for d in donations for share in numbers.get(d.id, [])]
     return row
 
 

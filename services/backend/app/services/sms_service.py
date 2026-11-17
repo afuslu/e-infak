@@ -91,6 +91,7 @@ SMS_VARIABLES = {
     "kimin_adina": "Kimin adına",
     "kurban_no": "Kurban küpe / sıra no",
     "portal": "Bağışçı paneli adresi",
+    "video": "Kurban kesim videosu bağlantısı (yoksa bağışçı paneli)",
     "kurum": "Kurum adı",
     "kurum_unvan": "Kurumun resmî unvanı / hesap sahibi",
     "kurum_telefon": "Kurum telefonu",
@@ -121,7 +122,7 @@ SMS_EVENTS: dict[str, tuple[str, str, str, str]] = {
     "kurban_kesildi": (
         "Kurban kesildi", "auto", "Kurban Kesildi",
         "Sayın {ad_soyad}, {kimin_adina} adına vekaletiniz yerine getirilmiş, kurbanınız ({kurban_no}) "
-        "kesilmiştir. Allah kabul etsin. Video: {portal}",
+        "kesilmiştir. Allah kabul etsin. Video: {video}",
     ),
     "aidat_hatirlatma": (
         "Aidat hatırlatması (vade günü)", "off", "Aidat Hatırlatma",
@@ -227,7 +228,7 @@ async def build_context(db: AsyncSession, org_id: UUID, *, donor=None, donation=
         base = site_url(org)
         context.update(kurum=org.name, kurum_unvan=org.account_holder or org.legal_name or org.name,
                        kurum_telefon=org.phone or "", iban=org.iban or "",
-                       portal=f"{base}/bagisci", odeme_linki=base)
+                       portal=f"{base}/bagisci", video=f"{base}/bagisci", odeme_linki=base)
         if campaign_id:
             camp = await db.get(Campaign, campaign_id)
             if camp and camp.slug:
