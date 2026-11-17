@@ -274,7 +274,7 @@ export default function KurbanAdminPage() {
     const { ids, videoUrl, notify, date } = slaughterModal
     setSlaughterModal(null)
     await run(() => v1Send('post', '/kurban/animals/slaughter', {
-      items: ids.map((animal_id) => ({ animal_id, video_url: videoUrl.trim() || null })), notify,
+      items: ids.map((animal_id) => ({ animal_id, video_url: ids.length === 1 ? videoUrl.trim() || null : null })), notify,
       // Bugünden farklı bir gün seçildiyse kesim günü olarak o yazılır.
       slaughtered_on: date && date !== todayIso() ? date : undefined,
     }), (r) => `${r.marked} hayvan kesildi olarak işaretlendi, ${r.sms_queued} SMS kuyruğa alındı${r.sms_failed ? `, ${r.sms_failed} SMS gönderilemedi` : ''}`)
@@ -470,16 +470,16 @@ export default function KurbanAdminPage() {
                 Hisseleri Dağıt ({summary.unassigned_shares})
               </button>
             )}
-            {selectedId && (
+            {selectedId && canPdf && (
               <button
                 type="button"
                 onClick={() => downloadFile(`/kurban/campaigns/${selectedId}/papers.pdf`, 'kurban-kagitlari.pdf', {
-                  status: animalFilter === 'slaughtered' ? 'slaughtered' : 'waiting',
+                  status: tab === 'animals' && animalFilter === 'slaughtered' ? 'slaughtered' : 'waiting',
                 }).catch((err) => toast.error(apiErrorMessage(err, 'PDF indirilemedi')))}
                 className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
               >
                 <FileText className="h-4 w-4 text-emerald-600" />
-                {animalFilter === 'slaughtered' ? 'Kesilen Kağıtlar (PDF)' : 'Kurban Kağıtları (PDF)'}
+                {tab === 'animals' && animalFilter === 'slaughtered' ? 'Kesilen Kağıtlar (PDF)' : 'Kurban Kağıtları (PDF)'}
               </button>
             )}
             {selectedId && canPdf && (
@@ -487,7 +487,7 @@ export default function KurbanAdminPage() {
                 type="button"
                 title="Her hissedar için ayrı sayfa: kurban no, ad, niyet ve cins"
                 onClick={() => downloadCards(`/kurban/campaigns/${selectedId}/cards.pdf`, {
-                  status: animalFilter === 'slaughtered' ? 'slaughtered' : 'waiting',
+                  status: tab === 'animals' && animalFilter === 'slaughtered' ? 'slaughtered' : 'waiting',
                 })}
                 className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
               >
@@ -749,7 +749,7 @@ export default function KurbanAdminPage() {
                   {tab === 'animals' ? (
                     <>
                       {[
-                        { label: 'Tümü', active: !animalFilter && !animalPartialOnly, onClick: () => { setAnimalFilter(''); setAnimalPartialOnly(false) } },
+                        { label: 'Tümü', active: !animalFilter && !animalPartialOnly && !animalVideoStatus, onClick: () => { setAnimalFilter(''); setAnimalPartialOnly(false); setAnimalVideoStatus('') } },
                         { label: 'Kesim Bekleyen', active: animalFilter === 'waiting' && !animalPartialOnly, onClick: () => { setAnimalFilter('waiting'); setAnimalPartialOnly(false) } },
                         { label: 'Boş Yeri Olan', active: animalPartialOnly, onClick: () => { setAnimalFilter('waiting'); setAnimalPartialOnly(true) } },
                         { label: 'Kesilenler', active: animalFilter === 'slaughtered', onClick: () => { setAnimalFilter('slaughtered'); setAnimalPartialOnly(false) } },
@@ -807,7 +807,7 @@ export default function KurbanAdminPage() {
               </div>
 
               {showFilters && (
-                <div className="grid gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-3">
+                <div className={`grid gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5 sm:grid-cols-2 ${tab === 'shares' ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
                   {tab === 'animals' ? (
                     <>
                       <Label label="Kesim Durumu">
@@ -866,6 +866,12 @@ export default function KurbanAdminPage() {
                           <option value="">Tüm durumlar</option>
                           <option value="waiting">Bekliyor</option>
                           <option value="slaughtered">Kesildi</option>
+                        </select>
+                      </Label>
+                      <Label label="SMS Bildirimi">
+                        <select className={inputClass} value={shareNotifiedOnly ? 'true' : ''} onChange={(e) => { setShareNotifiedOnly(e.target.value === 'true'); setSharePage(1) }}>
+                          <option value="">Tümü</option>
+                          <option value="true">SMS gönderilenler</option>
                         </select>
                       </Label>
                     </>
@@ -1085,20 +1091,37 @@ export default function KurbanAdminPage() {
                           </div>
 
                           <ol className="mt-3.5 divide-y divide-slate-100 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-1.5 text-xs">
-                            {a.shares.map((s) => (
-                              <li key={s.id} className="flex items-center justify-between gap-2 py-1.5">
-                                <span className="truncate font-semibold text-slate-800">
-                                  <span className="mr-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-black text-emerald-800">
-                                    {s.share_number}
+                            {a.shares.map((s) => {
+                              const fullShare = canWrite && !isSlaughtered ? shares.find((sh) => sh.id === s.id) : undefined
+                              return (
+                                <li key={s.id} className="flex items-center justify-between gap-2 py-1.5">
+                                  {fullShare ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => editShare(fullShare)}
+                                      title="Hisseyi düzenle"
+                                      className="truncate text-left font-semibold text-slate-800 hover:text-emerald-700 hover:underline"
+                                    >
+                                      <span className="mr-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-black text-emerald-800">
+                                        {s.share_number}
+                                      </span>
+                                      {s.name}
+                                    </button>
+                                  ) : (
+                                    <span className="truncate font-semibold text-slate-800">
+                                      <span className="mr-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-[10px] font-black text-emerald-800">
+                                        {s.share_number}
+                                      </span>
+                                      {s.name}
+                                    </span>
+                                  )}
+                                  <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-slate-500">
+                                    {types.find((t) => t.key === s.kurban_type)?.label}
+                                    {s.notified && <MailCheck className="h-3.5 w-3.5 text-emerald-600" aria-label="Kesim SMS bildirimi gönderildi" />}
                                   </span>
-                                  {s.name}
-                                </span>
-                                <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-slate-500">
-                                  {types.find((t) => t.key === s.kurban_type)?.label}
-                                  {s.notified && <MailCheck className="h-3.5 w-3.5 text-emerald-600" aria-label="Kesim SMS bildirimi gönderildi" />}
-                                </span>
-                              </li>
-                            ))}
+                                </li>
+                              )
+                            })}
                             {Array.from({ length: Math.max(0, a.capacity - a.shares.length) }).map((_, i) => (
                               <li key={`empty-${i}`} className="py-1.5 text-xs italic text-slate-400">
                                 — Boş hisse ({a.shares.length + i + 1}/{a.capacity})
@@ -1415,6 +1438,7 @@ export default function KurbanAdminPage() {
                 }}
                 onSubmit={(f) => saveCampaign(f, selected)}
                 linked={!!selected.donation_campaign_id}
+                lockAnimalType={summary.shares > 0 || summary.animals_waiting + summary.animals_slaughtered > 0}
                 key={selected.id}
               />
             </Card>
@@ -1490,14 +1514,20 @@ export default function KurbanAdminPage() {
           onClose={() => setSlaughterModal(null)}
         >
           <form onSubmit={submitSlaughter} className="space-y-4">
-            <Label label="Kesim Videosu Bağlantısı (isteğe bağlı)">
-              <Input
-                value={slaughterModal.videoUrl}
-                onChange={(e) => setSlaughterModal({ ...slaughterModal, videoUrl: e.target.value })}
-                placeholder="https://..."
-              />
-              <span className="mt-1 block text-[11px] text-slate-500">Bağışçı panelinde ve SMS içinde görüntülenecektir.</span>
-            </Label>
+            {slaughterModal.ids.length === 1 ? (
+              <Label label="Kesim Videosu Bağlantısı (isteğe bağlı)">
+                <Input
+                  value={slaughterModal.videoUrl}
+                  onChange={(e) => setSlaughterModal({ ...slaughterModal, videoUrl: e.target.value })}
+                  placeholder="https://..."
+                />
+                <span className="mt-1 block text-[11px] text-slate-500">Bağışçı panelinde ve SMS içinde görüntülenecektir.</span>
+              </Label>
+            ) : (
+              <p className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                Toplu kesimde her hayvanın mevcut video bağlantısı korunur; video linklerini hayvan kartlarından ayrı ayrı girebilirsiniz.
+              </p>
+            )}
             <Label label="Kesim Tarihi">
               <Input
                 type="date"
@@ -1660,12 +1690,13 @@ export default function KurbanAdminPage() {
 type CampaignFormValues = typeof emptyCampaign
 
 function CampaignForm({
-  initial, onSubmit, isNew, linked,
+  initial, onSubmit, isNew, linked, lockAnimalType,
 }: {
   initial: CampaignFormValues
   onSubmit: (form: CampaignFormValues) => void
   isNew?: boolean
   linked?: boolean
+  lockAnimalType?: boolean
 }) {
   const [form, setForm] = useState(initial)
   const set = <K extends keyof CampaignFormValues>(k: K, v: CampaignFormValues[K]) => setForm((f) => ({ ...f, [k]: v }))
@@ -1680,9 +1711,10 @@ function CampaignForm({
         <Input required inputMode="decimal" value={form.price} onChange={(e) => set('price', e.target.value)} />
       </Label>
       <Label label="Hayvan türü">
-        <select className={inputClass} value={form.animal_type} onChange={(e) => set('animal_type', e.target.value as 'cow' | 'sheep')}>
+        <select className={inputClass} value={form.animal_type} disabled={lockAnimalType} onChange={(e) => set('animal_type', e.target.value as 'cow' | 'sheep')}>
           <option value="cow">Büyükbaş (7 hisse)</option><option value="sheep">Küçükbaş (1 hisse)</option>
         </select>
+        {lockAnimalType && <span className="mt-1 block text-[11px] text-slate-500">Kayıtlı hisse/hayvan olduğu için değiştirilemez.</span>}
       </Label>
       <Label label="Cins adı (kâğıtta ve kartta yazar)">
         <Input
