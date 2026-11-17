@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import {
-  AlertCircle, ArrowDownRight, ArrowDownToLine, ArrowUpRight, Blocks, CalendarDays,
+  AlertCircle, ArrowDownRight, ArrowDownToLine, ArrowUpRight, BellRing, Blocks, CalendarDays,
   ChevronRight, Clock, HandCoins, Hourglass, Megaphone, Receipt, RefreshCw,
   TrendingUp, UserPlus, Users, type LucideIcon,
 } from 'lucide-react'
@@ -141,7 +141,7 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState('')
   const { data: access } = useAdminAccess()
 
-  const [todo, setTodo] = useState<{ transfers?: number; smsFailed?: number; smsWaiting?: number }>({})
+  const [todo, setTodo] = useState<{ transfers?: number; smsFailed?: number; smsWaiting?: number; callToday?: number; callLate?: number }>({})
 
   const loadAnalytics = useCallback(async () => {
     setLoading(true)
@@ -183,6 +183,10 @@ export default function AdminDashboardPage() {
   // Fetch actionable queue counts only for modules enabled for this user/org
   useEffect(() => {
     if (!access) return
+    // Hatırlatıcı belongs to everyone: the staff member's own calls for today.
+    adminGet<{ geciken: number; bugun: number }>('/reminders/summary')
+      .then((r) => setTodo((t) => ({ ...t, callToday: r.data.bugun, callLate: r.data.geciken })))
+      .catch(() => {})
     if (hasFeature(access, 'bank_transactions') && hasModule(access, 'bank')) {
       v1Get<{ total: number }>('/admin/incoming-transfers', { status: 'unmatched', limit: 1 })
         .then((r) => setTodo((t) => ({ ...t, transfers: r.data.total })))
@@ -208,7 +212,8 @@ export default function AdminDashboardPage() {
   const paymentTotalCents = payments.reduce((sum, p) => sum + paymentCents(p), 0)
   const activeBar = selectedBar !== null ? trends[selectedBar] : null
 
-  const hasTodo = !!todo.transfers || !!todo.smsFailed || !!todo.smsWaiting || pendingDonations > 0
+  const callCount = (todo.callToday || 0) + (todo.callLate || 0)
+  const hasTodo = callCount > 0 || !!todo.transfers || !!todo.smsFailed || !!todo.smsWaiting || pendingDonations > 0
 
   return (
     <div className="space-y-6">
@@ -277,6 +282,16 @@ export default function AdminDashboardPage() {
       {/* Bekleyen işler */}
       {hasTodo && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {callCount > 0 && (
+            <Link href="/admin/hatirlatici" className="flex items-center gap-3 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm font-semibold text-primary-800 hover:border-primary-300">
+              <BellRing className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <span className="flex-1">
+                Bugün aranacak: {callCount.toLocaleString('tr-TR')}
+                {!!todo.callLate && <span className="ml-1 font-normal text-red-700">({todo.callLate.toLocaleString('tr-TR')} tanesi gecikmiş)</span>}
+              </span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
           {pendingDonations > 0 && (
             <Link href="/admin/bagislar?status=pending" className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 hover:border-amber-300">
               <Hourglass className="h-5 w-5 shrink-0" aria-hidden="true" />

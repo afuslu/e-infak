@@ -278,6 +278,7 @@ async def approve(
     user_id: UUID,
     on_behalf_of: Optional[str] = None,
     kurban_type: Optional[str] = None,
+    kurban_names: Optional[list[str]] = None,
     note: Optional[str] = None,
     receipt_book_id: Optional[UUID] = None,
     send_receipt: bool = True,
@@ -312,7 +313,9 @@ async def approve(
                  "description": transaction.description, "automatic": automatic, "line": line},
         note=(note if note is not None else suggestion.get("note")) or None,
         on_behalf_of=on_behalf_of, send_receipt=send_receipt,
-        metadata={"kurban_type": kurban_type} if kurban_type else {},
+        # Hissedar adları: hisse başına bir ad; verilmezse hepsi "kimin adına"/bağışçı adını alır.
+        metadata={**({"kurban_type": kurban_type} if kurban_type else {}),
+                  **({"kurban_names": [n for n in kurban_names if n.strip()]} if kurban_names else {})},
     )
     if official_receipt_no:
         # Parts of a split transfer share the first part's paper receipt number.

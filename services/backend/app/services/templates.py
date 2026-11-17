@@ -1081,6 +1081,16 @@ _section("slider-duotone", "Slider: Marka Renkli (Duotone)", "Kapak & Slider", "
         {"image_url": "/demo/quran.webp", "badge": "EĞİTİM", "title": "Geleceği İlimle İnşa Ediyoruz", "text": "Kur'an kursları ve burs projelerimize destek olun.", "button_label": "Destek Ol", "button_url": "/kampanyalar"},
     ]),
 ])
+_section("slider-icon-tabs", "Slider: İkonlu Kategori Sekmeleri", "Kapak & Slider", "Yuvarlatılmış kampanya kartı ve altında ikonlu kategori sekme çubuğu.", [
+    B("slider", layout="card", nav="icon_tabs", height="lg", effect="fade", arrow_style="ghost", autoplay=True, arrows=True, dots=True, slides=[
+        {"image_url": "/demo/winter.webp", "tab_label": "Kış", "tab_icon": "snowflake", "bg_color": "#EFF6FF", "title": "Kış Yardımları", "text": "Soğuk kış günlerinde ailelere yakacak, battaniye ve kışlık giyim ulaştırıyoruz.", "button_label": "Bağış Yap", "button_url": "/kampanyalar", "button2_label": "Detaylı Bilgi", "button2_url": "/hakkimizda"},
+        {"image_url": "/demo/ramadan.webp", "tab_label": "Zekat", "tab_icon": "coins", "bg_color": "#ECFDF5", "title": "Zekat & Fitre", "text": "Zekatlarınızı gerçek ihtiyaç sahiplerine güvenle ve şeffaflıkla ulaştırıyoruz.", "button_label": "Zekat Ver", "button_url": "/kampanyalar", "button2_label": "Zekat Hesapla", "button2_url": "/zekat-hesapla"},
+        {"image_url": "/demo/education.webp", "tab_label": "Eğitim", "tab_icon": "graduation-cap", "bg_color": "#FEFCE8", "title": "Eğitim & Burs", "text": "Öğrencilerin eğitim yolculuğuna burs ve kırtasiye desteğiyle ortak olun.", "button_label": "Burs Ver", "button_url": "/kampanyalar"},
+        {"image_url": "/demo/food.webp", "tab_label": "Sofra", "tab_icon": "utensils", "bg_color": "#FFF7ED", "title": "Sıcak Yemek Sofrası", "text": "Aşevlerimizde her gün binlerce ihtiyaç sahibine sıcak yemek ikram ediyoruz.", "button_label": "Destek Ol", "button_url": "/kampanyalar"},
+        {"image_url": "/demo/water.webp", "tab_label": "Su Kuyusu", "tab_icon": "droplets", "bg_color": "#F0F9FF", "title": "Temiz Su Kuyuları", "text": "Susuzluk çeken köylere kalıcı su kuyuları açarak hayat verin.", "button_label": "Kuyu Açtır", "button_url": "/kampanyalar"},
+        {"image_url": "/demo/orphan.webp", "tab_label": "Yetim", "tab_icon": "smile", "bg_color": "#E0F2FE", "title": "Yetim Sponsorluğu", "text": "Siz de sponsor olun, bir yetimin hayatına iyilikle dokunun.", "button_label": "Sponsor Ol", "button_url": "/kampanyalar", "button2_label": "Detaylı Bilgi", "button2_url": "/hakkimizda"},
+    ]),
+])
 _section("slider-vertical-thumbs", "Slider: Dikey Küçük Resimli Vitrin", "Kapak & Slider", "Sol ana vitrin ve sağda dikey slayt seçici liste.", [
     B("slider", layout="vertical_thumbs", height="lg", effect="fade", autoplay=True, arrows=True, slides=[
         {"image_url": "/demo/water.webp", "badge": "SU KUYUSU", "title": "Temiz Suya Kavuşan Köyler", "text": "Afrika ve Asya'da kalıcı su kuyuları açıyoruz.", "button_label": "Bağış Yap", "button_url": "/kampanyalar", "quick_amounts": "250, 500, 1000"},

@@ -1,5 +1,5 @@
 import {
-  ArrowDownToLine, BarChart3, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, FileUp, Film,
+  ArrowDownToLine, BarChart3, BellRing, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, FileUp, Film,
   FolderOpen, Globe2, GraduationCap, HandCoins, HandHelping, HeartHandshake, History, Home, IdCard, KeyRound,
   Landmark, LayoutDashboard, LogIn, type LucideIcon, MailPlus, Megaphone, MessagesSquare, Newspaper, Package,
   PackageCheck, PiggyBank, Plug, Repeat, Send, Settings, ShieldCheck, Sparkles, Tags, Users, Wallet,
@@ -29,6 +29,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/raporlar', label: 'Raporlar', icon: BarChart3, feature: 'reports_basic', module: 'reports' },
       { href: '/admin/ai', label: 'AI Öngörüleri', icon: Sparkles, feature: 'reports_basic', module: ['reports', 'donors'] },
       { href: '/admin/gorevler', label: 'Görevler & Takvim', icon: CalendarDays, feature: 'tasks' },
+      { href: '/admin/hatirlatici', label: 'Hatırlatıcı', icon: BellRing },
     ],
   },
   {

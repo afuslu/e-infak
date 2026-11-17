@@ -1,120 +1,68 @@
-import { useState } from 'react'
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native'
-import { useRouter } from 'expo-router'
-import { useAuth } from '../src/context/AuthContext'
+import React, { useState } from 'react';
+import { Image, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAuth } from '@/context/AuthContext';
+import { Btn, Field, Notice, Screen } from '@/components/ui';
+import { MULTI_ORG_MESSAGE, webBase } from '@/lib/api';
+import { openUrl } from '@/lib/format';
+import { colors, font, space } from '@/theme';
 
-export default function LoginScreen() {
-  const router = useRouter()
-  const { signIn } = useAuth()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [tenantHost, setTenantHost] = useState('')
-  const [loading, setLoading] = useState(false)
+export default function Login() {
+  const { signIn } = useAuth();
+  const insets = useSafeAreaInsets();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [host, setHost] = useState('');
+  const [askHost, setAskHost] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password) {
-      Alert.alert('Eksik Bilgi', 'E-posta ve şifre zorunludur.')
-      return
-    }
-    setLoading(true)
+  const submit = async () => {
+    if (!email.trim() || !password) return setError('E-posta ve şifrenizi girin.');
+    if (askHost && !host.trim()) return setError('Kurumunuzun web adresini girin.');
+    setBusy(true);
+    setError(null);
     try {
-      await signIn(email, password, tenantHost)
-      router.replace('/(tabs)')
-    } catch (err: any) {
-      Alert.alert('Giriş Başarısız', err?.message || 'Bilgilerinizi kontrol edin.')
+      await signIn(email, password, askHost ? host : undefined);
+    } catch (e: any) {
+      const message: string = e?.message || 'Giriş yapılamadı.';
+      // Aynı e-posta birden çok kurumda kayıtlıysa backend platform adresinden girişi reddeder.
+      if (message.includes(MULTI_ORG_MESSAGE)) {
+        setAskHost(true);
+        setError('Bu e-posta birden fazla kurumda kayıtlı. Kurumunuzun web adresini yazıp tekrar deneyin.');
+      } else {
+        setError(message);
+      }
     } finally {
-      setLoading(false)
+      setBusy(false);
     }
-  }
+  };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.page}
-    >
-      <View style={styles.card}>
-        <Text style={styles.title}>e-İnfak Hesabına Giriş</Text>
-        <Text style={styles.sub}>
-          Bağışçı veya yetkili personel hesabınızla oturum açın.
-        </Text>
-
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="E-posta adresiniz"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={styles.input}
-        />
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Şifreniz"
-          secureTextEntry
-          style={styles.input}
-        />
-        <TextInput
-          value={tenantHost}
-          onChangeText={setTenantHost}
-          placeholder="Kurum alan adı (opsiyonel, ör. dernek.e-infak.org)"
-          autoCapitalize="none"
-          style={styles.input}
-        />
-
-        <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.btnText}>Giriş Yap</Text>
-          )}
-        </TouchableOpacity>
+    <Screen style={{ paddingTop: insets.top + space.xl * 2, gap: space.lg }}>
+      <View style={styles.brand}>
+        <Image source={require('../assets/icon.png')} style={styles.logo} accessibilityIgnoresInvertColors />
+        <Text style={styles.title}>e-İnfak Yönetim</Text>
+        <Text style={styles.sub}>Kurum yetkilisi hesabınızla giriş yapın. Kurumunuz hesabınızdan otomatik belirlenir.</Text>
       </View>
-    </KeyboardAvoidingView>
-  )
+      {error ? <Notice text={error} tone="danger" /> : null}
+      <Field label="E-posta" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false}
+        keyboardType="email-address" autoComplete="email" textContentType="username" placeholder="ad@kurum.org" />
+      <Field label="Şifre" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password"
+        textContentType="password" onSubmitEditing={submit} returnKeyType="go" />
+      {askHost ? (
+        <Field label="Kurum web adresi" value={host} onChangeText={setHost} autoCapitalize="none" autoCorrect={false}
+          keyboardType="url" placeholder="ornekdernek.org" hint="Kurumunuzun bağış sitesinin adresi." />
+      ) : null}
+      <Btn title="Giriş yap" onPress={submit} loading={busy} />
+      <Btn title="Şifremi unuttum" variant="ghost" onPress={() => openUrl(`${webBase()}/sifremi-unuttum`)} />
+    </Screen>
+  );
 }
 
 const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: '#f8fafc',
-  },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 18,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    gap: 12,
-  },
-  title: { fontSize: 20, fontWeight: '800', color: '#0f172a' },
-  sub: { fontSize: 13, color: '#64748b', marginBottom: 4 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    fontSize: 14,
-    backgroundColor: '#f8fafc',
-  },
-  btn: {
-    marginTop: 6,
-    backgroundColor: '#059669',
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: 'center',
-  },
-  btnText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
-})
+  brand: { alignItems: 'center', gap: space.sm, marginBottom: space.md },
+  logo: { width: 84, height: 84, borderRadius: 20 },
+  title: { fontSize: font.xxl, fontWeight: '800', color: colors.text },
+  sub: { fontSize: font.md, color: colors.muted, textAlign: 'center', lineHeight: 21 },
+});

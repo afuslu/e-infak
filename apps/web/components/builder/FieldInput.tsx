@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import type { Campaign } from '@e-infak/api-client'
 import type { FieldSpec } from '../../lib/blocks'
 import { ImageField } from '../admin/ImageField'
+import type { LinkGroup } from './link-presets'
 
 /** A stored ISO time (UTC) as the browser's local "YYYY-MM-DDTHH:mm", which is what datetime-local shows and edits. */
 function localDateTime(value: unknown): string {
@@ -17,6 +18,7 @@ const input = 'w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 tex
 
 export interface FieldContext {
   campaigns: Campaign[]
+  linkGroups?: LinkGroup[]
   /** Text shown under translatable fields while editing another language. */
   baseValue?: unknown
   /** Base-language items for a translatable list field. */
@@ -170,11 +172,39 @@ export function FieldInput({ spec, value, onChange, ctx }: { spec: FieldSpec; va
   const base = typeof ctx.baseValue === 'string' && ctx.baseValue ? ctx.baseValue : undefined
   switch (spec.kind) {
     case 'text':
+      return (
+        <Label spec={spec}>
+          <input className={input} value={value ?? ''} maxLength={spec.max} placeholder={base || spec.placeholder || ''}
+            onChange={(e) => onChange(e.target.value)} />
+          {spec.max && typeof value === 'string' && value.length > 0 && (
+            <span className="mt-0.5 block text-end text-[10px] font-normal text-gray-400">{value.length} / {spec.max}</span>
+          )}
+        </Label>
+      )
     case 'url':
       return (
         <Label spec={spec}>
-          <input className={input} value={value ?? ''} maxLength={spec.max} placeholder={base || spec.placeholder || (spec.kind === 'url' ? '/sayfa veya https://…' : '')}
+          <input className={input} value={value ?? ''} maxLength={spec.max} placeholder={base || spec.placeholder || '/sayfa veya https://…'}
             onChange={(e) => onChange(e.target.value)} />
+          {ctx.linkGroups && ctx.linkGroups.length > 0 && (
+            <select
+              className="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-600 outline-none focus:border-blue-500"
+              value=""
+              onChange={(e) => { if (e.target.value) onChange(e.target.value) }}
+              aria-label={`${spec.label} hazır bağlantı seç`}
+            >
+              <option value="">Hazır bağlantı seç…</option>
+              {ctx.linkGroups.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.items.map((item) => (
+                    <option key={`${g.group}:${item.url}:${item.label}`} value={item.url}>
+                      {item.label} ({item.url})
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          )}
           {spec.max && typeof value === 'string' && value.length > 0 && (
             <span className="mt-0.5 block text-end text-[10px] font-normal text-gray-400">{value.length} / {spec.max}</span>
           )}

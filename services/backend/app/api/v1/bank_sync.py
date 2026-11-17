@@ -301,6 +301,8 @@ class ApproveLine(BaseModel):
     amount_cents: int = Field(gt=0)
     on_behalf_of: Optional[str] = Field(default=None, max_length=200)
     kurban_type: Optional[str] = Field(default=None, max_length=20)
+    # Kurban kalemi: hisse başına hissedar adı (her hisse ayrı kâğıda/karta yazılır)
+    kurban_names: list[str] = Field(default_factory=list, max_length=700)
 
 
 class ApproveIn(BaseModel):
@@ -366,7 +368,8 @@ async def approve_transfer(transfer_id: UUID, payload: ApproveIn, request: Reque
             # One e-mail and one SMS per transfer, not per part.
             donations.append(await approve(
                 db, transfer, donor=donor, campaign=campaign, user_id=current_user.id,
-                on_behalf_of=line.on_behalf_of or payload.on_behalf_of, kurban_type=line.kurban_type, note=payload.note,
+                on_behalf_of=line.on_behalf_of or payload.on_behalf_of, kurban_type=line.kurban_type,
+                kurban_names=[n.strip()[:200] for n in line.kurban_names], note=payload.note,
                 receipt_book_id=payload.receipt_book_id, send_receipt=payload.send_receipt and index == 0,
                 amount_cents=line.amount_cents, line=index,
                 official_receipt_no=donations[0].official_receipt_no if donations else None))

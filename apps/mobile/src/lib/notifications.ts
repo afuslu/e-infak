@@ -1,77 +1,56 @@
-import { Platform } from 'react-native'
-import Constants from 'expo-constants'
-import * as Device from 'expo-device'
-import * as Notifications from 'expo-notifications'
-import * as SecureStore from 'expo-secure-store'
-import { apiFetch } from './api'
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import { api } from './api';
+import { getItem, removeItem, setItem } from './storage';
 
-const FRIDAY_REMINDER_KEY = 'einfak_friday_reminder_id'
+const KEY_PUSH = 'einfak_push_token';
+const supported = Platform.OS !== 'web';
 
-export function initNotificationHandler() {
+export function setupNotificationHandler() {
+  if (!supported) return;
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
-      shouldSetBadge: true,
+      shouldSetBadge: false,
     }),
-  })
+  });
 }
 
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (!Device.isDevice) return null
-
-  const { status: existingStatus } = await Notifications.getPermissionsAsync()
-  let finalStatus = existingStatus
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync()
-    finalStatus = status
+/** İzin ister, Expo push token'ı alır ve backend'e kaydeder. Sonuç mesajı döner. */
+export async function registerPush(ask = true): Promise<{ ok: boolean; message: string }> {
+  if (!supported) return { ok: false, message: 'Bildirimler tarayıcı önizlemesinde desteklenmez.' };
+  if (!Device.isDevice) return { ok: false, message: 'Bildirimler yalnızca gerçek cihazda çalışır.' };
+  let { status } = await Notifications.getPermissionsAsync();
+  if (status !== 'granted' && ask) status = (await Notifications.requestPermissionsAsync()).status;
+  if (status !== 'granted') return { ok: false, message: 'Bildirim izni verilmedi.' };
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Genel',
+      importance: Notifications.AndroidImportance.DEFAULT,
+    });
   }
-  if (finalStatus !== 'granted') return null
-
-  const projectId =
-    Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId
-  const tokenRes = await Notifications.getExpoPushTokenAsync(
-    projectId ? { projectId } : undefined,
-  )
-  const token = tokenRes.data
-  if (token) {
-    const platform = Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'expo'
-    await apiFetch('/mobile/device-token', {
-      method: 'POST',
-      body: JSON.stringify({ token, platform }),
-    }).catch(() => {})
-  }
-  return token
+  const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  await api('/mobile/device-token', { method: 'POST', body: { token, platform: Platform.OS } });
+  await setItem(KEY_PUSH, token);
+  return { ok: true, message: 'Bildirimler açık.' };
 }
 
-export async function isFridayReminderEnabled(): Promise<boolean> {
-  const id = await SecureStore.getItemAsync(FRIDAY_REMINDER_KEY)
-  return Boolean(id)
+export async function unregisterPush(): Promise<void> {
+  if (!supported) return;
+  const token = await getItem(KEY_PUSH);
+  if (!token) return;
+  await api('/mobile/device-token', { method: 'DELETE', body: { token } }).catch(() => {});
+  await removeItem(KEY_PUSH);
 }
 
-export async function toggleFridayReminder(enable: boolean): Promise<boolean> {
-  const existingId = await SecureStore.getItemAsync(FRIDAY_REMINDER_KEY)
-  if (existingId) {
-    await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
-    await SecureStore.deleteItemAsync(FRIDAY_REMINDER_KEY)
-  }
-  if (!enable) return false
-
-  const { status } = await Notifications.requestPermissionsAsync()
-  if (status !== 'granted') return false
-
-  const id = await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Hayırlı Cumalar',
-      body: 'Bugün bir sadaka veya yetim bağışı ile gönüllere dokunabilirsiniz.',
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-      weekday: 6, // Friday in Expo (1=Sunday .. 7=Saturday)
-      hour: 11,
-      minute: 0,
-    },
-  })
-  await SecureStore.setItemAsync(FRIDAY_REMINDER_KEY, id)
-  return true
+export async function pushEnabled(): Promise<boolean> {
+  if (!supported) return false;
+  return !!(await getItem(KEY_PUSH));
 }
+
+export const sendTestPush = () => api('/mobile/test-push', { method: 'POST' });

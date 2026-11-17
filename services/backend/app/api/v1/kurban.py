@@ -355,6 +355,8 @@ async def bulk_receipts(request: Request, campaign_id: UUID, payload: BulkReceip
     kc = await _campaign(db, org_id, campaign_id)
     if not kc.donation_campaign_id:
         raise HTTPException(status_code=409, detail="Bu kurban kampanyası bir bağış kalemine bağlı değil; önce Kampanya Ayarları'ndan bağlayın")
+    if kc.status == KurbanCampaignStatus.COMPLETED:
+        raise HTTPException(status_code=409, detail="Kurban kampanyası tamamlanmış; yeni hisse kaydı alınamaz")
     manual: list[crm.ManualDonationIn] = []
     for index, row in enumerate(payload.rows, start=1):
         names = [n.strip() for n in (row.on_behalf_of or "").replace("\n", ";").split(";") if n.strip()]
@@ -406,6 +408,37 @@ def _fold_header(value) -> str:
     for src, dst in (("ı", "i"), ("İ".lower(), "i"), ("ğ", "g"), ("ü", "u"), ("ş", "s"), ("ö", "o"), ("ç", "c")):
         text = text.replace(src, dst)
     return "".join(ch for ch in text if ch.isalnum())
+
+
+@router.get("/bulk-template.xlsx")
+async def bulk_template(_: User = WRITE):
+    """Toplu giriş şablonu: ilk satır başlıklar (bulk-parse bunları tanır), ikinci satır örnek."""
+    from io import BytesIO
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Kurban"
+    ws.append(["Bağışçı", "Telefon", "Kimin Adına", "Niyet", "Hisse", "Ödeme", "Ödeme Yöntemi"])
+    ws.append(["Ahmet Yılmaz", "05551112233", "Merhum Mehmet Yılmaz; Annesi", "Vacip", 2, "Alındı", "Nakit"])
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    for column, width in zip("ABCDEFG", (24, 16, 34, 12, 8, 12, 16)):
+        ws.column_dimensions[column].width = width
+    lists = {"D": ",".join(KURBAN_TYPES.values()), "F": "Alındı,Bekliyor", "G": "Nakit,Havale,Kart"}
+    for column, options in lists.items():
+        rule = DataValidation(type="list", formula1=f'"{options}"', allow_blank=True)
+        ws.add_data_validation(rule)
+        rule.add(f"{column}2:{column}501")
+    ws.freeze_panes = "A2"
+    buffer = BytesIO()
+    wb.save(buffer)
+    return Response(content=buffer.getvalue(),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="kurban-toplu-giris-sablonu.xlsx"'})
 
 
 @router.post("/bulk-parse")
@@ -881,6 +914,7 @@ async def list_shares(
     assigned: Optional[bool] = None,
     status_filter: Annotated[Optional[Literal["waiting", "slaughtered"]], Query(alias="status")] = None,
     kurban_type: Annotated[Optional[str], Query(max_length=16)] = None,
+    notified: Optional[bool] = None,
     q: Annotated[Optional[str], Query(max_length=100)] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=1000)] = 100,
@@ -899,6 +933,10 @@ async def list_shares(
         conditions.append(KurbanShare.status == KurbanStatus(status_filter))
     if kurban_type:
         conditions.append(KurbanShare.kurban_type == kurban_type)
+    if notified is True:
+        conditions.append(KurbanShare.notified_at.is_not(None))
+    elif notified is False:
+        conditions.append(KurbanShare.notified_at.is_(None))
     if q:
         like = f"%{q.strip()}%"
         conditions.append(or_(KurbanShare.donor_name.ilike(like), KurbanShare.on_behalf_of.ilike(like),
@@ -939,6 +977,50 @@ class ShareUpdate(BaseModel):
     @classmethod
     def clean(cls, value):
         return sanitize_public_text(value) if value else value
+
+
+class ShareMove(BaseModel):
+    share_ids: List[UUID] = Field(min_length=1, max_length=500)
+    # Hedef hayvan; verilmezse hisselerin ataması kaldırılır.
+    animal_id: Optional[UUID] = None
+
+
+@router.post("/shares/move", dependencies=[Depends(require_capability("kurban.manage"))])
+async def move_shares(request: Request, payload: ShareMove, db: AsyncSession = Depends(get_db),
+                      current_user: User = WRITE):
+    """Seçilen hisseleri tek işlemde bir hayvana taşır (ya da boşa çıkarır): hepsi ya da hiçbiri.
+
+    Eskiden ekran her hisse için ayrı istek atıyordu; biri başarısız olunca yarısı taşınmış kalıyordu.
+    """
+    org_id = _org_id(request)
+    shares = (await db.execute(select(KurbanShare).where(
+        KurbanShare.organization_id == org_id, KurbanShare.id.in_(payload.share_ids)).with_for_update())).scalars().all()
+    if len(shares) != len(set(payload.share_ids)):
+        raise HTTPException(status_code=404, detail="Hisselerden bazıları bulunamadı")
+    if any(s.status == KurbanStatus.SLAUGHTERED for s in shares):
+        raise HTTPException(status_code=409, detail="Kesilmiş hisse taşınamaz")
+    if payload.animal_id is None:
+        for share in shares:
+            share.animal_id, share.share_number = None, None
+    else:
+        animal = await _animal(db, org_id, payload.animal_id, lock=True)
+        if animal.status == KurbanStatus.SLAUGHTERED:
+            raise HTTPException(status_code=409, detail="Kesilmiş hayvana hisse eklenemez")
+        if any(s.campaign_id != animal.campaign_id for s in shares):
+            raise HTTPException(status_code=409, detail="Hisse yalnız kendi kampanyasındaki hayvana taşınabilir")
+        moving = [s for s in shares if s.animal_id != animal.id]
+        taken = set((await db.execute(select(KurbanShare.share_number).where(
+            KurbanShare.animal_id == animal.id, KurbanShare.id.notin_([s.id for s in moving])))).scalars().all())
+        free = _free_numbers(taken, animal.capacity)
+        if len(free) < len(moving):
+            raise HTTPException(status_code=409, detail=(
+                f"{animal.animal_number} numaralı hayvanda {len(free)} boş hisse var; {len(moving)} hisse taşınamaz"))
+        for share, number in zip(moving, free):
+            share.animal_id, share.share_number = animal.id, number
+    _audit(db, org_id, current_user, "kurban_hisse_toplu_tasi", {
+        "shares": [str(s.id) for s in shares], "animal_id": str(payload.animal_id) if payload.animal_id else None})
+    await db.commit()
+    return {"moved": len(shares)}
 
 
 @router.put("/shares/{share_id}", dependencies=[Depends(require_capability("kurban.manage"))])

@@ -1,79 +1,106 @@
-import { useEffect } from 'react'
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
-import { Stack } from 'expo-router'
-import { StatusBar } from 'expo-status-bar'
-import { Lock } from 'lucide-react-native'
-import { AuthProvider, useAuth } from '../src/context/AuthContext'
-import { initNotificationHandler } from '../src/lib/notifications'
-import { COLORS } from '../src/theme'
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, StyleSheet, Text, View } from 'react-native';
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Lock } from 'lucide-react-native';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { ToastHost } from '@/components/toast';
+import { Btn, Loading } from '@/components/ui';
+import { authenticate, biometricEnabled } from '@/lib/biometric';
+import { setupNotificationHandler } from '@/lib/notifications';
+import { colors, font, space } from '@/theme';
 
-function AppShell() {
-  const { lockedByBiometric, unlockWithBiometric } = useAuth()
+setupNotificationHandler();
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: (count, error: any) => count < 1 && !(error?.status >= 400 && error?.status < 500),
+    },
+  },
+});
+
+function Gate() {
+  const { status } = useAuth();
+  const [locked, setLocked] = useState(false);
+  const away = useRef<number | null>(null);
+
+  const unlock = useCallback(async () => {
+    if (await authenticate()) setLocked(false);
+  }, []);
+
+  // Açılışta ve arka plandan dönüşte (30 sn'den uzun) biyometrik kilit.
   useEffect(() => {
-    initNotificationHandler()
-  }, [])
+    if (status !== 'signedIn') return setLocked(false);
+    let alive = true;
+    biometricEnabled().then((on) => {
+      if (on && alive) {
+        setLocked(true);
+        unlock();
+      }
+    });
+    const subscription = AppState.addEventListener('change', async (state) => {
+      if (state === 'background') away.current = Date.now();
+      if (state === 'active' && away.current && Date.now() - away.current > 30_000 && (await biometricEnabled())) {
+        setLocked(true);
+        unlock();
+      }
+      if (state === 'active') away.current = null;
+    });
+    return () => {
+      alive = false;
+      subscription.remove();
+    };
+  }, [status, unlock]);
 
-  useEffect(() => {
-    if (lockedByBiometric) {
-      unlockWithBiometric()
-    }
-  }, [lockedByBiometric])
-
-  if (lockedByBiometric) {
+  if (status === 'loading') {
     return (
-      <View style={styles.lockScreen}>
-        <Lock color={COLORS.primary} size={44} />
-        <Text style={styles.lockTitle}>e-İnfak Kilitli</Text>
-        <Text style={styles.lockSub}>Devam etmek için Face ID veya parmak izinizi doğrulayın.</Text>
-        <TouchableOpacity style={styles.lockBtn} onPress={unlockWithBiometric}>
-          <Text style={styles.lockBtnText}>Kilidi Aç</Text>
-        </TouchableOpacity>
+      <View style={styles.center}>
+        <Loading />
       </View>
-    )
+    );
   }
-
+  if (locked) {
+    return (
+      <View style={styles.center}>
+        <Lock size={44} color={colors.primary} />
+        <Text style={styles.lockTitle}>e-İnfak kilitli</Text>
+        <Text style={styles.lockText}>Devam etmek için kimliğinizi doğrulayın.</Text>
+        <Btn title="Kilidi aç" onPress={unlock} />
+      </View>
+    );
+  }
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen
-        name="login"
-        options={{ headerShown: true, title: 'Giriş Yap', presentation: 'modal' }}
-      />
-      <Stack.Screen
-        name="donate/[slug]"
-        options={{ headerShown: true, title: 'Güvenli Bağış' }}
-      />
+      <Stack.Protected guard={status === 'signedIn'}>
+        <Stack.Screen name="(app)" />
+      </Stack.Protected>
+      <Stack.Protected guard={status !== 'signedIn'}>
+        <Stack.Screen name="login" />
+      </Stack.Protected>
     </Stack>
-  )
+  );
 }
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <StatusBar style="dark" />
-      <AppShell />
-    </AuthProvider>
-  )
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <Gate />
+          <ToastHost />
+        </AuthProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
+  );
 }
 
 const styles = StyleSheet.create({
-  lockScreen: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: COLORS.bg,
-    gap: 12,
-  },
-  lockTitle: { fontSize: 20, fontWeight: '800', color: COLORS.text },
-  lockSub: { fontSize: 13, color: COLORS.textMuted, textAlign: 'center' },
-  lockBtn: {
-    marginTop: 8,
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-    paddingHorizontal: 28,
-    paddingVertical: 13,
-  },
-  lockBtnText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
-})
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.xl, backgroundColor: colors.bg },
+  lockTitle: { fontSize: font.xl, fontWeight: '700', color: colors.text },
+  lockText: { fontSize: font.md, color: colors.muted, textAlign: 'center', marginBottom: space.sm },
+});

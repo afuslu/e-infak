@@ -122,6 +122,8 @@ ROUTE_RULES: tuple[tuple[str, frozenset | str, frozenset | str], ...] = tuple(
         ("/admin-features/access", ANY, ANY),
         ("/admin-features/plan", ANY, {"settings"}),
         ("/admin-features/tasks", ANY, ANY),
+        # Hatırlatıcı: everyone keeps their own reminders (the donor card list checks donors.notes_view).
+        ("/admin-features/reminders", ANY, ANY),
         ("/admin-features/export/", ANY, ANY),
         ("/admin-features/public-verify/", ANY, ANY),
         ("/admin-features/analytics/", ANY, {"reports"}),

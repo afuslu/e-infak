@@ -1,184 +1,100 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import * as LocalAuthentication from 'expo-local-authentication'
-import * as SecureStore from 'expo-secure-store'
-import { apiFetch, clearTokens, getTokens, saveTokens } from '../lib/api'
-import { registerForPushNotificationsAsync } from '../lib/notifications'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { af, api, clearSession, loadSession, login, setSessionLostHandler } from '@/lib/api';
+import type { AdminAccess } from '@/lib/access';
+import { unregisterPush } from '@/lib/notifications';
 
-const BIOMETRIC_KEY = 'einfak_biometric_enabled'
+export type Me = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  phone: string | null;
+  role: string;
+  organization_id: string;
+};
 
-export interface AuthUser {
-  id: string
-  email: string
-  first_name: string
-  last_name: string
-  role: string
-  organization_id?: string | null
+export type Site = { slug: string; name: string; logo_url: string | null; url?: string };
+
+type State = {
+  status: 'loading' | 'signedOut' | 'signedIn';
+  me: Me | null;
+  access: AdminAccess | null;
+  site: Site | null;
+};
+
+type Auth = State & {
+  signIn: (email: string, password: string, tenantHost?: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  reload: () => Promise<void>;
+};
+
+const AuthContext = createContext<Auth | null>(null);
+const EMPTY: State = { status: 'signedOut', me: null, access: null, site: null };
+
+async function fetchProfile(): Promise<Omit<State, 'status'>> {
+  // /access yalnızca yönetim paneline girebilen personelde 200 döner.
+  const [me, access] = await Promise.all([api<Me>('/auth/me'), af<AdminAccess>('/access')]);
+  const site = await api<Site>('/public/site').catch(() => null);
+  return { me, access, site };
 }
-
-export interface AdminAccess {
-  me: {
-    id: string
-    role: string
-    permissions?: string[]
-  }
-  features?: string[]
-}
-
-interface AuthContextValue {
-  user: AuthUser | null
-  access: AdminAccess | null
-  isStaffOrAdmin: boolean
-  loading: boolean
-  biometricEnabled: boolean
-  lockedByBiometric: boolean
-  unlockWithBiometric: () => Promise<boolean>
-  toggleBiometric: (enable: boolean) => Promise<boolean>
-  signIn: (email: string, password: string, tenantHost?: string) => Promise<void>
-  signOut: () => Promise<void>
-  refreshSession: () => Promise<void>
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const [access, setAccess] = useState<AdminAccess | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [biometricEnabled, setBiometricEnabled] = useState(false)
-  const [lockedByBiometric, setLockedByBiometric] = useState(false)
+  const [state, setState] = useState<State>({ ...EMPTY, status: 'loading' });
+  const queryClient = useQueryClient();
 
-  const refreshSession = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [{ access: token }, bio] = await Promise.all([
-        getTokens(),
-        SecureStore.getItemAsync(BIOMETRIC_KEY),
-      ])
-      const isBio = bio === '1'
-      setBiometricEnabled(isBio)
-
-      if (!token) {
-        setUser(null)
-        setAccess(null)
-        setLockedByBiometric(false)
-        return
-      }
-      const me = await apiFetch<AuthUser>('/auth/me')
-      setUser(me)
-      if (isBio) setLockedByBiometric(true)
-
-      try {
-        const adm = await apiFetch<AdminAccess>('/admin-features/access')
-        setAccess(adm)
-      } catch {
-        setAccess(null)
-      }
-      registerForPushNotificationsAsync().catch(() => {})
-    } catch {
-      setUser(null)
-      setAccess(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  const drop = useCallback(() => {
+    queryClient.clear();
+    setState(EMPTY);
+  }, [queryClient]);
 
   useEffect(() => {
-    refreshSession()
-  }, [refreshSession])
+    setSessionLostHandler(drop);
+    (async () => {
+      if (!(await loadSession())) return setState(EMPTY);
+      try {
+        setState({ status: 'signedIn', ...(await fetchProfile()) });
+      } catch {
+        // Ağ hatasında oturumu silmeyiz; yalnızca reddedilen oturum api katmanında temizlenir.
+        setState(EMPTY);
+      }
+    })();
+    return () => setSessionLostHandler(null);
+  }, [drop]);
 
-  const unlockWithBiometric = async (): Promise<boolean> => {
-    const res = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'e-İnfak kilidini açın',
-      cancelLabel: 'Vazgeç',
-    })
-    if (res.success) {
-      setLockedByBiometric(false)
-      return true
-    }
-    return false
-  }
-
-  const toggleBiometric = async (enable: boolean): Promise<boolean> => {
-    if (enable) {
-      const hasHardware = await LocalAuthentication.hasHardwareAsync()
-      const enrolled = await LocalAuthentication.isEnrolledAsync()
-      if (!hasHardware || !enrolled) return false
-      const res = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Biyometrik kilidi etkinleştir',
-      })
-      if (!res.success) return false
-      await SecureStore.setItemAsync(BIOMETRIC_KEY, '1')
-      setBiometricEnabled(true)
-      return true
-    }
-    await SecureStore.deleteItemAsync(BIOMETRIC_KEY)
-    setBiometricEnabled(false)
-    setLockedByBiometric(false)
-    return true
-  }
-
-  const signIn = async (email: string, password: string, tenantHost?: string) => {
-    const cleanHost = tenantHost?.trim() || null
-    if (cleanHost) {
-      await saveTokens('', null, cleanHost)
-    }
-    const res = await apiFetch<{ access_token: string; refresh_token?: string }>(
-      '/auth/login',
-      {
-        method: 'POST',
-        auth: false,
-        headers: cleanHost ? { 'X-Forwarded-Host': cleanHost } : undefined,
-        body: JSON.stringify({ email: email.trim(), password }),
-      },
-    )
-    await saveTokens(res.access_token, res.refresh_token, cleanHost)
-    await refreshSession()
-    setLockedByBiometric(false)
-  }
-
-  const signOut = async () => {
+  const signIn = useCallback(async (email: string, password: string, tenantHost?: string) => {
+    await login(email, password, tenantHost);
     try {
-      await apiFetch('/auth/logout', { method: 'POST' })
-    } catch {
-      // ignore logout network errors
+      const profile = await fetchProfile();
+      queryClient.clear();
+      setState({ status: 'signedIn', ...profile });
+    } catch (error: any) {
+      await clearSession();
+      if (error?.status === 403) throw new Error('Bu hesabın yönetim paneline erişim yetkisi yok.');
+      throw error;
     }
-    await clearTokens()
-    setUser(null)
-    setAccess(null)
-    setLockedByBiometric(false)
-  }
+  }, [queryClient]);
 
-  const isStaffOrAdmin = Boolean(
-    access ||
-      (user &&
-        ['platform_admin', 'org_admin', 'admin', 'staff', 'accountant'].includes(
-          user.role?.toLowerCase(),
-        )),
-  )
+  const signOut = useCallback(async () => {
+    // /auth/logout web paneli dahil tüm oturumları kapattığı için çağrılmaz;
+    // yalnızca bu cihazın bildirim kaydı ve yerel oturum silinir.
+    await unregisterPush().catch(() => {});
+    await clearSession();
+    drop();
+  }, [drop]);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        access,
-        isStaffOrAdmin,
-        loading,
-        biometricEnabled,
-        lockedByBiometric,
-        unlockWithBiometric,
-        toggleBiometric,
-        signIn,
-        signOut,
-        refreshSession,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  )
+  const reload = useCallback(async () => {
+    const profile = await fetchProfile();
+    setState({ status: 'signedIn', ...profile });
+  }, []);
+
+  const value = useMemo(() => ({ ...state, signIn, signOut, reload }), [state, signIn, signOut, reload]);
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
+export function useAuth(): Auth {
+  const value = useContext(AuthContext);
+  if (!value) throw new Error('useAuth, AuthProvider içinde kullanılmalı');
+  return value;
 }

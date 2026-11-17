@@ -25,6 +25,7 @@ from app.models.student import Student
 from app.models.student_progress import StudentProgress
 from app.models.expense import Expense
 from app.models.donor_note import DonorNote
+from app.models.donor_reminder import DonorReminder
 from app.models.sms_template import SmsTemplate
 from app.models.sms_message import SmsMessage
 from app.models.sms_batch import SmsBatch

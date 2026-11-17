@@ -26,6 +26,8 @@ export interface ManualReceiptResult {
   official_receipt_no?: string | null
   receipt_numbers?: string[]
   status?: string
+  /** Kurban makbuzunda: hisselerin yerleştiği hayvan numaraları (otomatik yerleştirme açıksa). */
+  kurban_shares?: { share_id: string; animal_number: string | null; share_number: number | null; name: string }[]
 }
 
 function newKey() {

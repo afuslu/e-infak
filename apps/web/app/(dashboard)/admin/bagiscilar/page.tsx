@@ -10,6 +10,7 @@ import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModa
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
+import { DonorReminders } from '../../../../components/admin/DonorReminders'
 import { STATUS_CLASS, STATUS_LABEL, SmsMessage } from '../../../../lib/sms'
 import { EmptyState, ExportButtons, Modal, Pagination, TBody, Table, Td, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 
@@ -1195,6 +1196,7 @@ function DonorCardPanel({
 
       {tab === 'notes' && (
         <div className="space-y-4">
+          <DonorReminders donorId={card.id} donorName={card.full_name} />
           {perms.notes && (
             <form onSubmit={addNote} className="flex gap-2">
               <Input required placeholder="Görüşme notu ekle..." value={note} onChange={(e) => setNote(e.target.value)} />

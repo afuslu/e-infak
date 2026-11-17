@@ -311,6 +311,8 @@ class Importer:
                 continue
             links = [b["url"] for b in slide["buttons"] if b["url"]]
             slides.append({"image_url": self.img(slide["image_url"]), "mobile_image_url": self.img(slide.get("mobile_image_url")),
+                           "tab_label": slide.get("tab_label") or slide.get("title"),
+                           "tab_icon": slide.get("tab_icon"),
                            "button_url": links[0] if links else "/bagis", "poster": True,
                            "button2_url": slide["link"] if slide["link"] and slide["link"] != (links[0] if links else "") else (links[1] if len(links) > 1 else None)})
         home_ids = home["donate_section"]["campaign_ids"]

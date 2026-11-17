@@ -35,6 +35,7 @@ import type { HomeData } from '../sections/HomeSections'
 import type { SiteData } from '../../lib/public-content'
 import type { PublicMenu } from '../../lib/default-links'
 import { Fields } from './FieldInput'
+import { buildLinkGroups } from './link-presets'
 import { type DemoOptions, type Library, type LibraryDemo, LibraryPanel, type SavedBlock } from './LibraryPanel'
 import { MenuPanel } from './MenuPanel'
 import { PageSettingsModal } from './PageSettingsModal'
@@ -175,6 +176,19 @@ export function SiteBuilderEditor() {
 
   const selected = state.selectedId ? findBlock(state.blocks, state.selectedId) : null
   const selectedSpec = selected && catalog ? catalog.blocks[selected.type] : null
+  const linkGroups = useMemo(
+    () => buildLinkGroups({
+      campaigns: data?.campaigns,
+      categories: data?.categories,
+      pages,
+      features: data?.site?.features,
+    }),
+    [data?.campaigns, data?.categories, data?.site?.features, pages],
+  )
+  const fieldCtx = useMemo(
+    () => ({ campaigns: data?.campaigns || [], linkGroups }),
+    [data?.campaigns, linkGroups],
+  )
 
   // --- Loading -------------------------------------------------------------------
   const loadSaved = useCallback(() => adminGet<SavedBlock[]>('/site-builder/saved-blocks').then((r) => setSaved(r.data)).catch(() => undefined), [])
@@ -1188,7 +1202,12 @@ export function SiteBuilderEditor() {
                 </div>
 
                 {pagesSubTab === 'menu' ? (
-                  <MenuPanel onMenuChanged={applyMenuPreview} />
+                  <MenuPanel
+                    onMenuChanged={applyMenuPreview}
+                    campaigns={data?.campaigns}
+                    categories={data?.categories}
+                    features={data?.site?.features}
+                  />
                 ) : (() => {
                   const pq = pageSearch.trim().toLocaleLowerCase('tr')
                   const filtered = pages.filter((p) => !pq || `${p.title} ${p.slug || ''} ${KIND_PATH[p.kind] || ''}`.toLocaleLowerCase('tr').includes(pq))
@@ -1561,11 +1580,11 @@ export function SiteBuilderEditor() {
                         <>
                           <p className="rounded-md bg-amber-50 p-2 text-[11px] text-amber-800">{LANG_LABEL[lang] || lang} metinleri düzenleniyor. Boş bırakılan alanlarda Türkçe metin gösterilir.</p>
                           <Fields specs={selectedSpec.fields} onlyTranslatable values={selected.translations?.[lang] || {}} baseValues={selected.props}
-                            ctx={{ campaigns: data.campaigns }}
+                            ctx={fieldCtx}
                             onChange={(values) => setSelected((b) => ({ ...b, translations: { ...b.translations, [lang]: values } }))} />
                         </>
                       ) : (
-                        <Fields specs={selectedSpec.fields} values={selected.props} ctx={{ campaigns: data.campaigns }}
+                        <Fields specs={selectedSpec.fields} values={selected.props} ctx={fieldCtx}
                           onChange={(values) => setSelected((b) => {
                             const next = { ...b, props: values }
                             if (b.type === 'columns' && values.ratio !== b.props.ratio) {

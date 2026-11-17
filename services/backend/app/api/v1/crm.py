@@ -576,10 +576,16 @@ async def search_donations(
         .order_by(order_col).offset((page - 1) * page_size).limit(page_size)
     )).scalars().all()
     names = await _staff_names(db, org_id)
+    from app.services.kurban_placement import kurban_numbers
+
+    # Kurban hissesi olan bağışlarda hayvan numaraları (tek sorgu; kurban dışı bağışta boş).
+    numbers = await kurban_numbers(db, [d.id for d in rows])
     items = []
     for d in rows:
         row = _donation_row(d, names)
         row.update({
+            "kurban_numbers": sorted({s["animal_number"] for s in numbers.get(d.id, []) if s["animal_number"]}),
+            "kurban_unassigned": sum(1 for s in numbers.get(d.id, []) if not s["animal_number"]),
             "donor_id": str(d.donor_id),
             "donor_name": d.donor.full_name if d.donor else "—",
             "donor_phone": masked(d.donor.phone) if d.donor else None,
@@ -703,6 +709,12 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
             if not found:
                 raise HTTPException(status_code=404, detail="Kampanya bulunamadı")
             campaigns[line.campaign_id] = found
+
+    from app.services.donation_hooks import ensure_kurban_open
+    try:
+        await ensure_kurban_open(db, org_id, campaigns.keys())
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     issuer_id = current_user.id
     if payload.issued_by_id and payload.issued_by_id != current_user.id:

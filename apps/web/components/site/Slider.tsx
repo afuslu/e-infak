@@ -2,6 +2,27 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  AlertTriangle,
+  Baby,
+  BookOpen,
+  Coins,
+  Droplets,
+  Eye,
+  Globe,
+  GraduationCap,
+  HandHeart,
+  Heart,
+  HeartHandshake,
+  Home,
+  MoonStar,
+  ShieldAlert,
+  Smile,
+  Snowflake,
+  Sparkles,
+  Tent,
+  Utensils,
+} from 'lucide-react'
 
 export interface SlideView {
   image_url?: string
@@ -12,6 +33,9 @@ export interface SlideView {
   badge?: string
   title?: string
   text?: string
+  tab_label?: string
+  tab_icon?: string
+  tab_icon_url?: string
   button_label?: string
   button_url?: string
   button2_label?: string
@@ -39,8 +63,30 @@ export type SliderLayout =
   | 'dual_sync'
   | 'vertical_thumbs'
   | 'magazine'
-export type SliderNav = 'dots' | 'tabs' | 'thumbs' | 'numbers' | 'progress' | 'ring'
+export type SliderNav = 'dots' | 'tabs' | 'icon_tabs' | 'thumbs' | 'numbers' | 'progress' | 'ring'
 export type SliderArrowStyle = 'round' | 'square' | 'minimal' | 'ghost'
+
+const SLIDE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  heart: Heart,
+  'heart-handshake': HeartHandshake,
+  'hand-heart': HandHeart,
+  snowflake: Snowflake,
+  droplets: Droplets,
+  'graduation-cap': GraduationCap,
+  'book-open': BookOpen,
+  utensils: Utensils,
+  eye: Eye,
+  'alert-triangle': AlertTriangle,
+  'shield-alert': ShieldAlert,
+  smile: Smile,
+  baby: Baby,
+  home: Home,
+  globe: Globe,
+  coins: Coins,
+  'moon-star': MoonStar,
+  tent: Tent,
+  sparkles: Sparkles,
+}
 
 function youtubeId(url?: string): string | null {
   if (!url) return null
@@ -165,6 +211,98 @@ function ThumbnailStrip({
   )
 }
 
+function renderTabIcon(s: SlideView) {
+  const customUrl = (s.tab_icon_url || '').trim() || (s.tab_icon && /^(https?:\/\/|\/)/.test(s.tab_icon.trim()) ? s.tab_icon.trim() : '')
+  if (customUrl) {
+    return <img src={customUrl} alt="" className="h-6 w-6 object-contain" />
+  }
+  const key = (s.tab_icon || '').trim()
+  if (key && SLIDE_ICONS[key]) {
+    const IconComp = SLIDE_ICONS[key]
+    return <IconComp className="h-5 w-5" />
+  }
+  if (key) {
+    return <span className="text-lg leading-none">{key}</span>
+  }
+  if (s.image_url) {
+    return <img src={s.image_url} alt="" className="h-6 w-6 rounded-full object-cover" />
+  }
+  return <HeartHandshake className="h-5 w-5" />
+}
+
+function IconTabsStrip({
+  slides, index, onSelect, playing, seconds, dark, reduced,
+}: {
+  slides: SlideView[]; index: number; onSelect: (i: number) => void
+  playing: boolean; seconds: number; dark?: boolean; reduced: boolean
+}) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  useEffect(() => {
+    const track = trackRef.current
+    const el = itemRefs.current[index]
+    if (!track || !el) return
+    const targetLeft = el.offsetLeft - (track.clientWidth - el.clientWidth) / 2
+    track.scrollTo({ left: Math.max(0, targetLeft), behavior: reduced ? 'auto' : 'smooth' })
+  }, [index, reduced])
+
+  return (
+    <div
+      ref={trackRef}
+      className="no-scrollbar mx-auto flex max-w-[1200px] items-stretch justify-start gap-1 overflow-x-auto sm:justify-center sm:gap-2"
+    >
+      {slides.map((s, i) => {
+        const active = i === index
+        const tabText = (s.tab_label || s.badge || s.title || `Slayt ${i + 1}`).trim()
+        return (
+          <button
+            key={i}
+            ref={(el) => { itemRefs.current[i] = el }}
+            type="button"
+            onClick={() => onSelect(i)}
+            aria-label={tabText}
+            aria-current={active}
+            className="group relative flex min-w-[78px] max-w-[136px] flex-1 flex-col items-center gap-1.5 px-2 pt-3 pb-2 text-center transition focus:outline-none"
+          >
+            <span className={`pointer-events-none absolute inset-x-2 top-0 h-[3px] overflow-hidden rounded-full ${dark ? 'bg-white/10' : 'bg-transparent'}`}>
+              {active && (
+                <span
+                  key={`${index}-${playing}`}
+                  className={`block h-full rounded-full ${dark ? 'bg-accent-400' : 'bg-primary-600'} ${playing ? 'slider-progress' : 'w-full'}`}
+                  style={{ animationDuration: `${seconds}s` }}
+                />
+              )}
+            </span>
+            <span
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition-all ${
+                active
+                  ? dark
+                    ? 'scale-105 bg-white/20 text-white ring-1 ring-white/40'
+                    : 'scale-105 bg-primary-50 text-primary-600 ring-1 ring-primary-200 shadow-xs'
+                  : dark
+                    ? 'bg-white/10 text-white/55 group-hover:bg-white/15 group-hover:text-white/85'
+                    : 'bg-gray-100/90 text-gray-400 group-hover:bg-gray-200/70 group-hover:text-gray-600'
+              }`}
+            >
+              {renderTabIcon(s)}
+            </span>
+            <span
+              className={`w-full truncate text-xs transition ${
+                active
+                  ? dark ? 'font-bold text-white' : 'font-bold text-gray-900'
+                  : dark ? 'font-medium text-white/60 group-hover:text-white/85' : 'font-medium text-gray-500 group-hover:text-gray-700'
+              }`}
+            >
+              {tabText}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 /**
  * Full width slider shared by the home templates (cover slider) and the site builder's
  * slider block. Swipe, arrow keys, pause on hover/focus; no autoplay or motion when the
@@ -245,6 +383,7 @@ export function Slider({
   const showNumbers = dots && count > 1 && nav === 'numbers'
   const showProgress = dots && count > 1 && nav === 'progress'
   const showTabs = dots && count > 1 && nav === 'tabs'
+  const showIconTabs = dots && count > 1 && nav === 'icon_tabs'
   const showRing = dots && count > 1 && nav === 'ring'
   const arrowShape = arrowStyle === 'square' ? 'rounded-xl' : arrowStyle === 'minimal' ? 'rounded-lg bg-transparent border border-current/25 shadow-none' : arrowStyle === 'ghost' ? 'rounded-full bg-transparent shadow-none' : 'rounded-full'
   const slideAnim = (active: boolean) => {
@@ -385,6 +524,15 @@ export function Slider({
           </div>
         )}
 
+        {showIconTabs && (
+          <div className="mt-3 sm:mt-4">
+            <IconTabsStrip
+              slides={slides} index={index} onSelect={go}
+              playing={playing} seconds={seconds} dark={!lightBg} reduced={reduced}
+            />
+          </div>
+        )}
+
         {showNumbers && (
           <div className={`mt-4 flex items-center justify-between gap-4 rounded-xl px-4 py-2.5 ${lightBg ? 'bg-white shadow-sm ring-1 ring-black/[0.06]' : 'bg-white/10 text-white backdrop-blur'}`}>
             <div className="flex items-center gap-3">
@@ -448,7 +596,7 @@ export function Slider({
           </div>
         )}
 
-        {dots && !showThumbs && !showNumbers && !showProgress && !showRing && (
+        {dots && !showThumbs && !showIconTabs && !showNumbers && !showProgress && !showRing && (
           <div className={`mt-4 flex items-center justify-center gap-2 ${showTabs ? 'md:hidden' : ''}`}>
             {slides.map((_, i) => (
               <button key={i} type="button" aria-label={`${i + 1}. slayt`} aria-current={i === index} onClick={() => go(i)}
@@ -776,7 +924,7 @@ export function Slider({
                     <div className={`grid grid-cols-1 items-center ${imgLeft ? 'md:grid-cols-[7fr_5fr]' : 'md:grid-cols-[5fr_7fr]'} ${cardHeightClass}`}>
                       {(s.image_url || s.video_url) && (
                         <div className={`order-1 p-2 pb-0 md:p-3 ${imgLeft ? 'md:order-1' : 'md:order-2'}`}>
-                          <div className="relative overflow-hidden rounded-xl bg-gray-100 aspect-[16/10] md:aspect-auto md:h-[390px] lg:h-[430px]">
+                          <div className={`relative overflow-hidden rounded-xl aspect-[16/10] md:aspect-auto md:h-[390px] lg:h-[430px] ${s.bg_color ? 'bg-transparent' : 'bg-gray-100'}`}>
                             {renderMediaBg(s, i, active)}
                           </div>
                         </div>
@@ -1008,7 +1156,7 @@ export function Slider({
           </div>
         )}
 
-        {dots && count > 1 && !showThumbs && !showNumbers && !showProgress && !showRing && (
+        {dots && count > 1 && !showThumbs && !showIconTabs && !showNumbers && !showProgress && !showRing && (
           <div className={`absolute inset-x-0 z-10 flex items-center justify-center gap-2 ${showTabs && !isLightLayout ? 'bottom-5 md:hidden' : isLightLayout ? 'bottom-4' : 'bottom-6'}`}>
             {slides.map((_, i) => (
               <button key={i} type="button" aria-label={`${i + 1}. slayt`} aria-current={i === index} onClick={() => go(i)}
@@ -1023,7 +1171,7 @@ export function Slider({
         )}
       </div>
 
-      {(showNumbers || showProgress || showRing || (isLightLayout && (showThumbs || showTabs))) && (
+      {(showNumbers || showProgress || showRing || showIconTabs || (isLightLayout && (showThumbs || showTabs))) && (
         <div className={`mx-auto max-w-[1200px] px-4 pb-4 sm:px-6 ${isLightLayout ? '' : 'text-white'}`}>
           {renderBelowNav(isLightLayout)}
         </div>

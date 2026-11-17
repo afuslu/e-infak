@@ -215,3 +215,101 @@ async def test_bulk_parse_reads_xlsx_and_csv_by_header(db_session):
     assert parsed["rows"] == [{"donor_name": "İbrahim Öz", "phone": "05551112233", "payment_method": "bank_transfer"}]
     with pytest.raises(HTTPException):
         await kurban.bulk_parse(UploadFile(io.BytesIO(b"Telefon\n0555"), filename="x.csv"), admin)
+
+
+async def test_bulk_move_is_all_or_nothing(db_session):
+    org, admin = await _setup(db_session)
+    kc_id, dc_id = await _campaign(db_session, org, admin, auto_assign=False)
+    await crm.create_manual_donation(_request(org, "POST"), _manual(dc_id, 3_000_000, first_name="Altı"), db_session, admin)
+    await crm.create_manual_donation(_request(org, "POST"), _manual(dc_id, 1_000_000, first_name="İki"), db_session, admin)
+    created = await kurban.create_animals(_request(org, "POST"), kurban.AnimalCreate(campaign_id=kc_id, count=2), db_session, admin)
+    first, second = (uuid.UUID(a["id"]) for a in created)
+    shares = (await db_session.execute(select(KurbanShare).where(KurbanShare.campaign_id == kc_id)
+                                       .order_by(KurbanShare.created_at, KurbanShare.id))).scalars().all()
+    six, two = [s.id for s in shares[:6]], [s.id for s in shares[6:]]
+    assert (await kurban.move_shares(_request(org, "POST"), kurban.ShareMove(share_ids=six, animal_id=first), db_session, admin)) == {"moved": 6}
+    with pytest.raises(HTTPException) as exc:  # 1 free slot, 2 shares: nothing moves
+        await kurban.move_shares(_request(org, "POST"), kurban.ShareMove(share_ids=two, animal_id=first), db_session, admin)
+    assert exc.value.status_code == 409  # the check runs before any share is touched
+    assert all(s.animal_id is None for s in (await db_session.execute(
+        select(KurbanShare).where(KurbanShare.id.in_(two)))).scalars().all())
+    assert (await kurban.move_shares(_request(org, "POST"), kurban.ShareMove(share_ids=two, animal_id=second), db_session, admin)) == {"moved": 2}
+    assert (await kurban.move_shares(_request(org, "POST"), kurban.ShareMove(share_ids=two), db_session, admin)) == {"moved": 2}
+
+
+async def test_completed_campaign_rejects_receipts_and_leaves_late_payments_unplaced(db_session):
+    from app.models.kurban import KurbanCampaignStatus
+    from app.services.donation_hooks import create_kurban_shares
+
+    org, admin = await _setup(db_session)
+    kc_id, dc_id = await _campaign(db_session, org, admin)
+    kc = await db_session.get(KurbanCampaign, kc_id)
+    kc.status = KurbanCampaignStatus.COMPLETED
+    await db_session.flush()
+    with pytest.raises(HTTPException) as exc:
+        await crm.create_manual_donation(_request(org, "POST"), _manual(dc_id, 500_000), db_session, admin)
+    assert exc.value.status_code == 409
+    with pytest.raises(HTTPException):
+        await kurban.bulk_receipts(_request(org, "POST"), kc_id, kurban.BulkReceiptsIn(
+            batch_key=uuid.uuid4().hex, rows=[kurban.BulkRow(donor_name="Geç Kalan")]), db_session, admin)
+    # A late online payment / transfer still records the share but does not place it.
+    from app.models.donation import Donor
+    donor = Donor(organization_id=org.id, first_name="Geç", total_donations=0, total_donated_cents=0)
+    db_session.add(donor)
+    await db_session.flush()
+    donation = Donation(organization_id=org.id, campaign_id=dc_id, donor_id=donor.id, receipt_number=f"T-{uuid.uuid4().hex[:6]}",
+                        amount_cents=500_000, currency="TRY", payment_method="bank_transfer", status="confirmed",
+                        payment_provider="bank:test", idempotency_key=uuid.uuid4().hex)
+    db_session.add(donation)
+    await db_session.flush()
+    shares = await create_kurban_shares(db_session, donation, donor, 1, {})
+    assert len(shares) == 1 and shares[0].animal_id is None
+    assert "tamamlanmış" in donation.payment_details["kurban_note"]
+
+
+async def test_bank_transfer_passes_shareholder_names(db_session):
+    from app.banking.matching import approve
+    from app.models.automation import BankTransaction
+    from app.models.campaign import Campaign
+    from app.models.donation import Donor
+
+    org, admin = await _setup(db_session)
+    kc_id, dc_id = await _campaign(db_session, org, admin)
+    donor = Donor(organization_id=org.id, first_name="Havaleci", total_donations=0, total_donated_cents=0)
+    db_session.add(donor)
+    await db_session.flush()
+    from datetime import datetime, timezone
+    transfer = BankTransaction(organization_id=org.id, amount_cents=1_500_000, currency="TRY", description="kurban 3 hisse",
+                               external_id=uuid.uuid4().hex, booked_at=datetime.now(timezone.utc))
+    db_session.add(transfer)
+    await db_session.flush()
+    await approve(db_session, transfer, donor=donor, campaign=await db_session.get(Campaign, dc_id), user_id=admin.id,
+                  kurban_type="adak", kurban_names=["Ali", "Veli", " "], send_receipt=False)
+    names = sorted(s.on_behalf_of for s in (await db_session.execute(
+        select(KurbanShare).where(KurbanShare.campaign_id == kc_id))).scalars().all())
+    assert names == ["Ali", "Havaleci", "Veli"]
+
+
+async def test_donations_list_shows_kurban_numbers(db_session):
+    from tests.test_cms_crm import _search_defaults
+
+    org, admin = await _setup(db_session)
+    kc_id, dc_id = await _campaign(db_session, org, admin)
+    await crm.create_manual_donation(_request(org, "POST"), _manual(dc_id, 1_000_000, first_name="Kurbanlı"), db_session, admin)
+    result = await crm.search_donations(_request(org), q=None, db=db_session, current_user=admin, **_search_defaults())
+    row = result["items"][0]
+    assert row["kurban_numbers"] == ["AF-001"] and row["kurban_unassigned"] == 0
+
+
+async def test_bulk_template_round_trips_through_parser(db_session):
+    import io
+
+    from starlette.datastructures import UploadFile
+
+    org, admin = await _setup(db_session)
+    template = await kurban.bulk_template(admin)
+    parsed = await kurban.bulk_parse(UploadFile(io.BytesIO(template.body), filename="sablon.xlsx"), admin)
+    assert parsed["skipped_columns"] == []
+    assert parsed["rows"] == [{"donor_name": "Ahmet Yılmaz", "phone": "05551112233",
+                               "on_behalf_of": "Merhum Mehmet Yılmaz; Annesi", "kurban_type": "vacip", "shares": 2,
+                               "status": "paid", "payment_method": "cash"}]

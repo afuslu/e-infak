@@ -10,11 +10,17 @@ import {
   Coins,
   FileText,
   HandCoins,
+  IdCard,
+  LayoutGrid,
+  ListPlus,
+  MailCheck,
+  MapPin,
   MessageSquare,
   Plus,
   RefreshCw,
   Settings,
   Shuffle,
+  Table2,
   Trash2,
   Users,
   Video,
@@ -22,7 +28,8 @@ import {
 import { apiErrorMessage, downloadFile, formatMoney, useAdminAccess, v1Get, v1Send, whatsappUrl, can } from '../../../../lib/admin-access'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm } from '../../../../components/admin/ManualReceiptForm'
-import { ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
+import { KurbanBulkEntry, downloadShareCards } from '../../../../components/admin/kurban/KurbanBulkEntry'
+import { EmptyState, ExportButtons, Modal, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, ResponsiveDataToolbar } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 
 const SHARE_PAGE_SIZE = 500
@@ -44,6 +51,9 @@ interface KurbanCampaign {
   country: string | null
   season_year: number | null
   animal_prefix: string
+  animal_label: string | null
+  animal_label_options?: Record<string, string[]>
+  auto_assign: boolean
   status: 'active' | 'completed'
   donation_campaign_id: string | null
   shares?: number
@@ -68,10 +78,13 @@ interface Animal {
   id: string
   animal_number: string
   type_label: string
+  animal_label: string
   capacity: number
   country: string | null
   status: 'waiting' | 'slaughtered'
   video_url: string | null
+  video_status: VideoStatus
+  video_status_label: string
   slaughtered_at: string | null
   shares: { id: string; share_number: number; name: string; donor_name: string; kurban_type: string; notified: boolean }[]
 }
@@ -91,18 +104,35 @@ interface Share {
   receipt_number: string | null
 }
 
-type Tab = 'animals' | 'shares' | 'entry' | 'settings'
+type Tab = 'animals' | 'shares' | 'entry' | 'bulk' | 'settings'
+type VideoStatus = 'none' | 'recorded' | 'sent'
+
+const VIDEO_STATUS_OPTIONS: { key: VideoStatus; label: string }[] = [
+  { key: 'none', label: 'Video yok' },
+  { key: 'recorded', label: 'Video çekildi' },
+  { key: 'sent', label: 'Video gönderildi' },
+]
+const VIDEO_STATUS_CLASS: Record<VideoStatus, string> = {
+  none: 'text-slate-400', recorded: 'text-sky-600', sent: 'text-emerald-600',
+}
+const todayIso = () => new Date().toISOString().slice(0, 10)
 
 const emptyCampaign = {
   title: '', description: '', price: '', animal_type: 'cow' as 'cow' | 'sheep', country: '', season_year: String(new Date().getFullYear()),
   animal_prefix: 'K', status: 'active' as 'active' | 'completed', create_donation_campaign: true,
+  animal_label: '', auto_assign: true,
 }
 
 export default function KurbanAdminPage() {
   const { data: access } = useAdminAccess()
   const canWrite = can(access, 'kurban.manage')
   const canIssue = can(access, 'receipts.create')
+  // Sunucu bu işlemleri ayrı yetkilerle korur; düğmeler de aynı yetkiye bakar.
+  const canSlaughter = can(access, 'kurban.slaughter')
+  const canDelete = can(access, 'kurban.delete')
+  const canPdf = can(access, 'kurban.pdf')
   const [campaigns, setCampaigns] = useState<KurbanCampaign[]>([])
+  const [campaignsLoading, setCampaignsLoading] = useState(true)
   const [types, setTypes] = useState<{ key: string; label: string }[]>([])
   const [selectedId, setSelectedId] = useState<string>('')
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -113,6 +143,9 @@ export default function KurbanAdminPage() {
   const [tab, setTab] = useState<Tab>('animals')
   const [animalFilter, setAnimalFilter] = useState<'' | 'waiting' | 'slaughtered'>('')
   const [animalPartialOnly, setAnimalPartialOnly] = useState(false)
+  const [animalVideoStatus, setAnimalVideoStatus] = useState<'' | VideoStatus>('')
+  const [animalView, setAnimalView] = useState<'cards' | 'table'>('cards')
+  const [videoModal, setVideoModal] = useState<{ ids: string[]; status: VideoStatus; videoUrl: string } | null>(null)
   const [search, setSearch] = useState('')
   const [shareFilter, setShareFilter] = useState<'' | 'true' | 'false'>('')
   const [shareKurbanType, setShareKurbanType] = useState('')
@@ -124,8 +157,8 @@ export default function KurbanAdminPage() {
   const [bulkAnimalId, setBulkAnimalId] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [statModal, setStatModal] = useState<'shares' | 'unassigned' | 'animals' | 'notified' | null>(null)
-  const [slaughterModal, setSlaughterModal] = useState<{ ids: string[]; videoUrl: string; notify: boolean } | null>(null)
-  const [animalEditModal, setAnimalEditModal] = useState<{ animal: Animal; animalNumber: string; videoUrl: string } | null>(null)
+  const [slaughterModal, setSlaughterModal] = useState<{ ids: string[]; videoUrl: string; notify: boolean; date: string } | null>(null)
+  const [animalEditModal, setAnimalEditModal] = useState<{ animal: Animal; animalNumber: string; videoUrl: string; videoStatus: VideoStatus; slaughteredOn: string } | null>(null)
   const [addAnimalModal, setAddAnimalModal] = useState<{ count: string; animalNumber: string } | null>(null)
   const [shareEditModal, setShareEditModal] = useState<{ share: Share; onBehalfOf: string; kurbanType: string } | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -139,6 +172,8 @@ export default function KurbanAdminPage() {
       if (!selectedId && c.data.length) setSelectedId(c.data[0].id)
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Kurban kampanyaları yüklenemedi'))
+    } finally {
+      setCampaignsLoading(false)
     }
   }
 
@@ -147,10 +182,14 @@ export default function KurbanAdminPage() {
     try {
       const [s, a, sh] = await Promise.all([
         v1Get<Summary>(`/kurban/campaigns/${selectedId}/summary`),
-        v1Get<Animal[]>('/kurban/animals', { campaign_id: selectedId, status: animalFilter || undefined, q: search || undefined }),
+        v1Get<Animal[]>('/kurban/animals', {
+          campaign_id: selectedId, status: animalFilter || undefined, q: search || undefined,
+          has_free: animalPartialOnly ? true : undefined, video_status: animalVideoStatus || undefined,
+        }),
         v1Get<{ total?: number; items: Share[] }>('/kurban/shares', {
           campaign_id: selectedId, assigned: shareFilter || undefined,
           kurban_type: shareKurbanType || undefined, status: shareStatus || undefined,
+          notified: shareNotifiedOnly ? true : undefined,
           q: search || undefined, page: sharePage, page_size: SHARE_PAGE_SIZE,
         }),
       ])
@@ -186,7 +225,7 @@ export default function KurbanAdminPage() {
     const t = setTimeout(loadSelected, 250)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, animalFilter, search, shareFilter, shareKurbanType, shareStatus, sharePage])
+  }, [selectedId, animalFilter, animalPartialOnly, animalVideoStatus, search, shareFilter, shareKurbanType, shareStatus, shareNotifiedOnly, sharePage])
 
   const run = async (fn: () => Promise<unknown>, ok: string | ((r: any) => string)) => {
     setBusy(true)
@@ -208,6 +247,7 @@ export default function KurbanAdminPage() {
       animal_type: form.animal_type, country: form.country || null,
       season_year: form.season_year ? Number(form.season_year) : null,
       animal_prefix: form.animal_prefix || 'K', status: form.status,
+      animal_label: form.animal_label || null, auto_assign: form.auto_assign,
       create_donation_campaign: form.create_donation_campaign,
     }
     await run(async () => {
@@ -225,33 +265,54 @@ export default function KurbanAdminPage() {
 
   const slaughter = (ids: string[]) => {
     const single = ids.length === 1 ? animals.find((a) => a.id === ids[0]) : undefined
-    setSlaughterModal({ ids, videoUrl: single?.video_url || '', notify: true })
+    setSlaughterModal({ ids, videoUrl: single?.video_url || '', notify: true, date: todayIso() })
   }
 
   const submitSlaughter = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!slaughterModal) return
-    const { ids, videoUrl, notify } = slaughterModal
+    const { ids, videoUrl, notify, date } = slaughterModal
     setSlaughterModal(null)
     await run(() => v1Send('post', '/kurban/animals/slaughter', {
       items: ids.map((animal_id) => ({ animal_id, video_url: videoUrl.trim() || null })), notify,
+      // Bugünden farklı bir gün seçildiyse kesim günü olarak o yazılır.
+      slaughtered_on: date && date !== todayIso() ? date : undefined,
     }), (r) => `${r.marked} hayvan kesildi olarak işaretlendi, ${r.sms_queued} SMS kuyruğa alındı${r.sms_failed ? `, ${r.sms_failed} SMS gönderilemedi` : ''}`)
   }
 
   const setVideo = (animal: Animal) => {
-    setAnimalEditModal({ animal, animalNumber: animal.animal_number, videoUrl: animal.video_url || '' })
+    setAnimalEditModal({
+      animal, animalNumber: animal.animal_number, videoUrl: animal.video_url || '', videoStatus: animal.video_status,
+      slaughteredOn: animal.slaughtered_at ? animal.slaughtered_at.slice(0, 10) : '',
+    })
   }
 
   const submitAnimalEdit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!animalEditModal) return
-    const { animal, animalNumber, videoUrl } = animalEditModal
+    const { animal, animalNumber, videoUrl, videoStatus, slaughteredOn } = animalEditModal
     setAnimalEditModal(null)
     await run(() => v1Send('put', `/kurban/animals/${animal.id}`, {
       animal_number: animalNumber.trim() || undefined,
       video_url: videoUrl.trim() || null,
+      video_status: videoStatus,
+      slaughtered_on: animal.status === 'slaughtered' && slaughteredOn && slaughteredOn !== (animal.slaughtered_at || '').slice(0, 10)
+        ? slaughteredOn : undefined,
     }), 'Hayvan güncellendi')
   }
+
+  const submitVideo = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!videoModal) return
+    const { ids, status, videoUrl } = videoModal
+    setVideoModal(null)
+    await run(() => v1Send('post', '/kurban/animals/video', {
+      animal_ids: ids, video_status: status, video_url: videoUrl.trim() || null,
+    }), (r) => `${r.updated} hayvanın video durumu güncellendi`)
+  }
+
+  const downloadCards = (path: string, params?: Record<string, unknown>) =>
+    downloadFile(path, 'kurban-isim-kartlari.pdf', params).catch((err) => toast.error(apiErrorMessage(err, 'İsim kartları indirilemedi')))
 
   const addAnimals = () => {
     setAddAnimalModal({ count: '1', animalNumber: '' })
@@ -297,14 +358,8 @@ export default function KurbanAdminPage() {
 
   const selected = campaigns.find((c) => c.id === selectedId)
   const waitingAnimals = useMemo(() => animals.filter((a) => a.status === 'waiting'), [animals])
-  const visibleAnimals = useMemo(
-    () => (animalPartialOnly ? animals.filter((a) => a.status === 'waiting' && a.shares.length < a.capacity) : animals),
-    [animals, animalPartialOnly],
-  )
-  const visibleShares = useMemo(
-    () => (shareNotifiedOnly ? shares.filter((s) => s.notified) : shares),
-    [shares, shareNotifiedOnly],
-  )
+  const visibleAnimals = animals  // "boş yeri olan" ve video süzgeçleri sunucuda uygulanır
+  const visibleShares = shares
   const assignableShares = useMemo(() => visibleShares.filter((s) => s.status !== 'slaughtered'), [visibleShares])
 
   const togglePick = (id: string) => setPicked((prev) => {
@@ -330,9 +385,9 @@ export default function KurbanAdminPage() {
   const assignBulkShares = async () => {
     if (pickedShares.size === 0) return
     const ids = [...pickedShares]
-    const payload = bulkAnimalId ? { animal_id: bulkAnimalId } : { unassign: true }
     await run(async () => {
-      await Promise.all(ids.map((id) => v1Send('put', `/kurban/shares/${id}`, payload)))
+      // Tek istek, tek işlem: hayvanda yer yetmezse hiçbir hisse taşınmaz.
+      await v1Send('post', '/kurban/shares/move', { share_ids: ids, animal_id: bulkAnimalId || null })
       setPickedShares(new Set())
       setBulkAnimalId('')
     }, bulkAnimalId ? `${ids.length} hisse seçilen hayvana atandı` : `${ids.length} hissenin hayvan ataması kaldırıldı`)
@@ -342,6 +397,7 @@ export default function KurbanAdminPage() {
     setSearch('')
     setAnimalFilter('')
     setAnimalPartialOnly(false)
+    setAnimalVideoStatus('')
     setShareFilter('')
     setShareKurbanType('')
     setShareStatus('')
@@ -350,10 +406,10 @@ export default function KurbanAdminPage() {
   }
 
   const activeFilterCount = useMemo(() => {
-    if (tab === 'animals') return [animalFilter, animalPartialOnly ? '1' : ''].filter(Boolean).length
+    if (tab === 'animals') return [animalFilter, animalPartialOnly ? '1' : '', animalVideoStatus].filter(Boolean).length
     if (tab === 'shares') return [shareFilter, shareKurbanType, shareStatus, shareNotifiedOnly ? '1' : ''].filter(Boolean).length
     return 0
-  }, [tab, animalFilter, animalPartialOnly, shareFilter, shareKurbanType, shareStatus, shareNotifiedOnly])
+  }, [tab, animalFilter, animalPartialOnly, animalVideoStatus, shareFilter, shareKurbanType, shareStatus, shareNotifiedOnly])
 
   return (
     <div className="space-y-5">
@@ -366,11 +422,12 @@ export default function KurbanAdminPage() {
           selected && summary ? (
             <>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
-                {selected.animal_type_label} · Hisse: {formatMoney(selected.price_per_share_cents)}
+                {selected.animal_label || selected.animal_type_label} · Hisse: {formatMoney(selected.price_per_share_cents)}
               </span>
               {selected.country && (
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                  📍 {selected.country} {selected.season_year ? `(${selected.season_year})` : ''}
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                  <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+                  {selected.country} {selected.season_year ? `(${selected.season_year})` : ''}
                 </span>
               )}
               {summary.by_kurban_type.map((t) => (
@@ -423,6 +480,19 @@ export default function KurbanAdminPage() {
               >
                 <FileText className="h-4 w-4 text-emerald-600" />
                 {animalFilter === 'slaughtered' ? 'Kesilen Kağıtlar (PDF)' : 'Kurban Kağıtları (PDF)'}
+              </button>
+            )}
+            {selectedId && canPdf && (
+              <button
+                type="button"
+                title="Her hissedar için ayrı sayfa: kurban no, ad, niyet ve cins"
+                onClick={() => downloadCards(`/kurban/campaigns/${selectedId}/cards.pdf`, {
+                  status: animalFilter === 'slaughtered' ? 'slaughtered' : 'waiting',
+                })}
+                className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-xs transition hover:bg-slate-50"
+              >
+                <IdCard className="h-4 w-4 text-emerald-600" />
+                İsim Kartları (PDF)
               </button>
             )}
             {canWrite && (
@@ -488,6 +558,28 @@ export default function KurbanAdminPage() {
         </div>
       )}
 
+      {campaignsLoading ? (
+        <Card className="border border-slate-200/80 p-10 text-center text-sm text-slate-500 animate-pulse">
+          Kurban kampanyaları yükleniyor...
+        </Card>
+      ) : campaigns.length === 0 ? (
+        <Card className="border border-slate-200/80">
+          <EmptyState
+            icon={Beef}
+            title="Henüz kurban kampanyası oluşturulmadı"
+            text="Yeni bir kurban kampanyası başlatarak web ve elden hisse kayıtlarını, hayvan dağıtımını ve kesim kağıtlarını tek ekrandan yönetebilirsiniz."
+            action={
+              canWrite ? (
+                <Button type="button" size="sm" onClick={() => setShowCreate(true)}>
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  İlk Kurban Kampanyasını Oluştur
+                </Button>
+              ) : undefined
+            }
+          />
+        </Card>
+      ) : null}
+
       {selected && summary && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -537,6 +629,7 @@ export default function KurbanAdminPage() {
                 { key: 'animals', label: 'Hayvanlar & Çadırlar', count: visibleAnimals.length, icon: Beef },
                 { key: 'shares', label: 'Hisseler & Hissedarlar', count: sharesTotal || visibleShares.length, icon: Users },
                 ...(canIssue ? [{ key: 'entry' as Tab, label: 'Elden Hisse Kaydı', icon: HandCoins }] : []),
+                ...(canIssue ? [{ key: 'bulk' as Tab, label: 'Toplu Giriş', icon: ListPlus }] : []),
                 ...(canWrite ? [{ key: 'settings' as Tab, label: 'Kampanya Ayarları', icon: Settings }] : []),
               ]}
             />
@@ -571,7 +664,22 @@ export default function KurbanAdminPage() {
                         Elle Hayvan Ekle
                       </button>
                     )}
-                    {tab === 'animals' && canWrite && waitingAnimals.length > 0 && picked.size === 0 && (
+                    {tab === 'animals' && (
+                      <div className="hidden overflow-hidden rounded-xl border border-slate-200 sm:inline-flex">
+                        {([['cards', LayoutGrid, 'Kart'], ['table', Table2, 'Tablo']] as const).map(([key, Icon, label]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setAnimalView(key)}
+                            className={`inline-flex h-9 items-center gap-1 px-3 text-xs font-bold transition ${animalView === key ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {tab === 'animals' && (canSlaughter || canWrite) && waitingAnimals.length > 0 && picked.size === 0 && (
                       <button
                         type="button"
                         onClick={() => setPicked(new Set(waitingAnimals.map((a) => a.id)))}
@@ -580,7 +688,7 @@ export default function KurbanAdminPage() {
                         Bekleyenleri Seç ({waitingAnimals.length})
                       </button>
                     )}
-                    {tab === 'animals' && canWrite && picked.size > 0 && (
+                    {tab === 'animals' && canSlaughter && picked.size > 0 && (
                       <button
                         type="button"
                         disabled={busy}
@@ -604,13 +712,16 @@ export default function KurbanAdminPage() {
                       getData={() =>
                         tab === 'animals'
                           ? {
-                              headers: ['Hayvan No', 'Kapasite', 'Dolu Hisse', 'Durum', 'Kesim Tarihi', 'Hissedarlar'],
+                              headers: ['Hayvan No', 'Cins', 'Ülke', 'Kapasite', 'Dolu Hisse', 'Durum', 'Kesim Tarihi', 'Video', 'Hissedarlar'],
                               rows: visibleAnimals.map((a) => [
                                 a.animal_number,
+                                a.animal_label,
+                                a.country || '',
                                 a.capacity,
                                 a.shares.length,
                                 a.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor',
                                 formatDateTime(a.slaughtered_at),
+                                a.video_status_label,
                                 a.shares.map((s) => `${s.share_number}. ${s.name}`).join(', '),
                               ]),
                             }
@@ -642,6 +753,7 @@ export default function KurbanAdminPage() {
                         { label: 'Kesim Bekleyen', active: animalFilter === 'waiting' && !animalPartialOnly, onClick: () => { setAnimalFilter('waiting'); setAnimalPartialOnly(false) } },
                         { label: 'Boş Yeri Olan', active: animalPartialOnly, onClick: () => { setAnimalFilter('waiting'); setAnimalPartialOnly(true) } },
                         { label: 'Kesilenler', active: animalFilter === 'slaughtered', onClick: () => { setAnimalFilter('slaughtered'); setAnimalPartialOnly(false) } },
+                        { label: 'Videosu Gönderilmeyen', active: animalVideoStatus === 'recorded', onClick: () => setAnimalVideoStatus((v) => (v === 'recorded' ? '' : 'recorded')) },
                       ].map((p) => (
                         <button
                           key={p.label}
@@ -727,6 +839,12 @@ export default function KurbanAdminPage() {
                           Sadece boş yeri olanlar
                         </label>
                       </div>
+                      <Label label="Video Durumu">
+                        <select className={inputClass} value={animalVideoStatus} onChange={(e) => setAnimalVideoStatus(e.target.value as typeof animalVideoStatus)}>
+                          <option value="">Tüm videolar</option>
+                          {VIDEO_STATUS_OPTIONS.map((v) => <option key={v.key} value={v.key}>{v.label}</option>)}
+                        </select>
+                      </Label>
                     </>
                   ) : (
                     <>
@@ -759,14 +877,146 @@ export default function KurbanAdminPage() {
 
           {tab === 'animals' && (
             <div className="space-y-3">
+              {picked.size > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                  <span className="text-xs font-bold text-emerald-900">
+                    {picked.size} hayvan seçildi
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canSlaughter && [...picked].some((id) => animals.find((a) => a.id === id)?.status === 'waiting') && (
+                      <Button type="button" size="sm" disabled={busy} onClick={() => slaughter([...picked].filter((id) => animals.find((a) => a.id === id)?.status === 'waiting'))}>
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                        Seçilenleri Kesildi İşaretle
+                      </Button>
+                    )}
+                    {canWrite && (
+                      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setVideoModal({ ids: [...picked], status: 'recorded', videoUrl: '' })}>
+                        <Video className="h-3.5 w-3.5 mr-1.5" />
+                        Video Durumu
+                      </Button>
+                    )}
+                    {canPdf && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const ids = animals.filter((a) => picked.has(a.id)).flatMap((a) => a.shares.map((s) => s.id))
+                          if (!ids.length) return toast.error('Seçilen hayvanlarda hissedar yok.')
+                          downloadShareCards(ids).catch((err) => toast.error(apiErrorMessage(err, 'İsim kartları indirilemedi')))
+                        }}
+                      >
+                        <IdCard className="h-3.5 w-3.5 mr-1.5" />
+                        İsim Kartları
+                      </Button>
+                    )}
+                    <Button type="button" size="sm" variant="outline" onClick={() => setPicked(new Set())}>
+                      Seçimi Temizle
+                    </Button>
+                  </div>
+                </div>
+              )}
               {visibleAnimals.length === 0 ? (
                 <Card className="border border-slate-200/80 p-12 text-center shadow-xs">
                   <Beef className="mx-auto h-10 w-10 text-slate-300" />
                   <p className="mt-2 text-sm font-bold text-slate-700">Uygun hayvan kaydı bulunmuyor</p>
                   <p className="mt-1 text-xs text-slate-500">Hisseler geldikçe &quot;Hisseleri Dağıt&quot; butonuyla hayvanlar otomatik oluşturulur veya filtreleri temizleyebilirsiniz.</p>
                 </Card>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              ) : animalView === 'table' ? (
+                <Card className="hidden overflow-hidden rounded-2xl border border-slate-200/80 p-0 shadow-xs sm:block">
+                  <div className="overflow-x-auto">
+                    <Table inset>
+                      <THead className="bg-slate-50/80">
+                        <Tr>
+                          <Th className="w-10">
+                            <input
+                              type="checkbox"
+                              checked={visibleAnimals.length > 0 && picked.size === visibleAnimals.length}
+                              onChange={() => setPicked(picked.size === visibleAnimals.length ? new Set() : new Set(visibleAnimals.map((a) => a.id)))}
+                              aria-label="Görünen hayvanların tümünü seç"
+                              className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+                            />
+                          </Th>
+                          <Th>Kurban No</Th>
+                          <Th>Cins</Th>
+                          <Th>Ülke</Th>
+                          <Th>Hissedarlar</Th>
+                          <Th>Hisse</Th>
+                          <Th>Durum</Th>
+                          <Th>Kesim</Th>
+                          <Th>Video</Th>
+                          <Th>SMS</Th>
+                          <Th className="text-right">İşlem</Th>
+                        </Tr>
+                      </THead>
+                      <TBody>
+                        {visibleAnimals.map((a) => {
+                          const isSlaughtered = a.status === 'slaughtered'
+                          const fillPct = a.capacity > 0 ? Math.min(100, Math.round((a.shares.length / a.capacity) * 100)) : 0
+                          return (
+                            <Tr key={a.id} className="hover:bg-slate-50/70">
+                              <Td>
+                                <input type="checkbox" checked={picked.has(a.id)} onChange={() => togglePick(a.id)} aria-label={`${a.animal_number} seç`} className="h-4 w-4 rounded border-slate-300 text-emerald-600" />
+                              </Td>
+                              <Td className="font-mono font-black text-slate-900">{a.animal_number}</Td>
+                              <Td>{a.animal_label}</Td>
+                              <Td>{a.country || '—'}</Td>
+                              <Td className="max-w-[260px] truncate text-slate-700" title={a.shares.map((s) => s.name).join(', ')}>
+                                {a.shares.map((s) => s.name).join(', ') || <span className="text-slate-400">Hissedar yok</span>}
+                              </Td>
+                              <Td>
+                                <div className="flex items-center gap-2">
+                                  <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
+                                    <div className={`h-full rounded-full ${fillPct >= 100 ? 'bg-emerald-600' : 'bg-amber-400'}`} style={{ width: `${fillPct}%` }} />
+                                  </div>
+                                  <span className="font-mono text-xs text-slate-600">{a.shares.length}/{a.capacity}</span>
+                                </div>
+                              </Td>
+                              <Td>
+                                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${isSlaughtered ? 'border-emerald-300 bg-emerald-100/70 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                                  {isSlaughtered ? 'Kesildi' : 'Bekliyor'}
+                                </span>
+                              </Td>
+                              <Td className="text-xs text-slate-600">{formatDateTime(a.slaughtered_at) || '—'}</Td>
+                              <Td>
+                                {a.video_url ? (
+                                  <a href={a.video_url} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 text-xs font-semibold hover:underline ${VIDEO_STATUS_CLASS[a.video_status]}`}>
+                                    <Video className="h-3.5 w-3.5" />{a.video_status_label}
+                                  </a>
+                                ) : (
+                                  <span className={`inline-flex items-center gap-1 text-xs ${VIDEO_STATUS_CLASS[a.video_status]}`}><Video className="h-3.5 w-3.5" />{a.video_status_label}</span>
+                                )}
+                              </Td>
+                              <Td className="font-mono text-xs text-slate-500">{a.shares.filter((s) => s.notified).length}/{a.shares.length}</Td>
+                              <Td className="text-right">
+                                <div className="inline-flex items-center gap-1">
+                                  {canPdf && (
+                                    <button type="button" title="Kesim kağıdı" onClick={() => downloadFile(`/kurban/animals/${a.id}/paper.pdf`, `kurban-${a.animal_number}.pdf`)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"><FileText className="h-4 w-4" /></button>
+                                  )}
+                                  {canPdf && a.shares.length > 0 && (
+                                    <button type="button" title="İsim kartları" onClick={() => downloadCards(`/kurban/animals/${a.id}/cards.pdf`)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"><IdCard className="h-4 w-4" /></button>
+                                  )}
+                                  {canWrite && (
+                                    <button type="button" title="Video / numara / kesim tarihi" onClick={() => setVideo(a)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"><Video className="h-4 w-4" /></button>
+                                  )}
+                                  {canSlaughter && !isSlaughtered && (
+                                    <button type="button" title="Kesildi işaretle" onClick={() => slaughter([a.id])} className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50"><CheckCircle2 className="h-4 w-4" /></button>
+                                  )}
+                                  {canDelete && !isSlaughtered && a.shares.length === 0 && (
+                                    <button type="button" title="Hayvanı sil" onClick={() => deleteAnimal(a)} className="rounded-lg p-1.5 text-rose-600 hover:bg-rose-50"><Trash2 className="h-4 w-4" /></button>
+                                  )}
+                                </div>
+                              </Td>
+                            </Tr>
+                          )
+                        })}
+                      </TBody>
+                    </Table>
+                  </div>
+                </Card>
+              ) : null}
+              {visibleAnimals.length > 0 && (
+                <div className={`grid gap-4 md:grid-cols-2 xl:grid-cols-3 ${animalView === 'table' ? 'sm:hidden' : ''}`}>
                   {visibleAnimals.map((a) => {
                     const fillPct = a.capacity > 0 ? Math.min(100, Math.round((a.shares.length / a.capacity) * 100)) : 0
                     const isSlaughtered = a.status === 'slaughtered'
@@ -783,7 +1033,7 @@ export default function KurbanAdminPage() {
                         <div>
                           <div className="flex items-start justify-between gap-2">
                             <label className="flex cursor-pointer items-center gap-2.5">
-                              {canWrite && !isSlaughtered && (
+                              {(canWrite || canSlaughter || canPdf) && (
                                 <input
                                   type="checkbox"
                                   checked={picked.has(a.id)}
@@ -808,7 +1058,18 @@ export default function KurbanAdminPage() {
                                     : 'border-amber-200 bg-amber-50 text-amber-800'
                                 }`}
                               >
-                                {isSlaughtered ? '✓ Kesildi' : '⏳ Bekliyor'} · {a.shares.length}/{a.capacity}
+                                {isSlaughtered ? (
+                                  <>
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Kesildi
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock className="h-3 w-3" />
+                                    Bekliyor
+                                  </>
+                                )}{' '}
+                                · {a.shares.length}/{a.capacity}
                               </span>
                               {!isSlaughtered && emptySlots > 0 && (
                                 <span className="text-[10px] font-bold text-slate-500">{emptySlots} boş hisse</span>
@@ -832,9 +1093,9 @@ export default function KurbanAdminPage() {
                                   </span>
                                   {s.name}
                                 </span>
-                                <span className="shrink-0 text-[11px] font-medium text-slate-500">
+                                <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-slate-500">
                                   {types.find((t) => t.key === s.kurban_type)?.label}
-                                  {s.notified ? ' · ✉️' : ''}
+                                  {s.notified && <MailCheck className="h-3.5 w-3.5 text-emerald-600" aria-label="Kesim SMS bildirimi gönderildi" />}
                                 </span>
                               </li>
                             ))}
@@ -848,27 +1109,39 @@ export default function KurbanAdminPage() {
 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
                           <div className="flex flex-wrap gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => downloadFile(`/kurban/animals/${a.id}/paper.pdf`, `kurban-${a.animal_number}.pdf`)}
-                              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                            >
-                              <FileText className="h-3.5 w-3.5 text-emerald-600" />
-                              Kesim Kağıdı
-                            </button>
+                            {canPdf && (
+                              <button
+                                type="button"
+                                onClick={() => downloadFile(`/kurban/animals/${a.id}/paper.pdf`, `kurban-${a.animal_number}.pdf`).catch((err) => toast.error(apiErrorMessage(err, 'PDF indirilemedi')))}
+                                className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                              >
+                                <FileText className="h-3.5 w-3.5 text-emerald-600" />
+                                Kesim Kağıdı
+                              </button>
+                            )}
+                            {canPdf && a.shares.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => downloadCards(`/kurban/animals/${a.id}/cards.pdf`)}
+                                className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                              >
+                                <IdCard className="h-3.5 w-3.5 text-emerald-600" />
+                                İsim Kartı
+                              </button>
+                            )}
                             {canWrite && (
                               <button
                                 type="button"
                                 onClick={() => setVideo(a)}
                                 className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
                               >
-                                <Video className={`h-3.5 w-3.5 ${a.video_url ? 'text-emerald-600' : 'text-slate-400'}`} />
-                                {a.video_url ? 'Video ✓' : 'Video / No'}
+                                <Video className={`h-3.5 w-3.5 ${VIDEO_STATUS_CLASS[a.video_status]}`} />
+                                {a.video_status === 'none' ? 'Video / No' : a.video_status_label}
                               </button>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5">
-                            {canWrite && !isSlaughtered && (
+                            {canSlaughter && !isSlaughtered && (
                               <button
                                 type="button"
                                 onClick={() => slaughter([a.id])}
@@ -878,7 +1151,7 @@ export default function KurbanAdminPage() {
                                 Kesildi
                               </button>
                             )}
-                            {canWrite && !isSlaughtered && a.shares.length === 0 && (
+                            {canDelete && !isSlaughtered && a.shares.length === 0 && (
                               <button
                                 type="button"
                                 onClick={() => deleteAnimal(a)}
@@ -921,6 +1194,12 @@ export default function KurbanAdminPage() {
                     <Button type="button" size="sm" disabled={busy} onClick={assignBulkShares}>
                       Seçilenleri Uygula
                     </Button>
+                    {canPdf && (
+                      <Button type="button" size="sm" variant="outline" onClick={() => downloadShareCards([...pickedShares]).catch((err) => toast.error(apiErrorMessage(err, 'İsim kartları indirilemedi')))}>
+                        <IdCard className="h-3.5 w-3.5 mr-1.5" />
+                        İsim Kartları
+                      </Button>
+                    )}
                     <Button type="button" size="sm" variant="outline" onClick={() => setPickedShares(new Set())}>
                       Temizle
                     </Button>
@@ -1085,7 +1364,10 @@ export default function KurbanAdminPage() {
                 <ManualReceiptForm
                   kurban={{ campaignId: selected.donation_campaign_id, pricePerShareCents: selected.price_per_share_cents, types }}
                   onDone={(r) => {
-                    toast.ok(`${r.receipt_number} numaralı makbuz kesildi, hisseler oluşturuldu`)
+                    const numbers = [...new Set((r.kurban_shares || []).map((s) => s.animal_number).filter(Boolean))]
+                    toast.ok(numbers.length
+                      ? `${r.receipt_number} numaralı makbuz kesildi · Kurban No: ${numbers.join(', ')}`
+                      : `${r.receipt_number} numaralı makbuz kesildi, hisseler oluşturuldu`)
                     setTab('shares')
                     loadSelected()
                   }}
@@ -1096,6 +1378,23 @@ export default function KurbanAdminPage() {
                 </p>
               )}
             </Card>
+          )}
+
+          {tab === 'bulk' && (
+            selected.donation_campaign_id ? (
+              <KurbanBulkEntry
+                key={selected.id}
+                campaignId={selected.id}
+                pricePerShareCents={selected.price_per_share_cents}
+                capacity={selected.animal_type === 'cow' ? 7 : 1}
+                types={types}
+                onSaved={() => { loadCampaigns(); loadSelected() }}
+              />
+            ) : (
+              <Card className="rounded-2xl border border-slate-200/80 p-6 text-sm text-slate-500 shadow-xs">
+                Toplu giriş için kampanyanın bir web bağış kalemine bağlı olması gerekir (Kampanya Ayarları sekmesinden bağlayabilirsiniz).
+              </Card>
+            )
           )}
 
           {tab === 'settings' && (
@@ -1111,6 +1410,8 @@ export default function KurbanAdminPage() {
                   animal_prefix: selected.animal_prefix,
                   status: selected.status,
                   create_donation_campaign: !selected.donation_campaign_id,
+                  animal_label: selected.animal_label || '',
+                  auto_assign: selected.auto_assign,
                 }}
                 onSubmit={(f) => saveCampaign(f, selected)}
                 linked={!!selected.donation_campaign_id}
@@ -1197,6 +1498,14 @@ export default function KurbanAdminPage() {
               />
               <span className="mt-1 block text-[11px] text-slate-500">Bağışçı panelinde ve SMS içinde görüntülenecektir.</span>
             </Label>
+            <Label label="Kesim Tarihi">
+              <Input
+                type="date"
+                max={todayIso()}
+                value={slaughterModal.date}
+                onChange={(e) => setSlaughterModal({ ...slaughterModal, date: e.target.value })}
+              />
+            </Label>
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
               <input
                 type="checkbox"
@@ -1235,8 +1544,46 @@ export default function KurbanAdminPage() {
                 placeholder="https://..."
               />
             </Label>
+            <Label label="Video Durumu">
+              <select
+                className={inputClass}
+                value={animalEditModal.videoStatus}
+                onChange={(e) => setAnimalEditModal({ ...animalEditModal, videoStatus: e.target.value as VideoStatus })}
+              >
+                {VIDEO_STATUS_OPTIONS.map((v) => <option key={v.key} value={v.key}>{v.label}</option>)}
+              </select>
+            </Label>
+            {animalEditModal.animal.status === 'slaughtered' && (
+              <Label label="Kesim Tarihi">
+                <Input
+                  type="date"
+                  max={todayIso()}
+                  value={animalEditModal.slaughteredOn}
+                  onChange={(e) => setAnimalEditModal({ ...animalEditModal, slaughteredOn: e.target.value })}
+                />
+              </Label>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setAnimalEditModal(null)}>Vazgeç</Button>
+              <Button type="submit">Kaydet</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {videoModal && (
+        <Modal title={`Video Durumu (${videoModal.ids.length} hayvan)`} size="sm" onClose={() => setVideoModal(null)}>
+          <form onSubmit={submitVideo} className="space-y-4">
+            <Label label="Video Durumu">
+              <select className={inputClass} value={videoModal.status} onChange={(e) => setVideoModal({ ...videoModal, status: e.target.value as VideoStatus })}>
+                {VIDEO_STATUS_OPTIONS.map((v) => <option key={v.key} value={v.key}>{v.label}</option>)}
+              </select>
+            </Label>
+            <Label label="Video Bağlantısı (isteğe bağlı)">
+              <Input value={videoModal.videoUrl} onChange={(e) => setVideoModal({ ...videoModal, videoUrl: e.target.value })} placeholder="Boş bırakılırsa mevcut bağlantılar kalır" />
+            </Label>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setVideoModal(null)}>Vazgeç</Button>
               <Button type="submit">Kaydet</Button>
             </div>
           </form>
@@ -1337,6 +1684,17 @@ function CampaignForm({
           <option value="cow">Büyükbaş (7 hisse)</option><option value="sheep">Küçükbaş (1 hisse)</option>
         </select>
       </Label>
+      <Label label="Cins adı (kâğıtta ve kartta yazar)">
+        <Input
+          list="kurban-animal-labels"
+          value={form.animal_label}
+          onChange={(e) => set('animal_label', e.target.value)}
+          placeholder={form.animal_type === 'cow' ? 'Sığır, Dana, Deve…' : 'Koyun, Keçi, Koç…'}
+        />
+        <datalist id="kurban-animal-labels">
+          {(form.animal_type === 'cow' ? ['Sığır', 'Dana', 'Deve', 'Manda'] : ['Koyun', 'Keçi', 'Koç']).map((l) => <option key={l} value={l} />)}
+        </datalist>
+      </Label>
       <Label label="Kesim ülkesi">
         <Input value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="Çad" />
       </Label>
@@ -1356,6 +1714,10 @@ function CampaignForm({
           <Input value={form.description} onChange={(e) => set('description', e.target.value)} />
         </Label>
       </div>
+      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 sm:col-span-2 lg:col-span-4">
+        <input type="checkbox" checked={form.auto_assign} onChange={(e) => set('auto_assign', e.target.checked)} />
+        Kurban numarası kayıt anında verilsin (hisseler kaydedilir kaydedilmez hayvana yerleşir; kapalıyken “Hisseleri Dağıt” beklenir)
+      </label>
       {!linked && (
         <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 sm:col-span-2 lg:col-span-4">
           <input type="checkbox" checked={form.create_donation_campaign} onChange={(e) => set('create_donation_campaign', e.target.checked)} />

@@ -62,25 +62,25 @@ TABLET_DOWN = {"hide_tablet": True, "hide_mobile": True}
 # --- Default (neutral demo) content -------------------------------------------------------
 
 DEFAULT: dict[str, Any] = {
-    "announcement": {"text": "Kurban bağışlarınızı 48 saat içinde videolu kesiyoruz — tıklayın", "url": "/bagis?tab=kurban"},
+    "announcement": {"text": "Kurban bağışlarınızı 48 saat içinde videolu kesiyoruz — tıklayın", "url": "/bagis/kurban"},
     "slogan": "Bir kapı aç, bir hayat değiştir",
     "menu": [
         {"label": "Kurumsal", "children": [
             {"label": "Hakkımızda", "url": "/hakkimizda"}, {"label": "Sık Sorulan Sorular", "url": "/sss"},
             {"label": "Gizlilik Politikası", "url": "/gizlilik-politikasi"}]},
         {"label": "Faaliyetlerimiz", "url": "/haberler", "mega": True, "children": [
-            {"label": "Kurban organizasyonu", "url": "/bagis?tab=kurban", "group": "Kurban"},
-            {"label": "Su kuyusu projeleri", "url": "/bagis?tab=su-kuyusu", "group": "Yurtdışı projeleri"},
-            {"label": "Eğitim çalışmaları", "url": "/bagis?tab=egitim", "group": "Eğitim"},
+            {"label": "Kurban organizasyonu", "url": "/bagis/kurban", "group": "Kurban"},
+            {"label": "Su kuyusu projeleri", "url": "/bagis/su-kuyusu", "group": "Yurtdışı projeleri"},
+            {"label": "Eğitim çalışmaları", "url": "/bagis/egitim", "group": "Eğitim"},
             {"label": "Tüm faaliyetlerimiz", "url": "/haberler", "group": "Tümü"}]},
         {"label": "Hesap Numaralarımız", "url": "/hesap-numaralarimiz"},
         {"label": "İletişim", "url": "/iletisim"},
     ],
     "header_buttons": [{"label": "Bağışımı Gel Al", "url": "/iletisim"}, {"label": "Bağış Yap", "url": "/bagis"}],
     "slides": [
-        {"image_url": "/demo/water.webp", "button_url": "/bagis?tab=su-kuyusu", "title": "Bir kuyu, bir köyün hayatı"},
-        {"image_url": "/demo/education.webp", "button_url": "/bagis?tab=egitim", "title": "İlimle yetişen nesiller"},
-        {"image_url": "/demo/relief.webp", "button_url": "/bagis", "title": "Sofralara bereket olun"},
+        {"image_url": "/demo/water.webp", "button_url": "/bagis/su-kuyusu", "title": "Bir kuyu, bir köyün hayatı", "tab_label": "Su Kuyusu", "tab_icon": "droplets"},
+        {"image_url": "/demo/education.webp", "button_url": "/bagis/egitim", "title": "İlimle yetişen nesiller", "tab_label": "Eğitim", "tab_icon": "graduation-cap"},
+        {"image_url": "/demo/relief.webp", "button_url": "/bagis", "title": "Sofralara bereket olun", "tab_label": "Sofra", "tab_icon": "utensils"},
     ],
     "edevlet": {"text": "Derneğimizi e-Devlet'te sorgulamak için tıklayınız.", "url": "https://www.turkiye.gov.tr/icisleri-ddb-dernek-sorgulama"},
     "counters": [{"value": "20", "label": "Kampanya"}, {"value": "1.800", "label": "Bağışçı"},
@@ -169,6 +169,8 @@ def footer(c: dict) -> list:
 
 def home(c: dict) -> list:
     slides = [{"image_url": s["image_url"], "mobile_image_url": s.get("mobile_image_url"), "title": s.get("title"),
+               "tab_label": s.get("tab_label"), "tab_icon": s.get("tab_icon"), "tab_icon_url": s.get("tab_icon_url"),
+               "bg_color": s.get("bg_color"),
                "button_label": "Bağış Yap", "button_url": s.get("button_url") or "/bagis",
                "button2_label": "Detaylı Bilgi" if s.get("button2_url") else None, "button2_url": s.get("button2_url"),
                "align": "left", "overlay": 0 if s.get("poster") else 35}
@@ -178,7 +180,7 @@ def home(c: dict) -> list:
             del slide[key]
     d, t, f, n = c["donate"], c["testimonials"], c["support_form"], c["news"]
     return [
-        B("slider", slides=slides, height="poster" if c["slides"] and all(s.get("poster") for s in c["slides"]) else "lg", layout="card", nav="thumbs", autoplay=True, interval=6, effect="fade", arrows=True, dots=True),
+        B("slider", slides=slides, height="poster" if c["slides"] and all(s.get("poster") for s in c["slides"]) else "lg", layout="card", nav="icon_tabs", autoplay=True, interval=6, effect="fade", arrows=True, arrow_style="ghost", dots=True),
         B("announcement_bar", text=c["edevlet"]["text"], url=c["edevlet"]["url"], tone="rose", closable=False, icon="🏛"),
         _section([B("stats", mode="manual", variant="card", items=c["counters"])], top=40, bottom=56),
         _section([

@@ -581,7 +581,24 @@ def compute_donor_insights_task():
     return asyncio.run(compute_all(AsyncSessionLocal))
 
 
+async def _send_due_reminders():
+    from app.services.reminders import send_due
+
+    async with AsyncSessionLocal() as db:
+        return await send_due(db)
+
+
+@celery_app.task(name="app.tasks.send_due_reminders_task", ignore_result=True)
+def send_due_reminders_task():
+    """Every minute: push Hatırlatıcı reminders whose time has come to the staff member who wrote them."""
+    return asyncio.run(_send_due_reminders())
+
+
 celery_app.conf.beat_schedule = {
+    "send-due-reminders-every-minute": {
+        "task": "app.tasks.send_due_reminders_task",
+        "schedule": 60.0,
+    },
     "recurring-donations-hourly": {
         "task": "app.tasks.process_recurring_donations_task",
         "schedule": 3600.0,  # instructions are due at 10:00 Istanbul time; hourly also retries soon after

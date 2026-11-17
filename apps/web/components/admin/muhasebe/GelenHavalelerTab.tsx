@@ -119,6 +119,8 @@ interface SplitLine {
   amount: string;
   on_behalf_of: string;
   kurban_type: string;
+  /** Kurban kalemi: hisse başına hissedar adı, her satıra bir ad. */
+  kurban_names: string;
 }
 
 const KURBAN_LABELS: Record<string, string> = {
@@ -940,6 +942,7 @@ function ApproveDialog({
       amount: totalLira,
       on_behalf_of: s.on_behalf_of || '',
       kurban_type: s.kurban_type || 'vacip',
+      kurban_names: '',
     },
   ]);
   const [note, setNote] = useState(transfer.description || '');
@@ -1002,6 +1005,7 @@ function ApproveDialog({
         amount: remaining > 0 ? (remaining / 100).toFixed(2) : '',
         on_behalf_of: s.on_behalf_of || '',
         kurban_type: 'vacip',
+        kurban_names: '',
       },
     ]);
   };
@@ -1033,6 +1037,9 @@ function ApproveDialog({
             amount_cents: toCents(l.amount),
             on_behalf_of: l.on_behalf_of.trim() || null,
             kurban_type: isKurban(camp) ? l.kurban_type : null,
+            kurban_names: isKurban(camp)
+              ? l.kurban_names.split(/\r?\n|;/).map((n) => n.trim()).filter(Boolean)
+              : [],
           };
         }),
         campaign_id: lines[0].campaign_id,
@@ -1220,6 +1227,28 @@ function ApproveDialog({
                         ) : null}
                       </div>
                     </div>
+                    {isKurban(camp) ? (
+                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-12">
+                        <select
+                          value={line.kurban_type}
+                          onChange={(e) => updateLine(idx, { kurban_type: e.target.value })}
+                          className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm sm:col-span-4"
+                          aria-label="Niyet"
+                        >
+                          {Object.entries(KURBAN_LABELS).map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                          ))}
+                        </select>
+                        <textarea
+                          value={line.kurban_names}
+                          onChange={(e) => updateLine(idx, { kurban_names: e.target.value })}
+                          rows={2}
+                          placeholder="Hissedar isimleri (her satıra bir; boşsa bağışçının adı)"
+                          className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm sm:col-span-8"
+                          aria-label="Hissedar isimleri"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

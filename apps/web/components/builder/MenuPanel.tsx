@@ -1,9 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { Campaign } from '@e-infak/api-client'
 import { adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
 import type { PublicMenu } from '../../lib/default-links'
 import { confirmDialog } from '../admin/ui'
+import type { CategoryDto } from '../sections/HomeSections'
+import { buildLinkGroups } from './link-presets'
 
 interface MenuItem {
   id: string
@@ -21,17 +24,6 @@ interface PageRef {
   is_published: boolean
 }
 
-const BUILT_IN_LINKS: [string, string][] = [
-  ['Ana Sayfa', '/'],
-  ['Projeler / Kampanyalar', '/kampanyalar'],
-  ['Haberler', '/haberler'],
-  ['Galeri', '/galeri'],
-  ['Gönüllü Ol', '/gonullu'],
-  ['Zekât Hesapla', '/zekat-hesapla'],
-  ['Hakkımızda', '/hakkimizda'],
-  ['İletişim', '/iletisim'],
-]
-
 function toPublicMenu(items: MenuItem[]): PublicMenu {
   const byOrder = (a: MenuItem, b: MenuItem) => a.display_order - b.display_order
   const toLink = (i: MenuItem) => ({ label: i.label, url: i.url, open_in_new_tab: i.open_in_new_tab })
@@ -41,7 +33,17 @@ function toPublicMenu(items: MenuItem[]): PublicMenu {
   }
 }
 
-export function MenuPanel({ onMenuChanged }: { onMenuChanged: (menu: PublicMenu) => void }) {
+export function MenuPanel({
+  onMenuChanged,
+  campaigns = [],
+  categories = [],
+  features = [],
+}: {
+  onMenuChanged: (menu: PublicMenu) => void
+  campaigns?: Campaign[]
+  categories?: CategoryDto[]
+  features?: string[]
+}) {
   const [items, setItems] = useState<MenuItem[]>([])
   const [pages, setPages] = useState<PageRef[]>([])
   const [location, setLocation] = useState<'header' | 'footer'>('header')
@@ -65,6 +67,11 @@ export function MenuPanel({ onMenuChanged }: { onMenuChanged: (menu: PublicMenu)
   }, [onMenuChanged])
 
   useEffect(() => { load() }, [load])
+
+  const linkGroups = useMemo(
+    () => buildLinkGroups({ campaigns, categories, pages, features }),
+    [campaigns, categories, pages, features],
+  )
 
   const list = items.filter((i) => i.location === location).sort((a, b) => a.display_order - b.display_order)
 
@@ -255,22 +262,35 @@ export function MenuPanel({ onMenuChanged }: { onMenuChanged: (menu: PublicMenu)
         </button>
       </form>
 
-      <div className="space-y-1.5">
+      <div className="space-y-2.5">
         <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Hızlı Ekle</p>
-        <div className="flex flex-wrap gap-1">
-          {BUILT_IN_LINKS.map(([label, url]) => (
-            <button key={url} type="button" onClick={() => add(undefined, { label, url })}
-              className="rounded border bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:border-blue-400 hover:text-blue-700">
-              + {label}
-            </button>
-          ))}
-          {pages.map((p) => (
-            <button key={p.slug} type="button" onClick={() => add(undefined, { label: p.title, url: `/sayfa/${p.slug}` })}
-              className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 hover:bg-blue-100">
-              + {p.title}
-            </button>
-          ))}
-        </div>
+        {linkGroups.map((group) => {
+          const isCustom = group.group === 'Özel Sayfalar'
+          const isCategory = group.group === 'Proje Kategorileri' || group.group === 'Bağış Kalemleri'
+          const pillCls = isCustom
+            ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+            : isCategory
+              ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100'
+              : 'bg-white text-gray-600 hover:border-blue-400 hover:text-blue-700'
+          return (
+            <div key={group.group} className="space-y-1">
+              <p className="text-[10px] font-semibold text-gray-400">{group.group}</p>
+              <div className="flex flex-wrap gap-1">
+                {group.items.map((item) => (
+                  <button
+                    key={`${group.group}:${item.url}:${item.label}`}
+                    type="button"
+                    title={item.url}
+                    onClick={() => add(undefined, { label: item.label, url: item.url })}
+                    className={`rounded border px-2 py-0.5 text-[11px] font-medium ${pillCls}`}
+                  >
+                    + {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <p className="rounded-lg bg-gray-50 p-2 text-[11px] text-gray-500">

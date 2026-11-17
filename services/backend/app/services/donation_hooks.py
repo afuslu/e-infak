@@ -48,6 +48,9 @@ async def create_kurban_shares(db: AsyncSession, donation: Donation, donor: Dono
     )).scalar_one_or_none()
     if not campaign:
         return []
+    from app.models.kurban import KurbanCampaignStatus
+
+    completed = campaign.status == KurbanCampaignStatus.COMPLETED
     if donation.currency == "TRY" and campaign.price_per_share_cents:
         count = donation.amount_cents // campaign.price_per_share_cents
     else:
@@ -74,13 +77,31 @@ async def create_kurban_shares(db: AsyncSession, donation: Donation, donor: Dono
         )
         db.add(share)
         shares.append(share)
-    if campaign.auto_assign:
+    if completed:
+        # Sezon kapandıktan sonra gelen ödeme (ör. geç düşen havale): hisse kaydı tutulur ama
+        # hayvana kendiliğinden yerleşmez; personel ya iade eder ya da elle dağıtır.
+        donation.payment_details = {**(donation.payment_details or {}),
+                                    "kurban_note": "Kurban kampanyası tamamlanmış; hisse hayvana yerleştirilmedi"}
+    elif campaign.auto_assign:
         # Kurban numarası kayıt anında belli olsun: hisseler hemen bir hayvana yerleşir.
         from app.services.kurban_placement import place_shares
 
         await db.flush()
         await place_shares(db, campaign, shares)
     return shares
+
+
+async def ensure_kurban_open(db: AsyncSession, organization_id: UUID, campaign_ids) -> None:
+    """Personelin kestiği makbuz tamamlanmış bir kurban kampanyasına yazılamaz (ValueError)."""
+    from app.models.kurban import KurbanCampaignStatus
+
+    closed = (await db.execute(select(KurbanCampaign.title).where(
+        KurbanCampaign.organization_id == organization_id,
+        KurbanCampaign.donation_campaign_id.in_(list(campaign_ids)),
+        KurbanCampaign.status == KurbanCampaignStatus.COMPLETED,
+    ))).scalars().first()
+    if closed:
+        raise ValueError(f"“{closed}” kurban kampanyası tamamlanmış; yeni hisse kaydı alınamaz")
 
 
 async def pay_installments(db: AsyncSession, donation: Donation, metadata: dict) -> list[PledgeInstallment]:

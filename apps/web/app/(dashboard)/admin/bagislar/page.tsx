@@ -34,6 +34,8 @@ interface Row {
   official_receipt_no?: string | null
   campaign_id?: string | null
   campaign_title: string | null
+  kurban_numbers?: string[]
+  kurban_unassigned?: number
   amount_cents: number
   currency: string
   quantity?: number
@@ -374,7 +376,10 @@ export default function AdminDonationsPage() {
           <ManualReceiptForm
             onDone={(r) => {
               setShowManual(false)
-              toast.ok(`${r.receipt_number} numaralı makbuz kesildi`)
+              const kurbanNo = [...new Set((r.kurban_shares || []).map((s) => s.animal_number).filter(Boolean))]
+              toast.ok(kurbanNo.length
+                ? `${r.receipt_number} numaralı makbuz kesildi · Kurban No: ${kurbanNo.join(', ')}`
+                : `${r.receipt_number} numaralı makbuz kesildi`)
               load()
             }}
           />
@@ -736,7 +741,10 @@ export default function AdminDonationsPage() {
                           {r.on_behalf_of ? <span className="text-emerald-700">Adına: {r.on_behalf_of}</span> : null}
                         </div>
                       </Td>
-                      <Td className="text-xs text-slate-700">{r.campaign_title || '—'}</Td>
+                      <Td className="text-xs text-slate-700">
+                        {r.campaign_title || '—'}
+                        <KurbanNo row={r} />
+                      </Td>
                       <Td>
                         <div className="text-xs text-slate-800">{r.payment_method_label}</div>
                         <div className="text-[10px] text-slate-400">
@@ -851,6 +859,7 @@ export default function AdminDonationsPage() {
                         <p className="font-bold text-slate-900">{r.donor_name}</p>
                         <p className="font-mono text-[11px] text-slate-400">{r.receipt_number} · {new Date(r.paid_at).toLocaleDateString('tr-TR')}</p>
                         <p className="text-xs text-slate-600">{r.campaign_title || '—'}</p>
+                        <KurbanNo row={r} />
                       </div>
                     </div>
                     <div className="text-right">
@@ -967,6 +976,7 @@ export default function AdminDonationsPage() {
             <div className="rounded-lg bg-slate-50 p-3">
               <div className="text-slate-400">Kampanya</div>
               <div className="font-semibold text-slate-800">{detailRow.campaign_title || '—'}</div>
+              <KurbanNo row={detailRow} />
               {detailRow.on_behalf_of && <div className="text-emerald-700 mt-0.5">Adına: {detailRow.on_behalf_of}</div>}
             </div>
             <div className="rounded-lg bg-slate-50 p-3">
@@ -1036,6 +1046,18 @@ export default function AdminDonationsPage() {
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** Kurban hissesi olan makbuzda hayvan numaraları; atanmamış hisse varsa o da yazılır. */
+function KurbanNo({ row }: { row: { kurban_numbers?: string[]; kurban_unassigned?: number } }) {
+  const numbers = row.kurban_numbers || []
+  if (!numbers.length && !row.kurban_unassigned) return null
+  return (
+    <div className="mt-0.5 font-mono text-[11px] font-bold text-emerald-700">
+      {numbers.length ? `Kurban No: ${numbers.join(', ')}` : ''}
+      {row.kurban_unassigned ? <span className="text-amber-700">{numbers.length ? ' · ' : ''}{row.kurban_unassigned} hisse atanmadı</span> : null}
     </div>
   )
 }

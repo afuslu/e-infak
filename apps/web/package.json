@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf .next .turbo node_modules"
+    "clean": "rm -rf .next .turbo node_modules",
+    "test": "tsc -p tsconfig.test.json && node --test .test-out/"
   },
   "dependencies": {
     "@e-infak/api-client": "workspace:*",

@@ -6,7 +6,7 @@
  * block tree; this page draws it with the public renderer and reports clicks,
  * toolbar actions and drag-and-drop moves back. Messages from other origins are ignored.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { brandCssVariables } from '@e-infak/theme'
 import { BlockStyles, renderBlock, type RenderOptions } from '../../components/blocks/BlockRenderer'
 import type { HomeData } from '../../components/sections/HomeSections'
@@ -38,6 +38,57 @@ const TEXT_FIELD_TYPES = new Set(['text', 'textarea', 'richtext'])
 
 function post(message: Record<string, unknown>) {
   window.parent.postMessage({ source: 'einfak-builder-frame', ...message }, window.location.origin)
+}
+
+function BlockToolbar({
+  depth,
+  selected,
+  invScale,
+  className,
+  children,
+}: {
+  depth: number
+  selected: boolean
+  invScale: number
+  className: string
+  children: ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [alignEnd, setAlignEnd] = useState(false)
+  const [placeBelow, setPlaceBelow] = useState(false)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const parent = el.offsetParent as HTMLElement | null
+    const pRect = parent?.getBoundingClientRect()
+    if (!pRect) return
+    const w = el.offsetWidth * invScale
+    const h = el.offsetHeight * invScale
+    setAlignEnd(pRect.left + w > window.innerWidth - 8 && pRect.right - w >= 8)
+    setPlaceBelow(depth > 0 ? pRect.top - h < 4 : pRect.top < 4)
+  }, [depth, selected, invScale, children])
+
+  const posClass = depth === 0
+    ? `${alignEnd ? 'end-0' : 'start-0'} top-0 rounded-b-md`
+    : placeBelow
+      ? `${alignEnd ? 'end-0' : 'start-0'} top-full rounded-b-md`
+      : `${alignEnd ? 'end-0' : 'start-0'} bottom-full rounded-t-md`
+
+  const origin = `${depth > 0 && !placeBelow ? 'bottom' : 'top'} ${alignEnd ? 'right' : 'left'}`
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        transform: invScale > 1 ? `scale(${invScale})` : undefined,
+        transformOrigin: origin,
+      }}
+      className={`${className} ${posClass}`}
+    >
+      {children}
+    </div>
+  )
 }
 
 export default function BuilderCanvas() {
@@ -188,12 +239,11 @@ export default function BuilderCanvas() {
         {dropHere === 'after' && <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 h-1 bg-blue-500" />}
         {dropHere === 'inside' && <div className="pointer-events-none absolute inset-0 z-30 bg-blue-500/10 ring-2 ring-inset ring-blue-500" />}
         {(selected || isHover) && (
-          <div
-            style={{
-              transform: invScale > 1 ? `scale(${invScale})` : undefined,
-              transformOrigin: depth ? 'top right' : 'top left',
-            }}
-            className={`absolute z-40 flex items-center gap-0.5 rounded-b-md text-[12px] font-semibold text-white shadow-md ${depth ? 'end-0 top-0' : 'start-0 top-0'} ${selected ? 'bg-blue-600' : 'bg-blue-500'}`}
+          <BlockToolbar
+            depth={depth}
+            selected={selected}
+            invScale={invScale}
+            className={`absolute z-40 flex w-max items-center gap-0.5 whitespace-nowrap text-[12px] font-semibold text-white shadow-md ${selected ? 'bg-blue-600' : 'bg-blue-500'}`}
           >
             <span className="cursor-grab px-2.5 py-1">{spec?.icon} {spec?.label || block.type}</span>
             {selected && hasTextFields && (
@@ -216,7 +266,7 @@ export default function BuilderCanvas() {
                 ))}
               </>
             )}
-          </div>
+          </BlockToolbar>
         )}
         {(block.advanced?.hide_desktop || block.advanced?.hide_tablet || block.advanced?.hide_mobile || block.advanced?.starts_at || block.advanced?.ends_at || block.advanced?.langs) && (
           <div
