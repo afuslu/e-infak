@@ -42,6 +42,23 @@ async def _counts(db: AsyncSession, model, *where) -> dict:
     return dict((await db.execute(query)).all())
 
 
+def _ssl_days_left(domain: str) -> Optional[int]:
+    import socket
+    import ssl
+    try:
+        ctx = ssl.create_default_context()
+        with socket.create_connection((domain, 443), timeout=1.5) as sock:
+            with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
+                cert = ssock.getpeercert()
+        not_after = cert.get("notAfter") if cert else None
+        if not not_after:
+            return None
+        expires = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+        return (expires - datetime.now(timezone.utc)).days
+    except Exception:
+        return None
+
+
 def _alert(org: Organization, level: str, kind: str, message: str, hint: Optional[str] = None) -> dict:
     return {"organization_id": str(org.id), "organization_name": org.name, "level": level,
             "kind": kind, "message": message, "hint": hint}
@@ -144,6 +161,14 @@ async def collect(db: AsyncSession, org_id: Optional[UUID] = None) -> list[dict]
                 days_left = max(1, (ends - now_utc).days)
                 alerts.append(_alert(org, WARNING, "subscription_expiring", f"Abonelik süresinin bitmesine {days_left} gün kaldı",
                                      "Kurumla yenileme için iletişime geçin."))
+
+        for row in active_domains.get(org.id, []):
+            days = _ssl_days_left(row.domain)
+            if days is not None and days <= 14:
+                lvl = DANGER if days <= 0 else WARNING
+                msg = f"{row.domain} SSL sertifikası süresi doldu" if days <= 0 else f"{row.domain} SSL sertifikası {days} gün içinde doluyor"
+                alerts.append(_alert(org, lvl, f"ssl_expiring_{row.domain}", msg,
+                                     "Sunucuda sertifika yenilemesini kontrol edin."))
 
     if not org_id and not settings.PLATFORM_PUBLIC_IP:
         alerts.insert(0, {"organization_id": None, "organization_name": "Platform", "level": WARNING,

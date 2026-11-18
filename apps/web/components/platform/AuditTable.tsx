@@ -21,6 +21,7 @@ export const ACTION_LABELS: Record<string, string> = {
   kullanici_sifre_sifirla: 'Kullanıcı şifresi sıfırlandı',
   destek_girisi: 'Destek girişi',
   demo_talebi_durum: 'Demo talebi durumu',
+  demo_talebi_silindi: 'Demo talebi silindi',
   abonelik_guncellendi: 'Abonelik güncellendi',
   abonelik_tahsilati: 'Abonelik tahsilatı',
   operator_eklendi: 'Operatör eklendi',
@@ -31,6 +32,8 @@ export const ACTION_LABELS: Record<string, string> = {
   sistem_duyurusu_silindi: 'Sistem duyurusu silindi',
   uyari_gizlendi: 'Uyarı gizlendi',
   kurum_silindi: 'Kurum silindi',
+  abonelik_hatirlatmasi: 'Abonelik hatırlatması gönderildi',
+  test_sms_gonderildi: 'Test SMS gönderildi',
 }
 
 const actionLabel = (action: string) => ACTION_LABELS[action] || action.replace(/_/g, ' ')

@@ -49,6 +49,7 @@ class DemoRequest(Base):
     email = Column(String(255))
     plan = Column(String(20))  # package the visitor asked about, if any
     message = Column(Text)
+    operator_notes = Column(Text)
     status = Column(String(16), nullable=False, default="new", server_default="new", index=True)  # new | contacted | converted | closed
     ip_address = Column(String(64))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)

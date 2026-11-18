@@ -54,6 +54,7 @@ export interface PlatformOrg {
   phone?: string | null; city?: string | null
   plan: string; plan_label: string; enabled_addons: string[]; extra_user_seats: number; user_limit: number
   subscription_status?: string; billing_cycle?: string; subscription_ends_at?: string | null; monthly_fee_cents?: number
+  platform_notes?: string | null
   is_active: boolean; template: string; subdomain: string; url: string
   payment_provider: string; sms_provider: string; sms_platform_fallback: boolean
   domains: PlatformDomain[]; created_at: string | null

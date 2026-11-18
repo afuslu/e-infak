@@ -643,4 +643,56 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.sync_zakat_rates_task",
         "schedule": 3600.0,
     },
+    "check-platform-subscriptions-daily": {
+        "task": "app.tasks.check_platform_subscriptions_task",
+        "schedule": crontab(hour=6, minute=0),
+    },
 }
+
+
+@celery_app.task(name="app.tasks.check_platform_subscriptions_task")
+def check_platform_subscriptions_task():
+    """Mark expired active subscriptions as past_due and remind expiring ones."""
+    from datetime import datetime, timedelta, timezone
+    from html import escape
+    from sqlalchemy import select
+    from app.core.config import settings
+    from app.models.organization import Organization
+
+    async def _run():
+        now = datetime.now(timezone.utc)
+        soon = now + timedelta(days=3)
+        async with _session() as db:
+            orgs = (await db.execute(
+                select(Organization).where(
+                    Organization.is_active.is_(True),
+                    Organization.subscription_ends_at.isnot(None),
+                )
+            )).scalars().all()
+            expired_count = 0
+            reminded_count = 0
+            for org in orgs:
+                ends = org.subscription_ends_at
+                if ends.tzinfo is None:
+                    ends = ends.replace(tzinfo=timezone.utc)
+                if ends < now and (org.subscription_status or "active") == "active":
+                    org.subscription_status = "past_due"
+                    expired_count += 1
+                elif now <= ends <= soon and (org.subscription_status or "active") == "active":
+                    if settings.SENDGRID_API_KEY and org.email:
+                        days_left = max(1, (ends - now).days)
+                        html = (
+                            f"<p>Merhaba {escape(org.name)} yetkilisi,</p>"
+                            f"<p>E-İnfak platform aboneliğinizin bitmesine {days_left} gün kalmıştır "
+                            f"(Bitiş: {ends.strftime('%d.%m.%Y')}).</p>"
+                            f"<p>Kesintisiz hizmet için yenileme işlemini gerçekleştirebilirsiniz.</p>"
+                        )
+                        try:
+                            send_email_task(org.email, f"{org.name} — Abonelik Yenileme Hatırlatması", html)
+                            reminded_count += 1
+                        except Exception:
+                            pass
+            await db.commit()
+            return {"expired_marked": expired_count, "reminded": reminded_count}
+
+    return _run_async(_run())

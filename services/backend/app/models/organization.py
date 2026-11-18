@@ -50,6 +50,7 @@ class Organization(Base):
     billing_cycle = Column(String(16), nullable=False, default="monthly", server_default="monthly")  # monthly | yearly
     subscription_ends_at = Column(DateTime(timezone=True))
     monthly_fee_cents = Column(Integer, nullable=False, default=0, server_default="0")
+    platform_notes = Column(Text)
     
     # Bank Account Info
     bank_name = Column(String(100))

@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Building2, CheckCircle2, ExternalLink, HandCoins, Plus, Search } from 'lucide-react'
+import { AlertTriangle, Building2, CheckCircle2, Download, ExternalLink, HandCoins, LogIn, Plus, Power, Search } from 'lucide-react'
 import { AlertList, AlertSummary } from '../../components/platform/AlertList'
-import { PlatformSkeleton, ptPrimaryBtn } from '../../components/platform/PlatformUI'
+import { PlatformSkeleton, downloadCsv, ptPrimaryBtn, ptSecondaryBtn } from '../../components/platform/PlatformUI'
 import { PlatformAlert, PlatformOrg, dateTr, platformCall, platformError } from '../../lib/platform-api'
 
 export default function PlatformOrganizationsPage() {
@@ -14,6 +14,7 @@ export default function PlatformOrganizationsPage() {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all')
   const [planFilter, setPlanFilter] = useState('all')
+  const [busyOrgId, setBusyOrgId] = useState<string | null>(null)
   const [orgError, setOrgError] = useState('')
   const [alertError, setAlertError] = useState('')
 
@@ -52,6 +53,33 @@ export default function PlatformOrganizationsPage() {
     }
   }
 
+  const quickSupport = async (o: PlatformOrg) => {
+    setBusyOrgId(o.id)
+    setOrgError('')
+    try {
+      const res = await platformCall<{ url: string }>('post', `/organizations/${o.id}/support-session`)
+      window.open(res.url, '_blank', 'noopener')
+    } catch (err) {
+      setOrgError(platformError(err, 'Destek girişi açılamadı'))
+    } finally {
+      setBusyOrgId(null)
+    }
+  }
+
+  const quickToggle = async (o: PlatformOrg) => {
+    if (o.is_active && !window.confirm(`${o.name} askıya alınsın mı?`)) return
+    setBusyOrgId(o.id)
+    setOrgError('')
+    try {
+      await platformCall('patch', `/organizations/${o.id}`, { is_active: !o.is_active })
+      setOrgs((prev) => (prev || []).map((x) => (x.id === o.id ? { ...x, is_active: !o.is_active } : x)))
+    } catch (err) {
+      setOrgError(platformError(err, 'Durum değiştirilemedi'))
+    } finally {
+      setBusyOrgId(null)
+    }
+  }
+
   const totalOrgs = orgs?.length ?? 0
   const activeOrgs = orgs?.filter((o) => o.is_active).length ?? 0
   const totalDonations = orgs?.reduce((sum, o) => sum + (o.donation_count || 0), 0) ?? 0
@@ -64,10 +92,38 @@ export default function PlatformOrganizationsPage() {
           <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Kurumlar</h1>
           <p className="mt-0.5 text-sm text-slate-500">Platformdaki tüm dernek ve vakıf kiracılarının genel durumu.</p>
         </div>
-        <Link href="/platform/yeni" className={ptPrimaryBtn}>
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          <span>Yeni kurum</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          {orgs && orgs.length > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                downloadCsv(
+                  'kurumlar.csv',
+                  ['Kurum', 'Slug', 'Paket', 'Adres', 'Kullanıcı', 'Limit', 'Bağış', 'Durum', 'Abonelik Bitiş'],
+                  shown.map((o) => [
+                    o.name,
+                    o.slug,
+                    o.plan_label,
+                    o.url,
+                    o.user_count ?? 0,
+                    o.user_limit,
+                    o.donation_count ?? 0,
+                    o.is_active ? 'Aktif' : 'Askıda',
+                    o.subscription_ends_at || '',
+                  ]),
+                )
+              }
+              className={ptSecondaryBtn}
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              <span>CSV</span>
+            </button>
+          )}
+          <Link href="/platform/yeni" className={ptPrimaryBtn}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>Yeni kurum</span>
+          </Link>
+        </div>
       </div>
 
       {/* KPI özet kartları */}
@@ -172,7 +228,9 @@ export default function PlatformOrganizationsPage() {
                   <th className="px-4 py-3">Kullanıcı</th>
                   <th className="px-4 py-3">Bağış</th>
                   <th className="px-4 py-3">Son bağış</th>
+                  <th className="px-4 py-3">Abonelik</th>
                   <th className="px-4 py-3">Durum</th>
+                  <th className="px-4 py-3 text-right">Hızlı İşlem</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -210,17 +268,49 @@ export default function PlatformOrganizationsPage() {
                       </td>
                       <td className="px-4 py-3 font-semibold text-slate-900">{o.donation_count}</td>
                       <td className="px-4 py-3 text-xs text-slate-500">{dateTr(o.last_donation_at)}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        <div>{o.subscription_status === 'trial' ? 'Deneme' : o.subscription_status === 'past_due' ? 'Gecikmiş' : 'Aktif'}</div>
+                        {o.subscription_ends_at && <div className="text-[11px] text-slate-400">{dateTr(o.subscription_ends_at)}</div>}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${o.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
                           {o.is_active ? 'Aktif' : 'Askıda'}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={!o.is_active || busyOrgId === o.id}
+                            onClick={() => quickSupport(o)}
+                            title="Destek girişi"
+                            aria-label={`${o.name} destek girişi`}
+                            className="rounded-lg border border-slate-200 p-1.5 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:pointer-events-none disabled:opacity-40"
+                          >
+                            <LogIn className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyOrgId === o.id}
+                            onClick={() => quickToggle(o)}
+                            title={o.is_active ? 'Askıya al' : 'Aktif et'}
+                            aria-label={o.is_active ? `${o.name} askıya al` : `${o.name} aktif et`}
+                            className={`rounded-lg border p-1.5 transition disabled:opacity-40 ${
+                              o.is_active
+                                ? 'border-red-200 text-red-600 hover:bg-red-50'
+                                : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
+                            }`}
+                          >
+                            <Power className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
                 })}
                 {shown.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">Aramanızla eşleşen kurum bulunamadı.</td>
+                    <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-500">Aramanızla eşleşen kurum bulunamadı.</td>
                   </tr>
                 )}
               </tbody>

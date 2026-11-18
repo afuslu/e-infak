@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CreditCard, Download, Plus } from 'lucide-react'
+import { CreditCard, Download, Mail, Plus } from 'lucide-react'
 import { PlatformOrg, dateTr, platformCall, platformError } from '../../lib/platform-api'
 import { downloadCsv, ptCard, ptInput, ptPrimaryBtn, ptSecondaryBtn, ptSelect } from './PlatformUI'
 
@@ -134,7 +134,29 @@ export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdat
               <input type="date" className={ptInput} value={sub.subscription_ends_at} onChange={(e) => setSub({ ...sub, subscription_ends_at: e.target.value })} />
             </label>
           </div>
-          <button type="submit" disabled={busy} className={ptPrimaryBtn}>Aboneliği Kaydet</button>
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" disabled={busy} className={ptPrimaryBtn}>Aboneliği Kaydet</button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true)
+                setMsg(null)
+                try {
+                  const res = await platformCall<{ email: string }>('post', `/organizations/${org.id}/send-renewal-reminder`)
+                  setMsg({ ok: true, text: `Yenileme hatırlatma e-postası gönderildi (${res.email})` })
+                } catch (err) {
+                  setMsg({ ok: false, text: platformError(err, 'Hatırlatma e-postası gönderilemedi') })
+                } finally {
+                  setBusy(false)
+                }
+              }}
+              className={ptSecondaryBtn}
+            >
+              <Mail className="h-4 w-4" aria-hidden="true" />
+              <span>Hatırlatma Gönder</span>
+            </button>
+          </div>
         </form>
 
         <form onSubmit={addPayment} className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/60 p-4">

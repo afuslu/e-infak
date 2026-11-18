@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { Download, Printer } from 'lucide-react'
 import { AlertList } from '../../../../components/platform/AlertList'
 import { AuditEntry, AuditTable } from '../../../../components/platform/AuditTable'
 import { SubscriptionCard } from '../../../../components/platform/SubscriptionCard'
 import {
-  Catalog, Credentials, PlatformAlert, PlatformDomain, PlatformOrg, copyText, credentialsText, dateTr, platformCall, platformError,
+  Catalog, Credentials, PlatformAlert, PlatformDomain, PlatformOrg, copyText, credentialsText, dateTr, platformCall, platformError, platformToken,
 } from '../../../../lib/platform-api'
 
 interface Field { key: string; label: string; secret: boolean; optional: boolean; choices: Record<string, string> | null }
@@ -88,6 +89,8 @@ export default function PlatformOrganizationPage() {
   const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState<'' | 'ok' | 'fail'>('')
   const [info, setInfo] = useState({ name: '', legal_name: '', email: '', phone: '', city: '' })
+  const [notes, setNotes] = useState('')
+  const [testPhone, setTestPhone] = useState('')
   const [audit, setAudit] = useState<AuditEntry[] | null>(null)
   const emptyUser = { first_name: '', last_name: '', email: '', role: 'editor' }
   const [newUser, setNewUser] = useState(emptyUser)
@@ -102,6 +105,7 @@ export default function PlatformOrganizationPage() {
     platformCall<AuditEntry[]>('get', `/audit?organization_id=${id}&limit=20`).then(setAudit).catch(() => setAudit([]))
     setPlan({ plan: data.plan, enabled_addons: data.enabled_addons, extra_user_seats: data.extra_user_seats })
     setInfo({ name: data.name, legal_name: data.legal_name || '', email: data.email || '', phone: data.phone || '', city: data.city || '' })
+    setNotes(data.platform_notes || '')
   }, [id])
 
   useEffect(() => {
@@ -163,6 +167,38 @@ export default function PlatformOrganizationPage() {
           </div>
         </div>
         <fieldset disabled={busy} className="flex flex-wrap gap-2 disabled:opacity-60">
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const res = await fetch(`${window.location.origin}/api/v1/platform/organizations/${org.id}/summary.pdf`, {
+                  headers: platformToken() ? { Authorization: `Bearer ${platformToken()}` } : {},
+                })
+                if (!res.ok) throw new Error('PDF oluşturulamadı')
+                const blob = await res.blob()
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${org.slug}-ozet.pdf`
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch {
+                setMsg({ type: 'error', text: 'PDF raporu indirilemedi' })
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 print:hidden"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            <span>PDF İndir</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 print:hidden"
+          >
+            <Printer className="h-4 w-4" aria-hidden="true" />
+            <span>Yazdır</span>
+          </button>
           <button type="button" onClick={supportSignIn} disabled={!org.is_active}
             className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40">Panele destek girişi</button>
           {org.is_active ? (
@@ -455,6 +491,22 @@ export default function PlatformOrganizationPage() {
                 onSaved={(saved) => setOrg({ ...org, provider_accounts: org.provider_accounts.map((x) => (x.key === saved.key ? saved : x)) })} />
             ))}
           </div>
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            <input
+              className={`${input} max-w-[220px]`}
+              placeholder="Test SMS: 05xxxxxxxxx"
+              value={testPhone}
+              onChange={(e) => setTestPhone(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={!testPhone.trim()}
+              onClick={() => run(() => platformCall('post', `/organizations/${org.id}/test-sms`, { phone: testPhone.trim() }), 'Test SMS gönderildi')}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40"
+            >
+              Test SMS Gönder
+            </button>
+          </div>
         </Card>
         </>
         )}
@@ -465,6 +517,30 @@ export default function PlatformOrganizationPage() {
         <div className="lg:col-span-2">
           <Card title="Son işlemler">
             {!audit ? <p className="text-sm text-slate-500">Yükleniyor…</p> : <AuditTable rows={audit} showOrganization={false} />}
+          </Card>
+        </div>
+        )}
+
+        {tab === 'genel' && (
+        <div className="lg:col-span-2">
+          <Card title="Platform Operatör Notları (Kurum Görmez)">
+            <textarea
+              rows={3}
+              maxLength={2000}
+              className={input}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Örn. POS başvurusu beklemede, sözleşme yenileme tarihi..."
+            />
+            <div>
+              <button
+                type="button"
+                className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white"
+                onClick={() => run(() => platformCall('patch', `/organizations/${org.id}`, { platform_notes: notes }), 'Operatör notları kaydedildi')}
+              >
+                Notu kaydet
+              </button>
+            </div>
           </Card>
         </div>
         )}

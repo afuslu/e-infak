@@ -185,6 +185,7 @@ async def _org_out(db: AsyncSession, org: Organization, stats: Optional[dict] = 
         "billing_cycle": org.billing_cycle or "monthly",
         "subscription_ends_at": org.subscription_ends_at.isoformat() if org.subscription_ends_at else None,
         "monthly_fee_cents": org.monthly_fee_cents or 0,
+        "platform_notes": org.platform_notes,
         "is_active": bool(org.is_active),
         "template": org.template,
         "subdomain": org.subdomain,
@@ -329,6 +330,7 @@ class OrganizationUpdate(BaseModel):
     sms_platform_fallback: Optional[bool] = None
     payment_provider: Optional[str] = None
     sms_provider: Optional[str] = None
+    platform_notes: Optional[str] = Field(default=None, max_length=2000)
 
 
 @router.patch("/organizations/{org_id}")
@@ -352,6 +354,8 @@ async def update_organization(org_id: UUID, payload: OrganizationUpdate, request
         org.phone = payload.phone.strip() or None
     if payload.city is not None:
         org.city = payload.city.strip() or None
+    if payload.platform_notes is not None:
+        org.platform_notes = payload.platform_notes.strip() or None
     if payload.plan is not None or payload.enabled_addons is not None:
         org.plan = plan.value
         org.enabled_addons = sorted({f.value for f in addons})
@@ -628,7 +632,8 @@ async def support_session(org_id: UUID, request: Request, db: AsyncSession = Dep
 
 def _demo_row(r: DemoRequest) -> dict:
     return {"id": str(r.id), "name": r.name, "organization": r.organization, "phone": r.phone, "email": r.email,
-            "plan": r.plan, "message": r.message, "status": r.status, "created_at": r.created_at.isoformat()}
+            "plan": r.plan, "message": r.message, "operator_notes": r.operator_notes,
+            "status": r.status, "created_at": r.created_at.isoformat()}
 
 
 @router.get("/demo-requests")
@@ -638,7 +643,8 @@ async def demo_requests(db: AsyncSession = Depends(get_db), _: PlatformUser = De
 
 
 class DemoStatusIn(BaseModel):
-    status: str = Field(pattern="^(new|contacted|converted|closed)$")
+    status: Optional[str] = Field(default=None, pattern="^(new|contacted|converted|closed)$")
+    operator_notes: Optional[str] = Field(default=None, max_length=1000)
 
 
 @router.patch("/demo-requests/{request_id}")
@@ -647,12 +653,25 @@ async def update_demo_request(request_id: UUID, payload: DemoStatusIn, request: 
     row = await db.get(DemoRequest, request_id)
     if not row:
         raise HTTPException(status_code=404, detail="Talep bulunamadı")
-    if row.status != payload.status:
+    if payload.status is not None and row.status != payload.status:
         _audit(db, request, operator, "demo_talebi_durum", organization=row.organization,
                old=row.status, new=payload.status)
-    row.status = payload.status
+        row.status = payload.status
+    if payload.operator_notes is not None:
+        row.operator_notes = payload.operator_notes.strip() or None
     await db.commit()
     return _demo_row(row)
+
+
+@router.delete("/demo-requests/{request_id}", status_code=204)
+async def delete_demo_request(request_id: UUID, request: Request,
+                              db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    row = await db.get(DemoRequest, request_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Talep bulunamadı")
+    _audit(db, request, operator, "demo_talebi_silindi", organization=row.organization, phone=row.phone)
+    await db.delete(row)
+    await db.commit()
 
 
 # --- Audit ----------------------------------------------------------------------
@@ -912,10 +931,19 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
     user_counts = dict((await db.execute(
         select(User.organization_id, func.count(User.id)).where(User.is_active.is_(True)).group_by(User.organization_id)
     )).all())
+    org_30d = {
+        oid: (int(cnt), int(tot or 0))
+        for oid, cnt, tot in (await db.execute(
+            select(Donation.organization_id, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
+            .where(Donation.status == DonationStatus.PAID, Donation.paid_at >= thirty_days_ago)
+            .group_by(Donation.organization_id)
+        )).all()
+    }
     org_usage = []
     for o in orgs:
         limit = org_user_limit(o)
         used = int(user_counts.get(o.id, 0))
+        d30_cnt, d30_cents = org_30d.get(o.id, (0, 0))
         org_usage.append({
             "id": str(o.id),
             "name": o.name,
@@ -926,12 +954,22 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
             "users_used": used,
             "users_limit": limit,
             "quota_pct": round((used / limit) * 100) if limit > 0 else 0,
+            "donations_30d_count": d30_cnt,
+            "donations_30d_cents": d30_cents,
         })
-    org_usage.sort(key=lambda x: x["quota_pct"], reverse=True)
+    org_usage.sort(key=lambda x: (x["donations_30d_cents"], x["quota_pct"]), reverse=True)
+
+    plan_counts = {"baslangic": 0, "orta": 0, "ileri": 0}
+    total_extra_seats = 0
+    for o in orgs:
+        plan_counts[o.plan] = plan_counts.get(o.plan, 0) + 1
+        total_extra_seats += int(o.extra_user_seats or 0)
 
     return {
         "total_orgs": len(orgs),
         "status_counts": status_counts,
+        "plan_counts": plan_counts,
+        "total_extra_seats": total_extra_seats,
         "mrr_cents": int(mrr_cents),
         "saas_collected_month_cents": int(saas_collected_month or 0),
         "donations_30d_count": int(paid_30d_row[0] or 0),
@@ -939,6 +977,42 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
         "failed_donations_30d": int(failed_30d or 0),
         "trends": trends,
         "org_usage": org_usage,
+    }
+
+
+@router.get("/health")
+async def platform_health(db: AsyncSession = Depends(get_db), _: PlatformUser = Depends(get_platform_user)):
+    import time
+    from sqlalchemy import text
+    from app.models.sms_message import SmsMessage
+
+    t0 = time.perf_counter()
+    await db.execute(text("SELECT 1"))
+    db_ms = round((time.perf_counter() - t0) * 1000, 1)
+
+    redis_ok = False
+    try:
+        import redis.asyncio as aioredis
+        client = aioredis.from_url(settings.REDIS_URL, socket_connect_timeout=1.5)
+        redis_ok = bool(await client.ping())
+        await client.aclose()
+    except Exception:
+        redis_ok = False
+
+    since_24h = datetime.now(timezone.utc) - timedelta(hours=24)
+    sms_failed_24h = (await db.execute(
+        select(func.count(SmsMessage.id)).where(
+            SmsMessage.status == "failed",
+            SmsMessage.created_at >= since_24h,
+        )
+    )).scalar_one()
+
+    return {
+        "db_ok": True,
+        "db_ms": db_ms,
+        "redis_ok": redis_ok,
+        "sms_failed_24h": int(sms_failed_24h or 0),
+        "checked_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -1100,3 +1174,107 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
     _audit(db, request, operator, "kurum_silindi", name=org_name, slug=org_slug)
     await db.commit()
     return {"ok": True, "deleted_name": org_name}
+
+
+@router.post("/organizations/{org_id}/send-renewal-reminder")
+async def send_renewal_reminder(org_id: UUID, request: Request,
+                                db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    import asyncio
+    from html import escape
+
+    org = await _org_or_404(db, org_id)
+    if not (settings.SENDGRID_API_KEY and org.email):
+        raise HTTPException(status_code=400, detail="Sunucuda e-posta servisi (SendGrid) veya kurum e-postası tanımlı değil")
+
+    from app.tasks import send_email_task
+
+    ends_str = org.subscription_ends_at.strftime("%d.%m.%Y") if org.subscription_ends_at else "Belirtilmemiş"
+    fee_str = f"{(org.monthly_fee_cents or 0) / 100:,.2f} TL"
+    html = (
+        f"<p>Merhaba {escape(org.name)} yetkilisi,</p>"
+        f"<p>E-İnfak platform aboneliğinizin yenileme zamanı yaklaşmıştır (veya ödeme beklemektedir).</p>"
+        f"<p><b>Paket:</b> {escape(org.plan)}<br>"
+        f"<b>Bitiş Tarihi:</b> {escape(ends_str)}<br>"
+        f"<b>Aylık Ücret:</b> {escape(fee_str)}</p>"
+        f"<p>Kesintisiz hizmet için ödeme bilgilerinizi platform ekibimizle paylaşabilirsiniz.</p>"
+    )
+    ok = await asyncio.to_thread(send_email_task, org.email, f"{org.name} — E-İnfak Abonelik Hatırlatması", html)
+    if not ok:
+        raise HTTPException(status_code=502, detail="E-posta gönderilemedi")
+    _audit(db, request, operator, "abonelik_hatirlatmasi", org.id, email=org.email)
+    await db.commit()
+    return {"ok": True, "email": org.email}
+
+
+class TestSmsIn(BaseModel):
+    phone: str = Field(min_length=10, max_length=24)
+
+
+@router.post("/organizations/{org_id}/test-sms")
+async def send_test_sms(org_id: UUID, payload: TestSmsIn, request: Request,
+                        db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    import asyncio
+    from app.sms import deliver
+
+    org = await _org_or_404(db, org_id)
+    provider = (org.settings or {}).get("sms_provider") or "netgsm"
+    try:
+        creds = await get_credentials(db, org.id, provider)
+    except CredentialsUnavailable:
+        creds = {}
+    if not creds and (org.settings or {}).get("sms_platform_fallback") is not False:
+        creds = {"provider": provider}
+    account = {"provider": provider, **creds}
+    result = await asyncio.to_thread(deliver, payload.phone.strip(), f"{org.name} E-Infak test SMS mesajidir.", account)
+    if not result.ok:
+        raise HTTPException(status_code=502, detail=result.error or "Test SMS gönderilemedi")
+    _audit(db, request, operator, "test_sms_gonderildi", org.id, phone=payload.phone.strip(), provider=provider)
+    await db.commit()
+    return {"ok": True, "provider": provider, "reference": result.reference}
+
+
+@router.get("/organizations/{org_id}/summary.pdf")
+async def organization_summary_pdf(org_id: UUID, db: AsyncSession = Depends(get_db),
+                                   _: PlatformUser = Depends(get_platform_user)):
+    from fastapi.responses import Response
+    from app.utils.report_pdf import build_report_pdf
+
+    org = await _org_or_404(db, org_id)
+    user_count = (await db.execute(
+        select(func.count(User.id)).where(User.organization_id == org.id, User.is_active.is_(True))
+    )).scalar_one()
+    since_30d = datetime.now(timezone.utc) - timedelta(days=30)
+    d30 = (await db.execute(
+        select(func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
+        .where(Donation.organization_id == org.id, Donation.status == DonationStatus.PAID, Donation.paid_at >= since_30d)
+    )).one()
+    payments = (await db.execute(
+        select(PlatformPayment).where(PlatformPayment.organization_id == org.id).order_by(PlatformPayment.paid_at.desc()).limit(20)
+    )).scalars().all()
+
+    rows = [
+        [
+            p.paid_at.strftime("%d.%m.%Y") if p.paid_at else "—",
+            p.period_label,
+            p.payment_method.upper(),
+            f"{p.amount_cents / 100:,.2f} TL",
+        ]
+        for p in payments
+    ] or [["—", "Henüz tahsilat kaydı yok", "—", "0,00 TL"]]
+
+    pdf_bytes = build_report_pdf(
+        title=f"{org.name} — Kurum Özet Raporu",
+        subtitle=f"Paket: {org.plan} | Durum: {org.subscription_status or 'active'} | Aktif Kullanıcı: {user_count}/{org_user_limit(org)}",
+        headers=["Tarih", "Dönem", "Yöntem", "Tutar"],
+        rows=rows,
+        org_name="E-İnfak Platform",
+        summary={
+            "Son 30 Gün Bağış": f"{int(d30[0] or 0)} işlem / {int(d30[1] or 0) / 100:,.2f} TL",
+            "Aylık SaaS Ücreti": f"{(org.monthly_fee_cents or 0) / 100:,.2f} TL",
+        },
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{org.slug}-ozet.pdf"'},
+    )
