@@ -14,6 +14,7 @@ from app.models.automation import BankAccount
 from app.models.kurban import KurbanShare
 from app.models.membership import Member
 from app.models.organization import Organization, OrganizationDomain
+from app.models.platform import PlatformAlertDismissal
 from app.models.sms_message import SmsMessage
 from app.models.subscription import Subscription
 from app.models.user import User, UserRole
@@ -134,5 +135,13 @@ async def collect(db: AsyncSession, org_id: Optional[UUID] = None) -> list[dict]
         alerts.insert(0, {"organization_id": None, "organization_name": "Platform", "level": WARNING,
                           "kind": "public_ip_missing", "message": "PLATFORM_PUBLIC_IP tanımlı değil; alan adı doğrulama ve SSL hazırlığı çalışmaz",
                           "hint": "Sunucudaki .env dosyasına ekleyip yeniden dağıtın."})
+
+    dismissed_rows = (await db.execute(
+        select(PlatformAlertDismissal.organization_id, PlatformAlertDismissal.kind)
+    )).all()
+    dismissed = {(str(oid) if oid else None, kind) for oid, kind in dismissed_rows}
+    if dismissed:
+        alerts = [a for a in alerts if (a["organization_id"], a["kind"]) not in dismissed]
+
     alerts.sort(key=lambda a: _ORDER[a["level"]])
     return alerts

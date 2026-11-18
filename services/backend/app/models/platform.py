@@ -83,3 +83,14 @@ class PlatformBroadcast(Base):
     is_active = Column(Boolean, nullable=False, default=True, server_default="true", index=True)
     maintenance_mode = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class PlatformAlertDismissal(Base):
+    """Alert dismissed by a platform operator so it stays hidden until restored."""
+    __tablename__ = "platform_alert_dismissals"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True)
+    kind = Column(String(64), nullable=False, index=True)
+    dismissed_by_id = Column(UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

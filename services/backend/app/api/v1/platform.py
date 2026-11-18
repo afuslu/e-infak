@@ -23,7 +23,7 @@ from app.core.security import create_access_token, decode_token, get_password_ha
 from app.models.audit_log import AuditLog
 from app.models.donation import Donation, DonationStatus
 from app.models.organization import Organization, OrganizationDomain
-from app.models.platform import DemoRequest, PlatformAuditLog, PlatformBroadcast, PlatformPayment, PlatformUser
+from app.models.platform import DemoRequest, PlatformAlertDismissal, PlatformAuditLog, PlatformBroadcast, PlatformPayment, PlatformUser
 from app.models.user import User, UserRole
 from app.payments import PROVIDERS as PAYMENT_PROVIDERS, build_provider
 from app.services import domains, passwords, platform_alerts
@@ -1013,3 +1013,78 @@ async def delete_broadcast(broadcast_id: UUID, request: Request,
     _audit(db, request, operator, "sistem_duyurusu_silindi", title=b.title)
     await db.delete(b)
     await db.commit()
+
+
+# --- Alert Dismissals & Organization Deletion -----------------------------------
+
+class AlertDismissIn(BaseModel):
+    organization_id: Optional[UUID] = None
+    kind: str = Field(min_length=2, max_length=64)
+
+
+@router.post("/alerts/dismiss", status_code=201)
+async def dismiss_alert(payload: AlertDismissIn, request: Request,
+                        db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    existing = (await db.execute(
+        select(PlatformAlertDismissal.id).where(
+            PlatformAlertDismissal.organization_id == payload.organization_id,
+            PlatformAlertDismissal.kind == payload.kind,
+        )
+    )).scalar_one_or_none()
+    if not existing:
+        db.add(PlatformAlertDismissal(
+            organization_id=payload.organization_id,
+            kind=payload.kind,
+            dismissed_by_id=operator.id,
+        ))
+        _audit(db, request, operator, "uyari_gizlendi",
+               organization_id=payload.organization_id, kind=payload.kind)
+        await db.commit()
+    return {"ok": True}
+
+
+@router.delete("/alerts/dismiss", status_code=200)
+async def restore_alerts(db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    from sqlalchemy import delete as sa_delete
+    await db.execute(sa_delete(PlatformAlertDismissal))
+    await db.commit()
+    return {"ok": True}
+
+
+class OrgDeleteIn(BaseModel):
+    confirm_name: str = Field(min_length=1, max_length=200)
+
+
+@router.delete("/organizations/{org_id}", status_code=200)
+async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Request,
+                              db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    from sqlalchemy import delete as sa_delete
+    from app.core.db import Base
+
+    _require_platform_admin(operator)
+    org = await _org_or_404(db, org_id)
+    if payload.confirm_name.strip() != org.name.strip():
+        raise HTTPException(status_code=400, detail="Onay için kurum adını birebir aynı yazmalısınız")
+
+    org_name, org_slug = org.name, org.slug
+    domain_rows = (await db.execute(
+        select(OrganizationDomain.domain).where(OrganizationDomain.organization_id == org.id)
+    )).scalars().all()
+    if org.subdomain:
+        forget_host(f"{org.subdomain}.{settings.PLATFORM_BASE_DOMAIN}")
+    for dom in domain_rows:
+        forget_host(dom)
+
+    # Clear tenant-scoped rows in reverse dependency order so FK constraints never block deletion.
+    for table in reversed(Base.metadata.sorted_tables):
+        if table.name in ("organizations", "platform_audit_logs"):
+            continue
+        if "organization_id" in table.c:
+            await db.execute(sa_delete(table).where(table.c.organization_id == org.id))
+
+    await db.execute(
+        sa_delete(Organization).where(Organization.id == org.id)
+    )
+    _audit(db, request, operator, "kurum_silindi", name=org_name, slug=org_slug)
+    await db.commit()
+    return {"ok": True, "deleted_name": org_name}

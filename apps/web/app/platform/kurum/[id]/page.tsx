@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { AlertList } from '../../../../components/platform/AlertList'
 import { AuditEntry, AuditTable } from '../../../../components/platform/AuditTable'
 import { SubscriptionCard } from '../../../../components/platform/SubscriptionCard'
@@ -74,6 +74,8 @@ function AccountForm({ orgId, account, onSaved }: { orgId: string; account: Acco
 
 export default function PlatformOrganizationPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const [confirmDelete, setConfirmDelete] = useState('')
   const [org, setOrg] = useState<Detail | null>(null)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [plan, setPlan] = useState({ plan: '', enabled_addons: [] as string[], extra_user_seats: 0 })
@@ -166,7 +168,16 @@ export default function PlatformOrganizationPage() {
         </fieldset>
       </div>
       {msg && <p className={`rounded-lg p-3 text-sm font-semibold ${msg.type === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</p>}
-      {alerts.length > 0 && <AlertList alerts={alerts} showOrg={false} />}
+      {alerts.length > 0 && (
+        <AlertList
+          alerts={alerts}
+          showOrg={false}
+          onDismiss={async (a) => {
+            await platformCall('post', '/alerts/dismiss', { organization_id: a.organization_id, kind: a.kind })
+            setAlerts((prev) => prev.filter((x) => x.kind !== a.kind))
+          }}
+        />
+      )}
 
       <fieldset disabled={busy} className="grid gap-5 lg:grid-cols-2">
         <Card title="Kurum bilgileri">
@@ -408,6 +419,41 @@ export default function PlatformOrganizationPage() {
             {!audit ? <p className="text-sm text-slate-500">Yükleniyor…</p> : <AuditTable rows={audit} showOrganization={false} />}
           </Card>
         </div>
+
+        <section className="space-y-3 rounded-2xl border border-red-200 bg-red-50/60 p-6 lg:col-span-2">
+          <h2 className="text-base font-bold text-red-900">Tehlikeli Bölge — Kurumu Kalıcı Sil</h2>
+          <p className="text-xs text-red-800">
+            Bu işlem kurumu, kullanıcılarını, kampanyalarını, bağış ve muhasebe kayıtlarını kalıcı olarak siler ve geri alınamaz.
+            Onaylamak için kurumun adını (<b>{org.name}</b>) aşağıya yazın:
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              className="w-full max-w-xs rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/15"
+              placeholder={org.name}
+              value={confirmDelete}
+              onChange={(e) => setConfirmDelete(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={busy || confirmDelete.trim() !== org.name.trim()}
+              onClick={async () => {
+                if (busy) return
+                setBusy(true)
+                setMsg(null)
+                try {
+                  await platformCall('delete', `/organizations/${org.id}`, { confirm_name: confirmDelete })
+                  router.replace('/platform')
+                } catch (err) {
+                  setMsg({ type: 'error', text: errorText(err, 'Kurum silinemedi') })
+                  setBusy(false)
+                }
+              }}
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:pointer-events-none disabled:opacity-40"
+            >
+              Kurumu Kalıcı Sil
+            </button>
+          </div>
+        </section>
       </fieldset>
     </div>
   )

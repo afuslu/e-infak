@@ -29,6 +29,8 @@ export const ACTION_LABELS: Record<string, string> = {
   sistem_duyurusu_eklendi: 'Sistem duyurusu eklendi',
   sistem_duyurusu_guncellendi: 'Sistem duyurusu güncellendi',
   sistem_duyurusu_silindi: 'Sistem duyurusu silindi',
+  uyari_gizlendi: 'Uyarı gizlendi',
+  kurum_silindi: 'Kurum silindi',
 }
 
 const actionLabel = (action: string) => ACTION_LABELS[action] || action.replace(/_/g, ' ')

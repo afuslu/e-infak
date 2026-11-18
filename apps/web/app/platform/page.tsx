@@ -27,6 +27,25 @@ export default function PlatformOrganizationsPage() {
   const alertCount = (orgId: string) => (alerts || []).filter((a) => a.organization_id === orgId && a.level !== 'info').length
   const visibleAlerts = (alerts || []).filter((a) => showInfo || a.level !== 'info')
 
+  const dismissAlert = async (a: PlatformAlert) => {
+    try {
+      await platformCall('post', '/alerts/dismiss', { organization_id: a.organization_id, kind: a.kind })
+      setAlerts((prev) => (prev || []).filter((x) => !(x.organization_id === a.organization_id && x.kind === a.kind)))
+    } catch (err) {
+      setAlertError(platformError(err, 'Uyarı gizlenemedi'))
+    }
+  }
+
+  const restoreAlerts = async () => {
+    try {
+      await platformCall('delete', '/alerts/dismiss')
+      const fresh = await platformCall<PlatformAlert[]>('get', '/alerts')
+      setAlerts(fresh)
+    } catch (err) {
+      setAlertError(platformError(err, 'Uyarılar geri yüklenemedi'))
+    }
+  }
+
   const totalOrgs = orgs?.length ?? 0
   const activeOrgs = orgs?.filter((o) => o.is_active).length ?? 0
   const totalDonations = orgs?.reduce((sum, o) => sum + (o.donation_count || 0), 0) ?? 0
@@ -88,11 +107,14 @@ export default function PlatformOrganizationsPage() {
               <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
                 <input type="checkbox" checked={showInfo} onChange={(e) => setShowInfo(e.target.checked)} /> Bilgi notlarını göster
               </label>
+              <button type="button" onClick={restoreAlerts} className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-slate-900 hover:underline">
+                Gizlenenleri göster
+              </button>
             </div>
           )}
         </div>
         {alertError ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{alertError}</p>
-          : !alerts ? <PlatformSkeleton rows={1} /> : <AlertList alerts={visibleAlerts} />}
+          : !alerts ? <PlatformSkeleton rows={1} /> : <AlertList alerts={visibleAlerts} onDismiss={dismissAlert} />}
       </section>
 
       <section className="space-y-4">

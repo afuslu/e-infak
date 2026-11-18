@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { X } from 'lucide-react'
 import { PlatformAlert } from '../../lib/platform-api'
 
 const STYLE: Record<PlatformAlert['level'], { box: string; dot: string; label: string }> = {
@@ -10,14 +11,22 @@ const STYLE: Record<PlatformAlert['level'], { box: string; dot: string; label: s
 }
 
 /** Operator alerts, most urgent first; `showOrg` links each line to its organisation. */
-export function AlertList({ alerts, showOrg = true }: { alerts: PlatformAlert[]; showOrg?: boolean }) {
+export function AlertList({
+  alerts,
+  showOrg = true,
+  onDismiss,
+}: {
+  alerts: PlatformAlert[]
+  showOrg?: boolean
+  onDismiss?: (alert: PlatformAlert) => void
+}) {
   if (alerts.length === 0) {
     return <p className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-700">Dikkat gerektiren bir durum yok.</p>
   }
   return (
     <ul className="space-y-2">
       {alerts.map((a, i) => (
-        <li key={`${a.organization_id}-${a.kind}-${i}`} className={`flex gap-3 rounded-xl border p-3 text-sm ${STYLE[a.level].box}`}>
+        <li key={`${a.organization_id}-${a.kind}-${i}`} className={`flex items-start gap-3 rounded-xl border p-3 text-sm ${STYLE[a.level].box}`}>
           <span className={`mt-1.5 h-2 w-2 flex-none rounded-full ${STYLE[a.level].dot}`} aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-slate-900">
@@ -30,6 +39,17 @@ export function AlertList({ alerts, showOrg = true }: { alerts: PlatformAlert[];
             </p>
             {a.hint && <p className="mt-0.5 text-xs text-slate-600">{a.hint}</p>}
           </div>
+          {onDismiss && (
+            <button
+              type="button"
+              onClick={() => onDismiss(a)}
+              title="Uyarıyı gizle"
+              aria-label="Uyarıyı gizle"
+              className="rounded-lg p-1 text-slate-500 transition hover:bg-black/5 hover:text-slate-900"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
         </li>
       ))}
     </ul>
