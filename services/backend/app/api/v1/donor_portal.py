@@ -878,7 +878,7 @@ async def portal_impact_report_pdf(
             .where(
                 Donation.organization_id == current_donor.organization_id,
                 Donation.donor_id == current_donor.id,
-                Donation.status == DonationStatus.PAID,
+                Donation.status == DonationStatus.CONFIRMED,
             )
             .order_by(Donation.paid_at.desc())
             .limit(100)
@@ -933,7 +933,7 @@ async def portal_donation_certificate_pdf(
                 Donation.id == donation_id,
                 Donation.organization_id == current_donor.organization_id,
                 Donation.donor_id == current_donor.id,
-                Donation.status == DonationStatus.PAID,
+                Donation.status == DonationStatus.CONFIRMED,
             )
         )
     ).scalar_one_or_none()

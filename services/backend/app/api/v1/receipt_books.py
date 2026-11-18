@@ -279,3 +279,58 @@ async def receipt_channel_summary(
         "start": start.isoformat(), "end": end.isoformat(), "currency": currency,
         "channels": [{"kind": r[0], "label": r[1], "count": int(r[2]), "total_cents": int(r[3])} for r in rows],
     }
+
+
+@router.get("/receipt-books/{book_id}/audit-report.pdf")
+async def receipt_book_audit_report_pdf(
+    book_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("receipt_books:view")),
+):
+    from fastapi.responses import Response
+    from app.models.organization import Organization
+    from app.models.user import User as StaffUser
+    from app.utils.report_pdf import build_report_pdf
+
+    org_id = _org_id(request)
+    book = (await db.execute(
+        select(ReceiptBook).where(ReceiptBook.id == book_id, ReceiptBook.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not book:
+        raise HTTPException(status_code=404, detail="Makbuz koçanı bulunamadı")
+
+    org = await db.get(Organization, org_id)
+    holder = await db.get(StaffUser, book.holder_user_id) if book.holder_user_id else None
+    holder_name = f"{holder.first_name or ''} {holder.last_name or ''}".strip() or holder.email if holder else "Merkez (Zimmetsiz)"
+
+    rows = [
+        [f"{book.series}-{v.get('no')}", "İptal / Zayi", v.get("reason") or "—", str(v.get("at") or "")[:10]]
+        for v in (book.voided or [])
+    ]
+    if not rows:
+        rows = [["—", "İptal / Zayi yaprak bulunmuyor", "Tamamı düzenli", "—"]]
+
+    total_sheets = max(0, book.end_no - book.start_no + 1)
+    used_sheets = max(0, book.next_no - book.start_no)
+    remaining = max(0, book.end_no - book.next_no + 1)
+
+    pdf_bytes = build_report_pdf(
+        title=f"Makbuz Koçanı Zimmet & Zayi Tutanağı ({book.series})",
+        subtitle=f"Aralık: {book.start_no}–{book.end_no} · Şube: {book.branch or 'Merkez'} · Zimmetli: {holder_name}",
+        headers=["Yaprak No", "Durum", "Açıklama / Neden", "Tarih"],
+        rows=rows,
+        org_name=org.name if org else "E-İnfak",
+        organization=org,
+        summary={
+            "Toplam Yaprak": str(total_sheets),
+            "Kesilen / Kullanılan": str(used_sheets),
+            "İptal / Zayi": str(len(book.voided or [])),
+            "Kalan Boş": str(remaining),
+        },
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="kocan-tutanak-{book.series}.pdf"'},
+    )

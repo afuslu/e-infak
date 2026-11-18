@@ -679,3 +679,135 @@ async def recurring_report(
             for r in new_rows
         ],
     }
+
+
+async def _compute_derbis(db: AsyncSession, org_id: UUID, year: int) -> dict:
+    from datetime import datetime, timezone
+    from app.models.donation import Donation, DonationStatus
+    from app.models.expense import Expense
+    from app.models.receipt_book import ReceiptBook
+
+    start = datetime(year, 1, 1, tzinfo=timezone.utc)
+    end = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+
+    income_rows = (
+        await db.execute(
+            select(Donation.payment_method, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
+            .where(
+                Donation.organization_id == org_id,
+                Donation.status == DonationStatus.CONFIRMED,
+                Donation.paid_at >= start,
+                Donation.paid_at < end,
+            )
+            .group_by(Donation.payment_method)
+        )
+    ).all()
+
+    method_labels = {
+        "cash": "Nakit / Makbuzlu Bağışlar",
+        "bank_transfer": "Banka Havale / EFT Gelirleri",
+        "credit_card": "Online Sanal POS Bağışları",
+        "pos": "Fiziki POS Bağışları",
+        "sms": "SMS Bağış Gelirleri",
+    }
+    incomes = [
+        {
+            "method": str(r[0].value if hasattr(r[0], "value") else r[0]),
+            "label": method_labels.get(str(r[0].value if hasattr(r[0], "value") else r[0]), str(r[0])),
+            "count": int(r[1]),
+            "total_cents": int(r[2] or 0),
+        }
+        for r in income_rows
+    ]
+    total_income_cents = sum(x["total_cents"] for x in incomes)
+
+    expense_rows = (
+        await db.execute(
+            select(Expense.category, func.count(Expense.id), func.coalesce(func.sum(Expense.amount_cents), 0))
+            .where(
+                Expense.organization_id == org_id,
+                Expense.expense_date >= start.date(),
+                Expense.expense_date < end.date(),
+            )
+            .group_by(Expense.category)
+        )
+    ).all()
+    expenses = [
+        {"category": str(r[0] or "Genel Gider"), "count": int(r[1]), "total_cents": int(r[2] or 0)}
+        for r in expense_rows
+    ]
+    total_expense_cents = sum(x["total_cents"] for x in expenses)
+
+    books = (
+        await db.execute(select(ReceiptBook).where(ReceiptBook.organization_id == org_id))
+    ).scalars().all()
+    voided_sheets = sum(len(b.voided or []) for b in books)
+    used_sheets = sum(max(0, (b.next_no - b.start_no)) for b in books)
+
+    return {
+        "year": year,
+        "incomes": incomes,
+        "total_income_cents": total_income_cents,
+        "expenses": expenses,
+        "total_expense_cents": total_expense_cents,
+        "net_cents": total_income_cents - total_expense_cents,
+        "receipt_books_count": len(books),
+        "used_sheets": used_sheets,
+        "voided_sheets": voided_sheets,
+    }
+
+
+@router.get("/derbis-summary")
+async def derbis_summary(
+    year: int = 2026,
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("reports:view")),
+):
+    org_id = UUID(request.state.organization_id)
+    return await _compute_derbis(db, org_id, year)
+
+
+@router.get("/derbis-summary.pdf")
+async def derbis_summary_pdf(
+    year: int = 2026,
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_permission("reports:view")),
+):
+    from fastapi.responses import Response
+    from app.models.organization import Organization
+    from app.utils.report_pdf import build_report_pdf
+
+    org_id = UUID(request.state.organization_id)
+    org = await db.get(Organization, org_id)
+    data = await _compute_derbis(db, org_id, year)
+
+    rows = [
+        ["GELİR", x["label"], str(x["count"]), f"{x['total_cents'] / 100:,.2f} TL"]
+        for x in data["incomes"]
+    ] + [
+        ["GİDER", x["category"], str(x["count"]), f"{x['total_cents'] / 100:,.2f} TL"]
+        for x in data["expenses"]
+    ]
+    if not rows:
+        rows = [["—", f"{year} yılı için kayıt bulunamadı", "0", "0,00 TL"]]
+
+    pdf_bytes = build_report_pdf(
+        title=f"{year} Yılı DERBİS & Yardım Toplama İcmal Raporu",
+        subtitle=f"Kurum: {org.legal_name if org else ''} · Makbuz Koçanı: {data['receipt_books_count']} adet ({data['used_sheets']} kesilen, {data['voided_sheets']} iptal/zayi)",
+        headers=["Tür", "Kalem / Hesap", "Adet", "Tutar"],
+        rows=rows,
+        org_name=org.name if org else "E-İnfak",
+        organization=org,
+        summary={
+            "Toplam Gelir": f"{data['total_income_cents'] / 100:,.2f} TL",
+            "Toplam Gider": f"{data['total_expense_cents'] / 100:,.2f} TL",
+            "Dönem Net Bakiye": f"{data['net_cents'] / 100:,.2f} TL",
+        },
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="derbis-icmal-{year}.pdf"'},
+    )

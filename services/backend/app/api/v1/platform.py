@@ -907,7 +907,7 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
 
     paid_30d_row = (await db.execute(
         select(func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0)).where(
-            Donation.status == DonationStatus.PAID,
+            Donation.status == DonationStatus.CONFIRMED,
             Donation.paid_at >= thirty_days_ago,
         )
     )).one()
@@ -930,7 +930,7 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
     month_expr = func.date_trunc("month", Donation.paid_at)
     trend_rows = (await db.execute(
         select(month_expr.label("m"), func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
-        .where(Donation.status == DonationStatus.PAID, Donation.paid_at.isnot(None), Donation.paid_at >= six_months_ago)
+        .where(Donation.status == DonationStatus.CONFIRMED, Donation.paid_at.isnot(None), Donation.paid_at >= six_months_ago)
         .group_by(month_expr)
         .order_by(month_expr)
     )).all()
@@ -946,7 +946,7 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
         oid: (int(cnt), int(tot or 0))
         for oid, cnt, tot in (await db.execute(
             select(Donation.organization_id, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
-            .where(Donation.status == DonationStatus.PAID, Donation.paid_at >= thirty_days_ago)
+            .where(Donation.status == DonationStatus.CONFIRMED, Donation.paid_at >= thirty_days_ago)
             .group_by(Donation.organization_id)
         )).all()
     }
@@ -1260,7 +1260,7 @@ async def organization_summary_pdf(org_id: UUID, db: AsyncSession = Depends(get_
     since_30d = datetime.now(timezone.utc) - timedelta(days=30)
     d30 = (await db.execute(
         select(func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
-        .where(Donation.organization_id == org.id, Donation.status == DonationStatus.PAID, Donation.paid_at >= since_30d)
+        .where(Donation.organization_id == org.id, Donation.status == DonationStatus.CONFIRMED, Donation.paid_at >= since_30d)
     )).one()
     payments = (await db.execute(
         select(PlatformPayment).where(PlatformPayment.organization_id == org.id).order_by(PlatformPayment.paid_at.desc()).limit(20)

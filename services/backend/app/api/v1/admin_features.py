@@ -2279,7 +2279,7 @@ async def donor_impact_report_pdf(
             .where(
                 Donation.organization_id == org_id,
                 Donation.donor_id == donor.id,
-                Donation.status == DonationStatus.PAID,
+                Donation.status == DonationStatus.CONFIRMED,
             )
             .order_by(Donation.paid_at.desc())
             .limit(100)

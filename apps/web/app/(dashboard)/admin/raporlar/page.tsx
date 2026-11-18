@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ArrowDown, ArrowUp, ArrowUpDown, Printer, RefreshCw, Search, TrendingDown, TrendingUp } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, apiErrorMessage, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
+import { adminGet, apiErrorMessage, downloadFile, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
 import { ExportButtons, PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors' | 'recurring'
@@ -583,6 +583,13 @@ export default function ReportsPage() {
                 <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} className="rounded-lg border bg-white p-2" />
               </>
             )}
+            <button
+              type="button"
+              onClick={() => void downloadFile('/admin-features/reports/derbis-summary.pdf', `derbis-icmal-${year}.pdf`, { year })}
+              className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+            >
+              DERBİS İcmal PDF ({year})
+            </button>
             <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="rounded-lg border bg-white p-2 font-semibold">
               {CURRENCIES.map((c) => <option key={c} value={c}>{c === 'TRY' ? 'TL' : c}</option>)}
             </select>

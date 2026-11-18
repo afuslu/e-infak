@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, can } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, downloadFile, formatMoney, useAdminAccess, can } from '../../../../lib/admin-access'
 import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import {
   ExportButtons,
@@ -573,6 +573,13 @@ export default function ReceiptBooksPage() {
                           >
                             <FileSpreadsheet className="w-3.5 h-3.5" />
                             Yapraklar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadFile(`/admin-features/receipt-books/${b.id}/audit-report.pdf`, `kocan-tutanak-${b.series}.pdf`).catch(() => toast.error('Tutanak indirilemedi'))}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Tutanak PDF
                           </button>
                           {canEdit && (
                             <button
