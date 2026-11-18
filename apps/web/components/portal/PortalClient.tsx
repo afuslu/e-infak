@@ -960,6 +960,26 @@ export function PortalClient({ siteName }: { siteName: string }) {
           </button>
           <button
             type="button"
+            onClick={async () => {
+              try {
+                const res = await axios.get(`${apiBase()}/api/v1/portal/impact-report.pdf`, {
+                  headers: authHeaders(token || ''),
+                  responseType: 'blob',
+                })
+                const url = URL.createObjectURL(new Blob([res.data]))
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'iyilik-karnem.pdf'
+                a.click()
+                URL.revokeObjectURL(url)
+              } catch { /* ignore */ }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-600/10 px-3 py-1.5 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-600/15"
+          >
+            İyilik Karnesi
+          </button>
+          <button
+            type="button"
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50"
           >

@@ -859,3 +859,56 @@ async def export_donor_donations(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
+
+
+@router.get("/impact-report.pdf")
+async def portal_impact_report_pdf(
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.campaign import Campaign
+    from app.models.organization import Organization
+    from app.utils.report_pdf import build_report_pdf
+
+    org = await db.get(Organization, current_donor.organization_id)
+    rows_db = (
+        await db.execute(
+            select(Donation.paid_at, Campaign.title, Donation.amount_cents, Donation.currency)
+            .outerjoin(Campaign, Campaign.id == Donation.campaign_id)
+            .where(
+                Donation.organization_id == current_donor.organization_id,
+                Donation.donor_id == current_donor.id,
+                Donation.status == DonationStatus.PAID,
+            )
+            .order_by(Donation.paid_at.desc())
+            .limit(100)
+        )
+    ).all()
+    total_cents = sum(int(r[2] or 0) for r in rows_db)
+    pdf_rows = [
+        [
+            r[0].strftime("%d.%m.%Y") if r[0] else "—",
+            r[1] or "Genel Bağış",
+            f"{int(r[2] or 0) / 100:,.2f} {r[3] or 'TRY'}",
+        ]
+        for r in rows_db
+    ] or [["—", "Henüz onaylı bağış yok", "0,00 TRY"]]
+
+    donor_name = f"{current_donor.first_name or ''} {current_donor.last_name or ''}".strip() or current_donor.email or "Değerli Bağışçımız"
+    pdf_bytes = build_report_pdf(
+        title=f"{donor_name} — İyilik Karnesi",
+        subtitle="Desteklerinizle hayata geçen bağışların özet raporu",
+        headers=["Tarih", "Kampanya / Kalem", "Tutar"],
+        rows=pdf_rows,
+        org_name=getattr(org, "name", None) or "E-İnfak",
+        organization=org,
+        summary={
+            "Toplam Bağış Adedi": str(len(rows_db)),
+            "Toplam Katkı": f"{total_cents / 100:,.2f} TL",
+        },
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="iyilik-karnem.pdf"'},
+    )
