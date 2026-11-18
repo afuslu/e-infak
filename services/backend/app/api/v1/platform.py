@@ -1058,7 +1058,10 @@ class OrgDeleteIn(BaseModel):
 @router.delete("/organizations/{org_id}", status_code=200)
 async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Request,
                               db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
-    from sqlalchemy import delete as sa_delete
+    from sqlalchemy import delete as sa_delete, update as sa_update
+    import app.models  # noqa: F401
+    import app.models.donation_category  # noqa: F401
+    import app.models.organization_settings  # noqa: F401
     from app.core.db import Base
 
     _require_platform_admin(operator)
@@ -1075,13 +1078,22 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
     for dom in domain_rows:
         forget_host(dom)
 
-    # Clear tenant-scoped rows in reverse dependency order so FK constraints never block deletion.
+    org_user_ids = select(User.id).where(User.organization_id == org.id)
+
+    # Clear self-references and child tables in reverse dependency order.
     for table in reversed(Base.metadata.sorted_tables):
-        if table.name in ("organizations", "platform_audit_logs"):
+        if table.name in ("organizations", "platform_audit_logs", "platform_users", "demo_requests", "fx_rates"):
             continue
         if "organization_id" in table.c:
+            if "parent_id" in table.c:
+                await db.execute(sa_update(table).where(table.c.organization_id == org.id).values(parent_id=None))
             await db.execute(sa_delete(table).where(table.c.organization_id == org.id))
+        elif "user_id" in table.c:
+            await db.execute(sa_delete(table).where(table.c.user_id.in_(org_user_ids)))
 
+    await db.execute(
+        sa_update(PlatformAuditLog).where(PlatformAuditLog.organization_id == org.id).values(organization_id=None)
+    )
     await db.execute(
         sa_delete(Organization).where(Organization.id == org.id)
     )
