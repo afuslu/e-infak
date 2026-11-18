@@ -44,14 +44,14 @@ const SUB_LABELS: Record<string, [string, string]> = {
 
 export default function PlatformMetricsPage() {
   const [data, setData] = useState<MetricsData | null>(null)
-  const [health, setHealth] = useState<{ db_ok: boolean; db_ms: number; redis_ok: boolean; sms_failed_24h: number } | null>(null)
+  const [health, setHealth] = useState<{ db_ok: boolean; db_ms: number; db_size_mb?: number; redis_ok: boolean; sms_failed_24h: number } | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     platformCall<MetricsData>('get', '/metrics')
       .then(setData)
       .catch((err) => setError(platformError(err, 'Metrikler yüklenemedi')))
-    platformCall<{ db_ok: boolean; db_ms: number; redis_ok: boolean; sms_failed_24h: number }>('get', '/health')
+    platformCall<{ db_ok: boolean; db_ms: number; db_size_mb?: number; redis_ok: boolean; sms_failed_24h: number }>('get', '/health')
       .then(setHealth)
       .catch(() => undefined)
   }, [])
@@ -73,7 +73,7 @@ export default function PlatformMetricsPage() {
           </span>
           <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-bold ${health.db_ok ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
             <Database className="h-3 w-3" aria-hidden="true" />
-            PostgreSQL {health.db_ok ? `${health.db_ms} ms` : 'Hata'}
+            PostgreSQL {health.db_ok ? `${health.db_ms} ms` : 'Hata'}{typeof health.db_size_mb === 'number' ? ` · ${health.db_size_mb} MB` : ''}
           </span>
           <span className={`rounded-full px-2.5 py-0.5 font-bold ${health.redis_ok ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
             Redis {health.redis_ok ? 'Bağlı' : 'Kapalı'}

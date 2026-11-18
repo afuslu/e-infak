@@ -1,7 +1,7 @@
 import {
   ArrowDownToLine, BarChart3, BellRing, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, FileUp, Film,
   FolderOpen, Globe2, GraduationCap, HandCoins, HandHelping, HeartHandshake, History, Home, IdCard, KeyRound,
-  Landmark, LayoutDashboard, LogIn, type LucideIcon, MailPlus, Megaphone, MessagesSquare, Newspaper, Package,
+  Landmark, LayoutDashboard, LifeBuoy, LogIn, type LucideIcon, MailPlus, Megaphone, MessagesSquare, Newspaper, Package,
   PackageCheck, PiggyBank, Plug, Repeat, Send, Settings, ShieldCheck, Sparkles, Tags, Users, Wallet,
 } from 'lucide-react'
 
@@ -90,6 +90,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/islem-kayitlari', label: 'İşlem Kayıtları', icon: History, module: ['settings', 'users'] },
       { href: '/admin/kurlar', label: 'Döviz & Altın Kurları', icon: Coins },
       { href: '/admin/paket', label: 'Paket & Kullanım', icon: PackageCheck },
+      { href: '/admin/destek', label: 'Platform Destek', icon: LifeBuoy },
     ],
   },
 ]

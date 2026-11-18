@@ -14,6 +14,7 @@ import {
   PauseCircle,
   PlayCircle,
   Plus,
+  QrCode,
   RefreshCw,
   Search,
   Star,
@@ -39,6 +40,7 @@ import { FormattedStory } from '../../../../components/FormattedStory'
 import {
   adminSend,
   apiErrorMessage,
+  downloadFile,
   formatMoney,
   v1Get,
   v1Send,
@@ -900,6 +902,14 @@ export default function AdminCampaignsPage() {
                             className="p-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:text-slate-800"
                           >
                             <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void downloadFile(`/admin-features/campaigns/${c.id}/qr-poster.pdf`, `${c.slug}-qr-poster.pdf`)}
+                            title="QR Poster PDF İndir"
+                            className="p-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:text-emerald-700"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
                           </button>
                           <a
                             href={`/kampanyalar/${c.slug}`}

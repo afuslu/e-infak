@@ -1989,3 +1989,329 @@ async def active_platform_notices(
         for b in rows
     ]
 
+
+@router.get("/onboarding-status")
+async def onboarding_status(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    from app.models.campaign import Campaign, CampaignStatus
+    from app.models.organization import OrganizationDomain
+    from app.models.organization_settings import OrganizationSettings
+
+    org_id = UUID(request.state.organization_id)
+    org = await db.get(Organization, org_id)
+    org_settings = (
+        await db.execute(select(OrganizationSettings).where(OrganizationSettings.organization_id == org_id))
+    ).scalar_one_or_none()
+    campaign_count = (
+        await db.execute(
+            select(func.count(Campaign.id)).where(
+                Campaign.organization_id == org_id,
+                Campaign.status == CampaignStatus.ACTIVE,
+            )
+        )
+    ).scalar_one()
+    domain_count = (
+        await db.execute(
+            select(func.count(OrganizationDomain.id)).where(
+                OrganizationDomain.organization_id == org_id,
+                OrganizationDomain.status == "active",
+            )
+        )
+    ).scalar_one()
+
+    steps = [
+        {"key": "logo", "label": "Kurum logosunu ve görünümü ayarlayın", "href": "/admin/gorunum", "done": bool(org and org.logo_url)},
+        {"key": "contact", "label": "İletişim ve IBAN bilgilerini girin", "href": "/admin/site-ayarlari", "done": bool(org_settings and (org_settings.bank1_iban or org_settings.contact_phone))},
+        {"key": "campaign", "label": "En az 1 aktif bağış kampanyası yayınlayın", "href": "/admin/kampanyalar", "done": int(campaign_count or 0) > 0},
+        {"key": "domain", "label": "Özel alan adınızı bağlayın (veya siteyi kontrol edin)", "href": "/admin/site-ayarlari", "done": int(domain_count or 0) > 0},
+    ]
+    done_count = sum(1 for s in steps if s["done"])
+    return {"steps": steps, "completed": done_count, "total": len(steps), "pct": round((done_count / len(steps)) * 100)}
+
+
+class TenantTicketIn(BaseModel):
+    subject: str = Field(min_length=3, max_length=200)
+    category: str = Field(default="teknik", pattern="^(teknik|odeme|alan_adi|diger)$")
+    priority: str = Field(default="normal", pattern="^(normal|yuksek|acil)$")
+    message: str = Field(min_length=3, max_length=3000)
+
+
+class TenantTicketReplyIn(BaseModel):
+    body: str = Field(min_length=1, max_length=3000)
+
+
+@router.get("/support-tickets")
+async def list_tenant_tickets(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    from app.models.platform import SupportTicket
+
+    org_id = UUID(request.state.organization_id)
+    rows = (
+        await db.execute(
+            select(SupportTicket)
+            .where(SupportTicket.organization_id == org_id)
+            .order_by(SupportTicket.updated_at.desc())
+            .limit(100)
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": str(t.id),
+            "subject": t.subject,
+            "category": t.category,
+            "priority": t.priority,
+            "status": t.status,
+            "created_at": t.created_at.isoformat(),
+            "updated_at": t.updated_at.isoformat(),
+        }
+        for t in rows
+    ]
+
+
+@router.post("/support-tickets", status_code=201)
+async def create_tenant_ticket(
+    payload: TenantTicketIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.platform import SupportTicket, SupportTicketMessage
+
+    org_id = UUID(request.state.organization_id)
+    ticket = SupportTicket(
+        organization_id=org_id,
+        created_by_user_id=current_user.id,
+        subject=payload.subject.strip(),
+        category=payload.category,
+        priority=payload.priority,
+        status="open",
+    )
+    db.add(ticket)
+    await db.flush()
+    sender_name = f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or current_user.email
+    db.add(
+        SupportTicketMessage(
+            ticket_id=ticket.id,
+            sender_type="tenant",
+            sender_name=sender_name,
+            body=payload.message.strip(),
+        )
+    )
+    await db.commit()
+    await db.refresh(ticket)
+    return {"id": str(ticket.id), "subject": ticket.subject, "status": ticket.status}
+
+
+@router.get("/support-tickets/{ticket_id}")
+async def get_tenant_ticket(
+    ticket_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    from app.models.platform import SupportTicket, SupportTicketMessage
+
+    org_id = UUID(request.state.organization_id)
+    ticket = (
+        await db.execute(
+            select(SupportTicket).where(SupportTicket.id == ticket_id, SupportTicket.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Destek talebi bulunamadı")
+    msgs = (
+        await db.execute(
+            select(SupportTicketMessage)
+            .where(SupportTicketMessage.ticket_id == ticket.id)
+            .order_by(SupportTicketMessage.created_at.asc())
+        )
+    ).scalars().all()
+    return {
+        "id": str(ticket.id),
+        "subject": ticket.subject,
+        "category": ticket.category,
+        "priority": ticket.priority,
+        "status": ticket.status,
+        "created_at": ticket.created_at.isoformat(),
+        "messages": [
+            {
+                "id": str(m.id),
+                "sender_type": m.sender_type,
+                "sender_name": m.sender_name,
+                "body": m.body,
+                "created_at": m.created_at.isoformat(),
+            }
+            for m in msgs
+        ],
+    }
+
+
+@router.post("/support-tickets/{ticket_id}/reply", status_code=201)
+async def reply_tenant_ticket(
+    ticket_id: UUID,
+    payload: TenantTicketReplyIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.platform import SupportTicket, SupportTicketMessage
+
+    org_id = UUID(request.state.organization_id)
+    ticket = (
+        await db.execute(
+            select(SupportTicket).where(SupportTicket.id == ticket_id, SupportTicket.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Destek talebi bulunamadı")
+    sender_name = f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or current_user.email
+    msg = SupportTicketMessage(
+        ticket_id=ticket.id,
+        sender_type="tenant",
+        sender_name=sender_name,
+        body=payload.body.strip(),
+    )
+    db.add(msg)
+    ticket.status = "open"
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/campaigns/{campaign_id}/qr-poster.pdf")
+async def campaign_qr_poster_pdf(
+    campaign_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    import io
+    from fastapi.responses import Response
+    from reportlab.graphics.barcode import qr
+    from reportlab.graphics.shapes import Drawing
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+    from reportlab.graphics import renderPDF
+    from app.api.v1.site import site_url
+    from app.models.campaign import Campaign
+
+    org_id = UUID(request.state.organization_id)
+    org = await db.get(Organization, org_id)
+    camp = (
+        await db.execute(select(Campaign).where(Campaign.id == campaign_id, Campaign.organization_id == org_id))
+    ).scalar_one_or_none()
+    if not camp:
+        raise HTTPException(status_code=404, detail="Kampanya bulunamadı")
+
+    base_url = await site_url(db, org)
+    target_url = f"{base_url}/kampanyalar/{camp.slug}"
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    w, h = A4
+
+    c.setFillColorRGB(0.02, 0.37, 0.27)
+    c.rect(0, h - 42 * mm, w, 42 * mm, fill=1, stroke=0)
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont("Helvetica-Bold", 20)
+    c.drawCentredString(w / 2, h - 22 * mm, (org.name if org else "E-İnfak")[:60])
+    c.setFont("Helvetica", 11)
+    c.drawCentredString(w / 2, h - 32 * mm, "Online Bağış Kampanyası")
+
+    c.setFillColorRGB(0.06, 0.09, 0.16)
+    c.setFont("Helvetica-Bold", 22)
+    c.drawCentredString(w / 2, h - 68 * mm, camp.title[:55])
+
+    qr_widget = qr.QrCodeWidget(target_url)
+    bounds = qr_widget.getBounds()
+    qr_w = bounds[2] - bounds[0]
+    qr_h = bounds[3] - bounds[1]
+    size = 90 * mm
+    d = Drawing(size, size, transform=[size / qr_w, 0, 0, size / qr_h, 0, 0])
+    d.add(qr_widget)
+    renderPDF.draw(d, c, (w - size) / 2, h - 175 * mm)
+
+    c.setFillColorRGB(0.28, 0.33, 0.41)
+    c.setFont("Helvetica-Bold", 13)
+    c.drawCentredString(w / 2, h - 192 * mm, "Kameranızla QR kodu okutarak hemen bağış yapabilirsiniz.")
+    c.setFont("Helvetica", 10)
+    c.drawCentredString(w / 2, h - 202 * mm, target_url[:90])
+
+    c.showPage()
+    c.save()
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{camp.slug}-qr-poster.pdf"'},
+    )
+
+
+@router.get("/donors/{donor_id}/impact-report.pdf")
+async def donor_impact_report_pdf(
+    donor_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    from fastapi.responses import Response
+    from app.models.campaign import Campaign
+    from app.models.donation import Donation, DonationStatus, Donor
+    from app.utils.report_pdf import build_report_pdf
+
+    org_id = UUID(request.state.organization_id)
+    org = await db.get(Organization, org_id)
+    donor = (
+        await db.execute(select(Donor).where(Donor.id == donor_id, Donor.organization_id == org_id))
+    ).scalar_one_or_none()
+    if not donor:
+        raise HTTPException(status_code=404, detail="Bağışçı bulunamadı")
+
+    rows_db = (
+        await db.execute(
+            select(Donation.paid_at, Campaign.title, Donation.amount_cents, Donation.currency)
+            .outerjoin(Campaign, Campaign.id == Donation.campaign_id)
+            .where(
+                Donation.organization_id == org_id,
+                Donation.donor_id == donor.id,
+                Donation.status == DonationStatus.PAID,
+            )
+            .order_by(Donation.paid_at.desc())
+            .limit(100)
+        )
+    ).all()
+
+    total_cents = sum(int(r[2] or 0) for r in rows_db)
+    pdf_rows = [
+        [
+            r[0].strftime("%d.%m.%Y") if r[0] else "—",
+            r[1] or "Genel Bağış",
+            f"{int(r[2] or 0) / 100:,.2f} {r[3] or 'TRY'}",
+        ]
+        for r in rows_db
+    ] or [["—", "Henüz onaylı bağış yok", "0,00 TRY"]]
+
+    donor_name = f"{donor.first_name or ''} {donor.last_name or ''}".strip() or donor.email or "Değerli Bağışçımız"
+    pdf_bytes = build_report_pdf(
+        title=f"{donor_name} — İyilik Karnesi",
+        subtitle="Desteklerinizle hayata geçen bağışların özet raporu",
+        headers=["Tarih", "Kampanya / Kalem", "Tutar"],
+        rows=pdf_rows,
+        org_name=org.name if org else "E-İnfak",
+        organization=org,
+        summary={
+            "Toplam Bağış Adedi": str(len(rows_db)),
+            "Toplam Katkı": f"{total_cents / 100:,.2f} TL",
+        },
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="iyilik-karnesi-{donor.id}.pdf"'},
+    )
+

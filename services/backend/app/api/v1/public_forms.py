@@ -306,3 +306,80 @@ async def public_fx_rates(db: AsyncSession = Depends(get_db)):
         if now - fetched <= MAX_RATE_AGE
     }
     return {"base": "TRY", "source": "TCMB döviz satış", "rates": rates}
+
+
+class TrialSignupIn(BaseModel):
+    organization_name: str = Field(min_length=2, max_length=200)
+    subdomain: str = Field(min_length=2, max_length=63)
+    email: EmailStr
+    phone: Optional[str] = Field(default=None, max_length=32)
+    first_name: str = Field(min_length=2, max_length=100)
+    last_name: Optional[str] = Field(default="", max_length=100)
+
+
+@router.post("/trial-signup", status_code=201, dependencies=[Depends(rate_limit("trial-signup", limit=5, window_seconds=3600))])
+async def public_trial_signup(payload: TrialSignupIn, db: AsyncSession = Depends(get_db)):
+    """Self-service 14-day free trial organisation provisioning from e-infak.org."""
+    from datetime import datetime, timedelta, timezone
+    from app.core.config import settings
+    from app.core.security import get_password_hash
+    from app.models.organization import Organization
+    from app.models.user import User, UserRole
+    from app.services import passwords
+    from app.services.site import DEFAULT_SECTIONS
+    from app.services.tenancy import RESERVED_SUBDOMAINS, valid_subdomain
+
+    sub = payload.subdomain.strip().lower()
+    if sub in RESERVED_SUBDOMAINS or not valid_subdomain(sub):
+        raise HTTPException(status_code=422, detail="Geçersiz veya ayrılmış alt alan adı")
+
+    exists = (await db.execute(select(Organization.id).where(Organization.subdomain == sub))).scalar_one_or_none()
+    if exists:
+        raise HTTPException(status_code=409, detail="Bu alt alan adı zaten kullanımda")
+
+    admin_email = str(payload.email).strip().lower()
+    email_exists = (await db.execute(select(User.id).where(func.lower(User.email) == admin_email))).scalar_one_or_none()
+    if email_exists:
+        raise HTTPException(status_code=409, detail="Bu e-posta adresiyle kayıtlı bir hesap zaten var")
+
+    org = Organization(
+        slug=sub,
+        name=payload.organization_name.strip(),
+        legal_name=payload.organization_name.strip(),
+        email=admin_email,
+        phone=payload.phone.strip() if payload.phone else None,
+        primary_domain=f"{sub}.{settings.PLATFORM_BASE_DOMAIN}",
+        subdomain=sub,
+        template="sade",
+        plan="baslangic",
+        subscription_status="trial",
+        subscription_ends_at=datetime.now(timezone.utc) + timedelta(days=14),
+        is_active=True,
+        site=DEFAULT_SECTIONS,
+    )
+    db.add(org)
+    await db.flush()
+
+    temp_pwd = passwords.temporary_password()
+    admin = User(
+        organization_id=org.id,
+        email=admin_email,
+        first_name=payload.first_name.strip(),
+        last_name=(payload.last_name or "").strip(),
+        hashed_password=get_password_hash(temp_pwd),
+        role=UserRole.STK_ADMIN,
+        is_active=True,
+        must_change_password=True,
+    )
+    db.add(admin)
+    await db.commit()
+
+    login_url = f"https://{org.primary_domain}/giris"
+    await passwords.send_credentials_email(admin, login_url, temp_pwd, organization=org.name, welcome=True)
+    return {
+        "ok": True,
+        "organization_name": org.name,
+        "url": f"https://{org.primary_domain}",
+        "login_url": login_url,
+        "trial_ends_at": org.subscription_ends_at.isoformat(),
+    }

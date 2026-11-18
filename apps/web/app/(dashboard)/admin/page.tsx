@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { adminGet, formatMoney, hasFeature, useAdminAccess, v1Get, hasModule } from '../../../lib/admin-access'
 import { PageHeader, StatCard } from '../../../components/admin/ui'
+import { OnboardingChecklist } from '../../../components/admin/OnboardingChecklist'
 import { ghostButton } from '../../../components/admin/FormKit'
 
 interface MonthlyTrend {
@@ -217,6 +218,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <OnboardingChecklist />
       <PageHeader
         title="Genel Bakış"
         description={

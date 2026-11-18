@@ -23,7 +23,7 @@ from app.core.security import create_access_token, decode_token, get_password_ha
 from app.models.audit_log import AuditLog
 from app.models.donation import Donation, DonationStatus
 from app.models.organization import Organization, OrganizationDomain
-from app.models.platform import DemoRequest, PlatformAlertDismissal, PlatformAuditLog, PlatformBroadcast, PlatformPayment, PlatformUser
+from app.models.platform import DemoRequest, PlatformAlertDismissal, PlatformAuditLog, PlatformBroadcast, PlatformPayment, PlatformUser, SupportTicket, SupportTicketMessage
 from app.models.user import User, UserRole
 from app.payments import PROVIDERS as PAYMENT_PROVIDERS, build_provider
 from app.services import domains, passwords, platform_alerts
@@ -44,11 +44,25 @@ SUPPORT_TOKEN_MINUTES = 30
 PASSWORD_CHANGE_PATHS = ("/platform/me", "/platform/me/password")
 
 
+def _ip(request: Request) -> Optional[str]:
+    return request.client.host if request.client else None
+
+
+def _check_platform_ip(request: Request) -> None:
+    allowed = [ip.strip() for ip in (settings.PLATFORM_ALLOWED_IPS or "").split(",") if ip.strip()]
+    if not allowed:
+        return
+    client_ip = _ip(request)
+    if client_ip not in allowed:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bu IP adresinden platform erişimi kısıtlı")
+
+
 async def get_platform_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
     db: AsyncSession = Depends(get_db),
 ) -> PlatformUser:
+    _check_platform_ip(request)
     payload = decode_token(credentials.credentials) if credentials else None
     if not payload or payload.get("type") != "access" or payload.get("scope") != "platform":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Platform girişi gerekli",
@@ -71,10 +85,6 @@ async def get_platform_user(
     return user
 
 
-def _ip(request: Request) -> Optional[str]:
-    return request.client.host if request.client else None
-
-
 def _audit(db: AsyncSession, request: Request, operator: Optional[PlatformUser], action: str,
            organization_id: Optional[UUID] = None, **details) -> None:
     db.add(PlatformAuditLog(platform_user_id=operator.id if operator else None, organization_id=organization_id,
@@ -88,6 +98,7 @@ class LoginIn(BaseModel):
 
 @router.post("/auth/login", dependencies=[Depends(rate_limit("platform-login", limit=10, window_seconds=600))])
 async def platform_login(payload: LoginIn, request: Request, db: AsyncSession = Depends(get_db)):
+    _check_platform_ip(request)
     user = (await db.execute(
         select(PlatformUser).where(func.lower(PlatformUser.email) == str(payload.email).lower())
     )).scalar_one_or_none()
@@ -1007,9 +1018,12 @@ async def platform_health(db: AsyncSession = Depends(get_db), _: PlatformUser = 
         )
     )).scalar_one()
 
+    db_size_bytes = (await db.execute(text("SELECT pg_database_size(current_database())"))).scalar_one()
+
     return {
         "db_ok": True,
         "db_ms": db_ms,
+        "db_size_mb": round((db_size_bytes or 0) / (1024 * 1024), 1),
         "redis_ok": redis_ok,
         "sms_failed_24h": int(sms_failed_24h or 0),
         "checked_at": datetime.now(timezone.utc).isoformat(),
@@ -1277,4 +1291,142 @@ async def organization_summary_pdf(org_id: UUID, db: AsyncSession = Depends(get_
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{org.slug}-ozet.pdf"'},
+    )
+
+
+# --- Support Tickets (Platform Helpdesk) ----------------------------------------
+
+@router.get("/tickets")
+async def list_platform_tickets(status_filter: Optional[str] = None, db: AsyncSession = Depends(get_db),
+                                _: PlatformUser = Depends(get_platform_user)):
+    query = select(SupportTicket, Organization.name).join(Organization, Organization.id == SupportTicket.organization_id)
+    if status_filter in ("open", "answered", "closed"):
+        query = query.where(SupportTicket.status == status_filter)
+    rows = (await db.execute(query.order_by(SupportTicket.updated_at.desc()).limit(200))).all()
+    return [
+        {
+            "id": str(t.id),
+            "organization_id": str(t.organization_id),
+            "organization_name": org_name,
+            "subject": t.subject,
+            "category": t.category,
+            "priority": t.priority,
+            "status": t.status,
+            "created_at": t.created_at.isoformat(),
+            "updated_at": t.updated_at.isoformat(),
+        }
+        for t, org_name in rows
+    ]
+
+
+@router.get("/tickets/{ticket_id}")
+async def get_platform_ticket(ticket_id: UUID, db: AsyncSession = Depends(get_db),
+                              _: PlatformUser = Depends(get_platform_user)):
+    row = (
+        await db.execute(
+            select(SupportTicket, Organization.name)
+            .join(Organization, Organization.id == SupportTicket.organization_id)
+            .where(SupportTicket.id == ticket_id)
+        )
+    ).one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Talep bulunamadı")
+    t, org_name = row
+    msgs = (
+        await db.execute(
+            select(SupportTicketMessage)
+            .where(SupportTicketMessage.ticket_id == t.id)
+            .order_by(SupportTicketMessage.created_at.asc())
+        )
+    ).scalars().all()
+    return {
+        "id": str(t.id),
+        "organization_id": str(t.organization_id),
+        "organization_name": org_name,
+        "subject": t.subject,
+        "category": t.category,
+        "priority": t.priority,
+        "status": t.status,
+        "created_at": t.created_at.isoformat(),
+        "messages": [
+            {
+                "id": str(m.id),
+                "sender_type": m.sender_type,
+                "sender_name": m.sender_name,
+                "body": m.body,
+                "created_at": m.created_at.isoformat(),
+            }
+            for m in msgs
+        ],
+    }
+
+
+class TicketReplyIn(BaseModel):
+    body: str = Field(min_length=1, max_length=3000)
+
+
+@router.post("/tickets/{ticket_id}/reply", status_code=201)
+async def reply_platform_ticket(ticket_id: UUID, payload: TicketReplyIn, request: Request,
+                                db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    t = await db.get(SupportTicket, ticket_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Talep bulunamadı")
+    db.add(SupportTicketMessage(
+        ticket_id=t.id,
+        sender_type="platform",
+        sender_name=operator.full_name or operator.email,
+        body=payload.body.strip(),
+    ))
+    t.status = "answered"
+    _audit(db, request, operator, "destek_talebi_yanitlandi", t.organization_id, subject=t.subject)
+    await db.commit()
+    return {"ok": True}
+
+
+class TicketStatusIn(BaseModel):
+    status: str = Field(pattern="^(open|answered|closed)$")
+
+
+@router.patch("/tickets/{ticket_id}")
+async def update_platform_ticket_status(ticket_id: UUID, payload: TicketStatusIn, request: Request,
+                                        db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    t = await db.get(SupportTicket, ticket_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Talep bulunamadı")
+    t.status = payload.status
+    _audit(db, request, operator, "destek_talebi_durum", t.organization_id, subject=t.subject, status=payload.status)
+    await db.commit()
+    return {"ok": True, "status": t.status}
+
+
+@router.get("/organizations/{org_id}/payments/{payment_id}/receipt.pdf")
+async def platform_payment_receipt_pdf(org_id: UUID, payment_id: UUID, db: AsyncSession = Depends(get_db),
+                                       _: PlatformUser = Depends(get_platform_user)):
+    from fastapi.responses import Response
+    from app.utils.report_pdf import build_report_pdf
+
+    org = await _org_or_404(db, org_id)
+    p = (await db.execute(
+        select(PlatformPayment).where(PlatformPayment.id == payment_id, PlatformPayment.organization_id == org.id)
+    )).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Tahsilat kaydı bulunamadı")
+
+    pdf_bytes = build_report_pdf(
+        title="E-İnfak Platform SaaS Tahsilat Makbuzu",
+        subtitle=f"Kurum: {org.name} ({org.legal_name})",
+        headers=["Tarih", "Dönem", "Ödeme Yöntemi", "Tutar"],
+        rows=[[
+            p.paid_at.strftime("%d.%m.%Y") if p.paid_at else "—",
+            p.period_label,
+            p.payment_method.upper(),
+            f"{p.amount_cents / 100:,.2f} {p.currency}",
+        ]],
+        org_name="E-İnfak Platform",
+        summary={"Makbuz No": str(p.id)[:8].upper(), "Durum": "Ödendi"},
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="saas-makbuz-{str(p.id)[:8]}.pdf"'},
     )

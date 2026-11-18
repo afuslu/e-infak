@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { CreditCard, Download, Mail, Plus } from 'lucide-react'
-import { PlatformOrg, dateTr, platformCall, platformError } from '../../lib/platform-api'
+import { PlatformOrg, dateTr, platformCall, platformError, platformToken } from '../../lib/platform-api'
 import { downloadCsv, ptCard, ptInput, ptPrimaryBtn, ptSecondaryBtn, ptSelect } from './PlatformUI'
 
 interface OrgPayment {
@@ -217,6 +217,7 @@ export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdat
                 <th className="px-4 py-2.5">Dönem</th>
                 <th className="px-4 py-2.5">Yöntem</th>
                 <th className="px-4 py-2.5">Tutar</th>
+                <th className="px-4 py-2.5 text-right">Makbuz</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -226,6 +227,27 @@ export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdat
                   <td className="px-4 py-2.5 font-semibold text-slate-900">{p.period_label}</td>
                   <td className="px-4 py-2.5 text-xs uppercase text-slate-600">{p.payment_method}</td>
                   <td className="px-4 py-2.5 font-bold text-emerald-700">{tl(p.amount_cents)}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await fetch(`${window.location.origin}/api/v1/platform/organizations/${org.id}/payments/${p.id}/receipt.pdf`, {
+                          headers: platformToken() ? { Authorization: `Bearer ${platformToken()}` } : {},
+                        })
+                        if (!res.ok) return setMsg({ ok: false, text: 'Makbuz indirilemedi' })
+                        const blob = await res.blob()
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `saas-makbuz-${p.id.slice(0, 8)}.pdf`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Download className="h-3 w-3" aria-hidden="true" /> PDF
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

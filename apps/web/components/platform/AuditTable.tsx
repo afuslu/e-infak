@@ -34,6 +34,8 @@ export const ACTION_LABELS: Record<string, string> = {
   kurum_silindi: 'Kurum silindi',
   abonelik_hatirlatmasi: 'Abonelik hatırlatması gönderildi',
   test_sms_gonderildi: 'Test SMS gönderildi',
+  destek_talebi_yanitlandi: 'Destek talebi yanıtlandı',
+  destek_talebi_durum: 'Destek talebi durumu',
 }
 
 const actionLabel = (action: string) => ACTION_LABELS[action] || action.replace(/_/g, ' ')

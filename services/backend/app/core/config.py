@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     PLATFORM_BASE_DOMAIN: str = "e-infak.org"  # organisations get <subdomain>.<this>
     PLATFORM_CNAME_TARGET: str = "cname.e-infak.org"  # shown to organisations for custom domains
     PLATFORM_PUBLIC_IP: str = ""  # A-record target; custom domains verify against it
+    PLATFORM_ALLOWED_IPS: str = ""  # optional comma-separated IP whitelist for /platform/*
     # Caddy certificate service (deploy/docker/Caddyfile); empty disables certificate warm-up
     CERT_SERVICE_HOST: str = ""
     CERT_SERVICE_PORT: int = 8443

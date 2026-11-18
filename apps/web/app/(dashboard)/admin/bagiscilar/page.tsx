@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Building2, Check, ChevronDown, Copy, MapPin, MessageSquare, Plus, RefreshCw, SlidersHorizontal, Tag, Trash2, TrendingUp, UserCheck, Users, X } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, downloadFile, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
@@ -1135,15 +1135,24 @@ function DonorCardPanel({
         items={cardStatModal?.items || []}
       />
 
-      <div className="flex flex-wrap gap-1 border-b border-slate-200 text-sm font-semibold">
-        {([
-          ['donations', `Bağışlar (${card.donations.length})`],
-          ['notes', `Notlar & SMS (${card.notes.length + smsLog.length})`],
-          ...(perms.update ? [['edit', 'Bilgileri Düzenle']] : []),
-          ...(canIssue ? [['receipt', 'Makbuz Kes']] : []),
-        ] as [typeof tab, string][]).map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}>{l}</button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 text-sm font-semibold">
+        <div className="flex flex-wrap gap-1">
+          {([
+            ['donations', `Bağışlar (${card.donations.length})`],
+            ['notes', `Notlar & SMS (${card.notes.length + smsLog.length})`],
+            ...(perms.update ? [['edit', 'Bilgileri Düzenle']] : []),
+            ...(canIssue ? [['receipt', 'Makbuz Kes']] : []),
+          ] as [typeof tab, string][]).map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-2 ${tab === k ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500'}`}>{l}</button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => downloadFile(`/admin-features/donors/${card.id}/impact-report.pdf`, `iyilik-karnesi-${card.id}.pdf`).catch(() => toast.error('İyilik karnesi indirilemedi'))}
+          className="mb-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+        >
+          İyilik Karnesi PDF
+        </button>
       </div>
 
       {tab === 'donations' && (

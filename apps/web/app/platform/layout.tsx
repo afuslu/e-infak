@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BarChart3, Building2, History, Inbox, KeyRound, LogOut, Megaphone, Moon, PlusCircle, Search, Sun, Users, X, type LucideIcon } from 'lucide-react'
+import { BarChart3, Building2, History, Inbox, KeyRound, LifeBuoy, LogOut, Megaphone, Moon, PlusCircle, Search, Sun, Users, X, type LucideIcon } from 'lucide-react'
 import { PlatformMe, PlatformOrg, platformCall, platformError, platformToken, setPlatformToken } from '../../lib/platform-api'
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
@@ -11,6 +11,7 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/platform/yeni', label: 'Yeni kurum', icon: PlusCircle },
   { href: '/platform/metrikler', label: 'Metrikler', icon: BarChart3 },
   { href: '/platform/talepler', label: 'Demo talepleri', icon: Inbox },
+  { href: '/platform/destek', label: 'Destek', icon: LifeBuoy },
   { href: '/platform/duyurular', label: 'Duyurular', icon: Megaphone },
   { href: '/platform/operatorler', label: 'Operatörler', icon: Users },
   { href: '/platform/kayitlar', label: 'İşlem kayıtları', icon: History },

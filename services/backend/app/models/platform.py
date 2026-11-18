@@ -95,3 +95,30 @@ class PlatformAlertDismissal(Base):
     kind = Column(String(64), nullable=False, index=True)
     dismissed_by_id = Column(UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class SupportTicket(Base):
+    """Support ticket opened by a tenant organisation admin for the platform team."""
+    __tablename__ = "support_tickets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_by_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    subject = Column(String(200), nullable=False)
+    category = Column(String(24), nullable=False, default="teknik", server_default="teknik")
+    priority = Column(String(16), nullable=False, default="normal", server_default="normal")
+    status = Column(String(16), nullable=False, default="open", server_default="open", index=True)  # open | answered | closed
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False, index=True)
+
+
+class SupportTicketMessage(Base):
+    """Single message inside a SupportTicket conversation."""
+    __tablename__ = "support_ticket_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ticket_id = Column(UUID(as_uuid=True), ForeignKey("support_tickets.id", ondelete="CASCADE"), nullable=False, index=True)
+    sender_type = Column(String(16), nullable=False)  # tenant | platform
+    sender_name = Column(String(150), nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)

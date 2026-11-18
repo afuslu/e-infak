@@ -647,6 +647,10 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.check_platform_subscriptions_task",
         "schedule": crontab(hour=6, minute=0),
     },
+    "recover-abandoned-donations-hourly": {
+        "task": "app.tasks.recover_abandoned_donations_task",
+        "schedule": 3600.0,
+    },
 }
 
 
@@ -694,5 +698,56 @@ def check_platform_subscriptions_task():
                             pass
             await db.commit()
             return {"expired_marked": expired_count, "reminded": reminded_count}
+
+    return _run_async(_run())
+
+
+@celery_app.task(name="app.tasks.recover_abandoned_donations_task")
+def recover_abandoned_donations_task():
+    """Send a gentle single SMS reminder for pending donations abandoned 1-2 hours ago (for SMS-enabled orgs)."""
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+    from app.core.plans import Feature, org_features
+    from app.models.organization import Organization
+    from app.models.payment import PaymentOrder, PaymentOrderStatus
+    from app.models.sms_message import SmsMessage
+
+    async def _run():
+        now = datetime.now(timezone.utc)
+        start = now - timedelta(hours=2)
+        end = now - timedelta(hours=1)
+        async with _session() as db:
+            orders = (await db.execute(
+                select(PaymentOrder).where(
+                    PaymentOrder.status == PaymentOrderStatus.PENDING,
+                    PaymentOrder.donor_phone.isnot(None),
+                    PaymentOrder.created_at >= start,
+                    PaymentOrder.created_at <= end,
+                ).limit(50)
+            )).scalars().all()
+            sent = 0
+            for order in orders:
+                org = await db.get(Organization, order.organization_id)
+                if not org or not org.is_active or Feature.SMS_DONATION not in org_features(org):
+                    continue
+                marker = f"abandoned:{order.id}"
+                already = (await db.execute(
+                    select(SmsMessage.id).where(
+                        SmsMessage.organization_id == org.id,
+                        SmsMessage.provider_ref == marker,
+                    )
+                )).scalar_one_or_none()
+                if already:
+                    continue
+                db.add(SmsMessage(
+                    organization_id=org.id,
+                    phone=order.donor_phone,
+                    body=f"{org.name}: Yarim kalan bagis isleminizi dilediginiz zaman web sitemizden tamamlayabilirsiniz. Tesekkur ederiz.",
+                    status="queued",
+                    provider_ref=marker,
+                ))
+                sent += 1
+            await db.commit()
+            return {"queued": sent}
 
     return _run_async(_run())
