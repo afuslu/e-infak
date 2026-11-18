@@ -46,6 +46,10 @@ class Organization(Base):
     plan = Column(String(20), nullable=False, default="ileri", server_default="ileri")
     enabled_addons = Column(JSONB, nullable=False, default=list, server_default="[]")
     extra_user_seats = Column(Integer, nullable=False, default=0, server_default="0")
+    subscription_status = Column(String(16), nullable=False, default="active", server_default="active")  # trial | active | past_due | suspended
+    billing_cycle = Column(String(16), nullable=False, default="monthly", server_default="monthly")  # monthly | yearly
+    subscription_ends_at = Column(DateTime(timezone=True))
+    monthly_fee_cents = Column(Integer, nullable=False, default=0, server_default="0")
     
     # Bank Account Info
     bank_name = Column(String(100))

@@ -38,6 +38,7 @@ class UserResponse(BaseModel):
     phone: Optional[str]
     role: UserRole
     is_active: bool
+    must_change_password: bool = False
     organization_id: UUID
     created_at: datetime
 

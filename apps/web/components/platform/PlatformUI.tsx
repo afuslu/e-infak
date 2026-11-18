@@ -1,0 +1,27 @@
+'use client'
+
+import React from 'react'
+
+export const ptInput =
+  'mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-normal text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15'
+
+export const ptSelect =
+  'mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-normal text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15'
+
+export const ptPrimaryBtn =
+  'inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-xs transition hover:bg-slate-800 disabled:pointer-events-none disabled:opacity-50'
+
+export const ptSecondaryBtn =
+  'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-50'
+
+export const ptCard = 'rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs'
+
+export function PlatformSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="space-y-3 animate-pulse" aria-busy="true" aria-label="Yükleniyor">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="h-14 rounded-2xl border border-slate-200/80 bg-white/80" />
+      ))}
+    </div>
+  )
+}

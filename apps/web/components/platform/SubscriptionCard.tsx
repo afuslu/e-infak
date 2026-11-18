@@ -1,0 +1,197 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { CreditCard, Plus } from 'lucide-react'
+import { PlatformOrg, dateTr, platformCall, platformError } from '../../lib/platform-api'
+import { ptCard, ptInput, ptPrimaryBtn, ptSelect } from './PlatformUI'
+
+interface OrgPayment {
+  id: string
+  amount_cents: number
+  currency: string
+  period_label: string
+  payment_method: string
+  status: string
+  notes: string | null
+  paid_at: string | null
+}
+
+const tl = (cents: number) =>
+  (cents / 100).toLocaleString('tr-TR', { style: 'currency', currency: 'TRY', maximumFractionDigits: 2 })
+
+export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdated: () => Promise<void> }) {
+  const [sub, setSub] = useState({
+    subscription_status: org.subscription_status || 'active',
+    billing_cycle: org.billing_cycle || 'monthly',
+    subscription_ends_at: org.subscription_ends_at ? org.subscription_ends_at.slice(0, 10) : '',
+    monthly_fee_lira: String((org.monthly_fee_cents || 0) / 100),
+  })
+  const [payments, setPayments] = useState<OrgPayment[]>([])
+  const [pay, setPay] = useState({ amount_lira: '', period_label: '', payment_method: 'havale', extend_days: '30', notes: '' })
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const loadPayments = useCallback(() => {
+    platformCall<OrgPayment[]>('get', `/organizations/${org.id}/payments`).then(setPayments).catch(() => undefined)
+  }, [org.id])
+
+  useEffect(() => {
+    setSub({
+      subscription_status: org.subscription_status || 'active',
+      billing_cycle: org.billing_cycle || 'monthly',
+      subscription_ends_at: org.subscription_ends_at ? org.subscription_ends_at.slice(0, 10) : '',
+      monthly_fee_lira: String((org.monthly_fee_cents || 0) / 100),
+    })
+  }, [org.subscription_status, org.billing_cycle, org.subscription_ends_at, org.monthly_fee_cents])
+
+  useEffect(() => { loadPayments() }, [loadPayments])
+
+  const saveSub = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setMsg(null)
+    try {
+      const feeCents = Math.max(0, Math.round((Number(sub.monthly_fee_lira) || 0) * 100))
+      await platformCall('patch', `/organizations/${org.id}/subscription`, {
+        subscription_status: sub.subscription_status,
+        billing_cycle: sub.billing_cycle,
+        subscription_ends_at: sub.subscription_ends_at ? `${sub.subscription_ends_at}T23:59:59Z` : null,
+        monthly_fee_cents: feeCents,
+      })
+      await onUpdated()
+      setMsg({ ok: true, text: 'Abonelik ayarları güncellendi' })
+    } catch (err) {
+      setMsg({ ok: false, text: platformError(err, 'Abonelik güncellenemedi') })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const addPayment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const amountCents = Math.round((Number(pay.amount_lira) || 0) * 100)
+    if (amountCents <= 0) return setMsg({ ok: false, text: 'Geçerli bir tutar girin' })
+    setBusy(true)
+    setMsg(null)
+    try {
+      await platformCall('post', `/organizations/${org.id}/payments`, {
+        amount_cents: amountCents,
+        period_label: pay.period_label,
+        payment_method: pay.payment_method,
+        extend_days: Number(pay.extend_days) || 0,
+        notes: pay.notes || null,
+      })
+      setPay({ amount_lira: '', period_label: '', payment_method: 'havale', extend_days: '30', notes: '' })
+      loadPayments()
+      await onUpdated()
+      setMsg({ ok: true, text: 'Tahsilat kaydedildi' })
+    } catch (err) {
+      setMsg({ ok: false, text: platformError(err, 'Tahsilat kaydedilemedi') })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className={`space-y-5 lg:col-span-2 ${ptCard}`}>
+      <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+        <CreditCard className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+        <h2 className="text-base font-bold text-slate-900">Abonelik &amp; SaaS Tahsilat</h2>
+      </div>
+
+      {msg && (
+        <p className={`rounded-xl border px-3.5 py-2 text-xs font-semibold ${msg.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+          {msg.text}
+        </p>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <form onSubmit={saveSub} className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+          <h3 className="text-sm font-bold text-slate-800">Abonelik Durumu</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Durum
+              <select className={ptSelect} value={sub.subscription_status} onChange={(e) => setSub({ ...sub, subscription_status: e.target.value })}>
+                <option value="active">Aktif</option>
+                <option value="trial">Deneme</option>
+                <option value="past_due">Ödeme Gecikmiş</option>
+                <option value="suspended">Askıda</option>
+              </select>
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Dönem
+              <select className={ptSelect} value={sub.billing_cycle} onChange={(e) => setSub({ ...sub, billing_cycle: e.target.value })}>
+                <option value="monthly">Aylık</option>
+                <option value="yearly">Yıllık</option>
+              </select>
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Aylık Ücret (TL)
+              <input type="number" min="0" step="0.01" className={ptInput} value={sub.monthly_fee_lira} onChange={(e) => setSub({ ...sub, monthly_fee_lira: e.target.value })} />
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Bitiş Tarihi
+              <input type="date" className={ptInput} value={sub.subscription_ends_at} onChange={(e) => setSub({ ...sub, subscription_ends_at: e.target.value })} />
+            </label>
+          </div>
+          <button type="submit" disabled={busy} className={ptPrimaryBtn}>Aboneliği Kaydet</button>
+        </form>
+
+        <form onSubmit={addPayment} className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+          <h3 className="text-sm font-bold text-slate-800">Yeni Tahsilat Kaydet</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Tutar (TL) *
+              <input required type="number" min="1" step="0.01" className={ptInput} value={pay.amount_lira} onChange={(e) => setPay({ ...pay, amount_lira: e.target.value })} placeholder="2500" />
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Dönem Açıklaması *
+              <input required className={ptInput} value={pay.period_label} onChange={(e) => setPay({ ...pay, period_label: e.target.value })} placeholder="2026 Kasım" />
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Yöntem
+              <select className={ptSelect} value={pay.payment_method} onChange={(e) => setPay({ ...pay, payment_method: e.target.value })}>
+                <option value="havale">Havale / EFT</option>
+                <option value="kart">Kredi Kartı</option>
+                <option value="nakit">Nakit</option>
+              </select>
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Süreyi Uzat (Gün)
+              <input type="number" min="0" max="366" className={ptInput} value={pay.extend_days} onChange={(e) => setPay({ ...pay, extend_days: e.target.value })} />
+            </label>
+          </div>
+          <button type="submit" disabled={busy} className={ptPrimaryBtn}>
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            <span>Tahsilat Ekle</span>
+          </button>
+        </form>
+      </div>
+
+      {payments.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th className="px-4 py-2.5">Tarih</th>
+                <th className="px-4 py-2.5">Dönem</th>
+                <th className="px-4 py-2.5">Yöntem</th>
+                <th className="px-4 py-2.5">Tutar</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {payments.map((p) => (
+                <tr key={p.id}>
+                  <td className="px-4 py-2.5 text-xs text-slate-500">{dateTr(p.paid_at)}</td>
+                  <td className="px-4 py-2.5 font-semibold text-slate-900">{p.period_label}</td>
+                  <td className="px-4 py-2.5 text-xs uppercase text-slate-600">{p.payment_method}</td>
+                  <td className="px-4 py-2.5 font-bold text-emerald-700">{tl(p.amount_cents)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}

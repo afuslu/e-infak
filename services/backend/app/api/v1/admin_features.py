@@ -1962,3 +1962,30 @@ async def export_table_pdf(
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
 
+
+@router.get("/platform-notices")
+async def active_platform_notices(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    from app.models.platform import PlatformBroadcast
+
+    rows = (
+        await db.execute(
+            select(PlatformBroadcast)
+            .where(PlatformBroadcast.is_active.is_(True))
+            .order_by(PlatformBroadcast.created_at.desc())
+            .limit(5)
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": str(b.id),
+            "title": b.title,
+            "message": b.message,
+            "level": b.level,
+            "maintenance_mode": bool(b.maintenance_mode),
+        }
+        for b in rows
+    ]
+

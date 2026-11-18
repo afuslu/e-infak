@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useCurrentUser } from '@e-infak/api-client'
 import axios from 'axios'
 import { Card } from '@e-infak/ui'
 import { adminApiBase, adminAuthHeaders, apiErrorMessage } from '../../../../lib/admin-access'
@@ -13,6 +14,8 @@ export default function ChangePasswordPage() {
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const support = typeof window !== 'undefined' && sessionStorage.getItem('support_session') === '1'
+  const { data: me } = useCurrentUser()
+  const forced = !!me?.must_change_password && !support
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,6 +33,8 @@ export default function ChangePasswordPage() {
       }, { headers: adminAuthHeaders() })
       setForm({ current: '', next: '', repeat: '' })
       setMessage({ type: 'ok', text: 'Şifreniz değişti. Diğer cihazlardaki oturumlarınız kapatıldı.' })
+      // A first sign-in with a temporary password: the panel opens once the new one is set.
+      if (forced) window.location.href = '/admin'
     } catch (err) {
       setMessage({ type: 'error', text: apiErrorMessage(err, 'Şifre değiştirilemedi') })
     } finally {

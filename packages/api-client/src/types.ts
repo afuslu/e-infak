@@ -255,6 +255,8 @@ export interface User {
   phone?: string
   role: string
   is_active: boolean
+  /** Signed in with a temporary password: only the password page is open until it changes. */
+  must_change_password?: boolean
   organization_id: string
   created_at: string
 }

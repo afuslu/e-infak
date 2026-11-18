@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { AlertList } from '../../../../components/platform/AlertList'
-import { Catalog, PlatformAlert, PlatformDomain, PlatformOrg, dateTr, platformCall, platformError } from '../../../../lib/platform-api'
+import { AuditEntry, AuditTable } from '../../../../components/platform/AuditTable'
+import { SubscriptionCard } from '../../../../components/platform/SubscriptionCard'
+import {
+  Catalog, Credentials, PlatformAlert, PlatformDomain, PlatformOrg, copyText, credentialsText, dateTr, platformCall, platformError,
+} from '../../../../lib/platform-api'
 
 interface Field { key: string; label: string; secret: boolean; optional: boolean; choices: Record<string, string> | null }
 interface Account { key: string; label: string; kind: 'payment' | 'sms'; fields: Field[]; values: Record<string, string | null>; configured: boolean }
@@ -12,27 +16,31 @@ interface Detail extends PlatformOrg {
   provider_accounts: Account[]
 }
 type Msg = { type: 'ok' | 'error'; text: string } | null
-type Issued = { email: string; temporary_password: string; login_url: string }
+type Issued = Credentials
 interface OrgUser { id: string; email: string; name: string; role: string | null; role_label: string | null; is_active: boolean; last_login_at: string | null }
 
-const input = 'w-full rounded-lg border bg-white p-2 text-sm'
+const input = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15'
 const errorText = platformError
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="space-y-3 rounded-2xl border bg-white p-5"><h2 className="font-bold">{title}</h2>{children}</section>
+  return <section className="space-y-3 rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs"><h2 className="border-b border-slate-100 pb-2.5 text-base font-bold text-slate-900">{title}</h2>{children}</section>
 }
 
 function AccountForm({ orgId, account, onSaved }: { orgId: string; account: Account; onSaved: (a: Account) => void }) {
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(account.fields.map((f) => [f.key, f.secret ? '' : account.values[f.key] || ''])))
   const [msg, setMsg] = useState<Msg>(null)
+  const [saving, setSaving] = useState(false)
   const save = async () => {
+    setSaving(true)
     try {
       const saved = await platformCall<Account>('put', `/organizations/${orgId}/provider-accounts/${account.key}`, { values })
       onSaved({ ...saved, kind: account.kind })
       setMsg({ type: 'ok', text: 'Kaydedildi' })
     } catch (err) {
       setMsg({ type: 'error', text: errorText(err, 'Kaydedilemedi') })
+    } finally {
+      setSaving(false)
     }
   }
   return (
@@ -57,7 +65,7 @@ function AccountForm({ orgId, account, onSaved }: { orgId: string; account: Acco
         ))}
       </div>
       <div className="mt-2 flex items-center gap-3">
-        <button type="button" onClick={save} className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">Kaydet</button>
+        <button type="button" onClick={save} disabled={saving} className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{saving ? 'Kaydediliyor…' : 'Kaydet'}</button>
         {msg && <span className={`text-xs font-semibold ${msg.type === 'ok' ? 'text-green-700' : 'text-red-700'}`}>{msg.text}</span>}
       </div>
     </details>
@@ -74,22 +82,34 @@ export default function PlatformOrganizationPage() {
   const [issued, setIssued] = useState<Issued | null>(null)
   const [alerts, setAlerts] = useState<PlatformAlert[]>([])
   const [adding, setAdding] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState<'' | 'ok' | 'fail'>('')
+  const [info, setInfo] = useState({ name: '', legal_name: '', email: '', phone: '', city: '' })
+  const [audit, setAudit] = useState<AuditEntry[] | null>(null)
   const emptyUser = { first_name: '', last_name: '', email: '', role: 'editor' }
   const [newUser, setNewUser] = useState(emptyUser)
 
   const load = useCallback(async () => {
     const data = await platformCall<Detail>('get', `/organizations/${id}`)
     setOrg(data)
-    platformCall<PlatformAlert[]>('get', `/alerts?org_id=${id}`).then(setAlerts).catch(() => undefined)
+    platformCall<PlatformAlert[]>('get', `/alerts?org_id=${id}`).then(setAlerts).catch((err) => setAlerts([{
+      organization_id: id, organization_name: data.name, level: 'warning', kind: 'alerts_failed',
+      message: platformError(err, 'Uyarılar kontrol edilemedi'), hint: null,
+    }]))
+    platformCall<AuditEntry[]>('get', `/audit?organization_id=${id}&limit=20`).then(setAudit).catch(() => setAudit([]))
     setPlan({ plan: data.plan, enabled_addons: data.enabled_addons, extra_user_seats: data.extra_user_seats })
+    setInfo({ name: data.name, legal_name: data.legal_name || '', email: data.email || '', phone: data.phone || '', city: data.city || '' })
   }, [id])
 
   useEffect(() => {
     load().catch((err) => setMsg({ type: 'error', text: errorText(err, 'Kurum yüklenemedi') }))
-    platformCall<Catalog>('get', '/catalog').then(setCatalog).catch(() => undefined)
+    platformCall<Catalog>('get', '/catalog').then(setCatalog)
+      .catch((err) => setMsg({ type: 'error', text: errorText(err, 'Paket ve rol listesi yüklenemedi; sayfayı yenileyin') }))
   }, [load])
 
   const run = async (action: () => Promise<unknown>, ok: string) => {
+    if (busy) return
+    setBusy(true)
     setMsg(null)
     try {
       await action()
@@ -97,19 +117,26 @@ export default function PlatformOrganizationPage() {
       setMsg({ type: 'ok', text: ok })
     } catch (err) {
       setMsg({ type: 'error', text: errorText(err, 'İşlem tamamlanamadı') })
+    } finally {
+      setBusy(false)
     }
   }
+  const issue = (creds: Issued) => { setIssued(creds); setCopied('') }
 
   if (!org) return <p className="text-sm text-slate-500">{msg?.text || 'Yükleniyor…'}</p>
 
   const addons = catalog?.plans.find((p) => p.key === plan.plan)?.addons || []
   const supportSignIn = async () => {
+    if (busy) return
+    setBusy(true)
     try {
       const res = await platformCall<{ url: string }>('post', `/organizations/${org.id}/support-session`)
       window.open(res.url, '_blank', 'noopener')
       setMsg({ type: 'ok', text: 'Destek oturumu yeni sekmede açıldı (30 dakika geçerli; kurumun kayıtlarına işlendi).' })
     } catch (err) {
       setMsg({ type: 'error', text: errorText(err, 'Destek girişi açılamadı') })
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -121,7 +148,7 @@ export default function PlatformOrganizationPage() {
           <a href={org.url} target="_blank" rel="noreferrer" className="text-sm text-blue-700 hover:underline">{org.url}</a>
           <p className="text-xs text-slate-500">Oluşturulma: {dateTr(org.created_at)} · {org.legal_name} · {org.email}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <fieldset disabled={busy} className="flex flex-wrap gap-2 disabled:opacity-60">
           <button type="button" onClick={supportSignIn} disabled={!org.is_active}
             className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40">Panele destek girişi</button>
           {org.is_active ? (
@@ -136,12 +163,37 @@ export default function PlatformOrganizationPage() {
               Aktif et
             </button>
           )}
-        </div>
+        </fieldset>
       </div>
       {msg && <p className={`rounded-lg p-3 text-sm font-semibold ${msg.type === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</p>}
       {alerts.length > 0 && <AlertList alerts={alerts} showOrg={false} />}
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <fieldset disabled={busy} className="grid gap-5 lg:grid-cols-2">
+        <Card title="Kurum bilgileri">
+          <form className="grid gap-2 sm:grid-cols-2" onSubmit={(e) => {
+            e.preventDefault()
+            run(() => platformCall('patch', `/organizations/${org.id}`, info), 'Kurum bilgileri güncellendi')
+          }}>
+            <label className="text-xs font-semibold text-slate-600">Kurum adı
+              <input required minLength={2} className={input} value={info.name} onChange={(e) => setInfo({ ...info, name: e.target.value })} />
+            </label>
+            <label className="text-xs font-semibold text-slate-600">Resmi unvan
+              <input required minLength={2} className={input} value={info.legal_name} onChange={(e) => setInfo({ ...info, legal_name: e.target.value })} />
+            </label>
+            <label className="text-xs font-semibold text-slate-600">Kurum e-postası
+              <input required type="email" className={input} value={info.email} onChange={(e) => setInfo({ ...info, email: e.target.value })} />
+            </label>
+            <label className="text-xs font-semibold text-slate-600">Telefon
+              <input className={input} value={info.phone} onChange={(e) => setInfo({ ...info, phone: e.target.value })} />
+            </label>
+            <label className="text-xs font-semibold text-slate-600">Şehir
+              <input className={input} value={info.city} onChange={(e) => setInfo({ ...info, city: e.target.value })} />
+            </label>
+            <p className="self-end text-xs text-slate-500">Site adresi ({org.subdomain}) değiştirilemez; özel alan adı ekleyebilirsiniz.</p>
+            <div className="sm:col-span-2"><button type="submit" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white">Bilgileri kaydet</button></div>
+          </form>
+        </Card>
+
         <Card title="Kullanıcılar">
           {issued && (
             <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
@@ -149,10 +201,13 @@ export default function PlatformOrganizationPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <code className="rounded bg-white px-2 py-1 font-mono text-base select-all">{issued.temporary_password}</code>
                 <button type="button" className="rounded border bg-white px-2 py-1 text-xs font-semibold"
-                  onClick={() => navigator.clipboard?.writeText(issued.temporary_password)}>Kopyala</button>
+                  onClick={async () => setCopied((await copyText(credentialsText(issued))) ? 'ok' : 'fail')}>
+                  {copied === 'ok' ? 'Kopyalandı ✓' : copied === 'fail' ? 'Kopyalanamadı' : 'Bilgileri kopyala'}
+                </button>
                 <button type="button" className="rounded border bg-white px-2 py-1 text-xs" onClick={() => setIssued(null)}>Kapat</button>
               </div>
-              <p className="text-xs text-amber-800">Giriş: <a className="underline" href={issued.login_url} target="_blank" rel="noreferrer">{issued.login_url}</a>. Kullanıcı girdikten sonra “Şifremi değiştir”den kendi şifresini belirlemeli.</p>
+              <p className="text-xs text-amber-800">Giriş: <a className="underline" href={issued.login_url} target="_blank" rel="noreferrer">{issued.login_url}</a>. İlk girişte kendi şifresini belirlemesi istenecek.
+                {issued.email_sent ? ' Bilgiler kullanıcıya e-postayla da gönderildi.' : ' E-posta gönderilemedi; bilgileri güvenli bir yoldan iletin.'}</p>
             </div>
           )}
           {(() => {
@@ -175,7 +230,7 @@ export default function PlatformOrganizationPage() {
               onSubmit={(e) => {
                 e.preventDefault()
                 run(async () => {
-                  setIssued(await platformCall<Issued>('post', `/organizations/${org.id}/users`, newUser))
+                  issue(await platformCall<Issued>('post', `/organizations/${org.id}/users`, newUser))
                   setAdding(false)
                   setNewUser(emptyUser)
                 }, `${newUser.email} eklendi`)
@@ -222,7 +277,7 @@ export default function PlatformOrganizationPage() {
                   <button type="button" className="rounded border px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50"
                     onClick={() => window.confirm(`${u.email} için yeni geçici şifre üretilsin mi? Eski şifre hemen geçersiz olur ve tüm oturumları kapanır.`) &&
                       run(async () => {
-                        setIssued(await platformCall<Issued>('post', `/organizations/${org.id}/users/${u.id}/reset-password`))
+                        issue(await platformCall<Issued>('post', `/organizations/${org.id}/users/${u.id}/reset-password`))
                       }, `${u.email} için yeni şifre üretildi`)}>
                     Şifre sıfırla
                   </button>
@@ -257,7 +312,7 @@ export default function PlatformOrganizationPage() {
               ))}
             </div>
           )}
-                    <button type="button" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white"
+          <button type="button" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white"
             onClick={() => run(() => platformCall('patch', `/organizations/${org.id}`, plan), 'Paket güncellendi')}>Paketi kaydet</button>
         </Card>
 
@@ -346,7 +401,14 @@ export default function PlatformOrganizationPage() {
           </div>
         </Card>
 
-      </div>
+        <SubscriptionCard org={org} onUpdated={load} />
+
+        <div className="lg:col-span-2">
+          <Card title="Son işlemler">
+            {!audit ? <p className="text-sm text-slate-500">Yükleniyor…</p> : <AuditTable rows={audit} showOrganization={false} />}
+          </Card>
+        </div>
+      </fieldset>
     </div>
   )
 }

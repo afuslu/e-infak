@@ -107,7 +107,7 @@ async def bootstrap_sites() -> None:
                 email = f"admin@{info['domain']}"
                 db.add(User(organization_id=org.id, email=email, hashed_password=get_password_hash(password),
                             first_name="Yönetici", last_name=info["name"], role=UserRole.STK_ADMIN,
-                            is_active=True, is_verified=True))
+                            is_active=True, is_verified=True, must_change_password=True))
                 print(f"  Yönetici: {email}  Geçici şifre: {password}  (ilk girişte değiştirin)")
         await db.commit()
 
@@ -128,9 +128,11 @@ async def create_platform_admin(email: str, name: str) -> None:
         )).scalar_one_or_none()
         if user:
             user.hashed_password, user.is_active = get_password_hash(password), True
+            user.must_change_password = True
             print(f"Platform yöneticisinin şifresi yenilendi: {email}")
         else:
-            db.add(PlatformUser(email=email, full_name=name, hashed_password=get_password_hash(password)))
+            db.add(PlatformUser(email=email, full_name=name, hashed_password=get_password_hash(password),
+                                must_change_password=True))
             print(f"Platform yöneticisi oluşturuldu: {email}")
         await db.commit()
     print(f"Geçici şifre: {password}  (ilk girişte değiştirin)")

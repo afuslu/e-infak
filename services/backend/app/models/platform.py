@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.sql import func
 
@@ -17,7 +17,9 @@ class PlatformUser(Base):
     email = Column(String(255), nullable=False, unique=True, index=True)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(200), nullable=False, default="")
+    role = Column(String(20), nullable=False, default="admin", server_default="admin")  # admin | support
     is_active = Column(Boolean, nullable=False, default=True)
+    must_change_password = Column(Boolean, nullable=False, default=False, server_default="false")
     last_login_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -47,6 +49,37 @@ class DemoRequest(Base):
     email = Column(String(255))
     plan = Column(String(20))  # package the visitor asked about, if any
     message = Column(Text)
-    status = Column(String(16), nullable=False, default="new", server_default="new", index=True)  # new | contacted | closed
+    status = Column(String(16), nullable=False, default="new", server_default="new", index=True)  # new | contacted | converted | closed
     ip_address = Column(String(64))
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class PlatformPayment(Base):
+    """SaaS subscription payment recorded by a platform operator for an organisation."""
+    __tablename__ = "platform_payments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    recorded_by_id = Column(UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="SET NULL"), nullable=True)
+    amount_cents = Column(Integer, nullable=False)
+    currency = Column(String(3), nullable=False, default="TRY", server_default="TRY")
+    period_label = Column(String(80), nullable=False)
+    payment_method = Column(String(24), nullable=False, default="havale", server_default="havale")  # havale | kart | nakit
+    status = Column(String(16), nullable=False, default="paid", server_default="paid")  # paid | pending | cancelled
+    notes = Column(String(300))
+    paid_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+
+class PlatformBroadcast(Base):
+    """System-wide announcement or maintenance notice shown inside tenant admin panels."""
+    __tablename__ = "platform_broadcasts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_by_id = Column(UUID(as_uuid=True), ForeignKey("platform_users.id", ondelete="SET NULL"), nullable=True)
+    title = Column(String(160), nullable=False)
+    message = Column(Text, nullable=False)
+    level = Column(String(16), nullable=False, default="info", server_default="info")  # info | warning | danger
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true", index=True)
+    maintenance_mode = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)

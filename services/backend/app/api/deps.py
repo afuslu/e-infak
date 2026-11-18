@@ -15,6 +15,10 @@ from app.core.plans import Feature, org_has_feature, FEATURE_LABELS
 
 security = HTTPBearer()
 
+# A user signed in with a temporary password may only read themselves, change it or sign out.
+PASSWORD_CHANGE_REQUIRED = "password_change_required"
+PASSWORD_CHANGE_PATHS = ("/auth/me", "/auth/me/password", "/auth/logout")
+
 
 class Permission(str, enum.Enum):
     ADMIN_READ = "admin_read"
@@ -107,6 +111,10 @@ async def get_current_user(
     reason = await denial(db, user, request.client.host if request.client else None)
     if reason:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
+    # Platform support sessions ("imp") act for the organisation and are never held up by it.
+    if (user.must_change_password and not payload.get("imp")
+            and not request.url.path.endswith(PASSWORD_CHANGE_PATHS)):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_CHANGE_REQUIRED)
     _viewer.set(user)
     return user
 

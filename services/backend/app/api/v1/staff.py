@@ -418,6 +418,7 @@ async def create_staff_user(
         organization_id=org_id,
         email=email,
         hashed_password=get_password_hash(payload.password),
+        must_change_password=True,  # the manager knows this password
         first_name=payload.first_name.strip(),
         last_name=payload.last_name.strip(),
         phone=payload.phone,
@@ -533,6 +534,7 @@ async def set_staff_password(
         raise HTTPException(status_code=403, detail="Sistem yöneticisi hesabı düzenlenemez")
     _ensure_grantable(current_user, effective_permissions(user))
     await passwords.set_password(db, user, payload.password)
+    user.must_change_password = True  # the manager knows this password
     _audit(db, org_id, current_user, "personel_sifre_belirle", {"target_user_id": str(user.id), "email": user.email})
     await db.commit()
     return {"ok": True}

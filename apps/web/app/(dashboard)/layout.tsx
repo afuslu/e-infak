@@ -9,7 +9,7 @@ import { ExternalLink, Lock, type LucideIcon, Monitor, Moon, PanelLeftClose, Pan
 import { UiHost } from '../../components/admin/ui'
 import { groupOf, NAV_GROUPS, navItemFor, type NavItem, searchKey } from '../../components/admin/admin-nav'
 import { AdminCommandPalette, AdminNotificationsBell, AdminProfileMenu } from '../../components/admin/AdminShellWidgets'
-import { hasFeature, hasModule, hasPermission, useAdminAccess, v1Get } from '../../lib/admin-access'
+import { hasFeature, hasModule, hasPermission, useAdminAccess, v1Get, adminGet } from '../../lib/admin-access'
 
 const MENU_KEY = 'einfak-admin-menu'
 const COLLAPSE_KEY = 'einfak-admin-sidebar-collapsed'
@@ -101,6 +101,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     staleTime: 5 * 60_000,
     retry: false,
   })
+  const { data: platformNotices } = useQuery({
+    queryKey: ['admin-platform-notices'],
+    queryFn: async () => (await adminGet<{ id: string; title: string; message: string; level: string; maintenance_mode: boolean }[]>('/platform-notices')).data,
+    staleTime: 5 * 60_000,
+    retry: false,
+    enabled: !!user,
+  })
   const siteBrand = siteBrandRes?.data
   const logout = useLogout()
   const theme = useAdminTheme()
@@ -157,12 +164,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, isLoading, router])
 
+  // Temporary password (new account or reset by someone else): only /admin/sifre is open.
+  // Platform support sessions are exempt, as on the server.
+  const [support, setSupport] = useState(false)
+  useEffect(() => {
+    try { setSupport(sessionStorage.getItem('support_session') === '1') } catch { /* ignore */ }
+  }, [])
+  const mustChangePassword = !!user?.must_change_password && !support
+  useEffect(() => {
+    if (mustChangePassword && pathname !== '/admin/sifre') router.replace('/admin/sifre')
+  }, [mustChangePassword, pathname, router])
+
   if (isLoading) {
     return (
-      <div className={`flex min-h-screen items-center justify-center bg-gray-100 ${theme.dark ? 'admin-dark' : ''}`} style={theme.dark ? ADMIN_PRIMARY_VARS_DARK : ADMIN_PRIMARY_VARS}>
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary-600/20 border-t-primary-600" />
-          <p className="text-gray-600">Yükleniyor...</p>
+      <div className={`flex min-h-screen bg-gray-100 ${theme.dark ? 'admin-dark' : ''}`} style={theme.dark ? ADMIN_PRIMARY_VARS_DARK : ADMIN_PRIMARY_VARS}>
+        <aside className={`hidden w-64 shrink-0 border-e p-4 lg:block ${theme.dark ? 'border-white/[0.06] bg-[#0B1220]' : 'border-gray-200 bg-white'}`}>
+          <div className="flex items-center gap-3 pb-4">
+            <div className={`h-9 w-9 animate-pulse rounded-lg ${theme.dark ? 'bg-white/10' : 'bg-gray-200'}`} />
+            <div className="space-y-1.5">
+              <div className={`h-3.5 w-24 animate-pulse rounded ${theme.dark ? 'bg-white/10' : 'bg-gray-200'}`} />
+              <div className={`h-2.5 w-20 animate-pulse rounded ${theme.dark ? 'bg-white/5' : 'bg-gray-100'}`} />
+            </div>
+          </div>
+          <div className="mt-4 space-y-2.5">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className={`h-9 animate-pulse rounded-lg ${theme.dark ? 'bg-white/[0.05]' : 'bg-gray-100'}`} />
+            ))}
+          </div>
+        </aside>
+        <div className="flex flex-1 flex-col">
+          <div className={`h-[60px] border-b px-6 flex items-center justify-between ${theme.dark ? 'border-white/[0.06] bg-[#0F172A]' : 'border-gray-200 bg-white'}`}>
+            <div className={`h-4 w-36 animate-pulse rounded ${theme.dark ? 'bg-white/10' : 'bg-gray-200'}`} />
+            <div className={`h-8 w-28 animate-pulse rounded-lg ${theme.dark ? 'bg-white/10' : 'bg-gray-100'}`} />
+          </div>
+          <div className="flex flex-1 items-center justify-center p-6">
+            <div className="text-center">
+              <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-4 border-primary-600/20 border-t-primary-600" />
+              <p className={`text-sm font-medium ${theme.dark ? 'text-[#8FA3B5]' : 'text-gray-500'}`}>Panel yükleniyor…</p>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -170,6 +210,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!user) {
     return null
+  }
+
+  if (mustChangePassword) {
+    return (
+      <div className={`min-h-screen bg-gray-100 px-4 py-10 ${theme.dark ? 'admin-dark' : ''}`} style={theme.dark ? ADMIN_PRIMARY_VARS_DARK : ADMIN_PRIMARY_VARS}>
+        <div className="mx-auto max-w-lg space-y-4">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-semibold">Geçici şifreyle giriş yaptınız.</p>
+            <p className="mt-1">Panele devam etmek için önce kendi şifrenizi belirleyin.</p>
+          </div>
+          {pathname === '/admin/sifre' ? children : null}
+          <button type="button" onClick={() => { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); window.location.href = '/giris' }}
+            className="text-xs font-semibold text-gray-500 hover:text-gray-800">Çıkış yap</button>
+        </div>
+        <div id="admin-portal" />
+      </div>
+    )
   }
 
   const handleLogout = async () => {
@@ -327,8 +384,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {results.length === 0 && <p className={`px-3 py-6 text-center text-[12.5px] ${theme.dark ? 'text-[#5F7488]' : 'text-gray-400'}`}>“{query.trim()}” için sonuç yok.</p>}
             </div>
           ) : collapsed ? (
-            <div className="hidden flex-col gap-1 lg:flex">
-              {groups.flatMap((group) => group.items).map((item) => itemLink(item))}
+            <div className="hidden flex-col gap-2 lg:flex">
+              {groups.map((group, gi) => (
+                <div
+                  key={group.key}
+                  className={`flex flex-col gap-1 ${gi > 0 ? `border-t pt-2 ${theme.dark ? 'border-white/[0.06]' : 'border-gray-100'}` : ''}`}
+                >
+                  {group.items.map((item) => itemLink(item))}
+                </div>
+              ))}
             </div>
           ) : null}
 
@@ -372,7 +436,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar */}
-        <header className="sticky top-0 z-20 h-[60px] flex-shrink-0 border-b border-gray-200 bg-white">
+        <header className="sticky top-0 z-20 h-[60px] flex-shrink-0 border-b border-gray-200 bg-white/90 backdrop-blur-md">
           <div className="flex h-full items-center justify-between gap-3 px-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
               <button type="button" onClick={() => setDrawerOpen(true)} aria-label="Menüyü aç"
@@ -404,7 +468,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2 text-[13px] font-semibold text-gray-600 transition-colors hover:border-primary-600 hover:text-primary-600">
                 <ThemeIcon className="h-4 w-4" aria-hidden="true" /><span className="hidden xl:inline">{themeLabel}</span>
               </button>
-              <Link href="/" className="hidden items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-semibold text-gray-600 transition-colors hover:border-primary-600 hover:text-primary-600 sm:flex">
+              <Link
+                href="/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-semibold text-gray-600 transition-colors hover:border-primary-600 hover:text-primary-600 sm:flex"
+              >
                 Siteyi Görüntüle <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               </Link>
               <AdminProfileMenu
@@ -421,6 +490,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Page Content */}
         <main className="flex-1 p-4 sm:p-6 overflow-x-clip min-w-0">
+          {platformNotices && platformNotices.length > 0 && (
+            <div className="mb-5 space-y-2">
+              {platformNotices.map((n) => (
+                <div
+                  key={n.id}
+                  className={`rounded-xl border px-4 py-3 text-sm ${
+                    n.level === 'danger'
+                      ? 'border-red-200 bg-red-50 text-red-900'
+                      : n.level === 'warning'
+                        ? 'border-amber-200 bg-amber-50 text-amber-900'
+                        : 'border-blue-200 bg-blue-50 text-blue-900'
+                  }`}
+                >
+                  <div className="font-bold">
+                    {n.maintenance_mode ? 'Bakım Bildirimi: ' : ''}
+                    {n.title}
+                  </div>
+                  <p className="mt-0.5 text-xs opacity-90">{n.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
           {blockedFeature ? (
             <div className="mx-auto mt-16 max-w-lg rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
               <blockedFeature.icon className="mx-auto mb-3 h-10 w-10 text-gray-400" aria-hidden="true" />
