@@ -561,6 +561,26 @@ export function PortalClient({ siteName }: { siteName: string }) {
               >
                 PDF
               </a>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const res = await axios.get(`${apiBase()}/api/v1/portal/donations/${d.id}/certificate.pdf`, {
+                      headers: authHeaders(token || ''),
+                      responseType: 'blob',
+                    })
+                    const url = URL.createObjectURL(new Blob([res.data]))
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `sertifika-${d.receipt_number}.pdf`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  } catch { /* ignore */ }
+                }}
+                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100"
+              >
+                Sertifika
+              </button>
               <a
                 href={`whatsapp://send?text=${encodeURIComponent(`${siteName} üzerinden ${money(d.amount_lira, d.currency)} bağış makbuzum (#${d.receipt_number}): ${typeof window !== 'undefined' ? window.location.origin : ''}/verify/receipt/${encodeURIComponent(d.receipt_number)}`)}`}
                 target="_blank"
