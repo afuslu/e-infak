@@ -469,7 +469,8 @@ export function AnnouncementBar({
   const units = locale === 'en' ? ['d', 'h', 'm', 's'] : locale === 'ar' ? ['ي', 'س', 'د', 'ث'] : ['g', 's', 'd', 'sn']
 
   const resolvedIconUrl =
-    iconUrl || (activeUrl?.includes('turkiye.gov.tr') && (!icon || icon === '🏛') ? '/images/edevlet-logo.svg' : undefined)
+    (iconUrl === '/images/edevlet-logo.svg' ? '/images/edevlet-logo.png' : iconUrl) ||
+    (activeUrl?.includes('turkiye.gov.tr') && (!icon || icon === '🏛') ? '/images/edevlet-logo.png' : undefined)
 
   const textNode = (
     <span className="inline-flex items-center justify-center gap-2 font-semibold">

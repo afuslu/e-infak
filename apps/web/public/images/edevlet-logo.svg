@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="e-Devlet">
-  <circle cx="32" cy="32" r="30" fill="#ffffff" />
-  <circle cx="32" cy="32" r="27" fill="#E30A17" />
-  <path fill="#ffffff" d="M26.5 19.5c-6.9 0-12.5 5.6-12.5 12.5s5.6 12.5 12.5 12.5c5.2 0 9.6-3.2 11.5-7.7h-4.7c-1.4 2.3-3.9 3.8-6.8 3.8-4.4 0-8-3.6-8-8s3.6-8 8-8c2.9 0 5.4 1.5 6.8 3.8h4.7c-1.9-4.5-6.3-7.7-11.5-7.7z" />
-  <circle cx="26.5" cy="32" r="3.4" fill="#ffffff" />
-  <path fill="#ffffff" d="M46.2 23.6l1.7 5.1h5.3l-4.3 3.1 1.6 5.1-4.3-3.1-4.3 3.1 1.6-5.1-4.3-3.1h5.3z" />
-</svg>
