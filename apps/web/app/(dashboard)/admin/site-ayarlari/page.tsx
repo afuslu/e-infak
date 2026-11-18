@@ -40,6 +40,7 @@ interface OrgSettings {
   fundraising_permit_url: string | null
   whatsapp_number: string | null
   whatsapp_message: string | null
+  instagram_url: string | null
   live_chat_provider: string | null
   live_chat_id: string | null
   seo_title: string | null
@@ -75,6 +76,7 @@ const EMPTY: OrgSettings = {
   fundraising_permit_url: '',
   whatsapp_number: '',
   whatsapp_message: '',
+  instagram_url: '',
   live_chat_provider: '',
   live_chat_id: '',
   seo_title: '',
@@ -605,9 +607,9 @@ export default function AdminSiteSettingsPage() {
               <Card className="space-y-4 rounded-2xl border border-slate-200/80 p-6 shadow-xs">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
                   <div>
-                    <h2 className="text-base font-black text-slate-900">WhatsApp &amp; Canlı Destek</h2>
+                    <h2 className="text-base font-black text-slate-900">WhatsApp, Instagram &amp; Canlı Destek</h2>
                     <p className="mt-1 text-xs text-slate-500">
-                      WhatsApp numarası girildiğinde sitenin sağ alt köşesinde iletişim butonu görünür.
+                      WhatsApp numarası veya Instagram adresi girildiğinde sitenin sol alt köşesinde iletişim butonları görünür.
                     </p>
                   </div>
                   {waTestUrl && (
@@ -630,6 +632,11 @@ export default function AdminSiteSettingsPage() {
                     maxLength: 300,
                   })}
                 </div>
+                {field('instagram_url', 'Instagram Adresi veya Kullanıcı Adı', 'https://instagram.com/dernegimiz veya @dernegimiz', {
+                  maxLength: 200,
+                  allowPreview: /^https?:\/\//i.test(String(form.instagram_url || '').trim()),
+                  hint: 'Kullanıcı adı (@dernegimiz) veya tam Instagram profil bağlantısı girin.',
+                })}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-bold text-slate-700">Canlı Destek Sağlayıcı</label>

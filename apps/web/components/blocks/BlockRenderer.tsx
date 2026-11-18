@@ -884,6 +884,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           url={o.url}
           tone={o.tone}
           icon={o.icon}
+          iconUrl={o.icon_url}
           look={o.look}
           badge={o.badge}
           buttonLabel={o.button_label}

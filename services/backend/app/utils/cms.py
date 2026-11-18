@@ -99,6 +99,33 @@ def normalize_whatsapp(value: str | None) -> str | None:
     return digits
 
 
+_INSTAGRAM_HANDLE = re.compile(r"^[a-zA-Z0-9._]{1,30}$")
+
+
+def normalize_instagram(value: str | None) -> str | None:
+    if value is None or not str(value).strip():
+        return None
+    raw = str(value).strip()
+    if raw.startswith("@"):
+        handle = raw[1:].strip().strip("/")
+        if not _INSTAGRAM_HANDLE.fullmatch(handle):
+            raise ValueError("Geçerli bir Instagram kullanıcı adı girin (ör. @dernegimiz)")
+        return f"https://www.instagram.com/{handle}"
+    if "://" not in raw and "/" not in raw and "." not in raw:
+        if not _INSTAGRAM_HANDLE.fullmatch(raw):
+            raise ValueError("Geçerli bir Instagram kullanıcı adı veya bağlantısı girin")
+        return f"https://www.instagram.com/{raw}"
+    candidate = raw if "://" in raw else f"https://{raw}"
+    parsed = urlparse(candidate)
+    host = parsed.netloc.lower()
+    if parsed.scheme not in {"https", "http"} or host not in {"instagram.com", "www.instagram.com"}:
+        raise ValueError("Instagram bağlantısı instagram.com adresi veya @kullaniciadi olmalıdır")
+    path = parsed.path.strip("/")
+    if not path:
+        raise ValueError("Instagram profil adresi eksik (ör. https://instagram.com/dernegimiz)")
+    return f"https://www.instagram.com/{path}"
+
+
 def validate_tawk_id(value: str | None) -> str | None:
     if value is None or not str(value).strip():
         return None

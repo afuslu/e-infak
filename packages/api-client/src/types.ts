@@ -217,6 +217,7 @@ export interface OrgSettingsInfo {
   enabled_payment_currencies?: Array<'TRY' | 'EUR' | 'USD'>
   whatsapp_number?: string | null
   whatsapp_message?: string | null
+  instagram_url?: string | null
   live_chat_provider?: 'tawk' | null
   live_chat_id?: string | null
   seo_title?: string | null

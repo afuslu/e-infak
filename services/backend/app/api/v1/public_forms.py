@@ -280,6 +280,7 @@ async def get_public_org_settings(
         "fundraising_permit_url": org_settings.fundraising_permit_url,
         "whatsapp_number": org_settings.whatsapp_number,
         "whatsapp_message": org_settings.whatsapp_message,
+        "instagram_url": org_settings.instagram_url,
         "live_chat_provider": org_settings.live_chat_provider if org_settings.live_chat_id else None,
         "live_chat_id": org_settings.live_chat_id,
         "seo_title": org_settings.seo_title,

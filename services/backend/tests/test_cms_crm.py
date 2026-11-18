@@ -65,9 +65,13 @@ def test_whatsapp_and_tawk_normalisation():
     assert validate_tawk_id("https://embed.tawk.to/64b1f0c0cc26a871b0281234/1h5abcdef") == "64b1f0c0cc26a871b0281234/1h5abcdef"
     with pytest.raises(ValueError):
         validate_tawk_id("x');alert(1);//")
-    settings = OrgSettingsUpdate(whatsapp_number="05321112233", live_chat_provider="", live_chat_id="")
+    settings = OrgSettingsUpdate(whatsapp_number="05321112233", instagram_url="@dernegimiz", live_chat_provider="", live_chat_id="")
     assert settings.whatsapp_number == "905321112233"
+    assert settings.instagram_url == "https://www.instagram.com/dernegimiz"
     assert settings.live_chat_provider is None and settings.live_chat_id is None
+    assert OrgSettingsUpdate(instagram_url="https://instagram.com/ornek_dernek/").instagram_url == "https://www.instagram.com/ornek_dernek"
+    with pytest.raises(ValueError):
+        OrgSettingsUpdate(instagram_url="https://evil.example.com/dernegimiz")
 
 
 def test_long_text_keeps_paragraphs_and_strips_markup():

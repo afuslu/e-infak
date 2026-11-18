@@ -1720,6 +1720,7 @@ class OrgSettingsUpdate(BaseModel):
     fundraising_permit_url: Optional[str] = Field(default=None, max_length=500)
     whatsapp_number: Optional[str] = Field(default=None, max_length=32)
     whatsapp_message: Optional[str] = Field(default=None, max_length=300)
+    instagram_url: Optional[str] = Field(default=None, max_length=200)
     live_chat_provider: Optional[Literal["tawk"]] = None
     live_chat_id: Optional[str] = Field(default=None, max_length=200)
     seo_title: Optional[str] = Field(default=None, max_length=160)
@@ -1778,6 +1779,12 @@ class OrgSettingsUpdate(BaseModel):
     def validate_whatsapp(cls, value):
         from app.utils.cms import normalize_whatsapp
         return normalize_whatsapp(value)
+
+    @field_validator("instagram_url", mode="before")
+    @classmethod
+    def validate_instagram(cls, value):
+        from app.utils.cms import normalize_instagram
+        return normalize_instagram(value)
 
     @field_validator("live_chat_provider", mode="before")
     @classmethod

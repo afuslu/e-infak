@@ -181,7 +181,7 @@ def home(c: dict) -> list:
     d, t, f, n = c["donate"], c["testimonials"], c["support_form"], c["news"]
     return [
         B("slider", slides=slides, height="poster" if c["slides"] and all(s.get("poster") for s in c["slides"]) else "lg", layout="card", nav="icon_tabs", autoplay=True, interval=6, effect="fade", arrows=True, arrow_style="ghost", dots=True),
-        B("announcement_bar", text=c["edevlet"]["text"], url=c["edevlet"]["url"], tone="rose", closable=False, icon="🏛"),
+        B("announcement_bar", text=c["edevlet"]["text"], url=c["edevlet"]["url"], tone="rose", closable=False, icon_url="/images/edevlet-logo.svg"),
         _section([B("stats", mode="manual", variant="card", items=c["counters"])], top=40, bottom=56),
         _section([
             _heading(d["title"], d["kicker"]),

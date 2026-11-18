@@ -619,6 +619,7 @@ BLOCKS: dict[str, dict] = {
             }),
             "tone": F("select", "Renk", choices={"danger": "Kırmızı", "rose": "Gül kırmızısı", "brand": "Ana renk", "accent": "Vurgu rengi", "dark": "Koyu", "warning": "Sarı"}, default="danger"),
             "icon": F("text", "Simge (emoji, isteğe bağlı)", max=4),
+            "icon_url": F("image", "Simge görseli (isteğe bağlı)"),
             "sticky": F("bool", "Üstte sabit kalsın", default=False),
             "closable": F("bool", "Kapatma düğmesi (×)", default=True),
             "hide_days": F("number", "Kapatınca kaç gün gizlensin (0 = oturum boyu)", min=0, max=60, default=1, show_if={"closable": True}),

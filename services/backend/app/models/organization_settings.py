@@ -48,6 +48,7 @@ class OrganizationSettings(Base):
     # Engagement widgets
     whatsapp_number = Column(String(20))  # digits only, international format (905xx...)
     whatsapp_message = Column(String(300))
+    instagram_url = Column(String(200))
     live_chat_provider = Column(String(16))  # tawk
     live_chat_id = Column(String(80))  # Tawk.to "propertyId/widgetId"
 

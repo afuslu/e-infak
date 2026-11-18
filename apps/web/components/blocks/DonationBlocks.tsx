@@ -372,6 +372,7 @@ export function AnnouncementBar({
   url,
   tone,
   icon,
+  iconUrl,
   look = 'solid',
   badge,
   buttonLabel,
@@ -388,6 +389,7 @@ export function AnnouncementBar({
   url?: string
   tone?: string
   icon?: string
+  iconUrl?: string
   look?: string
   badge?: string
   buttonLabel?: string
@@ -466,7 +468,19 @@ export function AnnouncementBar({
   const closeLabel = locale === 'en' ? 'Close announcement' : locale === 'ar' ? 'إغلاق الإعلان' : 'Duyuruyu kapat'
   const units = locale === 'en' ? ['d', 'h', 'm', 's'] : locale === 'ar' ? ['ي', 'س', 'د', 'ث'] : ['g', 's', 'd', 'sn']
 
-  const textNode = <span className="font-semibold">{icon && <span aria-hidden className="me-2">{icon}</span>}{activeText}</span>
+  const resolvedIconUrl =
+    iconUrl || (activeUrl?.includes('turkiye.gov.tr') && (!icon || icon === '🏛') ? '/images/edevlet-logo.svg' : undefined)
+
+  const textNode = (
+    <span className="inline-flex items-center justify-center gap-2 font-semibold">
+      {resolvedIconUrl ? (
+        <img src={resolvedIconUrl} alt="" aria-hidden className="h-6 w-6 shrink-0 object-contain" />
+      ) : (
+        icon && <span aria-hidden>{icon}</span>
+      )}
+      <span>{activeText}</span>
+    </span>
+  )
   const linkedText = activeUrl && !buttonLabel
     ? (activeUrl.startsWith('/') ? <Link href={activeUrl} className="hover:underline">{textNode}</Link> : <a href={activeUrl} className="hover:underline" target="_blank" rel="noopener noreferrer">{textNode}</a>)
     : textNode
