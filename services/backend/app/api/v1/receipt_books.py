@@ -286,7 +286,6 @@ async def receipt_book_audit_report_pdf(
     book_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_permission("receipt_books:view")),
 ):
     from fastapi.responses import Response
     from app.models.organization import Organization

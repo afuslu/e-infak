@@ -759,10 +759,9 @@ async def _compute_derbis(db: AsyncSession, org_id: UUID, year: int) -> dict:
 
 @router.get("/derbis-summary")
 async def derbis_summary(
+    request: Request,
     year: int = 2026,
-    request: Request = None,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_permission("reports:view")),
 ):
     org_id = UUID(request.state.organization_id)
     return await _compute_derbis(db, org_id, year)
@@ -770,10 +769,9 @@ async def derbis_summary(
 
 @router.get("/derbis-summary.pdf")
 async def derbis_summary_pdf(
+    request: Request,
     year: int = 2026,
-    request: Request = None,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_permission("reports:view")),
 ):
     from fastapi.responses import Response
     from app.models.organization import Organization

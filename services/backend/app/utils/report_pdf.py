@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from io import BytesIO
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -26,7 +26,7 @@ def build_report_pdf(
     org_name: str = "",
     subtitle: str = "",
     organization: Any = None,
-    summary: Sequence[Sequence[str]] | None = None,
+    summary: Mapping[str, Any] | Sequence[Sequence[str]] | None = None,
 ) -> bytes:
     """Kurum logolu ve marka renkli A4 (dikey veya yatay) PDF raporu döner."""
     font, bold = receipt_pdf.FONT, receipt_pdf.FONT_BOLD
@@ -102,8 +102,9 @@ def build_report_pdf(
         sum_cards = []
         lbl_style = ParagraphStyle("sum_lbl", fontName=font, fontSize=7.5, textColor=muted, leading=10)
         val_style = ParagraphStyle("sum_val", fontName=bold, fontSize=10, textColor=ink, leading=13)
+        summary_items = list(summary.items()) if isinstance(summary, Mapping) else list(summary)
         row_cells = []
-        for item in summary[:5]:
+        for item in summary_items[:5]:
             lbl = str(item[0]) if len(item) > 0 else ""
             val = str(item[1]) if len(item) > 1 else ""
             row_cells.append([Paragraph(lbl, lbl_style), Paragraph(val, val_style)])
