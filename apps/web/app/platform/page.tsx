@@ -12,6 +12,8 @@ export default function PlatformOrganizationsPage() {
   const [alerts, setAlerts] = useState<PlatformAlert[] | null>(null)
   const [showInfo, setShowInfo] = useState(false)
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all')
+  const [planFilter, setPlanFilter] = useState('all')
   const [orgError, setOrgError] = useState('')
   const [alertError, setAlertError] = useState('')
 
@@ -22,8 +24,12 @@ export default function PlatformOrganizationsPage() {
       .catch((err) => setAlertError(platformError(err, 'Uyarılar kontrol edilemedi')))
   }, [])
 
-  const shown = useMemo(() => (orgs || []).filter((o) =>
-    `${o.name} ${o.slug} ${o.domains.map((d) => d.domain).join(' ')}`.toLocaleLowerCase('tr').includes(query.toLocaleLowerCase('tr'))), [orgs, query])
+  const shown = useMemo(() => (orgs || []).filter((o) => {
+    if (statusFilter === 'active' && !o.is_active) return false
+    if (statusFilter === 'suspended' && o.is_active) return false
+    if (planFilter !== 'all' && o.plan !== planFilter) return false
+    return `${o.name} ${o.slug} ${o.domains.map((d) => d.domain).join(' ')}`.toLocaleLowerCase('tr').includes(query.toLocaleLowerCase('tr'))
+  }), [orgs, query, statusFilter, planFilter])
   const alertCount = (orgId: string) => (alerts || []).filter((a) => a.organization_id === orgId && a.level !== 'info').length
   const visibleAlerts = (alerts || []).filter((a) => showInfo || a.level !== 'info')
 
@@ -122,14 +128,35 @@ export default function PlatformOrganizationsPage() {
           <h2 className="text-base font-bold text-slate-900">
             Kurum listesi {orgs && <span className="font-normal text-slate-500">({shown.length})</span>}
           </h2>
-          <div className="relative w-full sm:w-72">
-            <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-            <input
-              placeholder="Kurum, slug veya alan adı ara…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white py-2 pe-3 ps-9 text-sm outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15"
-            />
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'suspended')}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-600"
+            >
+              <option value="all">Tüm durumlar</option>
+              <option value="active">Aktif</option>
+              <option value="suspended">Askıda</option>
+            </select>
+            <select
+              value={planFilter}
+              onChange={(e) => setPlanFilter(e.target.value)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-600"
+            >
+              <option value="all">Tüm paketler</option>
+              <option value="baslangic">Başlangıç</option>
+              <option value="orta">Orta</option>
+              <option value="ileri">İleri</option>
+            </select>
+            <div className="relative flex-1 sm:w-64 sm:flex-initial">
+              <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <input
+                placeholder="Kurum, slug veya alan adı ara…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white py-2 pe-3 ps-9 text-sm outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15"
+              />
+            </div>
           </div>
         </div>
 

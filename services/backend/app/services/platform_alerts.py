@@ -131,6 +131,20 @@ async def collect(db: AsyncSession, org_id: Optional[UUID] = None) -> list[dict]
             alerts.append(_alert(org, INFO, "never_logged_in", f"{never[org.id]} kullanıcı hesabı açıldığından beri hiç giriş yapmadı",
                                  "Şifresini sıfırlayıp kişiye yeniden iletin."))
 
+        now_utc = datetime.now(timezone.utc)
+        if org.subscription_status == "past_due":
+            alerts.append(_alert(org, DANGER, "subscription_past_due", "Abonelik ödemesi gecikmiş görünüyor",
+                                 "Abonelik & Tahsilat sekmesinden ödeme kaydı girin veya durumu güncelleyin."))
+        elif org.subscription_ends_at:
+            ends = org.subscription_ends_at if org.subscription_ends_at.tzinfo else org.subscription_ends_at.replace(tzinfo=timezone.utc)
+            if ends < now_utc:
+                alerts.append(_alert(org, DANGER, "subscription_expired", "Abonelik süresi dolmuş",
+                                     "Abonelik & Tahsilat sekmesinden süreyi uzatın veya yeni tahsilat ekleyin."))
+            elif ends <= now_utc + timedelta(days=7):
+                days_left = max(1, (ends - now_utc).days)
+                alerts.append(_alert(org, WARNING, "subscription_expiring", f"Abonelik süresinin bitmesine {days_left} gün kaldı",
+                                     "Kurumla yenileme için iletişime geçin."))
+
     if not org_id and not settings.PLATFORM_PUBLIC_IP:
         alerts.insert(0, {"organization_id": None, "organization_name": "Platform", "level": WARNING,
                           "kind": "public_ip_missing", "message": "PLATFORM_PUBLIC_IP tanımlı değil; alan adı doğrulama ve SSL hazırlığı çalışmaz",

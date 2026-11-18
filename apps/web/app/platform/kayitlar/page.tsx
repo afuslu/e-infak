@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Download, Search } from 'lucide-react'
 import { ACTION_LABELS, AuditEntry, AuditTable } from '../../../components/platform/AuditTable'
-import { PlatformSkeleton, ptPrimaryBtn } from '../../../components/platform/PlatformUI'
+import { PlatformSkeleton, downloadCsv, ptPrimaryBtn, ptSecondaryBtn } from '../../../components/platform/PlatformUI'
 import { PlatformOrg, platformCall, platformError } from '../../../lib/platform-api'
 
 export default function PlatformAuditPage() {
@@ -27,9 +27,27 @@ export default function PlatformAuditPage() {
   const control = 'rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15'
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">İşlem kayıtları</h1>
-        <p className="mt-1 text-sm text-slate-500">Platform operatörlerinin kurumlar üzerindeki son işlemleri.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">İşlem kayıtları</h1>
+          <p className="mt-1 text-sm text-slate-500">Platform operatörlerinin kurumlar üzerindeki son işlemleri.</p>
+        </div>
+        {rows && rows.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              downloadCsv(
+                'platform-islem-kayitlari.csv',
+                ['Zaman', 'İşlem', 'Operatör', 'Kurum', 'IP', 'Ayrıntı'],
+                rows.map((r) => [r.created_at, ACTION_LABELS[r.action] || r.action, r.operator, r.organization, r.ip, JSON.stringify(r.details || {})]),
+              )
+            }
+            className={ptSecondaryBtn}
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            <span>CSV İndir</span>
+          </button>
+        )}
       </div>
       <div className="flex flex-wrap gap-2.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
         <select className={control} value={filter.organization_id} onChange={(e) => setFilter({ ...filter, organization_id: e.target.value })}>

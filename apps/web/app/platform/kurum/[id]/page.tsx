@@ -76,6 +76,7 @@ export default function PlatformOrganizationPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [confirmDelete, setConfirmDelete] = useState('')
+  const [tab, setTab] = useState<'genel' | 'kullanicilar' | 'altyapi' | 'abonelik' | 'kayitlar'>('genel')
   const [org, setOrg] = useState<Detail | null>(null)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [plan, setPlan] = useState({ plan: '', enabled_addons: [] as string[], extra_user_seats: 0 })
@@ -144,28 +145,62 @@ export default function PlatformOrganizationPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">{org.name}</h1>
-          <a href={org.url} target="_blank" rel="noreferrer" className="text-sm text-blue-700 hover:underline">{org.url}</a>
-          <p className="text-xs text-slate-500">Oluşturulma: {dateTr(org.created_at)} · {org.legal_name} · {org.email}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+        <div className="flex items-start gap-3.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-lg font-extrabold text-white">
+            {(org.name[0] || 'K').toUpperCase()}
+          </div>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-extrabold text-slate-900">{org.name}</h1>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${org.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
+                {org.is_active ? 'Aktif' : 'Askıda'}
+              </span>
+              <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{org.plan_label}</span>
+            </div>
+            <a href={org.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-blue-700 hover:underline">{org.url}</a>
+            <p className="mt-0.5 text-xs text-slate-500">Oluşturulma: {dateTr(org.created_at)} · {org.legal_name} · {org.email}</p>
+          </div>
         </div>
         <fieldset disabled={busy} className="flex flex-wrap gap-2 disabled:opacity-60">
           <button type="button" onClick={supportSignIn} disabled={!org.is_active}
-            className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold disabled:opacity-40">Panele destek girişi</button>
+            className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40">Panele destek girişi</button>
           {org.is_active ? (
-            <button type="button" className="rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white"
+            <button type="button" className="rounded-xl bg-red-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
               onClick={() => window.confirm(`${org.name} askıya alınsın mı? Site ve panel hemen kapanır.`) &&
                 run(() => platformCall('patch', `/organizations/${org.id}`, { is_active: false }), 'Kurum askıya alındı')}>
               Askıya al
             </button>
           ) : (
-            <button type="button" className="rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white"
+            <button type="button" className="rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
               onClick={() => run(() => platformCall('patch', `/organizations/${org.id}`, { is_active: true }), 'Kurum yeniden aktif')}>
               Aktif et
             </button>
           )}
         </fieldset>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 border-b border-slate-200 pb-2">
+        {([
+          ['genel', 'Genel & Paket'],
+          ['kullanicilar', `Kullanıcılar (${org.users.length})`],
+          ['altyapi', `Alan Adları & POS/SMS (${org.domains.length})`],
+          ['abonelik', 'Abonelik & Tahsilat'],
+          ['kayitlar', 'Son İşlemler'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${
+              tab === key
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
       {msg && <p className={`rounded-lg p-3 text-sm font-semibold ${msg.type === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{msg.text}</p>}
       {alerts.length > 0 && (
@@ -180,7 +215,8 @@ export default function PlatformOrganizationPage() {
       )}
 
       <fieldset disabled={busy} className="grid gap-5 lg:grid-cols-2">
-        <Card title="Kurum bilgileri">
+        {tab === 'genel' && (
+          <Card title="Kurum bilgileri">
           <form className="grid gap-2 sm:grid-cols-2" onSubmit={(e) => {
             e.preventDefault()
             run(() => platformCall('patch', `/organizations/${org.id}`, info), 'Kurum bilgileri güncellendi')
@@ -204,7 +240,10 @@ export default function PlatformOrganizationPage() {
             <div className="sm:col-span-2"><button type="submit" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white">Bilgileri kaydet</button></div>
           </form>
         </Card>
+        )}
 
+        {tab === 'kullanicilar' && (
+        <div className="lg:col-span-2">
         <Card title="Kullanıcılar">
           {issued && (
             <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
@@ -297,7 +336,10 @@ export default function PlatformOrganizationPage() {
             ))}
           </ul>
         </Card>
+        </div>
+        )}
 
+        {tab === 'genel' && (
         <Card title="Paket">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-semibold text-slate-600">Paket
@@ -326,7 +368,10 @@ export default function PlatformOrganizationPage() {
           <button type="button" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white"
             onClick={() => run(() => platformCall('patch', `/organizations/${org.id}`, plan), 'Paket güncellendi')}>Paketi kaydet</button>
         </Card>
+        )}
 
+        {tab === 'altyapi' && (
+        <>
         <Card title="Alan adları">
           <ul className="space-y-2 text-sm">
             <li className="flex justify-between rounded-lg bg-slate-50 p-2"><span>{org.subdomain}.{catalog?.base_domain || 'e-infak.org'}</span><span className="text-xs text-green-700">platform adresi</span></li>
@@ -411,15 +456,20 @@ export default function PlatformOrganizationPage() {
             ))}
           </div>
         </Card>
+        </>
+        )}
 
-        <SubscriptionCard org={org} onUpdated={load} />
+        {tab === 'abonelik' && <SubscriptionCard org={org} onUpdated={load} />}
 
+        {tab === 'kayitlar' && (
         <div className="lg:col-span-2">
           <Card title="Son işlemler">
             {!audit ? <p className="text-sm text-slate-500">Yükleniyor…</p> : <AuditTable rows={audit} showOrganization={false} />}
           </Card>
         </div>
+        )}
 
+        {tab === 'genel' && (
         <section className="space-y-3 rounded-2xl border border-red-200 bg-red-50/60 p-6 lg:col-span-2">
           <h2 className="text-base font-bold text-red-900">Tehlikeli Bölge — Kurumu Kalıcı Sil</h2>
           <p className="text-xs text-red-800">
@@ -454,6 +504,7 @@ export default function PlatformOrganizationPage() {
             </button>
           </div>
         </section>
+        )}
       </fieldset>
     </div>
   )

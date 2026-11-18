@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CreditCard, Plus } from 'lucide-react'
+import { CreditCard, Download, Plus } from 'lucide-react'
 import { PlatformOrg, dateTr, platformCall, platformError } from '../../lib/platform-api'
-import { ptCard, ptInput, ptPrimaryBtn, ptSelect } from './PlatformUI'
+import { downloadCsv, ptCard, ptInput, ptPrimaryBtn, ptSecondaryBtn, ptSelect } from './PlatformUI'
 
 interface OrgPayment {
   id: string
@@ -169,7 +169,25 @@ export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdat
       </div>
 
       {payments.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-800">Tahsilat Geçmişi</h3>
+            <button
+              type="button"
+              onClick={() =>
+                downloadCsv(
+                  `${org.slug}-tahsilatlar.csv`,
+                  ['Tarih', 'Dönem', 'Yöntem', 'Tutar (TL)'],
+                  payments.map((p) => [p.paid_at, p.period_label, p.payment_method, (p.amount_cents / 100).toFixed(2)]),
+                )
+              }
+              className={`${ptSecondaryBtn} py-1.5 text-xs`}
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>CSV İndir</span>
+            </button>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
               <tr>
@@ -190,6 +208,7 @@ export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdat
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </section>
