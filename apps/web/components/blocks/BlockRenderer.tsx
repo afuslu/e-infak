@@ -366,7 +366,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     case 'quick_donation': {
       const c = campaignById(o.campaign_id) || data.campaigns[0]
       const rawLook = String(o.look || 'card')
-      const look = (rawLook === 'floating_bar' ? 'inline' : rawLook === 'impact_calculator' ? 'split' : rawLook) as 'card' | 'band' | 'compact' | 'split' | 'inline' | 'glass' | 'single_step'
+      const look = (
+        rawLook === 'floating_bar' || rawLook === 'compact_inline_pill' ? 'inline'
+          : rawLook === 'impact_calculator' ? 'split'
+          : rawLook === 'dark_ramadan_bar' ? 'glass'
+          : rawLook === 'preset_grid_card' ? 'card'
+          : rawLook
+      ) as 'card' | 'band' | 'compact' | 'split' | 'inline' | 'glass' | 'single_step'
       const parseAmounts = (raw?: string) =>
         (raw || '').split(',').map((v) => Number(v.trim())).filter((n) => Number.isFinite(n) && n > 0)
       const parseLabels = (raw?: string) => {
@@ -694,6 +700,34 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
 
+      if (o.layout === 'minimal_bordered') {
+        return (
+          <div className={container}>
+            <div className="rounded-2xl border border-gray-200 bg-white p-7 shadow-sm sm:p-10">
+              {text(false)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'gradient_pill_cta') {
+        return (
+          <div className={container}>
+            <div className="rounded-full bg-gradient-to-r from-primary-700 via-primary-600 to-accent-500 px-8 py-6 text-white shadow-lg sm:px-12">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'dark_spotlight') {
+        return (
+          <div className={container}>
+            <div className="relative overflow-hidden rounded-3xl bg-slate-950 p-8 text-white shadow-2xl sm:p-12">
+              <div className="pointer-events-none absolute -end-20 -top-20 h-64 w-64 rounded-full bg-primary-600/25 blur-3xl" />
+              <div className="relative">{text(true)}</div>
+            </div>
+          </div>
+        )
+      }
       if (o.layout === 'split_stats_overlay') {
         return (
           <div className="relative overflow-hidden bg-gray-950 py-14 text-white">
@@ -1075,15 +1109,21 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         brand: 'border-2 border-primary-500 bg-white text-primary-950',
         neutral: 'border-2 border-gray-300 bg-white text-gray-900',
       }
-      const isSolid = look === 'solid'
+      const isSolid = look === 'solid' || look === 'dark_amber_alert'
       const boxCls =
-        isSolid
-          ? solidMap[toneKey] || solidMap.info
-          : look === 'accent_left'
-            ? accentMap[toneKey] || accentMap.info
-            : look === 'outline' || look === 'official'
-              ? outlineMap[toneKey] || outlineMap.info
-              : softMap[toneKey] || softMap.info
+        look === 'dark_amber_alert'
+          ? 'border-amber-500/40 bg-slate-950 text-amber-100'
+          : look === 'floating_pill'
+            ? 'rounded-full border-primary-200 bg-white text-gray-900 shadow-lg'
+            : look === 'left_accent_card'
+              ? `${accentMap[toneKey] || accentMap.info} shadow-md`
+              : isSolid
+                ? solidMap[toneKey] || solidMap.info
+                : look === 'accent_left'
+                  ? accentMap[toneKey] || accentMap.info
+                  : look === 'outline' || look === 'official'
+                    ? outlineMap[toneKey] || outlineMap.info
+                    : softMap[toneKey] || softMap.info
       return (
         <div className={depth === 0 ? container : ''}>
           <DismissibleNotice id={block.id} closable={Boolean(o.closable)} editing={opts.editing} dark={isSolid}>
@@ -1338,7 +1378,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     }
     case 'image_text': {
       const look = o.look || 'plain'
-      const isDark = look === 'dark'
+      const isDark = look === 'dark' || look === 'dark_split_panel'
       const right = o.image_side === 'right'
       const gridCols =
         o.ratio === '40/60'
@@ -1365,11 +1405,15 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const boxCls =
         look === 'card'
           ? 'rounded-3xl border bg-white p-6 shadow-sm md:p-10'
-          : look === 'full_bleed'
-            ? 'overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg'
-            : look === 'dark'
-              ? 'overflow-hidden rounded-3xl bg-primary-950 p-6 text-white shadow-xl md:p-10'
-              : ''
+          : look === 'framed_editorial'
+            ? 'rounded-2xl border-2 border-primary-100 bg-primary-50/20 p-6 md:p-10'
+            : look === 'overlapping_card'
+              ? 'rounded-3xl border border-gray-200 bg-white p-6 shadow-xl md:p-10'
+              : look === 'full_bleed'
+                ? 'overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg'
+                : isDark
+                  ? 'overflow-hidden rounded-3xl bg-primary-950 p-6 text-white shadow-xl md:p-10'
+                  : ''
 
       return (
         <div className={depth === 0 ? container : ''}>
@@ -1529,7 +1573,15 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
             ? '!rounded-none'
             : ''
       const fullCls = o.full_width ? 'w-full' : ''
-      const extraCls = `${sizeCls} ${shapeCls} ${fullCls}`.trim()
+      const layoutExtra =
+        o.layout === 'pill_shadow_group' || o.layout === 'floating_shadow'
+          ? '!rounded-full shadow-lg hover:-translate-y-0.5'
+          : o.layout === 'outline_to_solid'
+            ? 'border-2 border-primary-600 transition-colors hover:bg-primary-600 hover:text-white'
+            : o.layout === 'icon_split_pair'
+              ? 'gap-2.5 px-6 py-3.5 shadow-sm'
+              : ''
+      const extraCls = `${sizeCls} ${shapeCls} ${fullCls} ${layoutExtra}`.trim()
 
       return (
         <div className={`${depth === 0 ? container : ''} flex ${stack ? 'flex-col' : 'flex-wrap'} gap-3 ${justify}`}>
@@ -1562,13 +1614,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
 
-      if (look === 'searchable' || look === 'categorized') {
+      if (look === 'searchable' || look === 'searchable_accordion' || look === 'categorized') {
         return (
           <div className={container}>
             <div className="mx-auto max-w-3xl">
               {faqHead(true)}
               <SearchableFaq
-                showSearch={look === 'searchable' || faqItems.length > 6}
+                showSearch={look === 'searchable' || look === 'searchable_accordion' || faqItems.length > 6}
                 showCategories={look === 'categorized'}
                 openFirst={Boolean(o.open_first)}
                 items={faqItems.map((item: any) => ({
@@ -1608,13 +1660,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         )
       }
 
-      if (look === 'two_col' || look === 'cards') {
+      if (look === 'two_col' || look === 'two_column_grid' || look === 'cards' || look === 'card_boxes') {
         return (
           <div className={container}>
             {faqHead(true)}
-            <div className={`grid gap-5 ${look === 'cards' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+            <div className={`grid gap-5 ${look === 'cards' || look === 'card_boxes' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
               {faqItems.map((item: any, i: number) => (
-                <div key={i} className={`rounded-2xl bg-white p-6 text-gray-900 shadow-sm ${look === 'cards' ? 'border-2 border-primary-100' : 'border'}`}>
+                <div key={i} className={`rounded-2xl bg-white p-6 text-gray-900 shadow-sm ${look === 'cards' || look === 'card_boxes' ? 'border-2 border-primary-100' : 'border'}`}>
                   {item.category && <span className="mb-2 inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-semibold text-primary-700">{item.category}</span>}
                   <h3 className="mb-2 font-heading text-lg font-bold text-gray-900">{item.question}</h3>
                   <BlockText text={item.answer} className="text-[15px] text-gray-700" />

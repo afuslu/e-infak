@@ -185,6 +185,7 @@ export type HeroVariant =
   | Tpl | 'glass' | 'centered' | 'split_form' | 'video_hero' | 'bento_hero'
   | 'split_floating' | 'minimal_typo' | 'duotone' | 'coverflow' | 'peek'
   | 'full_search_hero' | 'dual_split_card' | 'countdown_crisis' | 'video_split'
+  | 'split_glass_card' | 'arch_islamic_frame' | 'full_bleed_editorial'
 
 export function Hero({ data, variant, o = {}, editing = false }: {
   data: HomeData; variant: HeroVariant; o?: Overrides; editing?: boolean
@@ -199,6 +200,73 @@ export function Hero({ data, variant, o = {}, editing = false }: {
   const ef = o.effect || undefined
   const nv = o.nav || undefined
   const as = o.arrow_style || 'round'
+
+  if (variant === 'split_glass_card') {
+    return (
+      <section className="relative overflow-hidden bg-slate-950 py-14 text-white lg:py-22">
+        {first?.image_url && <img src={first.image_url} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-35" />}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/60 to-transparent" />
+        <div className={`relative ${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-7">
+            {first?.badge && <span className="mb-3 inline-block rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-bold uppercase tracking-[2px] text-accent-300 backdrop-blur">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 max-w-xl text-base leading-relaxed text-white/80 sm:text-lg">{first.text}</p>}
+          </div>
+          <div className="rounded-3xl border border-white/20 bg-white/10 p-7 backdrop-blur-xl shadow-2xl lg:col-span-5">
+            <div className="text-xs font-bold uppercase tracking-widest text-accent-300">{o.stat_label || 'Hızlı Katılım'}</div>
+            <div className="mt-1 font-heading text-3xl font-extrabold">{o.stat_value || '100% Şeffaf'}</div>
+            <div className="mt-6 flex flex-col gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-accent-500 px-6 py-3.5 text-center font-extrabold text-white shadow-lg hover:bg-accent-600">{first.button_label || t('nav.donate')}</Link>}
+              {first?.button2_url && <Link href={first.button2_url} className="rounded-xl border border-white/25 bg-white/5 px-6 py-3 text-center font-semibold text-white hover:bg-white/15">{first.button2_label}</Link>}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'arch_islamic_frame') {
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-b from-primary-950 via-primary-900 to-primary-800 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-7">
+            {first?.badge && <span className="mb-3 inline-block rounded-full border border-amber-400/40 bg-amber-500/15 px-4 py-1 text-xs font-bold uppercase tracking-[2px] text-amber-300">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 max-w-xl text-base leading-relaxed text-white/80 sm:text-lg">{first.text}</p>}
+            <div className="mt-7 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-amber-500 px-7 py-3.5 font-extrabold text-slate-950 shadow-lg hover:bg-amber-400">{first.button_label || t('nav.donate')}</Link>}
+              {first?.button2_url && <Link href={first.button2_url} className="rounded-xl border border-white/25 px-6 py-3.5 font-semibold text-white hover:bg-white/10">{first.button2_label}</Link>}
+            </div>
+          </div>
+          <div className="mx-auto w-full max-w-sm lg:col-span-5">
+            <div className="overflow-hidden rounded-t-full border-4 border-amber-400/40 bg-primary-950 p-2 shadow-2xl">
+              {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[4/5] w-full rounded-t-full object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'full_bleed_editorial') {
+    return (
+      <section className="relative flex min-h-[480px] items-end overflow-hidden bg-gray-950 py-14 text-white lg:min-h-[580px] lg:py-20">
+        {first?.image_url && <img src={first.image_url} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-50" />}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent" />
+        <div className={`relative ${container}`}>
+          {first?.badge && <span className="mb-3 inline-block text-xs font-extrabold uppercase tracking-[3px] text-accent-300">{first.badge}</span>}
+          <h1 className="max-w-4xl font-heading text-4xl font-black leading-[1.08] tracking-tight sm:text-6xl">{first?.title}</h1>
+          <div className="mt-6 flex flex-wrap items-end justify-between gap-6 border-t border-white/20 pt-6">
+            {first?.text && <p className="max-w-xl text-base text-white/80 sm:text-lg">{first.text}</p>}
+            <div className="flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-full bg-white px-7 py-3.5 font-extrabold text-gray-900 shadow-lg hover:bg-gray-100">{first.button_label || t('nav.donate')}</Link>}
+              {first?.button2_url && <Link href={first.button2_url} className="rounded-full border border-white/30 px-6 py-3.5 font-semibold text-white hover:bg-white/10">{first.button2_label}</Link>}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (variant === 'countdown_crisis') {
     return (
@@ -579,6 +647,42 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
     const href = hrefFor(k)
     const isFeaturedBento = look === 'bento' && idx === 0
     const { Icon: CatIcon } = resolveCategoryIcon(k.icon, (k as CategoryDto).donation_type)
+
+    if (look === 'glass_pills') {
+      return (
+        <Link key={k.id || k.title} href={href} className="inline-flex items-center gap-2.5 rounded-full border border-primary-200 bg-white/80 px-5 py-3 text-sm font-bold text-gray-900 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:border-primary-500 hover:bg-primary-50">
+          <CatIcon className="h-5 w-5 text-primary-600" />
+          <span>{k.title}</span>
+        </Link>
+      )
+    }
+    if (look === 'icon_circle_grid') {
+      return (
+        <Link key={k.id || k.title} href={href} className="group flex flex-col items-center rounded-2xl border border-gray-100 bg-white p-6 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-primary-600 transition group-hover:bg-primary-600 group-hover:text-white">
+            <CatIcon className="h-7 w-7" />
+          </span>
+          <span className="mt-4 font-heading text-base font-bold text-gray-900">{k.title}</span>
+          {showDesc && k.description && <span className="mt-1 line-clamp-2 text-xs text-gray-500">{k.description}</span>}
+        </Link>
+      )
+    }
+    if (look === 'gradient_border_tiles') {
+      return (
+        <Link key={k.id || k.title} href={href} className="group rounded-2xl bg-gradient-to-br from-primary-500/30 via-accent-500/20 to-primary-700/30 p-[1.5px] transition hover:-translate-y-1">
+          <div className="flex h-full flex-col justify-between rounded-[15px] bg-white p-5">
+            <div className="flex items-center justify-between">
+              <CatIcon className="h-6 w-6 text-primary-600" />
+              <span className="text-xs font-bold text-primary-600 opacity-0 transition group-hover:opacity-100">→</span>
+            </div>
+            <div className="mt-4">
+              <div className="font-heading text-base font-bold text-gray-900">{k.title}</div>
+              {showDesc && k.description && <div className="mt-1 line-clamp-2 text-xs text-gray-500">{k.description}</div>}
+            </div>
+          </div>
+        </Link>
+      )
+    }
 
     if (look === 'icon_list_dense') {
       return (
@@ -1011,7 +1115,7 @@ export function Campaigns({ data, t, o = {} }: { data: HomeData; t: T; o?: Overr
     4: 'columns-1 sm:columns-2 lg:columns-4',
   }
 
-  const containerClass = layout === 'list' || layout === 'rows'
+  const containerClass = layout === 'list' || layout === 'rows' || layout === 'compact_horizontal_list'
     ? 'grid gap-4'
     : layout === 'masonry'
       ? `${masonryCols[columns] || 'columns-1 sm:columns-2 lg:columns-3'} gap-6 space-y-6`
@@ -1019,8 +1123,14 @@ export function Campaigns({ data, t, o = {} }: { data: HomeData; t: T; o?: Overr
 
   const filterAllLabel = data.locale === 'en' ? 'All' : data.locale === 'ar' ? 'الكل' : 'Tümü'
 
+  const sectionToneCls = layout === 'dark_luxury_grid'
+    ? 'bg-slate-950 text-white'
+    : layout === 'urgent_red_cards'
+      ? 'bg-red-50/60'
+      : tpl === 'klasik' ? 'bg-stone-50' : ''
+
   return (
-    <section id="projeler" className={tpl === 'klasik' ? 'bg-stone-50' : ''}>
+    <section id="projeler" className={sectionToneCls}>
       <div className={`${container} py-[72px]`}>
         <SectionHead tpl={tpl} kicker={o.kicker || t('home.campaigns.kicker')} title={o.title || t('home.campaigns.title')}
           link={o.show_all_link !== false ? { href: '/kampanyalar', label: t('home.campaigns.all') } : undefined} />
@@ -1135,6 +1245,50 @@ export function FeaturedCampaign({ data, t, o = {}, editing = false }: { data: H
       {kicker}
     </span>
   )
+
+  if (look === 'dark_gold_featured') {
+    return (
+      <section className="bg-slate-950 py-14 text-white">
+        <div className={container}>
+          <div className="grid items-center gap-8 rounded-3xl border border-amber-400/30 bg-gradient-to-br from-slate-900 to-primary-950 p-7 shadow-2xl lg:grid-cols-12 lg:p-10">
+            <div className="overflow-hidden rounded-2xl bg-black lg:col-span-5">
+              {c.cover_image_url && <img src={c.cover_image_url} alt={title} className="aspect-[4/3] w-full object-cover" loading="lazy" />}
+            </div>
+            <div className="space-y-4 lg:col-span-7">
+              <span className="inline-block rounded-full bg-amber-400/20 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-amber-300">{kicker}</span>
+              <h2 className="font-heading text-2xl font-extrabold sm:text-3xl">{title}</h2>
+              {summary && <p className="text-sm leading-relaxed text-white/80">{summary}</p>}
+              {showProgress && <Progress c={c} locale={data.locale} light />}
+              <div className="flex flex-wrap gap-3 pt-1">
+                <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl bg-amber-400 px-6 py-3 text-sm font-extrabold text-slate-950 hover:bg-amber-300">{ctaLabel}</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+  if (look === 'split_urgent_badge' || look === 'floating_progress_featured') {
+    const isUrgent = look === 'split_urgent_badge'
+    return (
+      <section className="py-12">
+        <div className={container}>
+          <div className={`grid items-center gap-8 rounded-3xl border p-7 shadow-lg lg:grid-cols-12 lg:p-10 ${isUrgent ? 'border-red-200 bg-red-50/40' : 'border-primary-100 bg-white'}`}>
+            <div className="overflow-hidden rounded-2xl lg:col-span-5">
+              {c.cover_image_url && <img src={c.cover_image_url} alt={title} className="aspect-[4/3] w-full object-cover" loading="lazy" />}
+            </div>
+            <div className="space-y-4 lg:col-span-7">
+              {urgentPill(false)}
+              <h2 className="font-heading text-2xl font-extrabold text-gray-900 sm:text-3xl">{title}</h2>
+              {summary && <p className="text-sm text-gray-600">{summary}</p>}
+              {showProgress && <Progress c={c} locale={data.locale} />}
+              <Link href={`/kampanyalar/${c.slug}`} className={`inline-flex rounded-xl px-6 py-3 text-sm font-extrabold text-white ${isUrgent ? 'bg-red-600 hover:bg-red-700' : 'bg-primary-600 hover:bg-primary-700'}`}>{ctaLabel}</Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   const countdownBoxes = hasCountdown && (
     <div className="flex flex-wrap gap-2">
@@ -1418,6 +1572,67 @@ export function Steps({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides
     </div>
   )
 
+  if (look === 'vertical_connected') {
+    return (
+      <section className="py-[72px]">
+        <div className={`${container} max-w-3xl`}>
+          <SectionHead tpl={tpl} kicker={o.kicker || t('home.steps.kicker')} title={o.title || t('home.steps.title')} text={o.text} />
+          <ol className="relative ms-4 space-y-6 border-s-2 border-primary-200 ps-8">
+            {steps.map((s, i) => (
+              <li key={i} className="relative rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <span className="absolute -start-[45px] top-5 flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 text-xs font-extrabold text-white ring-4 ring-white">{s.icon || i + 1}</span>
+                <div className="font-heading text-lg font-bold text-gray-900">{s.title}</div>
+                {s.text && <p className="mt-1 text-sm text-gray-600">{s.text}</p>}
+              </li>
+            ))}
+          </ol>
+          {cta}
+        </div>
+      </section>
+    )
+  }
+  if (look === 'numbered_glass_cards') {
+    return (
+      <section className="bg-gradient-to-br from-primary-950 via-primary-900 to-slate-900 py-[72px] text-white">
+        <div className={container}>
+          <SectionHead tpl={tpl} light kicker={o.kicker || t('home.steps.kicker')} title={o.title || t('home.steps.title')} text={o.text} />
+          <ol className={`grid gap-5 ${gridCols}`}>
+            {steps.map((s, i) => (
+              <li key={i} className="rounded-3xl border border-white/15 bg-white/10 p-6 backdrop-blur-md">
+                <div className="mb-3 font-heading text-3xl font-black text-accent-300">0{i + 1}</div>
+                <div className="font-heading text-lg font-bold">{s.title}</div>
+                {s.text && <p className="mt-1.5 text-sm text-white/75">{s.text}</p>}
+              </li>
+            ))}
+          </ol>
+          {cta}
+        </div>
+      </section>
+    )
+  }
+  if (look === 'horizontal_arrows') {
+    return (
+      <section className="py-[72px]">
+        <div className={container}>
+          <SectionHead tpl={tpl} kicker={o.kicker || t('home.steps.kicker')} title={o.title || t('home.steps.title')} text={o.text} />
+          <ol className={`grid gap-4 ${gridCols}`}>
+            {steps.map((s, i) => (
+              <li key={i} className="relative rounded-2xl border border-primary-100 bg-primary-50/40 p-6">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 font-bold text-white">{s.icon || i + 1}</span>
+                  {i < steps.length - 1 && <span className="hidden text-xl font-bold text-primary-400 lg:inline" aria-hidden>→</span>}
+                </div>
+                <div className="font-heading text-base font-bold text-gray-900">{s.title}</div>
+                {s.text && <p className="mt-1 text-sm text-gray-600">{s.text}</p>}
+              </li>
+            ))}
+          </ol>
+          {cta}
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className={tpl === 'klasik' ? 'bg-primary-50/60' : ''}>
       <div className={`${container} py-[72px]`}>
@@ -1694,7 +1909,45 @@ export function ZakatBand({ t, o = {}, tpl = 'klasik', locale = 'tr' }: { t: T; 
     )
   }
 
-  if (look === 'split_faq_zakat') {
+  if (look === 'dark_emerald_band') {
+    return (
+      <section className={py}>
+        <div className={container}>
+          <div className="rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 p-8 text-white shadow-xl md:p-12">
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <div className="max-w-2xl">
+                {kicker && <span className="mb-2 inline-block rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-emerald-300">{kicker}</span>}
+                <h3 className="font-heading text-2xl font-bold md:text-3xl">{title}</h3>
+                <p className="mt-2 text-sm text-white/80 md:text-base">{text}</p>
+              </div>
+              {renderActions(true)}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'gold_ornate_band') {
+    return (
+      <section className={py}>
+        <div className={container}>
+          <div className="rounded-3xl border-2 border-amber-400/50 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-8 shadow-md md:p-12">
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <div className="max-w-2xl">
+                <span className="mb-2 inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-amber-900">✨ {nisabNote || 'Zekat & İnfak'}</span>
+                <h3 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">{title}</h3>
+                <p className="mt-2 text-sm text-gray-600 md:text-base">{text}</p>
+              </div>
+              {renderActions(false)}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'split_faq_zakat' || look === 'split_calculator_cta') {
     return (
       <section className={py}>
         <div className={container}>
@@ -2062,6 +2315,55 @@ export function CtaBand({ data, o = {} }: { data: HomeData; o?: Overrides }) {
     </div>
   )
 
+  if (look === 'split_urgent_red') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="grid items-center gap-8 rounded-3xl bg-gradient-to-r from-red-700 to-rose-800 p-8 text-white shadow-xl md:grid-cols-12 md:p-12">
+            <div className="md:col-span-8">
+              {band.kicker && <span className="mb-2 inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold uppercase tracking-wider">{band.kicker}</span>}
+              <h2 className="font-heading text-2xl font-extrabold sm:text-3xl">{band.title}</h2>
+              {band.text && <p className="mt-2 max-w-2xl text-sm text-white/85 sm:text-base">{band.text}</p>}
+            </div>
+            <div className="md:col-span-4 md:flex md:justify-end">{renderActions(false)}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+  if (look === 'dark_gold_ornate') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="rounded-3xl border border-amber-400/30 bg-gradient-to-br from-slate-950 via-primary-950 to-slate-900 p-8 text-white shadow-2xl md:flex md:items-center md:justify-between md:gap-8 md:p-12">
+            <div className="max-w-2xl">
+              {band.kicker && <div className="mb-2 text-xs font-bold uppercase tracking-[2.5px] text-amber-300">{band.kicker}</div>}
+              <h2 className="font-heading text-2xl font-extrabold text-white sm:text-3xl">{band.title}</h2>
+              {band.text && <p className="mt-2 text-sm text-white/75 sm:text-base">{band.text}</p>}
+            </div>
+            <div className="mt-6 md:mt-0">{renderActions(false)}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+  if (look === 'floating_card') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="rounded-3xl border border-gray-200 bg-white p-8 shadow-2xl md:flex md:items-center md:justify-between md:gap-8 md:p-12">
+            <div className="max-w-2xl">
+              {band.kicker && <div className="mb-1.5 text-xs font-bold uppercase tracking-[2px] text-primary-600">{band.kicker}</div>}
+              <h2 className="font-heading text-2xl font-extrabold text-gray-900 sm:text-3xl">{band.title}</h2>
+              {band.text && <p className="mt-2 text-sm text-gray-600 sm:text-base">{band.text}</p>}
+            </div>
+            <div className="mt-6 md:mt-0">{renderActions(true)}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   if (look === 'strip') {
     return (
       <section className={py}>
@@ -2347,6 +2649,37 @@ export function News({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides 
   )
 
   const body = () => {
+    if (look === 'magazine_featured') {
+      const [lead, ...rest] = list
+      return (
+        <div className="grid gap-6 lg:grid-cols-12">
+          {lead && <div className="lg:col-span-6">{overlayCard(lead)}</div>}
+          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-6">{rest.slice(0, 4).map(card)}</div>
+        </div>
+      )
+    }
+    if (look === 'dark_editorial_grid') {
+      return (
+        <div className="rounded-3xl bg-slate-950 p-6 sm:p-8">
+          <div className={`grid gap-6 ${colCls}`}>{list.map(overlayCard)}</div>
+        </div>
+      )
+    }
+    if (look === 'compact_date_list') {
+      return (
+        <div className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
+          {list.map((n) => (
+            <Link key={n.id} href={hrefOf(n)} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4 transition hover:bg-primary-50/40">
+              <div className="flex items-center gap-3">
+                {showDate && n.published_at && <span className="rounded-lg bg-primary-50 px-2.5 py-1 text-xs font-bold text-primary-700">{fmtDate(n)}</span>}
+                <span className="font-heading text-base font-bold text-gray-900">{n.title}</span>
+              </div>
+              <span className="text-xs font-bold text-primary-600">Oku →</span>
+            </Link>
+          ))}
+        </div>
+      )
+    }
     if (look === 'timeline_feed') {
       return (
         <ol className="mx-auto max-w-3xl space-y-5 border-s-2 border-primary-200 ps-6">
@@ -2519,7 +2852,12 @@ export function GalleryStrip({ data, t, o = {}, editing }: { data: HomeData; t: 
       <div className="mt-8">
         <GalleryStripClient
           items={items}
-          look={String(o.look || 'marquee')}
+          look={
+            o.look === 'masonry_strip' ? 'masonry_wall'
+              : o.look === 'dark_polaroid_strip' ? 'polaroid'
+                : o.look === 'bordered_tiles_strip' ? 'grid'
+                  : String(o.look || 'marquee')
+          }
           aspect={String(o.aspect || '4/3')}
           speed={String(o.speed || 'normal')}
           captionMode={String(o.caption_mode || 'hover')}
@@ -2588,6 +2926,61 @@ export function Testimonials({ data, t, o = {} }: { data: HomeData; t: T; o?: Ov
       )}
     </figure>
   )
+
+  if (look === 'masonry_quotes') {
+    return (
+      <section className="bg-gray-50 py-[72px]">
+        <div className={container}>
+          <SectionHead tpl={tpl} kicker={o.kicker || t('home.testimonials.kicker')} title={o.title || t('home.testimonials.title')} text={o.text} />
+          <div className="mt-10 columns-1 gap-5 space-y-5 md:columns-2 lg:columns-3">
+            {items.map((item, i) => (
+              <div key={i} className="break-inside-avoid">{cardNode(item, i)}</div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+  if (look === 'dark_spotlight_slider') {
+    return (
+      <section className="bg-slate-950 py-[72px] text-white">
+        <div className={`${container} max-w-4xl text-center`}>
+          <SectionHead tpl={tpl} light kicker={o.kicker || t('home.testimonials.kicker')} title={o.title || t('home.testimonials.title')} text={o.text} />
+          <div className="mt-10 grid gap-5 md:grid-cols-2 text-start">
+            {items.slice(0, 4).map((item, i) => (
+              <blockquote key={i} className="rounded-3xl border border-white/10 bg-white/5 p-7 backdrop-blur">
+                {renderStars(item.rating, true)}
+                <p className="text-base leading-relaxed text-white/90">“{item.quote}”</p>
+                <footer className="mt-4 text-xs font-bold text-accent-300">{item.name}{item.role ? ` · ${item.role}` : ''}</footer>
+              </blockquote>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+  if (look === 'verified_donor_cards') {
+    return (
+      <section className="py-[72px]">
+        <div className={container}>
+          <SectionHead tpl={tpl} kicker={o.kicker || t('home.testimonials.kicker')} title={o.title || t('home.testimonials.title')} text={o.text} />
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
+            {items.map((item, i) => (
+              <div key={i} className="flex flex-col justify-between rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm">
+                <div>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">✓ {item.badge || 'Onaylı Bağışçı'}</span>
+                  <p className="mt-3 text-sm leading-relaxed text-gray-700">“{item.quote}”</p>
+                </div>
+                <div className="mt-4 border-t border-gray-100 pt-3 text-xs font-bold text-gray-900">
+                  {item.name} {item.role && <span className="font-normal text-gray-500">· {item.role}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section className={dark ? 'bg-primary-950' : tpl === 'kategori' ? 'bg-primary-50' : ''}>
@@ -2738,7 +3131,7 @@ export function Trust({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides
   ] : []
 
   const items: TrustItem[] = custom.length ? [...(o.show_contact === true ? autoCards : []), ...custom] : autoCards
-  const isDark = look === 'dark_band'
+  const isDark = look === 'dark_band' || look === 'dark_shield_bar'
 
   const colCls = items.length <= 1
     ? 'grid-cols-1 max-w-xl mx-auto'

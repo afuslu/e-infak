@@ -461,10 +461,14 @@ export function AnnouncementBar({
   const activeText = activeItem?.text || text
   const activeUrl = activeItem?.url || url
   const bgCls =
-    look === 'gradient'
+    look === 'gradient' || look === 'gradient_shimmer'
       ? 'bg-gradient-to-r from-primary-700 via-primary-600 to-accent-500 text-white'
-      : ANNOUNCE_TONE[tone || 'danger'] || ANNOUNCE_TONE.danger
-  const isWarning = tone === 'warning' && look !== 'gradient'
+      : look === 'countdown_urgent'
+        ? 'bg-red-700 text-white'
+        : look === 'split_two_links'
+          ? 'bg-slate-900 text-white'
+          : ANNOUNCE_TONE[tone || 'danger'] || ANNOUNCE_TONE.danger
+  const isWarning = tone === 'warning' && look !== 'gradient' && look !== 'gradient_shimmer' && look !== 'countdown_urgent' && look !== 'split_two_links'
   const closeLabel = locale === 'en' ? 'Close announcement' : locale === 'ar' ? 'إغلاق الإعلان' : 'Duyuruyu kapat'
   const units = locale === 'en' ? ['d', 'h', 'm', 's'] : locale === 'ar' ? ['ي', 'س', 'د', 'ث'] : ['g', 's', 'd', 'sn']
 
@@ -1012,8 +1016,17 @@ export function DonationCards({
   const cardMode: 'card' | 'list' | 'compact' | 'overlay' =
     layout === 'list' ? 'list' : layout === 'compact' || layout === 'impact_badge_grid' ? 'compact' : layout === 'overlay' ? 'overlay' : 'card'
 
+  const wrapLayoutCls =
+    layout === 'dark_gold' || layout === 'dark_gold_cards'
+      ? 'rounded-3xl bg-gradient-to-br from-gray-950 via-gray-900 to-amber-950/60 p-6 ring-1 ring-amber-500/20 sm:p-8'
+      : layout === 'minimal_border_cards'
+        ? 'rounded-3xl border border-gray-200 bg-gray-50/50 p-6 sm:p-8'
+        : layout === 'badge_ribbon_cards'
+          ? 'rounded-3xl border border-primary-100 bg-primary-50/30 p-6 sm:p-8'
+          : ''
+
   return (
-    <div className={layout === 'dark_gold' ? 'rounded-3xl bg-gradient-to-br from-gray-950 via-gray-900 to-amber-950/60 p-6 ring-1 ring-amber-500/20 sm:p-8' : ''}>
+    <div className={wrapLayoutCls}>
       {(switcher || !!tabs?.length) && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           {!!tabs?.length && (

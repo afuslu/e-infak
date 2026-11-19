@@ -165,7 +165,6 @@ export async function EInfakPortal() {
   const nav: [string, string][] = [
     ['#ozellikler', 'Özellikler'],
     ['#moduller', 'Modüller'],
-    ['#paketler', 'Paketler'],
     ['#sss', 'SSS'],
     ...(organisations.length ? [['#kurumlar', 'Kurumlar'] as [string, string]] : []),
   ]
@@ -296,7 +295,7 @@ export async function EInfakPortal() {
         <section id="moduller" className={`${container} scroll-mt-20 py-16`}>
           <p className={eyebrow}>Modüller</p>
           <h2 className={sectionTitle}>Bağıştan sahaya, ihtiyacınız olan her şey</h2>
-          <p className={lead}>Paketinize göre açılır; kullanmadığınız modül menünüzde yer kaplamaz.</p>
+          <p className={lead}>İhtiyacınıza göre açılır; kullanmadığınız modül menünüzde yer kaplamaz.</p>
           <div className="mt-10 space-y-10">
             {MODULE_GROUPS.map((group) => (
               <div key={group.title}>
@@ -330,32 +329,6 @@ export async function EInfakPortal() {
                 </li>
               ))}
             </ol>
-          </div>
-        </section>
-
-        <section id="paketler" className={`${container} scroll-mt-20 py-16`}>
-          <p className={eyebrow}>Paketler</p>
-          <h2 className={sectionTitle}>Kurumunuzun ölçeğine göre üç paket</h2>
-          <p className={lead}>İhtiyaç büyüdükçe paket yükseltilir veya tek tek ek modül açılır. Fiyat için bize yazın.</p>
-          <div className="mt-10 grid gap-5 lg:grid-cols-3">
-            {planList.map((plan) => {
-              const copy = PLAN_COPY[plan.key]
-              return (
-                <div key={plan.key} className={`flex flex-col rounded-2xl border bg-pt-card p-7 ${copy.featured ? 'border-pt-brand pt-shadow' : 'border-pt-line'}`}>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-pt-text">{plan.label}</h3>
-                    {copy.featured && <span className="rounded-full bg-pt-brand-soft px-2.5 py-0.5 text-[11px] font-bold text-pt-brand">En çok tercih edilen</span>}
-                  </div>
-                  <p className="mt-1 text-sm text-pt-muted">
-                    {plan.users} personel hesabı{plan.bank_accounts ? ` · ${plan.bank_accounts} banka hesabı` : ''}
-                  </p>
-                  <ul className="mt-5 flex-1 space-y-3 text-sm text-pt-text">{copy.items.map((item) => <Tick key={item}>{item}</Tick>)}</ul>
-                  <PlanCta plan={plan.key} className={`mt-7 rounded-xl px-4 py-3 text-center text-sm font-bold ${copy.featured ? 'pt-cta' : 'border border-pt-line text-pt-text hover:border-pt-brand'}`}>
-                    Teklif isteyin
-                  </PlanCta>
-                </div>
-              )
-            })}
           </div>
         </section>
 
@@ -395,7 +368,7 @@ export async function EInfakPortal() {
             <div>
               <p className={eyebrow}>Demo</p>
               <h2 className={sectionTitle}>Panelleri kendi verinizle görün</h2>
-              <p className="mt-4 text-pt-muted">Kısa bir görüşmede ekranları birlikte gezelim, kurumunuza uygun paketi belirleyelim. Mevcut bağışçı listenizi ve geçmiş bağışlarınızı taşımayı biz üstleniyoruz.</p>
+              <p className="mt-4 text-pt-muted">Kısa bir görüşmede ekranları birlikte gezelim, kurumunuza özel kurulumu birlikte planlayalım. Mevcut bağışçı listenizi ve geçmiş bağışlarınızı taşımayı biz üstleniyoruz.</p>
               <ul className="mt-6 space-y-3 text-sm text-pt-text">
                 <Tick>Yarım saatlik canlı gösterim, taahhüt yok</Tick>
                 <Tick>Başka bir sistemden geçişte veri aktarımı dahil</Tick>

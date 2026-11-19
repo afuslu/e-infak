@@ -2,9 +2,29 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Building2, CheckCircle2, Globe, Palette, Sparkles, UserCheck } from 'lucide-react'
+import { Building2, CheckCircle2, Eye, EyeOff, Globe, Palette, RefreshCw, Sparkles, UserCheck } from 'lucide-react'
 import { Catalog, Credentials, PlatformOrg, copyText, credentialsText, platformCall, platformError } from '../../../lib/platform-api'
 import { ptCard, ptInput, ptPrimaryBtn, ptSecondaryBtn, ptSelect } from '../../../components/platform/PlatformUI'
+
+const COLOR_PALETTES = [
+  { name: 'Zümrüt Yeşili', primary: '#059669', accent: '#D97706' },
+  { name: 'Osmanlı Laciverti', primary: '#1E3A8A', accent: '#D97706' },
+  { name: 'Zarif Bordo & Altın', primary: '#881337', accent: '#CA8A04' },
+  { name: 'Ferah Turkuaz', primary: '#0F766E', accent: '#0284C7' },
+  { name: 'Gece Mavisi', primary: '#0F172A', accent: '#10B981' },
+  { name: 'Sıcak Toprak', primary: '#9A3412', accent: '#D97706' },
+  { name: 'Acil Kırmızı', primary: '#B91C1C', accent: '#F59E0B' },
+  { name: 'Zeytin & Altın', primary: '#3F6212', accent: '#CA8A04' },
+  { name: 'Kraliyet Moru', primary: '#581C87', accent: '#EC4899' },
+  { name: 'Okyanus Mavisi', primary: '#0369A1', accent: '#14B8A6' },
+  { name: 'Koyu Çam', primary: '#14532D', accent: '#EAB308' },
+  { name: 'Antrasit Kurumsal', primary: '#334155', accent: '#059669' },
+]
+
+const randomPassword = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$'
+  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+}
 
 const slugify = (text: string) => text.toLocaleLowerCase('tr')
   .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
@@ -13,9 +33,13 @@ const slugify = (text: string) => text.toLocaleLowerCase('tr')
 export default function NewOrganizationPage() {
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [form, setForm] = useState({
-    name: '', legal_name: '', subdomain: '', email: '', phone: '', city: '', plan: 'baslangic', template: 'sade',
-    primary_color: '#059669', admin_email: '', admin_first_name: '', admin_last_name: '',
+    name: '', legal_name: '', tagline: '', subdomain: '', email: '', phone: '', city: '', template: 'sade',
+    primary_color: '#059669', accent_color: '#D97706',
+    admin_email: '', admin_first_name: '', admin_last_name: '', admin_password: '',
   })
+  const [seedDemo, setSeedDemo] = useState(true)
+  const [mustChangePw, setMustChangePw] = useState(false)
+  const [showPw, setShowPw] = useState(false)
   const [subdomainTouched, setSubdomainTouched] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -36,7 +60,7 @@ export default function NewOrganizationPage() {
     const name = q.get('ad') || ''
     setForm((f) => ({
       ...f, name, subdomain: slugify(name), email: q.get('eposta') || '', phone: q.get('telefon') || '',
-      plan: q.get('paket') || f.plan, admin_email: q.get('eposta') || '',
+      admin_email: q.get('eposta') || '',
       admin_first_name: q.get('yonetici_ad') || '', admin_last_name: q.get('yonetici_soyad') || '',
     }))
   }, [])
@@ -50,7 +74,13 @@ export default function NewOrganizationPage() {
     setBusy(true)
     setError('')
     try {
-      const body = Object.fromEntries(Object.entries({ ...form, demo_request_id: demoId }).filter(([, v]) => v !== ''))
+      const raw: Record<string, unknown> = {
+        ...form,
+        seed_demo: seedDemo,
+        demo_request_id: demoId,
+        ...(form.admin_password.trim() ? { admin_must_change_password: mustChangePw } : {}),
+      }
+      const body = Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== ''))
       setCreated(await platformCall('post', '/organizations', body))
       setCopied('')
     } catch (err) {
@@ -112,7 +142,6 @@ export default function NewOrganizationPage() {
   }
 
   const baseDomain = catalog?.base_domain || 'e-infak.org'
-  const planLabel = catalog?.plans.find((p) => p.key === form.plan)?.label || form.plan
   const templateLabel = catalog?.templates.find((t) => t.key === form.template)?.label || form.template
 
   return (
@@ -172,25 +201,47 @@ export default function NewOrganizationPage() {
               Şehir
               <input className={ptInput} value={form.city} onChange={(e) => set('city', e.target.value)} placeholder="İstanbul" />
             </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 sm:col-span-2">
+              Kısa slogan (isteğe bağlı)
+              <input className={ptInput} value={form.tagline} onChange={(e) => set('tagline', e.target.value)} placeholder="İyiliğe açılan kapı" />
+            </label>
           </section>
 
-          <section className={`grid gap-4 sm:grid-cols-3 ${ptCard}`}>
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3 sm:col-span-3">
+          <section className={`grid gap-4 sm:grid-cols-2 ${ptCard}`}>
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3 sm:col-span-2">
               <Palette className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-              <h2 className="text-base font-bold text-slate-900">Paket ve görünüm</h2>
+              <h2 className="text-base font-bold text-slate-900">Görünüm ve renkler</h2>
             </div>
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Paket
-              <select className={ptSelect} value={form.plan} onChange={(e) => set('plan', e.target.value)}>
-                {(catalog?.plans || []).map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-              </select>
-            </label>
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 sm:col-span-2">
               Şablon
               <select className={ptSelect} value={form.template} onChange={(e) => set('template', e.target.value)}>
                 {(catalog?.templates || []).map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
               </select>
             </label>
+            <div className="sm:col-span-2">
+              <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">Hazır renk paletleri</div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {COLOR_PALETTES.map((pal) => {
+                  const active = form.primary_color.toUpperCase() === pal.primary && form.accent_color.toUpperCase() === pal.accent
+                  return (
+                    <button
+                      key={pal.name}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, primary_color: pal.primary, accent_color: pal.accent }))}
+                      className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-[11px] font-semibold transition ${
+                        active ? 'border-emerald-600 bg-emerald-50/70 text-emerald-950 ring-1 ring-emerald-600' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="flex shrink-0 -space-x-1">
+                        <span className="h-4 w-4 rounded-full ring-1 ring-white" style={{ backgroundColor: pal.primary }} />
+                        <span className="h-4 w-4 rounded-full ring-1 ring-white" style={{ backgroundColor: pal.accent }} />
+                      </span>
+                      <span className="truncate">{pal.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Ana renk
               <div className="mt-1.5 flex items-center gap-2">
@@ -207,7 +258,32 @@ export default function NewOrganizationPage() {
                 />
               </div>
             </label>
-            <p className="text-xs text-slate-500 sm:col-span-3">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Vurgu rengi
+              <div className="mt-1.5 flex items-center gap-2">
+                <input
+                  type="color"
+                  value={form.accent_color}
+                  onChange={(e) => set('accent_color', e.target.value.toUpperCase())}
+                  className="h-[42px] w-12 shrink-0 cursor-pointer rounded-xl border border-slate-200 bg-white p-1"
+                />
+                <input
+                  className={`${ptInput} mt-0 font-mono`}
+                  value={form.accent_color}
+                  onChange={(e) => set('accent_color', e.target.value)}
+                />
+              </div>
+            </label>
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-700 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={seedDemo}
+                onChange={(e) => setSeedDemo(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>Başlangıç için 3 örnek kampanya otomatik oluşturulsun (Gıda, Su Kuyusu, Yetim)</span>
+            </label>
+            <p className="text-xs text-slate-500 sm:col-span-2">
               Logo, kapak görseli ve diğer ayarları kurum yöneticisi kendi panelindeki &ldquo;Görünüm &amp; Tema&rdquo; sayfasından yapar.
             </p>
           </section>
@@ -229,13 +305,59 @@ export default function NewOrganizationPage() {
               Soyad
               <input className={ptInput} value={form.admin_last_name} onChange={(e) => set('admin_last_name', e.target.value)} placeholder="Yılmaz" />
             </label>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+                Şifre (boşsa otomatik üretilir)
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showPw ? 'text' : 'password'}
+                      minLength={6}
+                      className={`${ptInput} mt-0 pr-10`}
+                      value={form.admin_password}
+                      onChange={(e) => set('admin_password', e.target.value)}
+                      placeholder="En az 6 karakter veya boş bırakın"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((s) => !s)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      aria-label={showPw ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                    >
+                      {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { set('admin_password', randomPassword()); setShowPw(true) }}
+                    className="inline-flex h-[42px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                    Rastgele
+                  </button>
+                </div>
+              </label>
+            </div>
+            <label className="flex items-center gap-2 self-end pb-2.5 text-xs font-medium text-slate-600">
+              <input
+                type="checkbox"
+                checked={form.admin_password.trim() ? mustChangePw : true}
+                disabled={!form.admin_password.trim()}
+                onChange={(e) => setMustChangePw(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>İlk girişte şifre değiştirsin</span>
+            </label>
           </section>
         </div>
 
         {/* Sağ canlı özet / önizleme paneli */}
         <aside className="space-y-4 lg:sticky lg:top-20 lg:col-span-4">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-            <div className="h-3 w-full transition-colors" style={{ backgroundColor: form.primary_color || '#059669' }} />
+            <div
+              className="h-3 w-full transition-colors"
+              style={{ background: `linear-gradient(90deg, ${form.primary_color || '#059669'}, ${form.accent_color || '#D97706'})` }}
+            />
             <div className="space-y-4 p-5">
               <div className="flex items-center gap-3">
                 <div
@@ -255,16 +377,23 @@ export default function NewOrganizationPage() {
 
               <dl className="space-y-2.5 border-t border-slate-100 pt-4 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <dt className="text-slate-500">Paket</dt>
-                  <dd className="rounded-full bg-slate-100 px-2.5 py-0.5 font-bold text-slate-800">{planLabel}</dd>
-                </div>
-                <div className="flex items-center justify-between gap-2">
                   <dt className="text-slate-500">Şablon</dt>
                   <dd className="max-w-[180px] truncate font-semibold text-slate-800">{templateLabel}</dd>
                 </div>
                 <div className="flex items-center justify-between gap-2">
+                  <dt className="text-slate-500">Renkler</dt>
+                  <dd className="flex items-center gap-1.5 font-mono text-[11px] text-slate-700">
+                    <span className="h-3.5 w-3.5 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: form.primary_color }} />
+                    <span className="h-3.5 w-3.5 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: form.accent_color }} />
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
                   <dt className="text-slate-500">İlk yönetici</dt>
                   <dd className="max-w-[180px] truncate font-semibold text-slate-800">{form.admin_email || '—'}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-slate-500">Şifre</dt>
+                  <dd className="font-semibold text-slate-700">{form.admin_password.trim() ? 'Özel şifre' : 'Otomatik geçici'}</dd>
                 </div>
               </dl>
 

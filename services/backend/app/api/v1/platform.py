@@ -21,6 +21,7 @@ from app.core.plans import FEATURE_LABELS, PLAN_ADDONS, PLAN_LABELS, Feature, Pl
 from app.core.rate_limit import rate_limit
 from app.core.security import create_access_token, decode_token, get_password_hash, password_fingerprint, verify_password
 from app.models.audit_log import AuditLog
+from app.models.campaign import Campaign, CampaignCategory, CampaignStatus
 from app.models.donation import Donation, DonationStatus
 from app.models.organization import Organization, OrganizationDomain
 from app.models.platform import DemoRequest, PlatformAlertDismissal, PlatformAuditLog, PlatformBroadcast, PlatformPayment, PlatformUser, SupportTicket, SupportTicketMessage
@@ -237,13 +238,17 @@ class OrganizationCreate(BaseModel):
     email: EmailStr
     phone: Optional[str] = Field(default=None, max_length=32)
     city: Optional[str] = Field(default=None, max_length=100)
-    plan: Plan = Plan.BASLANGIC
+    plan: Plan = Plan.ILERI
     template: str = "sade"
     primary_color: str = Field(default="#059669", pattern=r"^#[0-9A-Fa-f]{6}$")
     accent_color: Optional[str] = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
     admin_email: EmailStr
     admin_first_name: str = Field(min_length=1, max_length=100)
     admin_last_name: str = Field(default="", max_length=100)
+    admin_password: Optional[str] = Field(default=None, min_length=6, max_length=128)
+    admin_must_change_password: Optional[bool] = None
+    tagline: Optional[str] = Field(default=None, max_length=200)
+    seed_demo: bool = True
     demo_request_id: Optional[UUID] = None  # marks that landing-page request as converted
 
 
@@ -267,6 +272,10 @@ async def create_organization(payload: OrganizationCreate, request: Request, db:
     if (await db.execute(select(User.id).where(func.lower(User.email) == admin_email))).first():
         raise HTTPException(status_code=409, detail="Bu yönetici e-postası başka bir kurumda kayıtlı")
 
+    site_cfg: dict = {"home_sections": list(DEFAULT_SECTIONS[payload.template]), "show_in_directory": True}
+    if payload.tagline and payload.tagline.strip():
+        site_cfg["tagline"] = payload.tagline.strip()
+
     org = Organization(
         slug=subdomain, subdomain=subdomain, name=payload.name.strip(),
         legal_name=(payload.legal_name or payload.name).strip(), email=str(payload.email), phone=payload.phone,
@@ -274,15 +283,35 @@ async def create_organization(payload: OrganizationCreate, request: Request, db:
         enabled_addons=[], extra_user_seats=0, is_active=True, template=payload.template,
         theme_primary_color=payload.primary_color.upper(),
         theme_accent_color=(payload.accent_color or payload.primary_color).upper(),
-        site={"home_sections": list(DEFAULT_SECTIONS[payload.template]), "show_in_directory": True},
+        site=site_cfg,
         settings={},
     )
     db.add(org)
     await db.flush()
-    password = passwords.temporary_password()
+    if payload.seed_demo:
+        for slug, title, summary, cat, target, img, amounts in (
+            ("acil-gida-kumanya", "Acil Gıda ve Kumanya Desteği",
+             "İhtiyaç sahibi ailelerin bir aylık temel gıda ve mutfak ihtiyaçlarını karşılıyoruz.",
+             CampaignCategory.GIDA, 25000000, "/demo/relief.webp", [25000, 50000, 100000, 250000]),
+            ("temiz-su-kuyusu", "Temiz Su Kuyusu Projesi",
+             "Susuzlukla mücadele eden bölgelerde kalıcı temiz su kuyuları açıyoruz.",
+             CampaignCategory.SU, 50000000, "/demo/water.webp", [50000, 100000, 250000, 500000]),
+            ("yetim-egitim-bursu", "Yetim Eğitim ve Kırtasiye Bursu",
+             "Yetim öğrencilerimizin okul, kırtasiye ve aylık eğitim giderlerine destek oluyoruz.",
+             CampaignCategory.YETIM, 18000000, "/demo/orphan.webp", [30000, 60000, 120000, 300000]),
+        ):
+            db.add(Campaign(
+                organization_id=org.id, slug=slug, title=title, summary=summary,
+                category=cat, status=CampaignStatus.ACTIVE, target_cents=target,
+                currency="TRY", collected_cents=0, cover_image_url=img,
+                suggested_amounts_cents=amounts,
+            ))
+    custom_pw = payload.admin_password.strip() if payload.admin_password else ""
+    password = custom_pw or passwords.temporary_password()
+    must_change = payload.admin_must_change_password if payload.admin_must_change_password is not None else (not bool(custom_pw))
     admin = User(organization_id=org.id, email=admin_email, hashed_password=get_password_hash(password),
                  first_name=payload.admin_first_name.strip(), last_name=payload.admin_last_name.strip(),
-                 role=UserRole.STK_ADMIN, is_active=True, is_verified=True, must_change_password=True)
+                 role=UserRole.STK_ADMIN, is_active=True, is_verified=True, must_change_password=must_change)
     db.add(admin)
     _audit(db, request, operator, "kurum_olustur", org.id, subdomain=subdomain, plan=payload.plan.value,
            admin_email=admin_email)

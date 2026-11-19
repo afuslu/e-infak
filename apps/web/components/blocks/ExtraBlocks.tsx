@@ -70,7 +70,14 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           ? 'w-full'
           : (colsMap[o.columns ?? 3] || colsMap[3])
       const aspect = o.aspect || '4/3'
-      const carouselMode = look === 'coverflow' || look === 'center' || look === 'deck' ? look : isTicker ? 'ticker' : 'default'
+      const carouselMode =
+        look === 'coverflow' || look === 'center' || look === 'deck'
+          ? look
+          : look === 'center_focus_carousel'
+            ? 'center'
+            : isTicker
+              ? 'ticker'
+              : 'default'
       const ytMatch = (url?: string) => url?.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/)?.[1]
       const CardMedia = ({ item, className }: { item: Record<string, any>; className: string }) => {
         const yt = ytMatch(item.video_url)
@@ -421,8 +428,8 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const isChecklist = look === 'checklist'
       const isStrip = look === 'compact_strip'
       const isSplit = look === 'split'
-      const isDark = look === 'dark_cards'
-      const isFlex = look === 'icon_left' || numbered || isChecklist || isStrip
+      const isDark = look === 'dark_cards' || look === 'glass_dark_grid'
+      const isFlex = look === 'icon_left' || look === 'left_icon_minimal' || numbered || isChecklist || isStrip
       const center = o.align !== 'left' && !isFlex && !isSplit
 
       const iconRadius = o.icon_style === 'circle' ? 'rounded-full' : 'rounded-2xl'
@@ -443,6 +450,9 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         hover_reveal: 'group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white p-7 text-gray-900 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary-400 hover:shadow-xl',
         icon_top_line: 'rounded-2xl border border-gray-200 border-t-4 border-t-primary-600 bg-white p-7 text-gray-900 shadow-sm transition hover:shadow-md',
         pill_grid: 'flex items-center gap-3.5 rounded-full border border-gray-200/80 bg-white px-5 py-3.5 text-gray-900 shadow-sm transition hover:border-primary-300 hover:shadow-md',
+        glass_dark_grid: 'rounded-2xl border border-white/15 bg-slate-900/95 p-7 text-white shadow-xl backdrop-blur',
+        left_icon_minimal: 'flex items-start gap-4 border-b border-gray-100 py-4',
+        numbered_accent_cards: 'rounded-2xl border border-primary-100 bg-primary-50/40 p-7 text-gray-900',
       }[look as string] || ''
 
       const renderItem = (item: Record<string, any>, i: number) => {
@@ -570,12 +580,12 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
 
       const isBand = look === 'band'
       const isOdometerDark = look === 'odometer_dark'
-      const isDark = look === 'dark_cards' || isOdometerDark
+      const isDark = look === 'dark_cards' || isOdometerDark || look === 'dark_glow_cards'
       const isLeft = look === 'left_accent'
       const isDivided = look === 'divided'
       const isRings = look === 'rings'
       const isSplit = look === 'split'
-      const isInlineTicker = look === 'inline_ticker'
+      const isInlineTicker = look === 'inline_ticker' || look === 'accent_pill_strip'
       const isHeroRow = look === 'hero_stat_row'
 
       const renderStat = (item: Record<string, any>, i: number) => {
@@ -598,9 +608,11 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
             ? 'rounded-2xl border border-gray-200 border-s-4 border-s-primary-600 bg-white p-5 text-start text-gray-900 shadow-sm sm:p-6'
             : isDark
               ? 'rounded-2xl bg-gray-900 p-5 text-white shadow-lg ring-1 ring-white/10 sm:p-6'
-              : isDivided
-                ? 'p-5 sm:p-6'
-                : ''
+              : look === 'bordered_minimal'
+                ? 'rounded-2xl border border-gray-200 bg-white p-5 text-gray-900 sm:p-6'
+                : isDivided
+                  ? 'p-5 sm:p-6'
+                  : ''
 
         if (isRings) {
           const pct = Math.min(Math.max(numVal, 0), 100)
@@ -741,13 +753,13 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const bars = items.filter((i) => i.label)
       if (!bars.length && !o.title && !o.text) return <Empty editing={editing} text="Hedef çubuğu ekleyin" />
 
-      const isDark = look === 'dark_cards'
+      const isDark = look === 'dark_cards' || look === 'dark_neon_bars'
       const isMilestones = look === 'milestones'
       const isRadial = look === 'radial'
       const isThermometer = look === 'thermometer'
-      const isStepped = look === 'stepped_segments'
+      const isStepped = look === 'stepped_segments' || look === 'striped_urgent'
       const isCompactPills = look === 'compact_pills'
-      const isCards = look === 'cards' || isDark || isThermometer
+      const isCards = look === 'cards' || isDark || isThermometer || look === 'card_grouped_bars'
       const cols = Math.min(Math.max(o.columns ?? 3, 1), 3)
       const colCls = cols === 1 ? 'grid-cols-1 max-w-2xl mx-auto' : cols === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'
 
@@ -920,9 +932,9 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const members = items.filter((i) => i.name)
       if (!members.length && !o.title && !o.text) return <Empty editing={editing} text="Ekip üyesi ekleyin" />
 
-      const isDark = look === 'dark_cards'
+      const isDark = look === 'dark_cards' || look === 'dark_executive_cards'
       const square = o.shape === 'square'
-      const cols = o.columns ?? (look === 'compact' ? 3 : look === 'detailed_list' ? 2 : 4)
+      const cols = o.columns ?? (look === 'compact' || look === 'horizontal_bio_rows' ? 3 : look === 'detailed_list' ? 2 : 4)
       const gridCols = cols === 1 ? 'grid-cols-1' : `grid-cols-2 ${COLS[cols] || COLS[4]}`
 
       const renderLinks = (item: Record<string, any>, onDark = false) => {
@@ -1124,9 +1136,9 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const logos = items.filter((i) => i.image_url || i.name)
       if (!logos.length) return <Empty editing={editing} text="Logo ekleyin" />
       const look = o.look || 'strip'
-      const isDark = look === 'dark_band'
-      const isCards = look === 'cards' || look === 'split'
-      const isDivided = look === 'divided'
+      const isDark = look === 'dark_band' || look === 'dark_monochrome_strip'
+      const isCards = look === 'cards' || look === 'split' || look === 'bordered_tiles'
+      const isDivided = look === 'divided' || look === 'two_row_centered'
       const size = o.size ?? 56
       const cols = Math.min(Math.max(o.columns ?? 4, 2), 6)
       const colCls = COLS[cols] || COLS[4]
@@ -1482,7 +1494,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       return (
         <div className={container}><div className={maxWidth}>
           <Head o={o} />
-          {look === 'year_tabs' ? (
+          {look === 'year_tabs' || look === 'pill_badge_timeline' ? (
             <div className="space-y-6">
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {events.map((item, i) => (
@@ -1504,7 +1516,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                 ))}
               </div>
             </div>
-          ) : look === 'milestone_dark' ? (
+          ) : look === 'milestone_dark' || look === 'glass_dark_timeline' ? (
             <div className="rounded-3xl bg-gray-950 p-6 text-white sm:p-10">
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {events.map((item, i) => (
@@ -1822,6 +1834,43 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       if (!o.text && !o.arabic_text) return <Empty editing={editing} text="Alıntı metnini yazın" />
       const look = o.look || 'centered'
 
+      if (look === 'islamic_calligraphy_box') {
+        return (
+          <blockquote className={container}>
+            <div className="mx-auto max-w-4xl rounded-3xl border-2 border-amber-400/50 bg-gradient-to-b from-amber-50/60 via-white to-amber-50/40 p-8 text-center shadow-md md:p-12">
+              {o.kicker && <div className="mb-3 text-xs font-extrabold uppercase tracking-[3px] text-amber-800">{o.kicker}</div>}
+              {o.arabic_text && <p dir="rtl" className="mb-4 font-serif text-3xl leading-loose text-primary-950">{o.arabic_text}</p>}
+              <p className="font-heading text-xl font-bold leading-relaxed text-gray-900 md:text-2xl">“{o.text}”</p>
+              {o.source && <footer className="mt-4 text-sm font-bold text-amber-900">{o.source}</footer>}
+            </div>
+          </blockquote>
+        )
+      }
+      if (look === 'dark_editorial_quote') {
+        return (
+          <blockquote className="bg-slate-950 py-14 text-white">
+            <div className={`${container} max-w-4xl text-center`}>
+              {o.kicker && <div className="mb-3 text-xs font-extrabold uppercase tracking-[3px] text-accent-300">{o.kicker}</div>}
+              <p className="font-heading text-2xl font-bold leading-snug md:text-4xl">“{o.text}”</p>
+              {o.source && <footer className="mt-5 text-sm font-semibold text-white/70">{o.source}{o.source_role ? ` · ${o.source_role}` : ''}</footer>}
+            </div>
+          </blockquote>
+        )
+      }
+      if (look === 'split_author_photo') {
+        return (
+          <blockquote className={container}>
+            <div className="mx-auto grid max-w-4xl items-center gap-6 rounded-3xl border border-gray-200 bg-white p-7 shadow-sm md:grid-cols-12">
+              {o.image_url && <div className="md:col-span-4"><img src={o.image_url} alt={o.source || ''} className="aspect-square w-full rounded-2xl object-cover" loading="lazy" /></div>}
+              <div className={o.image_url ? 'md:col-span-8' : 'md:col-span-12'}>
+                <p className="font-heading text-xl font-bold leading-relaxed text-gray-900">“{o.text}”</p>
+                {o.source && <footer className="mt-4 text-sm font-bold text-primary-700">{o.source}{o.source_role ? <span className="font-normal text-gray-500"> — {o.source_role}</span> : ''}</footer>}
+              </div>
+            </div>
+          </blockquote>
+        )
+      }
+
       if (look === 'editorial_pullquote') {
         return (
           <blockquote className={container}>
@@ -2136,23 +2185,26 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'before_after':
       if (!o.before_image && !o.after_image) return <Empty editing={editing} text="Önce ve sonra görsellerini seçin" />
-      if (o.look === 'side_by_side') {
+      if (o.look === 'side_by_side' || o.look === 'side_by_side_static' || o.look === 'captioned_split_compare' || o.look === 'dark_frame_compare') {
+        const isDark = o.look === 'dark_frame_compare'
         return (
-          <div className={`${container} max-w-5xl`}>
-            <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
-            <div className="grid gap-5 md:grid-cols-2">
-              <figure className="relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 shadow-sm">
-                {o.before_image && <img src={o.before_image} alt={o.before_label || 'Önce'} className="aspect-[16/10] w-full object-cover" loading="lazy" />}
-                <figcaption className="absolute start-3 top-3 rounded-full bg-gray-950/80 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
-                  {o.before_label || 'Önce'}
-                </figcaption>
-              </figure>
-              <figure className="relative overflow-hidden rounded-2xl border border-primary-200 bg-gray-100 shadow-sm">
-                {o.after_image && <img src={o.after_image} alt={o.after_label || 'Sonra'} className="aspect-[16/10] w-full object-cover" loading="lazy" />}
-                <figcaption className="absolute start-3 top-3 rounded-full bg-primary-600 px-3 py-1 text-xs font-bold text-white shadow-sm">
-                  {o.after_label || 'Sonra'}
-                </figcaption>
-              </figure>
+          <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+            <div className={`${container} max-w-5xl`}>
+              <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
+              <div className="grid gap-5 md:grid-cols-2">
+                <figure className={`relative overflow-hidden rounded-2xl border ${isDark ? 'border-white/15 bg-black' : 'border-gray-200 bg-gray-100'} shadow-sm`}>
+                  {o.before_image && <img src={o.before_image} alt={o.before_label || 'Önce'} className="aspect-[16/10] w-full object-cover" loading="lazy" />}
+                  <figcaption className="absolute start-3 top-3 rounded-full bg-gray-950/80 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
+                    {o.before_label || 'Önce'}
+                  </figcaption>
+                </figure>
+                <figure className={`relative overflow-hidden rounded-2xl border ${isDark ? 'border-amber-400/30 bg-black' : 'border-primary-200 bg-gray-100'} shadow-sm`}>
+                  {o.after_image && <img src={o.after_image} alt={o.after_label || 'Sonra'} className="aspect-[16/10] w-full object-cover" loading="lazy" />}
+                  <figcaption className="absolute start-3 top-3 rounded-full bg-primary-600 px-3 py-1 text-xs font-bold text-white shadow-sm">
+                    {o.after_label || 'Sonra'}
+                  </figcaption>
+                </figure>
+              </div>
             </div>
           </div>
         )
@@ -2187,9 +2239,11 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
               const spanCls = look === 'magazine_asymmetric' && i === 0
                 ? 'md:col-span-2 md:row-span-2'
                 : (spans[item.span] || '')
-              const cardCls = look === 'minimal_border'
+              const cardCls = look === 'minimal_border' || look === 'minimal_outline_bento'
                 ? 'border border-gray-200 bg-white text-gray-900 hover:border-primary-400'
-                : `${tones[item.tone] || tones.light} shadow-sm hover:shadow-xl`
+                : look === 'dark_neon_bento'
+                  ? 'border border-accent-400/30 bg-slate-950 text-white shadow-xl'
+                  : `${tones[item.tone] || tones.light} shadow-sm hover:shadow-xl`
               return (
                 <Go key={i} href={item.url} className={`group relative flex flex-col justify-end overflow-hidden rounded-3xl p-6 transition hover:-translate-y-0.5 ${spanCls} ${cardCls}`}>
                   {item.image_url && (
@@ -2219,7 +2273,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         return item.button_url || (linked ? `/kampanyalar/${linked.slug}` : '/bagis')
       }
 
-      if (look === 'horizontal_rows') {
+      if (look === 'horizontal_rows' || look === 'compact_horizontal_tiers') {
         return (
           <div className={container}>
             <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
@@ -2368,7 +2422,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'video_gallery': {
       const vids = items.filter((i) => i.title || i.video_url)
       if (!vids.length) return <Empty editing={editing} text="Video ekleyin" />
-      if (o.layout === 'dark_cinema') {
+      if (o.layout === 'dark_cinema' || o.layout === 'dark_cinema_grid') {
         return (
           <div className="bg-gray-950 py-14 text-white">
             <div className={container}>
@@ -2378,7 +2432,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      if (o.layout === 'reels_vertical') {
+      if (o.layout === 'reels_vertical' || o.layout === 'vertical_shorts_strip') {
         return (
           <div className={container}>
             <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
@@ -2400,7 +2454,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      if (o.layout === 'featured_playlist' && vids.length > 0) {
+      if ((o.layout === 'featured_playlist' || o.layout === 'featured_plus_thumbs') && vids.length > 0) {
         const [first, ...rest] = vids
         return (
           <div className={container}>
@@ -2439,7 +2493,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'region_cards': {
       const regions = items.filter((i) => i.region)
       if (!regions.length) return <Empty editing={editing} text="Bölge / ülke ekleyin" />
-      if (o.look === 'pills') {
+      if (o.look === 'pills' || o.look === 'flag_stat_pills') {
         return (
           <div className={container}>
             <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
@@ -2605,7 +2659,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       if (!items.length) return <Empty editing={editing} text="Dosya / Rapor İndirme: en az bir belge ekleyin." />
       const cols = COLS[Math.max(1, Math.min(3, Number(o.columns) || 2))] || 'lg:grid-cols-2'
       const look = o.look || 'cards'
-      if (look === 'compact_pills') {
+      if (look === 'compact_pills' || look === 'featured_pdf_banner') {
         return (
           <div className={container}>
             <Head o={o} />
@@ -2621,7 +2675,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      if (look === 'table_list') {
+      if (look === 'table_list' || look === 'icon_compact_rows') {
         return (
           <div className={container}>
             <Head o={o} />
@@ -2682,9 +2736,9 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'newsletter': {
       const look = o.look || 'centered_card'
-      const band = String(look === 'floating_dark' ? 'dark' : (o.band || 'soft'))
+      const band = String(look === 'floating_dark' || look === 'dark_gold_subscribe' ? 'dark' : (o.band || 'soft'))
       const dark = band === 'brand' || band === 'dark'
-      if (look === 'inline_bar' || look === 'split_with_benefits') {
+      if (look === 'inline_bar' || look === 'split_with_benefits' || look === 'split_benefit_subscribe' || look === 'floating_pill_form') {
         return (
           <div className={container}>
             <div className={`grid items-center gap-6 rounded-3xl px-6 py-10 md:grid-cols-12 md:px-10 ${BAND[band] || BAND.soft}`}>
@@ -2720,7 +2774,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       if (!items.length) return <Empty editing={editing} text="İkonlu Liste: en az bir madde ekleyin." />
       const cols = COLS[Math.max(1, Math.min(3, Number(o.columns) || 2))] || 'lg:grid-cols-2'
       const look = o.look || 'clean_list'
-      if (look === 'check_badges') {
+      if (look === 'check_badges' || look === 'two_col_check_pills' || look === 'dark_badge_list') {
         return (
           <div className={container}>
             <Head o={o} />
@@ -2735,7 +2789,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      if (look === 'timeline_mini') {
+      if (look === 'timeline_mini' || look === 'bordered_step_list') {
         return (
           <div className={container}>
             <Head o={o} />
@@ -3569,6 +3623,861 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                 {a.issuer && <div className="mt-1 text-xs text-gray-500">{a.issuer}</div>}
               </div>
             ))}
+          </div>
+        </div>
+      )
+    }
+    case 'iftar_counter': {
+      const meals = items.filter((i) => i.title)
+      if (!meals.length) return <Empty editing={editing} text="İftar / kumanya paketi ekleyin" />
+      const isDark = o.look === 'dark_gold_iftar'
+      return (
+        <div className={isDark ? 'bg-gradient-to-br from-gray-950 via-primary-950 to-amber-950/60 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {meals.map((m, i) => {
+                const unit = Math.max(10, Number(m.unit_price) || 150)
+                const col = Math.max(0, Number(m.collected_count) || 0)
+                const tgt = Math.max(1, Number(m.target_count) || 500)
+                const pct = Math.min(100, Math.round((col / tgt) * 100))
+                const base = String(m.url || '/bagis')
+                const sep = base.includes('?') ? '&' : '?'
+                return (
+                  <div key={i} className={`flex flex-col justify-between rounded-3xl p-6 ${isDark ? 'border border-amber-400/20 bg-white/5 text-white' : 'border border-gray-200 bg-white text-gray-900 shadow-sm'}`}>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-3xl">{m.icon || '🍲'}</span>
+                        <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-primary-50 text-primary-700'}`}>{unit} ₺</span>
+                      </div>
+                      <h3 className="mt-3 font-heading text-lg font-bold">{m.title}</h3>
+                      <div className="mt-3 flex justify-between text-xs opacity-75">
+                        <span>{col.toLocaleString('tr-TR')} / {tgt.toLocaleString('tr-TR')}</span>
+                        <span>%{pct}</span>
+                      </div>
+                      <div className={`mt-1.5 h-2.5 overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
+                        <div className="h-full rounded-full bg-gradient-to-r from-primary-500 to-amber-500" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    <div className="mt-5 grid grid-cols-3 gap-2">
+                      {[1, 5, 10].map((qty) => (
+                        <Go key={qty} href={`${base}${sep}tutar=${unit * qty}`} className={`rounded-xl py-2 text-center text-xs font-extrabold transition ${isDark ? 'bg-amber-500 text-gray-950 hover:bg-amber-400' : 'bg-primary-50 text-primary-800 hover:bg-primary-600 hover:text-white'}`}>
+                          {qty} Adet
+                        </Go>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'facility_rooms': {
+      const rooms = items.filter((i) => i.title)
+      if (!rooms.length) return <Empty editing={editing} text="Bölüm / oda ekleyin" />
+      const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className={`grid gap-5 sm:grid-cols-2 ${cols}`}>
+            {rooms.map((r, i) => (
+              <Go key={i} href={r.url || '/bagis'} className="flex flex-col justify-between rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-primary-400 hover:shadow-md">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl">{r.icon || '🏫'}</span>
+                    {r.status && <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">{r.status}</span>}
+                  </div>
+                  <h3 className="mt-3 font-heading text-lg font-bold text-gray-900">{r.title}</h3>
+                  {r.amount && <div className="mt-1 font-heading text-xl font-extrabold text-primary-700">{r.amount}</div>}
+                </div>
+                <span className="mt-4 inline-flex text-xs font-extrabold text-primary-700">Sponsor Ol →</span>
+              </Go>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    case 'memory_wall': {
+      const notes = items.filter((i) => i.note || i.author)
+      if (!notes.length) return <Empty editing={editing} text="Dilek veya hatıra notu ekleyin" />
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="columns-1 gap-5 space-y-5 md:columns-2 lg:columns-3">
+            {notes.map((n, i) => (
+              <div key={i} className="break-inside-avoid rounded-2xl border border-amber-200/70 bg-gradient-to-br from-amber-50/40 via-white to-white p-6 shadow-sm">
+                {n.dedicated_to && <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-amber-800">🕊️ {n.dedicated_to}</div>}
+                {n.note && <p className="text-sm italic leading-relaxed text-gray-700">“{n.note}”</p>}
+                {(n.author || n.date) && (
+                  <div className="mt-4 flex items-center justify-between border-t border-amber-100 pt-3 text-xs text-gray-500">
+                    <span className="font-bold text-gray-900">{n.author}</span>
+                    <span>{n.date}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    case 'medical_relief': {
+      const aids = items.filter((i) => i.title)
+      if (!aids.length) return <Empty editing={editing} text="Sağlık desteği ekleyin" />
+      const isDark = o.look === 'dark_clinic'
+      const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
+      return (
+        <div className={isDark ? 'bg-gray-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
+              {aids.map((a, i) => (
+                <Go key={i} href={a.url || '/bagis'} className={`group overflow-hidden rounded-3xl transition hover:-translate-y-0.5 hover:shadow-xl ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-gray-200 bg-white text-gray-900 shadow-sm'}`}>
+                  {a.image_url && <img src={a.image_url} alt={a.title || ''} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />}
+                  <div className="p-6">
+                    {a.badge && <span className={`mb-2 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${isDark ? 'bg-white/15 text-accent-300' : 'bg-primary-50 text-primary-700'}`}>{a.badge}</span>}
+                    <h3 className="font-heading text-lg font-bold">{a.title}</h3>
+                    {a.amount && <div className={`mt-1 font-heading text-xl font-extrabold ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>{a.amount}</div>}
+                    {a.text && <p className={`mt-1.5 text-xs leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{a.text}</p>}
+                  </div>
+                </Go>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'alumni_stories': {
+      const stories = items.filter((i) => i.name || i.quote)
+      if (!stories.length) return <Empty editing={editing} text="Öğrenci hikayesi ekleyin" />
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="grid gap-6 md:grid-cols-3">
+            {stories.map((s, i) => (
+              <div key={i} className="flex flex-col justify-between rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+                <p className="text-sm leading-relaxed text-gray-700">“{s.quote}”</p>
+                <div className="mt-5 flex items-center gap-3 border-t border-gray-100 pt-4">
+                  {s.image_url
+                    ? <img src={s.image_url} alt={s.name || ''} className="h-11 w-11 rounded-full object-cover" loading="lazy" />
+                    : <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-50 font-bold text-primary-700">{(s.name || 'Ö').charAt(0)}</span>}
+                  <div>
+                    <div className="font-heading text-sm font-bold text-gray-900">{s.name}</div>
+                    {s.program && <div className="text-xs text-primary-600">{s.program}</div>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    case 'relief_checklist': {
+      const needs = items.filter((i) => i.title)
+      if (!needs.length) return <Empty editing={editing} text="İhtiyaç kalemi ekleyin" />
+      const urgCls: Record<string, { label: string; cls: string }> = {
+        critical: { label: 'Çok Acil', cls: 'bg-red-100 text-red-800' },
+        high: { label: 'Yüksek', cls: 'bg-amber-100 text-amber-800' },
+        normal: { label: 'Normal', cls: 'bg-gray-100 text-gray-700' },
+      }
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {needs.map((n, i) => {
+              const u = urgCls[n.urgency || 'high'] || urgCls.high
+              return (
+                <Go key={i} href={n.url || '/bagis'} className="flex flex-col justify-between rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-primary-400">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-2xl">{n.icon || '📦'}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${u.cls}`}>{u.label}</span>
+                    </div>
+                    <h3 className="mt-3 font-heading text-base font-bold text-gray-900">{n.title}</h3>
+                    {n.amount && <div className="mt-1 font-heading text-lg font-extrabold text-primary-700">{n.amount}</div>}
+                  </div>
+                  <span className="mt-4 inline-flex text-xs font-extrabold text-primary-700">Karşıla →</span>
+                </Go>
+              )
+            })}
+          </div>
+        </div>
+      )
+    }
+    case 'social_feed_grid': {
+      const posts = items.filter((i) => i.image_url)
+      if (!posts.length) return <Empty editing={editing} text="Sosyal medya görseli ekleyin" />
+      const isDark = o.look === 'dark_gallery'
+      return (
+        <div className={isDark ? 'bg-gray-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {posts.map((p, i) => (
+                <Go key={i} href={p.url || o.profile_url} className="group relative aspect-square overflow-hidden rounded-2xl bg-gray-900">
+                  <img src={p.image_url} alt={p.caption || ''} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+                  {p.caption && (
+                    <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/75 via-transparent to-transparent p-3 opacity-0 transition group-hover:opacity-100">
+                      <span className="line-clamp-2 text-xs font-semibold text-white">{p.caption}</span>
+                    </div>
+                  )}
+                </Go>
+              ))}
+            </div>
+            {(o.handle || o.profile_url) && (
+              <div className="mt-6 text-center">
+                <a href={o.profile_url || '#'} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2.5 text-xs font-extrabold text-white shadow hover:bg-primary-700">
+                  📸 {o.handle || 'Takip Et'} ↗
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+    case 'recurring_planner': {
+      const defAmt = Number(o.default_amount) || 300
+      const unitP = Number(o.unit_price) || 100
+      const presets = [150, defAmt, defAmt * 2, defAmt * 4].filter((v, idx, arr) => v > 0 && arr.indexOf(v) === idx)
+      const isDark = o.look === 'dark_gold'
+      const annualUnits = Math.max(1, Math.round((defAmt * 12) / unitP))
+      return (
+        <div className={isDark ? 'bg-gradient-to-br from-slate-950 via-primary-950 to-slate-900 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`mx-auto max-w-4xl rounded-3xl border p-7 sm:p-10 ${isDark ? 'border-amber-400/30 bg-white/5' : 'border-primary-100 bg-white shadow-lg'}`}>
+              <div className="grid items-center gap-8 md:grid-cols-12">
+                <div className="md:col-span-7">
+                  <div className={`text-xs font-bold uppercase tracking-widest ${isDark ? 'text-amber-300' : 'text-primary-600'}`}>Aylık Kumbara Seçenekleri</div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {presets.map((amt) => (
+                      <Link key={amt} href={`${o.button_url || '/bagis'}?amount=${amt}`} className={`rounded-2xl border p-3.5 text-center transition hover:-translate-y-0.5 ${amt === defAmt ? (isDark ? 'border-amber-400 bg-amber-400/15 text-amber-200' : 'border-primary-600 bg-primary-50 text-primary-900') : (isDark ? 'border-white/15 bg-white/5 text-white hover:border-white/30' : 'border-gray-200 bg-gray-50 text-gray-900 hover:border-primary-300')}`}>
+                        <div className="font-heading text-lg font-extrabold">{amt.toLocaleString('tr-TR')} ₺</div>
+                        <div className={`text-[11px] ${isDark ? 'text-white/70' : 'text-gray-500'}`}>/ ay</div>
+                      </Link>
+                    ))}
+                  </div>
+                  {o.unit_label && <p className={`mt-4 text-xs font-semibold ${isDark ? 'text-white/75' : 'text-gray-600'}`}>💡 {o.unit_label}</p>}
+                </div>
+                <div className={`rounded-2xl p-6 text-center md:col-span-5 ${isDark ? 'bg-amber-400/10 border border-amber-400/25' : 'bg-primary-50'}`}>
+                  <div className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>Yıllık Toplam Etki</div>
+                  <div className={`mt-1 font-heading text-4xl font-black ${isDark ? 'text-white' : 'text-primary-900'}`}>{annualUnits}×</div>
+                  <div className={`mt-1 text-xs ${isDark ? 'text-white/75' : 'text-gray-600'}`}>Aylık {defAmt.toLocaleString('tr-TR')} ₺ düzenli destek ile yılda {(defAmt * 12).toLocaleString('tr-TR')} ₺</div>
+                  <Link href={`${o.button_url || '/bagis'}?amount=${defAmt}`} className={`mt-5 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-extrabold shadow transition ${isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
+                    {o.button_label || 'Düzenli Bağışa Başla'} →
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'field_representatives': {
+      const reps = items.filter((i) => i.city || i.name)
+      if (!reps.length) return <Empty editing={editing} text="Temsilci ekleyin" />
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {reps.map((r, i) => (
+              <div key={i} className="flex flex-col justify-between rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">{r.region || 'Türkiye'}</span>
+                    {r.status && <span className="text-[11px] font-semibold text-emerald-700">● {r.status}</span>}
+                  </div>
+                  <h3 className="mt-2.5 font-heading text-lg font-bold text-gray-900">{r.city}</h3>
+                  {r.name && <p className="text-sm text-gray-600">{r.name}</p>}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                  {r.phone && <a href={`tel:${String(r.phone).replace(/\s+/g, '')}`} className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-800 hover:bg-gray-200">📞 {r.phone}</a>}
+                  {r.whatsapp && <a href={`https://wa.me/${String(r.whatsapp).replace(/\D+/g, '')}`} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100">💬 WhatsApp</a>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    case 'qurbani_status': {
+      const stages = items.filter((i) => i.title)
+      const isDark = o.look === 'dark_verified'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`mx-auto max-w-4xl rounded-3xl border p-7 sm:p-10 ${isDark ? 'border-white/15 bg-white/5' : 'border-primary-100 bg-white shadow-sm'}`}>
+              <form action={o.support_url || '/iletisim'} method="get" className="flex flex-col gap-3 sm:flex-row">
+                <input name="q" type="text" placeholder={o.placeholder || 'Bağış kodunuz veya 05XX...'} className={`min-w-0 flex-1 rounded-xl border px-4 py-3 text-sm font-medium focus:outline-none ${isDark ? 'border-white/20 bg-white/10 text-white placeholder:text-white/50' : 'border-gray-200 bg-gray-50 text-gray-900'}`} />
+                <button type="submit" className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700">Durum Sorgula</button>
+              </form>
+              {stages.length > 0 && (
+                <div className="mt-7 grid gap-4 sm:grid-cols-3">
+                  {stages.map((st, i) => (
+                    <div key={i} className={`rounded-2xl border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-100 bg-gray-50'}`}>
+                      <div className="text-xs font-extrabold text-primary-600">{st.step || `0${i + 1}`}</div>
+                      <div className={`mt-1 font-heading text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{st.title}</div>
+                      {st.detail && <p className={`mt-1 text-xs ${isDark ? 'text-white/70' : 'text-gray-600'}`}>{st.detail}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'impact_bundles': {
+      const bundles = items.filter((i) => i.title)
+      if (!bundles.length) return <Empty editing={editing} text="Yardım paketi ekleyin" />
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="grid gap-6 md:grid-cols-3">
+            {bundles.map((b, i) => (
+              <div key={i} className="flex flex-col justify-between rounded-3xl border border-gray-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+                <div>
+                  {b.badge && <span className="mb-3 inline-block rounded-full bg-accent-50 px-3 py-1 text-[11px] font-extrabold text-accent-700">{b.badge}</span>}
+                  <h3 className="font-heading text-xl font-bold text-gray-900">{b.title}</h3>
+                  {b.price && <div className="mt-2 font-heading text-3xl font-black text-primary-700">{b.price}</div>}
+                  {b.contents && (
+                    <ul className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-sm text-gray-600">
+                      {String(b.contents).split('\n').filter(Boolean).map((line, idx) => (
+                        <li key={idx} className="flex items-start gap-2"><span className="text-emerald-600">✓</span><span>{line}</span></li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <Link href={b.url || '/bagis'} className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-primary-600 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700">
+                  {b.button_label || 'Paketi Bağışla'}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    case 'publications_shelf': {
+      const pubs = items.filter((i) => i.title)
+      if (!pubs.length) return <Empty editing={editing} text="Yayın ekleyin" />
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {pubs.map((p, i) => (
+              <Go key={i} href={p.file_url || '#'} className="group flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+                <div className="aspect-[3/4] overflow-hidden bg-gray-100">
+                  {p.image_url ? <img src={p.image_url} alt={p.title || ''} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" /> : <div className="flex h-full items-center justify-center text-4xl">📚</div>}
+                </div>
+                <div className="flex flex-1 flex-col justify-between p-4">
+                  <div>
+                    {p.issue && <div className="text-[11px] font-bold uppercase tracking-wider text-primary-600">{p.issue}</div>}
+                    <h3 className="mt-1 font-heading text-base font-bold text-gray-900">{p.title}</h3>
+                    {p.summary && <p className="mt-1 line-clamp-2 text-xs text-gray-600">{p.summary}</p>}
+                  </div>
+                  {p.file_url && <span className="mt-3 inline-flex text-xs font-extrabold text-primary-700">Oku / İndir →</span>}
+                </div>
+              </Go>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    case 'convoy_tracker': {
+      const convoys = items.filter((i) => i.title)
+      if (!convoys.length) return <Empty editing={editing} text="Konvoy bilgisi ekleyin" />
+      const isDark = o.look === 'dark_dispatch'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-4 md:grid-cols-2">
+              {convoys.map((c, i) => {
+                const pct = Math.min(100, Math.max(0, Number(c.progress) || 0))
+                return (
+                  <div key={i} className={`rounded-2xl border p-6 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${isDark ? 'bg-accent-500/20 text-accent-300' : 'bg-primary-50 text-primary-700'}`}>{c.code || `KONVOY-${i + 1}`}</span>
+                      {c.status && <span className={`text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>● {c.status}</span>}
+                    </div>
+                    <h3 className={`mt-2.5 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.title}</h3>
+                    {c.cargo && <p className={`mt-1 text-sm ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{c.cargo}</p>}
+                    <div className="mt-4">
+                      <div className="mb-1 flex justify-between text-xs font-bold">
+                        <span className={isDark ? 'text-white/70' : 'text-gray-500'}>Sevkiyat İlerlemesi</span>
+                        <span>%{pct}</span>
+                      </div>
+                      <div className={`h-2.5 w-full overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
+                        <div className="h-full rounded-full bg-primary-600" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'tax_exemption_info': {
+      const perks = items.filter((i) => i.title)
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="rounded-3xl border border-primary-100 bg-gradient-to-br from-primary-50/70 via-white to-white p-7 shadow-sm sm:p-10">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-gray-200/80 pb-5">
+              <div>
+                {o.law_ref && <span className="inline-block rounded-full bg-primary-600 px-3 py-1 text-xs font-bold text-white">{o.law_ref}</span>}
+                <p className="mt-2 text-sm text-gray-600">Kurumsal ve bireysel bağışçılarımız için resmi vergi muafiyeti ve dekont avantajları.</p>
+              </div>
+              {o.button_label && (
+                <Link href={o.button_url || '/iletisim'} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-extrabold text-white shadow hover:bg-primary-700">
+                  {o.button_label}
+                </Link>
+              )}
+            </div>
+            <div className="grid gap-5 md:grid-cols-3">
+              {perks.map((p, i) => (
+                <div key={i} className="rounded-2xl border border-gray-200 bg-white p-5">
+                  {p.badge && <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-extrabold text-emerald-700">{p.badge}</span>}
+                  <h3 className="mt-2 font-heading text-base font-bold text-gray-900">{p.title}</h3>
+                  {p.text && <p className="mt-1.5 text-sm text-gray-600">{p.text}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'crisis_regions_map': {
+      const regions = items.filter((i) => i.region)
+      if (!regions.length) return <Empty editing={editing} text="Kriz bölgesi ekleyin" />
+      const isDark = o.look === 'dark_command_center'
+      const urgBadge: Record<string, string> = {
+        critical: 'bg-red-600 text-white',
+        high: 'bg-amber-500 text-slate-950',
+        active: 'bg-emerald-600 text-white',
+      }
+      const urgText: Record<string, string> = { critical: 'KRİTİK', high: 'YÜKSEK', active: 'AKTİF' }
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {regions.map((r, i) => (
+                <Go key={i} href={r.url || '/bagis'} className={`flex flex-col justify-between rounded-2xl border p-5 transition hover:-translate-y-0.5 ${isDark ? 'border-white/10 bg-white/5 hover:border-white/25' : 'border-gray-200 bg-white shadow-sm hover:border-primary-400'}`}>
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-2xl">{r.flag || '🌍'}</span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold ${urgBadge[r.urgency || 'critical'] || urgBadge.critical}`}>
+                        {urgText[r.urgency || 'critical'] || 'KRİTİK'}
+                      </span>
+                    </div>
+                    <h3 className={`mt-2.5 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{r.region}</h3>
+                    {r.teams && <div className={`mt-1 text-xs font-semibold ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>{r.teams}</div>}
+                    {r.need && <p className={`mt-2 text-sm ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{r.need}</p>}
+                  </div>
+                  <span className={`mt-4 inline-flex text-xs font-extrabold ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>Bölgeye Destek Ol →</span>
+                </Go>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'nisab_rates_bar': {
+      const rates = items.filter((i) => i.label || i.value)
+      if (!rates.length) return <Empty editing={editing} text="Birim ekleyin" />
+      const isDark = o.look === 'dark_gold_table'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-12 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4`}>
+              {rates.map((r, i) => (
+                <div key={i} className={`rounded-2xl border p-5 ${isDark ? 'border-amber-400/25 bg-white/5' : 'border-primary-100 bg-white shadow-sm'}`}>
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary-600">
+                    <span>{r.icon || '🪙'}</span>
+                    <span className={isDark ? 'text-amber-300' : 'text-primary-700'}>{r.label}</span>
+                  </div>
+                  <div className={`mt-2 font-heading text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{r.value}</div>
+                  {r.note && <div className={`mt-1 text-xs ${isDark ? 'text-white/65' : 'text-gray-500'}`}>{r.note}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'mushaf_distribution': {
+      const list = items.filter((i) => i.country)
+      if (!list.length) return <Empty editing={editing} text="Ülke ekleyin" />
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="rounded-3xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/60 via-white to-white p-6 shadow-sm sm:p-9">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-emerald-100 pb-5">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-widest text-emerald-700">1 Mushaf Bedeli</div>
+                <div className="font-heading text-3xl font-black text-gray-900">{o.unit_price || '150 ₺'}</div>
+              </div>
+              <Link href={o.button_url || '/bagis'} className="rounded-xl bg-emerald-700 px-6 py-3 text-sm font-extrabold text-white shadow hover:bg-emerald-800">
+                📖 {o.button_label || 'Mushaf Hediye Et'}
+              </Link>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {list.map((m, i) => (
+                <div key={i} className="rounded-2xl border border-gray-200 bg-white p-4">
+                  <div className="font-heading text-2xl font-black text-emerald-700">{m.count}</div>
+                  <div className="mt-1 font-heading text-base font-bold text-gray-900">{m.country}</div>
+                  {m.note && <div className="mt-1 text-xs text-gray-500">{m.note}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'governance_board': {
+      const members = items.filter((i) => i.name)
+      if (!members.length) return <Empty editing={editing} text="Kurul üyesi ekleyin" />
+      const isDark = o.look === 'dark_executive'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {members.map((m, i) => (
+                <div key={i} className={`rounded-2xl border p-5 text-center ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
+                  <div className="mx-auto h-20 w-20 overflow-hidden rounded-full bg-primary-50">
+                    {m.image_url ? <img src={m.image_url} alt={m.name} className="h-full w-full object-cover object-top" loading="lazy" /> : <div className="flex h-full items-center justify-center font-heading text-2xl font-bold text-primary-700">{String(m.name).charAt(0)}</div>}
+                  </div>
+                  <h3 className={`mt-3 font-heading text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{m.name}</h3>
+                  {m.role && <div className={`mt-0.5 text-xs font-bold ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>{m.role}</div>}
+                  {m.committee && <div className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${isDark ? 'bg-white/10 text-white/80' : 'bg-gray-100 text-gray-600'}`}>{m.committee}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'donor_tiers_wall': {
+      const tiers = items.filter((i) => i.title)
+      if (!tiers.length) return <Empty editing={editing} text="Destek kademesi ekleyin" />
+      const isDark = o.look === 'dark_honor_roll'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-5 md:grid-cols-3">
+              {tiers.map((t, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-3xl border p-7 ${isDark ? 'border-amber-400/25 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    <span className="text-3xl">{t.icon || '🏅'}</span>
+                    <h3 className={`mt-3 font-heading text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t.title}</h3>
+                    {t.amount && <div className={`mt-1 font-heading text-lg font-extrabold ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>{t.amount}</div>}
+                    {t.impact && <p className={`mt-3 text-sm leading-relaxed ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{t.impact}</p>}
+                  </div>
+                  <Link href={t.url || '/bagis'} className={`mt-6 inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-extrabold ${isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
+                    Destek Ol →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'sacred_days_banner': {
+      const isDark = o.look !== 'compact_strip'
+      return (
+        <div className={container}>
+          <div className={`rounded-3xl p-8 sm:p-12 ${isDark ? 'border border-amber-400/30 bg-gradient-to-br from-slate-950 via-primary-950 to-slate-900 text-white shadow-2xl' : 'border border-primary-200 bg-primary-50/70 text-gray-900'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <div className="max-w-2xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider ${isDark ? 'bg-amber-400/20 text-amber-300' : 'bg-primary-600 text-white'}`}>
+                    🌙 {o.occasion || 'Mübarek Gün'}
+                  </span>
+                  {o.date_label && <span className={`text-xs font-bold ${isDark ? 'text-white/70' : 'text-gray-600'}`}>{o.date_label}</span>}
+                </div>
+                {o.title && <h2 className="mt-3 font-heading text-2xl font-extrabold sm:text-3xl">{o.title}</h2>}
+                {o.text && <p className={`mt-2 text-sm sm:text-base ${isDark ? 'text-white/80' : 'text-gray-600'}`}>{o.text}</p>}
+              </div>
+              <Link href={o.button_url || '/bagis'} className={`rounded-xl px-7 py-3.5 text-sm font-extrabold shadow-lg ${isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
+                {o.button_label || 'Kandil Sadakası Ver'} →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'documentary_spotlight': {
+      const chapters = items.filter((i) => i.title)
+      const isDark = o.look === 'playlist_dark'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid items-center gap-8 rounded-3xl border p-6 sm:p-8 lg:grid-cols-12 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
+              <div className="overflow-hidden rounded-2xl bg-black lg:col-span-7">
+                {o.poster_url ? (
+                  <a href={o.video_url || '#'} target="_blank" rel="noopener noreferrer" className="group relative block aspect-video">
+                    <img src={o.poster_url} alt={o.title || ''} className="h-full w-full object-cover opacity-85 transition group-hover:scale-105" />
+                    <span className="absolute inset-0 flex items-center justify-center"><span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/90 text-2xl text-primary-700 shadow-xl">▶</span></span>
+                    {o.duration && <span className="absolute bottom-3 end-3 rounded-md bg-black/75 px-2.5 py-1 text-xs font-bold text-white">{o.duration}</span>}
+                  </a>
+                ) : (
+                  <div className="flex aspect-video items-center justify-center text-4xl text-white/40">🎬</div>
+                )}
+              </div>
+              <div className="space-y-3 lg:col-span-5">
+                <div className={`text-xs font-bold uppercase tracking-widest ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>Belgesel Bölümleri</div>
+                {chapters.map((ch, i) => (
+                  <div key={i} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-100 bg-gray-50'}`}>
+                    <span className={`rounded-md px-2 py-0.5 text-xs font-extrabold ${isDark ? 'bg-accent-500/20 text-accent-300' : 'bg-primary-100 text-primary-700'}`}>{ch.time || `0${i + 1}:00`}</span>
+                    <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{ch.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'iban_reference_helper': {
+      const codes = items.filter((i) => i.code || i.label)
+      if (!codes.length) return <Empty editing={editing} text="Açıklama kodu ekleyin" />
+      const isDark = o.look === 'dark_bank'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            {o.recipient_name && (
+              <div className={`mb-5 text-center text-sm font-bold ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>
+                Alıcı Adı: {o.recipient_name}
+              </div>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {codes.map((c, i) => (
+                <div key={i} className={`rounded-2xl border p-5 ${isDark ? 'border-white/15 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
+                  <div className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>{c.label}</div>
+                  <div className={`mt-2 rounded-lg px-3 py-2 font-mono text-sm font-extrabold ${isDark ? 'bg-black/40 text-white' : 'bg-primary-50 text-primary-900'}`}>{c.code}</div>
+                  {c.example && <p className={`mt-2 text-xs ${isDark ? 'text-white/70' : 'text-gray-500'}`}>{c.example}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'qurbani_animal_types': {
+      const opts = items.filter((i) => i.title)
+      if (!opts.length) return <Empty editing={editing} text="Kurban seçeneği ekleyin" />
+      const isDark = o.look === 'dark_eid'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-5 md:grid-cols-3">
+              {opts.map((q, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-3xl border p-6 ${isDark ? 'border-amber-400/25 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-3xl">{q.icon || '🐑'}</span>
+                      {q.badge && <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${isDark ? 'bg-amber-400/15 text-amber-300' : 'bg-primary-50 text-primary-700'}`}>{q.badge}</span>}
+                    </div>
+                    <h3 className={`mt-3 font-heading text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{q.title}</h3>
+                    {q.price && <div className={`mt-1 font-heading text-2xl font-black ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>{q.price}</div>}
+                    {q.detail && <p className={`mt-2 text-sm ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{q.detail}</p>}
+                  </div>
+                  <Link href={q.url || '/bagis'} className={`mt-5 inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-extrabold ${isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
+                    Vekalet Ver →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'fatwa_cards': {
+      const qa = items.filter((i) => i.question)
+      if (!qa.length) return <Empty editing={editing} text="Fetva / soru ekleyin" />
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="grid gap-5 md:grid-cols-2">
+            {qa.map((f, i) => (
+              <div key={i} className="rounded-2xl border border-primary-100 bg-white p-6 shadow-sm">
+                {f.category && <span className="inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-extrabold text-primary-700">{f.category}</span>}
+                <h3 className="mt-2 font-heading text-lg font-bold text-gray-900">{f.question}</h3>
+                {f.ruling && <p className="mt-2 text-sm leading-relaxed text-gray-600">{f.ruling}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    case 'soup_kitchen_status': {
+      const locs = items.filter((i) => i.location)
+      const isDark = o.look === 'dark_kitchen'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`rounded-3xl border p-7 sm:p-10 ${isDark ? 'border-white/15 bg-white/5' : 'border-amber-200 bg-gradient-to-br from-amber-50/70 via-white to-white shadow-sm'}`}>
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-gray-200/40 pb-5">
+                <div>
+                  {o.daily_meals && <div className={`font-heading text-3xl font-black ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>🍲 {o.daily_meals}</div>}
+                  <div className={`text-sm font-semibold ${isDark ? 'text-white/75' : 'text-gray-600'}`}>1 Öğün Sıcak Yemek: {o.meal_price || '85 ₺'}</div>
+                </div>
+                <Link href={o.button_url || '/bagis'} className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700">
+                  {o.button_label || 'Sıcak Yemek İkram Et'}
+                </Link>
+              </div>
+              {locs.length > 0 && (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {locs.map((l, i) => (
+                    <div key={i} className={`rounded-2xl border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-white'}`}>
+                      <div className={`font-heading text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{l.location}</div>
+                      {l.count && <div className="mt-1 text-sm font-extrabold text-primary-600">{l.count}</div>}
+                      {l.menu && <div className={`mt-1 text-xs ${isDark ? 'text-white/70' : 'text-gray-500'}`}>{l.menu}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'well_types_compare': {
+      const wells = items.filter((i) => i.title)
+      if (!wells.length) return <Empty editing={editing} text="Kuyu türü ekleyin" />
+      const isDark = o.look === 'dark_blue_water'
+      return (
+        <div className={isDark ? 'bg-gradient-to-br from-sky-950 via-slate-950 to-sky-900 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-5 md:grid-cols-3">
+              {wells.map((w, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-3xl border p-6 ${isDark ? 'border-sky-400/25 bg-white/5' : 'border-sky-100 bg-white shadow-sm'}`}>
+                  <div>
+                    {w.badge && <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${isDark ? 'bg-sky-400/20 text-sky-300' : 'bg-sky-50 text-sky-700'}`}>{w.badge}</span>}
+                    <h3 className={`mt-2.5 font-heading text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{w.title}</h3>
+                    {w.price && <div className={`mt-1 font-heading text-2xl font-black ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>{w.price}</div>}
+                    <dl className={`mt-4 space-y-1.5 border-t pt-3 text-xs ${isDark ? 'border-white/10 text-white/80' : 'border-gray-100 text-gray-600'}`}>
+                      {w.depth && <div><strong>Kapasite:</strong> {w.depth}</div>}
+                      {w.beneficiaries && <div><strong>Faydalanan:</strong> {w.beneficiaries}</div>}
+                      {w.duration && <div><strong>Süre:</strong> {w.duration}</div>}
+                    </dl>
+                  </div>
+                  <Link href={w.url || '/bagis'} className="mt-5 inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-extrabold text-white hover:bg-sky-700">
+                    Kuyu Açtır →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'field_diaries': {
+      const notes = items.filter((i) => i.title)
+      if (!notes.length) return <Empty editing={editing} text="Saha günlüğü ekleyin" />
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className="grid gap-5 md:grid-cols-3">
+            {notes.map((d, i) => (
+              <article key={i} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                {d.image_url && <img src={d.image_url} alt={d.title || ''} className="aspect-[16/10] w-full object-cover" loading="lazy" />}
+                <div className="p-5">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-primary-600">
+                    {d.date && <span>📅 {d.date}</span>}
+                    {d.location && <span>📍 {d.location}</span>}
+                  </div>
+                  <h3 className="mt-2 font-heading text-base font-bold text-gray-900">{d.title}</h3>
+                  {d.note && <p className="mt-1.5 text-sm text-gray-600">{d.note}</p>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    case 'sponsor_certificates': {
+      const sponsors = items.filter((i) => i.company)
+      if (!sponsors.length) return <Empty editing={editing} text="Sponsor ekleyin" />
+      const isDark = o.look === 'dark_prestige'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {sponsors.map((s, i) => (
+                <div key={i} className={`rounded-2xl border p-6 ${isDark ? 'border-amber-400/25 bg-white/5' : 'border-amber-200/70 bg-gradient-to-br from-amber-50/40 via-white to-white shadow-sm'}`}>
+                  <div className="text-2xl">🏆</div>
+                  <h3 className={`mt-2 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{s.company}</h3>
+                  {s.tier && <div className={`mt-0.5 text-xs font-bold ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>{s.tier}</div>}
+                  {s.impact && <p className={`mt-2 text-sm ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{s.impact}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'surgery_sponsorship': {
+      const cases = items.filter((i) => i.title)
+      if (!cases.length) return <Empty editing={editing} text="Ameliyat / vaka ekleyin" />
+      const isDark = o.look === 'dark_clinic'
+      return (
+        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-5 md:grid-cols-3">
+              {cases.map((c, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl border p-6 ${isDark ? 'border-white/15 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-2xl">{c.icon || '👁️'}</span>
+                      {c.waiting && <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-extrabold text-red-700">{c.waiting}</span>}
+                    </div>
+                    <h3 className={`mt-3 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.title}</h3>
+                    {c.cost && <div className={`mt-1 font-heading text-2xl font-black ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>{c.cost}</div>}
+                  </div>
+                  <Link href={c.url || '/bagis'} className="mt-5 inline-flex items-center justify-center rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-extrabold text-white hover:bg-primary-700">
+                    Bir Hastaya Umut Ol →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'mobile_channels_hub': {
+      const isDark = o.look === 'dark_app_hub'
+      return (
+        <div className={container}>
+          <div className={`rounded-3xl border p-7 sm:p-10 ${isDark ? 'border-white/15 bg-slate-950 text-white' : 'border-primary-100 bg-primary-50/50 text-gray-900'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <div className="max-w-xl">
+                {o.kicker && <div className={`text-xs font-bold uppercase tracking-widest ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>{o.kicker}</div>}
+                {o.title && <h2 className="mt-1 font-heading text-2xl font-extrabold sm:text-3xl">{o.title}</h2>}
+                {o.sms_code && <div className={`mt-3 inline-block rounded-xl px-4 py-2 text-sm font-extrabold ${isDark ? 'bg-white/10 text-amber-300' : 'bg-white text-primary-800 shadow-xs'}`}>📩 {o.sms_code}</div>}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {o.whatsapp_url && <a href={o.whatsapp_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-emerald-700">💬 WhatsApp Hattı</a>}
+                {o.ios_url && <a href={o.ios_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-black">App Store</a>}
+                {o.android_url && <a href={o.android_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700">Google Play</a>}
+              </div>
+            </div>
           </div>
         </div>
       )

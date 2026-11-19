@@ -652,7 +652,7 @@ export function BankAccountsView({
   const l = BANK_L10N[locale] || BANK_L10N.tr
   const currencies = Array.from(new Set(accounts.map((a) => a.currency || 'TRY')))
   const [selectedCurrency, setSelectedCurrency] = useState('ALL')
-  const useTabs = (look === 'tabs' || showFilter) && currencies.length > 1
+  const useTabs = (look === 'tabs' || look === 'grouped_currency_tabs' || showFilter) && currencies.length > 1
   const shown = useTabs && selectedCurrency !== 'ALL' ? accounts.filter((a) => (a.currency || 'TRY') === selectedCurrency) : accounts
 
   const filterBar = useTabs ? (
@@ -681,7 +681,7 @@ export function BankAccountsView({
     </div>
   ) : null
 
-  if (look === 'copy_grid_minimal') {
+  if (look === 'copy_grid_minimal' || look === 'compact_copy_rows' || look === 'dark_vault_cards') {
     return (
       <div>
         {filterBar}
@@ -1047,12 +1047,14 @@ export function Popup({
   }
   if (!open) return null
 
-  if (look === 'top_drawer') {
+  if (look === 'top_drawer' || look === 'urgent_top_card' || look === 'minimal_bottom_drawer') {
+    const isBottom = look === 'minimal_bottom_drawer'
+    const isUrgent = look === 'urgent_top_card'
     return createPortal(
       <div
         role="dialog"
         aria-modal="false"
-        className="fixed inset-x-0 top-0 z-[85] border-b border-gray-200 bg-white text-gray-900 shadow-xl animate-fade-in"
+        className={`fixed inset-x-0 z-[85] shadow-xl animate-fade-in ${isBottom ? 'bottom-0 border-t border-gray-200 bg-white text-gray-900' : isUrgent ? 'top-0 border-b border-red-800 bg-red-700 text-white' : 'top-0 border-b border-gray-200 bg-white text-gray-900'}`}
         onClick={(e) => { if ((e.target as HTMLElement).closest('a')) close() }}
       >
         <div className="mx-auto max-w-4xl relative">

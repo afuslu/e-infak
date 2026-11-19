@@ -17,6 +17,12 @@ TEMPLATES = {
     "klasik": "Klasik — tam ekran slider ve altında hızlı bağış formu",
     "kategori": "Kategori — ortalanmış slider, bağış kategorileri ve renkli bantlar",
     "sade": "Sade — ferah, bölünmüş slider ve kampanya odaklı düzen",
+    "ramazan": "Ramazan — iftar, fitre ve zekat hesaplayıcısı öne çıkan düzen",
+    "kurban": "Kurban — hisse, vekalet ve adım adım kurban süreci düzeni",
+    "kurumsal": "Kurumsal Vakıf — şeffaflık, istatistikler ve güven odaklı",
+    "acil": "Acil Kriz — öne çıkan acil kampanya ve hızlı bağış düzeni",
+    "egitim": "Eğitim & Medrese — burs, hafızlık ve haberler odaklı",
+    "su": "Su Kuyusu & Eser — kalıcı eserler, galeri ve kampanyalar odaklı",
 }
 
 SECTION_LABELS = {
@@ -37,6 +43,12 @@ DEFAULT_SECTIONS = {
     "klasik": ["stats", "campaigns", "featured", "steps", "news", "zakat", "gallery", "testimonials", "cta", "trust"],
     "kategori": ["categories", "stats", "campaigns", "featured", "cta", "steps", "news", "gallery", "testimonials", "zakat", "trust"],
     "sade": ["campaigns", "featured", "stats", "steps", "news", "gallery", "testimonials", "cta", "trust"],
+    "ramazan": ["zakat", "campaigns", "featured", "stats", "steps", "testimonials", "cta", "trust"],
+    "kurban": ["featured", "steps", "campaigns", "stats", "gallery", "testimonials", "cta", "trust"],
+    "kurumsal": ["stats", "categories", "campaigns", "news", "gallery", "testimonials", "trust"],
+    "acil": ["featured", "campaigns", "stats", "steps", "cta", "news", "trust"],
+    "egitim": ["campaigns", "stats", "steps", "news", "gallery", "testimonials", "cta", "trust"],
+    "su": ["featured", "campaigns", "gallery", "stats", "steps", "testimonials", "cta", "trust"],
 }
 
 # Section lists that used to be the defaults. A stored list equal to one of these was never
