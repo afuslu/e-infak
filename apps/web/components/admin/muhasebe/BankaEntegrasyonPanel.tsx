@@ -7,6 +7,7 @@ import {
   ChevronUp,
   KeyRound,
   Loader2,
+  PlugZap,
   Plus,
   RefreshCw,
   Settings,
@@ -22,12 +23,16 @@ interface BankField {
   key: string;
   label: string;
   secret: boolean;
+  optional?: boolean;
 }
 
 interface BankInfo {
   key: string;
   label: string;
   ready: boolean;
+  account_no_label?: string | null;
+  can_test?: boolean;
+  min_interval_minutes?: number | null;
   fields: BankField[];
   values: Record<string, string>;
   configured: boolean;
@@ -59,12 +64,35 @@ interface RuleRow {
   campaign_title?: string | null;
 }
 
-export interface BankaEntegrasyonPanelProps {
-  onSynced?: () => void;
+interface TestResult {
+  ok: boolean;
+  warning?: string | null;
+  iban?: string | null;
+  balance_cents?: number | null;
+  currency?: string;
+  branch?: string | null;
+  alias?: string | null;
+  error?: string;
 }
 
-export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ onSynced }) => {
-  const [openSection, setOpenSection] = useState<'none' | 'api' | 'rules'>('none');
+export interface BankaEntegrasyonPanelProps {
+  onSynced?: () => void;
+  /** Which section starts open (the Banka & Ödeme page opens the web service section). */
+  defaultOpen?: 'none' | 'api' | 'rules';
+}
+
+const formatSyncTime = (iso?: string | null) =>
+  iso
+    ? new Date(iso).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null;
+
+const formatMoney = (cents?: number | null, currency = 'TRY') =>
+  cents == null ? '-' : (cents / 100).toLocaleString('tr-TR', { style: 'currency', currency });
+
+export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ onSynced, defaultOpen = 'none' }) => {
+  const [openSection, setOpenSection] = useState<'none' | 'api' | 'rules'>(defaultOpen);
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [banks, setBanks] = useState<BankInfo[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [rules, setRules] = useState<RuleRow[]>([]);
@@ -73,8 +101,9 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
   const [credModal, setCredModal] = useState<BankInfo | null>(null);
   const [credForm, setCredForm] = useState<Record<string, string>>({});
   const [newAccOpen, setNewAccOpen] = useState(false);
+  const [editing, setEditing] = useState<BankAccountRow | null>(null);
   const [accForm, setAccForm] = useState({
-    bank_key: 'vakif_katilim',
+    bank_key: 'vakifkatilim',
     label: '',
     iban: '',
     account_no: '',
@@ -121,7 +150,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
     setSyncingId(accId);
     try {
       const res = await api.post(`/admin/bank-accounts/${accId}/sync`);
-      flash('ok', `Banka hareketleri çekildi (${res.data?.imported ?? 0} yeni hareket)`);
+      flash('ok', `Banka hareketleri çekildi (${res.data?.new ?? 0} yeni hareket, ${res.data?.fetched ?? 0} hareket okundu)`);
       await loadAll();
       onSynced?.();
     } catch (e: any) {
@@ -130,6 +159,21 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
       setSyncingId(null);
     }
   };
+
+  const testAccount = async (accId: string) => {
+    setTestingId(accId);
+    try {
+      const res = await api.post(`/admin/bank-accounts/${accId}/test`);
+      setTestResults((prev) => ({ ...prev, [accId]: res.data }));
+    } catch (e: any) {
+      setTestResults((prev) => ({ ...prev, [accId]: { ok: false, error: e?.response?.data?.detail || 'Bağlantı testi başarısız' } }));
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const bankOf = (key: string) => banks.find((b) => b.key === key);
+  const selectedBank = bankOf(accForm.bank_key);
 
   const saveCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,14 +195,18 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/admin/bank-accounts', {
-        ...accForm,
-        default_campaign_id: accForm.default_campaign_id || null,
-      });
-      flash('ok', 'Otomatik banka entegrasyon hesabı eklendi ve Kasa & Banka listesiyle eşitlendi');
+      const payload = { ...accForm, default_campaign_id: accForm.default_campaign_id || null };
+      if (editing) {
+        await api.patch(`/admin/bank-accounts/${editing.id}`, { ...payload, enabled: editing.enabled });
+        flash('ok', 'Banka hesabı güncellendi');
+      } else {
+        await api.post('/admin/bank-accounts', payload);
+        flash('ok', 'Otomatik banka entegrasyon hesabı eklendi ve Kasa & Banka listesiyle eşitlendi');
+      }
       setNewAccOpen(false);
+      setEditing(null);
       setAccForm({
-        bank_key: banks[0]?.key || 'vakif_katilim',
+        bank_key: banks[0]?.key || 'vakifkatilim',
         label: '',
         iban: '',
         account_no: '',
@@ -249,7 +297,19 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Banka API Kanalları</p>
                 <button
                   type="button"
-                  onClick={() => setNewAccOpen(true)}
+                  onClick={() => {
+                    setEditing(null);
+                    setAccForm({
+                      bank_key: banks.find((b) => b.ready)?.key || banks[0]?.key || 'vakifkatilim',
+                      label: '',
+                      iban: '',
+                      account_no: '',
+                      currency: 'TRY',
+                      auto_approve: false,
+                      default_campaign_id: '',
+                    });
+                    setNewAccOpen(true);
+                  }}
                   className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
                 >
                   <Plus className="h-3.5 w-3.5" /> Otomasyon Hesabı Bağla
@@ -269,10 +329,54 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                           <p className="text-xs font-bold text-slate-900">
                             {ba.label} <span className="font-normal text-slate-500">({ba.bank})</span>
                           </p>
-                          <p className="font-mono text-[11px] text-slate-500">{ba.iban || '-'}</p>
+                          <p className="font-mono text-[11px] text-slate-500">
+                            {ba.iban || '-'}
+                            {ba.account_no ? <span className="ml-2 font-sans">· Ek no: {ba.account_no}</span> : null}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {!ba.ready
+                              ? 'Bu banka için otomatik çekme henüz yok; ekstreyi Excel olarak yükleyin'
+                              : formatSyncTime(ba.last_synced_at)
+                                ? `Son çekme: ${formatSyncTime(ba.last_synced_at)}`
+                                : 'Henüz çekilmedi'}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditing(ba);
+                            setAccForm({
+                              bank_key: ba.bank_key,
+                              label: ba.label,
+                              iban: ba.iban || '',
+                              account_no: ba.account_no || '',
+                              currency: ba.currency,
+                              auto_approve: ba.auto_approve,
+                              default_campaign_id: ba.default_campaign_id || '',
+                            });
+                            setNewAccOpen(true);
+                          }}
+                          className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                        >
+                          <Settings className="h-3.5 w-3.5" /> Düzenle
+                        </button>
+                        {bankOf(ba.bank_key)?.can_test ? (
+                          <button
+                            type="button"
+                            disabled={testingId === ba.id}
+                            onClick={() => testAccount(ba.id)}
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {testingId === ba.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <PlugZap className="h-3.5 w-3.5" />
+                            )}
+                            Bağlantıyı Test Et
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           disabled={syncingId === ba.id}
@@ -287,6 +391,33 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                           Şimdi Çek
                         </button>
                       </div>
+                      {ba.last_error ? (
+                        <p className="w-full rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-800">
+                          Son hata: {ba.last_error}
+                        </p>
+                      ) : null}
+                      {testResults[ba.id] ? (
+                        <div
+                          className={`w-full rounded-lg px-2.5 py-1.5 text-[11px] font-semibold ${
+                            testResults[ba.id].error
+                              ? 'bg-rose-50 text-rose-800'
+                              : testResults[ba.id].ok
+                                ? 'bg-emerald-50 text-emerald-900'
+                                : 'bg-amber-50 text-amber-900'
+                          }`}
+                        >
+                          {testResults[ba.id].error ? (
+                            testResults[ba.id].error
+                          ) : (
+                            <>
+                              Bağlantı başarılı · IBAN: <span className="font-mono">{testResults[ba.id].iban || '-'}</span> · Bakiye:{' '}
+                              {formatMoney(testResults[ba.id].balance_cents, testResults[ba.id].currency || 'TRY')}
+                              {testResults[ba.id].branch ? ` · Şube: ${testResults[ba.id].branch}` : ''}
+                              {testResults[ba.id].warning ? <span className="block">⚠ {testResults[ba.id].warning}</span> : null}
+                            </>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -303,7 +434,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                       <div>
                         <p className="text-xs font-bold text-slate-800">{b.label}</p>
                         <p className="text-[11px] text-slate-500">
-                          {b.configured ? 'API Tanımlı' : 'Tanımlanmadı'}
+                          {!b.ready ? 'Ekstre yükleme ile' : b.configured ? 'API Tanımlı' : 'Tanımlanmadı'}
                         </p>
                       </div>
                     </div>
@@ -311,7 +442,10 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                       type="button"
                       onClick={() => {
                         setCredModal(b);
-                        setCredForm(b.values || {});
+                        // Secrets come back masked: leave them blank (blank keeps the stored value).
+                        setCredForm(
+                          Object.fromEntries(b.fields.map((f) => [f.key, f.secret ? '' : (b.values || {})[f.key] || ''])),
+                        );
                       }}
                       className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                     >
@@ -436,12 +570,25 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                 <X className="h-5 w-5" />
               </button>
             </div>
+            {credModal.key === 'vakifkatilim' ? (
+              <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+                Bankanın verdiği &ldquo;Bakiye İzleme&rdquo; web servis kullanıcı adı ve şifresini girin. Sunucu IP adresi
+                (31.97.159.228) bankada tanımlı olmalı. Banka, hesapların en fazla 15 dakikada bir sorgulanmasını istiyor.
+              </p>
+            ) : null}
             <div className="mt-4 space-y-3">
               {credModal.fields.map((f) => (
                 <div key={f.key}>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">{f.label}</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">
+                    {f.label}
+                    {f.optional ? <span className="font-normal text-slate-400"> (isteğe bağlı)</span> : null}
+                  </label>
                   <input
                     type={f.secret ? 'password' : 'text'}
+                    autoComplete={f.secret ? 'new-password' : 'off'}
+                    placeholder={
+                      f.secret && credModal.values?.[f.key] ? `Kayıtlı (${credModal.values[f.key]}) — değiştirmek için yazın` : undefined
+                    }
                     value={credForm[f.key] || ''}
                     onChange={(e) => setCredForm((prev) => ({ ...prev, [f.key]: e.target.value }))}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
@@ -474,8 +621,10 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <form onSubmit={createBankSyncAccount} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">Otomatik Banka Hesabı Bağla</h3>
-              <button type="button" onClick={() => setNewAccOpen(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+              <h3 className="text-base font-bold text-slate-900">
+                {editing ? 'Banka Hesabını Düzenle' : 'Otomatik Banka Hesabı Bağla'}
+              </h3>
+              <button type="button" onClick={() => { setNewAccOpen(false); setEditing(null); }} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -484,6 +633,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                 <label className="mb-1 block text-xs font-semibold text-slate-700">Banka</label>
                 <select
                   value={accForm.bank_key}
+                  disabled={!!editing}
                   onChange={(e) => setAccForm((prev) => ({ ...prev, bank_key: e.target.value }))}
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
                 >
@@ -529,8 +679,13 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                   </select>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-semibold text-slate-700">Müşteri / Ek No</label>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">
+                    {selectedBank?.account_no_label || 'Müşteri / Ek No'}
+                  </label>
                   <input
+                    required={accForm.bank_key === 'vakifkatilim'}
+                    inputMode={accForm.bank_key === 'vakifkatilim' ? 'numeric' : undefined}
+                    placeholder={accForm.bank_key === 'vakifkatilim' ? 'Örn: 1' : undefined}
                     value={accForm.account_no}
                     onChange={(e) => setAccForm((prev) => ({ ...prev, account_no: e.target.value }))}
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
@@ -541,7 +696,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setNewAccOpen(false)}
+                onClick={() => { setNewAccOpen(false); setEditing(null); }}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700"
               >
                 Vazgeç

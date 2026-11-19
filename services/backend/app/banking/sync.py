@@ -49,6 +49,16 @@ async def process_transactions(db: AsyncSession, transactions: Iterable[BankTran
     return stats
 
 
+def too_soon(account: BankAccount, now: Optional[datetime] = None) -> Optional[timedelta]:
+    """Time left before the bank allows the next query for this account (None: may query now)."""
+    connector_cls = CONNECTORS.get(account.bank_key)
+    interval = getattr(connector_cls, "min_interval", None)
+    if not interval or not account.last_synced_at:
+        return None
+    left = account.last_synced_at + interval - (now or datetime.now(timezone.utc))
+    return left if left > timedelta(0) else None
+
+
 async def sync_account(db: AsyncSession, account: BankAccount, *, until: Optional[datetime] = None) -> dict:
     """Fetch the account's movements since the last sync (with overlap), store new ones, match them. Commits."""
     from app.services.tenant_credentials import get_credentials
@@ -104,5 +114,7 @@ async def sync_all(db: AsyncSession) -> list[dict]:
     for account in accounts:
         if not CONNECTORS.get(account.bank_key) or not CONNECTORS[account.bank_key].ready:
             continue  # bank web service not connected yet: statements come as uploads
+        if too_soon(account):
+            continue  # the bank asks for a minimum gap between queries (Vakıf Katılım: 15 minutes)
         results.append({"account_id": str(account.id), **await sync_account(db, account)})
     return results

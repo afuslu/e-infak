@@ -53,6 +53,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'finans', label: 'Finans', items: [
       { href: '/admin/muhasebe', label: 'Ön Muhasebe', icon: Calculator, module: ['finance', 'bank'] },
+      { href: '/admin/banka-odeme', label: 'Banka & Ödeme', icon: Landmark, module: ['bank', 'settings'] },
     ],
   },
   {

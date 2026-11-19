@@ -6,7 +6,7 @@ provider key ``bank:<key>`` (see app.services.tenant_credentials).
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import ClassVar, Optional
 
 
@@ -37,6 +37,10 @@ class BankConnector(ABC):
     secret_fields: ClassVar[tuple] = ()
     optional_fields: ClassVar[tuple] = ()
     ready: ClassVar[bool] = False  # False: only Excel/CSV statements can be used for now
+    # The bank asks not to be queried more often than this (None: the beat interval decides).
+    min_interval: ClassVar[Optional[timedelta]] = None
+    # What BankAccount.account_no means for this bank (label shown in the account form).
+    account_no_label: ClassVar[Optional[str]] = None
 
     def __init__(self, credentials: dict):
         self.credentials = credentials or {}

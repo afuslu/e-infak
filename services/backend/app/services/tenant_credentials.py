@@ -87,8 +87,8 @@ def clean_payload(provider: str, values: dict, previous: Optional[dict] = None) 
     result = {}
     for field in spec["fields"]:
         value = str(values.get(field) or "").strip()
-        if not value and field in spec["secret_fields"]:
-            value = previous.get(field, "")
+        if field in spec["secret_fields"] and (not value or value.startswith("••••")):
+            value = previous.get(field, "")  # blank or the masked echo of the stored secret: keep it
         if field == MODE_FIELD:
             value = "live" if value == "live" else "test"
         choices = spec.get("choices", {}).get(field)

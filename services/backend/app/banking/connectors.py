@@ -1,6 +1,6 @@
 """Statement web services of the banks HAKDER and similar organisations use.
 
-Each bank needs a signed application (account owner, server IP 31.97.159.228,
+Vakıf Katılım is connected (app.banking.vakifkatilim). Each other bank needs a signed application (account owner, server IP 31.97.159.228,
 authorised person) before it opens its web service and sends the technical
 specification. Until then ``ready`` is False and statements are uploaded as
 Excel/CSV files, which go through the same matcher.
@@ -18,14 +18,7 @@ class _PendingSpec(BankConnector):
         )
 
 
-@register
-class VakifKatilim(_PendingSpec):
-    """Vakıf Katılım 'Hesap Ekstresi Web Servis Entegrasyonu' (form FRM.BİBÜGM.0063.02)."""
-    key = "vakifkatilim"
-    label = "Vakıf Katılım"
-    credential_fields = {"customer_no": "Müşteri no", "username": "Web servis kullanıcı adı",
-                         "password": "Web servis şifresi"}
-    secret_fields = ("password",)
+from app.banking import vakifkatilim  # noqa: E402,F401  (registers Vakıf Katılım first in the list)
 
 
 @register

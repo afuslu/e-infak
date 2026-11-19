@@ -11,10 +11,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import Permission, mask_phone, require_capability, require_feature, require_permission, require_module
-from app.banking import CONNECTORS, credential_key
+from app.banking import CONNECTORS, BankConnectorError, credential_key
 from app.banking.matching import Matcher, analyse, approve, transfer_donations, unmatch
 from app.banking.parsers import fold
-from app.banking.sync import sync_account
+from app.banking.sync import sync_account, too_soon
 from app.core.db import get_db
 from app.core.plans import Feature
 from app.models.audit_log import AuditLog
@@ -47,8 +47,11 @@ async def list_banks(request: Request, db: AsyncSession = Depends(get_db), _: Us
         except CredentialsUnavailable:
             stored = None
         banks.append({
-            "key": key, "label": cls.label, "ready": cls.ready,
-            "fields": [{"key": f, "label": label, "secret": f in cls.secret_fields} for f, label in cls.credential_fields.items()],
+            "key": key, "label": cls.label, "ready": cls.ready, "account_no_label": cls.account_no_label,
+            "can_test": hasattr(cls, "balance"),
+            "min_interval_minutes": int(cls.min_interval.total_seconds() // 60) if cls.min_interval else None,
+            "fields": [{"key": f, "label": label, "secret": f in cls.secret_fields, "optional": f in cls.optional_fields}
+                       for f, label in cls.credential_fields.items()],
             "values": masked(credential_key(key), stored or {}), "configured": bool(stored),
         })
     return banks
@@ -193,10 +196,45 @@ async def sync_now(account_id: UUID, request: Request, db: AsyncSession = Depend
     account = await db.get(BankAccount, account_id)
     if not account or account.organization_id != _org_id(request):
         raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+    left = too_soon(account)
+    if left:
+        minutes = max(1, int(left.total_seconds() // 60) + (1 if left.total_seconds() % 60 else 0))
+        raise HTTPException(status_code=429, detail=(
+            f"Banka hesabın en fazla {int(CONNECTORS[account.bank_key].min_interval.total_seconds() // 60)} dakikada bir "
+            f"sorgulanmasını istiyor; yaklaşık {minutes} dakika sonra tekrar deneyin"))
     result = await sync_account(db, account)
     if result.get("error"):
         raise HTTPException(status_code=502, detail=result["error"])
     return result
+
+
+@router.post("/admin/bank-accounts/{account_id}/test")
+async def test_account(account_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
+                       _: User = Depends(finance)):
+    """Ask the bank for the account's balance and IBAN; a different IBAN means a wrong account suffix."""
+    account = await db.get(BankAccount, account_id)
+    if not account or account.organization_id != _org_id(request):
+        raise HTTPException(status_code=404, detail="Hesap bulunamadı")
+    connector_cls = CONNECTORS.get(account.bank_key)
+    if not connector_cls or not hasattr(connector_cls, "balance"):
+        raise HTTPException(status_code=400, detail="Bu banka için bağlantı testi yok")
+    try:
+        credentials = await get_credentials(db, account.organization_id, credential_key(account.bank_key)) or {}
+        info = await connector_cls(credentials).balance(account)
+    except CredentialsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except BankConnectorError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    saved = (account.iban or "").replace(" ", "").upper()
+    warning = None
+    if info.get("iban") and saved and info["iban"] != saved:
+        warning = (f"Bankanın bu ek no için verdiği IBAN ({info['iban']}) kayıtlı IBAN'dan farklı; "
+                   "Hesap ek no'yu kontrol edin")
+    elif info.get("iban") and not saved:
+        warning = "Hesapta kayıtlı IBAN yok; bankanın verdiği IBAN'ı kaydetmeniz önerilir"
+    if not info.get("active", True):
+        warning = (warning + " · " if warning else "") + "Banka bu hesabı kapalı gösteriyor"
+    return {**info, "ok": warning is None, "warning": warning}
 
 
 # --- Incoming transfers queue -----------------------------------------------------------------
