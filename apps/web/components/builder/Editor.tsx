@@ -27,10 +27,12 @@ import {
   Undo2,
 } from 'lucide-react'
 import type { Campaign } from '@e-infak/api-client'
-import { adminApiBase, adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
+import axios from 'axios'
+import { adminApiBase, adminAuthHeaders, adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
+import { mediaApi, type MediaAsset } from '../../lib/media'
 import { confirmDialog } from '../admin/ui'
 import { type Block, type BuilderCatalog, type Device, FIXED_CHILD, FIXED_PARENT, cloneBlock, newBlock } from '../../lib/blocks'
-import { type PlaceRule, checklist, countBlocks, duplicateBlock, findBlock, insertBlock, locate, moveBlock, placedOk, placementRule, removeBlock, shiftBlock, updateBlock } from '../../lib/builder-tree'
+import { type PlaceRule, checklist, countBlocks, duplicateBlock, findBlock, insertBlock, locate, moveBlock, placeBesideBlock, placedOk, placementRule, removeBlock, shiftBlock, updateBlock } from '../../lib/builder-tree'
 import type { HomeData } from '../sections/HomeSections'
 import type { SiteData } from '../../lib/public-content'
 import type { PublicMenu } from '../../lib/default-links'
@@ -119,7 +121,10 @@ export function SiteBuilderEditor() {
     if (t === 'layers') return 'layers'
     return 'add'
   })
-  const [addSubTab, setAddSubTab] = useState<'blocks' | 'library'>('blocks')
+  const [addSubTab, setAddSubTab] = useState<'blocks' | 'library' | 'media'>('blocks')
+  const [mediaAssets, setMediaAssets] = useState<MediaAsset[] | null>(null)
+  const [mediaLoading, setMediaLoading] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [pagesSubTab, setPagesSubTab] = useState<'pages' | 'menu'>(() => {
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'menu') return 'menu'
     return 'pages'
@@ -415,9 +420,11 @@ export function SiteBuilderEditor() {
   }, [])
 
   /** Drag-and-drop move (canvas or tree); refused when the block may not go there. */
-  const move = useCallback((id: string, targetId: string, position: 'before' | 'after' | 'inside') => {
+  const move = useCallback((id: string, targetId: string, position: 'before' | 'after' | 'inside' | 'left' | 'right') => {
     const blocks = stateRef.current.blocks
-    const next = moveBlock(blocks, id, targetId, position, fitsRef.current ?? undefined)
+    const next = (position === 'left' || position === 'right')
+      ? placeBesideBlock(blocks, id, targetId, position, fitsRef.current ?? undefined)
+      : moveBlock(blocks, id, targetId, position, fitsRef.current ?? undefined)
     if (next === blocks) {
       if (id !== targetId) setMessage({ type: 'error', text: 'Blok buraya taşınamaz.' })
       return
@@ -459,8 +466,12 @@ export function SiteBuilderEditor() {
     commit(next, copy.id)
   }
 
-  const onKey = useCallback((key: string, ctrl: boolean, shift: boolean) => {
+  const onKey = useCallback((key: string, ctrl: boolean, shift: boolean, alt = false) => {
     const k = key.toLowerCase()
+    if (alt && (key === 'ArrowUp' || key === 'ArrowDown') && stateRef.current.selectedId) {
+      blockAction(stateRef.current.selectedId, key === 'ArrowUp' ? 'up' : 'down')
+      return
+    }
     if (ctrl && k === 'z' && !shift) dispatch({ type: 'undo' })
     else if (ctrl && (k === 'y' || (k === 'z' && shift))) dispatch({ type: 'redo' })
     else if (ctrl && k === 'c') copySelected()
@@ -474,6 +485,11 @@ export function SiteBuilderEditor() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
+      if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault()
+        onKey(e.key, false, e.shiftKey, true)
+        return
+      }
       if ((e.ctrlKey || e.metaKey) || e.key === 'Delete' || e.key === 'Backspace') {
         if ((e.ctrlKey || e.metaKey) && ['z', 'y', 'c', 'v', 'd', 's'].includes(e.key.toLowerCase())) e.preventDefault()
         onKey(e.key, e.ctrlKey || e.metaKey, e.shiftKey)
@@ -553,10 +569,13 @@ export function SiteBuilderEditor() {
       if (msg.type === 'insert-new' && catalog?.blocks[msg.blockType]) {
         const block = newBlock(msg.blockType, catalog.blocks[msg.blockType])
         const targetId = msg.targetId as string
-        const pos = msg.position as 'before' | 'after' | 'inside'
+        const pos = msg.position as 'before' | 'after' | 'inside' | 'left' | 'right'
         let next: Block[] | null = null
         if (!targetId || !stateRef.current.blocks.length) {
           next = [...stateRef.current.blocks, block]
+        } else if (pos === 'left' || pos === 'right') {
+          const placed = placeBesideBlock(stateRef.current.blocks, block, targetId, pos, fitsRef.current ?? undefined)
+          if (placed !== stateRef.current.blocks) next = placed
         } else if (pos === 'inside') {
           const target = findBlock(stateRef.current.blocks, targetId)
           if (target) next = insertBlock(stateRef.current.blocks, targetId, target.children?.length ?? 0, block)
@@ -567,6 +586,159 @@ export function SiteBuilderEditor() {
         if (next && (!fitsRef.current || placedOk(next, block.id, fitsRef.current))) {
           dispatch({ type: 'commit', blocks: next, select: block.id })
         }
+      }
+      if (msg.type === 'drop-image-file' || msg.type === 'drop-media-url') {
+        const targetId = (msg.targetId as string) || ''
+        const pos = (msg.position as 'before' | 'after' | 'inside' | 'left' | 'right') || 'inside'
+        const applyImageUrl = (url: string, alt: string) => {
+          const blocks = stateRef.current.blocks
+          const target = targetId ? findBlock(blocks, targetId) : null
+          const spec = target && catalog?.blocks[target.type]
+          const imgFieldEntry = spec ? Object.entries(spec.fields || {}).find(([, f]) => f.kind === 'image') : undefined
+          if (target && pos === 'inside' && imgFieldEntry) {
+            const [fieldKey] = imgFieldEntry
+            const next = updateBlock(blocks, target.id, (b) => ({ ...b, props: { ...b.props, [fieldKey]: url } }))
+            dispatch({ type: 'commit', blocks: next, select: target.id })
+            setMessage({ type: 'ok', text: 'Görsel güncellendi.' })
+            return
+          }
+          if (!catalog?.blocks.image) return
+          const imgBlock = newBlock('image', catalog.blocks.image)
+          imgBlock.props = { ...imgBlock.props, image_url: url, alt }
+          let next: Block[] | null = null
+          if (!targetId || !blocks.length) {
+            next = [...blocks, imgBlock]
+          } else if (pos === 'left' || pos === 'right') {
+            const placed = placeBesideBlock(blocks, imgBlock, targetId, pos, fitsRef.current ?? undefined)
+            if (placed !== blocks) next = placed
+          } else if (pos === 'inside' && target) {
+            next = insertBlock(blocks, targetId, target.children?.length ?? 0, imgBlock)
+          } else {
+            const place = locate(blocks, targetId)
+            if (place) next = insertBlock(blocks, place[0], place[1] + (pos === 'after' ? 1 : 0), imgBlock)
+          }
+          if (next && (!fitsRef.current || placedOk(next, imgBlock.id, fitsRef.current))) {
+            dispatch({ type: 'commit', blocks: next, select: imgBlock.id })
+            setMessage({ type: 'ok', text: 'Görsel eklendi.' })
+          }
+        }
+        if (msg.type === 'drop-media-url' && typeof msg.url === 'string') {
+          applyImageUrl(msg.url, String(msg.alt || ''))
+        } else if (msg.file instanceof File) {
+          const file = msg.file as File
+          setMessage({ type: 'ok', text: 'Görsel yükleniyor…' })
+          const body = new FormData()
+          body.append('file', file)
+          axios.post<{ url: string }>(`${adminApiBase()}/api/v1/admin-features/uploads`, body, { headers: adminAuthHeaders() })
+            .then((res) => applyImageUrl(res.data.url, file.name.replace(/\.[^.]+$/, '')))
+            .catch((err) => setMessage({ type: 'error', text: apiErrorMessage(err, 'Görsel yüklenemedi') }))
+        }
+      }
+      if (msg.type === 'remove-overlay-item') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => {
+          const items = Array.isArray(b.props?.overlay_items) ? b.props.overlay_items.filter((_: any, i: number) => i !== msg.index) : []
+          return { ...b, props: { ...b.props, overlay_items: items } }
+        })
+        commit(next)
+      }
+      if (msg.type === 'resize-overlay-item') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => {
+          const items = Array.isArray(b.props?.overlay_items) ? [...b.props.overlay_items] : []
+          if (!items[msg.index]) return b
+          items[msg.index] = { ...items[msg.index], width: msg.width }
+          return { ...b, props: { ...b.props, overlay_items: items } }
+        })
+        commit(next)
+      }
+      if (msg.type === 'patch-overlay-item') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => {
+          const items = Array.isArray(b.props?.overlay_items) ? [...b.props.overlay_items] : []
+          if (!items[msg.index]) return b
+          items[msg.index] = { ...items[msg.index], ...(msg.patch || {}) }
+          return { ...b, props: { ...b.props, overlay_items: items } }
+        })
+        commit(next)
+      }
+      if (msg.type === 'save-block') {
+        dispatch({ type: 'select', id: msg.id })
+        setTimeout(() => { saveSelectedBlock() }, 0)
+      }
+      if (msg.type === 'set-columns-ratio') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => ({
+          ...b,
+          props: { ...b.props, ratio: msg.ratio },
+        }))
+        commit(next)
+      }
+      if (msg.type === 'swap-columns') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => {
+          if (b.type === 'image_text') {
+            return { ...b, props: { ...b.props, image_side: b.props?.image_side === 'right' ? 'left' : 'right' } }
+          }
+          if (b.type === 'columns' && Array.isArray(b.children) && b.children.length >= 2) {
+            const reversedRatio = String(b.props?.ratio || '1-1').split('-').reverse().join('-')
+            return { ...b, props: { ...b.props, ratio: reversedRatio }, children: [...b.children].reverse() }
+          }
+          return b
+        })
+        commit(next)
+      }
+      if (msg.type === 'copy-style') {
+        const blk = findBlock(stateRef.current.blocks, msg.id)
+        if (blk) {
+          try { localStorage.setItem('einfak.builder.styleClipboard', JSON.stringify(blk.style || {})) } catch { /* ignore */ }
+          setMessage({ type: 'ok', text: 'Blok stili kopyalandı.' })
+        }
+      }
+      if (msg.type === 'paste-style') {
+        try {
+          const raw = localStorage.getItem('einfak.builder.styleClipboard')
+          if (raw) {
+            const style = JSON.parse(raw)
+            const next = updateBlock(stateRef.current.blocks, msg.id, (b) => ({ ...b, style }))
+            commit(next)
+            setMessage({ type: 'ok', text: 'Stil yapıştırıldı.' })
+          } else {
+            setMessage({ type: 'error', text: 'Önce bir bloğun stilini kopyalayın.' })
+          }
+        } catch { /* ignore */ }
+      }
+      if (msg.type === 'move-overlay-item') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => {
+          const items = Array.isArray(b.props?.overlay_items) ? [...b.props.overlay_items] : []
+          if (!items[msg.index]) return b
+          items[msg.index] = { ...items[msg.index], x: msg.x, y: msg.y }
+          return { ...b, props: { ...b.props, overlay_items: items } }
+        })
+        commit(next)
+      }
+      if (msg.type === 'add-overlay-item') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => {
+          const items = Array.isArray(b.props?.overlay_items) ? [...b.props.overlay_items] : []
+          items.push({ kind: msg.kind || 'button', label: 'Yeni Buton', url: '/bagis', x: 50, y: 50, style: 'primary' })
+          return { ...b, props: { ...b.props, overlay_items: items } }
+        })
+        commit(next)
+        setMessage({ type: 'ok', text: 'Serbest buton eklendi — tuvalde sürükleyerek yerini ayarlayın.' })
+      }
+      if (msg.type === 'set-focal-point') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => ({
+          ...b,
+          props: { ...b.props, focal_x: msg.x, focal_y: msg.y },
+        }))
+        commit(next)
+      }
+      if (msg.type === 'resize-block') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => {
+          if (msg.prop) return { ...b, props: { ...b.props, [msg.prop]: msg.value } }
+          if (msg.styleProp) {
+            const dev: Device = (msg.device as Device) || 'desktop'
+            const prevStyle = b.style || {}
+            return { ...b, style: { ...prevStyle, [dev]: { ...(prevStyle[dev] || {}), [msg.styleProp]: msg.value } } }
+          }
+          return b
+        })
+        commit(next)
       }
       if (msg.type === 'insert-new-blocks' && Array.isArray(msg.blocks) && msg.blocks.length) {
         const clones = (msg.blocks as Block[]).map(cloneBlock)
@@ -596,7 +768,20 @@ export function SiteBuilderEditor() {
         }
       }
       if (msg.type === 'add-into') { setInsertTarget(msg.parentId); dispatch({ type: 'select', id: msg.parentId }); setLeftOpen(true); setLeftTab('add'); setAddSubTab('blocks'); setMobilePane('left') }
-      if (msg.type === 'key') onKey(msg.key, msg.ctrl, msg.shift)
+      if (msg.type === 'quick-bg') {
+        const next = updateBlock(stateRef.current.blocks, msg.id, (b) => {
+          const dev: Device = (msg.device as Device) || 'desktop'
+          const prevStyle = b.style || {}
+          const cur = { ...(prevStyle[dev] || {}) }
+          if (msg.bg) cur.bg_color = msg.bg
+          else delete cur.bg_color
+          if (msg.textColor) cur.text_color = msg.textColor
+          else delete cur.text_color
+          return { ...b, style: { ...prevStyle, [dev]: cur } }
+        })
+        commit(next)
+      }
+      if (msg.type === 'key') onKey(msg.key, msg.ctrl, msg.shift, msg.alt)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
@@ -1307,7 +1492,7 @@ export function SiteBuilderEditor() {
             )}
             {leftTab === 'add' && (
               <div className="space-y-3">
-                <div className="grid grid-cols-2 rounded-lg border bg-gray-50 p-0.5 text-[11px] font-semibold">
+                <div className="grid grid-cols-3 rounded-lg border bg-gray-50 p-0.5 text-[11px] font-semibold">
                   <button
                     type="button"
                     onClick={() => setAddSubTab('blocks')}
@@ -1320,13 +1505,59 @@ export function SiteBuilderEditor() {
                     onClick={() => setAddSubTab('library')}
                     className={`rounded-md py-1.5 transition ${addSubTab === 'library' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
                   >
-                    Hazır Bölümler
+                    Bölümler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddSubTab('media')
+                      if (mediaAssets === null && !mediaLoading) {
+                        setMediaLoading(true)
+                        mediaApi.list({ page: 1, page_size: 40 })
+                          .then((res) => setMediaAssets(res.data?.items || []))
+                          .catch(() => setMediaAssets([]))
+                          .finally(() => setMediaLoading(false))
+                      }
+                    }}
+                    className={`rounded-md py-1.5 transition ${addSubTab === 'media' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                    Medya
                   </button>
                 </div>
 
                 {addSubTab === 'library' ? (
                   <LibraryPanel library={library} catalog={catalog} kind={page?.kind || 'home'} saved={saved}
                     onInsert={insertSection} onReplace={replacePage} onInsertSaved={insertSaved} onDeleteSaved={deleteSaved} onApplyDemo={applyDemo} />
+                ) : addSubTab === 'media' ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-gray-500">Görseli kanvastaki bir bloğun üstüne veya arasına sürükleyip bırakın.</p>
+                    {mediaLoading ? (
+                      <div className="py-8 text-center text-xs text-gray-400">Medya yükleniyor…</div>
+                    ) : !mediaAssets?.length ? (
+                      <div className="rounded-lg border border-dashed p-6 text-center text-xs text-gray-400">
+                        Henüz medya yok. Bilgisayarınızdan bir görseli doğrudan kanvasa da sürükleyebilirsiniz.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {mediaAssets.map((asset) => (
+                          <div
+                            key={asset.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('application/x-media-url', asset.url)
+                              e.dataTransfer.setData('application/x-media-alt', asset.alt_text || asset.original_name || '')
+                              e.dataTransfer.effectAllowed = 'copy'
+                            }}
+                            title={asset.alt_text || asset.original_name || 'Sürükleyip kanvasa bırakın'}
+                            className="group cursor-grab overflow-hidden rounded-lg border bg-gray-50 transition hover:border-blue-400 hover:shadow-sm active:cursor-grabbing"
+                          >
+                            <img src={asset.thumbnail_url || asset.url} alt={asset.alt_text || ''} className="aspect-video w-full object-cover" loading="lazy" />
+                            <div className="truncate px-1.5 py-1 text-[10px] font-medium text-gray-600">{asset.alt_text || asset.original_name}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {insertTarget && (
@@ -1455,7 +1686,7 @@ export function SiteBuilderEditor() {
 
         {/* Canvas */}
         <main
-          className={`${mobilePane === 'canvas' ? 'flex' : 'hidden'} min-w-0 flex-1 flex-col overflow-hidden bg-slate-100 p-2 sm:p-5 lg:flex`}
+          className={`${mobilePane === 'canvas' ? 'flex' : 'hidden'} relative min-w-0 flex-1 flex-col overflow-hidden bg-slate-100 p-2 sm:p-5 lg:flex`}
           style={{ backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '18px 18px' }}
           onClick={() => dispatch({ type: 'select', id: null })}
         >
@@ -1486,6 +1717,34 @@ export function SiteBuilderEditor() {
               <iframe ref={frame} src="/site-yapici-cerceve" title="Sayfa önizlemesi" className="h-full w-full border-0"
                 style={scale !== 1 ? { width: targetW, height: area.h > 0 ? area.h / scale : '100%', transform: `scale(${scale})`, transformOrigin: '0 0' } : undefined} />
             </div>
+          </div>
+
+          <div className="pointer-events-auto absolute bottom-3 end-3 z-30" onClick={(e) => e.stopPropagation()}>
+            {helpOpen && (
+              <div className="mb-2 w-72 rounded-xl border border-gray-200 bg-white/95 p-3 text-[11px] text-gray-700 shadow-2xl backdrop-blur-md">
+                <div className="mb-2 flex items-center justify-between border-b pb-1.5 font-bold text-gray-900">
+                  <span>⌨️ Hızlı Kısayollar & İpuçları</span>
+                  <button type="button" onClick={() => setHelpOpen(false)} className="text-gray-400 hover:text-gray-700">✕</button>
+                </div>
+                <ul className="space-y-1.5">
+                  <li className="flex justify-between gap-2"><span>Hızlı blok ekle</span><kbd className="rounded bg-gray-100 px-1.5 py-0.5 font-mono font-semibold">/</kbd></li>
+                  <li className="flex justify-between gap-2"><span>Metin / serbest buton düzenle</span><kbd className="rounded bg-gray-100 px-1.5 py-0.5 font-mono font-semibold">Çift tık</kbd></li>
+                  <li className="flex justify-between gap-2"><span>Bloğu yukarı / aşağı taşı</span><kbd className="rounded bg-gray-100 px-1.5 py-0.5 font-mono font-semibold">Alt + ↑/↓</kbd></li>
+                  <li className="flex justify-between gap-2"><span>Bloğu çoğalt</span><kbd className="rounded bg-gray-100 px-1.5 py-0.5 font-mono font-semibold">Ctrl+D</kbd></li>
+                  <li className="flex justify-between gap-2"><span>Geri al / Yinele</span><kbd className="rounded bg-gray-100 px-1.5 py-0.5 font-mono font-semibold">Ctrl+Z / Y</kbd></li>
+                  <li className="flex justify-between gap-2"><span>Yan yana sütun yap</span><span className="text-gray-500">Sağ/Sol kenara sürükle</span></li>
+                  <li className="flex justify-between gap-2"><span>Masaüstünden görsel yükle</span><span className="text-gray-500">Kanvasa sürükle</span></li>
+                </ul>
+              </div>
+            )}
+            <button
+              type="button"
+              title="Kısayollar ve ipuçları"
+              onClick={() => setHelpOpen((o) => !o)}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-xs font-bold text-gray-700 shadow-md transition hover:border-blue-500 hover:text-blue-600"
+            >
+              ?
+            </button>
           </div>
         </main>
 

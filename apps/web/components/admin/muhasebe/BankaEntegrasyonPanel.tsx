@@ -10,6 +10,7 @@ import {
   PlugZap,
   Plus,
   RefreshCw,
+  Search,
   Settings,
   Sparkles,
   Trash2,
@@ -98,7 +99,8 @@ const formatMoney = (cents?: number | null, currency = 'TRY') =>
   cents == null ? '-' : (cents / 100).toLocaleString('tr-TR', { style: 'currency', currency });
 
 export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ onSynced, defaultOpen = 'none' }) => {
-  const [openSection, setOpenSection] = useState<'none' | 'api' | 'rules'>(defaultOpen);
+  const [openApi, setOpenApi] = useState<boolean>(defaultOpen === 'api');
+  const [openRules, setOpenRules] = useState<boolean>(defaultOpen === 'rules');
   const [testingId, setTestingId] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [banks, setBanks] = useState<BankInfo[]>([]);
@@ -116,14 +118,33 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
     iban: '',
     account_no: '',
     currency: 'TRY',
+    enabled: true,
     auto_approve: false,
     default_campaign_id: '',
   });
   const [rulePattern, setRulePattern] = useState('');
   const [ruleCampaignId, setRuleCampaignId] = useState('');
+  const [ruleSearch, setRuleSearch] = useState('');
+  const [ruleKindFilter, setRuleKindFilter] = useState<'all' | 'keyword' | 'sender'>('all');
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<BankAccountRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!credModal && !newAccOpen && !deleteTarget) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setCredModal(null);
+        setNewAccOpen(false);
+        setEditing(null);
+        setDeleteTarget(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [credModal, newAccOpen, deleteTarget]);
 
   const flash = (kind: 'ok' | 'err', text: string) => {
     setMsg({ kind, text });
@@ -173,6 +194,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
     try {
       const res = await api.post(`/admin/bank-accounts/${accId}/test`);
       setTestResults((prev) => ({ ...prev, [accId]: res.data }));
+      if (!res.data?.error) await loadAll();
     } catch (e: any) {
       setTestResults((prev) => ({ ...prev, [accId]: { ok: false, error: e?.response?.data?.detail || 'Bağlantı testi başarısız' } }));
     } finally {
@@ -205,7 +227,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
     try {
       const payload = { ...accForm, default_campaign_id: accForm.default_campaign_id || null };
       if (editing) {
-        await api.patch(`/admin/bank-accounts/${editing.id}`, { ...payload, enabled: editing.enabled });
+        await api.patch(`/admin/bank-accounts/${editing.id}`, payload);
         flash('ok', 'Banka hesabı güncellendi');
       } else {
         await api.post('/admin/bank-accounts', payload);
@@ -219,15 +241,33 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
         iban: '',
         account_no: '',
         currency: 'TRY',
+        enabled: true,
         auto_approve: false,
         default_campaign_id: '',
       });
       await loadAll();
       onSynced?.();
     } catch (err: any) {
-      flash('err', err?.response?.data?.detail || 'Hesap eklenemedi');
+      flash('err', err?.response?.data?.detail || 'Hesap kaydedilemedi');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    setDeletingId(target.id);
+    try {
+      await api.delete(`/admin/bank-accounts/${target.id}`);
+      flash('ok', `${target.label} silindi`);
+      setDeleteTarget(null);
+      await loadAll();
+      onSynced?.();
+    } catch (err: any) {
+      flash('err', err?.response?.data?.detail || 'Hesap silinemedi');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -271,12 +311,12 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
         </div>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
         {/* 1. Banka Web Servis & Otomatik Senkronizasyon */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <button
             type="button"
-            onClick={() => setOpenSection((cur) => (cur === 'api' ? 'none' : 'api'))}
+            onClick={() => setOpenApi((v) => !v)}
             className="flex w-full cursor-pointer items-center justify-between p-4 text-left"
           >
             <div className="flex items-center gap-3">
@@ -285,21 +325,21 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
               </div>
               <div>
                 <h3 className="text-sm font-black text-slate-900">
-                  Banka Web Servis Entegrasyonları ({bankAccounts.length} aktif kanal)
+                  Banka Web Servis Entegrasyonları ({bankAccounts.filter((b) => b.enabled).length} aktif kanal)
                 </h3>
                 <p className="text-xs text-slate-500">
                   Vakıf Katılım, Kuveyt Türk, Ziraat, Albaraka vb. otomatik hareket çekme ayarları
                 </p>
               </div>
             </div>
-            {openSection === 'api' ? (
+            {openApi ? (
               <ChevronUp className="h-5 w-5 text-slate-400" />
             ) : (
               <ChevronDown className="h-5 w-5 text-slate-400" />
             )}
           </button>
 
-          {openSection === 'api' ? (
+          {openApi ? (
             <div className="space-y-4 border-t border-slate-100 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Banka API Kanalları</p>
@@ -313,6 +353,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                       iban: '',
                       account_no: '',
                       currency: 'TRY',
+                      enabled: true,
                       auto_approve: false,
                       default_campaign_id: '',
                     });
@@ -329,14 +370,26 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                   {bankAccounts.map((ba) => (
                     <div
                       key={ba.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3"
+                      className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 ${
+                        ba.enabled ? 'border-slate-200 bg-slate-50/70' : 'border-slate-200 bg-slate-100/60 opacity-75'
+                      }`}
                     >
                       <div className="flex items-center gap-2.5">
                         {getBankLogoOrIcon(ba.bank, 'w-7 h-7')}
                         <div>
-                          <p className="text-xs font-bold text-slate-900">
-                            {ba.label} <span className="font-normal text-slate-500">({ba.bank})</span>
-                          </p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="text-xs font-bold text-slate-900">
+                              {ba.label} <span className="font-normal text-slate-500">({ba.bank})</span>
+                            </p>
+                            {!ba.enabled ? (
+                              <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">Pasif</span>
+                            ) : null}
+                            {ba.auto_approve ? (
+                              <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                                Otomatik Onay
+                              </span>
+                            ) : null}
+                          </div>
                           <p className="font-mono text-[11px] text-slate-500">
                             {ba.iban || '-'}
                             {ba.account_no ? <span className="ml-2 font-sans">· Ek no: {ba.account_no}</span> : null}
@@ -350,7 +403,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => {
@@ -361,6 +414,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                               iban: ba.iban || '',
                               account_no: ba.account_no || '',
                               currency: ba.currency,
+                              enabled: ba.enabled,
                               auto_approve: ba.auto_approve,
                               default_campaign_id: ba.default_campaign_id || '',
                             });
@@ -387,7 +441,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                         ) : null}
                         <button
                           type="button"
-                          disabled={syncingId === ba.id}
+                          disabled={syncingId === ba.id || !ba.enabled || !ba.ready}
                           onClick={() => syncAccountNow(ba.id)}
                           className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
                         >
@@ -398,8 +452,17 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                           )}
                           Şimdi Çek
                         </button>
+                        <button
+                          type="button"
+                          disabled={deletingId === ba.id}
+                          onClick={() => setDeleteTarget(ba)}
+                          title="Hesabı sil"
+                          className="inline-flex cursor-pointer items-center rounded-lg border border-rose-200 bg-white p-1.5 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                        >
+                          {deletingId === ba.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        </button>
                       </div>
-                      {ba.last_error ? (
+                      {ba.last_error && !testResults[ba.id]?.error ? (
                         <p className="w-full rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-800">
                           Son hata: {ba.last_error}
                         </p>
@@ -434,6 +497,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                                     <th className="px-2 py-1">IBAN</th>
                                     <th className="px-2 py-1">Hesap</th>
                                     <th className="px-2 py-1 text-right">Bakiye</th>
+                                    <th className="px-2 py-1 text-right">İşlem</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -446,6 +510,28 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                                         {a.active === false ? ' (kapalı)' : ''}
                                       </td>
                                       <td className="px-2 py-1 text-right">{formatMoney(a.balance_cents, a.currency || 'TRY')}</td>
+                                      <td className="px-2 py-1 text-right">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditing(ba);
+                                            setAccForm({
+                                              bank_key: ba.bank_key,
+                                              label: ba.label,
+                                              iban: a.iban || ba.iban || '',
+                                              account_no: a.suffix || ba.account_no || '',
+                                              currency: a.currency || ba.currency,
+                                              enabled: ba.enabled,
+                                              auto_approve: ba.auto_approve,
+                                              default_campaign_id: ba.default_campaign_id || '',
+                                            });
+                                            setNewAccOpen(true);
+                                          }}
+                                          className="cursor-pointer rounded bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 hover:bg-blue-100"
+                                        >
+                                          Uygula
+                                        </button>
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -459,7 +545,11 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="border-t border-slate-100 pt-4">
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Desteklenen Bankalar &amp; Web Servis Ayarları
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {banks.map((b) => (
                   <div
                     key={b.key}
@@ -489,6 +579,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                     </button>
                   </div>
                 ))}
+                </div>
               </div>
             </div>
           ) : null}
@@ -498,7 +589,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <button
             type="button"
-            onClick={() => setOpenSection((cur) => (cur === 'rules' ? 'none' : 'rules'))}
+            onClick={() => setOpenRules((v) => !v)}
             className="flex w-full cursor-pointer items-center justify-between p-4 text-left"
           >
             <div className="flex items-center gap-3">
@@ -514,14 +605,14 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                 </p>
               </div>
             </div>
-            {openSection === 'rules' ? (
+            {openRules ? (
               <ChevronUp className="h-5 w-5 text-slate-400" />
             ) : (
               <ChevronDown className="h-5 w-5 text-slate-400" />
             )}
           </button>
 
-          {openSection === 'rules' ? (
+          {openRules ? (
             <div className="space-y-4 border-t border-slate-100 p-4">
               <form onSubmit={addKeywordRule} className="flex flex-wrap gap-2">
                 <input
@@ -550,47 +641,104 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                 </button>
               </form>
 
-              <div className="max-h-56 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
-                {rules.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between px-3 py-2 text-xs">
-                    <div>
-                      <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-mono font-bold text-emerald-800">
-                        &ldquo;{r.pattern}&rdquo;
-                      </span>
-                      <span className="mx-1.5 text-slate-400">→</span>
-                      <span className="font-semibold text-slate-800">{r.campaign_title}</span>
-                    </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative min-w-[180px] flex-1">
+                  <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    value={ruleSearch}
+                    onChange={(e) => setRuleSearch(e.target.value)}
+                    placeholder="Kurallarda ara (kelime, gönderen, kampanya, bağışçı)…"
+                    className="h-8 w-full rounded-lg border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-800 focus:bg-white"
+                  />
+                </div>
+                <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px] font-bold">
+                  {(
+                    [
+                      ['all', 'Tümü'],
+                      ['keyword', `Kelime (${rules.length})`],
+                      ['sender', `Gönderen (${senderRules.length})`],
+                    ] as const
+                  ).map(([k, lbl]) => (
                     <button
+                      key={k}
                       type="button"
-                      onClick={() => deleteRule(r.id)}
-                      className="cursor-pointer rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      onClick={() => setRuleKindFilter(k)}
+                      className={`cursor-pointer rounded-md px-2.5 py-1 transition ${
+                        ruleKindFilter === k ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      {lbl}
                     </button>
-                  </div>
-                ))}
-                {senderRules.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between px-3 py-2 text-xs">
-                    <div>
-                      <span className="rounded bg-blue-50 px-1.5 py-0.5 font-semibold text-blue-800">
-                        Gönderen: {r.pattern}
-                      </span>
-                      <span className="mx-1.5 text-slate-400">→</span>
-                      <span className="font-semibold text-slate-800">{r.donor_name}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => deleteRule(r.id)}
-                      className="cursor-pointer rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-                {rules.length === 0 && senderRules.length === 0 ? (
-                  <p className="py-6 text-center text-xs text-slate-500">Henüz tanımlı eşleştirme kuralı yok.</p>
-                ) : null}
+                  ))}
+                </div>
               </div>
+
+              {(() => {
+                const needle = ruleSearch.trim().toLocaleLowerCase('tr-TR');
+                const visibleKw =
+                  ruleKindFilter === 'sender'
+                    ? []
+                    : rules.filter(
+                        (r) =>
+                          !needle ||
+                          r.pattern.toLocaleLowerCase('tr-TR').includes(needle) ||
+                          (r.campaign_title || '').toLocaleLowerCase('tr-TR').includes(needle),
+                      );
+                const visibleSn =
+                  ruleKindFilter === 'keyword'
+                    ? []
+                    : senderRules.filter(
+                        (r) =>
+                          !needle ||
+                          r.pattern.toLocaleLowerCase('tr-TR').includes(needle) ||
+                          (r.donor_name || '').toLocaleLowerCase('tr-TR').includes(needle),
+                      );
+                return (
+                  <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
+                    {visibleKw.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between px-3 py-2 text-xs">
+                        <div>
+                          <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-mono font-bold text-emerald-800">
+                            &ldquo;{r.pattern}&rdquo;
+                          </span>
+                          <span className="mx-1.5 text-slate-400">→</span>
+                          <span className="font-semibold text-slate-800">{r.campaign_title}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => deleteRule(r.id)}
+                          className="cursor-pointer rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {visibleSn.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between px-3 py-2 text-xs">
+                        <div>
+                          <span className="rounded bg-blue-50 px-1.5 py-0.5 font-semibold text-blue-800">
+                            Gönderen: {r.pattern}
+                          </span>
+                          <span className="mx-1.5 text-slate-400">→</span>
+                          <span className="font-semibold text-slate-800">{r.donor_name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => deleteRule(r.id)}
+                          className="cursor-pointer rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {visibleKw.length === 0 && visibleSn.length === 0 ? (
+                      <p className="py-6 text-center text-xs text-slate-500">
+                        {needle ? 'Aramayla eşleşen kural bulunamadı.' : 'Henüz tanımlı eşleştirme kuralı yok.'}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </div>
           ) : null}
         </div>
@@ -598,7 +746,12 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
 
       {/* API Credentials Modal */}
       {credModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCredModal(null);
+          }}
+        >
           <form onSubmit={saveCredentials} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-slate-900">{credModal.label} Web Servis Bilgileri</h3>
@@ -608,8 +761,8 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
             </div>
             {credModal.key === 'vakifkatilim' ? (
               <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
-                Bankanın verdiği &ldquo;Bakiye İzleme&rdquo; web servis kullanıcı adı ve şifresini girin. Sunucu IP adresi
-                (31.97.159.228) bankada tanımlı olmalı. Banka, hesapların en fazla 15 dakikada bir sorgulanmasını istiyor.
+                Bankanın verdiği &ldquo;Bakiye İzleme&rdquo; web servis kullanıcı adı ve şifresini girin. Sunucu çıkış IP adresi
+                {process.env.NEXT_PUBLIC_SERVER_IP ? ` (${process.env.NEXT_PUBLIC_SERVER_IP})` : ''} bankada tanımlı olmalı. Banka, hesapların en fazla 15 dakikada bir sorgulanmasını istiyor.
               </p>
             ) : null}
             <div className="mt-4 space-y-3">
@@ -654,7 +807,15 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
 
       {/* New Bank Sync Account Modal */}
       {newAccOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setNewAccOpen(false);
+              setEditing(null);
+            }
+          }}
+        >
           <form onSubmit={createBankSyncAccount} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-slate-900">
@@ -728,6 +889,41 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                   />
                 </div>
               </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-700">Varsayılan Kampanya (İsteğe Bağlı)</label>
+                <select
+                  value={accForm.default_campaign_id}
+                  onChange={(e) => setAccForm((prev) => ({ ...prev, default_campaign_id: e.target.value }))}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Otomatik algıla / Seçilmesin</option>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={accForm.enabled}
+                    onChange={(e) => setAccForm((prev) => ({ ...prev, enabled: e.target.checked }))}
+                    className="rounded border-slate-300 text-blue-600"
+                  />
+                  Hesap aktif (otomatik hareket çekme açık)
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={accForm.auto_approve}
+                    onChange={(e) => setAccForm((prev) => ({ ...prev, auto_approve: e.target.checked }))}
+                    className="rounded border-slate-300 text-emerald-600"
+                  />
+                  Eşleşen havaleleri otomatik onayla ve makbuz kes
+                </label>
+              </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -746,6 +942,40 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
               </button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeleteTarget(null);
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-bold text-slate-900">Banka Hesabını Sil</h3>
+            <p className="mt-2 text-xs text-slate-600">
+              <strong className="text-slate-900">{deleteTarget.label}</strong> hesabını silmek istediğinize emin misiniz? Bu hesaba bağlı hareket kaydı varsa silme engellenir; bunun yerine hesabı pasife alabilirsiniz.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                disabled={deletingId === deleteTarget.id}
+                onClick={confirmDeleteAccount}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+              >
+                {deletingId === deleteTarget.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                Evet, Sil
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

@@ -75,8 +75,59 @@ export type SliderLayout =
   | 'split_dark'
   | 'news_ticker'
   | 'grid_collage'
-export type SliderNav = 'dots' | 'tabs' | 'icon_tabs' | 'thumbs' | 'numbers' | 'progress' | 'ring'
-export type SliderArrowStyle = 'round' | 'square' | 'minimal' | 'ghost'
+  | 'emerald_gold_slider'
+  | 'split_progress_slider'
+  | 'full_bleed_caption_slider'
+  | 'arch_islamic_slider'
+  | 'countdown_urgent_slider'
+  | 'quick_amount_slider'
+  | 'filmstrip_bottom_slider'
+  | 'polaroid_collage_slider'
+  | 'glass_card_overlay_slider'
+  | 'split_50_50_framed'
+  | 'vertical_chapter_slider'
+  | 'dark_amber_spotlight'
+  | 'bordered_editorial_slider'
+  | 'floating_stats_slider'
+  | 'duotone_emerald_slider'
+  | 'split_card_overlap_slider'
+  | 'dark_sapphire_slider'
+  | 'two_row_thumbs_slider'
+  | 'video_split_slider'
+  | 'diagonal_split_dark_slider'
+  | 'minimal_counter_slider'
+  | 'campaign_goal_slider'
+  | 'quote_overlay_slider'
+  | 'compact_banner_slider'
+  | 'bento_3_tile_slider'
+  | 'gold_frame_center_slider'
+  | 'soft_pastel_split_slider'
+  | 'split_ruby_urgent_slider'
+  | 'mosaic_4_photo_slider'
+  | 'glass_bottom_bar_slider'
+  | 'circle_portrait_slider'
+  | 'dark_olive_gold_slider'
+  | 'numbered_list_right_slider'
+  | 'floating_pill_cta_slider'
+  | 'split_reverse_card_slider'
+  | 'minimal_typographic_banner_slider'
+  | 'countdown_gold_slider'
+  | 'bordered_dual_button_slider'
+  | 'warm_terracotta_slider'
+  | 'split_indigo_silver_slider'
+  | 'full_bleed_duotone_ruby'
+  | 'card_grid_3_slider'
+  | 'top_badge_center_slider'
+  | 'sidebar_cta_slider'
+  | 'dark_plum_gold_slider'
+  | 'minimal_border_box_slider'
+  | 'pill_overlay_bottom_slider'
+  | 'split_icon_list_slider'
+  | 'diagonal_light_slider'
+  | 'dark_forest_amber_slider'
+  | 'compact_card_row_slider'
+export type SliderNav = 'dots' | 'tabs' | 'icon_tabs' | 'thumbs' | 'numbers' | 'progress' | 'ring' | 'pill_bars' | 'chapter_titles' | 'vertical_dots' | 'fraction_bar' | 'mini_cards' | 'progress_dots' | 'top_bar' | 'side_numbers' | 'gold_dots' | 'outlined_tabs' | 'bottom_counter_pill' | 'emerald_bars'
+export type SliderArrowStyle = 'round' | 'square' | 'minimal' | 'ghost' | 'pill_dark' | 'gold_ring' | 'floating_edge' | 'text_prev_next' | 'emerald_pill' | 'ruby_circle' | 'glass_square' | 'double_chevron'
 
 const SLIDE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   heart: Heart,
@@ -354,7 +405,19 @@ export function Slider({
     effect === 'cards' ||
     effect === 'parallax' ||
     effect === 'cube' ||
-    effect === 'curtain'
+    effect === 'curtain' ||
+    effect === 'scale_down' ||
+    effect === 'slide_up' ||
+    effect === 'crossfade_blur' ||
+    effect === 'flip_x' ||
+    effect === 'zoom_out' ||
+    effect === 'slide_diagonal' ||
+    effect === 'fade_fast' ||
+    effect === 'rotate_subtle' ||
+    effect === 'glide_right' ||
+    effect === 'pop_in' ||
+    effect === 'wipe_up' ||
+    effect === 'soft_dissolve'
 
   useEffect(() => { setRtl(document.documentElement.dir === 'rtl') }, [])
   useEffect(() => {
@@ -392,12 +455,30 @@ export function Slider({
   const cardHeightClass = CARD_HEIGHTS[height] || ''
   const motion = reduced ? '' : 'duration-700 ease-out'
   const showThumbs = dots && count > 1 && nav === 'thumbs'
-  const showNumbers = dots && count > 1 && nav === 'numbers'
+  const showNumbers = dots && count > 1 && (nav === 'numbers' || nav === 'fraction_bar' || nav === 'bottom_counter_pill')
   const showProgress = dots && count > 1 && nav === 'progress'
-  const showTabs = dots && count > 1 && nav === 'tabs'
+  const showTabs = dots && count > 1 && (nav === 'tabs' || nav === 'chapter_titles' || nav === 'outlined_tabs')
   const showIconTabs = dots && count > 1 && nav === 'icon_tabs'
   const showRing = dots && count > 1 && nav === 'ring'
-  const arrowShape = arrowStyle === 'square' ? 'rounded-xl' : arrowStyle === 'minimal' ? 'rounded-lg bg-transparent border border-current/25 shadow-none' : arrowStyle === 'ghost' ? 'rounded-full bg-transparent shadow-none' : 'rounded-full'
+  const showVerticalDots = dots && count > 1 && nav === 'vertical_dots'
+  const showPillBars = dots && count > 1 && (nav === 'pill_bars' || nav === 'progress_dots' || nav === 'emerald_bars')
+  const isGoldDots = nav === 'gold_dots'
+  const showTopBar = dots && count > 1 && nav === 'top_bar'
+  const showSideNumbers = dots && count > 1 && nav === 'side_numbers'
+  const showMiniCards = dots && count > 1 && nav === 'mini_cards'
+  const arrowShape =
+    arrowStyle === 'square' ? 'rounded-xl'
+      : arrowStyle === 'minimal' ? 'rounded-lg bg-transparent border border-current/25 shadow-none'
+        : arrowStyle === 'ghost' ? 'rounded-full bg-transparent shadow-none'
+          : arrowStyle === 'pill_dark' ? 'rounded-full bg-slate-950/85 text-white border border-white/20 px-4 !w-auto'
+            : arrowStyle === 'gold_ring' ? 'rounded-full border-2 border-amber-400/80 bg-black/45 text-amber-300'
+              : arrowStyle === 'floating_edge' ? 'rounded-none !h-20 !w-10 bg-black/55 text-white'
+                : arrowStyle === 'text_prev_next' ? 'rounded-full px-4 !w-auto text-xs font-extrabold uppercase tracking-wider'
+                  : arrowStyle === 'emerald_pill' ? 'rounded-full bg-emerald-900/90 text-amber-300 border border-amber-400/40 px-4 !w-auto'
+                    : arrowStyle === 'ruby_circle' ? 'rounded-full bg-red-600 text-white shadow-lg'
+                      : arrowStyle === 'glass_square' ? 'rounded-xl bg-white/15 text-white backdrop-blur-md border border-white/25'
+                        : arrowStyle === 'double_chevron' ? 'rounded-full bg-black/40 text-white tracking-tighter'
+                          : 'rounded-full'
   const slideAnim = (active: boolean) => {
     if (!fade) return isVertical ? 'h-full w-full flex-none' : 'w-full flex-none'
     if (effect === 'zoom' || effect === 'kenburns_slow') return `transition-all ${motion} ${active ? 'opacity-100 scale-100' : 'pointer-events-none opacity-0 scale-[1.04]'}`
@@ -407,6 +488,18 @@ export function Slider({
     if (effect === 'parallax') return `transition-all ${motion} ${active ? 'opacity-100 translate-x-0' : 'pointer-events-none opacity-0 translate-x-6'}`
     if (effect === 'cube') return `transition-all duration-700 ease-out [transform-style:preserve-3d] ${active ? 'opacity-100 [transform:rotateY(0deg)] z-10' : 'pointer-events-none opacity-0 [transform:rotateY(60deg)_scale(0.92)]'}`
     if (effect === 'curtain') return `transition-all duration-700 ease-out ${active ? 'opacity-100 [clip-path:inset(0_0_0_0)] z-10' : 'pointer-events-none opacity-0 [clip-path:inset(0_0_0_100%)]'}`
+    if (effect === 'scale_down') return `transition-all ${motion} ${active ? 'opacity-100 scale-100 z-10' : 'pointer-events-none opacity-0 scale-105'}`
+    if (effect === 'slide_up') return `transition-all ${motion} ${active ? 'opacity-100 translate-y-0 z-10' : 'pointer-events-none opacity-0 translate-y-8'}`
+    if (effect === 'crossfade_blur') return `transition-all duration-700 ${active ? 'opacity-100 blur-0 z-10' : 'pointer-events-none opacity-0 blur-md'}`
+    if (effect === 'flip_x') return `transition-all duration-700 ${active ? 'opacity-100 [transform:rotateX(0deg)] z-10' : 'pointer-events-none opacity-0 [transform:rotateX(35deg)]'}`
+    if (effect === 'zoom_out') return `transition-all ${motion} ${active ? 'opacity-100 scale-100 z-10' : 'pointer-events-none opacity-0 scale-110'}`
+    if (effect === 'slide_diagonal') return `transition-all ${motion} ${active ? 'opacity-100 translate-x-0 translate-y-0 z-10' : 'pointer-events-none opacity-0 translate-x-5 translate-y-5'}`
+    if (effect === 'fade_fast') return `transition-opacity duration-300 ${active ? 'opacity-100 z-10' : 'pointer-events-none opacity-0'}`
+    if (effect === 'rotate_subtle') return `transition-all ${motion} ${active ? 'opacity-100 rotate-0 scale-100 z-10' : 'pointer-events-none opacity-0 rotate-1 scale-95'}`
+    if (effect === 'glide_right') return `transition-all ${motion} ${active ? 'opacity-100 translate-x-0 z-10' : 'pointer-events-none opacity-0 -translate-x-8'}`
+    if (effect === 'pop_in') return `transition-all duration-500 ${active ? 'opacity-100 scale-100 z-10' : 'pointer-events-none opacity-0 scale-90'}`
+    if (effect === 'wipe_up') return `transition-all duration-700 ease-out ${active ? 'opacity-100 [clip-path:inset(0_0_0_0)] z-10' : 'pointer-events-none opacity-0 [clip-path:inset(100%_0_0_0)]'}`
+    if (effect === 'soft_dissolve') return `transition-opacity duration-1000 ease-in-out ${active ? 'opacity-100 z-10' : 'pointer-events-none opacity-0'}`
     return `transition-opacity ${motion} ${active ? 'opacity-100' : 'pointer-events-none opacity-0'}`
   }
 
@@ -1091,6 +1184,1158 @@ export function Slider({
     )
   }
 
+  if (layout === 'emerald_gold_slider') {
+    const s = slides[index]
+    return (
+      <section
+        className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 py-14 text-white sm:py-20"
+        aria-roledescription="carousel"
+        aria-label={label}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onKeyDown={onKeyDown}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        style={{ touchAction: 'pan-y' }}
+      >
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && (
+              <span className="mb-3 inline-block rounded-full border border-amber-400/40 bg-amber-400/15 px-3.5 py-1 text-xs font-extrabold uppercase tracking-widest text-amber-300">
+                {s.badge}
+              </span>
+            )}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base leading-relaxed text-emerald-100/85">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+            {count > 1 && (
+              <div className="mt-8 flex items-center gap-2">
+                {slides.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    aria-label={`Slayt ${i + 1}`}
+                    onClick={() => go(i)}
+                    className={`h-2 rounded-full transition-all ${i === index ? 'w-8 bg-amber-400' : 'w-2 bg-white/30 hover:bg-white/50'}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="lg:col-span-6">
+            <div className="overflow-hidden rounded-3xl border border-amber-400/30 bg-black/30 shadow-2xl">
+              {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'split_progress_slider') {
+    const s = slides[index]
+    const pct = Math.round(((index + 1) / Math.max(1, count)) * 100)
+    return (
+      <section
+        className="relative overflow-hidden bg-white py-12 text-gray-900 sm:py-16"
+        aria-roledescription="carousel"
+        aria-label={label}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onKeyDown={onKeyDown}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        style={{ touchAction: 'pan-y' }}
+      >
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
+          <div className="mb-6 flex items-center justify-between gap-4">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
+              <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-xs font-extrabold tabular-nums text-gray-500">
+              {index + 1} / {count}
+            </span>
+          </div>
+          <div className="grid items-center gap-8 rounded-3xl border border-gray-200 bg-gray-50/70 p-6 sm:p-10 lg:grid-cols-12">
+            <div className="lg:col-span-6">
+              {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-primary-800">{s.badge}</span>}
+              {s.title && <h2 className="font-heading text-3xl font-extrabold leading-tight text-gray-900 sm:text-4xl">{s.title}</h2>}
+              {s.text && <p className="mt-3 text-base leading-relaxed text-gray-600">{s.text}</p>}
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                {renderButtons(s, '')}
+              </div>
+              {count > 1 && (
+                <div className="mt-6 flex items-center gap-2">
+                  <button type="button" aria-label="Önceki slayt" onClick={() => go((index - 1 + count) % count)} className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 bg-white text-lg text-gray-700 hover:bg-primary-50">‹</button>
+                  <button type="button" aria-label="Sonraki slayt" onClick={() => go((index + 1) % count)} className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-300 bg-white text-lg text-gray-700 hover:bg-primary-50">›</button>
+                </div>
+              )}
+            </div>
+            <div className="overflow-hidden rounded-2xl bg-gray-200 shadow-lg lg:col-span-6">
+              {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'full_bleed_caption_slider') {
+    const s = slides[index]
+    return (
+      <section
+        className="relative min-h-[460px] overflow-hidden bg-slate-950 text-white sm:min-h-[540px]"
+        aria-roledescription="carousel"
+        aria-label={label}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onKeyDown={onKeyDown}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        style={{ touchAction: 'pan-y' }}
+      >
+        {s.image_url && (
+          <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-80 transition duration-700" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/20" />
+        <div className="relative mx-auto flex min-h-[460px] max-w-[1280px] flex-col justify-end px-4 pb-10 pt-20 sm:min-h-[540px] sm:px-6 sm:pb-14">
+          <div className="max-w-3xl">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-white/20 px-3.5 py-1 text-xs font-extrabold uppercase tracking-widest text-white backdrop-blur-sm">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base leading-relaxed text-white/85">{s.text}</p>}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+              <div>{renderButtons(s, 'dark')}</div>
+              {count > 1 && (
+                <div className="flex items-center gap-2">
+                  {slides.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      aria-label={`Slayt ${i + 1}`}
+                      onClick={() => go(i)}
+                      className={`h-2.5 rounded-full transition-all ${i === index ? 'w-8 bg-white' : 'w-2.5 bg-white/40 hover:bg-white/70'}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'arch_islamic_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-br from-amber-50/60 via-white to-primary-50/40 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full border border-amber-300 bg-amber-50 px-3.5 py-1 text-xs font-extrabold uppercase tracking-widest text-amber-800">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold leading-tight text-gray-900 sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base leading-relaxed text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="flex justify-center lg:col-span-6">
+            <div className="w-full max-w-md overflow-hidden rounded-t-[160px] rounded-b-3xl border-4 border-amber-300/70 bg-white p-2 shadow-xl">
+              {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[4/5] w-full rounded-t-[150px] rounded-b-2xl object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'countdown_urgent_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative overflow-hidden bg-red-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-red-600 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-white">
+              <span className="h-2 w-2 animate-ping rounded-full bg-white" /> {s.badge || 'ACİL YARDIM'}
+            </div>
+            {renderCountdown(s, false)}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base leading-relaxed text-red-100/85">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-red-400/30 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'quick_amount_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative overflow-hidden bg-primary-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-white/15 px-3.5 py-1 text-xs font-extrabold uppercase tracking-widest text-accent-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-white/80">{s.text}</p>}
+            <div className="mt-4">{renderQuickAmounts(s, false)}</div>
+            <div className="mt-4">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-white/15 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'filmstrip_bottom_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-slate-950 text-white" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="relative min-h-[420px] sm:min-h-[500px]">
+          {s.image_url && <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-75" />}
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent" />
+          <div className="relative mx-auto flex min-h-[420px] max-w-[1280px] flex-col justify-end px-4 pb-8 pt-16 sm:min-h-[500px] sm:px-6">
+            {s.badge && <span className="mb-2 w-fit rounded-full bg-amber-400/20 px-3 py-1 text-xs font-extrabold text-amber-300">{s.badge}</span>}
+            {s.title && <h2 className="max-w-3xl font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            <div className="mt-5">{renderButtons(s, 'dark')}</div>
+          </div>
+        </div>
+        {count > 1 && (
+          <div className="border-t border-white/10 bg-black/60 py-3">
+            <div className="mx-auto flex max-w-[1280px] gap-2 overflow-x-auto px-4 sm:px-6">
+              {slides.map((item, i) => (
+                <button key={i} type="button" onClick={() => go(i)} className={`h-14 w-24 shrink-0 overflow-hidden rounded-lg border-2 transition ${i === index ? 'border-amber-400 opacity-100' : 'border-transparent opacity-50 hover:opacity-80'}`}>
+                  {item.image_url && <img src={item.image_url} alt="" className="h-full w-full object-cover" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+    )
+  }
+
+  if (layout === 'polaroid_collage_slider') {
+    const s = slides[index]
+    const s2 = slides[(index + 1) % count] || s
+    return (
+      <section className="overflow-hidden bg-amber-50/40 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3 py-1 text-xs font-extrabold uppercase text-primary-800">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="relative grid grid-cols-2 gap-4 lg:col-span-6">
+            <div className="-rotate-2 rounded-2xl bg-white p-3 pb-7 shadow-xl ring-1 ring-black/5">
+              {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[4/3] w-full rounded-lg object-cover" />}
+            </div>
+            <div className="mt-6 rotate-2 rounded-2xl bg-white p-3 pb-7 shadow-xl ring-1 ring-black/5">
+              {s2.image_url && <img src={s2.image_url} alt={s2.title || ''} className="aspect-[4/3] w-full rounded-lg object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'glass_card_overlay_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative flex min-h-[460px] items-center justify-center overflow-hidden bg-slate-950 px-4 py-16 sm:min-h-[540px]" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        {s.image_url && <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover" />}
+        <div className="absolute inset-0 bg-black/45" />
+        <div className="relative z-10 mx-auto max-w-2xl rounded-3xl border border-white/25 bg-white/15 p-8 text-center text-white shadow-2xl backdrop-blur-md sm:p-12">
+          {s.badge && <span className="mb-3 inline-block rounded-full bg-white/20 px-3.5 py-1 text-xs font-extrabold uppercase tracking-widest">{s.badge}</span>}
+          {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+          {s.text && <p className="mt-3 text-base text-white/90">{s.text}</p>}
+          <div className="mt-6 flex justify-center">{renderButtons(s, 'justify-center')}</div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'split_50_50_framed') {
+    const s = slides[index]
+    return (
+      <section className="bg-white py-12 sm:py-16" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
+          <div className="grid items-center gap-8 rounded-3xl border-2 border-primary-200 bg-white p-6 shadow-sm sm:p-10 md:grid-cols-2">
+            <div>
+              {s.badge && <div className="mb-2 text-xs font-extrabold uppercase tracking-widest text-primary-700">{s.badge}</div>}
+              {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+              {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+              <div className="mt-6">{renderButtons(s, '')}</div>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-gray-200">
+              {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[4/3] w-full object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'vertical_chapter_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gray-50 py-12 sm:py-16" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-8 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="space-y-2 lg:col-span-4">
+            {slides.map((item, i) => (
+              <button key={i} type="button" onClick={() => go(i)} className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-start transition ${i === index ? 'border-primary-600 bg-white shadow-md' : 'border-transparent bg-white/50 text-gray-500 hover:bg-white'}`}>
+                <span className={`font-heading text-sm font-extrabold ${i === index ? 'text-primary-600' : 'text-gray-400'}`}>{String(i + 1).padStart(2, '0')}</span>
+                <span className="truncate font-heading text-sm font-bold text-gray-900">{item.title || item.badge || `Slayt ${i + 1}`}</span>
+              </button>
+            ))}
+          </div>
+          <div className="overflow-hidden rounded-3xl bg-white p-6 shadow-lg lg:col-span-8">
+            <div className="grid items-center gap-6 md:grid-cols-2">
+              <div>
+                {s.badge && <span className="mb-2 inline-block rounded-full bg-primary-50 px-3 py-1 text-xs font-bold text-primary-700">{s.badge}</span>}
+                {s.title && <h2 className="font-heading text-2xl font-extrabold text-gray-900 sm:text-3xl">{s.title}</h2>}
+                {s.text && <p className="mt-2 text-sm text-gray-600">{s.text}</p>}
+                <div className="mt-5">{renderButtons(s, '')}</div>
+              </div>
+              <div className="overflow-hidden rounded-2xl bg-gray-100">
+                {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[4/3] w-full object-cover" />}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'dark_amber_spotlight') {
+    const s = slides[index]
+    return (
+      <section className="relative overflow-hidden bg-zinc-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-amber-500/20 px-3.5 py-1 text-xs font-extrabold uppercase tracking-widest text-amber-400">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-zinc-300">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-amber-500/30 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'bordered_editorial_slider') {
+    const s = slides[index]
+    return (
+      <section className="border-y border-gray-200 bg-white py-12 sm:py-16" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-8 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-5">
+            {s.badge && <div className="mb-2 text-xs font-extrabold uppercase tracking-[3px] text-primary-700">{s.badge}</div>}
+            {s.title && <h2 className="font-serif text-3xl font-bold leading-tight text-gray-900 sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base leading-relaxed text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="overflow-hidden border border-gray-300 p-2 lg:col-span-7">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/9] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'floating_stats_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-primary-50/40 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3 py-1 text-xs font-extrabold uppercase text-primary-800">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="relative lg:col-span-6">
+            <div className="overflow-hidden rounded-3xl shadow-xl">
+              {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+            </div>
+            {s.campaign && (
+              <div className="absolute -bottom-5 start-5 rounded-2xl border border-primary-100 bg-white px-5 py-3 shadow-xl">
+                <div className="text-xs font-bold text-gray-500">{s.campaign.title}</div>
+                <div className="font-heading text-xl font-extrabold text-primary-700">%{s.campaign.progress} · {s.campaign.collected}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'duotone_emerald_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative min-h-[460px] overflow-hidden bg-emerald-950 text-white sm:min-h-[540px]" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        {s.image_url && <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-35 mix-blend-luminosity" />}
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-950 via-emerald-900/80 to-emerald-800/60" />
+        <div className="relative mx-auto flex min-h-[460px] max-w-[1280px] flex-col justify-center px-4 py-16 sm:min-h-[540px] sm:px-6">
+          <div className="max-w-2xl">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-amber-400/20 px-3.5 py-1 text-xs font-extrabold uppercase tracking-widest text-amber-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-emerald-100/90">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'split_card_overlap_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gray-50 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center px-4 sm:px-6 lg:grid-cols-12">
+          <div className="relative z-10 rounded-3xl border border-gray-200 bg-white p-8 shadow-2xl lg:col-span-6 lg:-me-14">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-50 px-3 py-1 text-xs font-extrabold text-primary-700">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl shadow-xl lg:col-span-7 lg:col-start-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'dark_sapphire_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-br from-sky-950 via-slate-900 to-cyan-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full border border-cyan-400/30 bg-cyan-400/15 px-3.5 py-1 text-xs font-extrabold uppercase tracking-widest text-cyan-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-sky-100/85">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-cyan-400/25 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'two_row_thumbs_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-white py-10 sm:py-14" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto max-w-[1280px] space-y-5 px-4 sm:px-6">
+          <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[21/9] w-full object-cover opacity-70" />}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10">
+              {s.title && <h2 className="font-heading text-2xl font-extrabold sm:text-4xl">{s.title}</h2>}
+              <div className="mt-4">{renderButtons(s, 'dark')}</div>
+            </div>
+          </div>
+          {count > 1 && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {slides.slice(0, 4).map((item, i) => (
+                <button key={i} type="button" onClick={() => go(i)} className={`flex items-center gap-3 rounded-2xl border p-3 text-start transition ${i === index ? 'border-primary-600 bg-primary-50/50' : 'border-gray-200 bg-white hover:border-primary-300'}`}>
+                  {item.image_url && <img src={item.image_url} alt="" className="h-12 w-16 shrink-0 rounded-lg object-cover" />}
+                  <span className="line-clamp-2 font-heading text-xs font-bold text-gray-900">{item.title || item.badge || `Slayt ${i + 1}`}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'video_split_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-slate-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-5">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold uppercase text-accent-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-4xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-slate-300">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="relative aspect-video overflow-hidden rounded-3xl border border-white/15 bg-black shadow-2xl lg:col-span-7">
+            {renderMediaBg(s, index, true)}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'diagonal_split_dark_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative overflow-hidden bg-zinc-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-8 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-500/20 px-3 py-1 text-xs font-extrabold text-primary-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-zinc-300">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl [clip-path:polygon(8%_0,100%_0,100%_100%,0_100%)] lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'minimal_counter_slider') {
+    const s = slides[index]
+    return (
+      <section className="border-y border-gray-200 bg-white py-12 sm:py-16" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-8 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            <div className="mb-4 font-heading text-4xl font-black text-primary-600/30">{String(index + 1).padStart(2, '0')} / {String(count).padStart(2, '0')}</div>
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-gray-200 lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'campaign_goal_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-primary-50/40 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3 py-1 text-xs font-extrabold text-primary-800">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-4">{renderProgress(s, true)}</div>
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl shadow-xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'quote_overlay_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative flex min-h-[420px] items-center justify-center overflow-hidden bg-slate-950 px-4 py-16 text-center text-white sm:min-h-[500px]" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        {s.image_url && <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-45" />}
+        <div className="relative z-10 mx-auto max-w-3xl">
+          {s.badge && <div className="mb-3 text-xs font-extrabold uppercase tracking-[3px] text-amber-300">{s.badge}</div>}
+          {s.title && <h2 className="font-serif text-3xl font-bold italic leading-snug sm:text-5xl">“{s.title}”</h2>}
+          {s.text && <p className="mt-4 text-base text-white/85">{s.text}</p>}
+          <div className="mt-6 flex justify-center">{renderButtons(s, 'justify-center')}</div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'compact_banner_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-primary-900 py-8 text-white" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="min-w-0 flex-1">
+            {s.badge && <span className="me-2 rounded-full bg-amber-400 px-2.5 py-0.5 text-[10px] font-extrabold uppercase text-slate-950">{s.badge}</span>}
+            {s.title && <span className="font-heading text-lg font-bold sm:text-xl">{s.title}</span>}
+          </div>
+          <div>{renderButtons(s, 'dark')}</div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'bento_3_tile_slider') {
+    const s = slides[index]
+    const s2 = slides[(index + 1) % count] || s
+    const s3 = slides[(index + 2) % count] || s
+    return (
+      <section className="bg-white py-10 sm:py-14" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] gap-4 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="relative min-h-[340px] overflow-hidden rounded-3xl bg-slate-950 p-7 text-white lg:col-span-8">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-70" />}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+            <div className="relative flex h-full flex-col justify-end">
+              {s.title && <h2 className="font-heading text-2xl font-extrabold sm:text-4xl">{s.title}</h2>}
+              <div className="mt-4">{renderButtons(s, 'dark')}</div>
+            </div>
+          </div>
+          <div className="grid gap-4 lg:col-span-4">
+            {[s2, s3].map((item, k) => (
+              <div key={k} className="relative min-h-[160px] overflow-hidden rounded-3xl bg-slate-900 p-5 text-white">
+                {item.image_url && <img src={item.image_url} alt={item.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-65" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                <div className="relative flex h-full items-end font-heading text-base font-bold">{item.title}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'gold_frame_center_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-amber-50/30 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto max-w-4xl px-4 text-center sm:px-6">
+          <div className="rounded-3xl border-2 border-amber-400/60 bg-white p-8 shadow-xl sm:p-12">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-amber-100 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-900">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+            {s.text && <p className="mx-auto mt-3 max-w-2xl text-base text-gray-600">{s.text}</p>}
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="mt-6 aspect-[16/9] w-full rounded-2xl object-cover" />}
+            <div className="mt-6 flex justify-center">{renderButtons(s, 'justify-center')}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'soft_pastel_split_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-rose-50/40 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 rounded-3xl bg-white p-8 shadow-sm sm:p-12 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-50 px-3 py-1 text-xs font-bold text-primary-700">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[4/3] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'split_ruby_urgent_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gradient-to-br from-rose-950 via-red-900 to-slate-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-red-600 px-3.5 py-1 text-xs font-extrabold uppercase text-white">
+              <span className="h-2 w-2 animate-ping rounded-full bg-white" /> {s.badge || 'ACİL YARDIM'}
+            </span>
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-rose-100/85">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-red-400/30 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'mosaic_4_photo_slider') {
+    const s = slides[index]
+    const s2 = slides[(index + 1) % count] || s
+    const s3 = slides[(index + 2) % count] || s
+    const s4 = slides[(index + 3) % count] || s
+    return (
+      <section className="bg-white py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-5">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3 py-1 text-xs font-extrabold uppercase text-primary-800">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:col-span-7">
+            {[s, s2, s3, s4].map((item, k) => (
+              <div key={k} className="aspect-[4/3] overflow-hidden rounded-2xl bg-gray-100 shadow-sm">
+                {item.image_url && <img src={item.image_url} alt={item.title || ''} className="h-full w-full object-cover" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'glass_bottom_bar_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative flex min-h-[460px] items-end overflow-hidden bg-slate-950 text-white sm:min-h-[540px]" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        {s.image_url && <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover" />}
+        <div className="relative z-10 w-full border-t border-white/20 bg-black/50 py-6 backdrop-blur-md">
+          <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-between gap-4 px-4 sm:px-6">
+            <div>
+              {s.title && <h2 className="font-heading text-2xl font-extrabold sm:text-3xl">{s.title}</h2>}
+              {s.text && <p className="mt-1 text-sm text-white/80">{s.text}</p>}
+            </div>
+            <div>{renderButtons(s, 'dark')}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'circle_portrait_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-primary-50/30 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3 py-1 text-xs font-bold text-primary-800">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="flex justify-center lg:col-span-6">
+            <div className="h-72 w-72 overflow-hidden rounded-full border-8 border-white shadow-2xl sm:h-96 sm:w-96">
+              {s.image_url && <img src={s.image_url} alt={s.title || ''} className="h-full w-full object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'dark_olive_gold_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gradient-to-br from-lime-950 via-stone-950 to-black py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full border border-amber-400/40 bg-amber-400/15 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-stone-300">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border-2 border-amber-400/35 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'numbered_list_right_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-white py-12 sm:py-16" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-8 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl lg:col-span-8">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/9] w-full object-cover opacity-75" />}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+              {s.title && <h2 className="font-heading text-2xl font-extrabold sm:text-3xl">{s.title}</h2>}
+              <div className="mt-4">{renderButtons(s, 'dark')}</div>
+            </div>
+          </div>
+          <div className="space-y-2 lg:col-span-4">
+            {slides.map((item, i) => (
+              <button key={i} type="button" onClick={() => go(i)} className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-start transition ${i === index ? 'border-primary-600 bg-primary-50/60' : 'border-gray-200 bg-white hover:border-primary-300'}`}>
+                <span className="font-heading text-sm font-black text-primary-700">{String(i + 1).padStart(2, '0')}</span>
+                <span className="truncate text-sm font-bold text-gray-900">{item.title || item.badge || `Slayt ${i + 1}`}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'floating_pill_cta_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative flex min-h-[440px] items-end justify-center overflow-hidden bg-slate-950 p-6 pb-10 text-white sm:min-h-[520px]" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        {s.image_url && <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover" />}
+        <div className="relative z-10 flex max-w-4xl flex-wrap items-center justify-between gap-4 rounded-full border border-white/25 bg-black/65 px-7 py-4 backdrop-blur-md">
+          <div className="min-w-0 flex-1">
+            {s.title && <h2 className="truncate font-heading text-xl font-extrabold sm:text-2xl">{s.title}</h2>}
+          </div>
+          <div>{renderButtons(s, 'dark')}</div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'split_reverse_card_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gray-50 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-8 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="overflow-hidden rounded-3xl shadow-xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+          <div className="rounded-3xl border border-gray-200 bg-white p-8 shadow-lg lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-50 px-3 py-1 text-xs font-extrabold text-primary-700">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'minimal_typographic_banner_slider') {
+    const s = slides[index]
+    return (
+      <section className="border-y border-gray-200 bg-white py-16 text-center sm:py-24" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          {s.badge && <div className="mb-3 text-xs font-extrabold uppercase tracking-[3px] text-primary-700">{s.badge}</div>}
+          {s.title && <h2 className="font-serif text-4xl font-bold leading-tight text-gray-950 sm:text-6xl">{s.title}</h2>}
+          {s.text && <p className="mx-auto mt-4 max-w-2xl text-base text-gray-600">{s.text}</p>}
+          <div className="mt-7 flex justify-center">{renderButtons(s, 'justify-center')}</div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'countdown_gold_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-slate-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-amber-400/20 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-300">{s.badge}</span>}
+            {renderCountdown(s, false)}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-slate-300">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-amber-400/30 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'bordered_dual_button_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-white py-12 sm:py-16" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
+          <div className="grid items-center gap-8 rounded-3xl border-2 border-gray-900 bg-white p-7 sm:p-10 lg:grid-cols-12">
+            <div className="lg:col-span-6">
+              {s.badge && <span className="mb-2 inline-block text-xs font-extrabold uppercase tracking-widest text-primary-700">{s.badge}</span>}
+              {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+              {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+              <div className="mt-6">{renderButtons(s, '')}</div>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-gray-200 lg:col-span-6">
+              {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'warm_terracotta_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gradient-to-br from-orange-950 via-amber-950 to-stone-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-amber-400/20 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-orange-100/85">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-amber-400/25 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'split_indigo_silver_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-sky-300/20 px-3.5 py-1 text-xs font-extrabold uppercase text-sky-200">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-indigo-100/85">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-white/15 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'full_bleed_duotone_ruby') {
+    const s = slides[index]
+    return (
+      <section className="relative min-h-[460px] overflow-hidden bg-rose-950 text-white sm:min-h-[540px]" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        {s.image_url && <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-35 mix-blend-luminosity" />}
+        <div className="absolute inset-0 bg-gradient-to-r from-rose-950 via-red-900/75 to-rose-900/50" />
+        <div className="relative mx-auto flex min-h-[460px] max-w-[1280px] flex-col justify-center px-4 py-16 sm:min-h-[540px] sm:px-6">
+          <div className="max-w-2xl">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-red-600 px-3.5 py-1 text-xs font-extrabold uppercase text-white">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-rose-100/90">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'card_grid_3_slider') {
+    const shown = [slides[index], slides[(index + 1) % count] || slides[index], slides[(index + 2) % count] || slides[index]]
+    return (
+      <section className="bg-gray-50 py-12 sm:py-16" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] gap-6 px-4 sm:px-6 md:grid-cols-3">
+          {shown.map((item, k) => (
+            <div key={k} className="flex flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
+              {item.image_url && <img src={item.image_url} alt={item.title || ''} className="mb-4 aspect-[16/10] w-full rounded-2xl object-cover" />}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-primary-50 px-2.5 py-0.5 text-[10px] font-bold uppercase text-primary-700">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold text-gray-900">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-gray-600">{item.text}</p>}
+              <div className="mt-4">{renderButtons(item, '')}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'top_badge_center_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-white py-14 text-center sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
+          {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-4 py-1 text-xs font-extrabold uppercase text-primary-800">{s.badge}</span>}
+          {s.title && <h2 className="mx-auto max-w-3xl font-heading text-3xl font-extrabold text-gray-900 sm:text-5xl">{s.title}</h2>}
+          {s.text && <p className="mx-auto mt-3 max-w-2xl text-base text-gray-600">{s.text}</p>}
+          <div className="mt-6 flex justify-center">{renderButtons(s, 'justify-center')}</div>
+          {s.image_url && <img src={s.image_url} alt={s.title || ''} className="mt-8 aspect-[21/9] w-full rounded-3xl object-cover shadow-xl" />}
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'sidebar_cta_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-primary-950 py-12 text-white sm:py-16" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-stretch gap-6 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="flex flex-col justify-center rounded-3xl border border-white/15 bg-white/5 p-7 lg:col-span-4">
+            {s.badge && <span className="mb-2 w-fit rounded-full bg-amber-400/20 px-3 py-1 text-xs font-extrabold text-amber-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-2xl font-extrabold sm:text-3xl">{s.title}</h2>}
+            {s.text && <p className="mt-2 text-sm text-white/80">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl lg:col-span-8">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="h-full min-h-[300px] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'dark_plum_gold_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gradient-to-br from-purple-950 via-fuchsia-950 to-slate-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-amber-400/20 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-purple-100/85">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-amber-400/30 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'minimal_border_box_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-white py-12 sm:py-16" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
+          <div className="grid items-center gap-8 rounded-2xl border border-gray-300 p-6 sm:p-10 lg:grid-cols-12">
+            <div className="lg:col-span-6">
+              {s.badge && <div className="mb-2 text-xs font-extrabold uppercase tracking-widest text-primary-700">{s.badge}</div>}
+              {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+              {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+              <div className="mt-6">{renderButtons(s, '')}</div>
+            </div>
+            <div className="overflow-hidden rounded-xl lg:col-span-6">
+              {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'pill_overlay_bottom_slider') {
+    const s = slides[index]
+    return (
+      <section className="relative flex min-h-[460px] items-end justify-center overflow-hidden bg-slate-950 p-6 pb-8 text-white sm:min-h-[540px]" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        {s.image_url && <img src={s.image_url} alt={s.title || ''} className="absolute inset-0 h-full w-full object-cover" />}
+        <div className="relative z-10 flex max-w-4xl flex-wrap items-center justify-between gap-4 rounded-full border border-white/25 bg-white/90 px-7 py-3.5 text-gray-900 shadow-2xl backdrop-blur-md">
+          {s.title && <h2 className="font-heading text-lg font-extrabold sm:text-xl">{s.title}</h2>}
+          <div>{renderButtons(s, '')}</div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'split_icon_list_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-primary-50/40 py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary-600 px-3.5 py-1 text-xs font-extrabold text-white">✓ {s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{s.title}</h2>}
+            {s.text && <p className="mt-3 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border-4 border-white shadow-xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'diagonal_light_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-white py-14 sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-8 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3 py-1 text-xs font-extrabold text-primary-800">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-gray-600">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, '')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl [clip-path:polygon(10%_0,100%_0,100%_100%,0_100%)] shadow-xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'dark_forest_amber_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gradient-to-br from-green-950 via-emerald-950 to-stone-950 py-14 text-white sm:py-20" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-4 sm:px-6 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            {s.badge && <span className="mb-3 inline-block rounded-full bg-amber-400/20 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-300">{s.badge}</span>}
+            {s.title && <h2 className="font-heading text-3xl font-extrabold sm:text-5xl">{s.title}</h2>}
+            {s.text && <p className="mt-4 text-base text-emerald-100/85">{s.text}</p>}
+            <div className="mt-6">{renderButtons(s, 'dark')}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-amber-400/25 shadow-2xl lg:col-span-6">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (layout === 'compact_card_row_slider') {
+    const s = slides[index]
+    return (
+      <section className="bg-gray-50 py-8" aria-roledescription="carousel" aria-label={label}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onKeyDown={onKeyDown} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} style={{ touchAction: 'pan-y' }}>
+        <div className="mx-auto max-w-[1280px] px-4 sm:px-6">
+          <div className="flex flex-wrap items-center gap-6 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            {s.image_url && <img src={s.image_url} alt={s.title || ''} className="h-24 w-36 shrink-0 rounded-xl object-cover" />}
+            <div className="min-w-0 flex-1">
+              {s.badge && <div className="text-[11px] font-extrabold uppercase text-primary-700">{s.badge}</div>}
+              {s.title && <h2 className="font-heading text-xl font-bold text-gray-900">{s.title}</h2>}
+              {s.text && <p className="mt-1 line-clamp-2 text-sm text-gray-600">{s.text}</p>}
+            </div>
+            <div>{renderButtons(s, '')}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   if (card) {
     return (
       <section
@@ -1381,11 +2626,48 @@ export function Slider({
           </div>
         )}
 
-        {dots && count > 1 && !showThumbs && !showIconTabs && !showNumbers && !showProgress && !showRing && (
+        {showTopBar && (
+          <div className="absolute inset-x-0 top-0 z-20 h-1 bg-white/20">
+            <div className="h-full bg-amber-400 transition-all duration-500" style={{ width: `${((index + 1) / Math.max(1, count)) * 100}%` }} />
+          </div>
+        )}
+
+        {showSideNumbers && (
+          <div className="absolute end-4 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-1.5">
+            {slides.map((_, i) => (
+              <button key={i} type="button" onClick={() => go(i)}
+                className={`rounded-lg px-2 py-1 text-[11px] font-extrabold transition ${i === index ? 'bg-amber-400 text-slate-950' : 'bg-black/40 text-white/70 hover:text-white'}`}>
+                {String(i + 1).padStart(2, '0')}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showMiniCards && (
+          <div className="absolute inset-x-0 bottom-3 z-10 mx-auto hidden max-w-[1200px] gap-2 px-6 md:grid" style={{ gridTemplateColumns: `repeat(${Math.min(count, 4)}, minmax(0, 1fr))` }}>
+            {slides.slice(0, 4).map((item, i) => (
+              <button key={i} type="button" onClick={() => go(i)}
+                className={`truncate rounded-xl border px-3 py-2 text-start text-xs font-bold backdrop-blur-md transition ${i === index ? 'border-amber-400 bg-white text-gray-900' : 'border-white/20 bg-black/40 text-white/80 hover:bg-black/60'}`}>
+                {item.title || item.badge || `Slayt ${i + 1}`}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {showVerticalDots && (
+          <div className="absolute end-4 top-1/2 z-10 flex -translate-y-1/2 flex-col gap-2">
+            {slides.map((_, i) => (
+              <button key={i} type="button" aria-label={`${i + 1}. slayt`} onClick={() => go(i)}
+                className={`w-2.5 rounded-full transition-all ${i === index ? 'h-8 bg-amber-400' : 'h-2.5 bg-white/50 hover:bg-white'}`} />
+            ))}
+          </div>
+        )}
+
+        {dots && count > 1 && !showThumbs && !showIconTabs && !showNumbers && !showProgress && !showRing && !showVerticalDots && (
           <div className={`absolute inset-x-0 z-10 flex items-center justify-center gap-2 ${showTabs && !isLightLayout ? 'bottom-5 md:hidden' : isLightLayout ? 'bottom-4' : 'bottom-6'}`}>
             {slides.map((_, i) => (
               <button key={i} type="button" aria-label={`${i + 1}. slayt`} aria-current={i === index} onClick={() => go(i)}
-                className={`relative h-2.5 overflow-hidden rounded-full transition-all ${i === index ? 'w-9' : 'w-2.5'} ${isLightLayout ? 'bg-primary-200' : 'bg-white/45'}`}>
+                className={`relative overflow-hidden rounded-full transition-all ${showPillBars ? (i === index ? 'h-2 w-12' : 'h-2 w-5') : (i === index ? 'h-2.5 w-9' : 'h-2.5 w-2.5')} ${isGoldDots ? 'bg-amber-400/40' : isLightLayout ? 'bg-primary-200' : 'bg-white/45'}`}>
                 {i === index && (
                   <span key={`${index}-${playing}`} className={`absolute inset-y-0 start-0 ${isLightLayout ? 'bg-primary-600' : 'bg-white'} ${playing ? 'slider-progress' : 'w-full'}`} style={{ animationDuration: `${seconds}s` }} />
                 )}

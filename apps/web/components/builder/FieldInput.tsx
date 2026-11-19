@@ -37,17 +37,24 @@ function Label({ spec, children, inline }: { spec: FieldSpec; children: React.Re
 
 function ListField({ spec, value, onChange, ctx }: { spec: FieldSpec; value: any[]; onChange: (v: any[]) => void; ctx: FieldContext }) {
   const [open, setOpen] = useState<number | null>(0)
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  const [dropIdx, setDropIdx] = useState<number | null>(null)
   const items = Array.isArray(value) ? value : []
   const defaults = () => Object.fromEntries(Object.entries(spec.fields || {}).filter(([, f]) => f.default !== undefined).map(([k, f]) => [k, f.default]))
   const set = (i: number, item: any) => onChange(items.map((x, j) => (j === i ? item : x)))
-  const move = (i: number, d: number) => {
-    const to = i + d
-    if (to < 0 || to >= items.length) return
+  const reorder = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return
     const next = [...items]
-    ;[next[i], next[to]] = [next[to], next[i]]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
     onChange(next)
-    setOpen(to)
+    if (open === from) setOpen(to)
+    else if (open !== null) {
+      if (from < open && to >= open) setOpen(open - 1)
+      else if (from > open && to <= open) setOpen(open + 1)
+    }
   }
+  const move = (i: number, d: number) => reorder(i, i + d)
   const remove = (i: number) => {
     onChange(items.filter((_, j) => j !== i))
     if (open === i) setOpen(items.length > 1 ? Math.max(0, i - 1) : null)
@@ -76,8 +83,24 @@ function ListField({ spec, value, onChange, ctx }: { spec: FieldSpec; value: any
       </div>
       {spec.help && <p className="text-[11px] text-gray-400">{spec.help}</p>}
       {items.map((item, i) => (
-        <div key={i} className="rounded-md border bg-gray-50">
-          <div className="flex items-center gap-1 px-2 py-1.5">
+        <div
+          key={i}
+          className={`rounded-md border bg-gray-50 transition ${dragIdx === i ? 'opacity-50' : ''} ${dropIdx === i && dragIdx !== i ? 'ring-2 ring-blue-500' : ''}`}
+          onDragOver={(e) => { if (dragIdx !== null) { e.preventDefault(); if (dropIdx !== i) setDropIdx(i) } }}
+          onDragLeave={() => setDropIdx((d) => (d === i ? null : d))}
+          onDrop={(e) => {
+            e.preventDefault()
+            if (dragIdx !== null && dragIdx !== i) reorder(dragIdx, i)
+            setDragIdx(null); setDropIdx(null)
+          }}
+        >
+          <div
+            draggable
+            onDragStart={(e) => { setDragIdx(i); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)) }}
+            onDragEnd={() => { setDragIdx(null); setDropIdx(null) }}
+            className="flex cursor-grab items-center gap-1 px-2 py-1.5 active:cursor-grabbing"
+          >
+            <span className="select-none text-[11px] text-gray-400" title="Sürükleyip sırala">⠿</span>
             <button type="button" className="flex-1 truncate text-start text-[12px] font-semibold" onClick={() => setOpen(open === i ? null : i)}>
               {open === i ? '▾' : '▸'} {(spec.item_label && item?.[spec.item_label]) || `${i + 1}. öğe`}
             </button>
@@ -168,6 +191,91 @@ function CampaignsField({ spec, value, onChange, campaigns }: { spec: FieldSpec;
   )
 }
 
+function VariantGlyph({ k }: { k: string }) {
+  const s = k.toLowerCase()
+  if (s.includes('dark') || s.includes('emerald') || s.includes('captioned_dark')) {
+    return <span className="inline-block h-4 w-6 rounded-sm bg-gray-900 ring-1 ring-gray-700" />
+  }
+  if (s.includes('glass') || s.includes('blur')) {
+    return <span className="inline-block h-4 w-6 rounded-sm bg-gradient-to-br from-sky-200 to-indigo-200 ring-1 ring-white/60" />
+  }
+  if (s.includes('split') || s.includes('dual') || s.includes('overlap')) {
+    return (
+      <span className="inline-flex h-4 w-6 overflow-hidden rounded-sm ring-1 ring-gray-300">
+        <span className="w-1/2 bg-gray-200" />
+        <span className="w-1/2 bg-blue-500/30" />
+      </span>
+    )
+  }
+  if (s.includes('circle')) {
+    return <span className="inline-block h-4 w-4 rounded-full bg-blue-500/25 ring-1 ring-blue-400" />
+  }
+  if (s.includes('center')) {
+    return (
+      <span className="inline-flex h-4 w-6 flex-col items-center justify-center gap-0.5 rounded-sm bg-gray-100 ring-1 ring-gray-300">
+        <span className="h-0.5 w-3.5 rounded bg-gray-500" />
+        <span className="h-0.5 w-2 rounded bg-blue-500" />
+      </span>
+    )
+  }
+  if (/^\d(-\d)+$/.test(s)) {
+    const parts = s.split('-').map(Number)
+    return (
+      <span className="inline-flex h-4 w-6 gap-0.5">
+        {parts.map((p, idx) => (
+          <span key={idx} style={{ flex: p }} className="h-full rounded-[2px] bg-blue-500/25 ring-1 ring-blue-400/60" />
+        ))}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex h-4 w-6 flex-col justify-center gap-0.5 rounded-sm bg-gray-50 px-1 ring-1 ring-gray-300">
+      <span className="h-0.5 w-full rounded bg-gray-400" />
+      <span className="h-0.5 w-2/3 rounded bg-blue-500/60" />
+    </span>
+  )
+}
+
+function VariantCardPicker({ spec, value, onChange }: { spec: FieldSpec; value: any; onChange: (v: any) => void }) {
+  const [filter, setFilter] = useState('')
+  const entries = Object.entries(spec.choices || {})
+  const current = String(value ?? spec.default ?? '')
+  const filtered = filter
+    ? entries.filter(([k, lbl]) => `${k} ${lbl}`.toLocaleLowerCase('tr').includes(filter.toLocaleLowerCase('tr')))
+    : entries
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[12px] font-semibold text-gray-600">{spec.label}</span>
+        {entries.length > 8 && (
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Ara…"
+            className="w-24 rounded border border-gray-200 px-1.5 py-0.5 text-[11px] outline-none focus:border-blue-500"
+          />
+        )}
+      </div>
+      <div className={`grid grid-cols-2 gap-1.5 ${entries.length > 8 ? 'max-h-52 overflow-y-auto pe-0.5' : ''}`}>
+        {filtered.map(([k, lbl]) => {
+          const active = current === k
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onChange(k || undefined)}
+              className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left text-[11px] transition ${active ? 'border-blue-600 bg-blue-50 font-semibold text-blue-900 ring-1 ring-blue-500' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-gray-50'}`}
+            >
+              <VariantGlyph k={k} />
+              <span className="line-clamp-2 leading-tight">{lbl}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function FieldInput({ spec, value, onChange, ctx }: { spec: FieldSpec; value: any; onChange: (v: any) => void; ctx: FieldContext }) {
   const base = typeof ctx.baseValue === 'string' && ctx.baseValue ? ctx.baseValue : undefined
   switch (spec.kind) {
@@ -241,7 +349,12 @@ export function FieldInput({ spec, value, onChange, ctx }: { spec: FieldSpec; va
           </div>
         </Label>
       )
-    case 'select':
+    case 'select': {
+      const choiceCount = Object.keys(spec.choices || {}).length
+      const isVisualSelect = choiceCount >= 4 && /görünüm|oran/i.test(spec.label)
+      if (isVisualSelect) {
+        return <VariantCardPicker spec={spec} value={value} onChange={onChange} />
+      }
       return (
         <Label spec={spec}>
           <select className={input} value={value ?? (spec.default ?? '')} onChange={(e) => onChange(e.target.value || undefined)}>
@@ -249,6 +362,7 @@ export function FieldInput({ spec, value, onChange, ctx }: { spec: FieldSpec; va
           </select>
         </Label>
       )
+    }
     case 'number':
       return (
         <Label spec={spec}>

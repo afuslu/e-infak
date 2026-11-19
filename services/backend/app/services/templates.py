@@ -134,6 +134,117 @@ def footer_minimal() -> list:
     ], tone="soft", top=48, bottom=20, margin_top=64)]
 
 
+def header_top_bar_urgent() -> list:
+    """Üstte acil yardım / telefon barı, altta logo + menü + bağış butonu."""
+    return [
+        _row({"tone": "brand", "height": 36, "border": False},
+             [B("contact_info", layout="inline")],
+             [B("richtext", text="Acil İnsani Yardım Hattı · 7/24 Güvenli Bağış", advanced=_TABLET_DOWN)],
+             [B("social_icons", p={"style": "text"})], style={"font_size": 12}),
+        _row({"tone": "light", "height": 78, "sticky": True, "shrink": True, "center_align": "center"},
+             [B("logo", size=44)],
+             [B("nav_menu", source="header", mobile="drawer")],
+             [B("cart_button", show_label=False), B("donate_button", p={"style": "accent"}, heart=True)]),
+    ]
+
+
+def header_split_cta() -> list:
+    """Solda logo, ortada menü, sağda döviz + sepet + bağış."""
+    return [_row({"tone": "light", "height": 78, "sticky": True, "shrink": True, "center_align": "center"},
+                 [B("logo", size=44)],
+                 [B("nav_menu", source="header", mobile="drawer")],
+                 [B("currency_switcher", advanced=_TABLET_DOWN), B("cart_button", show_label=False), B("donate_button", p={"style": "primary"}, heart=True)])]
+
+
+def header_glass_floating() -> list:
+    """Yarı saydam modern cam efektli üst bar."""
+    return [_row({"tone": "light", "height": 74, "sticky": True, "shrink": True, "center_align": "center"},
+                 [B("logo", size=42)],
+                 [B("nav_menu", source="header", mobile="drawer")],
+                 [B("site_search", advanced=_TABLET_DOWN), B("donate_button", p={"style": "accent"}, size="md")],
+                 style={"background": "rgba(255,255,255,0.85)", "backdrop_filter": "blur(12px)"})]
+
+
+def header_two_row_catalog() -> list:
+    """Üstte kurumsal şerit, altta kategori ve bağış odaklı menü."""
+    return [
+        _row({"tone": "dark", "height": 38, "border": False},
+             [B("social_icons", p={"style": "text"})],
+             [],
+             [B("language_switcher", advanced=_TABLET_DOWN), B("account_links", layout="inline")]),
+        _row({"tone": "light", "height": 78, "sticky": True, "shrink": True, "center_align": "left"},
+             [B("logo", size=46)],
+             [B("nav_menu", source="header", mobile="drawer")],
+             [B("donate_button", p={"style": "accent"}, heart=True)]),
+    ]
+
+
+def header_mobile_first_pill() -> list:
+    """Kompakt hap butonlu modern üst menü."""
+    return [_row({"tone": "light", "height": 70, "sticky": True, "shrink": True, "center_align": "right"},
+                 [B("logo", show_tagline=False, size=38)],
+                 [B("nav_menu", source="header", mobile="drawer")],
+                 [B("donate_button", p={"style": "accent"}, size="sm", heart=True)])]
+
+
+def header_emerald_gold() -> list:
+    """Koyu zümrüt zemin üzerine altın vurgulu vakıf header'ı."""
+    return [_row({"tone": "dark", "height": 82, "sticky": True, "shrink": True, "border": False, "center_align": "center"},
+                 [B("logo", light=True, size=48)],
+                 [B("nav_menu", source="header", mobile="drawer")],
+                 [B("cart_button", show_label=False), B("donate_button", p={"style": "accent"}, size="md", heart=True)])]
+
+
+def footer_dark_gold() -> list:
+    """Koyu zeminli 4 sütunlu altın vurgulu vakıf footer'ı."""
+    return [section([
+        columns("1-1-1-1",
+                [B("logo", light=True, show_about=True), B("social_icons", p={"style": "round"})],
+                [B("nav_menu", source="header", layout="vertical", mobile="inline", title="Çalışmalarımız")],
+                [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Kurumsal")],
+                [B("contact_info", title="Bağışçı Hattı", layout="stacked", show_address=True), B("donate_button", p={"style": "accent"}, heart=True)],
+                gap=40),
+        B("divider", look="gradient", padding_y="md"),
+        B("copyright", show_powered=True),
+    ], tone="dark", top=64, bottom=24, margin_top=64)]
+
+
+def footer_newsletter_split() -> list:
+    """E-bülten formlu ve kurumsal menülü iki bölümlü footer."""
+    return [section([
+        columns("1-1",
+                [B("logo", light=True, show_about=True), B("newsletter", look="compact", title="İyilik Bültenine Katılın")],
+                [columns("1-1",
+                         [B("nav_menu", source="header", layout="vertical", mobile="inline", title="Projeler")],
+                         [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Bilgi")], gap=24)],
+                gap=48),
+        B("copyright", style={"margin_top": 36}, show_powered=True),
+    ], tone="dark", top=56, bottom=20, margin_top=64)]
+
+
+def footer_trust_badges() -> list:
+    """Üstte güven & şeffaflık bandı içeren 3 sütunlu footer."""
+    return [section([
+        B("trust", look="minimal_divider_strip"),
+        columns("1-1-1",
+                [B("logo", light=True, show_about=True)],
+                [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Hızlı Erişim")],
+                [B("contact_info", title="İletişim", layout="stacked", show_address=True)],
+                gap=36),
+        B("copyright", style={"margin_top": 32}, show_powered=True),
+    ], tone="dark", top=48, bottom=20, margin_top=64)]
+
+
+def footer_compact_pill() -> list:
+    """Tek satır sade bağlantılar ve hızlı iletişim butonlu kompakt footer."""
+    return [section([
+        B("logo", style=dict(CENTER)),
+        B("nav_menu", source="footer", layout="horizontal", mobile="inline", align="center"),
+        B("social_icons", p={"style": "pill"}, align="center"),
+        B("copyright", show_powered=True),
+    ], tone="soft", top=40, bottom=20, margin_top=48)]
+
+
 # --- Content sections ----------------------------------------------------------------
 
 def _slides() -> list:
@@ -1197,13 +1308,6 @@ _section("bento-impact", "Bento Grid Vitrin", "Metin & medya", "Asimetrik modern
         {"image_url": "/demo/education.webp", "badge": "EĞİTİM", "title": "Hafızlık Bursları", "span": "normal", "tone": "light", "url": "/kampanyalar"},
     ]),
 ])
-_section("pricing-sponsorship", "Sponsorluk & Bağış Paketleri", "Bağış", "Kademeli aylık veya tek seferlik destek paketleri.", [
-    B("pricing_tiers", kicker="DÜZENLİ DESTEK", title="İyilik Paketlerimiz", subtitle="Size en uygun destek paketini seçerek düzenli iyilik halkasına katılın.", columns=3, items=[
-        {"badge": "Başlangıç", "title": "Kumanya Desteği", "amount": "500 ₺", "period": "/ ay", "description": "Bir ailenin aylık temel gıda ihtiyacına katkı.", "features": "Aylık 1 gıda kolisi\nSMS ile teslimat bilgisi\nResmi bağış makbuzu", "button_label": "Destek Ol", "button_url": "/kampanyalar"},
-        {"badge": "En Çok Tercih Edilen", "title": "Yetim Sponsorluğu", "amount": "1.200 ₺", "period": "/ ay", "description": "Bir yetimin tüm eğitim, giyim ve bakım masrafları.", "features": "Eğitim ve kırtasiye\nSağlık ve beslenme\nYıllık gelişim raporu\nÖzel bağışçı paneli", "button_label": "Sponsor Ol", "button_url": "/kampanyalar", "highlighted": True},
-        {"badge": "Eğitim", "title": "Hafızlık Bursu", "amount": "1.500 ₺", "period": "/ ay", "description": "Kur'an kursu talebelerinin eğitim ve iaşe desteği.", "features": "Barınma ve yemek\nKitap ve materyal\nVeli/bağışçı bilgilendirme", "button_label": "Burs Ver", "button_url": "/kampanyalar"},
-    ]),
-])
 _section("video-gallery-field", "Video Galeri (Saha Çalışmaları)", "Metin & medya", "Açılır pencerede oynatılan video galerisi.", [
     B("video_gallery", kicker="VİDEO ARŞİVİ", title="Sahadan Görüntüler", columns=3, items=[
         {"title": "Afrika Su Kuyusu Açılışı", "thumbnail_url": "/demo/water.webp", "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "duration": "03:20", "category": "Su Kuyusu"},
@@ -1534,13 +1638,6 @@ _section("steps-zigzag", "Zikzak Bağış Adımları", "Güven", "Sağlı-sollu 
 _section("testimonials-masonry", "Sosyal Duvar Teşekkür Mesajları", "Güven", "Çok sütunlu modern bağışçı yorum duvarı.", [
     B("testimonials", look="masonry", kicker="SİZDEN GELENLER", title="Bağışçılarımız Ne Diyor?"),
 ])
-_section("pricing-impact", "Somut Etki Karşılığı Paketler", "Bağış", "Her bağış tutarının somut karşılığını gösteren paket kartları.", [
-    B("pricing_tiers", look="impact_equivalents", kicker="ETKİ KARŞILIĞI", title="Bağışınız Neye Dönüşür?", columns=3, items=[
-        {"amount": "500 ₺", "title": "1 Aylık Gıda Kolisi", "description": "Bir ailenin temel mutfak ihtiyacını karşılar.", "button_label": "Destek Ol", "button_url": "/bagis?tutar=500"},
-        {"amount": "1.500 ₺", "title": "1 Yetim Eğitim Bursu", "description": "Bir öğrencinin kırtasiye ve eğitim giderlerini destekler.", "button_label": "Destek Ol", "button_url": "/bagis?tutar=1500", "highlighted": True},
-        {"amount": "5.000 ₺", "title": "Temiz Su Hissesi", "description": "Kurak bölgelerde su kuyusu inşasına hisse katkısı sağlar.", "button_label": "Destek Ol", "button_url": "/bagis?tutar=5000"},
-    ]),
-])
 _section("bento-magazine", "Asimetrik Bento Dergi Vitrini", "Medya", "Büyük manşet kutusu ve yanında destekleyici proje kutuları.", [
     B("bento_grid", look="magazine_asymmetric", kicker="ÖNE ÇIKAN PROJELER", title="Sahadaki Çalışmalarımız", items=[
         {"image_url": "/demo/water.webp", "badge": "SU KUYUSU", "title": "Afrika ve Asya'da Temiz Su", "text": "Bugüne kadar 1.200'den fazla kuyu açıldı."},
@@ -1639,24 +1736,10 @@ _section("water-wells-status", "Su Kuyusu Durum & Takip", "Güven", "Açılan ve
         {"image_url": "/demo/water.webp", "status": "planned", "country": "Bangladeş", "title": "Bereket Kuyusu #18", "beneficiaries": "Bağış Bekliyor"},
     ]),
 ])
-_section("scholarship-plans", "Burs & Hafızlık Paketleri", "Bağış", "Öğrenci bursu ve hafızlık destek paketleri.", [
-    B("scholarship_showcase", look="student_impact", kicker="İLİM & EĞİTİM", title="Bir Öğrencinin Geleceğine Dokun", columns=3, items=[
-        {"icon": "📖", "badge": "Aylık", "title": "Hafızlık Öğrenci Bursu", "amount": "1.500 ₺ / ay", "text": "Kur'an kursu öğrencisinin barınma ve eğitim giderlerini karşılar."},
-        {"icon": "🎓", "badge": "Yıllık", "title": "Üniversite Bursu", "amount": "2.000 ₺ / ay", "text": "İhtiyaç sahibi üniversite öğrencilerine düzenli aylık burs."},
-        {"icon": "🎒", "badge": "Tek Seferlik", "title": "Kırtasiye & Kitap Seti", "amount": "750 ₺", "text": "Dönem başı tüm okul ve kitap ihtiyaçlarını karşılar."},
-    ]),
-])
 _section("impact-matrix", "Tek Seferlik vs Düzenli Etki", "Bağış", "Düzenli bağış ile tek seferlik bağışın etkisini kıyaslar.", [
     B("impact_comparison", look="side_by_side_matrix", kicker="ETKİ KIYASLAMA", title="Düzenli İyiliğin Gücü", items=[
         {"badge": "Tek Seferlik", "title": "Anlık Destek", "amount": "500 ₺", "points": "1 Aylık gıda kolisi\nAnında SMS makbuzu\nAcil ihtiyaç karşılama"},
         {"badge": "Aylık Düzenli", "title": "Sürdürülebilir İyilik", "amount": "500 ₺ / ay", "highlighted": True, "points": "Yıl boyu 12 aileye gıda\nYetim ve öğrenci takibi\nÖncelikli saha raporları"},
-    ]),
-])
-_section("corporate-csr", "Kurumsal Sponsorluk Paketleri", "Bağış", "Şirketler için sosyal sorumluluk sponsorluk kademeleri.", [
-    B("corporate_giving", look="tier_cards", kicker="KURUMSAL DESTEK", title="Şirketinizle İyiliğe Ortak Olun", items=[
-        {"badge": "Bronz Partner", "title": "Proje Destekçisi", "amount": "50.000 ₺", "text": "Kurumsal teşekkür sertifikası ve faaliyet raporu paylaşımı."},
-        {"badge": "Gümüş Partner", "title": "Su Kuyusu Sponsoru", "amount": "150.000 ₺", "text": "Firmanızın adına özel su kuyusu ve açılış videosu."},
-        {"badge": "Altın Partner", "title": "Stratejik İyilik Ortağı", "amount": "500.000 ₺+", "text": "Yıllık okul/yetimhane veya kapsamlı saha projesi ortaklığı."},
     ]),
 ])
 _section("donation-finder", "Etkileşimli Yardım Alanı Seçici", "Etkileşim", "Ziyaretçiyi ilgi alanına göre uygun bağışa yönlendirir.", [
@@ -1674,33 +1757,6 @@ _section("ramadan-prayer", "Ramazan & Mübarek Günler", "Banner", "Altın varak
         {"date": "1 Şevval", "title": "Ramazan Bayramı", "note": "Yetimlere bayramlık sevinci"},
     ]),
 ])
-_section("daily-micro", "Günlük / Mikro İnfak", "Bağış", "Küçük günlük katkıların yıllık etkisini gösteren mikro bağış bloğu.", [
-    B("daily_charity", look="micro_cards", kicker="MİKRO İNFAK", title="Her Gün Küçük Bir İyilik", items=[
-        {"icon": "🍞", "daily_amount": "20 ₺ / gün", "title": "Günlük Ekmek Desteği", "yearly_impact": "Yılda 7.300 ₺ = 1.460 Ekmek"},
-        {"icon": "💧", "daily_amount": "50 ₺ / gün", "title": "Temiz Su Kumbarası", "yearly_impact": "Yılda 18.250 ₺ = 18 Hisse"},
-        {"icon": "📖", "daily_amount": "50 ₺ / gün", "title": "Hafız Destek Kumbarası", "yearly_impact": "1 Öğrencinin Yıllık Bursu"},
-    ]),
-])
-_section("perpetual-projects", "Sadaka-i Cariye / Kalıcı Eser", "Bağış", "Cami, okul, aşevi inşaatları için tuğla/hisse bazlı vitrin.", [
-    B("perpetual_charity", look="project_cards", kicker="SADAKA-İ CARİYE", title="Kalıcı Eser Projelerimiz", columns=3, items=[
-        {"image_url": "/demo/water.webp", "stage": "Kaba İnşaat %65", "title": "Afrika Külliye & Mescit", "unit_price": "1.000 ₺", "percent": 65},
-        {"image_url": "/demo/orphan.webp", "stage": "Çatı Aşaması %80", "title": "Yetim Eğitim Kompleksi", "unit_price": "1.500 ₺", "percent": 80},
-        {"image_url": "/demo/relief.webp", "stage": "Temel %35", "title": "Mobil Aşevi Tırı", "unit_price": "750 ₺", "percent": 35},
-    ]),
-])
-_section("family-sponsorship-cards", "Kardeş Aile Eşleştirme", "Bağış", "Anonim aile kodu ve ihtiyaç kalemleriyle aile destek kartları.", [
-    B("family_sponsorship", look="anonymized_cards", kicker="KARDEŞ AİLE", title="Bir Ailenin Umudu Olun", columns=3, items=[
-        {"code": "AİLE-402", "location": "İstanbul", "members": "5 Kişi · 3 Çocuk", "need": "Aylık Gıda & Kira Desteği", "amount": "2.500 ₺ / ay"},
-        {"code": "AİLE-518", "location": "Gaziantep", "members": "4 Kişi · 2 Yetim", "need": "Eğitim & Yakacak Desteği", "amount": "2.000 ₺ / ay"},
-        {"code": "AİLE-609", "location": "Şanlıurfa", "members": "6 Kişi · 4 Çocuk", "need": "Temel Mutfak & Sağlık", "amount": "3.000 ₺ / ay"},
-    ]),
-])
-_section("fiqh-rulings", "Fıkhi Bağış Rehberi", "Etkileşim", "Zekat, kurban, adak ve akika hükümleri özet kartları.", [
-    B("fiqh_guide", look="topic_cards", kicker="BAĞIŞ REHBERİ", title="Sıkça Sorulan Fıkhi Konular", items=[
-        {"badge": "Zekat", "title": "Zekat Kimlere Verilir?", "summary": "Tevbe Suresi 60. ayette belirtilen sekiz sınıf ihtiyaç sahibine ulaştırılır."},
-        {"badge": "Kurban", "title": "Vekaletle Kurban Kesimi", "summary": "Bağışçının vekaleti alınarak İslami usullere uygun kesim gerçekleştirilir."},
-    ]),
-])
 _section("events-list", "Etkinlik & Kermes Takvimi", "İletişim", "Yaklaşan hayır kermesi, iftar ve canlı yayın takvimi.", [
     B("events_calendar", look="event_cards", kicker="ETKİNLİKLER", title="Yaklaşan Programlarımız", items=[
         {"image_url": "/demo/hands.webp", "date": "22 Mayıs · 14:00", "location": "Genel Merkez", "title": "Bahar Hayır Kermesi"},
@@ -1708,23 +1764,8 @@ _section("events-list", "Etkinlik & Kermes Takvimi", "İletişim", "Yaklaşan ha
         {"image_url": "/demo/quran.webp", "date": "12 Haziran · 19:00", "location": "Konferans Salonu", "title": "Hafızlık İcazet Merasimi"},
     ]),
 ])
-_section("sms-codes", "SMS & Kısa Kod Bağışı", "Bağış", "Operatör kısa kodlarıyla tek SMS bağış çağrısı.", [
-    B("sms_donate", look="operator_cards", kicker="TEK SMS İLE İYİLİK", title="SMS Bağış Kanallarımız", items=[
-        {"keyword": "YARDIM", "shortcode": "4042", "amount": "50 ₺", "note": "Genel acil yardım fonuna katkı sağlar."},
-        {"keyword": "SU", "shortcode": "4042", "amount": "100 ₺", "note": "Su kuyusu projelerine destek olur."},
-        {"keyword": "YETİM", "shortcode": "4042", "amount": "150 ₺", "note": "Yetim eğitim ve gıda desteğine aktarılır."},
-    ]),
-])
 _section("app-download", "Mobil Uygulama & WhatsApp Kanalı", "Banner", "Mobil uygulama ve WhatsApp duyuru kanalı tanıtımı.", [
     B("app_promo", look="phone_mockup_split", kicker="CEBİNİZDEKİ İYİLİK", title="Mobil Uygulamamızı İndirin", text="Bağışlarınızı anlık takip edin, kuyu ve kurban videolarınızı telefonunuzdan izleyin.", ios_url="/", android_url="/", whatsapp_url="/iletisim"),
-])
-_section("proxy-intents", "Adak, Akika & Şükür Vekalet", "Bağış", "Kurban niyet türlerini seçtiren vekalet bloğu.", [
-    B("proxy_donation", look="intent_cards", kicker="VEKALETLE KURBAN", title="Niyetinize Göre Kurban Bağışı", items=[
-        {"icon": "🐑", "title": "Adak Kurbanı", "amount": "4.500 ₺", "text": "Adağınızı ihtiyaç sahiplerine ulaştırın."},
-        {"icon": "👶", "title": "Akika Kurbanı", "amount": "4.500 ₺", "text": "Yeni doğan evladınız için şükür vesilesi."},
-        {"icon": "🤲", "title": "Şükür Kurbanı", "amount": "4.500 ₺", "text": "Nimetlere şükür için mazlumlara ikram."},
-        {"icon": "💚", "title": "Şifa Kurbanı", "amount": "4.500 ₺", "text": "Hastalarımıza şifa niyetiyle sadaka."},
-    ]),
 ])
 _section("impact-breakdown", "Fon Dağılım & Etki Grafiği", "Güven", "Bağışların alanlara göre yüzde dağılımını gösteren şeffaflık grafiği.", [
     B("impact_chart", look="horizontal_bars", kicker="FON DAĞILIMI", title="Bağışlarınız Nerelere Ulaşıyor?", items=[
@@ -1741,14 +1782,6 @@ _section("branches-list", "Şubeler & Temsilcilikler", "İletişim", "Şehir ve 
         {"city": "Bursa Şubesi", "address": "Osmangazi, Bursa", "phone": "+90 224 000 00 00"},
     ]),
 ])
-_section("gift-cert", "Hediye Bağış & Sertifika", "Bağış", "Sevdikleriniz adına özel dijital sertifika önizlemeli bağış bloğu.", [
-    B("gift_certificate", look="certificate_preview", kicker="HEDİYE BAĞIŞ", title="Sevdiklerinize İyilik Hediye Edin", items=[
-        {"icon": "🎂", "title": "Doğum Günü", "text": "Sevdiklerinize unutulmaz bir iyilik hatırası."},
-        {"icon": "💐", "title": "Anneler / Babalar Günü", "text": "Onların adına bir yetimi sevindirin."},
-        {"icon": "🕊️", "title": "Taziye & Başsağlığı", "text": "Merhum/merhume adına sadaka-i cariye."},
-        {"icon": "🎉", "title": "Tebrik & Bayram", "text": "Özel günleri hayra vesile kılın."},
-    ]),
-])
 _section("help-desk", "Canlı Destek & Danışma Kartı", "İletişim", "Telefon, WhatsApp ve e-posta destek kanalları kartı.", [
     B("help_desk_card", look="floating_support_card", kicker="DESTEK HATTI", title="Size Nasıl Yardımcı Olabiliriz?", phone="+90 212 000 00 00", whatsapp="905000000000", email="bilgi@kurum.org", hours="Hafta içi 09:00 - 18:00"),
 ])
@@ -1758,57 +1791,6 @@ _section("milestone-phases", "Proje Aşama Takipçisi", "Güven", "Büyük bir s
         {"step": "Faz 2", "title": "Temel & Kaba İnşaat", "status": "done", "date": "Mart 2026"},
         {"step": "Faz 3", "title": "İç Donanım & Mefruşat", "status": "active", "date": "Mayıs 2026"},
         {"step": "Faz 4", "title": "Açılış & Eğitim", "status": "pending", "date": "Eylül 2026"},
-    ]),
-])
-_section("awards-wall", "Ödüller & Akreditasyonlar", "Güven", "Kamu yararı statüsü, ISO belgeleri ve ödüller.", [
-    B("awards_badges", look="gold_crests", kicker="AKREDİTASYON", title="Belgelerimiz ve Ödüllerimiz", items=[
-        {"icon": "🏛️", "year": "2024", "title": "Kamu Yararına Dernek", "issuer": "T.C. İçişleri Bakanlığı"},
-        {"icon": "🛡️", "year": "2025", "title": "ISO 9001 Kalite", "issuer": "Uluslararası Standart"},
-        {"icon": "🧾", "year": "2025", "title": "Bağımsız Mali Denetim", "issuer": "Yeminli Mali Müşavirlik"},
-        {"icon": "🏆", "year": "2026", "title": "Şeffaf STK Ödülü", "issuer": "Sivil Toplum Platformu"},
-    ]),
-])
-_section("iftar-meals", "İftar & Kumanya Hedef Sayacı", "Bağış", "Günlük iftar ve kumanya hedef çubuğu + 1/5/10 adet butonları.", [
-    B("iftar_counter", look="dark_gold_iftar", kicker="RAMAZAN SOFRALARI", title="Bugünkü İftar & Kumanya Hedefimiz", items=[
-        {"icon": "🍲", "title": "1 Kişilik Sıcak İftar", "unit_price": 150, "collected_count": 380, "target_count": 500},
-        {"icon": "📦", "title": "Aile Ramazan Kumanyası", "unit_price": 750, "collected_count": 145, "target_count": 200},
-        {"icon": "🥐", "title": "Sahur İkram Paketi", "unit_price": 120, "collected_count": 210, "target_count": 300},
-    ]),
-])
-_section("kulliye-rooms", "Külliye / Yetimhane Bölüm Sponsorluğu", "Bağış", "Sınıf, mescit, kütüphane ve yemekhane sponsorluk kartları.", [
-    B("facility_rooms", look="room_cards", kicker="KÜLLİYE PROJESİ", title="Bölüm Sponsorlukları", columns=3, items=[
-        {"icon": "🕌", "title": "Mescit Bölümü", "amount": "250.000 ₺", "status": "%70 Tamamlandı"},
-        {"icon": "📚", "title": "Kütüphane & Etüt", "amount": "120.000 ₺", "status": "%45 Tamamlandı"},
-        {"icon": "🍽️", "title": "Öğrenci Yemekhanesi", "amount": "180.000 ₺", "status": "%85 Tamamlandı"},
-    ]),
-])
-_section("memory-notes", "Bağışçı Dilek & Hatıra Duvarı", "Güven", "Bağışçı duaları ve merhum yakınlar adına hayır notları.", [
-    B("memory_wall", look="wish_cards", kicker="HATIRA DUVARI", title="İyilik Notları & Dualar", items=[
-        {"author": "Ayşe T.", "dedicated_to": "Merhum Babam Adına", "note": "Rabbim kabul buyursun, mazlumlara şifa olsun.", "date": "2026"},
-        {"author": "Hasan K.", "dedicated_to": "Gazze Kardeşlerimize", "note": "Dualarımız ve desteğimiz sizinle.", "date": "2026"},
-        {"author": "Zeynep M.", "dedicated_to": "Ailemiz Adına", "note": "Bir yetimin gülümsemesine vesile olmak en büyük mutluluk.", "date": "2026"},
-    ]),
-])
-_section("medical-aid", "Sağlık & Katarakt Yardımları", "Bağış", "Katarakt ameliyatı ve sağlık yardımı paketleri.", [
-    B("medical_relief", look="treatment_cards", kicker="SAĞLIK DESTEĞİ", title="Yeniden Görmeye Vesile Olun", columns=3, items=[
-        {"image_url": "/demo/relief.webp", "badge": "1 Ameliyat", "title": "Katarakt Ameliyatı", "amount": "3.000 ₺", "text": "Afrika'da bir hastanın yeniden görmesini sağlar."},
-        {"image_url": "/demo/hands.webp", "badge": "Medikal", "title": "Tekerlekli Sandalye", "amount": "4.500 ₺", "text": "Engelli kardeşlerimize hareket özgürlüğü kazandırır."},
-        {"image_url": "/demo/relief.webp", "badge": "Acil Sağlık", "title": "İlaç & Tıbbi Malzeme", "amount": "1.000 ₺", "text": "Kriz bölgelerindeki kliniklere acil ilaç desteği."},
-    ]),
-])
-_section("alumni-success", "Mezun & Öğrenci Hikayeleri", "Güven", "Burs desteğiyle mezun olan öğrencilerin başarı hikayeleri.", [
-    B("alumni_stories", look="story_cards", kicker="BAŞARI HİKAYELERİ", title="Burslarımızla Yetişen Değerler", items=[
-        {"name": "Dr. Yusuf A.", "program": "Tıp Fakültesi Mezunu", "quote": "Üniversite yıllarımdaki burs desteği sayesinde bugün doktor olarak hizmet ediyorum."},
-        {"name": "Hafız Ömer K.", "program": "Hafızlık İcazet", "quote": "Medrese eğitimim boyunca sağlanan destek için tüm hayırseverlere duacıyım."},
-        {"name": "Meryem S.", "program": "Mühendislik Öğrencisi", "quote": "Eğitim bursum benim için en büyük motivasyon kaynağı oldu."},
-    ]),
-])
-_section("relief-needs", "Acil İhtiyaç Listesi", "Bağış", "Birim tutarlı ve aciliyet rozetli acil yardım malzemeleri.", [
-    B("relief_checklist", look="supply_grid", kicker="ACİL İHTİYAÇLAR", title="Bölgedeki Öncelikli İhtiyaçlar", items=[
-        {"icon": "🛏️", "title": "Kışlık Battaniye", "amount": "250 ₺", "urgency": "critical"},
-        {"icon": "🍼", "title": "Bebek Maması & Bez", "amount": "350 ₺", "urgency": "critical"},
-        {"icon": "⛺", "title": "Barınma Çadırı", "amount": "4.500 ₺", "urgency": "high"},
-        {"icon": "🍞", "title": "Günlük Ekmek Desteği", "amount": "150 ₺", "urgency": "high"},
     ]),
 ])
 _section("social-squares", "Sosyal Medya Saha Kareleri", "Medya", "Kare fotoğraf ızgarası ve sosyal medya takip çağrısı.", [
@@ -1827,19 +1809,6 @@ _section("field-reps", "İl & Ülke Temsilcileri", "Güven", "Şehir ve bölge b
         {"region": "Marmara", "city": "İstanbul (Genel Merkez)", "name": "Ahmet Yılmaz", "phone": "0212 000 00 00", "whatsapp": "905000000000", "status": "Aktif Merkez"},
         {"region": "İç Anadolu", "city": "Ankara", "name": "Mehmet Demir", "phone": "0312 000 00 00", "whatsapp": "905000000001", "status": "Aktif Saha"},
         {"region": "Güneydoğu", "city": "Gaziantep Lojistik", "name": "Mustafa Kaya", "phone": "0342 000 00 00", "whatsapp": "905000000002", "status": "Sevkiyat Üssü"},
-    ]),
-])
-_section("convoy-logistics", "Yardım Konvoyu & Tır Takibi", "Güven", "Yola çıkan yardım tırlarının rota ve ulaşım durumu.", [
-    B("convoy_tracker", look="route_cards", kicker="LOJİSTİK TAKİP", title="Yoldaki Yardım Konvoylarımız", items=[
-        {"code": "TIR-104", "title": "İstanbul → Gazze İnsani Yardım Koridoru", "cargo": "24 Ton Un, Bebek Maması & Hijyen Kiti", "progress": 82, "status": "Sınır Kapısında"},
-        {"code": "TIR-105", "title": "Ankara → Suriye Kışlık Sevkiyatı", "cargo": "1.500 Adet Çadır Sobası & Battaniye", "progress": 100, "status": "Teslim Edildi"},
-    ]),
-])
-_section("impact-bundles-row", "Hazır Yardım Paketleri", "Bağış", "Birden fazla yardım kalemini birleştiren paketler.", [
-    B("impact_bundles", look="bundle_cards", kicker="HAZIR PAKETLER", title="Bir Paketle Çoklu İyilik", items=[
-        {"badge": "En Çok Tercih Edilen", "title": "Tam Aile Kış Paketi", "price": "1.750 ₺", "contents": "1 Aylık Gıda Kumanyası\n2 Adet Kışlık Battaniye\nÇocuk Mont & Bot Seti", "url": "/bagis"},
-        {"badge": "Bebek & Anne", "title": "Yeni Doğan Destek Seti", "price": "1.200 ₺", "contents": "1 Aylık Bebek Maması\nBebek Bezi & Bakım Çantası\nTermal Bebek Kıyafeti", "url": "/bagis"},
-        {"badge": "Eğitim", "title": "Yetim Okul Hazırlık Paketi", "price": "950 ₺", "contents": "Ortopedik Okul Çantası\nTam Kırtasiye Seti\nOkul Kıyafeti & Ayakkabı", "url": "/bagis"},
     ]),
 ])
 _section("publications-archive", "Yayınlar & Faaliyet Dergileri", "Medya", "Vakıf dergisi, yıllık rapor ve PDF kitap rafı.", [
@@ -1864,21 +1833,6 @@ _section("qurbani-lookup", "Kurban Kesim & Vekalet Durumu", "Bağış", "Bağı�
         {"step": "03", "title": "Video & Fotoğraf Teslimi", "detail": "Kesim ve dağıtım videosu WhatsApp / SMS üzerinden size ulaştırılır."},
     ]),
 ])
-_section("crisis-command", "Küresel Kriz Bölgeleri Panosu", "Güven", "Kriz bölgeleri aciliyet durumu ve aktif saha ekipleri.", [
-    B("crisis_regions_map", look="status_grid", kicker="ACİL MÜDAHALE", title="Aktif Kriz Bölgelerimiz", items=[
-        {"flag": "🇵🇸", "region": "Gazze & Filistin", "urgency": "critical", "teams": "8 Saha Ekibi", "need": "Sıcak yemek, tıbbi malzeme ve temiz su", "url": "/bagis"},
-        {"flag": "🇸🇩", "region": "Sudan", "urgency": "high", "teams": "4 Saha Ekibi", "need": "Gıda kolisi ve acil barınma", "url": "/bagis"},
-        {"flag": "🇸🇾", "region": "Kuzey Suriye", "urgency": "active", "teams": "12 Lojistik Noktası", "need": "Ekmek fırını, yakacak ve eğitim", "url": "/bagis"},
-    ]),
-])
-_section("nisab-rates", "Nisap, Fitre & Fidye Birimleri", "Bağış", "Altın/gümüş nisap eşiği, fitre ve fidye tutarları.", [
-    B("nisab_rates_bar", look="cards_row", kicker="GÜNCEL ÖLÇÜLER", title="Zekat Nisabı, Fitre ve Fidye Tutarları", items=[
-        {"icon": "🪙", "label": "Altın Nisabı", "value": "80.18 gr", "note": "Zekat farziyet ölçüsü"},
-        {"icon": "🍽️", "label": "Fitre Bedeli", "value": "180 ₺", "note": "Kişi başı asgari tutar"},
-        {"icon": "🤲", "label": "Günlük Fidye", "value": "180 ₺", "note": "1 günlük oruç bedeli"},
-        {"icon": "💧", "label": "Su Kuyusu Hissesi", "value": "1.000 ₺", "note": "Ortak kuyu katılımı"},
-    ]),
-])
 _section("mushaf-aid", "Mushaf & Eğitim Materyali Dağıtımı", "Güven", "Ülke bazlı Mushaf dağıtım sayacı ve birim bedel.", [
     B("mushaf_distribution", look="counter_cards", kicker="İLİM VE KUR'AN", title="Mushaf-ı Şerif Dağıtımlarımız", unit_price="150 ₺", button_label="Mushaf Hediye Et", button_url="/bagis", items=[
         {"country": "Çad & Nijer", "count": "18.400+", "note": "Hafızlık medreseleri"},
@@ -1895,13 +1849,6 @@ _section("governance-team", "Yönetim & Denetim Kurulu", "Güven", "Kurul üyele
         {"name": "İbrahim Çelik", "role": "Saha Operasyonları", "committee": "Dış Yardımlar"},
     ]),
 ])
-_section("donor-honor-tiers", "Hayırsever Destek Kademeleri", "Bağış", "Manevi destek kademeleri ve kalıcı eser katkıları.", [
-    B("donor_tiers_wall", look="tier_cards", kicker="DESTEK KADEMELERİ", title="İyilikte Öncü Olun", items=[
-        {"icon": "💧", "title": "Su Kuyusu Banisi", "amount": "Tam Kuyu / Hisse", "impact": "Yüzlerce insanın temiz suya kavuşmasına vesile olun.", "url": "/bagis"},
-        {"icon": "🎒", "title": "Yetim Hamisi", "amount": "Aylık 750 ₺", "impact": "Bir yetim yavrumuzun eğitim, giyim ve gıda giderini üstlenin.", "url": "/bagis"},
-        {"icon": "📖", "title": "Hafız Destekçisi", "amount": "Aylık 1.000 ₺", "impact": "Bir hafızlık öğrencisinin tüm iaşe ve eğitim masraflarını karşılayın.", "url": "/bagis"},
-    ]),
-])
 _section("sacred-days-cta", "Mübarek Günler & Kandil Çağrısı", "Banner", "Kandil ve mübarek gecelere özel sadaka çağrısı.", [
     B("sacred_days_banner", look="ornate_dark", occasion="Mübarek Üç Aylar & Kandil", date_label="Bereket Mevsimi", title="Bu Mübarek Gecede Bir Mazlumun Duasına Ortak Olun", text="Kandil sadakanızla sıcak yemek, yetim tebessümü ve temiz su ulaştırın.", button_label="Kandil Sadakası Ver", button_url="/bagis"),
 ])
@@ -1912,41 +1859,6 @@ _section("doc-spotlight", "Saha Belgeseli & Röportaj", "Medya", "Ana belgesel v
         {"time": "09:30", "title": "Köy Halkının Sevinci ve Açılış Duası"},
     ]),
 ])
-_section("iban-helper", "Havale / EFT Açıklama Rehberi", "Bağış", "Bağış türüne göre doğru havale açıklama kodları.", [
-    B("iban_reference_helper", look="interactive_cards", kicker="BANKA REHBERİ", title="Havale / EFT Açıklama Kodları", recipient_name="Örnek İnsani Yardım Derneği", items=[
-        {"code": "ZEKAT + TEL", "label": "Zekat Bağışı", "example": "Örn: ZEKAT 05XX XXX XX XX"},
-        {"code": "FITRE + ADET", "label": "Fitre / Fidye", "example": "Örn: FITRE 4 KISI 05XX..."},
-        {"code": "KURBAN + NIYET", "label": "Kurban / Adak", "example": "Örn: ADAK AHMET YILMAZ 05XX..."},
-        {"code": "SU-KUYUSU", "label": "Su Kuyusu Hissesi", "example": "Örn: SU-KUYUSU 05XX..."},
-    ]),
-])
-_section("qurbani-animals", "Kurban Hayvan & Bölge Seçenekleri", "Bağış", "Küçükbaş, Büyükbaş Hisse ve Tam Büyükbaş seçenekleri.", [
-    B("qurbani_animal_types", look="animal_cards", kicker="KURBAN SEÇENEKLERİ", title="Bölge ve Türlere Göre Kurban Bağışı", items=[
-        {"icon": "🐑", "badge": "Afrika · Asya", "title": "Küçükbaş Kurban", "price": "4.500 ₺", "detail": "1 Tam Hisse · Kesim videosu ile teslim", "url": "/bagis"},
-        {"icon": "🐄", "badge": "Afrika · Asya", "title": "Büyükbaş 1/7 Hisse", "price": "5.250 ₺", "detail": "7 hisseli büyükbaş kurban katılımı", "url": "/bagis"},
-        {"icon": "🇵🇸", "badge": "Gazze & Yurt İçi", "title": "Adak / Akika Küçükbaş", "price": "9.500 ₺", "detail": "İhtiyaç sahiplerine taze et dağıtımı", "url": "/bagis"},
-    ]),
-])
-_section("fatwa-qa", "Zekat & İnfak Fetva Kartları", "Güven", "Fıkhi sorular ve net hüküm özetleri.", [
-    B("fatwa_cards", look="ruled_cards", kicker="FIKHİ REHBER", title="Sık Sorulan Zekat & Kurban Fetvaları", items=[
-        {"category": "Zekat", "question": "Altın ve döviz birikimlerim için zekat nasıl hesaplanır?", "ruling": "Nisap miktarına (80.18 gr altın karşılığı) ulaşıp üzerinden 1 kameri yıl geçtikten sonra %2,5 (1/40) oranında zekat verilir."},
-        {"category": "Fitre", "question": "Fitre Ramazan ayı içinde önceden verilebilir mi?", "ruling": "Evet, Ramazan ayı içerisinde ihtiyaç sahiplerinin bayram hazırlığı yapabilmesi için bayramdan önce verilmesi daha faziletlidir."},
-    ]),
-])
-_section("soup-kitchen", "Aşevi & Günlük Sıcak Yemek", "Güven", "Günlük pişen öğün sayısı ve aşevi noktaları.", [
-    B("soup_kitchen_status", look="kitchen_cards", kicker="AŞEVİ SEFERBERLİĞİ", title="Günlük Sıcak Yemek Dağıtımlarımız", daily_meals="18.500 Öğün / Gün", meal_price="85 ₺", button_label="Sıcak Yemek İkram Et", button_url="/bagis", items=[
-        {"location": "Gazze Güney Aşevi", "count": "8.000 Öğün", "menu": "Sıcak çorba, pilav ve ekmek"},
-        {"location": "İdlib / Halep Aşevi", "count": "6.500 Öğün", "menu": "Aile boyu sıcak yemek"},
-        {"location": "Çad Medrese Mutfağı", "count": "4.000 Öğün", "menu": "Öğrenciler için günlük öğün"},
-    ]),
-])
-_section("well-compare", "Su Kuyusu Türleri Karşılaştırması", "Bağış", "Tulumba, Şadırvan ve Derin Sondaj kuyuları karşılaştırması.", [
-    B("well_types_compare", look="spec_cards", kicker="SU KUYUSU MODELLERİ", title="İhtiyaca Göre Su Kuyusu Türleri", items=[
-        {"badge": "Asya / Afrika", "title": "Tulumba Su Kuyusu", "price": "1.800 $", "depth": "25-40 Metre", "beneficiaries": "300-500 Kişi", "duration": "3-5 Hafta", "url": "/bagis"},
-        {"badge": "Afrika", "title": "Güneş Panelli Şadırvan", "price": "4.500 $", "depth": "60-90 Metre", "beneficiaries": "1.500+ Kişi", "duration": "6-8 Hafta", "url": "/bagis"},
-        {"badge": "Kurak Bölgeler", "title": "Derin Sondaj Kuyusu", "price": "7.500 $", "depth": "120+ Metre", "beneficiaries": "3.000+ Kişi", "duration": "8-12 Hafta", "url": "/bagis"},
-    ]),
-])
 _section("field-diary-feed", "Saha Ekibi Günlükleri", "Medya", "Saha ekiplerinden tarihli notlar ve fotoğraflar.", [
     B("field_diaries", look="photo_notes_grid", kicker="SAHA GÜNLÜĞÜ", title="Ekiplerimizden Son Notlar", items=[
         {"image_url": "/demo/water.webp", "date": "18 Kasım", "location": "Çad / Abeche", "title": "Yeni Kuyunun İlk Suyu Çıktı", "note": "Köy halkı ve çocukların sevinci görülmeye değerdi."},
@@ -1954,22 +1866,184 @@ _section("field-diary-feed", "Saha Ekibi Günlükleri", "Medya", "Saha ekiplerin
         {"image_url": "/demo/orphan.webp", "date": "12 Kasım", "location": "Somali / Mogadişu", "title": "Yetimhane Kütüphanesi Açıldı", "note": "Öğrencilerimiz yeni ders kitaplarına kavuştu."},
     ]),
 ])
-_section("sponsor-plaques", "Kurumsal Sponsor & Teşekkür Plaketleri", "Güven", "Kurumsal destekçiler ve sosyal etki özetleri.", [
-    B("sponsor_certificates", look="plaque_grid", kicker="KURUMSAL DESTEKÇİLER", title="İyilikte Yanımızda Olan Kurumlar", items=[
-        {"company": "Anadolu Lojistik A.Ş.", "tier": "Konvoy Sponsoru", "impact": "4 Yardım Tırı · 96 Ton Gıda"},
-        {"company": "Bereket Gıda Grubu", "tier": "Kumanya Partneri", "impact": "2.500 Aileye Ramazan Kumanyası"},
-        {"company": "Marmara Teknoloji", "tier": "Su Kuyusu Sponsoru", "impact": "3 Güneş Panelli Su Kuyusu"},
+
+_section("zakat-8-sinif", "Zekat Dağıtım Matrisi (8 Sınıf)", "Zekat & Bağış", "Tevbe Suresi 60. ayete göre 8 zekat sınıfı ve dağıtım oranları.", [
+    B("zakat_allocation_matrix", look="eight_pillars", kicker="TEVBE 60", title="Zekatın Dağıtıldığı 8 Sınıf", items=[
+        {"code": "01", "title": "Fakirler", "share": "%30", "desc": "Temel yaşam ihtiyaçlarını karşılayamayan ihtiyaç sahibi aileler."},
+        {"code": "02", "title": "Miskinler", "share": "%25", "desc": "Hiçbir geliri olmayan, günlük geçimini dahi sağlayamayan kimseler."},
+        {"code": "03", "title": "Yolda Kalmışlar", "share": "%10", "desc": "Memleketinden uzakta imkânsızlık içinde kalan yolcular ve muhacirler."},
+        {"code": "04", "title": "Borçlular", "share": "%15", "desc": "Meşru ihtiyaçları sebebiyle borç yükü altında ezilenler."},
     ]),
 ])
-_section("surgery-cases", "Katarakt & Acil Ameliyat Desteği", "Bağış", "Ameliyat bekleyen vakalar ve birim maliyet.", [
-    B("surgery_sponsorship", look="case_cards", kicker="SAĞLIK DESTEĞİ", title="Bir Ameliyat ile Hayata Işık Olun", items=[
-        {"icon": "👁️", "waiting": "140 Hasta Bekliyor", "title": "Katarakt Ameliyatı", "cost": "3.500 ₺", "url": "/bagis"},
-        {"icon": "🩺", "waiting": "45 Hasta Bekliyor", "title": "Acil Ortopedi Müdahalesi", "cost": "12.000 ₺", "url": "/bagis"},
-        {"icon": "💊", "waiting": "300+ Aile", "title": "Kronik İlaç & Medikal Set", "cost": "950 ₺", "url": "/bagis"},
+_section("school-build", "Okul & Yetimhane İnşaat Aşamaları", "Kurumsal", "Okul, yetimhane ve su kuyusu inşaatlarının faz bazlı ilerlemesi.", [
+    B("school_build_progress", look="phase_cards", kicker="ŞEFFAF İNŞAAT", title="Yetim Eğitim Külliyesi İlerleme Durumu", overall_percent="%68", location="Kamboçya / Kampot", items=[
+        {"phase": "Faz 1", "title": "Arsa Tahsili & Temel", "status": "Tamamlandı", "percent": "100%", "desc": "Zemin etüdü ve betonarme temel atıldı."},
+        {"phase": "Faz 2", "title": "Kaba İnşaat & Çatı", "status": "Tamamlandı", "percent": "100%", "desc": "6 derslik ve yatakhane bloğu yükseldi."},
+        {"phase": "Faz 3", "title": "İç Donanım & Sıra", "status": "Devam Ediyor", "percent": "45%", "desc": "Elektrik, su tesisatı ve sınıf mobilyaları."},
+        {"phase": "Faz 4", "title": "Açılış & Eğitim", "status": "Planlandı", "percent": "0%", "desc": "180 yetim öğrenci için ilk ders zili."},
     ]),
 ])
-_section("mobile-sms-hub", "Mobil Uygulama, SMS & WhatsApp Merkezi", "İletişim", "SMS kısa kod, WhatsApp ve mobil uygulama bağlantıları.", [
-    B("mobile_channels_hub", look="split_device_hub", kicker="HIZLI ERİŞİM", title="Her An Yanınızda: SMS, WhatsApp & Mobil", sms_code="İNFAK yazıp 3480'e gönderin (50 ₺)", whatsapp_url="/iletisim", ios_url="#", android_url="#"),
+_section("parcel-contents", "Kumanya & Gıda Paketi İçeriği", "Zekat & Bağış", "Gıda kolisinin içindeki ürünleri ve ağırlık dökümünü gösterir.", [
+    B("food_parcel_contents", look="receipt_breakdown", kicker="1 AİLE / 1 AY", title="Ramazan & Acil Gıda Kumanyası İçeriği", parcel_price="1.250 ₺", weight_summary="18.5 kg", cta_label="Kumanya Bağışla", cta_url="/kampanyalar", items=[
+        {"name": "Ayçiçek Yağı", "qty": "2 Litre", "category": "Temel Gıda"},
+        {"name": "Baldo Pirinç", "qty": "3 kg", "category": "Bakliyat"},
+        {"name": "Kırmızı Mercimek", "qty": "2 kg", "category": "Bakliyat"},
+        {"name": "Buğday Unu", "qty": "5 kg", "category": "Temel Gıda"},
+        {"name": "Toz Şeker & Çay", "qty": "2 kg + 500 g", "category": "Kahvaltılık"},
+    ]),
+])
+_section("memorial-vefa", "Vefa & Taziye Bağış Duvarı", "İçerik", "Merhum yakınlar adına yapılan sadaka-i cariye bağışları.", [
+    B("memorial_tributes", look="tribute_cards", kicker="SADAKA-İ CARİYE", title="Sevdiklerinizin Adını İyilikle Yaşatın", cta_label="Vefa Bağışı Yap", cta_url="/kampanyalar", items=[
+        {"honoree": "Merhum Hacı Mehmet Yılmaz", "donor": "Yılmaz Ailesi", "project": "Su Kuyusu", "note": "Ruhu şad, mekânı cennet olsun.", "date": "2026"},
+        {"honoree": "Merhume Fatma Demir", "donor": "Evlatları", "project": "Yetim Sponsorluğu", "note": "Bir yetimin tebessümü sadaka-i cariyesi olsun.", "date": "2026"},
+        {"honoree": "Merhum Ali Kaya", "donor": "Kaya Ailesi", "project": "Kur'an-ı Kerim Hediyesi", "note": "Okunan her harf ruhuna hediye olsun.", "date": "2026"},
+    ]),
+])
+_section("video-delivery", "Video & WhatsApp Teslimat Vitrini", "İçerik", "Kurban ve su kuyusu teslimat videolarının iletim süreci.", [
+    B("video_delivery_showcase", look="whatsapp_preview_split", kicker="GÜVEN & ŞEFFAFLIK", title="Emanetiniz İsim Okunarak Teslim Edilir", image="/demo/kurban.webp", whatsapp_note="Sayın Bağışçımız, 2418 nolu kurban hisseniz Bangladeş'te kesilerek ihtiyaç sahiplerine ulaştırılmıştır.", video_url="/kampanyalar", items=[
+        {"title": "1. İsim & Niyet Kaydı", "desc": "Bağış esnasında belirttiğiniz hisse sahibi ismi sahaya iletilir.", "badge": "Anlık"},
+        {"title": "2. Sesli Video Çekimi", "desc": "Kesim veya açılış anında isim okunarak yüksek çözünürlüklü video kaydedilir.", "badge": "Aynı Gün"},
+        {"title": "3. WhatsApp & SMS Bildirimi", "desc": "Teslimat videosu doğrudan telefonunuza gönderilir.", "badge": "24-48 Saat"},
+    ]),
+])
+_section("membership-join", "Gönüllü & Üyelik Katılım Planları", "Zekat & Bağış", "Düzenli aylık destek ve gönüllü üyelik kademeleri.", [
+    B("membership_plans", look="membership_tiers", kicker="GÖNÜL BİRLİĞİ", title="Düzenli İyilik Hareketine Katılın", items=[
+        {"name": "Gönüllü Destekçi", "amount": "250 ₺ / Ay", "badge": "Başlangıç", "perks": "Aylık e-bülten raporu\nÖzel gün bildirimleri\nGönüllü ağı daveti", "cta_label": "Katıl", "cta_url": "/iletisim"},
+        {"name": "Yetim Hâmisi", "amount": "750 ₺ / Ay", "badge": "Popüler", "perks": "Bir yetimin aylık eğitim desteği\nDönemsel gelişim mektubu\nÖncelikli saha raporları", "cta_label": "Hâmi Ol", "cta_url": "/kampanyalar"},
+        {"name": "Kurumsal Paydaş", "amount": "Özel Protokol", "badge": "Kurumsal", "perks": "Markalı sosyal sorumluluk projesi\nResmî etki ve denetim raporu\nÖzel bağışçı danışmanı", "cta_label": "İletişime Geç", "cta_url": "/iletisim"},
+    ]),
+])
+_section("impact-growth", "Yıllık Etki & Büyüme Kartları", "Kurumsal", "Yıllara göre ulaşılan insan ve proje büyüme verileri.", [
+    B("impact_timeline_cards", look="growth_cards", kicker="ETKİ RAPORU", title="Yıllara Göre Büyüyen İyilik", items=[
+        {"year": "2023", "headline": "85.000 Kişi", "delta": "+%18", "summary": "14 ülkede gıda, su ve eğitim desteği ulaştırıldı."},
+        {"year": "2024", "headline": "118.000 Kişi", "delta": "+%38", "summary": "Yeni yetimhane külliyesi ve 120 su kuyusu açıldı."},
+        {"year": "2025", "headline": "164.000 Kişi", "delta": "+%39", "summary": "Acil yardım tırları ve kalıcı kalkınma projeleri."},
+        {"year": "2026 Hedef", "headline": "250.000 Kişi", "delta": "+%52", "summary": "25 ülkede sürdürülebilir insani yardım ağı."},
+    ]),
+])
+_section("donor-concierge", "Özel Bağışçı Danışma Hattı", "İletişim", "Zekat ve kurumsal bağışlar için özel danışmanlık bandı.", [
+    B("donor_concierge_bar", look="concierge_split", kicker="ÖZEL DANIŞMA MASASI", title="Zekat ve Büyük Projeler İçin Birebir Destek", advisor_name="Bağışçı İlişkileri Birimi", phone="+90 212 000 00 00", email="destek@kurum.org", hours="Hafta içi 09:00 - 18:00", cta_label="Randevu Al", cta_url="/iletisim"),
+])
+
+_section("charity-box", "Kumbara Talep & Dolum Bildirimi", "İletişim", "Ev ve iş yeri için fiziksel kumbara talebi.", [
+    B("charity_box_request", look="split_box_promo", kicker="BEREKET KUMBARASI", title="Evinizde veya İş Yerinizde İyilik Kumbarası Bulundurun", text="Ücretsiz kumbara talep edin; dolduğunda ekibimiz adresinizden teslim alsın.", phone="+90 212 000 00 00", image="/demo/hands.webp", cta_label="Kumbara İste", cta_url="/iletisim", secondary_label="Dolan Kumbarayı Bildir", secondary_url="/iletisim"),
+])
+_section("sister-cities", "Bölge & Temsilcilik Ağı", "Kurumsal", "İl ve ülke temsilcilikleri ağı.", [
+    B("sister_cities_list", look="region_directory", kicker="SAHA AĞIMIZ", title="Temsilciliklerimiz ve Gönüllü Merkezlerimiz", items=[
+        {"city": "İstanbul Merkez", "volunteers": "420+ Gönüllü", "contact": "Fatih / İstanbul"},
+        {"city": "Ankara Temsilciliği", "volunteers": "180+ Gönüllü", "contact": "Çankaya / Ankara"},
+        {"city": "Gaziantep Lojistik", "volunteers": "210+ Gönüllü", "contact": "Sınır Sevkiyat Merkezi"},
+        {"city": "Afrika Saha Ofisi", "volunteers": "65+ Saha Ekibi", "contact": "12 Ülkede Aktif"},
+    ]),
+])
+
+_section("ramadan-iftar", "Ramazan İftar & Sahur Sofrası", "Zekat & Bağış", "İftar çadırları ve günlük sıcak yemek kapasitesi.", [
+    B("ramadan_iftar_table", look="tent_cards", kicker="RAMAZAN SOFRASI", title="Kurduğumuz İftar Çadırları", share_price="150 ₺", items=[
+        {"location": "Gazze İftar Çadırı", "capacity": "2.500 Kişi / Gün", "menu_note": "Sıcak çorba, ana yemek, hurma ve su.", "cta_url": "/kampanyalar"},
+        {"location": "Suriye / İdlib Sofrası", "capacity": "1.800 Kişi / Gün", "menu_note": "Çocuk ve ailelere günlük sıcak iftar.", "cta_url": "/kampanyalar"},
+        {"location": "İstanbul Öğrenci İftarı", "capacity": "900 Kişi / Gün", "menu_note": "Üniversite öğrencilerine ücretsiz akşam sofrası.", "cta_url": "/kampanyalar"},
+    ]),
+])
+_section("orphan-school-kit", "Yetim Kırtasiye & Okul Paketi", "Zekat & Bağış", "Okul çantası, kırtasiye ve kışlık kıyafet eğitim paketi.", [
+    B("orphans_education_kit", look="kit_grid", kicker="EĞİTİM DESTEĞİ", title="Bir Yetimin Okul Sevinci", kit_price="950 ₺", cta_label="Eğitim Seti Bağışla", cta_url="/kampanyalar", items=[
+        {"item": "Ortopedik Okul Çantası", "detail": "İlkokul & Ortaokul", "price": "350 ₺"},
+        {"item": "Defter, Kalem & Boya Seti", "detail": "1 Dönemlik İhtiyaç", "price": "250 ₺"},
+        {"item": "Okul Ayakkabısı & Mont", "detail": "Kışlık Tam Takım", "price": "350 ₺"},
+    ]),
+])
+_section("medical-caravan", "Sağlık Tırı & Gezici Klinik", "Kurumsal", "Gezici katarakt, diş ve genel muayene klinik takvimi.", [
+    B("medical_caravan_schedule", look="clinic_cards", kicker="SAĞLIK SEFERBERLİĞİ", title="Gezici Sağlık Kliniğimiz Sahada", items=[
+        {"date": "Mayıs 2026", "region": "Nijer / Niamey", "specialty": "Katarakt Ameliyatı", "target": "400 Hasta"},
+        {"date": "Haziran 2026", "region": "Bangladeş / Cox's Bazar", "specialty": "Anne & Çocuk Sağlığı", "target": "1.200 Muayene"},
+        {"date": "Temmuz 2026", "region": "Somali / Mogadişu", "specialty": "Diş & Genel Tarama", "target": "850 Hasta"},
+    ]),
+])
+_section("water-tanker", "Acil Su Tankeri Sevkiyatı", "Zekat & Bağış", "Günlük temiz içme suyu tankeri kapasite ve bedelleri.", [
+    B("water_tanker_emergency", look="tanker_cards", kicker="TEMİZ SU", title="Kriz Bölgelerine Acil Su Tankeri", items=[
+        {"title": "100 Ailelik Su Desteği", "volume": "5.000 Litre", "price": "2.200 ₺", "cta_url": "/kampanyalar"},
+        {"title": "Tam Tanker Sevkiyatı", "volume": "15.000 Litre", "price": "6.000 ₺", "cta_url": "/kampanyalar"},
+        {"title": "Haftalık Mahalle Tankeri", "volume": "70.000 Litre", "price": "24.000 ₺", "cta_url": "/kampanyalar"},
+    ]),
+])
+_section("bread-bakery", "Ekmek Fırını & Günlük Üretim", "Zekat & Bağış", "Günlük ekmek üretimi ve un çuvalı desteği.", [
+    B("bread_bakery_oven", look="bakery_split", kicker="GÜNLÜK EKMEK", title="Fırınlarımızda Her Gün Taze Ekmek", daily_loaves="25.000 Ekmek / Gün", flour_price="850 ₺", cta_label="Un Çuvalı Bağışla", cta_url="/kampanyalar", items=[
+        {"name": "Kuzey Suriye Fırını", "output": "12.000 Ekmek / Gün"},
+        {"name": "Gazze Mobil Fırını", "output": "8.000 Ekmek / Gün"},
+        {"name": "Yemen Ekmek Dağıtımı", "output": "5.000 Ekmek / Gün"},
+    ]),
+])
+_section("winter-heating", "Kış Yakacak & Soba Desteği", "Zekat & Bağış", "Kömür, odun ve soba paketleri.", [
+    B("winter_fuel_heating", look="winter_cards", kicker="KIŞ YARDIMI", title="Soğuk Kış Günlerinde Bir Yuvayı Isıtın", items=[
+        {"title": "1 Çuval Yakacak Desteği", "duration": "1 Haftalık", "price": "450 ₺", "cta_url": "/kampanyalar"},
+        {"title": "Aylık Kömür & Odun Paketi", "duration": "1 Aylık", "price": "1.600 ₺", "cta_url": "/kampanyalar"},
+        {"title": "Soba & Kışlık Battaniye Seti", "duration": "Tam Set", "price": "2.400 ₺", "cta_url": "/kampanyalar"},
+    ]),
+])
+_section("mosque-library", "Cami & Kurs Kütüphane Köşesi", "İçerik", "Kur'an-ı Kerim, tefsir ve çocuk kitaplığı setleri.", [
+    B("mosque_library_corner", look="library_shelf", kicker="İLİM KÖŞESİ", title="Cami ve Kurslarımıza Kitaplık Kurun", items=[
+        {"title": "Kur'an-ı Kerim Seti", "books_count": "20 Mushaf", "price": "2.000 ₺", "cta_url": "/kampanyalar"},
+        {"title": "Temel İslami İlimler Rafı", "books_count": "35 Eser", "price": "4.500 ₺", "cta_url": "/kampanyalar"},
+        {"title": "Çocuk & Değerler Kitaplığı", "books_count": "50 Kitap", "price": "3.200 ₺", "cta_url": "/kampanyalar"},
+    ]),
+])
+_section("receipt-verify", "Makbuz & Bağış Doğrulama Rehberi", "Kurumsal", "Makbuz ve SMS ile bağış sorgulama adımları.", [
+    B("donor_receipt_verify", look="verify_steps", kicker="ŞEFFAFLIK", title="Bağışınızı 3 Adımda Takip Edin", cta_label="Destek Hattına Ulaş", cta_url="/iletisim", items=[
+        {"step": "Adım 1", "title": "Makbuz & Referans Kodu", "desc": "Bağış sonrası size iletilen SMS/e-posta içindeki referans numarasını saklayın."},
+        {"step": "Adım 2", "title": "Saha Teslimat Kaydı", "desc": "Projeniz tamamlandığında saha ekibimiz görsel ve konum bilgisini sisteme işler."},
+        {"step": "Adım 3", "title": "Anlık Bildirim", "desc": "WhatsApp ve SMS üzerinden teslimat videosu veya makbuz özetiniz paylaşılır."},
+    ]),
+])
+
+_section("kurban-live", "Kurban Kesim & Dağıtım Akışı", "Zekat & Bağış", "Sahadaki kesim ve dağıtım partilerinin canlı durum akışı.", [
+    B("kurban_live_feed", look="live_cards", kicker="SAHA AKIŞI", title="Anlık Kurban Kesim & Dağıtım Durumu", items=[
+        {"region": "Bangladeş / Dakka", "batch": "Parti #14 · 120 Hisse", "status": "Kesim & Dağıtım Tamamlandı", "time": "10:45"},
+        {"region": "Çad / Encemine", "batch": "Parti #15 · 85 Hisse", "status": "Dağıtım Sürüyor", "time": "11:20"},
+        {"region": "Tanzania / Zanzibar", "batch": "Parti #16 · 95 Hisse", "status": "Video Hazırlanıyor", "time": "12:05"},
+    ]),
+])
+_section("fitrah-cards", "Fitre & Fidye Hızlı Ödeme Kartları", "Zekat & Bağış", "Aile kişi sayısına göre hazır fitre ve fidye paketleri.", [
+    B("ramadan_fitrah_zakat_card", look="calculator_cards", kicker="RAMAZAN FİTRESİ", title="Aileniz İçin Hızlı Fitre Hesapla & Bağışla", unit_note="1 Kişilik Fitre Bedeli: 180 ₺", items=[
+        {"title": "1 Kişilik Fitre", "amount": "180 ₺", "desc": "Tek kişi için Ramazan fitre bedeli.", "cta_url": "/kampanyalar"},
+        {"title": "3 Kişilik Aile", "amount": "540 ₺", "desc": "3 kişilik aile fitre paketi.", "cta_url": "/kampanyalar"},
+        {"title": "4 Kişilik Aile", "amount": "720 ₺", "desc": "4 kişilik aile fitre paketi.", "cta_url": "/kampanyalar"},
+        {"title": "5 Kişilik Aile", "amount": "900 ₺", "desc": "5 kişilik aile fitre paketi.", "cta_url": "/kampanyalar"},
+    ]),
+])
+_section("eid-gifts", "Yetim Bayramlık & Hediye Paketi", "Zekat & Bağış", "Bayramlık kıyafet, ayakkabı ve oyuncak hediye paketleri.", [
+    B("orphans_birthday_eid", look="gift_cards", kicker="BAYRAM SEVİNCİ", title="Bir Yetimi Bayramlıkla Sevindirin", items=[
+        {"title": "Bayramlık Kıyafet Seti", "price": "750 ₺", "includes": "Pantolon/etek, gömlek ve çorap takımı", "cta_url": "/kampanyalar"},
+        {"title": "Bayramlık Tam Paket", "price": "1.100 ₺", "includes": "Kıyafet + bayram ayakkabısı + hediye çantası", "cta_url": "/kampanyalar"},
+        {"title": "3 Yetim Bayramlığı", "price": "3.000 ₺", "includes": "3 kardeş için eksiksiz bayramlık seti", "cta_url": "/kampanyalar"},
+    ]),
+])
+_section("solar-well-specs", "Güneş Enerjili Su Kuyusu Teknik Özeti", "Kurumsal", "Derin su kuyusu teknik parametreleri ve kapasite.", [
+    B("solar_water_well_specs", look="spec_cards", kicker="MÜHENDİSLİK DETAYI", title="Güneş Enerjili Şadırvanlı Derin Kuyu Standartları", items=[
+        {"label": "Sondaj Derinliği", "value": "80 - 120 m", "note": "Temiz yeraltı akiferine ulaşan çelik muhafazalı kuyu."},
+        {"label": "Enerji Sistemi", "value": "Solar Panel", "note": "Elektrik kesintisinden bağımsız günlük 20.000 L pompa."},
+        {"label": "Faydalanan Nüfus", "value": "1.500+ Kişi", "note": "Köy ve çevre yerleşimlerin günlük içme suyu ihtiyacını karşılar."},
+        {"label": "Bakım Garantisi", "value": "5 Yıl", "note": "Yerel saha ekiplerimizle periyodik kontrol ve bakım."},
+    ]),
+])
+_section("volunteer-roles", "Saha Gönüllülük & Görev Alanları", "İletişim", "Lojistik, medya, sağlık ve tercümanlık gönüllü rolleri.", [
+    B("volunteer_field_roles", look="role_cards", kicker="GÖNÜLLÜ OL", title="Yeteneklerinle İyilik Ekibine Katıl", cta_label="Gönüllü Başvurusu Yap", cta_url="/iletisim", items=[
+        {"role": "Lojistik & Dağıtım", "commitment": "Hafta Sonu", "desc": "Kumanya paketleme ve yerel dağıtım organizasyonlarında görev alın."},
+        {"role": "Medya & Dokümantasyon", "commitment": "Proje Bazlı", "desc": "Fotoğraf, video kurgu ve saha hikâyelerinin hazırlanmasına destek olun."},
+        {"role": "Sağlık & Tercümanlık", "commitment": "Saha Turları", "desc": "Arapça, Fransızca, İngilizce veya sağlık alanında gönüllü uzmanlık sunun."},
+    ]),
+])
+_section("dorm-support", "Öğrenci Yurdu & Barınma Desteği", "Zekat & Bağış", "Yurt oda sponsorluğu ve bursiyer barınma kalemleri.", [
+    B("student_dorm_support", look="dorm_cards", kicker="YURT & BARINMA", title="Üniversite Öğrencilerine Yuva Olun", items=[
+        {"title": "Aylık İaşe Desteği", "period": "Aylık", "price": "850 ₺", "cta_url": "/kampanyalar"},
+        {"title": "1 Öğrenci Yurt Bursu", "period": "Aylık", "price": "2.200 ₺", "cta_url": "/kampanyalar"},
+        {"title": "Yurt Oda Sponsorluğu", "period": "Yıllık", "price": "24.000 ₺", "cta_url": "/kampanyalar"},
+    ]),
+])
+_section("audit-summary", "Bağımsız Denetim & Mali Şeffaflık", "Kurumsal", "Bağışların sahaya ulaşım oranı ve mali denetim özeti.", [
+    B("annual_audit_summary", look="audit_cards", kicker="MALİ ŞEFFAFLIK", title="Her Kuruşun Hesabını Şeffafça Veriyoruz", cta_label="2025 Denetim Raporunu İndir", cta_url="/hakkimizda", items=[
+        {"label": "Doğrudan Saha Yardımı", "ratio": "%93.4", "note": "Bağışların doğrudan ihtiyaç sahiplerine ulaşan kısmı."},
+        {"label": "Saha Lojistik & Dağıtım", "ratio": "%4.2", "note": "Nakliye, depolama ve saha koordinasyon giderleri."},
+        {"label": "Genel Yönetim Payı", "ratio": "%2.4", "note": "Resmî mevzuat sınırlarının çok altında tutulan yönetim payı."},
+    ]),
 ])
 
 SECTION_BY_KEY = {s["key"]: s for s in SECTIONS}
@@ -2152,6 +2226,114 @@ PAGE_TEMPLATES += [
          ]),
          *_blocks("trust", "cta-pattern"),
      ]},
+    {"key": "kumanya-icerigi", "label": "Kumanya & Gıda Paketi İçeriği", "slug": "kumanya-icerigi",
+     "description": "Bir gıda kolisinin ürün dökümü, ağırlık bilgisi ve hızlı kumanya bağışı.",
+     "blocks": [
+         _page_hero("Bir Ailenin Bir Aylık Sofra Bereketi", "GIDA KUMANYASI", "/demo/relief.webp"),
+         *_blocks("parcel-contents", "video-delivery", "cta-band"),
+     ]},
+    {"key": "okul-yetimhane-insa", "label": "Okul & Yetimhane İnşa Projesi", "slug": "okul-yetimhane-insa",
+     "description": "Eğitim ve yetimhane inşaatının faz bazlı ilerleme durumu ve etki büyümesi.",
+     "blocks": [
+         _page_hero("Kalıcı Eser: Okul & Yetimhane İnşaatı", "KALICI ESERLER", "/demo/orphan.webp"),
+         *_blocks("school-build", "impact-growth", "donor-concierge"),
+     ]},
+    {"key": "vefa-taziye-bagisi", "label": "Vefa & Taziye Bağışı", "slug": "vefa-taziye-bagisi",
+     "description": "Merhum ve merhumeler adına sadaka-i cariye ve taziye bağışı sayfası.",
+     "blocks": [
+         _page_hero("Sevdiklerinizin Adını Sadaka-i Cariye ile Yaşatın", "VEFA & TAZİYE", "/demo/hands.webp"),
+         *_blocks("memorial-vefa", "video-delivery", "cta-pattern"),
+     ]},
+    {"key": "uyelik-basvurusu", "label": "Üyelik & Gönüllü Katılım", "slug": "uyelik-basvurusu",
+     "description": "Düzenli destekçi, yetim hâmisi ve kurumsal paydaş katılım planları.",
+     "blocks": [
+         _page_hero("İyilik Hareketine Düzenli Katkı Sunun", "ÜYELİK & GÖNÜLLÜLÜK", "/demo/hands.webp"),
+         *_blocks("membership-join", "impact-growth", "contact"),
+     ]},
+    {"key": "zekat-dagitim-ilkeleri", "label": "Zekat Dağıtım İlkeleri", "slug": "zekat-dagitim-ilkeleri",
+     "description": "Tevbe Suresi 60. ayet ışığında 8 zekat sınıfı ve özel zekat danışma hattı.",
+     "blocks": [
+         _page_hero("Zekatınız Emanet Bilinciyle Yerine Ulaşır", "ZEKAT İLKELERİ", "/demo/ramadan.webp"),
+         *_blocks("zakat-8-sinif", "donor-concierge", "zakat"),
+     ]},
+    {"key": "afet-acil-durum", "label": "Afet & Acil Yardım Sayfası", "slug": "afet-acil-durum",
+     "description": "Acil ihtiyaç listesi, yardım konvoyları ve hızlı destek çağrısı.",
+     "blocks": [
+         _page_hero("Afet Bölgesi İçin Seferberlik", "ACİL İNSANİ YARDIM", "/demo/relief.webp"),
+         *_blocks("disaster-urgent", "sister-cities", "cta-band"),
+     ]},
+    {"key": "kumbara-talebi", "label": "Kumbara Talep & Dolum", "slug": "kumbara-talebi",
+     "description": "Ev ve iş yerleri için fiziksel kumbara talep ve dolum bildirimi.",
+     "blocks": [
+         _page_hero("Küçük Birikimler Büyük İyiliklere Dönüşür", "BEREKET KUMBARASI", "/demo/hands.webp"),
+         *_blocks("charity-box", "steps", "contact"),
+     ]},
+    {"key": "asevi-sicak-yemek", "label": "Aşevi & Sıcak Yemek", "slug": "asevi-sicak-yemek",
+     "description": "Günlük aşevi menüsü, öğün desteği ve teslimat şeffaflığı.",
+     "blocks": [
+         _page_hero("Her Gün Binlerce Kişiye Sıcak Sofra", "AŞEVİ HİZMETLERİ", "/demo/ramadan.webp"),
+         *_blocks("daily-meal", "video-delivery", "cta-pattern"),
+     ]},
+    {"key": "kurban-niyet-rehberi", "label": "Kurban Niyet Rehberi", "slug": "kurban-niyet-rehberi",
+     "description": "Vacip, Adak, Akika ve Şükür kurbanlarının fıkhi rehberi ve vekalet süreci.",
+     "blocks": [
+         _page_hero("Niyetinize Göre Vekaletle Kurban", "KURBAN REHBERİ", "/demo/kurban.webp"),
+         *_blocks("sacrifice-intentions", "fiqh-qa", "video-delivery"),
+     ]},
+    {"key": "ramazan-iftar-cadirlari", "label": "Ramazan İftar Çadırları", "slug": "ramazan-iftar-cadirlari",
+     "description": "Bölgelere göre kurulan iftar sofraları, kapasite ve günlük iftar bağışı.",
+     "blocks": [
+         _page_hero("Gönül Sofralarında Buluşuyoruz", "RAMAZAN İFTARI", "/demo/ramadan.webp"),
+         *_blocks("ramadan-iftar", "bread-bakery", "cta-band"),
+     ]},
+    {"key": "kis-yakacak-destegi", "label": "Kış Yakacak & Isınma Desteği", "slug": "kis-yakacak-destegi",
+     "description": "Kömür, odun, soba ve kışlık battaniye destek paketleri.",
+     "blocks": [
+         _page_hero("Soğuk Kış Günlerinde Bir Yuvayı Isıtın", "KIŞ SEFERBERLİĞİ", "/demo/winter.webp"),
+         *_blocks("winter-heating", "water-tanker", "cta-pattern"),
+     ]},
+    {"key": "yetim-egitim-paketi", "label": "Yetim Eğitim & Kırtasiye Paketi", "slug": "yetim-egitim-paketi",
+     "description": "Okul çantası, defter, mont ve kütüphane desteği.",
+     "blocks": [
+         _page_hero("Bir Yetimin Eğitim Yolculuğuna Işık Olun", "EĞİTİM DESTEĞİ", "/demo/orphan.webp"),
+         *_blocks("orphan-school-kit", "mosque-library", "membership-join"),
+     ]},
+    {"key": "ekmek-firini-projesi", "label": "Ekmek Fırını & Günlük Üretim", "slug": "ekmek-firini-projesi",
+     "description": "Günlük üretilen ekmek sayısı, un çuvalı desteği ve saha fırınları.",
+     "blocks": [
+         _page_hero("Her Gün On Binlerce Kişiye Sıcak Ekmek", "EKMEK FIRINI", "/demo/relief.webp"),
+         *_blocks("bread-bakery", "receipt-verify", "cta-band"),
+     ]},
+    {"key": "bayramlik-hediye", "label": "Yetim Bayramlık & Hediye", "slug": "bayramlik-hediye",
+     "description": "Bayramlık kıyafet, ayakkabı ve yetim hediye paketleri.",
+     "blocks": [
+         _page_hero("Bayram Sabahında Bir Yetimi Sevindirin", "BAYRAMLIK HEDİYESİ", "/demo/orphan.webp"),
+         *_blocks("eid-gifts", "orphan-school-kit", "cta-band"),
+     ]},
+    {"key": "gunes-enerjili-su-kuyusu", "label": "Güneş Enerjili Su Kuyusu", "slug": "gunes-enerjili-su-kuyusu",
+     "description": "Derin su kuyusu mühendislik standartları ve teslimat süreci.",
+     "blocks": [
+         _page_hero("Güneş Enerjili Şadırvanlı Derin Su Kuyuları", "TEMİZ SU PROJESİ", "/demo/water.webp"),
+         *_blocks("solar-well-specs", "video-delivery", "cta-pattern"),
+     ]},
+    {"key": "kalici-eser-hisse", "label": "Kalıcı Eser & Tuğla Hissesi", "slug": "kalici-eser-hisse",
+     "description": "Külliye, okul ve yurt inşaatlarında m² ve tuğla hissesi bağışı.",
+     "blocks": [
+         _page_hero("Nesiller Boyu Sürecek Bir İyilik İnşa Edin", "KALICI ESER", "/demo/mosque.webp"),
+         *_blocks("waqf-shares", "school-build", "dorm-support"),
+     ]},
+    {"key": "mali-seffaflik-denetim", "label": "Mali Şeffaflık & Denetim", "slug": "mali-seffaflik-denetim",
+     "description": "Bağımsız denetim oranları, yıllık büyüme ve makbuz doğrulama.",
+     "blocks": [
+         _page_hero("Şeffaf Yönetim ve Bağımsız Denetim", "MALİ ŞEFFAFLIK", "/demo/hands.webp"),
+         *_blocks("audit-summary", "impact-growth", "receipt-verify"),
+     ]},
+    {"key": "gonullu-gorev-alanlari", "label": "Gönüllü Görev Alanları", "slug": "gonullu-gorev-alanlari",
+     "description": "Saha gönüllülük rolleri, temsilcilik ağı ve başvuru çağrısı.",
+     "blocks": [
+         _page_hero("İyilik Yolculuğunda Saha Ekibimize Katılın", "GÖNÜLLÜLÜK", "/demo/hands.webp"),
+         *_blocks("volunteer-roles", "sister-cities", "contact"),
+     ]},
 ]
 
 PAGE_BY_KEY = {p["key"]: p for p in PAGE_TEMPLATES}
@@ -2224,6 +2406,69 @@ DEMOS.append({
                    "(niyet, hisse, süre, döviz), mesaj formu ve Çağrı Merkezi'li footer. Mesafeli sözleşme, iade ve çerez sayfalarıyla.",
     "header": _HK["header"], "footer": _HK["footer"], "home": _HK["home"], "pages": _HK_PAGE_KEYS,
 })
+
+DEMOS += [
+    {"key": "acil-afet-yardim", "label": "Afet & Acil Yardım", "kit": "modern-lacivert", "image": "/demo/relief.webp",
+     "description": "Acil yardım barlı header, afet ihtiyaç listesi, bölge ağı ve hızlı bağış formu.",
+     "header": header_top_bar_urgent(), "footer": footer_dark_gold(),
+     "home": _blocks("hero-split", "disaster-urgent", "campaigns-ending", "sister-cities", "cta-band", "faq"),
+     "pages": ["afet-acil-durum", "bank", "contact"]},
+    {"key": "afrika-su-kuyusu", "label": "Afrika Su Kuyusu & Kalıcı Eser", "kit": "ferah-turkuaz", "image": "/demo/water.webp",
+     "description": "İnşaat aşamaları, video teslimat vitrini, kumanya içeriği ve şeffaflık odaklı demo.",
+     "header": header_split_cta(), "footer": footer_trust_badges(),
+     "home": _blocks("slider-winter", "school-build", "video-delivery", "campaigns-grid", "impact-growth", "testimonials"),
+     "pages": ["okul-yetimhane-insa", "water", "contact"]},
+    {"key": "ilim-ve-hafizlik", "label": "İlim, Hafızlık & Aşevi", "kit": "arabi-altin", "image": "/demo/quran.webp",
+     "description": "Zümrüt-altın header, hafız icazet duvarı, aşevi menüsü, ayet ve üyelik planları.",
+     "header": header_emerald_gold(), "footer": footer_newsletter_split(),
+     "home": _blocks("slider-education", "hafiz-wall", "daily-meal", "quote-verse", "membership-join", "faq"),
+     "pages": ["asevi-sicak-yemek", "uyelik-basvurusu", "contact"]},
+    {"key": "kurumsal-seffaf-vakif", "label": "Şeffaf Kurumsal Vakıf", "kit": "zarif-bordo", "image": "/demo/hands.webp",
+     "description": "Zekat 8 sınıf matrisi, kurumsal vergi avantajı, yıllık etki kartları ve danışma masası.",
+     "header": header_two_row_catalog(), "footer": footer_dark_gold(),
+     "home": _blocks("slider-fullscreen", "zakat-8-sinif", "impact-growth", "corporate-tax", "donor-concierge", "contact-form"),
+     "pages": ["zekat-dagitim-ilkeleri", "corporate", "transparency"]},
+    {"key": "osmanli-vakif-klasik", "label": "Osmanlı Çini & Vakıf Klasik", "kit": "osmanli-turkuaz", "image": "/demo/mosque.webp",
+     "description": "Osmanlı çini paleti, zümrüt-altın header, kütüphane köşesi ve vefa duvarı.",
+     "header": header_emerald_gold(), "footer": footer_dark_gold(),
+     "home": _blocks("slider-education", "mosque-library", "memorial-vefa", "ramadan-iftar", "receipt-verify", "faq"),
+     "pages": ["ramazan-iftar-cadirlari", "vefa-taziye-bagisi", "contact"]},
+    {"key": "kudus-ve-mescid", "label": "Kudüs & Mescid-i Aksa Yardım", "kit": "kudus-tas-altin", "image": "/demo/mosque.webp",
+     "description": "Taş & altın tonları, ramazan iftar sofraları, ekmek fırını ve su tankeri sevkiyatı.",
+     "header": header_two_row_catalog(), "footer": footer_trust_badges(),
+     "home": _blocks("hero-split", "ramadan-iftar", "bread-bakery", "water-tanker", "campaigns-grid", "receipt-verify"),
+     "pages": ["ekmek-firini-projesi", "ramazan-iftar-cadirlari", "bank"]},
+    {"key": "kis-ve-ekmek-yardimi", "label": "Kış, Yakacak & Ekmek Seferberliği", "kit": "gazze-acil-kirmizi", "image": "/demo/winter.webp",
+     "description": "Acil kırmızı tonlar, kış yakacak paketleri, ekmek fırını ve sağlık tırı takvimi.",
+     "header": header_top_bar_urgent(), "footer": footer_newsletter_split(),
+     "home": _blocks("slider-winter", "winter-heating", "bread-bakery", "medical-caravan", "disaster-urgent", "cta-band"),
+     "pages": ["kis-yakacak-destegi", "ekmek-firini-projesi", "contact"]},
+    {"key": "yetim-egitim-vefa", "label": "Yetim Eğitim & Kırtasiye Vefa", "kit": "mor-vefa", "image": "/demo/orphan.webp",
+     "description": "Vefa moru paleti, yetim eğitim paketi, hafız icazet duvarı ve gönüllü üyelik.",
+     "header": header_split_cta(), "footer": footer_compact_pill(),
+     "home": _blocks("hero-split", "orphan-school-kit", "hafiz-wall", "membership-join", "testimonials", "faq"),
+     "pages": ["yetim-egitim-paketi", "uyelik-basvurusu", "contact"]},
+    {"key": "endulus-kultur-vakfi", "label": "Endülüs Kültür & Kalıcı Eser Vakfı", "kit": "endulus-zumrut", "image": "/demo/mosque.webp",
+     "description": "Endülüs zümrüt paleti, kalıcı eser tuğla hisseleri, yurt desteği ve mali şeffaflık.",
+     "header": header_emerald_gold(), "footer": footer_dark_gold(),
+     "home": _blocks("slider-education", "waqf-shares", "dorm-support", "audit-summary", "memorial-vefa", "faq"),
+     "pages": ["kalici-eser-hisse", "mali-seffaflik-denetim", "contact"]},
+    {"key": "safir-kurumsal-denetim", "label": "Safir Kurumsal & Şeffaf Vakıf", "kit": "safir-kurumsal", "image": "/demo/hands.webp",
+     "description": "Safir kurumsal paleti, bağımsız denetim oranları, kurumsal vergi avantajı ve gönüllü rolleri.",
+     "header": header_split_cta(), "footer": footer_trust_badges(),
+     "home": _blocks("slider-fullscreen", "audit-summary", "corporate-tax", "volunteer-roles", "donor-concierge", "contact-form"),
+     "pages": ["mali-seffaflik-denetim", "gonullu-gorev-alanlari", "corporate"]},
+    {"key": "zeytin-dali-tarim-su", "label": "Zeytin Dalı Su & Kalkınma", "kit": "zeytin-dali", "image": "/demo/water.webp",
+     "description": "Doğal zeytin yeşili paleti, güneş enerjili su kuyuları, bayramlık ve e-bülten.",
+     "header": header_glass_floating(), "footer": footer_newsletter_split(),
+     "home": _blocks("hero-split", "solar-well-specs", "eid-gifts", "campaigns-grid", "video-delivery", "testimonials"),
+     "pages": ["gunes-enerjili-su-kuyusu", "bayramlik-hediye", "contact"]},
+    {"key": "gece-prestij-bagis", "label": "Gece Prestij & Ramazan Bağışı", "kit": "gece-antrasit-altin", "image": "/demo/ramadan.webp",
+     "description": "Antrasit-altın paleti, fitre hızlı paketleri, kurban canlı kesim akışı ve zekat matrisi.",
+     "header": header_two_row_catalog(), "footer": footer_dark_gold(),
+     "home": _blocks("slider-ramadan", "fitrah-cards", "kurban-live", "zakat-8-sinif", "donor-concierge", "faq"),
+     "pages": ["zekat-dagitim-ilkeleri", "ramazan-iftar-cadirlari", "bank"]},
+]
 
 DEMO_BY_KEY = {d["key"]: d for d in DEMOS}
 

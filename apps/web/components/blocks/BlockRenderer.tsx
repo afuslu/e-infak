@@ -342,6 +342,89 @@ const ALIGN_ITEMS: Record<string, string> = { start: 'items-start', center: 'ite
 const JUSTIFY: Record<string, string> = { left: 'justify-start', center: 'justify-center', right: 'justify-end' }
 const JUSTIFY_MD: Record<string, string> = { left: 'md:justify-start', center: 'md:justify-center', right: 'md:justify-end' }
 
+function OverlayItemsLayer({ items, editing }: { items?: any[]; editing?: boolean }) {
+  if (!Array.isArray(items) || !items.length) return null
+  const btnCls: Record<string, string> = {
+    primary: 'bg-primary-600 text-white hover:bg-primary-700 shadow-lg',
+    secondary: 'bg-accent-500 text-gray-950 hover:bg-accent-400 shadow-lg',
+    glass: 'bg-white/20 text-white backdrop-blur-md ring-1 ring-white/40 hover:bg-white/30 shadow-lg',
+    dark: 'bg-gray-950 text-white hover:bg-gray-900 shadow-lg',
+  }
+  return (
+    <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+      {items.map((item, idx) => {
+        const x = typeof item?.x === 'number' ? Math.max(0, Math.min(100, item.x)) : 50
+        const y = typeof item?.y === 'number' ? Math.max(0, Math.min(100, item.y)) : 50
+        const kind = item?.kind || 'button'
+        const styleKey = item?.style || 'primary'
+        const posStyle: React.CSSProperties = {
+          left: `clamp(44px, ${x}%, calc(100% - 44px))`,
+          top: `clamp(24px, ${y}%, calc(100% - 24px))`,
+          transform: 'translate(-50%, -50%)',
+          maxWidth: 'calc(100% - 16px)',
+        }
+        let inner: ReactNode = null
+        if (kind === 'image' && item?.image_url) {
+          inner = (
+            <img
+              src={item.image_url}
+              alt={item.label || ''}
+              style={{ width: item.width ? `${item.width}px` : '120px' }}
+              className="max-w-full rounded-xl object-contain shadow-md select-none"
+              draggable={false}
+            />
+          )
+        } else if (kind === 'badge') {
+          inner = (
+            <span className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-extrabold uppercase tracking-wider select-none ${btnCls[styleKey] || btnCls.primary}`}>
+              {item?.label || 'Rozet'}
+            </span>
+          )
+        } else {
+          inner = (
+            <span className={`inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-bold transition select-none ${btnCls[styleKey] || btnCls.primary}`}>
+              {item?.label || 'Buton'}
+            </span>
+          )
+        }
+        const wrapped = !editing && item?.url ? (
+          String(item.url).startsWith('/') ? <Link href={item.url}>{inner}</Link> : <a href={item.url} target="_blank" rel="noopener noreferrer">{inner}</a>
+        ) : inner
+        return (
+          <div
+            key={idx}
+            data-overlay-idx={editing ? idx : undefined}
+            draggable={false}
+            style={posStyle}
+            className={`pointer-events-auto absolute ${editing ? 'group/ov cursor-grab active:cursor-grabbing ring-1 ring-transparent hover:ring-blue-400 rounded-xl' : ''}`}
+          >
+            {wrapped}
+            {editing && (
+              <>
+                <button
+                  type="button"
+                  data-overlay-remove={idx}
+                  title="Kaldır"
+                  className="absolute -end-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white opacity-0 shadow transition group-hover/ov:opacity-100 hover:bg-red-700"
+                >
+                  ✕
+                </button>
+                {kind === 'image' && (
+                  <span
+                    data-overlay-resize={idx}
+                    title="Köşeden sürükleyerek boyutlandır"
+                    className="absolute -bottom-1.5 -end-1.5 h-3.5 w-3.5 cursor-nwse-resize rounded-sm border border-white bg-blue-600 opacity-0 shadow transition group-hover/ov:opacity-100"
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function content(block: Block, o: Record<string, any>, opts: RenderOptions, depth: number): ReactNode {
   const { data } = opts
   const t = translator(data.locale)
@@ -350,8 +433,25 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     opts.renderChildren ? opts.renderChildren(block, list, depth + 1) : list.map((b) => renderBlock(b, opts, depth + 1))
 
   switch (block.type) {
-    case 'hero':
-      return <Hero data={data} variant={o.variant || data.site.template} o={o} editing={opts.editing} />
+    case 'hero': {
+      const heroNode = <Hero data={data} variant={o.variant || data.site.template} o={o} editing={opts.editing} />
+      const fx = typeof o.focal_x === 'number' ? o.focal_x : 50
+      const fy = typeof o.focal_y === 'number' ? o.focal_y : 50
+      const hasCustomFocal = fx !== 50 || fy !== 50
+      if (!o.overlay_items?.length && !hasCustomFocal) return heroNode
+      return (
+        <div
+          className="relative"
+          style={hasCustomFocal ? ({ '--hero-focal': `${fx}% ${fy}%` } as React.CSSProperties) : undefined}
+        >
+          {hasCustomFocal && (
+            <style>{`[data-block-id="${block.id}"] img { object-position: ${fx}% ${fy}% !important; }`}</style>
+          )}
+          {heroNode}
+          <OverlayItemsLayer items={o.overlay_items} editing={opts.editing} />
+        </div>
+      )
+    }
     case 'slider': {
       const slides: SlideView[] = (o.slides || []).map((s: Record<string, any>) => {
         const c = campaignById(s.campaign_id)
@@ -367,10 +467,12 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const c = campaignById(o.campaign_id) || data.campaigns[0]
       const rawLook = String(o.look || 'card')
       const look = (
-        rawLook === 'floating_bar' || rawLook === 'compact_inline_pill' ? 'inline'
+        rawLook === 'floating_bar' || rawLook === 'compact_inline_pill' || rawLook === 'pill_tabs_compact' ? 'inline'
           : rawLook === 'impact_calculator' ? 'split'
-          : rawLook === 'dark_ramadan_bar' ? 'glass'
-          : rawLook === 'preset_grid_card' ? 'card'
+          : rawLook === 'dark_ramadan_bar' || rawLook === 'dark_gold_quick' || rawLook === 'emerald_gold_quick' ? 'glass'
+          : rawLook === 'preset_grid_card' || rawLook === 'bordered_step_quick' ? 'card'
+          : rawLook === 'minimal_underline_quick' ? 'compact'
+          : rawLook === 'urgent_red_quick' ? 'band'
           : rawLook
       ) as 'card' | 'band' | 'compact' | 'split' | 'inline' | 'glass' | 'single_step'
       const parseAmounts = (raw?: string) =>
@@ -399,11 +501,17 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         suggestedAmounts: (camp.suggested_amounts_cents || []).map((cents) => Math.round(cents / 100)).filter((n) => n > 0),
         checkoutFieldsSchema: (camp as any).checkout_fields_schema || [],
       }))
-      const wrapCls = look === 'band'
-        ? 'bg-primary-50 py-10'
-        : look === 'glass'
-          ? 'bg-gradient-to-br from-primary-950 via-primary-900 to-gray-950 py-12'
-          : ''
+      const wrapCls = rawLook === 'emerald_gold_quick'
+        ? 'bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 py-12 text-white'
+        : rawLook === 'urgent_red_quick'
+          ? 'border-y border-red-200 bg-red-50/70 py-10'
+          : rawLook === 'minimal_underline_quick'
+            ? 'border-y border-gray-200 bg-white py-8'
+            : look === 'band'
+              ? 'bg-primary-50 py-10'
+              : look === 'glass'
+                ? 'bg-gradient-to-br from-primary-950 via-primary-900 to-gray-950 py-12'
+                : ''
       const innerCls = look === 'split' || look === 'inline'
         ? 'mx-auto max-w-5xl px-4 sm:px-6'
         : look === 'compact'
@@ -507,10 +615,10 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
 
-      if (layout === 'overlay') {
+      if (layout === 'overlay' || layout === 'dark_luxury_spotlight') {
         return (
           <div className={container}>
-            <div className="relative flex min-h-[380px] flex-col justify-end overflow-hidden rounded-3xl bg-gray-900 p-6 text-white shadow-xl sm:min-h-[440px] sm:p-10">
+            <div className={`relative flex min-h-[380px] flex-col justify-end overflow-hidden rounded-3xl p-6 text-white shadow-xl sm:min-h-[440px] sm:p-10 ${layout === 'dark_luxury_spotlight' ? 'border border-amber-400/30 bg-slate-950' : 'bg-gray-900'}`}>
               {c.cover_image_url && <img src={c.cover_image_url} alt={title} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />}
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/15" />
               <div className="relative max-w-2xl space-y-4">
@@ -520,6 +628,23 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                 {showProgress && <div className="max-w-md rounded-2xl bg-white/95 p-3.5 text-gray-900"><ProgressBar c={c} locale={data.locale} /></div>}
                 {quickChips(true)}
                 {actions(true)}
+              </div>
+            </div>
+          </div>
+        )
+      }
+      if (layout === 'compact_progress_strip' || layout === 'bordered_urgent_card') {
+        return (
+          <div className={container}>
+            <div className={`grid items-center gap-6 rounded-3xl bg-white p-6 shadow-sm md:grid-cols-12 ${layout === 'bordered_urgent_card' ? 'border-2 border-red-200' : 'border border-gray-200'}`}>
+              <div className="space-y-2 md:col-span-7">
+                {badges}
+                <h3 className="font-heading text-2xl font-bold text-gray-900">{title}</h3>
+                {summary && <p className="text-sm text-gray-600">{summary}</p>}
+              </div>
+              <div className="space-y-3 md:col-span-5">
+                {showProgress && <ProgressBar c={c} locale={data.locale} />}
+                {actions(false)}
               </div>
             </div>
           </div>
@@ -615,10 +740,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     case 'trust':
       return <Trust data={data} t={t} o={o} />
     case 'stats': {
-      if (o.variant === 'card' || o.variant === 'gradient' || o.variant === 'ring' || o.variant === 'bento_dark') {
+      if (o.variant === 'card' || o.variant === 'gradient' || o.variant === 'ring' || o.variant === 'bento_dark' || o.variant === 'dark_gold_counters' || o.variant === 'bordered_metric_cards' || o.variant === 'minimal_inline_stats') {
         const isGrad = o.variant === 'gradient'
         const isRing = o.variant === 'ring'
-        const isDark = o.variant === 'bento_dark'
+        const isDark = o.variant === 'bento_dark' || o.variant === 'dark_gold_counters'
+        const isGoldDark = o.variant === 'dark_gold_counters'
+        const isBordered = o.variant === 'bordered_metric_cards'
+        const isInlineMin = o.variant === 'minimal_inline_stats'
         const collected = data.campaigns.filter((c) => (c.currency || 'TRY') === 'TRY').reduce((sum, c) => sum + (c.collected_lira || 0), 0)
         const statItems: Array<{ value: string | number; suffix?: string; label: string; icon_url?: string }> =
           o.mode === 'manual' && Array.isArray(o.items) && o.items.length
@@ -639,19 +767,22 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                 {o.text && <p className="mt-2 text-sm leading-relaxed text-gray-600">{o.text}</p>}
               </div>
             )}
-            <div className={`grid grid-cols-2 gap-6 ${colCls} ${isGrad || isRing || isDark ? '' : 'gap-y-8 rounded-lg bg-white px-5 py-8 shadow-[0_8px_30px_-8px_rgba(0,0,0,.18)] lg:divide-x lg:divide-gray-100'}`}>
+            <div className={`grid grid-cols-2 gap-6 ${colCls} ${isGrad || isRing || isDark || isBordered || isInlineMin ? '' : 'gap-y-8 rounded-lg bg-white px-5 py-8 shadow-[0_8px_30px_-8px_rgba(0,0,0,.18)] lg:divide-x lg:divide-gray-100'}`}>
               {statItems.map((item, i) => {
                 const raw = String(item.value ?? '')
                 const n = typeof item.value === 'number' ? item.value : Number(raw.replace(/\./g, '').replace(',', '.'))
                 const isNum = typeof item.value === 'number' || (Number.isFinite(n) && /^[\d.,]+$/.test(raw))
                 return (
                   <div key={i} className={`flex flex-col items-center gap-2 text-center ${
+                    isGoldDark ? 'rounded-3xl border border-amber-500/30 bg-slate-950 p-7 text-amber-300 shadow-xl' :
                     isDark ? 'rounded-3xl border border-white/10 bg-slate-900 p-7 text-white shadow-xl' :
                     isGrad ? 'rounded-2xl bg-gradient-to-br from-primary-700 to-primary-900 p-6 text-white shadow-lg' :
+                    isBordered ? 'rounded-2xl border-2 border-primary-200 bg-white p-6 shadow-sm' :
+                    isInlineMin ? 'border-b-2 border-primary-500/30 pb-4' :
                     isRing ? 'rounded-2xl border border-primary-100 bg-white p-6 shadow-sm' : ''
                   }`}>
                     {item.icon_url && <img src={item.icon_url} alt="" className="h-14 w-14 object-contain" loading="lazy" />}
-                    <div className={`${isRing ? 'flex h-20 w-20 items-center justify-center rounded-full border-4 border-primary-600 bg-primary-50/50 text-xl' : 'text-3xl md:text-4xl'} font-heading font-bold ${isGrad || isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <div className={`${isRing ? 'flex h-20 w-20 items-center justify-center rounded-full border-4 border-primary-600 bg-primary-50/50 text-xl' : 'text-3xl md:text-4xl'} font-heading font-bold ${isGoldDark ? 'text-amber-300' : isGrad || isDark ? 'text-white' : 'text-gray-900'}`}>
                       {isNum ? <CountUp value={n} locale={data.locale} suffix={item.suffix || ''} /> : raw}
                     </div>
                     <div className={`text-[15px] ${isGrad || isDark ? 'text-white/80' : 'text-gray-700'}`}>{item.label}</div>
@@ -700,10 +831,139 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
 
-      if (o.layout === 'minimal_bordered') {
+      if (o.layout === 'indigo_silver_banner') {
         return (
           <div className={container}>
-            <div className="rounded-2xl border border-gray-200 bg-white p-7 shadow-sm sm:p-10">
+            <div className="rounded-3xl border border-sky-300/25 bg-gradient-to-r from-indigo-950 to-slate-950 p-8 text-white shadow-xl sm:p-12">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'plum_gold_banner') {
+        return (
+          <div className={container}>
+            <div className="rounded-3xl border border-amber-400/30 bg-gradient-to-r from-purple-950 to-slate-950 p-8 text-white shadow-xl sm:p-12">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'forest_amber_banner') {
+        return (
+          <div className={container}>
+            <div className="rounded-3xl border border-amber-400/25 bg-gradient-to-r from-green-950 to-stone-950 p-8 text-white shadow-xl sm:p-12">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'ruby_urgent_banner') {
+        return (
+          <div className={container}>
+            <div className="rounded-3xl border border-red-400/30 bg-gradient-to-r from-rose-950 via-red-900 to-slate-950 p-8 text-white shadow-xl sm:p-12">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'dark_olive_gold_banner') {
+        return (
+          <div className={container}>
+            <div className="rounded-3xl border-2 border-amber-400/40 bg-gradient-to-r from-lime-950 to-stone-950 p-8 text-white shadow-xl sm:p-12">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'warm_terracotta_banner') {
+        return (
+          <div className={container}>
+            <div className="rounded-3xl border border-amber-400/30 bg-gradient-to-r from-orange-950 to-stone-950 p-8 text-white shadow-xl sm:p-12">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'dark_sapphire_banner') {
+        return (
+          <div className={container}>
+            <div className="rounded-3xl border border-cyan-400/25 bg-gradient-to-r from-sky-950 to-slate-950 p-8 text-white shadow-xl sm:p-12">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'split_stat_pill_banner') {
+        return (
+          <div className={container}>
+            <div className="flex flex-wrap items-center justify-between gap-6 rounded-3xl border border-primary-200 bg-primary-50/50 p-8 sm:p-10">
+              <div className="max-w-2xl">{text(false)}</div>
+              {o.kicker && <span className="rounded-full bg-primary-600 px-5 py-2.5 text-xs font-extrabold uppercase tracking-wider text-white">{o.kicker}</span>}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'minimal_serif_banner') {
+        return (
+          <div className={container}>
+            <div className="border-y border-gray-300 bg-white py-10">
+              {text(false)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'emerald_arch_banner') {
+        return (
+          <div className={container}>
+            <div className="grid items-center gap-8 overflow-hidden rounded-3xl border border-amber-400/30 bg-gradient-to-br from-emerald-950 to-slate-950 p-8 text-white shadow-xl md:grid-cols-12 sm:p-10">
+              <div className="md:col-span-7">{text(true)}</div>
+              {o.image_url && (
+                <div className="flex justify-center md:col-span-5">
+                  <div className="w-full max-w-xs overflow-hidden rounded-t-[120px] rounded-b-2xl border-2 border-amber-400/50">
+                    <img src={o.image_url} alt={o.title || ''} className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'compact_pill_banner') {
+        return (
+          <div className={container}>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-full border border-primary-200 bg-primary-50/70 px-7 py-4 shadow-xs">
+              <div className="min-w-0 flex-1">
+                {o.title && <h3 className="font-heading text-lg font-bold text-gray-900">{o.title}</h3>}
+                {o.text && <p className="text-xs text-gray-600">{o.text}</p>}
+              </div>
+              {actions}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'dark_border_quote_banner') {
+        return (
+          <div className={container}>
+            <div className="rounded-3xl border-2 border-amber-400/50 bg-slate-950 p-8 text-white shadow-2xl sm:p-12">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'urgent_countdown_banner') {
+        return (
+          <div className={container}>
+            <div className="rounded-3xl border-2 border-red-300 bg-gradient-to-r from-red-700 to-red-900 p-8 text-white shadow-xl sm:p-10">
+              {text(true)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'minimal_bordered' || o.layout === 'split_accent_border') {
+        return (
+          <div className={container}>
+            <div className={`rounded-2xl bg-white p-7 shadow-sm sm:p-10 ${o.layout === 'split_accent_border' ? 'border border-gray-200 border-s-4 border-s-primary-600' : 'border border-gray-200'}`}>
               {text(false)}
             </div>
           </div>
@@ -718,10 +978,10 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           </div>
         )
       }
-      if (o.layout === 'dark_spotlight') {
+      if (o.layout === 'dark_spotlight' || o.layout === 'dark_gold_banner' || o.layout === 'glass_overlay_wide') {
         return (
           <div className={container}>
-            <div className="relative overflow-hidden rounded-3xl bg-slate-950 p-8 text-white shadow-2xl sm:p-12">
+            <div className={`relative overflow-hidden rounded-3xl bg-slate-950 p-8 text-white shadow-2xl sm:p-12 ${o.layout === 'dark_gold_banner' ? 'border border-amber-400/30' : ''}`}>
               <div className="pointer-events-none absolute -end-20 -top-20 h-64 w-64 rounded-full bg-primary-600/25 blur-3xl" />
               <div className="relative">{text(true)}</div>
             </div>
@@ -1109,13 +1369,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         brand: 'border-2 border-primary-500 bg-white text-primary-950',
         neutral: 'border-2 border-gray-300 bg-white text-gray-900',
       }
-      const isSolid = look === 'solid' || look === 'dark_amber_alert'
+      const isSolid = look === 'solid' || look === 'dark_amber_alert' || look === 'dark_gold_notice'
       const boxCls =
-        look === 'dark_amber_alert'
+        look === 'dark_amber_alert' || look === 'dark_gold_notice'
           ? 'border-amber-500/40 bg-slate-950 text-amber-100'
-          : look === 'floating_pill'
+          : look === 'floating_pill' || look === 'floating_pill_notice'
             ? 'rounded-full border-primary-200 bg-white text-gray-900 shadow-lg'
-            : look === 'left_accent_card'
+            : look === 'left_accent_card' || look === 'left_icon_card'
               ? `${accentMap[toneKey] || accentMap.info} shadow-md`
               : isSolid
                 ? solidMap[toneKey] || solidMap.info
@@ -1243,6 +1503,47 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         )
       }
 
+      if (look === 'gradient_underline') {
+        return (
+          <div className={wrapCls}>
+            {kickerNode}
+            <Tag className={`font-heading font-extrabold leading-tight ${size} bg-gradient-to-r from-primary-700 via-primary-600 to-accent-500 bg-clip-text text-transparent`}>
+              {o.text}
+            </Tag>
+            <div className={`mt-3 h-1.5 w-24 rounded-full bg-gradient-to-r from-primary-600 via-accent-500 to-amber-400 ${o.align === 'center' ? 'mx-auto' : o.align === 'right' ? 'ms-auto' : ''}`} />
+            {subtitleNode}
+          </div>
+        )
+      }
+
+      if (look === 'dark_editorial_kicker') {
+        return (
+          <div className={`${depth === 0 ? container : ''}`}>
+            <div className={`rounded-3xl bg-gray-950 px-7 py-8 text-white shadow-xl ring-1 ring-white/10 ${alignCls}`}>
+              {o.kicker && (
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-accent-500/30 bg-accent-500/15 px-3.5 py-1 text-[11px] font-extrabold uppercase tracking-[2px] text-accent-300">
+                  {o.kicker}
+                </div>
+              )}
+              <Tag className={`font-heading font-bold leading-tight text-white ${size}`}>{o.text}</Tag>
+              {o.subtitle && <p className={`mt-3 max-w-2xl text-base leading-relaxed text-gray-300 ${o.align === 'center' ? 'mx-auto' : o.align === 'right' ? 'ms-auto' : ''}`}>{o.subtitle}</p>}
+            </div>
+          </div>
+        )
+      }
+
+      if (look === 'split_with_subtitle') {
+        return (
+          <div className={`${depth === 0 ? container : ''} grid items-end gap-4 border-b border-gray-200 pb-6 md:grid-cols-[1.2fr_1fr]`}>
+            <div>
+              {kickerNode}
+              {titleNode}
+            </div>
+            {o.subtitle && <p className="text-base leading-relaxed text-gray-600">{o.subtitle}</p>}
+          </div>
+        )
+      }
+
       return (
         <div className={wrapCls}>
           {kickerNode}
@@ -1265,13 +1566,17 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         : ''
       const widthCls = o.width === 'narrow' || look === 'article' ? 'mx-auto max-w-3xl' : ''
       const lookCls =
-        look === 'two_col'
+        look === 'two_col' || look === 'two_column_editorial'
           ? 'md:columns-2 md:gap-10 [&>*]:break-inside-avoid'
           : look === 'card'
             ? 'rounded-2xl border border-gray-200 bg-white p-7 shadow-sm sm:p-10'
-            : look === 'bordered'
-              ? 'border-s-4 border-primary-600 ps-6'
-              : ''
+            : look === 'dark_reading_box'
+              ? 'rounded-3xl bg-gray-950 p-7 text-gray-100 shadow-xl ring-1 ring-white/10 sm:p-10 [&_*]:text-gray-200 [&_h1,&_h2,&_h3,&_strong]:text-white'
+              : look === 'bordered_callout'
+                ? 'rounded-2xl border-2 border-primary-200 bg-primary-50/40 p-6 sm:p-8'
+                : look === 'bordered'
+                  ? 'border-s-4 border-primary-600 ps-6'
+                  : ''
       return (
         <div className={depth === 0 ? container : ''}>
           <div className={`${widthCls} ${lookCls}`.trim()}>
@@ -1288,7 +1593,14 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         ? 'w-full'
         : ({ lg: 'max-w-4xl', md: 'max-w-2xl', sm: 'max-w-sm' }[o.width as string] || 'w-full')
       const alignCls = isFull ? '' : o.align === 'right' ? 'ms-auto' : o.align === 'left' ? '' : 'mx-auto'
-      const hasAspect = look === 'circle' || (o.aspect && o.aspect !== 'auto')
+      const hasAspect = look === 'circle' || (o.aspect && o.aspect !== 'auto') || Boolean(o.height_px)
+      const fx = typeof o.focal_x === 'number' ? o.focal_x : 50
+      const fy = typeof o.focal_y === 'number' ? o.focal_y : 50
+      const imgStyle: React.CSSProperties = {
+        ...(look !== 'circle' && o.aspect && o.aspect !== 'auto' ? { aspectRatio: o.aspect } : {}),
+        ...(typeof o.height_px === 'number' && o.height_px > 0 ? { height: `${o.height_px}px`, objectFit: 'cover' as const } : {}),
+        ...(fx !== 50 || fy !== 50 ? { objectPosition: `${fx}% ${fy}%` } : {}),
+      }
       const imgCls =
         look === 'circle'
           ? 'aspect-square w-full rounded-full object-cover shadow-md'
@@ -1298,21 +1610,26 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
               ? `w-full rounded-lg bg-white p-3 pb-10 shadow-xl ring-1 ring-gray-200 -rotate-1 ${hasAspect ? 'object-cover' : ''}`
               : look === 'duotone_brand'
                 ? `w-full rounded-2xl grayscale contrast-125 mix-blend-multiply ${hasAspect ? 'object-cover' : ''}`
-                : look === 'shadow' || look === 'floating_badge'
-                  ? `w-full rounded-2xl shadow-xl transition-transform duration-500 group-hover:scale-[1.02] ${hasAspect ? 'object-cover' : ''}`
-                  : look === 'framed'
-                    ? `w-full rounded-xl ${hasAspect ? 'object-cover' : ''}`
-                    : `w-full rounded-2xl ${hasAspect ? 'object-cover' : ''}`
+                : look === 'rounded_shadow_glow'
+                  ? `w-full rounded-3xl shadow-2xl ring-4 ring-primary-100 transition-transform duration-500 group-hover:scale-[1.01] ${hasAspect ? 'object-cover' : ''}`
+                  : look === 'editorial_border_frame'
+                    ? `w-full rounded-xl border border-gray-200 ${hasAspect ? 'object-cover' : ''}`
+                    : look === 'shadow' || look === 'floating_badge'
+                      ? `w-full rounded-2xl shadow-xl transition-transform duration-500 group-hover:scale-[1.02] ${hasAspect ? 'object-cover' : ''}`
+                      : look === 'framed'
+                        ? `w-full rounded-xl ${hasAspect ? 'object-cover' : ''}`
+                        : `w-full rounded-2xl ${hasAspect ? 'object-cover' : ''}`
       const picture = (
-        <picture className="block">
+        <picture className="relative block">
           {o.mobile_image_url && <source media="(max-width: 639px)" srcSet={o.mobile_image_url} />}
           <img
             src={o.image_url}
             alt={o.alt || ''}
             loading="lazy"
             className={imgCls}
-            style={look !== 'circle' && o.aspect && o.aspect !== 'auto' ? { aspectRatio: o.aspect } : undefined}
+            style={Object.keys(imgStyle).length ? imgStyle : undefined}
           />
+          <OverlayItemsLayer items={o.overlay_items} editing={opts.editing} />
         </picture>
       )
       const wrapLink = (node: ReactNode) =>
@@ -1346,10 +1663,10 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         return <figure className={`${depth === 0 ? container : ''} ${widthCls} ${alignCls}`.trim()}>{wrapLink(card)}</figure>
       }
 
-      if (look === 'framed') {
+      if (look === 'framed' || look === 'editorial_border_frame') {
         return (
           <figure className={`${depth === 0 ? container : ''} ${widthCls} ${alignCls}`.trim()}>
-            <div className="relative rounded-2xl border border-gray-200 bg-white p-3 shadow-md sm:p-4">
+            <div className={`relative rounded-2xl border bg-white p-3 shadow-md sm:p-4 ${look === 'editorial_border_frame' ? 'border-primary-200 ring-1 ring-primary-100' : 'border-gray-200'}`}>
               {o.badge && (
                 <span className="absolute start-6 top-6 z-10 rounded-full bg-primary-600 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-white shadow">
                   {o.badge}
@@ -1357,6 +1674,24 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
               )}
               {wrapLink(picture)}
               {o.caption && <figcaption className="pt-3 text-center text-sm font-medium text-gray-600">{o.caption}</figcaption>}
+            </div>
+          </figure>
+        )
+      }
+
+      if (look === 'captioned_dark_bar') {
+        return (
+          <figure className={`${depth === 0 ? container : ''} ${widthCls} ${alignCls}`.trim()}>
+            <div className="overflow-hidden rounded-2xl bg-gray-950 shadow-xl ring-1 ring-white/10">
+              <div className="relative">
+                {o.badge && (
+                  <span className="absolute start-4 top-4 z-10 rounded-full bg-accent-500 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-gray-950 shadow">
+                    {o.badge}
+                  </span>
+                )}
+                {wrapLink(picture)}
+              </div>
+              {o.caption && <figcaption className="border-t border-white/10 px-5 py-3.5 text-sm font-medium text-gray-200">{o.caption}</figcaption>}
             </div>
           </figure>
         )
@@ -1378,14 +1713,16 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     }
     case 'image_text': {
       const look = o.look || 'plain'
-      const isDark = look === 'dark' || look === 'dark_split_panel'
+      const isDark = look === 'dark' || look === 'dark_split_panel' || look === 'emerald_split_panel'
       const right = o.image_side === 'right'
       const gridCols =
-        o.ratio === '40/60'
-          ? right ? 'md:grid-cols-[1.35fr_0.9fr]' : 'md:grid-cols-[0.9fr_1.35fr]'
-          : o.ratio === '60/40'
-            ? right ? 'md:grid-cols-[0.9fr_1.35fr]' : 'md:grid-cols-[1.35fr_0.9fr]'
-            : 'md:grid-cols-2'
+        look === 'minimal_asymmetric_split'
+          ? right ? 'md:grid-cols-[1.4fr_0.85fr]' : 'md:grid-cols-[0.85fr_1.4fr]'
+          : o.ratio === '40/60'
+            ? right ? 'md:grid-cols-[1.35fr_0.9fr]' : 'md:grid-cols-[0.9fr_1.35fr]'
+            : o.ratio === '60/40'
+              ? right ? 'md:grid-cols-[0.9fr_1.35fr]' : 'md:grid-cols-[1.35fr_0.9fr]'
+              : 'md:grid-cols-2'
       const hasAspect = o.aspect && o.aspect !== 'auto'
       const pic = o.image_url ? (
         <picture className="block h-full">
@@ -1407,13 +1744,19 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           ? 'rounded-3xl border bg-white p-6 shadow-sm md:p-10'
           : look === 'framed_editorial'
             ? 'rounded-2xl border-2 border-primary-100 bg-primary-50/20 p-6 md:p-10'
-            : look === 'overlapping_card'
-              ? 'rounded-3xl border border-gray-200 bg-white p-6 shadow-xl md:p-10'
-              : look === 'full_bleed'
-                ? 'overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg'
-                : isDark
-                  ? 'overflow-hidden rounded-3xl bg-primary-950 p-6 text-white shadow-xl md:p-10'
-                  : ''
+            : look === 'minimal_asymmetric_split'
+              ? 'border-y border-gray-200 py-8'
+              : look === 'gold_border_overlap'
+                ? 'rounded-3xl border-2 border-amber-300/80 bg-white p-6 shadow-md md:p-10'
+                : look === 'overlapping_card'
+                  ? 'rounded-3xl border border-gray-200 bg-white p-6 shadow-xl md:p-10'
+                  : look === 'full_bleed'
+                    ? 'overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg'
+                    : look === 'emerald_split_panel'
+                      ? 'overflow-hidden rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950 to-slate-950 p-6 text-white shadow-xl md:p-10'
+                      : isDark
+                        ? 'overflow-hidden rounded-3xl bg-primary-950 p-6 text-white shadow-xl md:p-10'
+                        : ''
 
       return (
         <div className={depth === 0 ? container : ''}>
@@ -1521,10 +1864,10 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         )
       }
 
-      if (look === 'split') {
+      if (look === 'split' || look === 'split_summary_video') {
         return (
           <div className={depth === 0 ? container : ''}>
-            <div className="grid items-center gap-8 md:grid-cols-2">
+            <div className={`grid items-center gap-8 md:grid-cols-2 ${look === 'split_summary_video' ? 'rounded-3xl border border-gray-200 bg-white p-6 shadow-md sm:p-8' : ''}`}>
               {player}
               <div>{meta(false)}</div>
             </div>
@@ -1532,12 +1875,23 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         )
       }
 
-      if (look === 'card') {
+      if (look === 'card' || look === 'rounded_card_player') {
         return (
           <div className={depth === 0 ? container : ''}>
             <div className={`${widthCls} overflow-hidden rounded-3xl border border-gray-200 bg-white p-5 shadow-lg sm:p-7`}>
               {player}
               {(o.kicker || o.title || o.text || o.button_label) && <div className="mt-5">{meta(false)}</div>}
+            </div>
+          </div>
+        )
+      }
+
+      if (look === 'dark_ambient_frame') {
+        return (
+          <div className={depth === 0 ? container : ''}>
+            <div className={`${widthCls} overflow-hidden rounded-3xl bg-gray-950 p-5 text-white shadow-2xl ring-1 ring-white/15 sm:p-8`}>
+              {player}
+              {(o.kicker || o.title || o.text || o.button_label) && <div className="mt-5">{meta(true)}</div>}
             </div>
           </div>
         )
@@ -1574,9 +1928,9 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
             : ''
       const fullCls = o.full_width ? 'w-full' : ''
       const layoutExtra =
-        o.layout === 'pill_shadow_group' || o.layout === 'floating_shadow'
+        o.layout === 'pill_shadow_group' || o.layout === 'floating_shadow' || o.layout === 'dark_pill_group' || o.layout === 'gradient_shadow_buttons'
           ? '!rounded-full shadow-lg hover:-translate-y-0.5'
-          : o.layout === 'outline_to_solid'
+          : o.layout === 'outline_to_solid' || o.layout === 'outline_icon_row'
             ? 'border-2 border-primary-600 transition-colors hover:bg-primary-600 hover:text-white'
             : o.layout === 'icon_split_pair'
               ? 'gap-2.5 px-6 py-3.5 shadow-sm'
@@ -1660,14 +2014,33 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         )
       }
 
-      if (look === 'two_col' || look === 'two_column_grid' || look === 'cards' || look === 'card_boxes') {
+      if (look === 'two_col' || look === 'two_column_grid' || look === 'two_column_accordion' || look === 'cards' || look === 'card_boxes' || look === 'pill_category_faq') {
+        if (look === 'two_column_accordion') {
+          return (
+            <div className={container}>
+              {faqHead(true)}
+              <div className="grid gap-4 md:grid-cols-2">
+                {faqItems.map((item: any, i: number) => (
+                  <details key={i} className="group rounded-2xl border border-gray-200 bg-white p-5 text-gray-900 shadow-sm" open={openFirst && i === 0}>
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
+                      <span>{item.question}</span>
+                      <span className="text-primary-600 transition-transform group-open:rotate-45">+</span>
+                    </summary>
+                    <BlockText text={item.answer} className="mt-3 text-[15px] text-gray-700" />
+                  </details>
+                ))}
+              </div>
+              {faqCta}
+            </div>
+          )
+        }
         return (
           <div className={container}>
             {faqHead(true)}
-            <div className={`grid gap-5 ${look === 'cards' || look === 'card_boxes' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+            <div className={`grid gap-5 ${look === 'cards' || look === 'card_boxes' || look === 'pill_category_faq' ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
               {faqItems.map((item: any, i: number) => (
                 <div key={i} className={`rounded-2xl bg-white p-6 text-gray-900 shadow-sm ${look === 'cards' || look === 'card_boxes' ? 'border-2 border-primary-100' : 'border'}`}>
-                  {item.category && <span className="mb-2 inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-semibold text-primary-700">{item.category}</span>}
+                  {(item.category || look === 'pill_category_faq') && <span className="mb-2 inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-semibold text-primary-700">{item.category || 'Bilgi'}</span>}
                   <h3 className="mb-2 font-heading text-lg font-bold text-gray-900">{item.question}</h3>
                   <BlockText text={item.answer} className="text-[15px] text-gray-700" />
                 </div>
@@ -1697,12 +2070,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         )
       }
 
-      const isDark = look === 'dark_cards'
+      const isDark = look === 'dark_cards' || look === 'dark_bordered_faq'
       return (
         <div className={container}>
           <div className="mx-auto max-w-3xl">
             {faqHead(true)}
             <div className={`divide-y rounded-2xl ${
+              look === 'dark_bordered_faq' ? 'divide-amber-500/20 border-2 border-amber-500/40 bg-slate-950 text-white shadow-xl' :
               isDark ? 'divide-white/10 bg-gray-900 text-white shadow-lg ring-1 ring-white/10' : 'border bg-white text-gray-900'
             }`}>
               {faqItems.map((item: any, i: number) => (
@@ -2485,13 +2859,28 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
             style={{ width, borderTopWidth: `${Math.max(thickness, 3)}px`, borderTopStyle: 'double', borderTopColor: lineColor }}
           />
         )
-      } else if (look === 'gradient') {
+      } else if (look === 'gradient' || look === 'gradient_center_fade') {
         const gradColor = o.color || 'color-mix(in srgb, currentColor 35%, transparent)'
         inner = (
           <div
             className={`${alignCls} rounded-full`}
             style={{ width, height: `${thickness}px`, background: `linear-gradient(to right, transparent, ${gradColor}, transparent)` }}
           />
+        )
+      } else if (look === 'dotted_minimal') {
+        inner = (
+          <hr
+            className={`${alignCls} border-0 border-t`}
+            style={{ width, borderTopWidth: `${Math.max(thickness, 2)}px`, borderTopStyle: 'dotted', borderTopColor: lineColor }}
+          />
+        )
+      } else if (look === 'badge_label_divider') {
+        inner = (
+          <div className={`${alignCls} flex items-center gap-4`} style={{ width }}>
+            <span className="h-px flex-1" style={{ backgroundColor: lineColor }} />
+            <span className="rounded-full border border-primary-200 bg-primary-50 px-3.5 py-1 text-[11px] font-extrabold uppercase tracking-widest text-primary-800">{o.label || o.icon || '✦'}</span>
+            <span className="h-px flex-1" style={{ backgroundColor: lineColor }} />
+          </div>
         )
       } else if (look === 'accent_bar') {
         inner = (

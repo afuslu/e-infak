@@ -365,12 +365,15 @@ export function GalleryGrid({ items, columns = 4, aspect = '1/1', gap = 12, ligh
     ? allImages.filter((i) => i.category?.trim() === activeCat)
     : allImages
 
-  const masonry = aspect === 'masonry' && layout !== 'bento' && layout !== 'spotlight'
+  const isBento = layout === 'bento' || layout === 'bento_photo_grid'
+  const isDarkWall = layout === 'dark_lightbox_wall'
+  const isRoundedCards = layout === 'rounded_cards_caption'
+  const masonry = aspect === 'masonry' && !isBento && layout !== 'spotlight'
   const cols = Math.min(Math.max(columns, 2), 6)
 
   const renderCaption = (img: GalleryImage) => {
     if (!img.caption || captionMode === 'none') return null
-    if (captionMode === 'below') return null
+    if (captionMode === 'below' || isRoundedCards) return null
     return (
       <span className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-3 pt-8 text-start text-xs font-semibold text-white ${
         captionMode === 'always' ? 'opacity-100' : 'opacity-0 transition-opacity group-hover:opacity-100'
@@ -381,18 +384,66 @@ export function GalleryGrid({ items, columns = 4, aspect = '1/1', gap = 12, ligh
   }
 
   const tile = (img: GalleryImage, i: number, extraCls = '', forceAspect?: string) => (
-    <figure key={i} className={`${masonry ? 'mb-[var(--g)] break-inside-avoid' : ''} ${captionMode === 'below' ? 'overflow-hidden rounded-xl bg-white shadow-sm' : ''} ${extraCls}`}>
+    <figure key={i} className={`${masonry ? 'mb-[var(--g)] break-inside-avoid' : ''} ${captionMode === 'below' || isRoundedCards ? `overflow-hidden shadow-sm ${isRoundedCards ? 'rounded-2xl border border-gray-200 bg-white' : 'rounded-xl bg-white'}` : ''} ${extraCls}`}>
       <button type="button" disabled={!lightbox} onClick={() => setOpen(i)} aria-label={img.caption || `Görsel ${i + 1}`}
-        className={`group relative block w-full overflow-hidden bg-black/5 ${captionMode === 'below' ? '' : 'rounded-xl'} ${layout === 'bento' ? 'h-full' : ''}`}
-        style={masonry || layout === 'bento' ? undefined : { aspectRatio: forceAspect || aspect }}>
+        className={`group relative block w-full overflow-hidden bg-black/5 ${captionMode === 'below' || isRoundedCards ? '' : 'rounded-xl'} ${isBento ? 'h-full' : ''}`}
+        style={masonry || isBento ? undefined : { aspectRatio: forceAspect || aspect }}>
         <GalleryPicture img={img} className={`w-full transition-transform duration-500 group-hover:scale-105 ${masonry ? '' : 'h-full object-cover'}`} />
         {renderCaption(img)}
       </button>
-      {img.caption && captionMode === 'below' && (
-        <figcaption className="px-3 py-2 text-center text-xs font-medium text-gray-700">{img.caption}</figcaption>
+      {img.caption && (captionMode === 'below' || isRoundedCards) && (
+        <figcaption className={`px-3 py-2.5 text-center text-xs font-semibold ${isRoundedCards ? 'text-gray-800' : 'text-gray-700'}`}>{img.caption}</figcaption>
       )}
     </figure>
   )
+
+  if (layout === 'emerald_showcase_grid') {
+    return (
+      <>
+        <div className="rounded-3xl border border-emerald-500/30 bg-emerald-950 p-5 shadow-xl">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {images.map((img, i) => tile(img, i, 'rounded-2xl border border-amber-400/20'))}
+          </div>
+        </div>
+        {lightbox && <GalleryLightbox images={images} open={open} onClose={() => setOpen(null)} onChange={setOpen} />}
+      </>
+    )
+  }
+
+  if (layout === 'minimal_caption_grid') {
+    return (
+      <>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {images.map((img, i) => (
+            <figure key={i} className="group">
+              <button type="button" disabled={!lightbox} onClick={() => setOpen(i)} className="block w-full overflow-hidden rounded-xl bg-gray-100" style={{ aspectRatio: aspect }}>
+                <GalleryPicture img={img} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+              </button>
+              {img.caption && <figcaption className="mt-2 border-t border-gray-200 pt-2 text-xs font-medium text-gray-600">{img.caption}</figcaption>}
+            </figure>
+          ))}
+        </div>
+        {lightbox && <GalleryLightbox images={images} open={open} onClose={() => setOpen(null)} onChange={setOpen} />}
+      </>
+    )
+  }
+
+  if (layout === 'featured_wide_strip' && images.length > 0) {
+    const [lead, ...rest] = images
+    return (
+      <>
+        <div className="space-y-4">
+          {tile(lead, 0, 'rounded-3xl overflow-hidden shadow-lg', '16/9')}
+          {rest.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {rest.map((img, i) => tile(img, i + 1, 'rounded-2xl overflow-hidden'))}
+            </div>
+          )}
+        </div>
+        {lightbox && <GalleryLightbox images={images} open={open} onClose={() => setOpen(null)} onChange={setOpen} />}
+      </>
+    )
+  }
 
   if (layout === 'spotlight') {
     const current = images[spotIdx] || images[0]
@@ -474,12 +525,16 @@ export function GalleryGrid({ items, columns = 4, aspect = '1/1', gap = 12, ligh
           ))}
         </div>
       )}
-      {layout === 'bento' ? (
+      {isBento ? (
         <div className="grid auto-rows-[170px] grid-cols-2 md:auto-rows-[210px] md:grid-cols-4" style={{ gap }}>
           {images.map((img, i) => {
             const span = i === 0 ? 'col-span-2 row-span-2' : i === 3 && images.length >= 5 ? 'md:col-span-2' : ''
             return tile(img, i, span)
           })}
+        </div>
+      ) : isDarkWall ? (
+        <div className="grid grid-cols-2 rounded-3xl bg-gray-950 p-4 shadow-2xl md:grid-cols-[repeat(var(--c),minmax(0,1fr))] sm:p-6" style={{ gap, ['--c' as string]: cols }}>
+          {images.map((img, i) => tile(img, i, 'ring-1 ring-white/10 rounded-xl'))}
         </div>
       ) : masonry ? (
         <div style={{ columnCount: cols, columnGap: gap, ['--g' as string]: `${gap}px` }} className="max-md:![column-count:2]">{images.map((img, i) => tile(img, i))}</div>
@@ -680,6 +735,82 @@ export function BankAccountsView({
       ))}
     </div>
   ) : null
+
+  if (look === 'emerald_vault_cards') {
+    return (
+      <div>
+        {filterBar}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {shown.map((item, i) => (
+            <div key={i} className="flex flex-col justify-between rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950 to-slate-950 p-6 text-white shadow-xl">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-heading text-lg font-bold text-emerald-100">{item.bank}</span>
+                  {item.currency && <span className="rounded-full bg-emerald-400/20 px-2.5 py-0.5 text-xs font-extrabold text-emerald-300">{item.currency}</span>}
+                </div>
+                {item.holder && <div className="mt-2 text-xs text-emerald-200/75">{item.holder}</div>}
+                {(item.iban || item.account_no) && (
+                  <code dir="ltr" className="mt-4 block break-all rounded-xl bg-black/35 px-3 py-2.5 font-mono text-xs text-amber-300">
+                    {item.iban || item.account_no}
+                  </code>
+                )}
+              </div>
+              {(item.iban || item.account_no) && (
+                <div className="mt-4">
+                  <CopyButton value={String(item.iban || item.account_no).replace(/\s+/g, '')} label={l.copyShort} copied={l.copied} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (look === 'minimal_copy_strip') {
+    return (
+      <div>
+        {filterBar}
+        <div className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
+          {shown.map((item, i) => (
+            <div key={i} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 text-gray-900">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-heading text-sm font-bold">{item.bank}</span>
+                  {item.currency && <span className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600">{item.currency}</span>}
+                </div>
+                {(item.iban || item.account_no) && <code dir="ltr" className="block truncate font-mono text-xs text-gray-600">{item.iban || item.account_no}</code>}
+              </div>
+              {(item.iban || item.account_no) && <CopyButton value={String(item.iban || item.account_no).replace(/\s+/g, '')} label={l.copyShort} copied={l.copied} />}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (look === 'bordered_two_col_banks') {
+    return (
+      <div>
+        {filterBar}
+        <div className="grid gap-5 md:grid-cols-2">
+          {shown.map((item, i) => (
+            <div key={i} className="flex items-center justify-between gap-4 rounded-2xl border-2 border-primary-200 bg-white p-5 text-gray-900 shadow-sm">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-heading text-base font-bold">{item.bank}</span>
+                  {item.currency && <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-extrabold text-primary-700">{item.currency}</span>}
+                </div>
+                {item.holder && <div className="mt-1 text-xs text-gray-500">{item.holder}</div>}
+                {(item.iban || item.account_no) && <code dir="ltr" className="mt-2 block break-all font-mono text-xs text-gray-700">{item.iban || item.account_no}</code>}
+              </div>
+              {(item.iban || item.account_no) && <CopyButton value={String(item.iban || item.account_no).replace(/\s+/g, '')} label={l.copyShort} copied={l.copied} />}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   if (look === 'copy_grid_minimal' || look === 'compact_copy_rows' || look === 'dark_vault_cards') {
     return (
@@ -1081,6 +1212,14 @@ export function Popup({
     )
   }
 
+  const modalSurface =
+    look === 'dark_gold_popup'
+      ? 'border border-amber-400/30 bg-slate-950 text-white'
+      : look === 'urgent_ribbon_popup'
+        ? 'border-t-4 border-red-600 bg-white text-gray-900'
+        : 'bg-white text-gray-900'
+  const modalWidth = look === 'fullscreen' ? 'max-w-3xl' : look === 'compact_amount_popup' ? 'max-w-md' : width
+
   return createPortal(
     <div
       className={`fixed inset-0 z-[85] flex items-center justify-center p-4 ${look === 'fullscreen' ? 'bg-primary-950/95 backdrop-blur-md' : 'bg-black/55'}`}
@@ -1089,7 +1228,7 @@ export function Popup({
       onClick={close}
     >
       <div
-        className={`relative w-full ${look === 'fullscreen' ? 'max-w-3xl' : width} max-h-[90vh] overflow-y-auto rounded-2xl bg-white text-gray-900 shadow-2xl animate-fade-in`}
+        className={`relative w-full ${modalWidth} max-h-[90vh] overflow-y-auto rounded-2xl ${modalSurface} shadow-2xl animate-fade-in`}
         onClick={(e) => { e.stopPropagation(); if ((e.target as HTMLElement).closest('a')) close() }}
       >
         <button type="button" aria-label={closeLabel} onClick={close} className="absolute end-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70">✕</button>

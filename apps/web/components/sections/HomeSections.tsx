@@ -186,6 +186,11 @@ export type HeroVariant =
   | 'split_floating' | 'minimal_typo' | 'duotone' | 'coverflow' | 'peek'
   | 'full_search_hero' | 'dual_split_card' | 'countdown_crisis' | 'video_split'
   | 'split_glass_card' | 'arch_islamic_frame' | 'full_bleed_editorial'
+  | 'dark_emerald_split' | 'floating_card_hero' | 'minimal_editorial_hero'
+  | 'arch_gold_hero' | 'split_progress_hero' | 'dark_ticker_hero' | 'quick_donate_overlay_hero'
+  | 'dark_sapphire_hero' | 'bento_stats_hero' | 'minimal_split_image_hero'
+  | 'ruby_urgent_hero' | 'mosaic_4_hero' | 'warm_terracotta_hero'
+  | 'indigo_silver_hero' | 'plum_gold_hero' | 'forest_amber_hero'
 
 export function Hero({ data, variant, o = {}, editing = false }: {
   data: HomeData; variant: HeroVariant; o?: Overrides; editing?: boolean
@@ -200,6 +205,358 @@ export function Hero({ data, variant, o = {}, editing = false }: {
   const ef = o.effect || undefined
   const nv = o.nav || undefined
   const as = o.arrow_style || 'round'
+
+  if (variant === 'indigo_silver_hero') {
+    return (
+      <section className="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-3 inline-block rounded-full border border-sky-300/30 bg-sky-300/15 px-3.5 py-1 text-xs font-extrabold uppercase text-sky-200">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-indigo-100/85">{first.text}</p>}
+            <div className="mt-7">{first?.button_url && <Link href={first.button_url} className="inline-flex rounded-xl bg-white px-7 py-3.5 font-extrabold text-indigo-950 hover:bg-sky-50">{first.button_label || t('nav.donate')}</Link>}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-white/15 shadow-2xl lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'plum_gold_hero') {
+    return (
+      <section className="bg-gradient-to-br from-purple-950 via-fuchsia-950 to-slate-950 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-3 inline-block rounded-full bg-amber-400/20 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-300">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-purple-100/85">{first.text}</p>}
+            <div className="mt-7">{first?.button_url && <Link href={first.button_url} className="inline-flex rounded-xl bg-amber-400 px-7 py-3.5 font-extrabold text-slate-950 hover:bg-amber-300">{first.button_label || t('nav.donate')}</Link>}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-amber-400/30 shadow-2xl lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'forest_amber_hero') {
+    return (
+      <section className="bg-gradient-to-br from-green-950 via-emerald-950 to-stone-950 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-3 inline-block rounded-full bg-amber-400/20 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-300">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-emerald-100/85">{first.text}</p>}
+            <div className="mt-7">{first?.button_url && <Link href={first.button_url} className="inline-flex rounded-xl bg-amber-400 px-7 py-3.5 font-extrabold text-stone-950 hover:bg-amber-300">{first.button_label || t('nav.donate')}</Link>}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-amber-400/25 shadow-2xl lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'ruby_urgent_hero') {
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-br from-rose-950 via-red-950 to-slate-950 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            <span className="mb-3 inline-flex items-center gap-2 rounded-full bg-red-600 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-white">
+              <span className="h-2 w-2 animate-ping rounded-full bg-white" /> {first?.badge || 'ACİL YARDIM'}
+            </span>
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-rose-100/85">{first.text}</p>}
+            <div className="mt-7">{first?.button_url && <Link href={first.button_url} className="inline-flex rounded-xl bg-white px-7 py-3.5 font-extrabold text-red-900 hover:bg-rose-50">{first.button_label || t('nav.donate')}</Link>}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-red-400/30 shadow-2xl lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'mosaic_4_hero') {
+    const imgs = slides.map((s) => s.image_url).filter(Boolean) as string[]
+    return (
+      <section className="bg-white py-14 lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-5">
+            {first?.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3.5 py-1 text-xs font-extrabold uppercase text-primary-800">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-gray-600">{first.text}</p>}
+            <div className="mt-7">{first?.button_url && <Link href={first.button_url} className="inline-flex rounded-xl bg-primary-600 px-7 py-3.5 font-extrabold text-white hover:bg-primary-700">{first.button_label || t('nav.donate')}</Link>}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:col-span-7">
+            {[0, 1, 2, 3].map((k) => (
+              <div key={k} className="aspect-[4/3] overflow-hidden rounded-2xl bg-gray-100 shadow-sm">
+                {(imgs[k] || imgs[0]) && <img src={imgs[k] || imgs[0]} alt="" className="h-full w-full object-cover" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'warm_terracotta_hero') {
+    return (
+      <section className="bg-gradient-to-br from-orange-950 via-amber-950 to-stone-950 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-3 inline-block rounded-full bg-amber-400/20 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-300">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-orange-100/85">{first.text}</p>}
+            <div className="mt-7">{first?.button_url && <Link href={first.button_url} className="inline-flex rounded-xl bg-amber-400 px-7 py-3.5 font-extrabold text-stone-950 hover:bg-amber-300">{first.button_label || t('nav.donate')}</Link>}</div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-amber-400/25 shadow-2xl lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'dark_sapphire_hero') {
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-br from-sky-950 via-slate-900 to-cyan-950 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-3 inline-block rounded-full border border-cyan-400/30 bg-cyan-400/15 px-4 py-1 text-xs font-extrabold uppercase tracking-widest text-cyan-300">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-sky-100/85">{first.text}</p>}
+            <div className="mt-7 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-cyan-400 px-7 py-3.5 font-extrabold text-slate-950 hover:bg-cyan-300">{first.button_label || t('nav.donate')}</Link>}
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-cyan-400/25 shadow-2xl lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'bento_stats_hero') {
+    return (
+      <section className="bg-gray-50 py-12 lg:py-16">
+        <div className={`${container} grid items-center gap-8 lg:grid-cols-12`}>
+          <div className="lg:col-span-5">
+            {first?.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3.5 py-1 text-xs font-extrabold uppercase text-primary-800">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold text-gray-900 sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-gray-600">{first.text}</p>}
+            <div className="mt-6">{first?.button_url && <Link href={first.button_url} className="inline-flex rounded-xl bg-primary-600 px-7 py-3.5 font-extrabold text-white hover:bg-primary-700">{first.button_label || t('nav.donate')}</Link>}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 lg:col-span-7">
+            <div className="col-span-2 overflow-hidden rounded-3xl shadow-lg">
+              {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/8] w-full object-cover" />}
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs">
+              <div className="font-heading text-2xl font-extrabold text-primary-700">{data.campaigns.length}+</div>
+              <div className="text-xs font-semibold text-gray-500">{t('home.stats.campaigns')}</div>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs">
+              <div className="font-heading text-2xl font-extrabold text-primary-700">{data.categories.length}+</div>
+              <div className="text-xs font-semibold text-gray-500">{t('home.stats.categories')}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'minimal_split_image_hero') {
+    return (
+      <section className="border-b border-gray-200 bg-white py-14 lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <div className="mb-2 text-xs font-extrabold uppercase tracking-[3px] text-primary-700">{first.badge}</div>}
+            <h1 className="font-serif text-3xl font-bold leading-tight text-gray-900 sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-gray-600">{first.text}</p>}
+            <div className="mt-7">{first?.button_url && <Link href={first.button_url} className="inline-flex rounded-xl bg-gray-900 px-7 py-3.5 font-extrabold text-white hover:bg-primary-700">{first.button_label || t('nav.donate')}</Link>}</div>
+          </div>
+          <div className="overflow-hidden border border-gray-200 p-2 lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'arch_gold_hero') {
+    const camp = data.campaigns[0]
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-3 inline-block rounded-full border border-amber-400/40 bg-amber-400/15 px-4 py-1 text-xs font-extrabold uppercase tracking-[2px] text-amber-300">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 max-w-xl text-base leading-relaxed text-emerald-100/85">{first.text}</p>}
+            <div className="mt-7 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-amber-400 px-7 py-3.5 font-extrabold text-slate-950 shadow-lg hover:bg-amber-300">{first.button_label || t('nav.donate')}</Link>}
+              {camp && <Link href={`/kampanyalar/${camp.slug}`} className="rounded-xl border border-white/25 px-6 py-3.5 font-semibold text-white hover:bg-white/10">{t('campaign.details')}</Link>}
+            </div>
+          </div>
+          <div className="flex justify-center lg:col-span-6">
+            <div className="w-full max-w-md overflow-hidden rounded-t-[160px] rounded-b-3xl border-4 border-amber-400/50 bg-black/20 p-2 shadow-2xl">
+              {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[4/5] w-full rounded-t-[150px] rounded-b-2xl object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'split_progress_hero') {
+    const camp = data.campaigns[0]
+    return (
+      <section className="bg-white py-14 lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-3 inline-block rounded-full bg-primary-100 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-primary-800">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold leading-tight text-gray-900 sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-gray-600">{first.text}</p>}
+            {camp && (
+              <div className="mt-6 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <div className="mb-1.5 flex justify-between text-xs font-bold text-gray-700">
+                  <span>{camp.title}</span>
+                  <span>%{camp.progress_percentage}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-gray-200">
+                  <div className="h-full rounded-full bg-primary-600" style={{ width: `${Math.min(100, camp.progress_percentage)}%` }} />
+                </div>
+              </div>
+            )}
+            <div className="mt-6 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-primary-600 px-7 py-3.5 font-extrabold text-white hover:bg-primary-700">{first.button_label || t('nav.donate')}</Link>}
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-3xl shadow-xl lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'dark_ticker_hero') {
+    return (
+      <section className="relative overflow-hidden bg-slate-950 text-white">
+        <div className="border-b border-amber-400/20 bg-emerald-950/80 py-2.5 text-center text-xs font-extrabold uppercase tracking-widest text-amber-300">
+          {first?.badge || 'ACİL YARDIM & GÜNCEL KAMPANYALAR'}
+        </div>
+        <div className={`${container} grid items-center gap-10 py-14 lg:grid-cols-12 lg:py-20`}>
+          <div className="lg:col-span-6">
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base text-slate-300">{first.text}</p>}
+            <div className="mt-7 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-amber-400 px-7 py-3.5 font-extrabold text-slate-950 hover:bg-amber-300">{first.button_label || t('nav.donate')}</Link>}
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-white/15 shadow-2xl lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'quick_donate_overlay_hero') {
+    const amounts = [250, 500, 1000, 2500]
+    return (
+      <section className="relative flex min-h-[500px] items-center justify-center overflow-hidden bg-slate-950 px-4 py-16 text-white">
+        {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-50" />}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/35" />
+        <div className="relative z-10 mx-auto max-w-2xl rounded-3xl border border-white/20 bg-black/55 p-8 text-center backdrop-blur-md sm:p-10">
+          {first?.badge && <span className="mb-3 inline-block rounded-full bg-amber-400/20 px-3.5 py-1 text-xs font-extrabold uppercase text-amber-300">{first.badge}</span>}
+          <h1 className="font-heading text-3xl font-extrabold sm:text-5xl">{first?.title}</h1>
+          {first?.text && <p className="mt-3 text-sm text-white/85 sm:text-base">{first.text}</p>}
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            {amounts.map((amt) => (
+              <Link key={amt} href={`/bagis?tutar=${amt}`} className="rounded-xl border border-amber-400/40 bg-amber-400/15 px-4 py-2 text-sm font-extrabold text-amber-200 hover:bg-amber-400 hover:text-slate-950">
+                {amt.toLocaleString('tr-TR')} ₺
+              </Link>
+            ))}
+          </div>
+          {first?.button_url && (
+            <div className="mt-6">
+              <Link href={first.button_url} className="inline-flex rounded-xl bg-primary-600 px-8 py-3.5 text-sm font-extrabold text-white hover:bg-primary-700">{first.button_label || t('nav.donate')}</Link>
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'dark_emerald_split') {
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-primary-950 to-slate-950 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-3 inline-block rounded-full border border-emerald-400/30 bg-emerald-500/15 px-4 py-1 text-xs font-extrabold uppercase tracking-[2px] text-emerald-300">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 max-w-xl text-base leading-relaxed text-emerald-100/80 sm:text-lg">{first.text}</p>}
+            <div className="mt-7 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-emerald-500 px-7 py-3.5 font-extrabold text-slate-950 shadow-lg hover:bg-emerald-400">{first.button_label || t('nav.donate')}</Link>}
+              {first?.button2_url && <Link href={first.button2_url} className="rounded-xl border border-white/25 px-6 py-3.5 font-semibold text-white hover:bg-white/10">{first.button2_label}</Link>}
+            </div>
+          </div>
+          <div className="lg:col-span-6">
+            <div className="overflow-hidden rounded-3xl border border-emerald-400/20 bg-white/5 p-2 shadow-2xl">
+              {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-[16/10] w-full rounded-2xl object-cover" />}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'floating_card_hero') {
+    return (
+      <section className="relative flex min-h-[500px] items-center overflow-hidden bg-gray-950 py-14 text-white lg:py-20">
+        {first?.image_url && <img src={first.image_url} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-55" />}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-gray-950/85 via-gray-950/50 to-transparent" />
+        <div className={`relative ${container}`}>
+          <div className="max-w-xl rounded-3xl border border-white/20 bg-white/10 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
+            {first?.badge && <span className="mb-3 inline-block rounded-full bg-accent-500 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-gray-950">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-4xl">{first?.title}</h1>
+            {first?.text && <p className="mt-3 text-base leading-relaxed text-white/85">{first.text}</p>}
+            <div className="mt-6 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-white px-6 py-3 font-extrabold text-gray-950 shadow hover:bg-gray-100">{first.button_label || t('nav.donate')}</Link>}
+              {first?.button2_url && <Link href={first.button2_url} className="rounded-xl border border-white/30 px-5 py-3 font-semibold text-white hover:bg-white/10">{first.button2_label}</Link>}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'minimal_editorial_hero') {
+    return (
+      <section className="border-b border-gray-200 bg-white py-14 text-gray-900 lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-7">
+            {first?.badge && <div className="mb-3 text-xs font-extrabold uppercase tracking-[2.5px] text-primary-600">{first.badge}</div>}
+            <h1 className="font-heading text-4xl font-extrabold tracking-tight text-gray-950 sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 max-w-xl text-lg leading-relaxed text-gray-600">{first.text}</p>}
+            <div className="mt-7 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-primary-600 px-7 py-3.5 font-extrabold text-white shadow-sm hover:bg-primary-700">{first.button_label || t('nav.donate')}</Link>}
+              {first?.button2_url && <Link href={first.button2_url} className="rounded-xl border border-gray-300 px-6 py-3.5 font-semibold text-gray-800 hover:bg-gray-50">{first.button2_label}</Link>}
+            </div>
+          </div>
+          {first?.image_url && (
+            <div className="overflow-hidden rounded-3xl border border-gray-200 shadow-lg lg:col-span-5">
+              <img src={first.image_url} alt={first.title || ''} className="aspect-[4/3] w-full object-cover" />
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
 
   if (variant === 'split_glass_card') {
     return (
@@ -647,6 +1004,76 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
     const href = hrefFor(k)
     const isFeaturedBento = look === 'bento' && idx === 0
     const { Icon: CatIcon } = resolveCategoryIcon(k.icon, (k as CategoryDto).donation_type)
+
+    if (look === 'emerald_icon_tiles') {
+      return (
+        <Link key={k.id || k.title} href={href} className="group flex flex-col justify-between rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950 to-slate-950 p-6 text-white shadow-lg transition hover:-translate-y-1 hover:border-amber-400/60">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">
+            <CatIcon className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="font-heading text-lg font-bold">{k.title}</div>
+            {showDesc && k.description && <p className="mt-1 line-clamp-2 text-xs text-emerald-100/80">{k.description}</p>}
+          </div>
+        </Link>
+      )
+    }
+
+    if (look === 'minimal_line_pills') {
+      return (
+        <Link key={k.id || k.title} href={href} className="group flex items-center gap-3 rounded-full border border-gray-300 bg-white px-4 py-2.5 text-gray-900 transition hover:border-primary-600 hover:bg-primary-50/40">
+          <CatIcon className="h-4 w-4 text-primary-700" />
+          <span className="truncate font-heading text-sm font-bold">{k.title}</span>
+        </Link>
+      )
+    }
+
+    if (look === 'bordered_photo_cards') {
+      return (
+        <Link key={k.id || k.title} href={href} className="group flex flex-col overflow-hidden rounded-2xl border-2 border-primary-200 bg-white p-2 text-gray-900 shadow-sm transition hover:-translate-y-0.5 hover:border-primary-500">
+          <div className="aspect-[16/10] overflow-hidden rounded-xl bg-gray-100">
+            {k.image_url ? (
+              <img src={k.image_url} alt={k.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-primary-600"><CatIcon className="h-8 w-8" /></div>
+            )}
+          </div>
+          <div className="p-3.5">
+            <div className="font-heading text-base font-bold text-gray-900">{k.title}</div>
+            {showDesc && k.description && <p className="mt-1 line-clamp-2 text-xs text-gray-600">{k.description}</p>}
+          </div>
+        </Link>
+      )
+    }
+
+    if (look === 'dark_icon_tiles') {
+      return (
+        <Link key={k.id || k.title} href={href} className="group flex flex-col justify-between rounded-2xl border border-white/10 bg-slate-900 p-6 text-white shadow-lg transition hover:-translate-y-1 hover:border-accent-400/50">
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-accent-300">
+            <CatIcon className="h-6 w-6" />
+          </div>
+          <div>
+            <div className="font-heading text-lg font-bold">{k.title}</div>
+            {showDesc && k.description && <p className="mt-1 line-clamp-2 text-xs text-gray-300">{k.description}</p>}
+          </div>
+        </Link>
+      )
+    }
+
+    if (look === 'pill_filter_grid' || look === 'bordered_minimal_cards') {
+      return (
+        <Link key={k.id || k.title} href={href} className={`group flex items-center gap-3.5 rounded-2xl border p-4 transition ${look === 'pill_filter_grid' ? 'border-primary-200 bg-primary-50/40 hover:bg-primary-100/60' : 'border-gray-200 bg-white hover:border-primary-400'}`}>
+          <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-white text-primary-700 shadow-sm ring-1 ring-gray-100">
+            <CatIcon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-heading text-sm font-bold text-gray-900">{k.title}</div>
+            {showDesc && k.description && <div className="truncate text-xs text-gray-500">{k.description}</div>}
+          </div>
+          <span className="text-xs font-bold text-primary-600 transition group-hover:translate-x-0.5">→</span>
+        </Link>
+      )
+    }
 
     if (look === 'glass_pills') {
       return (
@@ -1115,7 +1542,7 @@ export function Campaigns({ data, t, o = {} }: { data: HomeData; t: T; o?: Overr
     4: 'columns-1 sm:columns-2 lg:columns-4',
   }
 
-  const containerClass = layout === 'list' || layout === 'rows' || layout === 'compact_horizontal_list'
+  const containerClass = layout === 'list' || layout === 'rows' || layout === 'compact_horizontal_list' || layout === 'horizontal_compact_cards'
     ? 'grid gap-4'
     : layout === 'masonry'
       ? `${masonryCols[columns] || 'columns-1 sm:columns-2 lg:columns-3'} gap-6 space-y-6`
@@ -1123,11 +1550,17 @@ export function Campaigns({ data, t, o = {} }: { data: HomeData; t: T; o?: Overr
 
   const filterAllLabel = data.locale === 'en' ? 'All' : data.locale === 'ar' ? 'الكل' : 'Tümü'
 
-  const sectionToneCls = layout === 'dark_luxury_grid'
+  const sectionToneCls = layout === 'dark_luxury_grid' || layout === 'dark_card_grid'
     ? 'bg-slate-950 text-white'
-    : layout === 'urgent_red_cards'
-      ? 'bg-red-50/60'
-      : tpl === 'klasik' ? 'bg-stone-50' : ''
+    : layout === 'emerald_gold_grid'
+      ? 'bg-gradient-to-b from-emerald-950 to-slate-950 text-white'
+      : layout === 'sapphire_modern_grid'
+        ? 'bg-gradient-to-b from-sky-950 to-slate-950 text-white'
+        : layout === 'ruby_urgent_grid'
+          ? 'bg-gradient-to-b from-rose-950 to-slate-950 text-white'
+          : layout === 'urgent_red_cards'
+            ? 'bg-red-50/60'
+            : tpl === 'klasik' ? 'bg-stone-50' : ''
 
   return (
     <section id="projeler" className={sectionToneCls}>
@@ -1162,7 +1595,7 @@ export function Campaigns({ data, t, o = {} }: { data: HomeData; t: T; o?: Overr
         ) : (
           <div className={containerClass}>
             {list.map((c, idx) => (
-              <div key={c.id} className={layout === 'bento' && idx === 0 ? 'sm:col-span-2' : layout === 'masonry' ? 'break-inside-avoid' : ''}>
+              <div key={c.id} className={(layout === 'bento' || layout === 'featured_first_grid') && idx === 0 ? 'sm:col-span-2' : layout === 'masonry' ? 'break-inside-avoid' : ''}>
                 {renderCard(c)}
               </div>
             ))}
@@ -1245,6 +1678,186 @@ export function FeaturedCampaign({ data, t, o = {}, editing = false }: { data: H
       {kicker}
     </span>
   )
+
+  if (look === 'dark_sapphire_featured') {
+    return (
+      <section className="bg-sky-950 py-14 text-white">
+        <div className={container}>
+          <div className="grid items-center gap-8 rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-sky-900/90 to-slate-950 p-7 shadow-2xl lg:grid-cols-12 lg:p-10">
+            <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-black lg:col-span-5">{renderMedia()}</div>
+            <div className="lg:col-span-7">
+              {urgentPill(true)}
+              <h2 className="mt-4 font-heading text-2xl font-extrabold sm:text-4xl">{title}</h2>
+              {summary && <p className="mt-3 text-sm text-sky-100/85 sm:text-base">{summary}</p>}
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl bg-cyan-400 px-6 py-3 text-sm font-extrabold text-slate-950 hover:bg-cyan-300">{ctaLabel}</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'arch_gold_featured') {
+    return (
+      <section className="py-14">
+        <div className={container}>
+          <div className="grid items-center gap-8 rounded-3xl border-2 border-amber-300/60 bg-amber-50/30 p-7 lg:grid-cols-12 lg:p-10">
+            <div className="lg:col-span-7">
+              {urgentPill(false)}
+              <h2 className="mt-4 font-heading text-2xl font-extrabold text-gray-900 sm:text-4xl">{title}</h2>
+              {summary && <p className="mt-3 text-sm text-gray-600 sm:text-base">{summary}</p>}
+              <div className="mt-6">
+                <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white hover:bg-primary-700">{ctaLabel}</Link>
+              </div>
+            </div>
+            <div className="flex justify-center lg:col-span-5">
+              <div className="relative aspect-[4/3] w-full max-w-sm overflow-hidden rounded-t-[120px] rounded-b-2xl border-2 border-amber-400/70">
+                {renderMedia()}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'compact_progress_featured') {
+    return (
+      <section className="py-10">
+        <div className={container}>
+          <div className="flex flex-wrap items-center justify-between gap-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-extrabold uppercase tracking-wider text-primary-700">{kicker}</div>
+              <h2 className="mt-1 font-heading text-xl font-bold text-gray-900">{title}</h2>
+              {showProgress && (
+                <div className="mt-3 max-w-md">
+                  <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                    <div className="h-full rounded-full bg-primary-600" style={{ width: `${Math.min(100, c.progress_percent)}%` }} />
+                  </div>
+                </div>
+              )}
+            </div>
+            <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white hover:bg-primary-700">{ctaLabel}</Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'dark_emerald_featured') {
+    return (
+      <section className="bg-emerald-950 py-14 text-white">
+        <div className={container}>
+          <div className="grid items-center gap-8 rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-900/90 to-slate-950 p-7 shadow-2xl lg:grid-cols-12 lg:p-10">
+            <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-black lg:col-span-5">
+              {renderMedia()}
+            </div>
+            <div className="lg:col-span-7">
+              {urgentPill(true)}
+              <h2 className="mt-4 font-heading text-2xl font-extrabold sm:text-4xl">{title}</h2>
+              {summary && <p className="mt-3 text-sm leading-relaxed text-emerald-100/85 sm:text-base">{summary}</p>}
+              {showProgress && (
+                <div className="mt-5">
+                  <div className="mb-1.5 flex justify-between text-xs font-bold text-emerald-200">
+                    <span>{c.collected_formatted}</span>
+                    <span>%{c.progress_percent}</span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-white/15">
+                    <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, c.progress_percent)}%` }} />
+                  </div>
+                </div>
+              )}
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl bg-amber-400 px-6 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-amber-300">
+                  {ctaLabel}
+                </Link>
+                {showDetails && (
+                  <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl border border-white/25 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10">
+                    {t('campaign.details')}
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'minimal_split_featured') {
+    return (
+      <section className="py-14">
+        <div className={container}>
+          <div className="grid items-center gap-8 border-y border-gray-200 py-10 lg:grid-cols-12">
+            <div className="lg:col-span-6">
+              <div className="text-xs font-extrabold uppercase tracking-[2px] text-primary-700">{kicker}</div>
+              <h2 className="mt-2 font-heading text-3xl font-extrabold text-gray-900 sm:text-4xl">{title}</h2>
+              {summary && <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:text-base">{summary}</p>}
+              {showProgress && (
+                <div className="mt-5 max-w-md">
+                  <div className="mb-1 flex justify-between text-xs font-bold text-gray-700">
+                    <span>{c.collected_formatted}</span>
+                    <span>{c.target_formatted}</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-gray-200">
+                    <div className="h-full rounded-full bg-primary-600" style={{ width: `${Math.min(100, c.progress_percent)}%` }} />
+                  </div>
+                </div>
+              )}
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white transition hover:bg-primary-700">
+                  {ctaLabel}
+                </Link>
+              </div>
+            </div>
+            <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-gray-100 lg:col-span-6">
+              {renderMedia()}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'ribbon_urgent_featured') {
+    return (
+      <section className="py-12">
+        <div className={container}>
+          <div className="relative overflow-hidden rounded-3xl border-2 border-red-200 bg-white p-7 shadow-lg lg:p-10">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-red-600 px-4 py-1 text-xs font-extrabold uppercase tracking-wider text-white">
+              <span>●</span> {kicker}
+            </div>
+            <div className="grid items-center gap-8 lg:grid-cols-12">
+              <div className="lg:col-span-7">
+                <h2 className="font-heading text-2xl font-extrabold text-gray-900 sm:text-4xl">{title}</h2>
+                {summary && <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:text-base">{summary}</p>}
+                {hasCountdown && (
+                  <div className="mt-4 inline-flex items-center gap-3 rounded-xl bg-red-50 px-4 py-2 text-xs font-extrabold text-red-700">
+                    <span>⏳ {days}g {hours}s {mins}dk</span>
+                  </div>
+                )}
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl bg-red-600 px-6 py-3 text-sm font-extrabold text-white transition hover:bg-red-700">
+                    {ctaLabel}
+                  </Link>
+                  {showDetails && (
+                    <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl border border-gray-200 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50">
+                      {t('campaign.details')}
+                    </Link>
+                  )}
+                </div>
+              </div>
+              <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-gray-100 lg:col-span-5">
+                {renderMedia()}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (look === 'dark_gold_featured') {
     return (
@@ -1572,6 +2185,49 @@ export function Steps({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides
     </div>
   )
 
+  if (look === 'dark_numbered_cards') {
+    return (
+      <section className="bg-slate-950 py-[72px] text-white">
+        <div className={container}>
+          <SectionHead tpl={tpl} light kicker={o.kicker || t('home.steps.kicker')} title={o.title || t('home.steps.title')} text={o.text} />
+          <ol className={`grid gap-5 ${gridCols}`}>
+            {steps.map((s, i) => (
+              <li key={i} className="rounded-2xl border border-amber-500/20 bg-white/5 p-6">
+                <span className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500 text-sm font-black text-slate-950">{i + 1}</span>
+                <div className="font-heading text-lg font-bold text-white">{s.title}</div>
+                {s.text && <p className="mt-1.5 text-sm text-gray-300">{s.text}</p>}
+              </li>
+            ))}
+          </ol>
+          {cta}
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'horizontal_connector' || look === 'compact_badge_steps') {
+    return (
+      <section className="py-[72px]">
+        <div className={container}>
+          <SectionHead tpl={tpl} kicker={o.kicker || t('home.steps.kicker')} title={o.title || t('home.steps.title')} text={o.text} />
+          <ol className={`grid gap-4 ${gridCols}`}>
+            {steps.map((s, i) => (
+              <li key={i} className={`rounded-2xl p-5 ${look === 'compact_badge_steps' ? 'border border-gray-200 bg-white shadow-sm' : 'border-t-4 border-primary-600 bg-gray-50'}`}>
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="rounded-full bg-primary-600 px-2.5 py-0.5 text-xs font-extrabold text-white">Adım {i + 1}</span>
+                  {s.badge && <span className="text-xs font-bold text-primary-700">{s.badge}</span>}
+                </div>
+                <div className="font-heading text-base font-bold text-gray-900">{s.title}</div>
+                {s.text && <p className="mt-1 text-xs leading-relaxed text-gray-600">{s.text}</p>}
+              </li>
+            ))}
+          </ol>
+          {cta}
+        </div>
+      </section>
+    )
+  }
+
   if (look === 'vertical_connected') {
     return (
       <section className="py-[72px]">
@@ -1889,6 +2545,71 @@ export function ZakatBand({ t, o = {}, tpl = 'klasik', locale = 'tr' }: { t: T; 
       )}
     </div>
   )
+
+  if (look === 'minimal_clean_zakat') {
+    return (
+      <section className={py}>
+        <div className={container}>
+          <div className="flex flex-wrap items-center justify-between gap-6 border-y border-gray-200 py-8">
+            <div className="max-w-2xl">
+              {kicker && <div className="mb-1 text-xs font-bold uppercase tracking-widest text-primary-600">{kicker}</div>}
+              <h3 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">{title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600 md:text-base">{text}</p>
+            </div>
+            {renderActions(false)}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'gradient_emerald_zakat') {
+    return (
+      <section className={py}>
+        <div className={container}>
+          <div className="rounded-3xl bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-700 p-8 text-white shadow-xl md:p-12">
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <div className="max-w-2xl">
+                {kicker && <span className="mb-2 inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-emerald-100">{kicker}</span>}
+                <h3 className="font-heading text-2xl font-bold md:text-3xl">{title}</h3>
+                <p className="mt-2 text-sm text-emerald-50/90 md:text-base">{text}</p>
+              </div>
+              {renderActions(true)}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'card_calculator_zakat') {
+    return (
+      <section className={py}>
+        <div className={container}>
+          <div className="grid items-center gap-8 rounded-3xl border border-primary-100 bg-white p-8 shadow-md md:grid-cols-12 md:p-10">
+            <div className="md:col-span-7">
+              {nisabNote && <span className="mb-2 inline-block rounded-full bg-primary-50 px-3 py-1 text-xs font-bold text-primary-700">{nisabNote}</span>}
+              <h3 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">{title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600 md:text-base">{text}</p>
+            </div>
+            <div className="flex flex-col items-start gap-3 rounded-2xl bg-primary-50/70 p-6 md:col-span-5">
+              <div className="text-xs font-extrabold uppercase tracking-wider text-primary-800">{kicker || '1/40 (%2,5)'}</div>
+              {presets && presets.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {presets.slice(0, 3).map((amt) => (
+                    <Link key={amt} href={`${btnUrl}?tutar=${amt}`} className="rounded-lg bg-white px-3 py-1.5 text-xs font-extrabold text-primary-800 ring-1 ring-primary-200 hover:bg-primary-600 hover:text-white">
+                      {amt.toLocaleString(locale === 'en' ? 'en-US' : 'tr-TR')} ₺
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <div className="mt-1">{renderActions(false)}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (look === 'gold_nisab_card') {
     return (
@@ -2315,6 +3036,110 @@ export function CtaBand({ data, o = {} }: { data: HomeData; o?: Overrides }) {
     </div>
   )
 
+  if (look === 'dark_sapphire_cta') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="flex flex-wrap items-center justify-between gap-6 rounded-3xl border border-cyan-400/25 bg-gradient-to-r from-sky-950 to-slate-950 p-8 text-white shadow-2xl md:p-12">
+            <div className="max-w-2xl">
+              {band.kicker && <span className="mb-2 inline-block rounded-full bg-cyan-400/20 px-3 py-1 text-xs font-extrabold uppercase text-cyan-300">{band.kicker}</span>}
+              <h3 className="font-heading text-2xl font-bold md:text-3xl">{band.title}</h3>
+              <p className="mt-2 text-sm text-sky-100/85 md:text-base">{band.text}</p>
+            </div>
+            {renderActions(false)}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'ruby_urgent_cta') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="flex flex-wrap items-center justify-between gap-6 rounded-3xl border border-red-400/30 bg-gradient-to-r from-rose-950 via-red-900 to-slate-950 p-8 text-white shadow-2xl md:p-12">
+            <div className="max-w-2xl">
+              {band.kicker && <span className="mb-2 inline-block rounded-full bg-red-600 px-3 py-1 text-xs font-extrabold uppercase text-white">{band.kicker}</span>}
+              <h3 className="font-heading text-2xl font-bold md:text-3xl">{band.title}</h3>
+              <p className="mt-2 text-sm text-rose-100/85 md:text-base">{band.text}</p>
+            </div>
+            {renderActions(false)}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'warm_terracotta_cta') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="flex flex-wrap items-center justify-between gap-6 rounded-3xl border border-amber-400/30 bg-gradient-to-r from-orange-950 via-amber-950 to-stone-950 p-8 text-white shadow-2xl md:p-12">
+            <div className="max-w-2xl">
+              {band.kicker && <span className="mb-2 inline-block rounded-full bg-amber-400/20 px-3 py-1 text-xs font-extrabold uppercase text-amber-300">{band.kicker}</span>}
+              <h3 className="font-heading text-2xl font-bold md:text-3xl">{band.title}</h3>
+              <p className="mt-2 text-sm text-orange-100/85 md:text-base">{band.text}</p>
+            </div>
+            {renderActions(false)}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'dark_emerald_cta') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="flex flex-wrap items-center justify-between gap-6 rounded-3xl bg-gradient-to-r from-emerald-950 via-primary-900 to-slate-950 p-8 text-white shadow-2xl md:p-12">
+            <div className="max-w-2xl">
+              {band.kicker && <span className="mb-2 inline-block rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-emerald-300">{band.kicker}</span>}
+              <h2 className="font-heading text-2xl font-extrabold sm:text-3xl">{band.title}</h2>
+              {band.text && <p className="mt-2 text-emerald-100/80">{band.text}</p>}
+            </div>
+            {renderActions(false)}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'split_image_cta') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="grid items-center overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg md:grid-cols-2">
+            <div className="p-8 md:p-12">
+              {band.kicker && <div className="mb-2 text-xs font-extrabold uppercase tracking-[2px] text-primary-600">{band.kicker}</div>}
+              <h2 className="font-heading text-2xl font-extrabold text-gray-900 sm:text-3xl">{band.title}</h2>
+              {band.text && <p className="mt-2 text-gray-600">{band.text}</p>}
+              <div className="mt-6">{renderActions(true)}</div>
+            </div>
+            {image && <img src={image} alt="" className="h-full min-h-[240px] w-full object-cover" loading="lazy" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'floating_glass_cta') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="relative overflow-hidden rounded-3xl bg-slate-950 p-8 text-center text-white shadow-2xl md:p-14">
+            {image && <img src={image} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-30" loading="lazy" />}
+            <div className="relative mx-auto max-w-2xl rounded-2xl border border-white/20 bg-white/10 p-6 backdrop-blur-md sm:p-8">
+              {band.kicker && <div className="mb-2 text-xs font-extrabold uppercase tracking-[2px] text-accent-300">{band.kicker}</div>}
+              <h2 className="font-heading text-2xl font-extrabold sm:text-3xl">{band.title}</h2>
+              {band.text && <p className="mt-2 text-white/85">{band.text}</p>}
+              <div className="mt-6 flex justify-center">{renderActions(false, true)}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   if (look === 'split_urgent_red') {
     return (
       <section className={py}>
@@ -2649,7 +3474,7 @@ export function News({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides 
   )
 
   const body = () => {
-    if (look === 'magazine_featured') {
+    if (look === 'magazine_featured' || look === 'magazine_featured_first') {
       const [lead, ...rest] = list
       return (
         <div className="grid gap-6 lg:grid-cols-12">
@@ -2658,14 +3483,14 @@ export function News({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides 
         </div>
       )
     }
-    if (look === 'dark_editorial_grid') {
+    if (look === 'dark_editorial_grid' || look === 'dark_editorial_news') {
       return (
         <div className="rounded-3xl bg-slate-950 p-6 sm:p-8">
           <div className={`grid gap-6 ${colCls}`}>{list.map(overlayCard)}</div>
         </div>
       )
     }
-    if (look === 'compact_date_list') {
+    if (look === 'compact_date_list' || look === 'compact_timeline_news') {
       return (
         <div className="divide-y divide-gray-200 rounded-2xl border border-gray-200 bg-white">
           {list.map((n) => (
@@ -2926,6 +3751,75 @@ export function Testimonials({ data, t, o = {} }: { data: HomeData; t: T; o?: Ov
       )}
     </figure>
   )
+
+  if (look === 'dark_quote_cards') {
+    return (
+      <section className="bg-slate-950 py-[72px] text-white">
+        <div className={container}>
+          <SectionHead tpl={tpl} light kicker={o.kicker || t('home.testimonials.kicker')} title={o.title || t('home.testimonials.title')} text={o.text} />
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            {items.map((item, i) => (
+              <figure key={i} className="flex flex-col justify-between rounded-2xl border border-white/10 bg-white/5 p-6">
+                <div>
+                  {renderStars(item.rating, true)}
+                  <blockquote className="text-base leading-relaxed text-gray-200">“{item.quote}”</blockquote>
+                </div>
+                {item.name && <figcaption className="mt-4 text-sm font-bold text-accent-300">{item.name} {item.role ? `· ${item.role}` : ''}</figcaption>}
+              </figure>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'featured_story_split') {
+    const firstItem = items[0]
+    const restItems = items.slice(1, 4)
+    return (
+      <section className="py-[72px]">
+        <div className={container}>
+          <SectionHead tpl={tpl} kicker={o.kicker || t('home.testimonials.kicker')} title={o.title || t('home.testimonials.title')} text={o.text} />
+          <div className="mt-10 grid gap-6 lg:grid-cols-2">
+            {firstItem && (
+              <div className="rounded-3xl bg-primary-900 p-8 text-white shadow-xl">
+                {renderStars(firstItem.rating, true)}
+                <blockquote className="font-heading text-xl leading-relaxed">“{firstItem.quote}”</blockquote>
+                {firstItem.name && <div className="mt-6 text-sm font-bold text-accent-300">{firstItem.name}</div>}
+              </div>
+            )}
+            <div className="space-y-4">
+              {restItems.map((item, i) => (
+                <div key={i} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                  <blockquote className="text-sm text-gray-700">“{item.quote}”</blockquote>
+                  {item.name && <div className="mt-2 text-xs font-bold text-primary-700">{item.name}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'compact_rating_grid') {
+    return (
+      <section className="bg-gray-50 py-[72px]">
+        <div className={container}>
+          <SectionHead tpl={tpl} kicker={o.kicker || t('home.testimonials.kicker')} title={o.title || t('home.testimonials.title')} text={o.text} />
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((item, i) => (
+              <div key={i} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                {renderStars(item.rating || 5, false)}
+                <p className="text-sm leading-relaxed text-gray-700">“{item.quote}”</p>
+                {item.name && <div className="mt-3 text-xs font-bold text-gray-900">{item.name}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (look === 'masonry_quotes') {
     return (

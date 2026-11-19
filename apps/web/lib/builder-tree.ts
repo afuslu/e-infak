@@ -1,4 +1,4 @@
-import { type Block, type BuilderCatalog, FIXED_CHILD, FIXED_PARENT, cloneBlock } from './blocks'
+import { type Block, type BuilderCatalog, FIXED_CHILD, FIXED_PARENT, cloneBlock, newBlockId } from './blocks'
 
 /** Immutable helpers for the editor's block tree. */
 
@@ -100,6 +100,92 @@ export function moveBlock(blocks: Block[], id: string, targetId: string, positio
     next = insertBlock(without, place[0], place[1] + (position === 'after' ? 1 : 0), moving)
   }
   return fits && !placedOk(next, id, fits) ? blocks : next
+}
+
+function replaceBlock(blocks: Block[], id: string, replacement: Block): Block[] {
+  return blocks.map((b) => (b.id === id ? replacement : b.children ? { ...b, children: replaceBlock(b.children, id, replacement) } : b))
+}
+
+/**
+ * Place an existing block (by id) or a new block to the left or right of `targetId`.
+ * If `targetId` is inside a `column` of a `columns` block (< 6 columns), adds a new column beside it;
+ * otherwise wraps `targetId` and the moved block in a new 2-column `columns` block.
+ */
+export function placeBesideBlock(
+  blocks: Block[],
+  source: string | Block,
+  targetId: string,
+  side: 'left' | 'right',
+  fits?: PlaceRule,
+): Block[] {
+  const moving = typeof source === 'string' ? findBlock(blocks, source) : source
+  if (!moving) return blocks
+  if (typeof source === 'string') {
+    if (contains(moving, targetId) || FIXED_CHILD.has(moving.type) || moving.type === 'columns') return blocks
+  } else if (FIXED_CHILD.has(moving.type)) {
+    return blocks
+  }
+
+  const without = typeof source === 'string' ? removeBlock(blocks, source) : blocks
+  const target = findBlock(without, targetId)
+  const targetPlace = locate(without, targetId)
+  if (!target || !targetPlace) return blocks
+
+  const [parentId] = targetPlace
+  const parent = parentId ? findBlock(without, parentId) : null
+
+  // Case 1: Target is a column inside `columns`, or a block directly inside a `column`
+  const colBlock = target.type === 'column' ? target : parent?.type === 'column' ? parent : null
+  const colPlace = colBlock ? locate(without, colBlock.id) : null
+  const colsBlock = colPlace?.[0] ? findBlock(without, colPlace[0]) : null
+
+  if (colBlock && colPlace && colsBlock?.type === 'columns' && (colsBlock.children?.length || 0) < 6) {
+    const newCol: Block = {
+      id: newBlockId('column'),
+      type: 'column',
+      props: { look: 'inherit', padding: 'none' },
+      style: {},
+      advanced: {},
+      children: [moving],
+    }
+    const colIndex = colPlace[1]
+    const insertAt = side === 'left' ? colIndex : colIndex + 1
+    let next = insertBlock(without, colsBlock.id, insertAt, newCol)
+    const count = (colsBlock.children?.length || 0) + 1
+    const ratio = Array.from({ length: count }, () => '1').join('-')
+    next = updateBlock(next, colsBlock.id, (c) => ({ ...c, props: { ...c.props, ratio } }))
+    return fits && !placedOk(next, moving.id, fits) ? blocks : next
+  }
+
+  // Case 2: Wrap target and moving block in a new 2-column `columns` block
+  if (FIXED_CHILD.has(target.type) || target.type === 'columns') return blocks
+  const leftCol: Block = {
+    id: newBlockId('column'),
+    type: 'column',
+    props: { look: 'inherit', padding: 'none' },
+    style: {},
+    advanced: {},
+    children: [side === 'left' ? moving : target],
+  }
+  const rightCol: Block = {
+    id: newBlockId('column'),
+    type: 'column',
+    props: { look: 'inherit', padding: 'none' },
+    style: {},
+    advanced: {},
+    children: [side === 'right' ? moving : target],
+  }
+  const cols: Block = {
+    id: newBlockId('columns'),
+    type: 'columns',
+    props: { ratio: '1-1', card_style: 'plain', gap: 24, valign: 'start', stack_on: 'tablet' },
+    style: {},
+    advanced: {},
+    children: [leftCol, rightCol],
+  }
+  const next = replaceBlock(without, target.id, cols)
+  if (fits && (!placedOk(next, cols.id, fits) || !placedOk(next, moving.id, fits))) return blocks
+  return next
 }
 
 export function shiftBlock(blocks: Block[], id: string, delta: -1 | 1): Block[] {

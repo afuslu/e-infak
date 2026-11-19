@@ -244,6 +244,9 @@ async def test_account(account_id: UUID, request: Request, db: AsyncSession = De
         warning = "Hesapta kayıtlı IBAN yok; bankanın verdiği IBAN'ı kaydetmeniz önerilir"
     if not info.get("active", True):
         warning = (warning + " · " if warning else "") + "Banka bu hesabı kapalı gösteriyor"
+    if account.last_error:
+        account.last_error = None
+        await db.commit()
     return {**info, "ok": warning is None, "warning": warning, "accounts": accounts}
 
 
@@ -482,6 +485,24 @@ async def ignore_transfer(transfer_id: UUID, request: Request, db: AsyncSession 
     transfer.suggestion = {**(transfer.suggestion or {}), "ignored": f"{current_user.email} tarafından yok sayıldı"}
     await db.commit()
     return {"status": "ignored"}
+
+
+@router.post("/admin/incoming-transfers/{transfer_id}/unignore", dependencies=[Depends(require_capability("bank.ignore"))])
+async def unignore_transfer(transfer_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
+                            _: User = Depends(finance)):
+    org_id = _org_id(request)
+    transfer = await _transfer(db, org_id, transfer_id)
+    if transfer.status != ReconciliationStatus.IGNORED:
+        raise HTTPException(status_code=409, detail="Sadece yok sayılan hareketler geri alınabilir")
+    suggestion = dict(transfer.suggestion or {})
+    suggestion.pop("ignored", None)
+    transfer.suggestion = suggestion
+    transfer.status = ReconciliationStatus.UNMATCHED
+    accounts = {a.id: a for a in (await db.execute(
+        select(BankAccount).where(BankAccount.organization_id == org_id))).scalars()}
+    await analyse(db, transfer, Matcher(db, org_id), accounts.get(transfer.bank_account_id))
+    await db.commit()
+    return {"status": transfer.status.value}
 
 
 # --- Keyword rules ----------------------------------------------------------------------------

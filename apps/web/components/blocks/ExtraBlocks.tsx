@@ -228,6 +228,253 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
             </div>
           )
         }
+        if (look === 'dark_gold_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-amber-400/30 bg-slate-950 p-5 text-white shadow-xl">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-amber-400/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-300">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-gray-300">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-4 inline-flex text-xs font-extrabold text-amber-300 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'pill_nav_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white p-5 text-gray-900 shadow-sm">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 overflow-hidden rounded-2xl bg-gray-100" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-2 w-fit rounded-full bg-primary-100 px-3 py-1 text-[10px] font-extrabold uppercase text-primary-800">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-gray-600">{item.text}</p>}
+              {item.button_label && href && (
+                <Go href={href} className="mt-4 inline-flex w-fit rounded-full bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700">
+                  {item.button_label} →
+                </Go>
+              )}
+            </div>
+          )
+        }
+        if (look === 'minimal_card_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col border-t-2 border-primary-600 bg-white pt-4 text-gray-900">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-3 overflow-hidden rounded-xl bg-gray-100" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-primary-600">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-base font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1 flex-1 text-sm text-gray-600">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-3 inline-flex text-xs font-bold text-primary-700 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'indigo_silver_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-sky-300/25 bg-gradient-to-br from-indigo-950 to-slate-950 p-5 text-white shadow-xl">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-sky-300/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-sky-200">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-indigo-100/80">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-4 inline-flex text-xs font-extrabold text-sky-200 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'plum_gold_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-amber-400/30 bg-gradient-to-br from-purple-950 to-slate-950 p-5 text-white shadow-xl">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-amber-400/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-300">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-purple-100/80">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-4 inline-flex text-xs font-extrabold text-amber-300 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'forest_amber_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-amber-400/25 bg-gradient-to-br from-green-950 to-stone-950 p-5 text-white shadow-xl">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-amber-400/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-300">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-emerald-100/80">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-4 inline-flex text-xs font-extrabold text-amber-300 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'ruby_urgent_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-red-400/30 bg-gradient-to-br from-rose-950 to-slate-950 p-5 text-white shadow-xl">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-red-600 px-2.5 py-0.5 text-[10px] font-bold uppercase text-white">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-rose-100/80">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-4 inline-flex text-xs font-extrabold text-rose-300 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'circle_avatar_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col items-center rounded-3xl border border-gray-200 bg-white p-6 text-center text-gray-900 shadow-sm">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 h-24 w-24 overflow-hidden rounded-full ring-4 ring-primary-100">
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.title && <h3 className="font-heading text-base font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-xs text-gray-600">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-3 inline-flex text-xs font-bold text-primary-700 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'dark_olive_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-amber-400/30 bg-gradient-to-br from-lime-950 to-stone-950 p-5 text-white shadow-xl">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-amber-400/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-300">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-stone-300">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-4 inline-flex text-xs font-extrabold text-amber-300 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'dark_sapphire_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-cyan-400/25 bg-gradient-to-br from-sky-950 to-slate-950 p-5 text-white shadow-xl">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-cyan-400/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-cyan-300">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-sky-100/80">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-4 inline-flex text-xs font-extrabold text-cyan-300 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'floating_badge_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white text-gray-900 shadow-sm">
+              {(item.image_url || item.video_url) && (
+                <div className="relative overflow-hidden bg-gray-100" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                  {item.badge && <span className="absolute start-3 top-3 rounded-full bg-white/95 px-3 py-1 text-[10px] font-extrabold uppercase text-primary-700 shadow">{item.badge}</span>}
+                </div>
+              )}
+              <div className="flex flex-1 flex-col p-5">
+                {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+                {item.text && <p className="mt-1.5 flex-1 text-sm text-gray-600">{item.text}</p>}
+                {item.button_label && href && <Go href={href} className="mt-3 inline-flex text-xs font-bold text-primary-700 hover:underline">{item.button_label} →</Go>}
+              </div>
+            </div>
+          )
+        }
+        if (look === 'split_mini_carousel') {
+          return (
+            <div key={i} className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-gray-900 shadow-xs">
+              {(item.image_url || item.video_url) && (
+                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100">
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                {item.title && <h3 className="truncate font-heading text-sm font-bold">{item.title}</h3>}
+                {item.text && <p className="mt-1 line-clamp-2 text-xs text-gray-600">{item.text}</p>}
+                {item.button_label && href && <Go href={href} className="mt-1.5 inline-flex text-xs font-bold text-primary-700 hover:underline">{item.button_label} →</Go>}
+              </div>
+            </div>
+          )
+        }
+        if (look === 'emerald_gold_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950 to-slate-950 p-5 text-white shadow-xl">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-4 overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-amber-400/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-amber-300">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-emerald-100/80">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-4 inline-flex text-xs font-extrabold text-amber-300 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'numbered_editorial_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col border-t-2 border-primary-600 bg-white pt-4 text-gray-900">
+              <div className="mb-2 font-heading text-2xl font-black text-primary-600">{String(i + 1).padStart(2, '0')}</div>
+              {(item.image_url || item.video_url) && (
+                <div className="mb-3 overflow-hidden rounded-xl bg-gray-100" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.title && <h3 className="font-heading text-base font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1 flex-1 text-sm text-gray-600">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-3 inline-flex text-xs font-bold text-primary-700 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
+        if (look === 'overlay_gradient_carousel') {
+          return (
+            <div key={i} className="group relative flex min-h-[280px] flex-col justify-end overflow-hidden rounded-3xl bg-slate-950 p-5 text-white shadow-lg">
+              {(item.image_url || item.video_url) && (
+                <div className="absolute inset-0">
+                  <CardMedia item={item} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+              <div className="relative">
+                {item.badge && <span className="mb-1.5 inline-block rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-bold uppercase backdrop-blur-sm">{item.badge}</span>}
+                {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+                {item.button_label && href && <Go href={href} className="mt-2 inline-flex text-xs font-extrabold text-amber-300 hover:underline">{item.button_label} →</Go>}
+              </div>
+            </div>
+          )
+        }
+        if (look === 'bordered_compact_carousel') {
+          return (
+            <div key={i} className="flex h-full flex-col rounded-2xl border-2 border-primary-200 bg-white p-4 text-gray-900 shadow-xs">
+              {(item.image_url || item.video_url) && (
+                <div className="mb-3 overflow-hidden rounded-xl bg-gray-100" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.title && <h3 className="font-heading text-sm font-bold">{item.title}</h3>}
+              {item.text && <p className="mt-1 flex-1 text-xs text-gray-600">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-3 inline-flex text-xs font-bold text-primary-700 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
         if (look === 'dark_glass_cards') {
           return (
             <div key={i} className="flex h-full flex-col overflow-hidden rounded-3xl border border-white/15 bg-gray-950/90 p-5 text-white shadow-xl backdrop-blur-md">
@@ -428,7 +675,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const isChecklist = look === 'checklist'
       const isStrip = look === 'compact_strip'
       const isSplit = look === 'split'
-      const isDark = look === 'dark_cards' || look === 'glass_dark_grid'
+      const isDark = look === 'dark_cards' || look === 'glass_dark_grid' || look === 'dark_icon_cards'
       const isFlex = look === 'icon_left' || look === 'left_icon_minimal' || numbered || isChecklist || isStrip
       const center = o.align !== 'left' && !isFlex && !isSplit
 
@@ -444,6 +691,9 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         bento: 'rounded-3xl border border-gray-200/80 bg-gradient-to-br from-white to-primary-50/40 p-7 text-gray-900 shadow-sm hover:shadow-lg',
         left_accent: 'rounded-2xl border border-gray-200 border-s-4 border-s-primary-600 bg-white p-6 text-gray-900 shadow-sm',
         dark_cards: 'rounded-2xl bg-gray-900 p-7 text-white shadow-lg ring-1 ring-white/10',
+        dark_icon_cards: 'rounded-2xl border border-white/10 bg-slate-950 p-7 text-white shadow-lg',
+        bordered_minimal_grid: 'rounded-2xl border border-gray-200 bg-white p-6 text-gray-900',
+        pill_badge_features: 'rounded-3xl border border-primary-100 bg-primary-50/40 p-6 text-gray-900',
         split: 'rounded-2xl border border-gray-200/80 bg-white p-6 text-gray-900 shadow-sm transition-all hover:shadow-md',
         checklist: 'flex items-start gap-3.5 rounded-xl border border-gray-200/70 bg-white/80 p-4 text-gray-900',
         compact_strip: 'flex items-center gap-3 p-2',
@@ -578,13 +828,13 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const stats = items.filter((i) => i.label || i.value !== undefined)
       if (!stats.length && !o.title && !o.text) return <Empty editing={editing} text="İstatistik ekleyin" />
 
-      const isBand = look === 'band'
+      const isBand = look === 'band' || look === 'dark_gold_band'
       const isOdometerDark = look === 'odometer_dark'
-      const isDark = look === 'dark_cards' || isOdometerDark || look === 'dark_glow_cards'
+      const isDark = look === 'dark_cards' || isOdometerDark || look === 'dark_glow_cards' || look === 'dark_gold_band'
       const isLeft = look === 'left_accent'
-      const isDivided = look === 'divided'
+      const isDivided = look === 'divided' || look === 'bordered_compact_row'
       const isRings = look === 'rings'
-      const isSplit = look === 'split'
+      const isSplit = look === 'split' || look === 'split_highlight_counters'
       const isInlineTicker = look === 'inline_ticker' || look === 'accent_pill_strip'
       const isHeroRow = look === 'hero_stat_row'
 
@@ -753,13 +1003,13 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const bars = items.filter((i) => i.label)
       if (!bars.length && !o.title && !o.text) return <Empty editing={editing} text="Hedef çubuğu ekleyin" />
 
-      const isDark = look === 'dark_cards' || look === 'dark_neon_bars'
+      const isDark = look === 'dark_cards' || look === 'dark_neon_bars' || look === 'dark_goal_cards'
       const isMilestones = look === 'milestones'
       const isRadial = look === 'radial'
       const isThermometer = look === 'thermometer'
       const isStepped = look === 'stepped_segments' || look === 'striped_urgent'
-      const isCompactPills = look === 'compact_pills'
-      const isCards = look === 'cards' || isDark || isThermometer || look === 'card_grouped_bars'
+      const isCompactPills = look === 'compact_pills' || look === 'badge_percent_rows'
+      const isCards = look === 'cards' || isDark || isThermometer || look === 'card_grouped_bars' || look === 'minimal_thin_bars'
       const cols = Math.min(Math.max(o.columns ?? 3, 1), 3)
       const colCls = cols === 1 ? 'grid-cols-1 max-w-2xl mx-auto' : cols === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-2 lg:grid-cols-3'
 
@@ -932,7 +1182,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const members = items.filter((i) => i.name)
       if (!members.length && !o.title && !o.text) return <Empty editing={editing} text="Ekip üyesi ekleyin" />
 
-      const isDark = look === 'dark_cards' || look === 'dark_executive_cards'
+      const isDark = look === 'dark_cards' || look === 'dark_executive_cards' || look === 'dark_portrait_cards'
       const square = o.shape === 'square'
       const cols = o.columns ?? (look === 'compact' || look === 'horizontal_bio_rows' ? 3 : look === 'detailed_list' ? 2 : 4)
       const gridCols = cols === 1 ? 'grid-cols-1' : `grid-cols-2 ${COLS[cols] || COLS[4]}`
@@ -1136,9 +1386,9 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const logos = items.filter((i) => i.image_url || i.name)
       if (!logos.length) return <Empty editing={editing} text="Logo ekleyin" />
       const look = o.look || 'strip'
-      const isDark = look === 'dark_band' || look === 'dark_monochrome_strip'
-      const isCards = look === 'cards' || look === 'split' || look === 'bordered_tiles'
-      const isDivided = look === 'divided' || look === 'two_row_centered'
+      const isDark = look === 'dark_band' || look === 'dark_monochrome_strip' || look === 'dark_partner_strip'
+      const isCards = look === 'cards' || look === 'split' || look === 'bordered_tiles' || look === 'bordered_tile_grid'
+      const isDivided = look === 'divided' || look === 'two_row_centered' || look === 'compact_badge_row'
       const size = o.size ?? 56
       const cols = Math.min(Math.max(o.columns ?? 4, 2), 6)
       const colCls = COLS[cols] || COLS[4]
@@ -1462,6 +1712,57 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         )
       }
 
+      if (o.look === 'dark_neon_timer') {
+        return (
+          <CountdownGate target={o.target} enabled={hideDone}>
+            <div className="bg-slate-950 py-14 text-white">
+              <div className={`${container} flex flex-col items-center gap-6 rounded-3xl border border-accent-500/30 bg-gradient-to-br from-slate-900 via-gray-950 to-primary-950 p-8 text-center shadow-2xl md:p-12`}>
+                {o.kicker && <span className="rounded-full border border-accent-400/40 bg-accent-500/15 px-4 py-1 text-xs font-extrabold uppercase tracking-[2px] text-accent-300">{o.kicker}</span>}
+                {o.title && <h2 className="font-heading text-3xl font-extrabold text-white md:text-4xl">{o.title}</h2>}
+                {o.text && <p className="max-w-2xl text-sm text-gray-300 sm:text-base">{o.text}</p>}
+                {o.target ? <Countdown target={o.target} labels={words.time} done={o.done_text} look="cards" showSeconds={showSec} /> : <Empty editing={editing} text="Hedef tarihi seçin" />}
+                {actions}
+              </div>
+            </div>
+          </CountdownGate>
+        )
+      }
+
+      if (o.look === 'minimal_inline_clock') {
+        return (
+          <CountdownGate target={o.target} enabled={hideDone}>
+            <div className={container}>
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-6 py-4 shadow-sm">
+                <div>
+                  {o.kicker && <div className="text-[11px] font-extrabold uppercase tracking-wider text-primary-600">{o.kicker}</div>}
+                  <div className="font-heading text-lg font-bold text-gray-900">{o.title}</div>
+                </div>
+                {o.target ? <Countdown target={o.target} labels={words.time} done={o.done_text} look="minimal" showSeconds={showSec} light /> : <Empty editing={editing} text="Hedef tarihi seçin" />}
+                {o.button_label && o.button_url && (
+                  <Go href={o.button_url} className="inline-flex rounded-xl bg-primary-600 px-5 py-2.5 text-xs font-extrabold text-white hover:bg-primary-700">{o.button_label} →</Go>
+                )}
+              </div>
+            </div>
+          </CountdownGate>
+        )
+      }
+
+      if (o.look === 'card_boxes_gold') {
+        return (
+          <CountdownGate target={o.target} enabled={hideDone}>
+            <div className="bg-amber-50/70 py-14 text-gray-900">
+              <div className={`${container} flex flex-col items-center gap-6 rounded-3xl border border-amber-300/80 bg-white p-8 text-center shadow-lg md:p-12`}>
+                {o.kicker && <div className="text-xs font-extrabold uppercase tracking-[2px] text-amber-700">{o.kicker}</div>}
+                {o.title && <h2 className="font-heading text-3xl font-bold text-gray-900 md:text-4xl">{o.title}</h2>}
+                {o.text && <p className="max-w-2xl text-gray-600">{o.text}</p>}
+                {o.target ? <Countdown target={o.target} labels={words.time} done={o.done_text} look="cards" showSeconds={showSec} light /> : <Empty editing={editing} text="Hedef tarihi seçin" />}
+                {actions}
+              </div>
+            </div>
+          </CountdownGate>
+        )
+      }
+
       return (
         <CountdownGate target={o.target} enabled={hideDone}>
           <div className={`${BAND[o.tone] || BAND.brand} flex flex-col justify-center py-14`}>
@@ -1692,7 +1993,12 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
             labels={tabs.map((i) => i.label)}
             meta={tabs.map((i) => ({ icon: i.icon, badge: i.badge }))}
             panels={panels}
-            look={o.look}
+            look={
+              o.look === 'dark_gold_tabs' ? 'dark_cards'
+                : o.look === 'bordered_card_tabs' ? 'boxed_cards'
+                : o.look === 'compact_pill_switcher' ? 'pills'
+                : o.look
+            }
           />
         </div></div>
       )
@@ -1726,7 +2032,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           <span className="inline-flex items-center gap-2">{inner}</span>
         )
 
-        if (look === 'pills') {
+        if (look === 'pills' || look === 'pill_badge_marquee') {
           return (
             <span
               key={`${keyPrefix}${idx}`}
@@ -1763,6 +2069,33 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         </div>
       )
+
+      if (look === 'emerald_gold_ribbon') {
+        return (
+          <div className="overflow-hidden border-y border-amber-400/30 bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950 py-3.5 text-sm font-bold uppercase tracking-wider text-amber-300">
+            {marqueeTrack}
+          </div>
+        )
+      }
+
+      if (look === 'minimal_outline_ticker') {
+        return (
+          <div className="overflow-hidden border-y border-gray-200 bg-white py-3 text-sm font-semibold text-gray-800">
+            {marqueeTrack}
+          </div>
+        )
+      }
+
+      if (look === 'urgent_pulse_marquee') {
+        return (
+          <div className="flex items-center overflow-hidden border-y border-red-800 bg-red-600 py-3 text-sm font-extrabold uppercase tracking-wider text-white">
+            <div className="z-10 ms-3 flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-extrabold text-red-700 shadow-sm">
+              <span className="h-2 w-2 animate-ping rounded-full bg-red-600" /> {o.label || 'ACİL YARDIM'}
+            </div>
+            {marqueeTrack}
+          </div>
+        )
+      }
 
       if (look === 'breaking_news_red') {
         return (
@@ -1824,6 +2157,22 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         )
       }
 
+      if (look === 'dark_gold_ticker') {
+        return (
+          <div className="border-y border-amber-500/30 bg-slate-950 py-3.5 text-sm font-bold uppercase tracking-wider text-amber-300">
+            {marqueeTrack}
+          </div>
+        )
+      }
+
+      if (look === 'bordered_light_strip') {
+        return (
+          <div className="border-y border-gray-200 bg-white py-3.5 text-sm font-semibold text-gray-800">
+            {marqueeTrack}
+          </div>
+        )
+      }
+
       return (
         <div className={`${BAND[o.tone] || BAND.brand} overflow-hidden ${textCls}`}>
           {marqueeTrack}
@@ -1833,6 +2182,43 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'quote': {
       if (!o.text && !o.arabic_text) return <Empty editing={editing} text="Alıntı metnini yazın" />
       const look = o.look || 'centered'
+
+      if (look === 'emerald_verse_box') {
+        return (
+          <blockquote className={container}>
+            <div className="mx-auto max-w-4xl rounded-3xl border border-amber-400/40 bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 p-8 text-center text-white shadow-xl md:p-12">
+              {o.kicker && <div className="mb-3 text-xs font-extrabold uppercase tracking-[3px] text-amber-300">{o.kicker}</div>}
+              {o.arabic_text && <p dir="rtl" className="mb-4 font-serif text-3xl leading-loose text-amber-200">{o.arabic_text}</p>}
+              <p className="font-heading text-xl font-bold leading-relaxed md:text-2xl">“{o.text}”</p>
+              {o.source && <footer className="mt-4 text-sm font-bold text-amber-300">{o.source}{o.source_role ? ` · ${o.source_role}` : ''}</footer>}
+            </div>
+          </blockquote>
+        )
+      }
+
+      if (look === 'minimal_serif_quote') {
+        return (
+          <blockquote className={container}>
+            <div className="mx-auto max-w-3xl border-y border-gray-200 py-10 text-center">
+              {o.kicker && <div className="mb-2 text-xs font-bold uppercase tracking-[3px] text-primary-600">{o.kicker}</div>}
+              <p className="font-serif text-2xl italic leading-relaxed text-gray-900 md:text-3xl">“{o.text}”</p>
+              {o.source && <footer className="mt-4 text-xs font-extrabold uppercase tracking-widest text-gray-500">{o.source}</footer>}
+            </div>
+          </blockquote>
+        )
+      }
+
+      if (look === 'bordered_callout_quote') {
+        return (
+          <blockquote className={container}>
+            <div className="mx-auto max-w-4xl rounded-2xl border border-gray-200 border-s-4 border-s-primary-600 bg-white p-7 shadow-sm">
+              {o.kicker && <div className="mb-2 text-xs font-extrabold uppercase tracking-wider text-primary-700">{o.kicker}</div>}
+              <p className="font-heading text-lg font-bold leading-relaxed text-gray-900 md:text-xl">“{o.text}”</p>
+              {o.source && <footer className="mt-3 text-sm font-semibold text-gray-600">{o.source}{o.source_role ? ` — ${o.source_role}` : ''}</footer>}
+            </div>
+          </blockquote>
+        )
+      }
 
       if (look === 'islamic_calligraphy_box') {
         return (
@@ -1846,13 +2232,24 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </blockquote>
         )
       }
-      if (look === 'dark_editorial_quote') {
+      if (look === 'dark_editorial_quote' || look === 'dark_gold_callout') {
         return (
           <blockquote className="bg-slate-950 py-14 text-white">
-            <div className={`${container} max-w-4xl text-center`}>
+            <div className={`${container} max-w-4xl text-center ${look === 'dark_gold_callout' ? 'rounded-3xl border border-amber-400/30 bg-white/5 p-8 sm:p-12' : ''}`}>
               {o.kicker && <div className="mb-3 text-xs font-extrabold uppercase tracking-[3px] text-accent-300">{o.kicker}</div>}
               <p className="font-heading text-2xl font-bold leading-snug md:text-4xl">“{o.text}”</p>
               {o.source && <footer className="mt-5 text-sm font-semibold text-white/70">{o.source}{o.source_role ? ` · ${o.source_role}` : ''}</footer>}
+            </div>
+          </blockquote>
+        )
+      }
+      if (look === 'minimal_left_line' || look === 'card_with_badge') {
+        return (
+          <blockquote className={container}>
+            <div className={`mx-auto max-w-4xl ${look === 'card_with_badge' ? 'rounded-3xl border border-gray-200 bg-white p-8 shadow-sm' : 'border-s-4 border-primary-600 ps-6 py-2'}`}>
+              {o.kicker && <span className="mb-2 inline-block rounded-full bg-primary-50 px-3 py-0.5 text-xs font-extrabold text-primary-700">{o.kicker}</span>}
+              <p className="font-heading text-xl font-bold leading-relaxed text-gray-900 md:text-2xl">“{o.text}”</p>
+              {o.source && <footer className="mt-3 text-sm font-bold text-primary-700">{o.source}</footer>}
             </div>
           </blockquote>
         )
@@ -2145,17 +2542,17 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           ) : (
             <>
               {img}
-              {(o.title || o.text || o.button_label || look === 'quick_donate') && (
-                <div className={look === 'slide_in' ? 'p-5' : 'p-7 text-center'}>
-                  {look === 'countdown_offer' && (
+              {(o.title || o.text || o.button_label || look === 'quick_donate' || look === 'compact_amount_popup') && (
+                <div className={look === 'slide_in' || look === 'compact_amount_popup' ? 'p-5 text-center' : 'p-7 text-center'}>
+                  {(look === 'countdown_offer' || look === 'urgent_ribbon_popup') && (
                     <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-red-700 ring-1 ring-red-200">
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" /> Süreli Kampanya
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-red-600" /> {look === 'urgent_ribbon_popup' ? 'Acil Çağrı' : 'Süreli Kampanya'}
                     </div>
                   )}
-                  {o.kicker && <div className="mb-2 text-[12px] font-bold uppercase tracking-[2px] text-primary-600">{o.kicker}</div>}
+                  {o.kicker && <div className={`mb-2 text-[12px] font-bold uppercase tracking-[2px] ${look === 'dark_gold_popup' ? 'text-amber-300' : 'text-primary-600'}`}>{o.kicker}</div>}
                   {o.title && <h2 className={`font-heading font-bold ${look === 'slide_in' ? 'text-lg' : 'text-2xl'}`}>{o.title}</h2>}
-                  {o.text && <p className={`mt-2.5 whitespace-pre-line leading-relaxed text-gray-600 ${look === 'slide_in' ? 'text-xs' : 'text-sm'}`}>{o.text}</p>}
-                  {look === 'quick_donate' && (
+                  {o.text && <p className={`mt-2.5 whitespace-pre-line leading-relaxed ${look === 'dark_gold_popup' ? 'text-gray-300' : 'text-gray-600'} ${look === 'slide_in' ? 'text-xs' : 'text-sm'}`}>{o.text}</p>}
+                  {(look === 'quick_donate' || look === 'compact_amount_popup') && (
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
                       {amounts.map((amt: number) => (
                         <Go
@@ -2170,10 +2567,10 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                   )}
                   <div className={`mt-5 flex flex-wrap items-center gap-2.5 ${look === 'slide_in' ? '' : 'justify-center'}`}>
                     {o.button_label && o.button_url && (
-                      <Go href={o.button_url} className={`inline-flex rounded-lg bg-primary-600 font-bold text-white hover:bg-primary-700 ${look === 'slide_in' ? 'px-4 py-2 text-xs' : 'px-7 py-3 text-sm'}`}>{o.button_label}</Go>
+                      <Go href={o.button_url} className={`inline-flex rounded-lg font-bold ${look === 'dark_gold_popup' ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'} ${look === 'slide_in' ? 'px-4 py-2 text-xs' : 'px-7 py-3 text-sm'}`}>{o.button_label}</Go>
                     )}
                     {o.button2_label && o.button2_url && (
-                      <Go href={o.button2_url} className={`inline-flex rounded-lg border border-gray-200 font-bold text-gray-700 hover:bg-gray-50 ${look === 'slide_in' ? 'px-4 py-2 text-xs' : 'px-6 py-3 text-sm'}`}>{o.button2_label}</Go>
+                      <Go href={o.button2_url} className={`inline-flex rounded-lg border font-bold ${look === 'dark_gold_popup' ? 'border-white/25 text-white hover:bg-white/10' : 'border-gray-200 text-gray-700 hover:bg-gray-50'} ${look === 'slide_in' ? 'px-4 py-2 text-xs' : 'px-6 py-3 text-sm'}`}>{o.button2_label}</Go>
                     )}
                   </div>
                 </div>
@@ -2185,8 +2582,8 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'before_after':
       if (!o.before_image && !o.after_image) return <Empty editing={editing} text="Önce ve sonra görsellerini seçin" />
-      if (o.look === 'side_by_side' || o.look === 'side_by_side_static' || o.look === 'captioned_split_compare' || o.look === 'dark_frame_compare') {
-        const isDark = o.look === 'dark_frame_compare'
+      if (o.look === 'side_by_side' || o.look === 'side_by_side_static' || o.look === 'captioned_split_compare' || o.look === 'dark_frame_compare' || o.look === 'dark_emerald_compare' || o.look === 'split_card_compare' || o.look === 'minimal_badge_compare') {
+        const isDark = o.look === 'dark_frame_compare' || o.look === 'dark_emerald_compare'
         return (
           <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
             <div className={`${container} max-w-5xl`}>
@@ -2241,9 +2638,13 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                 : (spans[item.span] || '')
               const cardCls = look === 'minimal_border' || look === 'minimal_outline_bento'
                 ? 'border border-gray-200 bg-white text-gray-900 hover:border-primary-400'
-                : look === 'dark_neon_bento'
-                  ? 'border border-accent-400/30 bg-slate-950 text-white shadow-xl'
-                  : `${tones[item.tone] || tones.light} shadow-sm hover:shadow-xl`
+                : look === 'dark_neon_bento' || look === 'dark_emerald_bento'
+                  ? 'border border-emerald-400/30 bg-slate-950 text-white shadow-xl'
+                  : look === 'high_contrast_tiles'
+                    ? 'border-2 border-gray-900 bg-white text-gray-950 shadow-md'
+                    : look === 'soft_pastel_bento'
+                      ? 'border border-primary-100 bg-primary-50/70 text-primary-950'
+                      : `${tones[item.tone] || tones.light} shadow-sm hover:shadow-xl`
               return (
                 <Go key={i} href={item.url} className={`group relative flex flex-col justify-end overflow-hidden rounded-3xl p-6 transition hover:-translate-y-0.5 ${spanCls} ${cardCls}`}>
                   {item.image_url && (
@@ -2260,161 +2661,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                 </Go>
               )
             })}
-          </div>
-        </div>
-      )
-    }
-    case 'pricing_tiers': {
-      const tiers = items.filter((i) => i.title)
-      if (!tiers.length) return <Empty editing={editing} text="Paket ekleyin" />
-      const look = o.look || 'cards'
-      const resolveHref = (item: Record<string, any>) => {
-        const linked = item.campaign_id ? ctx.campaigns?.find((c) => c.id === item.campaign_id) : undefined
-        return item.button_url || (linked ? `/kampanyalar/${linked.slug}` : '/bagis')
-      }
-
-      if (look === 'horizontal_rows' || look === 'compact_horizontal_tiers') {
-        return (
-          <div className={container}>
-            <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
-            <div className="mx-auto max-w-4xl space-y-4">
-              {tiers.map((item, i) => {
-                const hi = !!item.highlighted
-                return (
-                  <div key={i} className={`flex flex-col items-start justify-between gap-4 rounded-2xl p-6 sm:flex-row sm:items-center ${hi ? 'border-2 border-primary-600 bg-primary-50/50 shadow-md' : 'border border-gray-200 bg-white shadow-sm'}`}>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-heading text-lg font-bold text-gray-900">{item.title}</h3>
-                        {item.badge && <span className="rounded-full bg-primary-600 px-2.5 py-0.5 text-[10px] font-bold uppercase text-white">{item.badge}</span>}
-                      </div>
-                      {item.description && <p className="mt-1 text-sm text-gray-600">{item.description}</p>}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      {item.amount && (
-                        <div className="text-end">
-                          <div className="font-heading text-2xl font-extrabold text-primary-700">{item.amount}</div>
-                          {item.period && <div className="text-xs text-gray-500">{item.period}</div>}
-                        </div>
-                      )}
-                      <Go href={resolveHref(item)} className="shrink-0 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-primary-700">
-                        {item.button_label || 'Destek Ol'}
-                      </Go>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      }
-
-      if (look === 'comparison_table') {
-        return (
-          <div className={container}>
-            <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
-            <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
-              <table className="w-full min-w-[600px] text-start text-sm">
-                <thead className="border-b border-gray-200 bg-gray-50/80 text-xs uppercase text-gray-500">
-                  <tr>
-                    <th className="px-6 py-4 font-bold">Paket</th>
-                    <th className="px-6 py-4 font-bold">Katkı Tutarı</th>
-                    <th className="px-6 py-4 font-bold">Kapsam</th>
-                    <th className="px-6 py-4 text-end font-bold">İşlem</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {tiers.map((item, i) => {
-                    const feats = String(item.features || '').split('\n').map((l) => l.trim()).filter(Boolean)
-                    return (
-                      <tr key={i} className={item.highlighted ? 'bg-primary-50/40' : ''}>
-                        <td className="px-6 py-4">
-                          <div className="font-heading text-base font-bold text-gray-900">{item.title}</div>
-                          {item.badge && <span className="mt-1 inline-block rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold text-primary-800">{item.badge}</span>}
-                        </td>
-                        <td className="px-6 py-4 font-heading text-lg font-extrabold text-primary-700">
-                          {item.amount} <span className="text-xs font-normal text-gray-500">{item.period}</span>
-                        </td>
-                        <td className="px-6 py-4 text-gray-600">{feats.join(' · ') || item.description}</td>
-                        <td className="px-6 py-4 text-end">
-                          <Go href={resolveHref(item)} className="inline-flex rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700">
-                            {item.button_label || 'Destek Ol'}
-                          </Go>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )
-      }
-
-      if (look === 'impact_equivalents') {
-        return (
-          <div className={container}>
-            <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
-            <div className={`grid gap-5 sm:grid-cols-2 ${COLS[o.columns ?? 3] || COLS[3]}`}>
-              {tiers.map((item, i) => (
-                <Go key={i} href={resolveHref(item)} className="group flex flex-col justify-between rounded-3xl border border-primary-100 bg-gradient-to-b from-primary-50/50 to-white p-6 text-center shadow-sm transition hover:-translate-y-1 hover:border-primary-300 hover:shadow-lg">
-                  <div>
-                    {item.amount && <div className="font-heading text-3xl font-black text-primary-700">{item.amount}</div>}
-                    <div className="my-2 text-xs font-bold uppercase tracking-widest text-gray-400">Karşılığı</div>
-                    <h3 className="font-heading text-lg font-bold text-gray-900">{item.title}</h3>
-                    {item.description && <p className="mt-2 text-sm text-gray-600">{item.description}</p>}
-                  </div>
-                  <span className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white transition group-hover:bg-primary-700">
-                    {item.button_label || 'Destek Ol'} →
-                  </span>
-                </Go>
-              ))}
-            </div>
-          </div>
-        )
-      }
-
-      const isDarkVip = look === 'dark_vip'
-      return (
-        <div className={isDarkVip ? 'bg-gray-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
-            <div className={`grid gap-6 sm:grid-cols-2 ${COLS[o.columns ?? 3] || COLS[3]}`}>
-              {tiers.map((item, i) => {
-                const href = resolveHref(item)
-                const feats = String(item.features || '').split('\n').map((l) => l.trim()).filter(Boolean)
-                const hi = !!item.highlighted
-                return (
-                  <div key={i} className={`flex flex-col rounded-3xl p-7 transition ${
-                    isDarkVip
-                      ? (hi ? 'border-2 border-accent-400 bg-white/10 text-white shadow-xl' : 'border border-white/10 bg-white/5 text-white')
-                      : (hi ? 'border-2 border-primary-600 bg-primary-950 text-white shadow-xl' : 'border border-gray-200 bg-white text-gray-900 shadow-sm')
-                  }`}>
-                    {item.badge && <span className={`mb-3 w-fit rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider ${hi ? 'bg-accent-500 text-white' : isDarkVip ? 'bg-white/15 text-accent-300' : 'bg-primary-50 text-primary-700'}`}>{item.badge}</span>}
-                    <h3 className="font-heading text-xl font-bold">{item.title}</h3>
-                    {item.description && <p className={`mt-1.5 text-sm ${hi || isDarkVip ? 'text-white/75' : 'text-gray-500'}`}>{item.description}</p>}
-                    {(item.amount || item.period) && (
-                      <div className="my-5 flex items-baseline gap-1.5">
-                        {item.amount && <span className="font-heading text-4xl font-extrabold">{item.amount}</span>}
-                        {item.period && <span className={`text-sm ${hi || isDarkVip ? 'text-white/70' : 'text-gray-500'}`}>{item.period}</span>}
-                      </div>
-                    )}
-                    {feats.length > 0 && (
-                      <ul className="mb-6 flex-1 space-y-2.5 text-sm">
-                        {feats.map((f, idx) => (
-                          <li key={idx} className="flex items-start gap-2">
-                            <span className={hi || isDarkVip ? 'text-accent-400' : 'text-primary-600'}>✓</span>
-                            <span>{f}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    <Go href={href} className={`mt-auto inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-bold transition ${hi || isDarkVip ? 'bg-white text-primary-900 hover:bg-accent-50' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
-                      {item.button_label || 'Destek Ol'}
-                    </Go>
-                  </div>
-                )
-              })}
-            </div>
           </div>
         </div>
       )
@@ -2483,6 +2729,66 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
+      if (o.layout === 'dark_gold_cinema') {
+        return (
+          <div className="border-y border-amber-400/20 bg-slate-950 py-14 text-white">
+            <div className={container}>
+              <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
+              <VideoGalleryGrid items={vids} columns={o.columns ?? 3} />
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'split_featured_video' && vids.length > 0) {
+        const [first, ...rest] = vids
+        return (
+          <div className={container}>
+            <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
+            <div className="grid gap-6 lg:grid-cols-12">
+              <div className="lg:col-span-7">
+                <VideoGalleryGrid items={[first]} columns={1} />
+              </div>
+              {rest.length > 0 && (
+                <div className="space-y-3 lg:col-span-5">
+                  {rest.map((v, i) => (
+                    <a key={i} href={v.video_url || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm transition hover:border-primary-300">
+                      <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-xl bg-gray-900">
+                        {v.thumbnail_url && <img src={v.thumbnail_url} alt={v.title || ''} className="h-full w-full object-cover" loading="lazy" />}
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-xs text-white">▶</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        {v.title && <div className="line-clamp-2 font-heading text-sm font-bold text-gray-900">{v.title}</div>}
+                        {v.duration && <div className="mt-1 text-xs text-gray-500">{v.duration}</div>}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'compact_card_videos') {
+        return (
+          <div className={container}>
+            <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {vids.map((v, i) => (
+                <a key={i} href={v.video_url || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3.5 rounded-2xl border border-gray-200 bg-white p-3.5 shadow-sm transition hover:border-primary-300">
+                  <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-xl bg-gray-900">
+                    {v.thumbnail_url && <img src={v.thumbnail_url} alt={v.title || ''} className="h-full w-full object-cover" loading="lazy" />}
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white">▶</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    {v.title && <div className="line-clamp-2 font-heading text-sm font-bold text-gray-900">{v.title}</div>}
+                    {v.duration && <div className="mt-1 text-xs font-medium text-gray-500">{v.duration}</div>}
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )
+      }
       return (
         <div className={container}>
           <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
@@ -2493,7 +2799,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'region_cards': {
       const regions = items.filter((i) => i.region)
       if (!regions.length) return <Empty editing={editing} text="Bölge / ülke ekleyin" />
-      if (o.look === 'pills' || o.look === 'flag_stat_pills') {
+      if (o.look === 'pills' || o.look === 'flag_stat_pills' || o.look === 'compact_flag_rows') {
         return (
           <div className={container}>
             <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
@@ -2509,18 +2815,19 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      if (o.look === 'world_metrics') {
+      if (o.look === 'world_metrics' || o.look === 'dark_map_cards' || o.look === 'bordered_stat_regions') {
+        const isDarkReg = o.look === 'dark_map_cards'
         return (
           <div className={container}>
             <Head o={{ kicker: o.kicker, title: o.title, text: o.subtitle }} />
-            <div className={`grid gap-5 sm:grid-cols-2 ${COLS[o.columns ?? 4] || COLS[4]}`}>
+            <div className={`grid gap-5 sm:grid-cols-2 ${COLS[o.columns ?? 4] || COLS[4]} ${isDarkReg ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
               {regions.map((item, i) => (
-                <Go key={i} href={item.url} className="rounded-3xl border border-primary-100 bg-gradient-to-br from-white to-primary-50/40 p-6 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <Go key={i} href={item.url} className={`rounded-3xl p-6 text-center transition hover:-translate-y-0.5 ${isDarkReg ? 'border border-white/10 bg-white/5 text-white' : 'border border-primary-100 bg-gradient-to-br from-white to-primary-50/40 shadow-sm hover:shadow-md'}`}>
                   {item.flag && <div className="mb-2 text-3xl">{item.flag}</div>}
-                  {item.count && <div className="font-heading text-4xl font-black text-primary-700">{item.count}</div>}
-                  {item.unit && <div className="text-xs font-bold uppercase tracking-wider text-primary-600">{item.unit}</div>}
-                  <div className="mt-2 font-heading text-base font-bold text-gray-900">{item.region}</div>
-                  {item.summary && <p className="mt-1 text-xs text-gray-500">{item.summary}</p>}
+                  {item.count && <div className={`font-heading text-4xl font-black ${isDarkReg ? 'text-accent-300' : 'text-primary-700'}`}>{item.count}</div>}
+                  {item.unit && <div className={`text-xs font-bold uppercase tracking-wider ${isDarkReg ? 'text-gray-300' : 'text-primary-600'}`}>{item.unit}</div>}
+                  <div className={`mt-2 font-heading text-base font-bold ${isDarkReg ? 'text-white' : 'text-gray-900'}`}>{item.region}</div>
+                  {item.summary && <p className={`mt-1 text-xs ${isDarkReg ? 'text-gray-300' : 'text-gray-500'}`}>{item.summary}</p>}
                 </Go>
               ))}
             </div>
@@ -2582,8 +2889,8 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const steps: Record<string, any>[] = Array.isArray(o.steps) ? o.steps.filter((s: any) => s.title || s.text) : []
       if (!steps.length && !o.image_url) return <Empty editing={editing} text="Görsel ve hikaye adımları ekleyin" />
       const right = o.image_side === 'right'
-      const isDarkNarrative = o.look === 'dark_narrative'
-      const isChapters = o.look === 'card_chapters'
+      const isDarkNarrative = o.look === 'dark_narrative' || o.look === 'dark_editorial_sticky'
+      const isChapters = o.look === 'card_chapters' || o.look === 'bordered_chapter_cards' || o.look === 'split_gold_story'
       return (
         <div className={isDarkNarrative ? 'bg-gray-950 py-14 text-white' : ''}>
           <div className={container}>
@@ -2622,6 +2929,54 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const src = embedUrl || (address ? `https://maps.google.com/maps?q=${encodeURIComponent(address)}&z=${zoom}&output=embed` : '')
       if (!src) return <Empty editing={editing} text="Harita: adres veya yerleştirme URL’si girin." />
       const mapsLink = address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : src
+      const mapLook = o.look || 'standard'
+      if (mapLook === 'dark_framed_map') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="overflow-hidden rounded-3xl bg-gray-950 p-4 text-white shadow-2xl ring-1 ring-white/10 sm:p-6">
+              <div className="overflow-hidden rounded-2xl border border-white/10">
+                <iframe src={src} title={o.title || address || 'Harita'} style={{ height }} className="w-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
+              </div>
+              {(address || o.show_directions !== false) && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 px-1">
+                  {address && <p className="text-sm font-medium text-gray-200">📍 {address}</p>}
+                  {o.show_directions !== false && (
+                    <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl bg-accent-500 px-4 py-2 text-xs font-extrabold text-gray-950 hover:bg-accent-400">
+                      Yol tarifi al ↗
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+      if (mapLook === 'card_with_hours' || mapLook === 'compact_branch_map') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-md md:grid-cols-[1fr_1.4fr]">
+              <div className="flex flex-col justify-between gap-4 p-6 sm:p-8">
+                <div>
+                  <span className="inline-flex rounded-full bg-primary-50 px-3 py-1 text-xs font-extrabold text-primary-700">Konum & Ziyaret</span>
+                  {address && <p className="mt-3 text-base font-bold text-gray-900">📍 {address}</p>}
+                  {o.hours && <p className="mt-2 text-sm text-gray-600">🕒 {o.hours}</p>}
+                  {o.phone && <p className="mt-1 text-sm font-semibold text-primary-700">📞 {o.phone}</p>}
+                </div>
+                {o.show_directions !== false && (
+                  <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1.5 rounded-xl bg-primary-600 px-5 py-2.5 text-xs font-extrabold text-white hover:bg-primary-700">
+                    Yol tarifi al ↗
+                  </a>
+                )}
+              </div>
+              <div className="min-h-[260px] bg-gray-100">
+                <iframe src={src} title={o.title || address || 'Harita'} style={{ height: mapLook === 'compact_branch_map' ? Math.min(height, 300) : height }} className="h-full w-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
+              </div>
+            </div>
+          </div>
+        )
+      }
       return (
         <div className={container}>
           <Head o={o} />
@@ -2659,7 +3014,53 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       if (!items.length) return <Empty editing={editing} text="Dosya / Rapor İndirme: en az bir belge ekleyin." />
       const cols = COLS[Math.max(1, Math.min(3, Number(o.columns) || 2))] || 'lg:grid-cols-2'
       const look = o.look || 'cards'
-      if (look === 'compact_pills' || look === 'featured_pdf_banner') {
+      if (look === 'emerald_report_cards') {
+        return (
+          <div className="bg-emerald-950 py-14 text-white">
+            <div className={container}>
+              <Head o={o} />
+              <div className={`grid gap-4 sm:grid-cols-2 ${cols}`}>
+                {items.map((item, i) => (
+                  <div key={i} className="flex items-start justify-between gap-4 rounded-2xl border border-emerald-500/30 bg-emerald-900/50 p-5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {item.file_type && <span className="rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-extrabold uppercase text-amber-300">{item.file_type}</span>}
+                        {item.file_size && <span className="text-xs text-emerald-200/70">{item.file_size}</span>}
+                      </div>
+                      {item.title && <h3 className="mt-2 font-heading text-base font-bold">{item.title}</h3>}
+                      {item.description && <p className="mt-1 text-sm text-emerald-100/80">{item.description}</p>}
+                    </div>
+                    {item.file_url && (
+                      <a href={item.file_url} target="_blank" rel="noopener noreferrer" download className="shrink-0 rounded-xl bg-amber-400 px-3.5 py-2 text-xs font-extrabold text-slate-950 hover:bg-amber-300">İndir ↓</a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      }
+      if (look === 'minimal_file_strip') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-4xl divide-y divide-gray-200 border-y border-gray-200">
+              {items.map((item, i) => (
+                <div key={i} className="flex flex-wrap items-center justify-between gap-3 py-4">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-heading text-sm font-bold text-gray-900">{item.title}</span>
+                    {item.file_size && <span className="ms-2 text-xs text-gray-400">({item.file_size})</span>}
+                  </div>
+                  {item.file_url && (
+                    <a href={item.file_url} target="_blank" rel="noopener noreferrer" download className="text-xs font-extrabold text-primary-700 hover:underline">İndir ↓</a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      if (look === 'compact_pills' || look === 'featured_pdf_banner' || look === 'pill_badge_downloads') {
         return (
           <div className={container}>
             <Head o={o} />
@@ -2675,20 +3076,21 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      if (look === 'table_list' || look === 'icon_compact_rows') {
+      if (look === 'table_list' || look === 'icon_compact_rows' || look === 'compact_file_rows' || look === 'bordered_pdf_grid' || look === 'dark_vault_downloads' || look === 'dark_report_cards') {
+        const isDarkDl = look === 'dark_vault_downloads' || look === 'dark_report_cards'
         return (
           <div className={container}>
             <Head o={o} />
-            <div className="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div className={`divide-y overflow-hidden rounded-2xl shadow-sm ${isDarkDl ? 'divide-white/10 border border-white/10 bg-slate-950 text-white' : 'divide-gray-200 border border-gray-200 bg-white'}`}>
               {items.map((item, i) => (
                 <div key={i} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      {item.file_type && <span className="rounded bg-primary-50 px-2 py-0.5 text-[10px] font-bold uppercase text-primary-700">{item.file_type}</span>}
-                      <span className="font-heading text-base font-bold text-gray-900">{item.title}</span>
-                      {item.file_size && <span className="text-xs text-gray-400">({item.file_size})</span>}
+                      {item.file_type && <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${isDarkDl ? 'bg-amber-500/20 text-amber-300' : 'bg-primary-50 text-primary-700'}`}>{item.file_type}</span>}
+                      <span className={`font-heading text-base font-bold ${isDarkDl ? 'text-white' : 'text-gray-900'}`}>{item.title}</span>
+                      {item.file_size && <span className="text-xs opacity-60">({item.file_size})</span>}
                     </div>
-                    {item.description && <p className="mt-0.5 text-xs text-gray-600">{item.description}</p>}
+                    {item.description && <p className={`mt-0.5 text-xs ${isDarkDl ? 'text-gray-300' : 'text-gray-600'}`}>{item.description}</p>}
                   </div>
                   {item.file_url && (
                     <a href={item.file_url} target="_blank" rel="noopener noreferrer" download className="rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700">İndir ↓</a>
@@ -2736,12 +3138,32 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'newsletter': {
       const look = o.look || 'centered_card'
-      const band = String(look === 'floating_dark' || look === 'dark_gold_subscribe' ? 'dark' : (o.band || 'soft'))
+      const band = String(look === 'floating_dark' || look === 'dark_gold_subscribe' || look === 'dark_emerald_subscribe' || look === 'emerald_gold_newsletter' ? 'dark' : (o.band || 'soft'))
       const dark = band === 'brand' || band === 'dark'
-      if (look === 'inline_bar' || look === 'split_with_benefits' || look === 'split_benefit_subscribe' || look === 'floating_pill_form') {
+      if (look === 'minimal_inline_subscribe') {
         return (
           <div className={container}>
-            <div className={`grid items-center gap-6 rounded-3xl px-6 py-10 md:grid-cols-12 md:px-10 ${BAND[band] || BAND.soft}`}>
+            <div className="flex flex-wrap items-center justify-between gap-6 border-y border-gray-200 py-8">
+              <div className="max-w-xl">
+                {o.title && <h2 className="font-heading text-xl font-bold text-gray-900 md:text-2xl">{o.title}</h2>}
+                {o.text && <p className="mt-1 text-sm text-gray-600">{o.text}</p>}
+              </div>
+              <div className="w-full max-w-md">
+                <NewsletterForm placeholder={o.placeholder} buttonLabel={o.button_label} successText={o.success_text} privacyNote={o.privacy_note} dark={false} />
+              </div>
+            </div>
+          </div>
+        )
+      }
+      if (look === 'inline_bar' || look === 'split_with_benefits' || look === 'split_benefit_subscribe' || look === 'floating_pill_form' || look === 'floating_pill_subscribe' || look === 'split_gift_guide' || look === 'bordered_split_newsletter' || look === 'emerald_gold_newsletter') {
+        const boxStyle = look === 'emerald_gold_newsletter'
+          ? 'border border-amber-400/30 bg-gradient-to-br from-emerald-950 to-slate-950 text-white'
+          : look === 'bordered_split_newsletter'
+            ? 'border-2 border-primary-200 bg-white text-gray-900'
+            : BAND[band] || BAND.soft
+        return (
+          <div className={container}>
+            <div className={`grid items-center gap-6 rounded-3xl px-6 py-10 md:grid-cols-12 md:px-10 ${boxStyle}`}>
               <div className="md:col-span-6">
                 {o.kicker && <div className={`mb-1.5 text-xs font-bold uppercase tracking-[2px] ${dark ? 'text-accent-300' : 'text-primary-600'}`}>{o.kicker}</div>}
                 {o.title && <h2 className="font-heading text-2xl font-bold md:text-3xl">{o.title}</h2>}
@@ -2774,14 +3196,71 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       if (!items.length) return <Empty editing={editing} text="İkonlu Liste: en az bir madde ekleyin." />
       const cols = COLS[Math.max(1, Math.min(3, Number(o.columns) || 2))] || 'lg:grid-cols-2'
       const look = o.look || 'clean_list'
-      if (look === 'check_badges' || look === 'two_col_check_pills' || look === 'dark_badge_list') {
+      if (look === 'emerald_check_cards') {
+        return (
+          <div className="bg-emerald-950 py-14 text-white">
+            <div className={container}>
+              <Head o={o} />
+              <div className={`grid gap-4 sm:grid-cols-2 ${cols}`}>
+                {items.map((item, i) => (
+                  <Go key={i} href={item.url} className="flex items-start gap-3.5 rounded-2xl border border-emerald-500/30 bg-emerald-900/50 p-5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/20 text-base font-bold text-amber-300">{item.icon || '✓'}</span>
+                    <div className="min-w-0 flex-1">
+                      {item.title && <h3 className="font-heading text-base font-bold">{item.title}</h3>}
+                      {item.text && <p className="mt-1 text-sm text-emerald-100/80">{item.text}</p>}
+                    </div>
+                  </Go>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      }
+      if (look === 'minimal_two_col_checks') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-x-8 gap-y-4 sm:grid-cols-2 ${cols}`}>
+              {items.map((item, i) => (
+                <Go key={i} href={item.url} className="flex items-start gap-3 border-b border-gray-200 pb-4">
+                  <span className="mt-0.5 text-sm font-extrabold text-primary-600">{item.icon || '✓'}</span>
+                  <div className="min-w-0 flex-1">
+                    {item.title && <h3 className="font-heading text-sm font-bold text-gray-900">{item.title}</h3>}
+                    {item.text && <p className="mt-0.5 text-xs text-gray-600">{item.text}</p>}
+                  </div>
+                </Go>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      if (look === 'pill_number_list') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-4 sm:grid-cols-2 ${cols}`}>
+              {items.map((item, i) => (
+                <Go key={i} href={item.url} className="flex items-center gap-3.5 rounded-full border border-gray-200 bg-white px-5 py-3 shadow-xs">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-600 text-xs font-extrabold text-white">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    {item.title && <div className="truncate font-heading text-sm font-bold text-gray-900">{item.title}</div>}
+                    {item.text && <div className="truncate text-xs text-gray-500">{item.text}</div>}
+                  </div>
+                </Go>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      if (look === 'check_badges' || look === 'two_col_check_pills' || look === 'dark_badge_list' || look === 'dark_badge_checklist' || look === 'compact_pill_tags') {
+        const isDarkList = look === 'dark_badge_list' || look === 'dark_badge_checklist'
         return (
           <div className={container}>
             <Head o={o} />
             <div className="flex flex-wrap justify-center gap-3">
               {items.map((item, i) => (
-                <Go key={i} href={item.url} className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50/70 px-4 py-2 text-sm font-bold text-primary-900">
-                  <span className="text-primary-600">{item.icon || '✓'}</span>
+                <Go key={i} href={item.url} className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold ${isDarkList ? 'border-white/15 bg-slate-950 text-white' : 'border-primary-200 bg-primary-50/70 text-primary-900'}`}>
+                  <span className={isDarkList ? 'text-accent-300' : 'text-primary-600'}>{item.icon || '✓'}</span>
                   <span>{item.title}</span>
                 </Go>
               ))}
@@ -2789,7 +3268,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      if (look === 'timeline_mini' || look === 'bordered_step_list') {
+      if (look === 'timeline_mini' || look === 'bordered_step_list' || look === 'bordered_two_col_list') {
         return (
           <div className={container}>
             <Head o={o} />
@@ -2828,6 +3307,59 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const donations = items.filter((i) => i.donor || i.amount)
       if (!donations.length) return <Empty editing={editing} text="Canlı bağış kaydı ekleyin" />
       const look = o.look || 'feed_cards'
+      if (look === 'emerald_live_ticker') {
+        return (
+          <div className="overflow-hidden border-y border-amber-400/30 bg-emerald-950 py-3.5 text-sm text-white">
+            <div className="bmq items-center gap-8" style={{ ['--bmq' as string]: `${Math.max(donations.length * 6, 20)}s` }}>
+              {[...donations, ...donations].map((d, i) => (
+                <span key={i} className="inline-flex flex-none items-center gap-2 font-semibold">
+                  <span className="h-2 w-2 rounded-full bg-amber-400" />
+                  <strong>{d.donor}</strong> · <span className="font-extrabold text-amber-300">{d.amount}</span> {d.campaign ? `(${d.campaign})` : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      if (look === 'minimal_donor_cards') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {donations.map((d, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3.5 shadow-xs">
+                  <div className="min-w-0">
+                    <div className="truncate font-heading text-sm font-bold text-gray-900">{d.donor}</div>
+                    {d.campaign && <div className="truncate text-[11px] text-gray-500">{d.campaign}</div>}
+                  </div>
+                  {d.amount && <span className="shrink-0 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-extrabold text-primary-700">{d.amount}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      if (look === 'urgent_live_feed') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-3xl divide-y divide-red-100 rounded-3xl border-2 border-red-200 bg-white shadow-sm">
+              {donations.map((d, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" />
+                    <div>
+                      <div className="font-heading text-sm font-bold text-gray-900">{d.donor}</div>
+                      {d.campaign && <div className="text-xs text-gray-500">{d.campaign}</div>}
+                    </div>
+                  </div>
+                  {d.amount && <span className="rounded-lg bg-red-50 px-3 py-1 font-heading text-sm font-extrabold text-red-700">{d.amount}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }
       if (look === 'ticker_strip') {
         return (
           <div className="overflow-hidden border-y border-emerald-200 bg-emerald-50/80 py-3 text-sm text-emerald-950">
@@ -2912,6 +3444,43 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'transparency_bar': {
       const look = o.look || 'official_seals'
       const seals = items.filter((i) => i.title)
+      if (look === 'emerald_audit_bar') {
+        const fieldPct = Math.min(100, Math.max(0, Number(o.field_pct) || 92))
+        return (
+          <div className="bg-emerald-950 py-10 text-white">
+            <div className={container}>
+              <Head o={o} />
+              <div className="mx-auto max-w-3xl rounded-3xl border border-amber-400/30 bg-emerald-900/60 p-7">
+                <div className="mb-3 flex justify-between text-sm font-bold">
+                  <span className="text-amber-300">%{fieldPct} Doğrudan Saha Yardımları</span>
+                  <span className="text-emerald-200/80">%{Math.max(0, 100 - fieldPct)} Operasyon</span>
+                </div>
+                <div className="flex h-3.5 overflow-hidden rounded-full bg-black/30">
+                  <div className="bg-amber-400" style={{ width: `${fieldPct}%` }} />
+                </div>
+                {o.permit_no && <div className="mt-4 text-xs text-emerald-100/80">İzin / DERBİS: <strong className="text-white">{o.permit_no}</strong></div>}
+              </div>
+            </div>
+          </div>
+        )
+      }
+      if (look === 'minimal_percent_bar') {
+        const fieldPct = Math.min(100, Math.max(0, Number(o.field_pct) || 92))
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-3xl border-y border-gray-200 py-6">
+              <div className="mb-2 flex justify-between text-xs font-extrabold uppercase tracking-wider text-gray-700">
+                <span>Saha Yardım Oranı: %{fieldPct}</span>
+                {o.permit_no && <span>DERBİS: {o.permit_no}</span>}
+              </div>
+              <div className="h-2.5 overflow-hidden rounded-full bg-gray-100">
+                <div className="h-full rounded-full bg-primary-600" style={{ width: `${fieldPct}%` }} />
+              </div>
+            </div>
+          </div>
+        )
+      }
       if (look === 'ledger_summary') {
         const fieldPct = Math.min(100, Math.max(0, Number(o.field_pct) || 92))
         const opsPct = Math.max(0, 100 - fieldPct)
@@ -2935,7 +3504,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       return (
         <div className={container}>
           <Head o={o} />
-          <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${look === 'verified_banner' ? 'rounded-3xl border-2 border-emerald-200 bg-emerald-50/40 p-6' : ''}`}>
+          <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${look === 'verified_banner' ? 'rounded-3xl border-2 border-emerald-200 bg-emerald-50/40 p-6' : look === 'bordered_seal_strip' ? 'rounded-3xl border-2 border-primary-200 bg-white p-6 shadow-sm' : ''}`}>
             {seals.map((s, i) => (
               <Go key={i} href={s.url} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-lg text-emerald-700">{s.icon || '✓'}</span>
@@ -2975,6 +3544,62 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'volunteer_cta': {
       const roles = items.filter((i) => i.title)
+      if (o.look === 'emerald_volunteer_banner') {
+        return (
+          <div className="bg-emerald-950 py-14 text-white">
+            <div className={container}>
+              <div className="grid items-center gap-8 rounded-3xl border border-amber-400/30 bg-emerald-900/50 p-8 md:grid-cols-12">
+                <div className="md:col-span-8">
+                  <Head o={o} center={false} />
+                  {roles.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {roles.map((r, i) => (
+                        <span key={i} className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-amber-200">{r.icon || '🤝'} {r.title}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="md:col-span-4 md:text-end">
+                  {o.button_label && o.button_url && <Go href={o.button_url} className="inline-flex rounded-xl bg-amber-400 px-7 py-3.5 text-sm font-extrabold text-slate-950 hover:bg-amber-300">{o.button_label} →</Go>}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+      if (o.look === 'minimal_split_volunteer') {
+        return (
+          <div className={container}>
+            <div className="flex flex-wrap items-center justify-between gap-6 border-y border-gray-200 py-8">
+              <div className="max-w-2xl">
+                {o.title && <h2 className="font-heading text-2xl font-bold text-gray-900">{o.title}</h2>}
+                {o.subtitle && <p className="mt-1 text-sm text-gray-600">{o.subtitle}</p>}
+              </div>
+              {o.button_label && o.button_url && <Go href={o.button_url} className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white hover:bg-primary-700">{o.button_label} →</Go>}
+            </div>
+          </div>
+        )
+      }
+      if (o.look === 'pill_role_cta') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="flex flex-wrap justify-center gap-3">
+              {roles.map((r, i) => (
+                <span key={i} className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50/70 px-4 py-2 text-sm font-bold text-primary-900">
+                  <span>{r.icon || '🤝'}</span>
+                  <span>{r.title}</span>
+                </span>
+              ))}
+            </div>
+            {o.button_label && o.button_url && (
+              <div className="mt-7 text-center">
+                <Go href={o.button_url} className="inline-flex rounded-full bg-primary-600 px-7 py-3 text-sm font-extrabold text-white hover:bg-primary-700">{o.button_label} →</Go>
+              </div>
+            )}
+          </div>
+        )
+      }
       return (
         <div className={container}>
           <Head o={o} />
@@ -3155,37 +3780,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         </div>
       )
     }
-    case 'scholarship_showcase': {
-      const plans = items.filter((i) => i.title)
-      if (!plans.length) return <Empty editing={editing} text="Burs paketi ekleyin" />
-      const isDark = o.look === 'dark_academy'
-      const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
-      return (
-        <div className={isDark ? 'bg-gray-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
-              {plans.map((p, i) => (
-                <div key={i} className={`flex flex-col justify-between rounded-3xl p-6 ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-gray-200 bg-white text-gray-900 shadow-sm'}`}>
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-2xl">{p.icon || '🎓'}</span>
-                      {p.badge && <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${isDark ? 'bg-white/15 text-accent-300' : 'bg-primary-50 text-primary-700'}`}>{p.badge}</span>}
-                    </div>
-                    <h3 className="mt-3 font-heading text-xl font-bold">{p.title}</h3>
-                    {p.amount && <div className={`mt-1.5 font-heading text-2xl font-extrabold ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>{p.amount}</div>}
-                    {p.text && <p className={`mt-2 text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{p.text}</p>}
-                  </div>
-                  <Go href={p.url || '/bagis'} className={`mt-6 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-bold transition ${isDark ? 'bg-white text-gray-900 hover:bg-accent-50' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
-                    {p.button_label || 'Burs Ver'} →
-                  </Go>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
     case 'impact_comparison': {
       const cols = items.filter((i) => i.title)
       if (!cols.length) return <Empty editing={editing} text="Karşılaştırma kalemi ekleyin" />
@@ -3215,27 +3809,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                 </div>
               )
             })}
-          </div>
-        </div>
-      )
-    }
-    case 'corporate_giving': {
-      const tiers = items.filter((i) => i.title)
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-6 md:grid-cols-3">
-            {tiers.map((t, i) => (
-              <Go key={i} href={t.url || o.button_url || '/iletisim'} className="flex flex-col justify-between rounded-3xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-                <div>
-                  {t.badge && <span className="mb-2 inline-block rounded-full bg-amber-100 px-3 py-0.5 text-[11px] font-extrabold text-amber-800">{t.badge}</span>}
-                  <h3 className="font-heading text-xl font-bold text-gray-900">{t.title}</h3>
-                  {t.amount && <div className="mt-1 font-heading text-2xl font-extrabold text-primary-700">{t.amount}</div>}
-                  {t.text && <p className="mt-2 text-sm leading-relaxed text-gray-600">{t.text}</p>}
-                </div>
-                <span className="mt-5 inline-block text-xs font-extrabold text-primary-700">{o.button_label || 'Kurumsal İletişim'} →</span>
-              </Go>
-            ))}
           </div>
         </div>
       )
@@ -3296,104 +3869,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         </div>
       )
     }
-    case 'daily_charity': {
-      const list = items.filter((i) => i.title || i.daily_amount)
-      if (!list.length) return <Empty editing={editing} text="Mikro infak seçeneği ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {list.map((item, i) => (
-              <Go key={i} href={item.url || '/bagis'} className="group flex flex-col justify-between rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/50 via-white to-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-2xl">{item.icon || '🪙'}</span>
-                    {item.daily_amount && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-extrabold text-amber-900">{item.daily_amount}</span>}
-                  </div>
-                  <h3 className="mt-3 font-heading text-lg font-bold text-gray-900">{item.title}</h3>
-                  {item.yearly_impact && <p className="mt-1.5 text-sm font-semibold text-primary-700">{item.yearly_impact}</p>}
-                </div>
-                <span className="mt-5 inline-flex text-xs font-extrabold text-primary-700 group-hover:underline">Düzenli Katkı Ver →</span>
-              </Go>
-            ))}
-          </div>
-        </div>
-      )
-    }
-    case 'perpetual_charity': {
-      const projects = items.filter((i) => i.title)
-      if (!projects.length) return <Empty editing={editing} text="Kalıcı eser projesi ekleyin" />
-      const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
-            {projects.map((p, i) => {
-              const pct = Math.min(100, Math.max(0, Number(p.percent) || 65))
-              return (
-                <Go key={i} href={p.url || '/bagis'} className="group overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-xl">
-                  {p.image_url && <img src={p.image_url} alt={p.title || ''} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />}
-                  <div className="p-6">
-                    {p.stage && <span className="mb-2 inline-block rounded-full bg-primary-50 px-3 py-0.5 text-[11px] font-bold text-primary-700">{p.stage}</span>}
-                    <h3 className="font-heading text-lg font-bold text-gray-900">{p.title}</h3>
-                    {p.unit_price && <div className="mt-1 text-sm font-extrabold text-primary-700">Hisse: {p.unit_price}</div>}
-                    <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-gray-100">
-                      <div className="h-full rounded-full bg-gradient-to-r from-primary-600 to-accent-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                </Go>
-              )
-            })}
-          </div>
-        </div>
-      )
-    }
-    case 'family_sponsorship': {
-      const families = items.filter((i) => i.code || i.need)
-      if (!families.length) return <Empty editing={editing} text="Aile kartı ekleyin" />
-      const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
-            {families.map((f, i) => (
-              <div key={i} className="flex flex-col justify-between rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-full bg-primary-50 px-3 py-1 font-mono text-xs font-extrabold text-primary-800">{f.code || `AİLE-${i + 1}`}</span>
-                    {f.location && <span className="text-xs font-semibold text-gray-500">📍 {f.location}</span>}
-                  </div>
-                  {f.members && <div className="mt-3 font-heading text-base font-bold text-gray-900">{f.members}</div>}
-                  {f.need && <div className="mt-1 text-sm text-gray-600">{f.need}</div>}
-                  {f.amount && <div className="mt-3 font-heading text-2xl font-extrabold text-primary-700">{f.amount}</div>}
-                </div>
-                <Go href={f.url || '/bagis'} className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white hover:bg-primary-700">
-                  Aileye Destek Ol →
-                </Go>
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
-    case 'fiqh_guide': {
-      const topics = items.filter((i) => i.title)
-      if (!topics.length) return <Empty editing={editing} text="Fıkhi konu ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-5 md:grid-cols-2">
-            {topics.map((t, i) => (
-              <Go key={i} href={t.url} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:border-primary-300">
-                {t.badge && <span className="mb-2 inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">{t.badge}</span>}
-                <h3 className="font-heading text-lg font-bold text-gray-900">{t.title}</h3>
-                {t.summary && <p className="mt-2 text-sm leading-relaxed text-gray-600">{t.summary}</p>}
-              </Go>
-            ))}
-          </div>
-        </div>
-      )
-    }
     case 'events_calendar': {
       const evs = items.filter((i) => i.title)
       if (!evs.length) return <Empty editing={editing} text="Etkinlik ekleyin" />
@@ -3411,28 +3886,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                 </div>
               </Go>
             ))}
-          </div>
-        </div>
-      )
-    }
-    case 'sms_donate': {
-      const codes = items.filter((i) => i.keyword)
-      if (!codes.length) return <Empty editing={editing} text="SMS kodu ekleyin" />
-      const isDark = o.look === 'dark_sms_strip'
-      return (
-        <div className={isDark ? 'bg-primary-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {codes.map((c, i) => (
-                <div key={i} className={`rounded-3xl p-6 text-center ${isDark ? 'border border-white/15 bg-white/5' : 'border-2 border-primary-100 bg-gradient-to-b from-primary-50/40 to-white shadow-sm'}`}>
-                  <div className={`text-xs font-bold uppercase tracking-widest ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>SMS İLE BAĞIŞ</div>
-                  <div className="mt-2 font-heading text-2xl font-black tracking-wide">{c.keyword} → {c.shortcode || '4042'}</div>
-                  {c.amount && <div className={`mt-1 text-sm font-bold ${isDark ? 'text-white/85' : 'text-gray-700'}`}>{c.amount}</div>}
-                  {c.note && <p className={`mt-2 text-xs ${isDark ? 'text-white/70' : 'text-gray-500'}`}>{c.note}</p>}
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )
@@ -3456,31 +3909,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                   <img src={o.image_url} alt={o.title || ''} className="max-h-72 rounded-3xl object-contain shadow-xl" loading="lazy" />
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'proxy_donation': {
-      const intents = items.filter((i) => i.title)
-      if (!intents.length) return <Empty editing={editing} text="Vekalet niyeti ekleyin" />
-      const isDark = o.look === 'dark_qurbani'
-      return (
-        <div className={isDark ? 'bg-gray-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {intents.map((it, i) => (
-                <Go key={i} href={it.url || '/bagis'} className={`flex flex-col justify-between rounded-3xl p-6 transition hover:-translate-y-0.5 hover:shadow-lg ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-gray-200 bg-white text-gray-900 shadow-sm'}`}>
-                  <div>
-                    <div className="mb-3 text-3xl">{it.icon || '🐑'}</div>
-                    <h3 className="font-heading text-lg font-bold">{it.title}</h3>
-                    {it.amount && <div className={`mt-1 font-heading text-xl font-extrabold ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>{it.amount}</div>}
-                    {it.text && <p className={`mt-1.5 text-xs leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>{it.text}</p>}
-                  </div>
-                  <span className={`mt-4 inline-flex text-xs font-extrabold ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>Vekalet Ver →</span>
-                </Go>
-              ))}
             </div>
           </div>
         </div>
@@ -3533,33 +3961,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         </div>
       )
     }
-    case 'gift_certificate': {
-      const occasions = items.filter((i) => i.title)
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid items-center gap-8 rounded-3xl border-2 border-primary-100 bg-gradient-to-br from-primary-50/50 via-white to-accent-50/40 p-7 shadow-sm lg:grid-cols-12 md:p-10">
-            <div className="rounded-2xl border-2 border-dashed border-primary-300 bg-white p-6 text-center shadow-sm lg:col-span-5">
-              <div className="text-xs font-extrabold uppercase tracking-[3px] text-primary-600">İyilik Sertifikası</div>
-              <div className="mt-2 font-heading text-2xl font-black text-gray-900">Sevdikleriniz Adına</div>
-              <p className="mt-2 text-xs text-gray-500">Doğum günü, tebrik veya taziye vesilesiyle isme özel dijital bağış sertifikası.</p>
-              {o.button_label && o.button_url && (
-                <Go href={o.button_url} className="mt-5 inline-flex rounded-xl bg-primary-600 px-6 py-3 text-xs font-extrabold text-white shadow hover:bg-primary-700">{o.button_label} →</Go>
-              )}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:col-span-7">
-              {occasions.map((oc, i) => (
-                <Go key={i} href={oc.url || '/bagis'} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs transition hover:border-primary-400">
-                  <div className="mb-2 text-2xl">{oc.icon || '🎁'}</div>
-                  <div className="font-heading text-base font-bold text-gray-900">{oc.title}</div>
-                  {oc.text && <p className="mt-1 text-xs text-gray-600">{oc.text}</p>}
-                </Go>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
     case 'help_desk_card': {
       const isDark = o.look === 'dark_help_bar'
       return (
@@ -3602,203 +4003,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                   <div className="mt-2 font-heading text-base font-bold">{p.title}</div>
                   {p.date && <div className="mt-1 text-xs opacity-70">{p.date}</div>}
                 </div>
-              )
-            })}
-          </div>
-        </div>
-      )
-    }
-    case 'awards_badges': {
-      const awards = items.filter((i) => i.title)
-      if (!awards.length) return <Empty editing={editing} text="Ödül veya belge ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {awards.map((a, i) => (
-              <div key={i} className="rounded-2xl border border-amber-200/80 bg-gradient-to-b from-amber-50/50 to-white p-6 text-center shadow-sm">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-2xl">{a.icon || '🏆'}</div>
-                {a.year && <div className="text-xs font-extrabold text-amber-800">{a.year}</div>}
-                <div className="mt-1 font-heading text-base font-bold text-gray-900">{a.title}</div>
-                {a.issuer && <div className="mt-1 text-xs text-gray-500">{a.issuer}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
-    case 'iftar_counter': {
-      const meals = items.filter((i) => i.title)
-      if (!meals.length) return <Empty editing={editing} text="İftar / kumanya paketi ekleyin" />
-      const isDark = o.look === 'dark_gold_iftar'
-      return (
-        <div className={isDark ? 'bg-gradient-to-br from-gray-950 via-primary-950 to-amber-950/60 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {meals.map((m, i) => {
-                const unit = Math.max(10, Number(m.unit_price) || 150)
-                const col = Math.max(0, Number(m.collected_count) || 0)
-                const tgt = Math.max(1, Number(m.target_count) || 500)
-                const pct = Math.min(100, Math.round((col / tgt) * 100))
-                const base = String(m.url || '/bagis')
-                const sep = base.includes('?') ? '&' : '?'
-                return (
-                  <div key={i} className={`flex flex-col justify-between rounded-3xl p-6 ${isDark ? 'border border-amber-400/20 bg-white/5 text-white' : 'border border-gray-200 bg-white text-gray-900 shadow-sm'}`}>
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-3xl">{m.icon || '🍲'}</span>
-                        <span className={`rounded-full px-3 py-1 text-xs font-extrabold ${isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-primary-50 text-primary-700'}`}>{unit} ₺</span>
-                      </div>
-                      <h3 className="mt-3 font-heading text-lg font-bold">{m.title}</h3>
-                      <div className="mt-3 flex justify-between text-xs opacity-75">
-                        <span>{col.toLocaleString('tr-TR')} / {tgt.toLocaleString('tr-TR')}</span>
-                        <span>%{pct}</span>
-                      </div>
-                      <div className={`mt-1.5 h-2.5 overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                        <div className="h-full rounded-full bg-gradient-to-r from-primary-500 to-amber-500" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                    <div className="mt-5 grid grid-cols-3 gap-2">
-                      {[1, 5, 10].map((qty) => (
-                        <Go key={qty} href={`${base}${sep}tutar=${unit * qty}`} className={`rounded-xl py-2 text-center text-xs font-extrabold transition ${isDark ? 'bg-amber-500 text-gray-950 hover:bg-amber-400' : 'bg-primary-50 text-primary-800 hover:bg-primary-600 hover:text-white'}`}>
-                          {qty} Adet
-                        </Go>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'facility_rooms': {
-      const rooms = items.filter((i) => i.title)
-      if (!rooms.length) return <Empty editing={editing} text="Bölüm / oda ekleyin" />
-      const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`grid gap-5 sm:grid-cols-2 ${cols}`}>
-            {rooms.map((r, i) => (
-              <Go key={i} href={r.url || '/bagis'} className="flex flex-col justify-between rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-primary-400 hover:shadow-md">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl">{r.icon || '🏫'}</span>
-                    {r.status && <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">{r.status}</span>}
-                  </div>
-                  <h3 className="mt-3 font-heading text-lg font-bold text-gray-900">{r.title}</h3>
-                  {r.amount && <div className="mt-1 font-heading text-xl font-extrabold text-primary-700">{r.amount}</div>}
-                </div>
-                <span className="mt-4 inline-flex text-xs font-extrabold text-primary-700">Sponsor Ol →</span>
-              </Go>
-            ))}
-          </div>
-        </div>
-      )
-    }
-    case 'memory_wall': {
-      const notes = items.filter((i) => i.note || i.author)
-      if (!notes.length) return <Empty editing={editing} text="Dilek veya hatıra notu ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="columns-1 gap-5 space-y-5 md:columns-2 lg:columns-3">
-            {notes.map((n, i) => (
-              <div key={i} className="break-inside-avoid rounded-2xl border border-amber-200/70 bg-gradient-to-br from-amber-50/40 via-white to-white p-6 shadow-sm">
-                {n.dedicated_to && <div className="mb-2 text-[11px] font-extrabold uppercase tracking-wider text-amber-800">🕊️ {n.dedicated_to}</div>}
-                {n.note && <p className="text-sm italic leading-relaxed text-gray-700">“{n.note}”</p>}
-                {(n.author || n.date) && (
-                  <div className="mt-4 flex items-center justify-between border-t border-amber-100 pt-3 text-xs text-gray-500">
-                    <span className="font-bold text-gray-900">{n.author}</span>
-                    <span>{n.date}</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
-    case 'medical_relief': {
-      const aids = items.filter((i) => i.title)
-      if (!aids.length) return <Empty editing={editing} text="Sağlık desteği ekleyin" />
-      const isDark = o.look === 'dark_clinic'
-      const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
-      return (
-        <div className={isDark ? 'bg-gray-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
-              {aids.map((a, i) => (
-                <Go key={i} href={a.url || '/bagis'} className={`group overflow-hidden rounded-3xl transition hover:-translate-y-0.5 hover:shadow-xl ${isDark ? 'border border-white/10 bg-white/5 text-white' : 'border border-gray-200 bg-white text-gray-900 shadow-sm'}`}>
-                  {a.image_url && <img src={a.image_url} alt={a.title || ''} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />}
-                  <div className="p-6">
-                    {a.badge && <span className={`mb-2 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${isDark ? 'bg-white/15 text-accent-300' : 'bg-primary-50 text-primary-700'}`}>{a.badge}</span>}
-                    <h3 className="font-heading text-lg font-bold">{a.title}</h3>
-                    {a.amount && <div className={`mt-1 font-heading text-xl font-extrabold ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>{a.amount}</div>}
-                    {a.text && <p className={`mt-1.5 text-xs leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{a.text}</p>}
-                  </div>
-                </Go>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'alumni_stories': {
-      const stories = items.filter((i) => i.name || i.quote)
-      if (!stories.length) return <Empty editing={editing} text="Öğrenci hikayesi ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-6 md:grid-cols-3">
-            {stories.map((s, i) => (
-              <div key={i} className="flex flex-col justify-between rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-                <p className="text-sm leading-relaxed text-gray-700">“{s.quote}”</p>
-                <div className="mt-5 flex items-center gap-3 border-t border-gray-100 pt-4">
-                  {s.image_url
-                    ? <img src={s.image_url} alt={s.name || ''} className="h-11 w-11 rounded-full object-cover" loading="lazy" />
-                    : <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-50 font-bold text-primary-700">{(s.name || 'Ö').charAt(0)}</span>}
-                  <div>
-                    <div className="font-heading text-sm font-bold text-gray-900">{s.name}</div>
-                    {s.program && <div className="text-xs text-primary-600">{s.program}</div>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
-    case 'relief_checklist': {
-      const needs = items.filter((i) => i.title)
-      if (!needs.length) return <Empty editing={editing} text="İhtiyaç kalemi ekleyin" />
-      const urgCls: Record<string, { label: string; cls: string }> = {
-        critical: { label: 'Çok Acil', cls: 'bg-red-100 text-red-800' },
-        high: { label: 'Yüksek', cls: 'bg-amber-100 text-amber-800' },
-        normal: { label: 'Normal', cls: 'bg-gray-100 text-gray-700' },
-      }
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {needs.map((n, i) => {
-              const u = urgCls[n.urgency || 'high'] || urgCls.high
-              return (
-                <Go key={i} href={n.url || '/bagis'} className="flex flex-col justify-between rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-primary-400">
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-2xl">{n.icon || '📦'}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${u.cls}`}>{u.label}</span>
-                    </div>
-                    <h3 className="mt-3 font-heading text-base font-bold text-gray-900">{n.title}</h3>
-                    {n.amount && <div className="mt-1 font-heading text-lg font-extrabold text-primary-700">{n.amount}</div>}
-                  </div>
-                  <span className="mt-4 inline-flex text-xs font-extrabold text-primary-700">Karşıla →</span>
-                </Go>
               )
             })}
           </div>
@@ -3929,36 +4133,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         </div>
       )
     }
-    case 'impact_bundles': {
-      const bundles = items.filter((i) => i.title)
-      if (!bundles.length) return <Empty editing={editing} text="Yardım paketi ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-6 md:grid-cols-3">
-            {bundles.map((b, i) => (
-              <div key={i} className="flex flex-col justify-between rounded-3xl border border-gray-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-                <div>
-                  {b.badge && <span className="mb-3 inline-block rounded-full bg-accent-50 px-3 py-1 text-[11px] font-extrabold text-accent-700">{b.badge}</span>}
-                  <h3 className="font-heading text-xl font-bold text-gray-900">{b.title}</h3>
-                  {b.price && <div className="mt-2 font-heading text-3xl font-black text-primary-700">{b.price}</div>}
-                  {b.contents && (
-                    <ul className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-sm text-gray-600">
-                      {String(b.contents).split('\n').filter(Boolean).map((line, idx) => (
-                        <li key={idx} className="flex items-start gap-2"><span className="text-emerald-600">✓</span><span>{line}</span></li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                <Link href={b.url || '/bagis'} className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-primary-600 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700">
-                  {b.button_label || 'Paketi Bağışla'}
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
     case 'publications_shelf': {
       const pubs = items.filter((i) => i.title)
       if (!pubs.length) return <Empty editing={editing} text="Yayın ekleyin" />
@@ -3981,42 +4155,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                 </div>
               </Go>
             ))}
-          </div>
-        </div>
-      )
-    }
-    case 'convoy_tracker': {
-      const convoys = items.filter((i) => i.title)
-      if (!convoys.length) return <Empty editing={editing} text="Konvoy bilgisi ekleyin" />
-      const isDark = o.look === 'dark_dispatch'
-      return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-4 md:grid-cols-2">
-              {convoys.map((c, i) => {
-                const pct = Math.min(100, Math.max(0, Number(c.progress) || 0))
-                return (
-                  <div key={i} className={`rounded-2xl border p-6 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${isDark ? 'bg-accent-500/20 text-accent-300' : 'bg-primary-50 text-primary-700'}`}>{c.code || `KONVOY-${i + 1}`}</span>
-                      {c.status && <span className={`text-xs font-bold ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>● {c.status}</span>}
-                    </div>
-                    <h3 className={`mt-2.5 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.title}</h3>
-                    {c.cargo && <p className={`mt-1 text-sm ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{c.cargo}</p>}
-                    <div className="mt-4">
-                      <div className="mb-1 flex justify-between text-xs font-bold">
-                        <span className={isDark ? 'text-white/70' : 'text-gray-500'}>Sevkiyat İlerlemesi</span>
-                        <span>%{pct}</span>
-                      </div>
-                      <div className={`h-2.5 w-full overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                        <div className="h-full rounded-full bg-primary-600" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
           </div>
         </div>
       )
@@ -4044,66 +4182,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                   {p.badge && <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-extrabold text-emerald-700">{p.badge}</span>}
                   <h3 className="mt-2 font-heading text-base font-bold text-gray-900">{p.title}</h3>
                   {p.text && <p className="mt-1.5 text-sm text-gray-600">{p.text}</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'crisis_regions_map': {
-      const regions = items.filter((i) => i.region)
-      if (!regions.length) return <Empty editing={editing} text="Kriz bölgesi ekleyin" />
-      const isDark = o.look === 'dark_command_center'
-      const urgBadge: Record<string, string> = {
-        critical: 'bg-red-600 text-white',
-        high: 'bg-amber-500 text-slate-950',
-        active: 'bg-emerald-600 text-white',
-      }
-      const urgText: Record<string, string> = { critical: 'KRİTİK', high: 'YÜKSEK', active: 'AKTİF' }
-      return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {regions.map((r, i) => (
-                <Go key={i} href={r.url || '/bagis'} className={`flex flex-col justify-between rounded-2xl border p-5 transition hover:-translate-y-0.5 ${isDark ? 'border-white/10 bg-white/5 hover:border-white/25' : 'border-gray-200 bg-white shadow-sm hover:border-primary-400'}`}>
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-2xl">{r.flag || '🌍'}</span>
-                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold ${urgBadge[r.urgency || 'critical'] || urgBadge.critical}`}>
-                        {urgText[r.urgency || 'critical'] || 'KRİTİK'}
-                      </span>
-                    </div>
-                    <h3 className={`mt-2.5 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{r.region}</h3>
-                    {r.teams && <div className={`mt-1 text-xs font-semibold ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>{r.teams}</div>}
-                    {r.need && <p className={`mt-2 text-sm ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{r.need}</p>}
-                  </div>
-                  <span className={`mt-4 inline-flex text-xs font-extrabold ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>Bölgeye Destek Ol →</span>
-                </Go>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'nisab_rates_bar': {
-      const rates = items.filter((i) => i.label || i.value)
-      if (!rates.length) return <Empty editing={editing} text="Birim ekleyin" />
-      const isDark = o.look === 'dark_gold_table'
-      return (
-        <div className={isDark ? 'bg-slate-950 py-12 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4`}>
-              {rates.map((r, i) => (
-                <div key={i} className={`rounded-2xl border p-5 ${isDark ? 'border-amber-400/25 bg-white/5' : 'border-primary-100 bg-white shadow-sm'}`}>
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary-600">
-                    <span>{r.icon || '🪙'}</span>
-                    <span className={isDark ? 'text-amber-300' : 'text-primary-700'}>{r.label}</span>
-                  </div>
-                  <div className={`mt-2 font-heading text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>{r.value}</div>
-                  {r.note && <div className={`mt-1 text-xs ${isDark ? 'text-white/65' : 'text-gray-500'}`}>{r.note}</div>}
                 </div>
               ))}
             </div>
@@ -4157,33 +4235,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                   <h3 className={`mt-3 font-heading text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{m.name}</h3>
                   {m.role && <div className={`mt-0.5 text-xs font-bold ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>{m.role}</div>}
                   {m.committee && <div className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${isDark ? 'bg-white/10 text-white/80' : 'bg-gray-100 text-gray-600'}`}>{m.committee}</div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'donor_tiers_wall': {
-      const tiers = items.filter((i) => i.title)
-      if (!tiers.length) return <Empty editing={editing} text="Destek kademesi ekleyin" />
-      const isDark = o.look === 'dark_honor_roll'
-      return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-5 md:grid-cols-3">
-              {tiers.map((t, i) => (
-                <div key={i} className={`flex flex-col justify-between rounded-3xl border p-7 ${isDark ? 'border-amber-400/25 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
-                  <div>
-                    <span className="text-3xl">{t.icon || '🏅'}</span>
-                    <h3 className={`mt-3 font-heading text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t.title}</h3>
-                    {t.amount && <div className={`mt-1 font-heading text-lg font-extrabold ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>{t.amount}</div>}
-                    {t.impact && <p className={`mt-3 text-sm leading-relaxed ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{t.impact}</p>}
-                  </div>
-                  <Link href={t.url || '/bagis'} className={`mt-6 inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-extrabold ${isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
-                    Destek Ol →
-                  </Link>
                 </div>
               ))}
             </div>
@@ -4248,144 +4299,6 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         </div>
       )
     }
-    case 'iban_reference_helper': {
-      const codes = items.filter((i) => i.code || i.label)
-      if (!codes.length) return <Empty editing={editing} text="Açıklama kodu ekleyin" />
-      const isDark = o.look === 'dark_bank'
-      return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            {o.recipient_name && (
-              <div className={`mb-5 text-center text-sm font-bold ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>
-                Alıcı Adı: {o.recipient_name}
-              </div>
-            )}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {codes.map((c, i) => (
-                <div key={i} className={`rounded-2xl border p-5 ${isDark ? 'border-white/15 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
-                  <div className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>{c.label}</div>
-                  <div className={`mt-2 rounded-lg px-3 py-2 font-mono text-sm font-extrabold ${isDark ? 'bg-black/40 text-white' : 'bg-primary-50 text-primary-900'}`}>{c.code}</div>
-                  {c.example && <p className={`mt-2 text-xs ${isDark ? 'text-white/70' : 'text-gray-500'}`}>{c.example}</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'qurbani_animal_types': {
-      const opts = items.filter((i) => i.title)
-      if (!opts.length) return <Empty editing={editing} text="Kurban seçeneği ekleyin" />
-      const isDark = o.look === 'dark_eid'
-      return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-5 md:grid-cols-3">
-              {opts.map((q, i) => (
-                <div key={i} className={`flex flex-col justify-between rounded-3xl border p-6 ${isDark ? 'border-amber-400/25 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-3xl">{q.icon || '🐑'}</span>
-                      {q.badge && <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${isDark ? 'bg-amber-400/15 text-amber-300' : 'bg-primary-50 text-primary-700'}`}>{q.badge}</span>}
-                    </div>
-                    <h3 className={`mt-3 font-heading text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{q.title}</h3>
-                    {q.price && <div className={`mt-1 font-heading text-2xl font-black ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>{q.price}</div>}
-                    {q.detail && <p className={`mt-2 text-sm ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{q.detail}</p>}
-                  </div>
-                  <Link href={q.url || '/bagis'} className={`mt-5 inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-extrabold ${isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
-                    Vekalet Ver →
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'fatwa_cards': {
-      const qa = items.filter((i) => i.question)
-      if (!qa.length) return <Empty editing={editing} text="Fetva / soru ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-5 md:grid-cols-2">
-            {qa.map((f, i) => (
-              <div key={i} className="rounded-2xl border border-primary-100 bg-white p-6 shadow-sm">
-                {f.category && <span className="inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-extrabold text-primary-700">{f.category}</span>}
-                <h3 className="mt-2 font-heading text-lg font-bold text-gray-900">{f.question}</h3>
-                {f.ruling && <p className="mt-2 text-sm leading-relaxed text-gray-600">{f.ruling}</p>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )
-    }
-    case 'soup_kitchen_status': {
-      const locs = items.filter((i) => i.location)
-      const isDark = o.look === 'dark_kitchen'
-      return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className={`rounded-3xl border p-7 sm:p-10 ${isDark ? 'border-white/15 bg-white/5' : 'border-amber-200 bg-gradient-to-br from-amber-50/70 via-white to-white shadow-sm'}`}>
-              <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-gray-200/40 pb-5">
-                <div>
-                  {o.daily_meals && <div className={`font-heading text-3xl font-black ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>🍲 {o.daily_meals}</div>}
-                  <div className={`text-sm font-semibold ${isDark ? 'text-white/75' : 'text-gray-600'}`}>1 Öğün Sıcak Yemek: {o.meal_price || '85 ₺'}</div>
-                </div>
-                <Link href={o.button_url || '/bagis'} className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700">
-                  {o.button_label || 'Sıcak Yemek İkram Et'}
-                </Link>
-              </div>
-              {locs.length > 0 && (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {locs.map((l, i) => (
-                    <div key={i} className={`rounded-2xl border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-white'}`}>
-                      <div className={`font-heading text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{l.location}</div>
-                      {l.count && <div className="mt-1 text-sm font-extrabold text-primary-600">{l.count}</div>}
-                      {l.menu && <div className={`mt-1 text-xs ${isDark ? 'text-white/70' : 'text-gray-500'}`}>{l.menu}</div>}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'well_types_compare': {
-      const wells = items.filter((i) => i.title)
-      if (!wells.length) return <Empty editing={editing} text="Kuyu türü ekleyin" />
-      const isDark = o.look === 'dark_blue_water'
-      return (
-        <div className={isDark ? 'bg-gradient-to-br from-sky-950 via-slate-950 to-sky-900 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-5 md:grid-cols-3">
-              {wells.map((w, i) => (
-                <div key={i} className={`flex flex-col justify-between rounded-3xl border p-6 ${isDark ? 'border-sky-400/25 bg-white/5' : 'border-sky-100 bg-white shadow-sm'}`}>
-                  <div>
-                    {w.badge && <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${isDark ? 'bg-sky-400/20 text-sky-300' : 'bg-sky-50 text-sky-700'}`}>{w.badge}</span>}
-                    <h3 className={`mt-2.5 font-heading text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{w.title}</h3>
-                    {w.price && <div className={`mt-1 font-heading text-2xl font-black ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>{w.price}</div>}
-                    <dl className={`mt-4 space-y-1.5 border-t pt-3 text-xs ${isDark ? 'border-white/10 text-white/80' : 'border-gray-100 text-gray-600'}`}>
-                      {w.depth && <div><strong>Kapasite:</strong> {w.depth}</div>}
-                      {w.beneficiaries && <div><strong>Faydalanan:</strong> {w.beneficiaries}</div>}
-                      {w.duration && <div><strong>Süre:</strong> {w.duration}</div>}
-                    </dl>
-                  </div>
-                  <Link href={w.url || '/bagis'} className="mt-5 inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-extrabold text-white hover:bg-sky-700">
-                    Kuyu Açtır →
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
     case 'field_diaries': {
       const notes = items.filter((i) => i.title)
       if (!notes.length) return <Empty editing={editing} text="Saha günlüğü ekleyin" />
@@ -4410,74 +4323,669 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         </div>
       )
     }
-    case 'sponsor_certificates': {
-      const sponsors = items.filter((i) => i.company)
-      if (!sponsors.length) return <Empty editing={editing} text="Sponsor ekleyin" />
-      const isDark = o.look === 'dark_prestige'
-      return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {sponsors.map((s, i) => (
-                <div key={i} className={`rounded-2xl border p-6 ${isDark ? 'border-amber-400/25 bg-white/5' : 'border-amber-200/70 bg-gradient-to-br from-amber-50/40 via-white to-white shadow-sm'}`}>
-                  <div className="text-2xl">🏆</div>
-                  <h3 className={`mt-2 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{s.company}</h3>
-                  {s.tier && <div className={`mt-0.5 text-xs font-bold ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>{s.tier}</div>}
-                  {s.impact && <p className={`mt-2 text-sm ${isDark ? 'text-white/75' : 'text-gray-600'}`}>{s.impact}</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'surgery_sponsorship': {
-      const cases = items.filter((i) => i.title)
-      if (!cases.length) return <Empty editing={editing} text="Ameliyat / vaka ekleyin" />
-      const isDark = o.look === 'dark_clinic'
-      return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-5 md:grid-cols-3">
-              {cases.map((c, i) => (
-                <div key={i} className={`flex flex-col justify-between rounded-2xl border p-6 ${isDark ? 'border-white/15 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-2xl">{c.icon || '👁️'}</span>
-                      {c.waiting && <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-extrabold text-red-700">{c.waiting}</span>}
-                    </div>
-                    <h3 className={`mt-3 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{c.title}</h3>
-                    {c.cost && <div className={`mt-1 font-heading text-2xl font-black ${isDark ? 'text-accent-300' : 'text-primary-700'}`}>{c.cost}</div>}
-                  </div>
-                  <Link href={c.url || '/bagis'} className="mt-5 inline-flex items-center justify-center rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-extrabold text-white hover:bg-primary-700">
-                    Bir Hastaya Umut Ol →
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )
-    }
-    case 'mobile_channels_hub': {
-      const isDark = o.look === 'dark_app_hub'
+    case 'zakat_allocation_matrix': {
+      const look = o.look || 'eight_pillars'
+      const rows = items.filter((i) => i.title)
+      const dark = look === 'dark_emerald_matrix'
       return (
         <div className={container}>
-          <div className={`rounded-3xl border p-7 sm:p-10 ${isDark ? 'border-white/15 bg-slate-950 text-white' : 'border-primary-100 bg-primary-50/50 text-gray-900'}`}>
-            <div className="flex flex-wrap items-center justify-between gap-6">
-              <div className="max-w-xl">
-                {o.kicker && <div className={`text-xs font-bold uppercase tracking-widest ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>{o.kicker}</div>}
-                {o.title && <h2 className="mt-1 font-heading text-2xl font-extrabold sm:text-3xl">{o.title}</h2>}
-                {o.sms_code && <div className={`mt-3 inline-block rounded-xl px-4 py-2 text-sm font-extrabold ${isDark ? 'bg-white/10 text-amber-300' : 'bg-white text-primary-800 shadow-xs'}`}>📩 {o.sms_code}</div>}
+          <Head o={o} />
+          {!rows.length ? <Empty editing={editing} text="Zekat sınıflarını ekleyin" /> : (
+            <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${dark ? 'rounded-3xl bg-emerald-950 p-6 text-white shadow-xl' : ''}`}>
+              {rows.map((r, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl p-5 ${dark ? 'border border-emerald-800 bg-emerald-900/50' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold ${dark ? 'bg-amber-400/20 text-amber-300' : 'bg-primary-50 text-primary-700'}`}>{r.code || `${i + 1}. Sınıf`}</span>
+                      {r.share && <span className={`text-sm font-extrabold ${dark ? 'text-amber-300' : 'text-primary-700'}`}>{r.share}</span>}
+                    </div>
+                    <h3 className={`font-heading text-base font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>{r.title}</h3>
+                    {r.desc && <p className={`mt-1.5 text-xs leading-relaxed ${dark ? 'text-emerald-100/80' : 'text-gray-600'}`}>{r.desc}</p>}
+                  </div>
+                  {look === 'allocation_cards' && r.share && (
+                    <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                      <div className="h-full rounded-full bg-primary-600" style={{ width: r.share.includes('%') ? `${Math.min(100, Math.max(8, parseInt(r.share.replace(/\D/g, ''), 10) || 25))}%` : '40%' }} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'school_build_progress': {
+      const look = o.look || 'phase_cards'
+      const phases = items.filter((i) => i.title)
+      const dark = look === 'blueprint_dark'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className={`rounded-3xl p-6 sm:p-8 ${dark ? 'bg-slate-950 text-white shadow-2xl ring-1 ring-white/10' : 'border border-gray-200 bg-white shadow-sm'}`}>
+            {(o.overall_percent || o.location) && (
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-current/10 pb-4">
+                {o.location && <span className="text-sm font-bold opacity-85">📍 {o.location}</span>}
+                {o.overall_percent && <span className={`rounded-full px-4 py-1 text-xs font-extrabold ${dark ? 'bg-accent-500 text-slate-950' : 'bg-primary-600 text-white'}`}>Genel İlerleme: {o.overall_percent}</span>}
               </div>
-              <div className="flex flex-wrap gap-3">
-                {o.whatsapp_url && <a href={o.whatsapp_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-emerald-700">💬 WhatsApp Hattı</a>}
-                {o.ios_url && <a href={o.ios_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-gray-900 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-black">App Store</a>}
-                {o.android_url && <a href={o.android_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700">Google Play</a>}
+            )}
+            {!phases.length ? <Empty editing={editing} text="İnşaat aşamalarını ekleyin" /> : (
+              <div className={look === 'compact_progress' ? 'space-y-3' : 'grid gap-4 md:grid-cols-2 lg:grid-cols-4'}>
+                {phases.map((p, i) => (
+                  <div key={i} className={`rounded-2xl p-4 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-100 bg-gray-50'}`}>
+                    <div className="mb-2 flex items-center justify-between gap-2 text-xs font-extrabold">
+                      <span className={dark ? 'text-accent-300' : 'text-primary-700'}>{p.phase || `Faz ${i + 1}`}</span>
+                      {p.percent && <span>{p.percent}</span>}
+                    </div>
+                    <h3 className="font-heading text-base font-bold">{p.title}</h3>
+                    {p.status && <div className="mt-1 text-xs font-semibold opacity-75">{p.status}</div>}
+                    {p.desc && <p className="mt-2 text-xs leading-relaxed opacity-80">{p.desc}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+    case 'food_parcel_contents': {
+      const look = o.look || 'receipt_breakdown'
+      const lines = items.filter((i) => i.name)
+      const dark = look === 'dark_pantry'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className={`rounded-3xl p-6 sm:p-8 ${dark ? 'bg-gray-950 text-white shadow-xl' : 'border border-gray-200 bg-white shadow-sm'}`}>
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-current/10 pb-4">
+              <div className="flex flex-wrap items-center gap-3">
+                {o.parcel_price && <span className={`rounded-full px-4 py-1.5 text-sm font-extrabold ${dark ? 'bg-accent-500 text-gray-950' : 'bg-primary-600 text-white'}`}>{o.parcel_price}</span>}
+                {o.weight_summary && <span className="text-sm font-semibold opacity-80">⚖️ {o.weight_summary}</span>}
+              </div>
+              {o.cta_label && o.cta_url && <Go href={o.cta_url} className={`rounded-xl px-5 py-2.5 text-xs font-extrabold ${dark ? 'bg-white text-gray-950' : 'bg-primary-600 text-white'}`}>{o.cta_label} →</Go>}
+            </div>
+            {!lines.length ? <Empty editing={editing} text="Paket ürünlerini ekleyin" /> : look === 'grid_items' ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {lines.map((l, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900">
+                    <div>
+                      <div className="text-sm font-bold">{l.name}</div>
+                      {l.category && <div className="text-[11px] text-gray-500">{l.category}</div>}
+                    </div>
+                    {l.qty && <span className="rounded-lg bg-white px-2.5 py-1 text-xs font-extrabold text-primary-700 shadow-sm">{l.qty}</span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="divide-y divide-current/10">
+                {lines.map((l, i) => (
+                  <div key={i} className="flex items-center justify-between gap-4 py-3 text-sm">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xs opacity-50">{String(i + 1).padStart(2, '0')}</span>
+                      <span className="font-semibold">{l.name}</span>
+                      {l.category && <span className="rounded-full border border-current/15 px-2 py-0.5 text-[11px] opacity-70">{l.category}</span>}
+                    </div>
+                    {l.qty && <span className="font-extrabold">{l.qty}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+    case 'memorial_tributes': {
+      const look = o.look || 'tribute_cards'
+      const rows = items.filter((i) => i.honoree)
+      const dark = look === 'dark_elegy'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!rows.length ? <Empty editing={editing} text="Vefa kayıtlarını ekleyin" /> : (
+            <div className={`grid gap-5 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {rows.map((r, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl p-6 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-2 text-xs">
+                      <span className={`font-extrabold uppercase tracking-wider ${dark ? 'text-amber-300' : 'text-primary-700'}`}>{r.project || 'Sadaka-i Cariye'}</span>
+                      {r.date && <span className="opacity-60">{r.date}</span>}
+                    </div>
+                    <h3 className="font-heading text-lg font-bold">{r.honoree}</h3>
+                    {r.note && <p className="mt-2 text-sm italic leading-relaxed opacity-85">“{r.note}”</p>}
+                  </div>
+                  {r.donor && <div className="mt-4 border-t border-current/10 pt-3 text-xs font-semibold opacity-75">Vesile olan: {r.donor}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          {o.cta_label && o.cta_url && (
+            <div className="mt-6 text-center">
+              <Go href={o.cta_url} className="inline-flex rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white hover:bg-primary-700">{o.cta_label} →</Go>
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'video_delivery_showcase': {
+      const look = o.look || 'whatsapp_preview_split'
+      const steps = items.filter((i) => i.title)
+      const dark = look === 'dark_showcase'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className={`grid items-center gap-8 rounded-3xl p-6 sm:p-10 lg:grid-cols-2 ${dark ? 'bg-gray-950 text-white shadow-2xl' : 'border border-gray-200 bg-white shadow-sm'}`}>
+            <div className="space-y-4">
+              {o.whatsapp_note && (
+                <div className={`rounded-2xl p-4 text-sm font-medium ${dark ? 'border border-emerald-500/30 bg-emerald-950/60 text-emerald-100' : 'border border-emerald-200 bg-emerald-50 text-emerald-950'}`}>
+                  📲 {o.whatsapp_note}
+                </div>
+              )}
+              {steps.map((s, i) => (
+                <div key={i} className={`rounded-2xl p-4 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-100 bg-gray-50'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-heading text-base font-bold">{s.title}</h3>
+                    {s.badge && <span className="rounded-full bg-primary-600 px-2.5 py-0.5 text-[11px] font-bold text-white">{s.badge}</span>}
+                  </div>
+                  {s.desc && <p className="mt-1 text-xs leading-relaxed opacity-80">{s.desc}</p>}
+                </div>
+              ))}
+              {o.video_url && <Go href={o.video_url} className="inline-flex rounded-xl bg-primary-600 px-5 py-2.5 text-xs font-extrabold text-white hover:bg-primary-700">Örnek Teslimat Videosu ▶</Go>}
+            </div>
+            {o.image && (
+              <div className="overflow-hidden rounded-2xl border border-current/10">
+                <img src={o.image} alt={o.title || ''} className="h-full w-full object-cover" loading="lazy" />
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+    case 'membership_plans': {
+      const look = o.look || 'membership_tiers'
+      const plans = items.filter((i) => i.name)
+      const dark = look === 'dark_member_card'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!plans.length ? <Empty editing={editing} text="Üyelik / katılım kademelerini ekleyin" /> : (
+            <div className={`grid gap-6 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {plans.map((p, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-3xl p-6 ${dark ? 'border border-white/15 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <h3 className="font-heading text-xl font-bold">{p.name}</h3>
+                      {p.badge && <span className="rounded-full bg-accent-500 px-3 py-0.5 text-[11px] font-extrabold text-gray-950">{p.badge}</span>}
+                    </div>
+                    {p.amount && <div className={`mb-4 font-heading text-2xl font-extrabold ${dark ? 'text-accent-300' : 'text-primary-700'}`}>{p.amount}</div>}
+                    {p.perks && (
+                      <ul className="space-y-2 text-sm opacity-85">
+                        {String(p.perks).split('\n').filter(Boolean).map((line, li) => <li key={li}>✓ {line}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                  {p.cta_label && p.cta_url && (
+                    <Go href={p.cta_url} className={`mt-6 inline-flex justify-center rounded-xl px-5 py-3 text-sm font-extrabold ${dark ? 'bg-white text-gray-950 hover:bg-gray-100' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>{p.cta_label}</Go>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'impact_timeline_cards': {
+      const look = o.look || 'growth_cards'
+      const years = items.filter((i) => i.year || i.headline)
+      const dark = look === 'dark_metrics_row'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!years.length ? <Empty editing={editing} text="Yıllık etki verilerini ekleyin" /> : (
+            <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${dark ? 'rounded-3xl bg-gray-950 p-6 text-white' : ''}`}>
+              {years.map((y, i) => (
+                <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wider opacity-70">{y.year}</span>
+                    {y.delta && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-extrabold text-emerald-800">{y.delta}</span>}
+                  </div>
+                  <div className={`font-heading text-2xl font-extrabold ${dark ? 'text-accent-300' : 'text-primary-700'}`}>{y.headline}</div>
+                  {y.summary && <p className="mt-2 text-xs leading-relaxed opacity-80">{y.summary}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'donor_concierge_bar': {
+      const look = o.look || 'concierge_split'
+      const dark = look === 'dark_vip_desk'
+      return (
+        <div className={container}>
+          <div className={`flex flex-wrap items-center justify-between gap-6 rounded-3xl p-6 sm:p-8 ${dark ? 'bg-gray-950 text-white shadow-2xl ring-1 ring-white/10' : 'border border-primary-200 bg-primary-50/60 text-gray-900'}`}>
+            <div className="space-y-1.5">
+              {o.kicker && <div className={`text-xs font-extrabold uppercase tracking-[2px] ${dark ? 'text-accent-400' : 'text-primary-700'}`}>{o.kicker}</div>}
+              {o.title && <h3 className="font-heading text-2xl font-bold">{o.title}</h3>}
+              {o.advisor_name && <div className="text-sm font-semibold opacity-85">👤 {o.advisor_name} {o.hours ? `• ${o.hours}` : ''}</div>}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {o.phone && <a href={`tel:${String(o.phone).replace(/\s+/g, '')}`} className={`rounded-xl px-4 py-2.5 text-sm font-extrabold ${dark ? 'bg-white/10 text-white' : 'bg-white text-gray-900 shadow-sm'}`}>📞 {o.phone}</a>}
+              {o.email && <a href={`mailto:${o.email}`} className={`rounded-xl px-4 py-2.5 text-sm font-extrabold ${dark ? 'bg-white/10 text-white' : 'bg-white text-gray-900 shadow-sm'}`}>✉️ {o.email}</a>}
+              {o.cta_label && o.cta_url && <Go href={o.cta_url} className={`rounded-xl px-5 py-2.5 text-sm font-extrabold ${dark ? 'bg-accent-500 text-gray-950' : 'bg-primary-600 text-white'}`}>{o.cta_label} →</Go>}
+            </div>
+          </div>
+        </div>
+      )
+    }
+    case 'charity_box_request': {
+      const look = o.look || 'split_box_promo'
+      const dark = look === 'dark_request_card'
+      return (
+        <div className={container}>
+          <div className={`grid items-center gap-8 rounded-3xl p-6 sm:p-10 md:grid-cols-2 ${dark ? 'bg-slate-950 text-white shadow-2xl' : 'border border-amber-200 bg-amber-50/60 text-gray-900'}`}>
+            <div className="space-y-4">
+              {o.kicker && <div className={`text-xs font-extrabold uppercase tracking-[2px] ${dark ? 'text-amber-300' : 'text-amber-800'}`}>{o.kicker}</div>}
+              {o.title && <h3 className="font-heading text-2xl font-bold sm:text-3xl">{o.title}</h3>}
+              {o.text && <p className="text-sm leading-relaxed opacity-85">{o.text}</p>}
+              {o.phone && <div className="text-sm font-bold">📞 {o.phone}</div>}
+              <div className="flex flex-wrap gap-3 pt-2">
+                {o.cta_label && o.cta_url && <Go href={o.cta_url} className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-extrabold text-white hover:bg-primary-700">{o.cta_label}</Go>}
+                {o.secondary_label && o.secondary_url && <Go href={o.secondary_url} className={`rounded-xl border px-5 py-3 text-sm font-bold ${dark ? 'border-white/25 text-white' : 'border-gray-300 bg-white text-gray-900'}`}>{o.secondary_label}</Go>}
               </div>
             </div>
+            {o.image && <img src={o.image} alt={o.title || ''} className="aspect-[16/10] w-full rounded-2xl object-cover shadow-md" loading="lazy" />}
+          </div>
+        </div>
+      )
+    }
+    case 'sister_cities_list': {
+      const look = o.look || 'region_directory'
+      const cities = items.filter((i) => i.city)
+      const dark = look === 'dark_network_grid'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!cities.length ? <Empty editing={editing} text="Temsilcilik şehirlerini ekleyin" /> : (
+            <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {cities.map((c, i) => (
+                <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <h3 className="font-heading text-base font-bold">📍 {c.city}</h3>
+                  {c.volunteers && <div className={`mt-1 text-xs font-bold ${dark ? 'text-accent-300' : 'text-primary-700'}`}>{c.volunteers}</div>}
+                  {c.contact && <p className="mt-2 text-xs opacity-75">{c.contact}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'ramadan_iftar_table': {
+      const look = o.look || 'tent_cards'
+      const tents = items.filter((i) => i.location)
+      const dark = look === 'dark_ramadan_table'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {o.share_price && <div className="mb-4 text-center"><span className="rounded-full bg-amber-500 px-4 py-1 text-xs font-extrabold text-slate-950">1 Kişilik İftar: {o.share_price}</span></div>}
+          {!tents.length ? <Empty editing={editing} text="İftar noktalarını ekleyin" /> : (
+            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {tents.map((t, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl p-5 ${dark ? 'border border-amber-500/20 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    <h3 className="font-heading text-lg font-bold">🌙 {t.location}</h3>
+                    {t.capacity && <div className="mt-1 text-xs font-extrabold text-primary-600">{t.capacity}</div>}
+                    {t.menu_note && <p className="mt-2 text-xs opacity-80">{t.menu_note}</p>}
+                  </div>
+                  {t.cta_url && <Go href={t.cta_url} className="mt-4 inline-flex justify-center rounded-xl bg-primary-600 px-4 py-2 text-xs font-extrabold text-white">İftar Bağışla →</Go>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'orphans_education_kit': {
+      const look = o.look || 'kit_grid'
+      const parts = items.filter((i) => i.item)
+      const dark = look === 'dark_school_pack'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className={`rounded-3xl p-6 sm:p-8 ${dark ? 'bg-slate-950 text-white' : 'border border-gray-200 bg-white shadow-sm'}`}>
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-current/10 pb-4">
+              {o.kit_price && <span className="rounded-full bg-primary-600 px-4 py-1 text-sm font-extrabold text-white">Tam Eğitim Seti: {o.kit_price}</span>}
+              {o.cta_label && o.cta_url && <Go href={o.cta_url} className="rounded-xl bg-accent-500 px-5 py-2.5 text-xs font-extrabold text-gray-950">{o.cta_label} →</Go>}
+            </div>
+            {!parts.length ? <Empty editing={editing} text="Eğitim paketi kalemlerini ekleyin" /> : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {parts.map((p, i) => (
+                  <div key={i} className={`rounded-2xl p-4 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-100 bg-gray-50'}`}>
+                    <div className="font-heading text-sm font-bold">{p.item}</div>
+                    {p.detail && <div className="mt-1 text-xs opacity-75">{p.detail}</div>}
+                    {p.price && <div className="mt-2 text-xs font-extrabold text-primary-600">{p.price}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+    case 'medical_caravan_schedule': {
+      const look = o.look || 'clinic_cards'
+      const stops = items.filter((i) => i.region)
+      const dark = look === 'dark_medical_tour'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!stops.length ? <Empty editing={editing} text="Sağlık tırı duraklarını ekleyin" /> : (
+            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {stops.map((s, i) => (
+                <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div className="mb-2 flex items-center justify-between text-xs font-extrabold">
+                    <span className="text-primary-600">{s.date}</span>
+                    {s.specialty && <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-emerald-800">{s.specialty}</span>}
+                  </div>
+                  <h3 className="font-heading text-base font-bold">🚑 {s.region}</h3>
+                  {s.target && <div className="mt-1.5 text-xs opacity-80">Hedef: {s.target}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'water_tanker_emergency': {
+      const look = o.look || 'tanker_cards'
+      const tankers = items.filter((i) => i.title)
+      const dark = look === 'dark_water_urgent'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!tankers.length ? <Empty editing={editing} text="Su tankeri seçeneklerini ekleyin" /> : (
+            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {tankers.map((t, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl p-6 ${dark ? 'border border-sky-400/25 bg-white/5' : 'border border-sky-200 bg-sky-50/40'}`}>
+                  <div>
+                    {t.volume && <span className="rounded-full bg-sky-600 px-3 py-0.5 text-xs font-extrabold text-white">{t.volume}</span>}
+                    <h3 className="mt-3 font-heading text-lg font-bold">{t.title}</h3>
+                    {t.price && <div className="mt-1 font-heading text-2xl font-extrabold text-sky-600">{t.price}</div>}
+                  </div>
+                  {t.cta_url && <Go href={t.cta_url} className="mt-4 inline-flex justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-xs font-extrabold text-white hover:bg-sky-700">Su Ulaştır →</Go>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'bread_bakery_oven': {
+      const look = o.look || 'bakery_split'
+      const ovens = items.filter((i) => i.name)
+      const dark = look === 'dark_oven_board'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className={`rounded-3xl p-6 sm:p-8 ${dark ? 'bg-slate-950 text-white' : 'border border-amber-200 bg-amber-50/50 text-gray-900'}`}>
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-current/10 pb-4">
+              <div className="flex flex-wrap items-center gap-3">
+                {o.daily_loaves && <span className="rounded-full bg-amber-600 px-4 py-1 text-xs font-extrabold text-white">🥖 {o.daily_loaves}</span>}
+                {o.flour_price && <span className="text-sm font-bold opacity-85">1 Çuval Un: {o.flour_price}</span>}
+              </div>
+              {o.cta_label && o.cta_url && <Go href={o.cta_url} className="rounded-xl bg-primary-600 px-5 py-2.5 text-xs font-extrabold text-white">{o.cta_label} →</Go>}
+            </div>
+            {!ovens.length ? <Empty editing={editing} text="Fırın noktalarını ekleyin" /> : (
+              <div className="grid gap-3 sm:grid-cols-3">
+                {ovens.map((ov, i) => (
+                  <div key={i} className={`rounded-2xl p-4 ${dark ? 'border border-white/10 bg-white/5' : 'border border-amber-200 bg-white'}`}>
+                    <div className="font-heading text-base font-bold">{ov.name}</div>
+                    {ov.output && <div className="mt-1 text-xs font-semibold opacity-75">{ov.output}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+    case 'winter_fuel_heating': {
+      const look = o.look || 'winter_cards'
+      const fuels = items.filter((i) => i.title)
+      const dark = look === 'dark_frost_panel'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!fuels.length ? <Empty editing={editing} text="Yakacak kalemlerini ekleyin" /> : (
+            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {fuels.map((f, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl p-6 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    {f.duration && <span className="text-xs font-extrabold uppercase tracking-wider text-primary-600">{f.duration}</span>}
+                    <h3 className="mt-1 font-heading text-lg font-bold">🔥 {f.title}</h3>
+                    {f.price && <div className="mt-2 font-heading text-2xl font-extrabold">{f.price}</div>}
+                  </div>
+                  {f.cta_url && <Go href={f.cta_url} className="mt-4 inline-flex justify-center rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-extrabold text-white">Destek Ol →</Go>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'mosque_library_corner': {
+      const look = o.look || 'library_shelf'
+      const sets = items.filter((i) => i.title)
+      const dark = look === 'dark_reading_corner'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!sets.length ? <Empty editing={editing} text="Kitap setlerini ekleyin" /> : (
+            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {sets.map((s, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl p-6 ${dark ? 'border border-amber-400/20 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    {s.books_count && <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-bold text-primary-700">{s.books_count}</span>}
+                    <h3 className="mt-2 font-heading text-lg font-bold">📚 {s.title}</h3>
+                    {s.price && <div className="mt-1 font-heading text-xl font-extrabold text-primary-600">{s.price}</div>}
+                  </div>
+                  {s.cta_url && <Go href={s.cta_url} className="mt-4 inline-flex justify-center rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-extrabold text-white">Kütüphane Kur →</Go>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'donor_receipt_verify': {
+      const look = o.look || 'verify_steps'
+      const steps = items.filter((i) => i.title)
+      const dark = look === 'dark_trust_portal'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className={`rounded-3xl p-6 sm:p-8 ${dark ? 'bg-slate-950 text-white shadow-xl' : 'border border-gray-200 bg-white shadow-sm'}`}>
+            {!steps.length ? <Empty editing={editing} text="Doğrulama adımlarını ekleyin" /> : (
+              <div className="grid gap-4 md:grid-cols-3">
+                {steps.map((s, i) => (
+                  <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-100 bg-gray-50'}`}>
+                    <div className="mb-1 text-xs font-extrabold text-primary-600">{s.step || `Adım ${i + 1}`}</div>
+                    <h3 className="font-heading text-base font-bold">{s.title}</h3>
+                    {s.desc && <p className="mt-1.5 text-xs leading-relaxed opacity-80">{s.desc}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {o.cta_label && o.cta_url && (
+              <div className="mt-6 text-center">
+                <Go href={o.cta_url} className="inline-flex rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white hover:bg-primary-700">{o.cta_label} →</Go>
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+    case 'kurban_live_feed': {
+      const look = o.look || 'live_cards'
+      const rows = items.filter((i) => i.region)
+      const dark = look === 'dark_dispatch_board'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!rows.length ? <Empty editing={editing} text="Kurban kesim/dağıtım kayıtlarını ekleyin" /> : (
+            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {rows.map((r, i) => (
+                <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div className="mb-2 flex items-center justify-between text-xs font-extrabold">
+                    <span className="inline-flex items-center gap-1.5 text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" />{r.status || 'Tamamlandı'}</span>
+                    {r.time && <span className="opacity-60">{r.time}</span>}
+                  </div>
+                  <h3 className="font-heading text-base font-bold">{r.region}</h3>
+                  {r.batch && <div className="mt-1 text-xs font-semibold opacity-75">{r.batch}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'ramadan_fitrah_zakat_card': {
+      const look = o.look || 'calculator_cards'
+      const packs = items.filter((i) => i.title)
+      const dark = look === 'dark_gold_fitrah'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {o.unit_note && <div className="mb-5 text-center"><span className="rounded-full bg-primary-50 px-4 py-1 text-xs font-extrabold text-primary-700">{o.unit_note}</span></div>}
+          {!packs.length ? <Empty editing={editing} text="Fitre/fidye paketlerini ekleyin" /> : (
+            <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {packs.map((p, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl p-5 text-center ${dark ? 'border border-amber-400/30 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    <h3 className="font-heading text-base font-bold">{p.title}</h3>
+                    {p.amount && <div className={`mt-2 font-heading text-2xl font-extrabold ${dark ? 'text-amber-300' : 'text-primary-700'}`}>{p.amount}</div>}
+                    {p.desc && <p className="mt-1.5 text-xs opacity-75">{p.desc}</p>}
+                  </div>
+                  {p.cta_url && <Go href={p.cta_url} className="mt-4 inline-flex justify-center rounded-xl bg-primary-600 px-4 py-2 text-xs font-extrabold text-white">Fitre Ver →</Go>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'orphans_birthday_eid': {
+      const look = o.look || 'gift_cards'
+      const gifts = items.filter((i) => i.title)
+      const dark = look === 'dark_eid_panel'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!gifts.length ? <Empty editing={editing} text="Bayramlık paketlerini ekleyin" /> : (
+            <div className={`grid gap-5 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {gifts.map((g, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl p-6 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    <h3 className="font-heading text-lg font-bold">🎁 {g.title}</h3>
+                    {g.price && <div className={`mt-1 font-heading text-2xl font-extrabold ${dark ? 'text-accent-300' : 'text-primary-700'}`}>{g.price}</div>}
+                    {g.includes && <p className="mt-2 text-xs opacity-80">{g.includes}</p>}
+                  </div>
+                  {g.cta_url && <Go href={g.cta_url} className="mt-5 inline-flex justify-center rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-extrabold text-white">Hediye Et →</Go>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'solar_water_well_specs': {
+      const look = o.look || 'spec_cards'
+      const specs = items.filter((i) => i.label)
+      const dark = look === 'dark_engineering_grid'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!specs.length ? <Empty editing={editing} text="Teknik parametreleri ekleyin" /> : (
+            <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {specs.map((s, i) => (
+                <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div className="text-xs font-bold uppercase tracking-wider opacity-65">{s.label}</div>
+                  <div className={`mt-1 font-heading text-xl font-extrabold ${dark ? 'text-sky-300' : 'text-primary-700'}`}>{s.value}</div>
+                  {s.note && <p className="mt-1.5 text-xs opacity-75">{s.note}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'volunteer_field_roles': {
+      const look = o.look || 'role_cards'
+      const roles = items.filter((i) => i.role)
+      const dark = look === 'dark_team_roles'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!roles.length ? <Empty editing={editing} text="Gönüllü rollerini ekleyin" /> : (
+            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {roles.map((r, i) => (
+                <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  {r.commitment && <span className="mb-2 inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">{r.commitment}</span>}
+                  <h3 className="font-heading text-lg font-bold">{r.role}</h3>
+                  {r.desc && <p className="mt-2 text-xs leading-relaxed opacity-80">{r.desc}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+          {o.cta_label && o.cta_url && (
+            <div className="mt-6 text-center"><Go href={o.cta_url} className="inline-flex rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white">{o.cta_label} →</Go></div>
+          )}
+        </div>
+      )
+    }
+    case 'student_dorm_support': {
+      const look = o.look || 'dorm_cards'
+      const dorms = items.filter((i) => i.title)
+      const dark = look === 'dark_campus_board'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          {!dorms.length ? <Empty editing={editing} text="Barınma destek kalemlerini ekleyin" /> : (
+            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
+              {dorms.map((d, i) => (
+                <div key={i} className={`flex flex-col justify-between rounded-2xl p-6 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
+                  <div>
+                    {d.period && <span className="text-xs font-extrabold uppercase tracking-wider text-primary-600">{d.period}</span>}
+                    <h3 className="mt-1 font-heading text-lg font-bold">{d.title}</h3>
+                    {d.price && <div className="mt-2 font-heading text-2xl font-extrabold">{d.price}</div>}
+                  </div>
+                  {d.cta_url && <Go href={d.cta_url} className="mt-4 inline-flex justify-center rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-extrabold text-white">Destek Ol →</Go>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'annual_audit_summary': {
+      const look = o.look || 'audit_cards'
+      const ratios = items.filter((i) => i.label)
+      const dark = look === 'dark_transparency_vault'
+      return (
+        <div className={container}>
+          <Head o={o} />
+          <div className={`rounded-3xl p-6 sm:p-8 ${dark ? 'bg-slate-950 text-white shadow-xl' : 'border border-gray-200 bg-white shadow-sm'}`}>
+            {!ratios.length ? <Empty editing={editing} text="Mali şeffaflık oranlarını ekleyin" /> : (
+              <div className="grid gap-4 md:grid-cols-3">
+                {ratios.map((r, i) => (
+                  <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-100 bg-gray-50'}`}>
+                    <div className={`font-heading text-3xl font-extrabold ${dark ? 'text-emerald-400' : 'text-primary-700'}`}>{r.ratio}</div>
+                    <h3 className="mt-1 font-heading text-base font-bold">{r.label}</h3>
+                    {r.note && <p className="mt-1.5 text-xs opacity-75">{r.note}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {o.cta_label && o.cta_url && (
+              <div className="mt-6 text-center"><Go href={o.cta_url} className="inline-flex rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white">{o.cta_label} →</Go></div>
+            )}
           </div>
         </div>
       )

@@ -60,21 +60,18 @@ interface Suggestion {
   ignored?: string;
 }
 
-interface MatchedPart {
-  id: string;
+interface ReceiptItem {
+  donation_id: string;
   receipt_number: string;
-  official_receipt_no?: string | null;
-  donor_name?: string | null;
   campaign_title?: string | null;
   amount_cents: number;
-  currency: string;
 }
 
 interface Transfer {
   id: string;
   bank_account_id?: string | null;
   source: string;
-  external_id: string;
+  external_id?: string;
   booked_at: string;
   amount_cents: number;
   currency: string;
@@ -84,12 +81,8 @@ interface Transfer {
   donation_id?: string | null;
   possible_duplicate?: boolean;
   suggestion: Suggestion;
-  matched?: {
-    parts: MatchedPart[];
-    official_receipt_no?: string | null;
-    receipt_number: string;
-    donor_name?: string | null;
-  } | null;
+  donor?: Candidate | null;
+  receipts?: ReceiptItem[];
 }
 
 interface CampaignOption {
@@ -152,8 +145,21 @@ const defaultSms = (donorName: string, amountCents: number, currency: string, it
   return `Sayın ${name}, ${items || 'bağış'} için gönderdiğiniz ${amount} tutarındaki havale bağışınız tarafımıza ulaşmıştır.${receipt} Allah kabul etsin.`;
 };
 
+const PAGE_SIZE = 50;
+
+const formatMultiCurrencyTotals = (list: Transfer[]) => {
+  const byCur: Record<string, number> = {};
+  for (const x of list) {
+    const cur = x.currency || 'TRY';
+    byCur[cur] = (byCur[cur] || 0) + x.amount_cents;
+  }
+  const entries = Object.entries(byCur);
+  if (entries.length === 0) return formatMoney(0, 'TRY');
+  return entries.map(([cur, cents]) => formatMoney(cents, cur)).join(' · ');
+};
+
 export interface GelenHavalelerTabProps {
-  tabNavigation: React.ReactNode;
+  tabNavigation?: React.ReactNode;
   onDataChanged?: () => void;
   onUnmatchedCountChange?: (count: number) => void;
 }
@@ -167,6 +173,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
   const [statusTab, setStatusTab] = useState<'unmatched' | 'ambiguous' | 'matched' | 'ignored' | 'duplicates'>('unmatched');
   const [items, setItems] = useState<Transfer[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null);
   const [duplicateGroups, setDuplicateGroups] = useState(0);
   const [q, setQ] = useState('');
@@ -175,6 +182,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
   const [amountMin, setAmountMin] = useState('');
   const [amountMax, setAmountMax] = useState('');
   const [accountFilter, setAccountFilter] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState({ q: '', amountMin: '', amountMax: '' });
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -195,16 +203,29 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
     setTimeout(() => setToast(null), 4500);
   };
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedQuery({ q, amountMin, amountMax });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q, amountMin, amountMax]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [statusTab, debouncedQuery.q, debouncedQuery.amountMin, debouncedQuery.amountMax, dateFrom, dateTo, accountFilter]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string | number | boolean> =
-        statusTab === 'duplicates' ? { duplicates: true, limit: 200 } : { status: statusTab, limit: 200 };
-      if (q.trim()) params.q = q.trim();
+        statusTab === 'duplicates'
+          ? { duplicates: true, limit: PAGE_SIZE, offset: page * PAGE_SIZE }
+          : { status: statusTab, limit: PAGE_SIZE, offset: page * PAGE_SIZE };
+      if (debouncedQuery.q.trim()) params.q = debouncedQuery.q.trim();
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
-      if (amountMin !== '') params.amount_min = amountMin;
-      if (amountMax !== '') params.amount_max = amountMax;
+      if (debouncedQuery.amountMin !== '') params.amount_min = debouncedQuery.amountMin;
+      if (debouncedQuery.amountMax !== '') params.amount_max = debouncedQuery.amountMax;
       if (accountFilter) params.account_id = accountFilter;
       const res = await api.get('/admin/incoming-transfers', { params });
       setItems(res.data.items || []);
@@ -212,7 +233,15 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
       setTotal(tot);
       setDuplicateGroups(res.data.duplicate_groups || 0);
       setSelectedIds(new Set());
-      if (statusTab === 'unmatched' && !q.trim() && !dateFrom && !dateTo && onUnmatchedCountChange) {
+      const isUnfilteredUnmatched =
+        statusTab === 'unmatched' &&
+        !debouncedQuery.q.trim() &&
+        !debouncedQuery.amountMin &&
+        !debouncedQuery.amountMax &&
+        !dateFrom &&
+        !dateTo &&
+        !accountFilter;
+      if (isUnfilteredUnmatched && onUnmatchedCountChange) {
         onUnmatchedCountChange(tot);
       }
     } catch (e: any) {
@@ -220,11 +249,29 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [statusTab, q, dateFrom, dateTo, amountMin, amountMax, accountFilter, onUnmatchedCountChange]);
+  }, [statusTab, page, debouncedQuery, dateFrom, dateTo, accountFilter, onUnmatchedCountChange]);
+
+  useEffect(() => {
+    if (!active && !unmatchTarget) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActive(null);
+        setUnmatchTarget(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active, unmatchTarget]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!loading && items.length === 0 && page > 0) {
+      setPage((p) => Math.max(0, p - 1));
+    }
+  }, [loading, items.length, page]);
 
   useEffect(() => {
     api
@@ -287,6 +334,16 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
     }
   };
 
+  const decrementTotal = () => {
+    setTotal((n) => {
+      const next = Math.max(0, n - 1);
+      if (statusTab === 'unmatched' && !hasActiveFilters && onUnmatchedCountChange) {
+        onUnmatchedCountChange(next);
+      }
+      return next;
+    });
+  };
+
   const quickApprove = async (t: Transfer) => {
     const donorId = t.suggestion.donor?.id;
     const campaignId = t.suggestion.campaign?.id;
@@ -304,7 +361,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
       });
       flash('ok', `Makbuz kesildi ve Gelir/Gider listesine işlendi: ${res.data.official_receipt_no || res.data.receipt_number}`);
       setItems((prev) => prev.filter((x) => x.id !== t.id));
-      setTotal((n) => Math.max(0, n - 1));
+      decrementTotal();
       onDataChanged?.();
     } catch (e: any) {
       flash('err', e?.response?.data?.detail || 'Onaylanamadı');
@@ -362,13 +419,62 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
     try {
       await api.post(`/admin/incoming-transfers/${t.id}/ignore`);
       setItems((prev) => prev.filter((x) => x.id !== t.id));
-      setTotal((n) => Math.max(0, n - 1));
+      decrementTotal();
       flash('ok', 'Hareket yok sayıldı');
     } catch (e: any) {
       flash('err', e?.response?.data?.detail || 'İşlem başarısız');
     } finally {
       setBusyId(null);
     }
+  };
+
+  const unignore = async (t: Transfer) => {
+    setBusyId(t.id);
+    try {
+      await api.post(`/admin/incoming-transfers/${t.id}/unignore`);
+      setItems((prev) => prev.filter((x) => x.id !== t.id));
+      setTotal((n) => Math.max(0, n - 1));
+      flash('ok', 'Hareket tekrar bekleyenlere alındı');
+    } catch (e: any) {
+      flash('err', e?.response?.data?.detail || 'İşlem başarısız');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const hasActiveFilters = Boolean(q.trim() || dateFrom || dateTo || amountMin || amountMax || accountFilter);
+  const clearFilters = () => {
+    setQ('');
+    setDateFrom('');
+    setDateTo('');
+    setAmountMin('');
+    setAmountMax('');
+    setAccountFilter('');
+  };
+
+  const exportCsv = () => {
+    if (!items.length) return;
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['Tarih', 'Tutar', 'Para Birimi', 'Gönderen', 'Açıklama', 'Kaynak', 'Durum', 'Bağışçı', 'Makbuz No'];
+    const rows = items.map((t) => [
+      t.booked_at ? new Date(t.booked_at).toLocaleString('tr-TR') : '',
+      (t.amount_cents / 100).toFixed(2),
+      t.currency || 'TRY',
+      t.sender_name || t.suggestion?.sender || '',
+      t.description || '',
+      t.source === 'api' ? 'Otomatik (API)' : 'Ekstre',
+      t.status,
+      t.donor?.name || t.suggestion?.donor?.name || '',
+      (t.receipts || []).map((r) => r.receipt_number).join(', '),
+    ]);
+    const csv = '\uFEFF' + [header, ...rows].map((r) => r.map(esc).join(';')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `banka-hareketleri-${statusTab}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const confirmUnmatch = async () => {
@@ -390,8 +496,10 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
     }
   };
 
-  const readyTotalCents = items.filter(canQuickApprove).reduce((sum, x) => sum + x.amount_cents, 0);
-  const totalViewCents = items.reduce((sum, x) => sum + x.amount_cents, 0);
+  const readyItems = items.filter(canQuickApprove);
+  const readyTotalLabel = formatMultiCurrencyTotals(readyItems);
+  const totalViewLabel = formatMultiCurrencyTotals(items);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="flex flex-col gap-6">
@@ -455,16 +563,16 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
           <GlobalStatCard
             id="hazir"
             title="Tek Tıkla Onaya Hazır"
-            value={items.filter(canQuickApprove).length}
-            subtitle={formatMoney(readyTotalCents, 'TRY')}
+            value={readyItems.length}
+            subtitle={readyTotalLabel}
             icon={<Sparkles className="h-5 w-5" />}
             gradient="from-blue-500 to-cyan-600"
             onClick={() => {
-              const ready = items.filter(canQuickApprove);
+              const ready = readyItems;
               const max = Math.max(1, ...ready.map((t) => t.amount_cents));
               setStatModal({
                 title: 'Tek Tıkla Onaya Hazır Havaleler',
-                subtitle: `${ready.length} adet havale · Toplam ${formatMoney(readyTotalCents, 'TRY')}`,
+                subtitle: `${ready.length} adet havale · Toplam ${readyTotalLabel}`,
                 items: ready.slice(0, 15).map((t) => ({
                   label: t.sender_name || t.suggestion.donor?.name || 'Gönderen',
                   value: formatMoney(t.amount_cents, t.currency),
@@ -477,9 +585,9 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
           />
           <GlobalStatCard
             id="toplam_tutar"
-            title="Görünüm Toplamı"
-            value={formatMoney(totalViewCents, 'TRY')}
-            subtitle={`${items.length} satır toplamı`}
+            title="Sayfa Toplamı"
+            value={totalViewLabel}
+            subtitle={`${items.length} / ${total} kayıt`}
             icon={<HeartHandshake className="h-5 w-5" />}
             gradient="from-indigo-500 to-violet-600"
             onClick={() => {
@@ -487,7 +595,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
               const max = Math.max(1, ...sorted.map((t) => t.amount_cents));
               setStatModal({
                 title: 'Görünümdeki En Yüksek Havaleler',
-                subtitle: `Toplam ${items.length} kayıt · ${formatMoney(totalViewCents, 'TRY')}`,
+                subtitle: `Sayfada ${items.length} kayıt · ${totalViewLabel}`,
                 items: sorted.map((t) => ({
                   label: t.sender_name || t.suggestion.donor?.name || 'Bilinmeyen Gönderen',
                   value: formatMoney(t.amount_cents, t.currency),
@@ -561,6 +669,23 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
                 >
                   <RefreshCw className="h-3.5 w-3.5" /> Yeniden Analiz Et
                 </button>
+                <button
+                  type="button"
+                  onClick={exportCsv}
+                  disabled={!items.length}
+                  className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
+                </button>
+                {hasActiveFilters ? (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="inline-flex h-10 cursor-pointer items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 px-3 text-xs font-bold text-rose-700 hover:bg-rose-100"
+                  >
+                    <X className="h-3.5 w-3.5" /> Temizle
+                  </button>
+                ) : null}
               </div>
             }
           />
@@ -625,8 +750,8 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
         </section>
       ) : null}
 
-      {/* 3. Sekme Barı (e-Medrese Pill Navigation) */}
-      <div>{tabNavigation}</div>
+      {/* 3. Sekme Barı (opsiyonel) */}
+      {tabNavigation ? <div>{tabNavigation}</div> : null}
 
       {/* 4. İçerik */}
       {viewMode === 'mutabakat' ? (
@@ -692,8 +817,24 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-slate-500">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Havaleler yükleniyor…
+            <div className="divide-y divide-slate-100">
+              {[0, 1, 2, 3, 4].map((idx) => (
+                <div key={idx} className="grid animate-pulse grid-cols-1 gap-4 p-4 lg:grid-cols-12 lg:items-center">
+                  <div className="space-y-2 lg:col-span-5">
+                    <div className="h-4 w-40 rounded bg-slate-200" />
+                    <div className="h-4 w-56 rounded bg-slate-200" />
+                    <div className="h-3 w-72 rounded bg-slate-100" />
+                  </div>
+                  <div className="space-y-2 lg:col-span-4">
+                    <div className="h-4 w-48 rounded bg-slate-100" />
+                    <div className="h-4 w-36 rounded bg-slate-100" />
+                  </div>
+                  <div className="flex justify-end gap-2 lg:col-span-3">
+                    <div className="h-8 w-24 rounded-xl bg-slate-200" />
+                    <div className="h-8 w-24 rounded-xl bg-slate-100" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : items.length === 0 ? (
             <div className="p-12 text-center">
@@ -709,6 +850,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
                 const s = t.suggestion || {};
                 const ready = Boolean(s.donor?.id && s.campaign?.id);
                 const busy = busyId === t.id;
+                const bankAcc = t.bank_account_id ? accounts.find((a) => a.id === t.bank_account_id) : null;
                 return (
                   <div key={t.id} className="grid grid-cols-1 gap-4 p-4 hover:bg-slate-50/70 lg:grid-cols-12 lg:items-center">
                     <div className="flex items-start gap-3 lg:col-span-5">
@@ -729,6 +871,11 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
                           <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
                             {t.source === 'api' ? 'Otomatik (API)' : 'Ekstre'}
                           </span>
+                          {bankAcc ? (
+                            <span className="rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800">
+                              {bankAcc.label}
+                            </span>
+                          ) : null}
                           {t.possible_duplicate ? (
                             <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900">
                               <Copy className="h-3 w-3" /> Olası Mükerrer
@@ -745,17 +892,19 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
                     </div>
 
                     <div className="space-y-1.5 lg:col-span-4">
-                      {t.status === 'matched' && t.matched ? (
+                      {t.status === 'matched' && (t.donor || (t.receipts && t.receipts.length > 0)) ? (
                         <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs">
-                          <div className="flex items-center justify-between font-bold text-emerald-900">
-                            <span>{t.matched.donor_name || 'Bağışçı'}</span>
-                            <span className="font-mono">{t.matched.official_receipt_no || t.matched.receipt_number}</span>
+                          <div className="flex items-center justify-between gap-2 font-bold text-emerald-900">
+                            <span>{t.donor?.name || 'Bağışçı'}</span>
+                            <span className="font-mono">
+                              {(t.receipts || []).map((r) => r.receipt_number).filter(Boolean).join(', ') || '—'}
+                            </span>
                           </div>
                           <div className="mt-1 space-y-0.5 text-emerald-800">
-                            {t.matched.parts.map((p) => (
-                              <div key={p.id} className="flex justify-between">
+                            {(t.receipts || []).map((p) => (
+                              <div key={p.donation_id} className="flex justify-between">
                                 <span>{p.campaign_title || 'Kampanya'}</span>
-                                <span className="font-semibold">{formatMoney(p.amount_cents, p.currency)}</span>
+                                <span className="font-semibold">{formatMoney(p.amount_cents, t.currency)}</span>
                               </div>
                             ))}
                           </div>
@@ -769,7 +918,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
                                 <Sparkles className="h-3 w-3" /> {s.donor.name}
                                 <span className="text-[10px] text-emerald-600">({s.donor.reason})</span>
                               </span>
-                            ) : s.donor === null && (s as any).donor?.candidates?.length ? (
+                            ) : t.status === 'ambiguous' || (s as any).candidates?.length ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 font-semibold text-amber-800">
                                 <AlertTriangle className="h-3 w-3" /> Birden fazla aday
                               </span>
@@ -846,7 +995,18 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
                           Eşleştirmeyi Kaldır
                         </button>
                       ) : (
-                        <span className="text-xs text-slate-400">{s.ignored || 'İşlendi'}</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs text-slate-400">{s.ignored || 'Yok sayıldı'}</span>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => unignore(t)}
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                            Bekleyenlere Al
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -854,6 +1014,37 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
               })}
             </div>
           )}
+
+          {total > PAGE_SIZE ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-4 py-3 text-xs text-slate-600">
+              <span>
+                Toplam <strong className="text-slate-900">{total}</strong> kayıttan{' '}
+                <strong className="text-slate-900">{page * PAGE_SIZE + 1}</strong>–
+                <strong className="text-slate-900">{Math.min((page + 1) * PAGE_SIZE, total)}</strong> arası
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={page === 0 || loading}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                >
+                  Önceki
+                </button>
+                <span className="px-2 font-semibold">
+                  {page + 1} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={page + 1 >= totalPages || loading}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                >
+                  Sonraki
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -868,7 +1059,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
             setActive(null);
             flash('ok', msg);
             setItems((prev) => prev.filter((x) => x.id !== doneId));
-            setTotal((n) => Math.max(0, n - 1));
+            decrementTotal();
             onDataChanged?.();
           }}
           onError={(msg) => flash('err', msg)}
@@ -876,7 +1067,12 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
       ) : null}
 
       {unmatchTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setUnmatchTarget(null);
+          }}
+        >
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
             <h2 className="text-base font-bold text-slate-900">Eşleştirmeyi Kaldır</h2>
             <p className="mt-1 text-xs text-slate-600">
@@ -932,6 +1128,7 @@ function ApproveDialog({
   const [mode, setMode] = useState<'existing' | 'new'>(s.donor?.id ? 'existing' : 'new');
   const [donorId, setDonorId] = useState(s.donor?.id || '');
   const [donorLabel, setDonorLabel] = useState(s.donor?.name || '');
+  const [donorPhone, setDonorPhone] = useState(s.donor?.phone || '');
   const [donorSearch, setDonorSearch] = useState('');
   const [donorResults, setDonorResults] = useState<Candidate[]>(s.donor?.candidates || []);
   const [newName, setNewName] = useState(s.sender || transfer.sender_name || '');
@@ -966,7 +1163,10 @@ function ApproveDialog({
   }, [mode, donorLabel, newName, lines, campaigns, transfer.amount_cents, transfer.currency, nextPaperNo, smsTouched]);
 
   useEffect(() => {
-    if (donorSearch.trim().length < 2) return;
+    if (donorSearch.trim().length < 2) {
+      setDonorResults(s.donor?.candidates || []);
+      return;
+    }
     const t = setTimeout(() => {
       api
         .get('/donors', { params: { search: donorSearch.trim(), page_size: 10 } })
@@ -983,7 +1183,7 @@ function ApproveDialog({
         .catch(() => {});
     }, 250);
     return () => clearTimeout(t);
-  }, [donorSearch]);
+  }, [donorSearch, s.donor?.candidates]);
 
   const toCents = (val: string) => {
     const n = Number(String(val).replace(',', '.'));
@@ -1075,7 +1275,12 @@ function ApproveDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between">
           <div>
@@ -1129,6 +1334,7 @@ function ApproveDialog({
                       onClick={() => {
                         setDonorId(s.donor!.id);
                         setDonorLabel(s.donor!.name);
+                        setDonorPhone(s.donor!.phone || '');
                       }}
                       className={`flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-xs ${
                         donorId === s.donor.id ? 'bg-emerald-50 font-bold text-emerald-900' : 'hover:bg-slate-50'
@@ -1145,6 +1351,7 @@ function ApproveDialog({
                       onClick={() => {
                         setDonorId(c.id);
                         setDonorLabel(c.name);
+                        setDonorPhone(c.phone || '');
                       }}
                       className={`flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-xs ${
                         donorId === c.id ? 'bg-emerald-50 font-bold text-emerald-900' : 'hover:bg-slate-50'
@@ -1154,6 +1361,13 @@ function ApproveDialog({
                       <span className="text-slate-500">{c.phone}</span>
                     </button>
                   ))}
+                  {!s.donor && donorResults.length === 0 ? (
+                    <p className="px-3 py-3 text-center text-xs text-slate-400">
+                      {donorSearch.trim().length < 2
+                        ? 'Kayıtlı bağışçı aramak için en az 2 karakter yazın.'
+                        : 'Eşleşen bağışçı bulunamadı.'}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -1248,12 +1462,51 @@ function ApproveDialog({
                           aria-label="Hissedar isimleri"
                         />
                       </div>
-                    ) : null}
+                    ) : (
+                      <div className="mt-2">
+                        <input
+                          value={line.on_behalf_of}
+                          onChange={(e) => updateLine(idx, { on_behalf_of: e.target.value })}
+                          placeholder="Kimin adına (isteğe bağlı)"
+                          className="w-full rounded-lg border border-slate-200 px-2.5 py-1 text-xs text-slate-700"
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
+            <div className="mt-2 flex items-center justify-between text-xs font-semibold">
+              <span className="text-slate-500">Kalemler Toplamı: {formatMoney(sumCents, transfer.currency)}</span>
+              {diffCents === 0 ? (
+                <span className="text-emerald-700">Havale tutarına eşitlendi ✓</span>
+              ) : (
+                <span className="text-rose-700">
+                  {diffCents > 0
+                    ? `Kalan: ${formatMoney(diffCents, transfer.currency)}`
+                    : `Fazla: ${formatMoney(Math.abs(diffCents), transfer.currency)}`}
+                </span>
+              )}
+            </div>
           </div>
+
+          {books.length > 0 ? (
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Kağıt Makbuz Koçanı (İsteğe Bağlı)</label>
+              <select
+                value={bookId}
+                onChange={(e) => setBookId(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
+              >
+                <option value="">Otomatik Dijital Makbuz</option>
+                {books.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    Seri {b.series} · Sıradaki: {b.series}-{String(b.next_no).padStart(4, '0')} (Kalan: {b.remaining})
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           {/* SMS */}
           <div className="rounded-xl border border-slate-200 p-3">
@@ -1268,15 +1521,22 @@ function ApproveDialog({
               Bağışçıya teşekkür SMS&apos;i ve makbuz gönder
             </label>
             {sendReceipt ? (
-              <textarea
-                rows={2}
-                value={smsBody}
-                onChange={(e) => {
-                  setSmsBody(e.target.value);
-                  setSmsTouched(true);
-                }}
-                className="mt-2 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800"
-              />
+              <>
+                <textarea
+                  rows={2}
+                  value={smsBody}
+                  onChange={(e) => {
+                    setSmsBody(e.target.value);
+                    setSmsTouched(true);
+                  }}
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800"
+                />
+                {!(mode === 'new' ? newPhone.trim() : donorPhone.trim()) ? (
+                  <p className="mt-1.5 text-[11px] font-medium text-amber-700">
+                    Bağışçının telefon numarası kayıtlı değil; SMS gönderilmeyecek.
+                  </p>
+                ) : null}
+              </>
             ) : null}
           </div>
         </div>

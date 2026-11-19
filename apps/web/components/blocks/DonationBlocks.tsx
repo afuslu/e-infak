@@ -463,12 +463,16 @@ export function AnnouncementBar({
   const bgCls =
     look === 'gradient' || look === 'gradient_shimmer'
       ? 'bg-gradient-to-r from-primary-700 via-primary-600 to-accent-500 text-white'
-      : look === 'countdown_urgent'
+      : look === 'countdown_urgent' || look === 'urgent_pulse_bar'
         ? 'bg-red-700 text-white'
-        : look === 'split_two_links'
-          ? 'bg-slate-900 text-white'
-          : ANNOUNCE_TONE[tone || 'danger'] || ANNOUNCE_TONE.danger
-  const isWarning = tone === 'warning' && look !== 'gradient' && look !== 'gradient_shimmer' && look !== 'countdown_urgent' && look !== 'split_two_links'
+        : look === 'dark_gold_marquee'
+          ? 'border-b border-amber-500/30 bg-slate-950 text-amber-300'
+          : look === 'minimal_border_top'
+            ? 'border-b border-gray-200 bg-white text-gray-900'
+            : look === 'split_two_links'
+              ? 'bg-slate-900 text-white'
+              : ANNOUNCE_TONE[tone || 'danger'] || ANNOUNCE_TONE.danger
+  const isWarning = (tone === 'warning' || look === 'minimal_border_top') && look !== 'gradient' && look !== 'gradient_shimmer' && look !== 'countdown_urgent' && look !== 'urgent_pulse_bar' && look !== 'split_two_links' && look !== 'dark_gold_marquee'
   const closeLabel = locale === 'en' ? 'Close announcement' : locale === 'ar' ? 'إغلاق الإعلان' : 'Duyuruyu kapat'
   const units = locale === 'en' ? ['d', 'h', 'm', 's'] : locale === 'ar' ? ['ي', 'س', 'د', 'ث'] : ['g', 's', 'd', 'sn']
 
@@ -501,7 +505,7 @@ export function AnnouncementBar({
             ‹
           </button>
         )}
-        {look === 'pulse_urgent' && (
+        {(look === 'pulse_urgent' || look === 'urgent_pulse_bar') && (
           <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
@@ -1014,11 +1018,13 @@ export function DonationCards({
         : ({ 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 lg:grid-cols-3', 4: 'sm:grid-cols-2 lg:grid-cols-4' } as Record<number, string>)[columns] || 'sm:grid-cols-2 lg:grid-cols-3'
   if (!cards.length) return editing ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-gray-400">{l.emptyEdit}</p> : null
   const cardMode: 'card' | 'list' | 'compact' | 'overlay' =
-    layout === 'list' ? 'list' : layout === 'compact' || layout === 'impact_badge_grid' ? 'compact' : layout === 'overlay' ? 'overlay' : 'card'
+    layout === 'list' || layout === 'compact_row_cards' ? 'list' : layout === 'compact' || layout === 'impact_badge_grid' ? 'compact' : layout === 'overlay' ? 'overlay' : 'card'
 
   const wrapLayoutCls =
-    layout === 'dark_gold' || layout === 'dark_gold_cards'
+    layout === 'dark_gold' || layout === 'dark_gold_cards' || layout === 'gold_accent_cards'
       ? 'rounded-3xl bg-gradient-to-br from-gray-950 via-gray-900 to-amber-950/60 p-6 ring-1 ring-amber-500/20 sm:p-8'
+      : layout === 'emerald_highlight_cards'
+        ? 'rounded-3xl bg-gradient-to-br from-emerald-950 via-emerald-900 to-primary-950 p-6 ring-1 ring-emerald-400/20 sm:p-8'
       : layout === 'minimal_border_cards'
         ? 'rounded-3xl border border-gray-200 bg-gray-50/50 p-6 sm:p-8'
         : layout === 'badge_ribbon_cards'
@@ -1180,12 +1186,14 @@ export function ContactFormBlock({
     </form>
   )
 
-  if (look === 'centered' || look === 'minimal' || look === 'callback') {
+  if (look === 'centered' || look === 'minimal' || look === 'callback' || look === 'compact_inline_card') {
     const cardCls = look === 'minimal'
       ? ''
-      : 'rounded-3xl border border-gray-200/90 bg-white p-6 text-gray-900 shadow-[0_8px_30px_-8px_rgba(0,0,0,0.08)] sm:p-8 lg:p-10'
+      : look === 'compact_inline_card'
+        ? 'rounded-2xl border border-primary-200 bg-primary-50/40 p-5 text-gray-900 shadow-sm sm:p-6'
+        : 'rounded-3xl border border-gray-200/90 bg-white p-6 text-gray-900 shadow-[0_8px_30px_-8px_rgba(0,0,0,0.08)] sm:p-8 lg:p-10'
     return (
-      <div className="mx-auto w-full max-w-2xl px-4 sm:px-6">
+      <div className={`mx-auto w-full px-4 sm:px-6 ${look === 'compact_inline_card' ? 'max-w-4xl' : 'max-w-2xl'}`}>
         {(kicker || title || text) && (
           <div className="mb-8 text-center">
             {kicker && <div className="mb-2 text-xs font-bold tracking-[2px] text-primary-600">{kicker}</div>}
@@ -1198,7 +1206,24 @@ export function ContactFormBlock({
     )
   }
 
-  if (look === 'split_info') {
+  if (look === 'dark_sleek_form') {
+    return (
+      <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
+        <div className="rounded-3xl bg-gray-950 p-6 text-white shadow-2xl ring-1 ring-white/10 sm:p-10">
+          {(kicker || title || text) && (
+            <div className="mb-8 text-center">
+              {kicker && <div className="mb-2 text-xs font-extrabold uppercase tracking-[2px] text-accent-400">{kicker}</div>}
+              {title && <h2 className="font-heading text-2xl font-bold text-white sm:text-3xl">{title}</h2>}
+              {text && <p className="mt-2.5 text-sm leading-relaxed text-gray-300 sm:text-base">{text}</p>}
+            </div>
+          )}
+          <div className="rounded-2xl bg-white p-6 text-gray-900 sm:p-8">{formBody}</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (look === 'split_info' || look === 'split_info_left') {
     const infoItems = [
       contactPhone ? { icon: '📞', label: 'Telefon', value: contactPhone, href: `tel:${contactPhone.replace(/\s+/g, '')}` } : null,
       contactEmail ? { icon: '✉️', label: 'E-posta', value: contactEmail, href: `mailto:${contactEmail}` } : null,
