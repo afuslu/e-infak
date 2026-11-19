@@ -2954,68 +2954,6 @@ EXTRA_BLOCKS: dict[str, dict] = {
             }),
         ),
     },
-    "zakat_allocation_matrix": {
-        "label": "Zekat Dağıtım Matrisi (8 Sınıf)", "group": "Bağış & kampanya", "icon": "⚖️",
-        "help": "Tevbe Suresi 60. ayet ışığında zekatın verildiği 8 sınıfı ve dağıtım oranlarını gösterir.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"eight_pillars": "8 Sütun klasik matris", "allocation_cards": "Oran çubuklu kartlar", "dark_emerald_matrix": "Koyu zümrüt zekat matrisi"}, default="eight_pillars"),
-            items=F("items", "Dağıtım Sınıfları", schema={
-                "code": F("text", "Sınıf No / Kod", max=20),
-                "title": F("text", "Sınıf Adı", max=120, translatable=True),
-                "share": F("text", "Oran / Pay (ör. %35)", max=30),
-                "desc": F("textarea", "Kısa Açıklama", translatable=True),
-                "cta_url": F("url", "Bağlantı"),
-            }),
-        ),
-    },
-    "school_build_progress": {
-        "label": "Okul & Yetimhane İnşaat Aşamaları", "group": "Kurumsal & güven", "icon": "🏫",
-        "help": "Okul, yetimhane, cami veya su kuyusu inşaatının faz bazlı ilerleme durumunu gösterir.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"phase_cards": "Faz kartları ızgarası", "blueprint_dark": "Koyu mimari blueprint paneli", "compact_progress": "Kompakt ilerleme satırları"}, default="phase_cards"),
-            overall_percent=F("text", "Genel Tamamlanma (ör. %68)", max=20),
-            location=F("text", "Proje Konumu", max=120, translatable=True),
-            items=F("items", "İnşaat Aşamaları", schema={
-                "phase": F("text", "Faz (ör. Faz 1)", max=40, translatable=True),
-                "title": F("text", "Aşama Başlığı", max=140, translatable=True),
-                "status": F("text", "Durum (ör. Tamamlandı / Devam Ediyor)", max=60, translatable=True),
-                "percent": F("text", "Yüzde (ör. 100%)", max=20),
-                "desc": F("textarea", "Detay", translatable=True),
-            }),
-        ),
-    },
-    "food_parcel_contents": {
-        "label": "Kumanya & Gıda Paketi İçeriği", "group": "Bağış & kampanya", "icon": "📦",
-        "help": "Bir kumanya veya yardım kolisinin içindeki ürünleri adet, gramaj ve birim maliyetle listeler.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"receipt_breakdown": "Fatura / makbuz dökümü", "grid_items": "Ürün kartları ızgarası", "dark_pantry": "Koyu kiler döküm paneli"}, default="receipt_breakdown"),
-            parcel_price=F("text", "Paket Bedeli (ör. 1.250 ₺)", max=40, translatable=True),
-            weight_summary=F("text", "Toplam Ağırlık (ör. 18.5 kg)", max=60, translatable=True),
-            cta_label=F("text", "Buton Metni", max=60, translatable=True),
-            cta_url=F("url", "Buton Bağlantısı"),
-            items=F("items", "Paket Kalemleri", schema={
-                "name": F("text", "Ürün Adı", max=120, translatable=True),
-                "qty": F("text", "Miktar / Gramaj", max=60, translatable=True),
-                "category": F("text", "Kategori", max=60, translatable=True),
-            }),
-        ),
-    },
-    "memorial_tributes": {
-        "label": "Vefa & Taziye Bağış Duvarı", "group": "İçerik & medya", "icon": "🕊️",
-        "help": "Merhum ve merhumeler adına yapılan sadaka-i cariye ve taziye bağışlarını sergiler.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"tribute_cards": "Vefa kartları", "soft_memorial_grid": "Sade anma ızgarası", "dark_elegy": "Koyu gece vefa duvarı"}, default="tribute_cards"),
-            cta_label=F("text", "Buton Metni", max=60, translatable=True),
-            cta_url=F("url", "Buton Bağlantısı"),
-            items=F("items", "Vefa Kayıtları", schema={
-                "honoree": F("text", "Merhum / Adına Bağış Yapılan", max=140, translatable=True),
-                "donor": F("text", "Bağışçı / Aile", max=120, translatable=True),
-                "project": F("text", "Hayır Kalemi (ör. Su Kuyusu)", max=120, translatable=True),
-                "note": F("textarea", "Dua / Vefa Notu", translatable=True),
-                "date": F("text", "Tarih", max=40),
-            }),
-        ),
-    },
     "video_delivery_showcase": {
         "label": "Video & WhatsApp Teslimat Vitrini", "group": "İçerik & medya", "icon": "📲",
         "help": "Kurban, su kuyusu ve kumanya teslimat videolarının bağışçılara nasıl ulaştırıldığını gösterir.",
@@ -3046,19 +2984,6 @@ EXTRA_BLOCKS: dict[str, dict] = {
             }),
         ),
     },
-    "impact_timeline_cards": {
-        "label": "Yıllık Etki & Büyüme Kartları", "group": "Kurumsal & güven", "icon": "📈",
-        "help": "Yıllara göre ulaşılan insan sayısı, proje adedi ve büyüme metriklerini karşılaştırır.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"growth_cards": "Büyüme kartları", "dark_metrics_row": "Koyu metrik şeridi", "compact_comparison": "Kompakt yıl karşılaştırma"}, default="growth_cards"),
-            items=F("items", "Yıllık Etki Verileri", schema={
-                "year": F("text", "Yıl", max=20),
-                "headline": F("text", "Ana Metrik (ör. 142.000 Kişi)", max=80, translatable=True),
-                "delta": F("text", "Artış (ör. +%34)", max=40),
-                "summary": F("textarea", "Özet Açıklama", translatable=True),
-            }),
-        ),
-    },
     "donor_concierge_bar": {
         "label": "Özel Bağışçı Danışma Hattı", "group": "Form & iletişim", "icon": "🎧",
         "help": "Yüksek tutarlı bağış, zekat danışmanlığı veya kurumsal protokol için doğrudan temsilci bandı.",
@@ -3085,88 +3010,6 @@ EXTRA_BLOCKS: dict[str, dict] = {
             secondary_url=F("url", "Dolum Bildirim Bağlantısı"),
         ),
     },
-    "sister_cities_list": {
-        "label": "Bölge & Temsilcilik Ağı", "group": "Kurumsal & güven", "icon": "🗺️",
-        "help": "İl ve ülke temsilciliklerini, aktif gönüllü sayılarını ve saha sorumlularını listeler.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"region_directory": "Temsilcilik rehberi", "dark_network_grid": "Koyu ağ ızgarası", "compact_badges": "Kompakt şehir rozetleri"}, default="region_directory"),
-            items=F("items", "Temsilcilikler", schema={
-                "city": F("text", "İl / Ülke", max=80, translatable=True),
-                "volunteers": F("text", "Gönüllü / Proje", max=60, translatable=True),
-                "contact": F("text", "İletişim / Adres", max=120, translatable=True),
-            }),
-        ),
-    },
-    "ramadan_iftar_table": {
-        "label": "Ramazan İftar & Sahur Sofrası", "group": "Bağış & kampanya", "icon": "🌙",
-        "help": "İftar çadırlarını, günlük kişi kapasitesini ve iftar hisse bedelini gösterir.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"tent_cards": "İftar çadırı kartları", "dark_ramadan_table": "Koyu Ramazan sofrası", "compact_schedule": "Kompakt iftar takvimi"}, default="tent_cards"),
-            share_price=F("text", "1 Kişilik İftar (ör. 150 ₺)", max=40, translatable=True),
-            items=F("items", "İftar Noktaları", schema={
-                "location": F("text", "Bölge / Çadır Adı", max=100, translatable=True),
-                "capacity": F("text", "Kapasite (ör. 1.200 Kişi / Gün)", max=60, translatable=True),
-                "menu_note": F("text", "Not / Menü", max=120, translatable=True),
-                "cta_url": F("url", "Bağış Bağlantısı"),
-            }),
-        ),
-    },
-    "orphans_education_kit": {
-        "label": "Yetim Kırtasiye & Okul Paketi", "group": "Bağış & kampanya", "icon": "🎒",
-        "help": "Okul çantası, defter, mont ve kırtasiye seti kalemlerini sergiler.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"kit_grid": "Eğitim paketi ızgarası", "dark_school_pack": "Koyu eğitim destek paneli", "compact_items": "Kompakt malzeme listesi"}, default="kit_grid"),
-            kit_price=F("text", "Tam Set Bedeli (ör. 950 ₺)", max=40, translatable=True),
-            cta_label=F("text", "Buton Metni", max=50, translatable=True),
-            cta_url=F("url", "Bağış Bağlantısı"),
-            items=F("items", "Set İçeriği", schema={
-                "item": F("text", "Kalem Adı", max=100, translatable=True),
-                "detail": F("text", "Detay / Yaş Grubu", max=80, translatable=True),
-                "price": F("text", "Birim Değer", max=40),
-            }),
-        ),
-    },
-    "medical_caravan_schedule": {
-        "label": "Sağlık Tırı & Gezici Klinik", "group": "Kurumsal & güven", "icon": "🚑",
-        "help": "Gezici göz, diş ve anne-çocuk kliniklerinin saha takvimini ve hedeflerini gösterir.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"clinic_cards": "Klinik tur kartları", "dark_medical_tour": "Koyu sağlık turu panosu", "timeline_list": "Takvim listesi"}, default="clinic_cards"),
-            items=F("items", "Klinik Durakları", schema={
-                "date": F("text", "Tarih / Dönem", max=50, translatable=True),
-                "region": F("text", "Bölge", max=100, translatable=True),
-                "specialty": F("text", "Branş (ör. Katarakt / Diş)", max=80, translatable=True),
-                "target": F("text", "Hedef Muayene", max=60, translatable=True),
-            }),
-        ),
-    },
-    "water_tanker_emergency": {
-        "label": "Acil Su Tankeri Sevkiyatı", "group": "Bağış & kampanya", "icon": "🚰",
-        "help": "Kriz bölgelerine ulaştırılan günlük içme suyu tankeri kapasitesini ve destek seçeneklerini sunar.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"tanker_cards": "Tanker destek kartları", "dark_water_urgent": "Koyu acil su paneli", "compact_liters": "Kompakt litre göstergesi"}, default="tanker_cards"),
-            items=F("items", "Su Tankeri Seçenekleri", schema={
-                "title": F("text", "Paket / Tanker Adı", max=100, translatable=True),
-                "volume": F("text", "Kapasite (ör. 10.000 Litre)", max=60, translatable=True),
-                "price": F("text", "Bedel", max=40, translatable=True),
-                "cta_url": F("url", "Bağış Bağlantısı"),
-            }),
-        ),
-    },
-    "bread_bakery_oven": {
-        "label": "Ekmek Fırını & Günlük Üretim", "group": "Bağış & kampanya", "icon": "🥖",
-        "help": "Günlük üretilen ekmek sayısını, un çuvalı bedelini ve fırın desteğini gösterir.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"bakery_split": "Fırın özetli iki sütun", "dark_oven_board": "Koyu üretim panosu", "compact_loaf_bar": "Kompakt ekmek sayacı"}, default="bakery_split"),
-            daily_loaves=F("text", "Günlük Üretim (ör. 25.000 Ekmek)", max=60, translatable=True),
-            flour_price=F("text", "1 Çuval Un Bedeli (ör. 850 ₺)", max=50, translatable=True),
-            cta_label=F("text", "Buton Metni", max=50, translatable=True),
-            cta_url=F("url", "Bağış Bağlantısı"),
-            items=F("items", "Fırın Noktaları", schema={
-                "name": F("text", "Fırın / Bölge", max=100, translatable=True),
-                "output": F("text", "Günlük Çıktı", max=60, translatable=True),
-            }),
-        ),
-    },
     "winter_fuel_heating": {
         "label": "Kış Yakacak & Soba Desteği", "group": "Bağış & kampanya", "icon": "🔥",
         "help": "Kış şartlarında kömür, odun, soba ve battaniye paketlerinin birim maliyetlerini listeler.",
@@ -3175,19 +3018,6 @@ EXTRA_BLOCKS: dict[str, dict] = {
             items=F("items", "Yakacak & Isınma Kalemleri", schema={
                 "title": F("text", "Paket Adı", max=100, translatable=True),
                 "duration": F("text", "Süre / Miktar (ör. 1 Aylık Yakacak)", max=60, translatable=True),
-                "price": F("text", "Bedel", max=40, translatable=True),
-                "cta_url": F("url", "Bağış Bağlantısı"),
-            }),
-        ),
-    },
-    "mosque_library_corner": {
-        "label": "Cami & Kurs Kütüphane Köşesi", "group": "İçerik & medya", "icon": "📚",
-        "help": "Kur'an-ı Kerim, tefsir, hadis ve çocuk kitaplığı seti bağışlarını sergiler.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"library_shelf": "Kitaplık raf kartları", "dark_reading_corner": "Koyu okuma köşesi", "compact_book_sets": "Kompakt kitap setleri"}, default="library_shelf"),
-            items=F("items", "Kitap Setleri", schema={
-                "title": F("text", "Set Adı", max=100, translatable=True),
-                "books_count": F("text", "Kitap Adedi", max=40, translatable=True),
                 "price": F("text", "Bedel", max=40, translatable=True),
                 "cta_url": F("url", "Bağış Bağlantısı"),
             }),
@@ -3220,45 +3050,6 @@ EXTRA_BLOCKS: dict[str, dict] = {
             }),
         ),
     },
-    "ramadan_fitrah_zakat_card": {
-        "label": "Fitre & Fidye Hızlı Ödeme Kartları", "group": "Bağış & kampanya", "icon": "🌾",
-        "help": "Güncel fitre tutarına göre 1, 3, 5 ve 10 kişilik hazır aile paketlerini sunar.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"calculator_cards": "Kişi sayılı paket kartları", "dark_gold_fitrah": "Koyu altın fitre kartları", "compact_person_grid": "Kompakt kişi ızgarası"}, default="calculator_cards"),
-            unit_note=F("text", "Güncel Birim Bedel Notu (ör. 1 Kişi Fitre: 180 ₺)", max=100, translatable=True),
-            items=F("items", "Fitre / Fidye Paketleri", schema={
-                "title": F("text", "Paket Adı (ör. 4 Kişilik Aile)", max=80, translatable=True),
-                "amount": F("text", "Toplam Tutar", max=40, translatable=True),
-                "desc": F("text", "Açıklama", max=120, translatable=True),
-                "cta_url": F("url", "Bağış Bağlantısı"),
-            }),
-        ),
-    },
-    "orphans_birthday_eid": {
-        "label": "Yetim Bayramlık & Hediye Paketi", "group": "Bağış & kampanya", "icon": "🎁",
-        "help": "Bayramlık kıyafet, ayakkabı ve oyuncak hediye paketlerini birim fiyatlarıyla sergiler.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"gift_cards": "Hediye paketi kartları", "dark_eid_panel": "Koyu bayramlık vitrini", "compact_package_row": "Kompakt paket satırları"}, default="gift_cards"),
-            items=F("items", "Bayramlık Paketleri", schema={
-                "title": F("text", "Paket Adı", max=100, translatable=True),
-                "price": F("text", "Bedel", max=40, translatable=True),
-                "includes": F("text", "İçerik (ör. Kıyafet + Ayakkabı)", max=140, translatable=True),
-                "cta_url": F("url", "Bağış Bağlantısı"),
-            }),
-        ),
-    },
-    "solar_water_well_specs": {
-        "label": "Güneş Enerjili Su Kuyusu Teknik Özeti", "group": "Kurumsal & güven", "icon": "☀️",
-        "help": "Derin su kuyusu ve güneş enerjili şadırvan projelerinin teknik özelliklerini listeler.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"spec_cards": "Teknik özellik kartları", "dark_engineering_grid": "Koyu mühendislik panosu", "compact_table": "Kompakt teknik tablo"}, default="spec_cards"),
-            items=F("items", "Teknik Parametreler", schema={
-                "label": F("text", "Parametre (ör. Sondaj Derinliği)", max=80, translatable=True),
-                "value": F("text", "Değer (ör. 80 - 120 Metre)", max=80, translatable=True),
-                "note": F("text", "Açıklama", max=140, translatable=True),
-            }),
-        ),
-    },
     "volunteer_field_roles": {
         "label": "Saha Gönüllülük & Görev Alanları", "group": "Form & iletişim", "icon": "🦺",
         "help": "Lojistik, tercümanlık, sağlık, medya ve organizasyon alanlarında gönüllü alımını tanıtır.",
@@ -3270,19 +3061,6 @@ EXTRA_BLOCKS: dict[str, dict] = {
                 "role": F("text", "Görev Adı", max=100, translatable=True),
                 "commitment": F("text", "Süre / Şart", max=60, translatable=True),
                 "desc": F("textarea", "Görev Tanımı", translatable=True),
-            }),
-        ),
-    },
-    "student_dorm_support": {
-        "label": "Öğrenci Yurdu & Barınma Desteği", "group": "Bağış & kampanya", "icon": "🛏️",
-        "help": "Yurt oda sponsorluğu, aylık iaşe ve bursiyer barınma desteklerini listeler.",
-        "fields": _head(
-            look=F("select", "Görünüm", choices={"dorm_cards": "Yurt destek kartları", "dark_campus_board": "Koyu yurt destek panosu", "compact_support_rows": "Kompakt destek satırları"}, default="dorm_cards"),
-            items=F("items", "Barınma Destek Kalemleri", schema={
-                "title": F("text", "Destek Adı", max=100, translatable=True),
-                "period": F("text", "Dönem (ör. Aylık / Yıllık)", max=40, translatable=True),
-                "price": F("text", "Bedel", max=40, translatable=True),
-                "cta_url": F("url", "Bağış Bağlantısı"),
             }),
         ),
     },
