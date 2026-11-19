@@ -6,9 +6,15 @@ GetCustomerTransactionDetails. Authentication is the customer's IP (the bank whi
 - one query covers at most 31 days (error 279437), begin must not be after end (279436);
 - the methods should not be called more often than every 15 minutes.
 
-The PDF names the request contracts and fields but not the XML namespaces or SOAP actions, so they are
-read from the service's own WSDL (``?singleWsdl``) the first time and cached; the defaults below are the
-usual WCF ones. WCF's DataContractSerializer expects the request members in alphabetical order.
+The PDF names the request contracts and fields but not the XML details, so they are read from the
+service's own WSDL (``?singleWsdl``) the first time and cached; the defaults below are what the production
+WSDL said on 2026-11-19:
+- the SOAP endpoint is ``<service>.svc/Basic`` (BasicHttpBinding, SOAP 1.1);
+- requests derive from ``BOA.Integration.Base.RequestModelBase`` (ExtUName, ExtUPassword, ...). WCF's
+  DataContractSerializer writes base-class members first, in the base namespace, then the derived members
+  in the model namespace, each group in alphabetical order;
+- responses are ``ResponseModelBase``: Success, ErrorCode / ErrorMessage, Results[] and Value.
+The service also offers GetAccountList (all accounts of the customer, with suffix and IBAN).
 """
 from __future__ import annotations
 
@@ -38,8 +44,11 @@ WSDL_CACHE_SECONDS = 6 * 3600
 
 SOAP11 = "http://schemas.xmlsoap.org/soap/envelope/"
 SOAP12 = "http://www.w3.org/2003/05/soap-envelope"
-DEFAULT_SERVICE_NS = "http://tempuri.org/"
+DEFAULT_SERVICE_NS = "http://boa.net/BOA.Integration.CustomerTransaction/CustomerTransactionService"
+DEFAULT_MODEL_NS = "http://schemas.datacontract.org/2004/07/BOA.Integration.Model.CustomerTransaction"
+DEFAULT_BASE_NS = "http://schemas.datacontract.org/2004/07/BOA.Integration.Base"
 DEFAULT_CONTRACT = "ICustomerTransactionService"
+BASE_FIELDS = ("ExtUName", "ExtUPassword")  # RequestModelBase members we send
 
 # Doc §3.1
 ERRORS = {
@@ -130,15 +139,22 @@ def parse_wsdl(raw: bytes) -> dict:
     """Service namespace, request contract namespaces, SOAP actions and SOAP version from a WCF singleWsdl."""
     root = ET.fromstring(raw)
     info: dict = {"service_ns": root.get("targetNamespace") or DEFAULT_SERVICE_NS, "contract_ns": {}, "actions": {},
-                  "soap12": False}
+                  "soap12": False, "address": None, "base_ns": None}
     for schema in root.iter():
         if local(schema.tag) != "schema":
             continue
         target = schema.get("targetNamespace") or ""
         for child in schema:
-            if local(child.tag) == "complexType" and child.get("name") in ("AccountBalanceRequest", "CustomerTransactionRequest"):
+            if local(child.tag) != "complexType":
+                continue
+            if child.get("name") in ("AccountBalanceRequest", "CustomerTransactionRequest", "AccountListRequest"):
                 info["contract_ns"][child.get("name")] = target
+            elif child.get("name") == "RequestModelBase":
+                info["base_ns"] = target
     for element in root.iter():
+        if local(element.tag) == "address" and element.get("location") and not info["address"]:
+            if namespace(element.tag).startswith("http://schemas.xmlsoap.org/wsdl/soap"):
+                info["address"] = element.get("location")
         if local(element.tag) == "operation" and element.get("soapAction"):
             info["actions"].setdefault(element.get("soapAction").rsplit("/", 1)[-1], element.get("soapAction"))
             if namespace(element.tag).endswith("/soap12/"):
@@ -165,16 +181,32 @@ def parse_soap(raw: bytes) -> ET.Element:
     fault = next((e for e in root.iter() if local(e.tag) == "Fault"), None)
     if fault is not None:
         raise BankConnectorError(error_message(" ".join(t.strip() for t in fault.itertext() if t.strip())))
-    # Contracts that report errors inside a normal response (ErrorCode / ResultCode / Success fields).
-    for element in root.iter():
-        name = local(element.tag)
-        value = (element.text or "").strip()
-        if name in ("ErrorCode", "ResultCode", "ResponseCode") and value.lower() not in ("", "0", "00", "success", "ok"):
-            parent_text = " ".join(t.strip() for t in root.itertext() if t.strip())
-            raise BankConnectorError(error_message(f"{value} {parent_text}"))
-        if name in ("Success", "IsSuccess") and (element.text or "").strip().lower() == "false":
-            raise BankConnectorError(error_message(" ".join(t.strip() for t in root.itertext() if t.strip())))
+    # ResponseModelBase: errors come as Results[].ErrorCode / ErrorMessage (and top-level ErrorCode /
+    # ErrorMessage), with Success=false or no Success element at all.
+    result = next((e for e in root.iter() if local(e.tag).endswith("Result") and
+                   any(local(c.tag) in ("Success", "Results", "ErrorCode") for c in e)), None)
+    if result is not None:
+        success = next(((c.text or "").strip().lower() for c in result if local(c.tag) == "Success"), None)
+        parts = []
+        for child in result:
+            if local(child.tag) == "Value":
+                continue
+            for e in child.iter():
+                if local(e.tag) in ("ErrorCode", "ErrorMessage") and (e.text or "").strip():
+                    severity = next(((c.text or "") for c in _parent_of(child, e) if local(c.tag) == "Severity"), "")
+                    if severity not in ("Information", "Warning"):
+                        parts.append(e.text.strip())
+        if success == "false" or (success != "true" and parts):
+            raise BankConnectorError(error_message(" ".join(dict.fromkeys(parts))))
     return root
+
+
+def _parent_of(tree: ET.Element, target: ET.Element) -> list:
+    """Children of ``target``'s parent inside ``tree`` (siblings incl. itself)."""
+    for element in tree.iter():
+        if target in list(element):
+            return list(element)
+    return list(tree)
 
 
 def error_message(text: str) -> str:
@@ -205,7 +237,7 @@ def movement_from(row: dict) -> Optional[BankMovement]:
         return None
     if key.endswith(".0") or re.fullmatch(r"\d+\.0+", key):
         key = key.split(".", 1)[0]
-    description = (row.get("Comment") or "").strip()
+    description = (row.get("Comment") or row.get("Description") or "").strip()
     sender = (row.get("SenderName") or "").strip() or parse_description(description).sender
     sender_account = (row.get("SenderAccountNumber") or "").replace(" ", "").upper()
     try:
@@ -246,6 +278,11 @@ class VakifKatilim(BankConnector):
     min_interval = timedelta(minutes=15)
     account_no_label = "Hesap ek no (AccountSuffix)"
 
+    @staticmethod
+    def _get(row: dict, name: str) -> Optional[str]:
+        """Field lookup that ignores case (the balance contract says FecName, the others FECName)."""
+        return next((v for k, v in row.items() if k.lower() == name.lower()), None)
+
     @property
     def url(self) -> str:
         url = str(self.credentials.get("service_url") or "").strip()
@@ -269,11 +306,16 @@ class VakifKatilim(BankConnector):
         return [("AccountNumber", customer), ("AccountSuffix", str(int(suffix))), ("ExtUName", username),
                 ("ExtUPassword", password)]
 
+    def _customer_auth(self) -> list[tuple[str, str]]:
+        """Credentials without an account suffix (GetAccountList)."""
+        return [f for f in self._auth(type("A", (), {"account_no": "0", "label": ""})()) if f[0] != "AccountSuffix"]
+
     async def _wsdl(self, client: httpx.AsyncClient) -> dict:
         cached = _wsdl_cache.get(self.url)
         if cached and time.monotonic() - cached[0] < WSDL_CACHE_SECONDS:
             return cached[1]
-        info = {"service_ns": DEFAULT_SERVICE_NS, "contract_ns": {}, "actions": {}, "soap12": False}
+        info = {"service_ns": DEFAULT_SERVICE_NS, "contract_ns": {}, "actions": {}, "soap12": False, "address": None,
+                "base_ns": None}
         try:
             response = await client.get(f"{self.url}?singleWsdl")
             if response.status_code == 200 and b"definitions" in response.content[:2000]:
@@ -285,11 +327,16 @@ class VakifKatilim(BankConnector):
 
     def envelope(self, info: dict, method: str, contract: str, fields: list[tuple[str, str]]) -> tuple[bytes, dict]:
         service_ns = info.get("service_ns") or DEFAULT_SERVICE_NS
-        contract_ns = info.get("contract_ns", {}).get(contract) or service_ns
-        members = "".join(f"<c:{tag}>{escape(value)}</c:{tag}>" for tag, value in sorted(fields))
+        contract_ns = info.get("contract_ns", {}).get(contract) or DEFAULT_MODEL_NS
+        base_ns = info.get("base_ns") or DEFAULT_BASE_NS
+        base = sorted((tag, value) for tag, value in fields if tag in BASE_FIELDS)
+        own = sorted((tag, value) for tag, value in fields if tag not in BASE_FIELDS)
+        members = "".join(f"<b:{tag}>{escape(value)}</b:{tag}>" for tag, value in base)
+        members += "".join(f"<c:{tag}>{escape(value)}</c:{tag}>" for tag, value in own)
         soap_ns = SOAP12 if info.get("soap12") else SOAP11
         body = (f'<s:Envelope xmlns:s="{soap_ns}"><s:Body><m:{method} xmlns:m="{service_ns}">'
-                f'<m:request xmlns:c="{contract_ns}">{members}</m:request></m:{method}></s:Body></s:Envelope>')
+                f'<m:request xmlns:b="{base_ns}" xmlns:c="{contract_ns}">{members}</m:request>'
+                f'</m:{method}></s:Body></s:Envelope>')
         action = info.get("actions", {}).get(method) or f"{service_ns.rstrip('/')}/{DEFAULT_CONTRACT}/{method}"
         if info.get("soap12"):
             headers = {"Content-Type": f'application/soap+xml; charset=utf-8; action="{action}"'}
@@ -297,12 +344,21 @@ class VakifKatilim(BankConnector):
             headers = {"Content-Type": "text/xml; charset=utf-8", "SOAPAction": f'"{action}"'}
         return body.encode("utf-8"), headers
 
+    def endpoint(self, info: dict) -> str:
+        """The WSDL's soap:address, moved to our host (the WSDL may name an internal host); else <url>/Basic."""
+        address = info.get("address")
+        if address:
+            suffix = address.rsplit(".svc", 1)[1] if ".svc" in address else ""
+            return f"{self.url}{suffix}"
+        return f"{self.url}/Basic"
+
     async def _call(self, client: httpx.AsyncClient, method: str, contract: str,
                     fields: list[tuple[str, str]]) -> ET.Element:
         info = await self._wsdl(client)
         body, headers = self.envelope(info, method, contract, fields)
+        endpoint = self.endpoint(info)
         try:
-            response = await client.post(self.url, content=body, headers=headers)
+            response = await client.post(endpoint, content=body, headers=headers)
         except httpx.HTTPError as exc:
             raise BankConnectorError(f"Vakıf Katılım servisine ulaşılamadı ({type(exc).__name__}); sunucu IP'si "
                                      "bankada tanımlı mı?") from exc
@@ -335,14 +391,34 @@ class VakifKatilim(BankConnector):
         rows = records(root, "Balance")
         if not rows:
             raise BankConnectorError("Vakıf Katılım bakiye bilgisi döndürmedi; müşteri no ve hesap ek no'yu kontrol edin")
-        row = rows[0]
+        row, g = rows[0], self._get
         return {
-            "iban": (row.get("IBAN") or "").replace(" ", "").upper() or None,
-            "balance_cents": to_cents(row.get("Balance")),
-            "blocked_cents": to_cents(row.get("WithHoldingAmount")),
-            "currency": currency_of(row.get("FEC"), row.get("FECName")),
-            "branch": row.get("BranchName") or None,
-            "alias": row.get("AccountAlias") or None,
-            "account_type": row.get("AccountType") or None,
-            "active": (row.get("IsActive") or "1") == "1",
+            "iban": (g(row, "IBAN") or "").replace(" ", "").upper() or None,
+            "balance_cents": to_cents(g(row, "Balance")),
+            "blocked_cents": to_cents(g(row, "WithHoldingAmount")),
+            "currency": currency_of(g(row, "FEC"), g(row, "FECName")),
+            "branch": g(row, "BranchName") or None,
+            "alias": g(row, "AccountAlias") or None,
+            "account_type": g(row, "AccountType") or None,
+            "customer_name": g(row, "CustomerName") or None,
+            "active": (g(row, "IsActive") or "1") == "1",
         }
+
+    async def accounts(self) -> list[dict]:
+        """GetAccountList: every account of the customer number, with its suffix and IBAN."""
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            root = await self._call(client, "GetAccountList", "AccountListRequest", self._customer_auth())
+        g, out = self._get, []
+        for row in records(root, "AccountSuffix"):
+            if g(row, "IBAN") is None and g(row, "Balance") is None:
+                continue  # the request echo or an unrelated element
+            out.append({
+                "suffix": g(row, "AccountSuffix"),
+                "iban": (g(row, "IBAN") or "").replace(" ", "").upper() or None,
+                "alias": g(row, "AccountAlias") or g(row, "ProductName") or None,
+                "currency": currency_of(g(row, "FEC"), g(row, "FECName")),
+                "balance_cents": to_cents(g(row, "Balance")),
+                "branch": g(row, "BranchName") or None,
+                "active": (g(row, "IsActive") or "1") in ("1", "true"),
+            })
+        return out

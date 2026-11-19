@@ -220,10 +220,20 @@ async def test_account(account_id: UUID, request: Request, db: AsyncSession = De
         raise HTTPException(status_code=400, detail="Bu banka için bağlantı testi yok")
     try:
         credentials = await get_credentials(db, account.organization_id, credential_key(account.bank_key)) or {}
-        info = await connector_cls(credentials).balance(account)
     except CredentialsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    connector = connector_cls(credentials)
+    accounts = None
+    if hasattr(connector, "accounts"):
+        try:  # every account of the customer with its suffix: shows the right "ek no" when the test fails
+            accounts = await connector.accounts()
+        except BankConnectorError:
+            accounts = None
+    try:
+        info = await connector.balance(account)
     except BankConnectorError as exc:
+        if accounts:
+            return {"ok": False, "error": str(exc), "accounts": accounts}
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     saved = (account.iban or "").replace(" ", "").upper()
     warning = None
@@ -234,7 +244,7 @@ async def test_account(account_id: UUID, request: Request, db: AsyncSession = De
         warning = "Hesapta kayıtlı IBAN yok; bankanın verdiği IBAN'ı kaydetmeniz önerilir"
     if not info.get("active", True):
         warning = (warning + " · " if warning else "") + "Banka bu hesabı kapalı gösteriyor"
-    return {**info, "ok": warning is None, "warning": warning}
+    return {**info, "ok": warning is None, "warning": warning, "accounts": accounts}
 
 
 # --- Incoming transfers queue -----------------------------------------------------------------

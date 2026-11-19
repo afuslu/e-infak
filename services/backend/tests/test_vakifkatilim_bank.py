@@ -21,7 +21,12 @@ WSDL = b"""<?xml version="1.0"?>
   <xs:schema targetNamespace="http://schemas.datacontract.org/2004/07/BOA.Types.CustomerTransaction">
    <xs:complexType name="CustomerTransactionRequest"/><xs:complexType name="AccountBalanceRequest"/>
   </xs:schema>
+  <xs:schema targetNamespace="http://schemas.datacontract.org/2004/07/BOA.Integration.Base">
+   <xs:complexType name="RequestModelBase"/>
+  </xs:schema>
  </wsdl:types>
+ <wsdl:service name="S"><wsdl:port name="p" binding="b">
+  <soap:address location="https://internal.host/X/CustomerTransactionService.svc/Basic"/></wsdl:port></wsdl:service>
  <wsdl:binding name="b">
   <wsdl:operation name="GetCustomerTransactionDetails">
    <soap:operation soapAction="http://boa.example/integration/ICustomerTransactionService/GetCustomerTransactionDetails"/>
@@ -133,16 +138,18 @@ async def test_fetch_builds_request_from_wsdl_and_reads_movements(bank):
     movements = await CONNECTORS["vakifkatilim"](CREDS).fetch(account(), since, since + timedelta(days=5))
     assert {m.external_id for m in movements} == {"1234567890", "2"}
     call = mock.calls[0]
-    assert str(call.url) == vk.PROD_URL
+    assert str(call.url) == vk.PROD_URL + "/Basic"  # the WSDL's soap:address path, on our host
     assert call.headers["SOAPAction"] == '"http://boa.example/integration/ICustomerTransactionService/GetCustomerTransactionDetails"'
     body = call.content.decode()
     assert 'xmlns:c="http://schemas.datacontract.org/2004/07/BOA.Types.CustomerTransaction"' in body
-    assert "<c:ExtUPassword>s&lt;cr&amp;t</c:ExtUPassword>" in body
+    assert 'xmlns:b="http://schemas.datacontract.org/2004/07/BOA.Integration.Base"' in body
+    assert "<b:ExtUPassword>s&lt;cr&amp;t</b:ExtUPassword>" in body
     assert "<c:DebitCreditCode>Credit</c:DebitCreditCode>" in body
     assert "<c:BeginDate>2026-11-01T03:00:00</c:BeginDate>" in body  # Istanbul local time
-    tags = [t for t in ("AccountNumber", "AccountSuffix", "BeginDate", "DebitCreditCode", "EndDate", "ExtUName",
-                        "ExtUPassword")]
-    assert [body.index(f"<c:{t}>") for t in tags] == sorted(body.index(f"<c:{t}>") for t in tags)  # WCF order
+    # WCF order: base-class members first, then the request's own members, each alphabetical
+    tags = ["b:ExtUName", "b:ExtUPassword", "c:AccountNumber", "c:AccountSuffix", "c:BeginDate", "c:DebitCreditCode",
+            "c:EndDate"]
+    assert [body.index(f"<{t}>") for t in tags] == sorted(body.index(f"<{t}>") for t in tags)
 
 
 async def test_fetch_splits_long_ranges_and_dedupes(bank):
@@ -156,8 +163,10 @@ async def test_without_wsdl_uses_wcf_defaults(bank):
     mock = bank(details_response(ROW), wsdl=b"")
     connector = CONNECTORS["vakifkatilim"]({**CREDS, "service_url": "test"})
     await connector.fetch(account(), datetime(2026, 11, 1, tzinfo=timezone.utc), datetime(2026, 11, 2, tzinfo=timezone.utc))
-    assert str(mock.calls[0].url) == vk.TEST_URL
-    assert mock.calls[0].headers["SOAPAction"] == '"http://tempuri.org/ICustomerTransactionService/GetCustomerTransactionDetails"'
+    assert str(mock.calls[0].url) == vk.TEST_URL + "/Basic"
+    assert mock.calls[0].headers["SOAPAction"] == (
+        '"http://boa.net/BOA.Integration.CustomerTransaction/CustomerTransactionService/ICustomerTransactionService/'
+        'GetCustomerTransactionDetails"')
 
 
 @pytest.mark.parametrize("text, expected", [
@@ -246,3 +255,46 @@ def test_masked_secret_echo_keeps_stored_password():
     assert echo["password"].startswith("••••")
     saved = clean_payload("bank:vakifkatilim", {**echo, "username": "yeni"}, previous=stored)
     assert saved["password"] == CREDS["password"] and saved["username"] == "yeni"
+
+
+# Verbatim shape of the production answer to an unknown user (2026-11-19, from 31.97.159.228).
+NOT_AUTHORIZED = (
+    '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><GetAccountListResponse '
+    'xmlns="http://boa.net/BOA.Integration.CustomerTransaction/CustomerTransactionService"><GetAccountListResult '
+    'xmlns:a="http://schemas.datacontract.org/2004/07/BOA.Integration.Base" '
+    'xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><a:Results><a:Result><a:ErrorCode>NotAuthorized</a:ErrorCode>'
+    '<a:ErrorMessage>Bu \u0130\u015flemi Ger\u00e7ekle\u015ftirmeye Yetkiniz Yok.</a:ErrorMessage><a:IsFriendly>true'
+    '</a:IsFriendly></a:Result></a:Results><a:ErrorCode i:nil="true"/><a:ErrorMessage i:nil="true"/>'
+    '</GetAccountListResult></GetAccountListResponse></s:Body></s:Envelope>'
+).encode()
+
+
+async def test_real_not_authorized_answer_without_success_field(bank):
+    bank(NOT_AUTHORIZED)
+    with pytest.raises(BankConnectorError, match="31.97.159.228"):
+        await CONNECTORS["vakifkatilim"](CREDS).accounts()
+
+
+async def test_success_with_information_result_is_not_an_error(bank):
+    bank(details_response(ROW).replace(
+        b"<a:Value>", b"<a:Results><a:Result><a:ErrorCode>I1</a:ErrorCode><a:Severity>Information</a:Severity>"
+                      b"</a:Result></a:Results><a:Success>true</a:Success><a:Value>"))
+    movements = await CONNECTORS["vakifkatilim"](CREDS).fetch(
+        account(), datetime(2026, 11, 1, tzinfo=timezone.utc), datetime(2026, 11, 2, tzinfo=timezone.utc))
+    assert len(movements) == 1
+
+
+async def test_account_list(bank):
+    mock = bank(
+        b'<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><GetAccountListResponse><GetAccountListResult'
+        b' xmlns:a="x" xmlns:b="y"><a:Success>true</a:Success><a:Value>'
+        b"<b:AccountListResponseModel><b:AccountAlias>Ba\xc4\x9f\xc4\xb1\xc5\x9f</b:AccountAlias><b:AccountNumber>44444444</b:AccountNumber>"
+        b"<b:AccountSuffix>1</b:AccountSuffix><b:Balance>10.00</b:Balance><b:FEC>0</b:FEC><b:FECName>TL</b:FECName>"
+        b"<b:IBAN>TR330006100519786457841326</b:IBAN><b:IsActive>1</b:IsActive></b:AccountListResponseModel>"
+        b"<b:AccountListResponseModel><b:AccountSuffix>2</b:AccountSuffix><b:Balance>0</b:Balance><b:FECName>USD</b:FECName>"
+        b"<b:IBAN>TR330006100519786457841327</b:IBAN></b:AccountListResponseModel>"
+        b"</a:Value></GetAccountListResult></GetAccountListResponse></s:Body></s:Envelope>")
+    accounts = await CONNECTORS["vakifkatilim"](CREDS).accounts()
+    assert [(a["suffix"], a["iban"], a["currency"]) for a in accounts] == [
+        ("1", "TR330006100519786457841326", "TRY"), ("2", "TR330006100519786457841327", "USD")]
+    assert "AccountSuffix" not in mock.calls[0].content.decode()

@@ -73,6 +73,14 @@ interface TestResult {
   branch?: string | null;
   alias?: string | null;
   error?: string;
+  accounts?: Array<{
+    suffix?: string | null;
+    iban?: string | null;
+    alias?: string | null;
+    currency?: string;
+    balance_cents?: number | null;
+    active?: boolean;
+  }> | null;
 }
 
 export interface BankaEntegrasyonPanelProps {
@@ -407,7 +415,7 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                           }`}
                         >
                           {testResults[ba.id].error ? (
-                            testResults[ba.id].error
+                            <span className="text-rose-800">{testResults[ba.id].error}</span>
                           ) : (
                             <>
                               Bağlantı başarılı · IBAN: <span className="font-mono">{testResults[ba.id].iban || '-'}</span> · Bakiye:{' '}
@@ -416,6 +424,34 @@ export const BankaEntegrasyonPanel: React.FC<BankaEntegrasyonPanelProps> = ({ on
                               {testResults[ba.id].warning ? <span className="block">⚠ {testResults[ba.id].warning}</span> : null}
                             </>
                           )}
+                          {testResults[ba.id].accounts?.length ? (
+                            <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white text-slate-700">
+                              <p className="px-2 pt-1.5 font-bold">Bankadaki hesaplarınız (ek no&apos;yu buradan seçin):</p>
+                              <table className="w-full text-[11px]">
+                                <thead>
+                                  <tr className="text-left text-slate-500">
+                                    <th className="px-2 py-1">Ek no</th>
+                                    <th className="px-2 py-1">IBAN</th>
+                                    <th className="px-2 py-1">Hesap</th>
+                                    <th className="px-2 py-1 text-right">Bakiye</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {testResults[ba.id].accounts!.map((a) => (
+                                    <tr key={`${a.suffix}-${a.iban}`} className="border-t border-slate-100">
+                                      <td className="px-2 py-1 font-bold">{a.suffix}</td>
+                                      <td className="px-2 py-1 font-mono">{a.iban || '-'}</td>
+                                      <td className="px-2 py-1">
+                                        {a.alias || '-'} · {a.currency}
+                                        {a.active === false ? ' (kapalı)' : ''}
+                                      </td>
+                                      <td className="px-2 py-1 text-right">{formatMoney(a.balance_cents, a.currency || 'TRY')}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
