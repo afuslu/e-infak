@@ -80,8 +80,10 @@ async def collect(db: AsyncSession, org_id: Optional[UUID] = None) -> list[dict]
     bank_errors = await _counts(db, BankAccount, BankAccount.enabled.is_(True), BankAccount.last_error.is_not(None))
     data = {feature: await _counts(db, model) for feature, model, _ in _DATA_FEATURES}
     pending = {}
-    for row in (await db.execute(select(OrganizationDomain).where(OrganizationDomain.status != "active"))).scalars():
-        pending.setdefault(row.organization_id, []).append(row)
+    active_domains = {}
+    for row in (await db.execute(select(OrganizationDomain))).scalars():
+        target = active_domains if row.status == "active" else pending
+        target.setdefault(row.organization_id, []).append(row)
 
     now = datetime.now(timezone.utc)
     sms_stuck = await _counts(db, SmsMessage, SmsMessage.status == "queued",
