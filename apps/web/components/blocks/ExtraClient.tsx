@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Carousel } from '../site/Carousel'
@@ -172,13 +173,19 @@ export function TabsView({ labels, panels, look = 'tabs', meta }: {
     )
   }
 
-  const vertical = look === 'vertical'
+  const vertical = look === 'vertical' || look === 'split_sticky_tabs'
   const pills = look === 'pills'
   const underline = look === 'underline'
-  const boxed = look === 'boxed_cards'
+  const boxed = look === 'boxed_cards' || look === 'split_sticky_tabs'
   const numbered = look === 'numbered_steps'
+  const iconCards = look === 'icon_cards'
 
   const tabButtonCls = (isActive: boolean) => {
+    if (iconCards) {
+      return `flex flex-col items-center gap-1.5 rounded-2xl border px-5 py-3.5 text-sm font-bold transition ${
+        isActive ? 'border-primary-600 bg-primary-600 text-white shadow-md' : 'border-gray-200 bg-white text-gray-800 hover:border-primary-300'
+      }`
+    }
     if (underline) {
       return `whitespace-nowrap border-b-2 px-4 py-3 text-sm font-bold transition-colors ${
         isActive ? 'border-primary-600 text-primary-700' : 'border-transparent opacity-65 hover:opacity-100'
@@ -674,6 +681,115 @@ export function BankAccountsView({
     </div>
   ) : null
 
+  if (look === 'copy_grid_minimal') {
+    return (
+      <div>
+        {filterBar}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {shown.map((item, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-gray-900 shadow-sm">
+              <div className="min-w-0">
+                <div className="truncate font-heading text-sm font-bold">{item.bank}</div>
+                {(item.iban || item.account_no) && <code dir="ltr" className="block truncate font-mono text-xs text-gray-600">{item.iban || item.account_no}</code>}
+              </div>
+              {(item.iban || item.account_no) && <CopyButton value={String(item.iban || item.account_no).replace(/\s+/g, '')} label={l.copyShort} copied={l.copied} />}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (look === 'swift_international') {
+    return (
+      <div>
+        {filterBar}
+        <div className="grid gap-5 md:grid-cols-2">
+          {shown.map((item, i) => (
+            <div key={i} className="rounded-2xl border-2 border-primary-100 bg-white p-6 text-gray-900 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-heading text-lg font-bold">{item.bank}</span>
+                <span className="rounded-full bg-primary-600 px-3 py-0.5 text-xs font-extrabold text-white">{item.currency || 'USD'}</span>
+              </div>
+              {item.swift && <div className="mt-2 font-mono text-xs font-bold text-primary-700">SWIFT / BIC: {item.swift}</div>}
+              {(item.iban || item.account_no) && <code dir="ltr" className="mt-3 block select-all rounded-xl bg-gray-50 p-3 font-mono text-xs font-bold">{item.iban || item.account_no}</code>}
+              {(item.iban || item.account_no) && <div className="mt-3"><CopyButton value={String(item.iban || item.account_no).replace(/\s+/g, '')} label={l.copy} copied={l.copied} /></div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (look === 'copy_bar') {
+    return (
+      <div>
+        {filterBar}
+        <div className="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+          {shown.map((item, i) => (
+            <div key={i} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm text-gray-900">
+              <div className="flex items-center gap-2.5">
+                <span className="rounded bg-primary-50 px-2 py-0.5 text-[11px] font-bold text-primary-700">{item.currency || 'TRY'}</span>
+                <span className="font-bold">{item.bank}</span>
+              </div>
+              <div className="flex items-center gap-3">
+                {(item.iban || item.account_no) && <code dir="ltr" className="select-all font-mono text-xs font-bold text-gray-800 sm:text-sm">{item.iban || item.account_no}</code>}
+                {(item.iban || item.account_no) && <CopyButton value={String(item.iban || item.account_no).replace(/\s+/g, '')} label={l.copyShort} copied={l.copied} />}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (look === 'qr_showcase') {
+    return (
+      <div>
+        {filterBar}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {shown.map((item, i) => (
+            <div key={i} className="flex flex-col items-center rounded-3xl border border-gray-200 bg-white p-6 text-center text-gray-900 shadow-sm">
+              {item.qr_url && <img src={item.qr_url} alt={`${item.bank} QR`} className="mb-4 h-36 w-36 rounded-xl border border-gray-100 object-contain p-1" loading="lazy" />}
+              <div className="font-heading text-lg font-bold">{item.bank}</div>
+              {item.holder && <div className="mt-0.5 text-xs text-gray-500">{item.holder}</div>}
+              {(item.iban || item.account_no) && <code dir="ltr" className="mt-3 block select-all rounded-lg bg-gray-50 px-3 py-1.5 font-mono text-xs font-bold text-gray-800">{item.iban || item.account_no}</code>}
+              {(item.iban || item.account_no) && <div className="mt-3"><CopyButton value={String(item.iban || item.account_no).replace(/\s+/g, '')} label={l.copy} copied={l.copied} /></div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (look === 'accordion_banks') {
+    return (
+      <div>
+        {filterBar}
+        <div className="space-y-3">
+          {shown.map((item, i) => (
+            <details key={i} open={i === 0} className="group rounded-2xl border border-gray-200 bg-white px-5 py-4 text-gray-900 shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-heading text-base font-bold">
+                <span className="flex items-center gap-2.5">
+                  <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-bold text-primary-700">{item.currency || 'TRY'}</span>
+                  <span>{item.bank}</span>
+                </span>
+                <span className="text-primary-600 transition group-open:rotate-180">▾</span>
+              </summary>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 text-sm">
+                <div>
+                  {item.holder && <div className="text-xs text-gray-500">{l.holder}: <strong className="text-gray-800">{item.holder}</strong></div>}
+                  {(item.iban || item.account_no) && <code dir="ltr" className="mt-1 block select-all font-mono font-bold">{item.iban || item.account_no}</code>}
+                </div>
+                {(item.iban || item.account_no) && <CopyButton value={String(item.iban || item.account_no).replace(/\s+/g, '')} label={l.copy} copied={l.copied} />}
+              </div>
+            </details>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (look === 'table') {
     return (
       <div>
@@ -931,6 +1047,23 @@ export function Popup({
   }
   if (!open) return null
 
+  if (look === 'top_drawer') {
+    return createPortal(
+      <div
+        role="dialog"
+        aria-modal="false"
+        className="fixed inset-x-0 top-0 z-[85] border-b border-gray-200 bg-white text-gray-900 shadow-xl animate-fade-in"
+        onClick={(e) => { if ((e.target as HTMLElement).closest('a')) close() }}
+      >
+        <div className="mx-auto max-w-4xl relative">
+          <button type="button" aria-label={closeLabel} onClick={close} className="absolute end-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-xs text-white hover:bg-black/70">✕</button>
+          {children}
+        </div>
+      </div>,
+      document.body,
+    )
+  }
+
   if (look === 'slide_in') {
     return createPortal(
       <div
@@ -966,12 +1099,26 @@ export function Popup({
 }
 
 export function BeforeAfterSlider({
-  beforeImage, afterImage, beforeLabel = 'Önce', afterLabel = 'Sonra', aspect = '16/9', initial = 50,
+  beforeImage, afterImage, beforeLabel = 'Önce', afterLabel = 'Sonra', aspect = '16/9', initial = 50, look = 'slider',
 }: {
-  beforeImage?: string; afterImage?: string; beforeLabel?: string; afterLabel?: string; aspect?: string; initial?: number
+  beforeImage?: string; afterImage?: string; beforeLabel?: string; afterLabel?: string; aspect?: string; initial?: number; look?: string
 }) {
   const [pos, setPos] = useState(Math.min(90, Math.max(10, Number(initial) || 50)))
+  const [showAfter, setShowAfter] = useState(true)
   if (!beforeImage && !afterImage) return null
+  if (look === 'toggle_switch') {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-center gap-2">
+          <button type="button" onClick={() => setShowAfter(false)} className={`rounded-full px-4 py-1.5 text-xs font-bold transition ${!showAfter ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700'}`}>{beforeLabel}</button>
+          <button type="button" onClick={() => setShowAfter(true)} className={`rounded-full px-4 py-1.5 text-xs font-bold transition ${showAfter ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'}`}>{afterLabel}</button>
+        </div>
+        <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gray-900 shadow-lg" style={{ aspectRatio: aspect }}>
+          <img src={(showAfter ? afterImage : beforeImage) || afterImage || beforeImage || ''} alt={showAfter ? afterLabel : beforeLabel} className="h-full w-full object-cover" loading="lazy" />
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gray-900 shadow-lg select-none" style={{ aspectRatio: aspect }}>
       {afterImage && <img src={afterImage} alt={afterLabel} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />}
@@ -1171,6 +1318,53 @@ export function NewsletterForm({
         </button>
       </form>
       {privacyNote && <p className={`mt-2.5 text-center text-xs ${dark ? 'text-white/70' : 'text-gray-500'}`}>{privacyNote}</p>}
+    </div>
+  )
+}
+
+export function FidyahCalculator({
+  unitAmount = 180,
+  defaultPeople = 1,
+  defaultDays = 1,
+  buttonLabel = 'Hesaplanan Tutarı Bağışla',
+  buttonUrl = '/bagis',
+  dark = false,
+}: {
+  unitAmount?: number
+  defaultPeople?: number
+  defaultDays?: number
+  buttonLabel?: string
+  buttonUrl?: string
+  dark?: boolean
+}) {
+  const [people, setPeople] = useState(Math.max(1, defaultPeople))
+  const [days, setDays] = useState(Math.max(1, defaultDays))
+  const total = people * days * Math.max(10, unitAmount)
+  const sep = buttonUrl.includes('?') ? '&' : '?'
+
+  return (
+    <div className={`rounded-3xl p-6 shadow-sm ${dark ? 'border border-white/15 bg-white/10 text-white backdrop-blur-md' : 'border border-gray-200 bg-white text-gray-900'}`}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm font-semibold">
+          <span className={dark ? 'text-white/80' : 'text-gray-600'}>Kişi Sayısı</span>
+          <input type="number" min={1} max={100} value={people} onChange={(e) => setPeople(Math.max(1, Number(e.target.value) || 1))}
+            className={`mt-1.5 w-full rounded-xl border px-3.5 py-2.5 font-bold outline-none ${dark ? 'border-white/20 bg-white/10 text-white' : 'border-gray-300 bg-gray-50 text-gray-900'}`} />
+        </label>
+        <label className="block text-sm font-semibold">
+          <span className={dark ? 'text-white/80' : 'text-gray-600'}>Gün Sayısı</span>
+          <input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 1))}
+            className={`mt-1.5 w-full rounded-xl border px-3.5 py-2.5 font-bold outline-none ${dark ? 'border-white/20 bg-white/10 text-white' : 'border-gray-300 bg-gray-50 text-gray-900'}`} />
+        </label>
+      </div>
+      <div className={`mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4 ${dark ? 'bg-black/30' : 'bg-primary-50'}`}>
+        <div>
+          <div className={`text-xs font-semibold ${dark ? 'text-white/70' : 'text-primary-700'}`}>Toplam Tutar ({unitAmount} ₺ / gün)</div>
+          <div className={`font-heading text-3xl font-black ${dark ? 'text-accent-300' : 'text-primary-800'}`}>{total.toLocaleString('tr-TR')} ₺</div>
+        </div>
+        <Link href={`${buttonUrl}${sep}tutar=${total}`} className={`rounded-xl px-6 py-3 text-sm font-extrabold shadow transition ${dark ? 'bg-accent-500 text-white hover:bg-accent-600' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
+          {buttonLabel} →
+        </Link>
+      </div>
     </div>
   )
 }

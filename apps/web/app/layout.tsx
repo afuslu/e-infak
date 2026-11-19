@@ -4,6 +4,7 @@ import './globals.css'
 import { Providers } from './providers'
 import { DonationCart } from '../components/DonationCart'
 import { SiteWidgets } from '../components/site/SiteWidgets'
+import { VersionWatcher } from '../components/VersionWatcher'
 import { brandCssVariables } from '@e-infak/theme'
 import { getSite } from '../lib/public-content'
 import { isRtl } from '../lib/i18n'
@@ -73,6 +74,7 @@ export default async function RootLayout({
           {children}
           {site && <DonationCart />}
           {site && <SiteWidgets />}
+          <VersionWatcher />
         </Providers>
       </body>
     </html>

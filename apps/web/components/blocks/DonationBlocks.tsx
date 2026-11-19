@@ -497,6 +497,12 @@ export function AnnouncementBar({
             ‹
           </button>
         )}
+        {look === 'pulse_urgent' && (
+          <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
+          </span>
+        )}
         {activeBadge && (
           <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wider ${
             isWarning ? 'bg-amber-950 text-amber-100' : 'bg-white/20 text-white'
@@ -1004,10 +1010,10 @@ export function DonationCards({
         : ({ 2: 'sm:grid-cols-2', 3: 'sm:grid-cols-2 lg:grid-cols-3', 4: 'sm:grid-cols-2 lg:grid-cols-4' } as Record<number, string>)[columns] || 'sm:grid-cols-2 lg:grid-cols-3'
   if (!cards.length) return editing ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-gray-400">{l.emptyEdit}</p> : null
   const cardMode: 'card' | 'list' | 'compact' | 'overlay' =
-    layout === 'list' ? 'list' : layout === 'compact' ? 'compact' : layout === 'overlay' ? 'overlay' : 'card'
+    layout === 'list' ? 'list' : layout === 'compact' || layout === 'impact_badge_grid' ? 'compact' : layout === 'overlay' ? 'overlay' : 'card'
 
   return (
-    <div>
+    <div className={layout === 'dark_gold' ? 'rounded-3xl bg-gradient-to-br from-gray-950 via-gray-900 to-amber-950/60 p-6 ring-1 ring-amber-500/20 sm:p-8' : ''}>
       {(switcher || !!tabs?.length) && (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           {!!tabs?.length && (

@@ -184,6 +184,7 @@ function heroSlides(data: HomeData, variant: Tpl, o: Overrides, t: T): SlideView
 export type HeroVariant =
   | Tpl | 'glass' | 'centered' | 'split_form' | 'video_hero' | 'bento_hero'
   | 'split_floating' | 'minimal_typo' | 'duotone' | 'coverflow' | 'peek'
+  | 'full_search_hero' | 'dual_split_card' | 'countdown_crisis' | 'video_split'
 
 export function Hero({ data, variant, o = {}, editing = false }: {
   data: HomeData; variant: HeroVariant; o?: Overrides; editing?: boolean
@@ -198,6 +199,94 @@ export function Hero({ data, variant, o = {}, editing = false }: {
   const ef = o.effect || undefined
   const nv = o.nav || undefined
   const as = o.arrow_style || 'round'
+
+  if (variant === 'countdown_crisis') {
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-br from-red-950 via-red-900 to-gray-950 py-14 text-white lg:py-20">
+        {first?.image_url && <img src={first.image_url} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-25" />}
+        <div className={`relative ${container} max-w-4xl text-center`}>
+          {first?.badge && <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-red-600/80 px-4 py-1 text-xs font-extrabold uppercase tracking-[2px]"><span className="h-2 w-2 animate-ping rounded-full bg-white" />{first.badge}</span>}
+          <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+          {first?.text && <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-white/85">{first.text}</p>}
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-white px-8 py-4 font-extrabold text-red-900 shadow-lg hover:bg-red-50">{first.button_label}</Link>}
+            {first?.button2_url && <Link href={first.button2_url} className="rounded-xl border border-white/30 px-6 py-4 font-semibold text-white hover:bg-white/10">{first.button2_label}</Link>}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'video_split') {
+    return (
+      <section className="bg-gray-950 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-3 inline-block rounded-full bg-white/10 px-3.5 py-1 text-xs font-bold uppercase tracking-[2px] text-accent-300">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base leading-relaxed text-gray-300 sm:text-lg">{first.text}</p>}
+            <div className="mt-7 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-primary-600 px-7 py-3.5 font-extrabold text-white shadow hover:bg-primary-700">{first.button_label}</Link>}
+              {first?.button2_url && <Link href={first.button2_url} className="rounded-xl border border-white/25 px-6 py-3.5 font-semibold text-white hover:bg-white/10">{first.button2_label}</Link>}
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl lg:col-span-6">
+            {first?.image_url && <img src={first.image_url} alt={first.title || ''} className="aspect-video w-full object-cover" />}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'full_search_hero') {
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-b from-primary-950 via-primary-900 to-primary-800 py-16 text-white lg:py-24">
+        {first?.image_url && <img src={first.image_url} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20" />}
+        <div className={`relative ${container} max-w-4xl text-center`}>
+          {first?.badge && <span className="mb-4 inline-block rounded-full bg-white/15 px-4 py-1 text-xs font-bold uppercase tracking-[2px] backdrop-blur-sm">{first.badge}</span>}
+          <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+          {first?.text && <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-white/80 sm:text-lg">{first.text}</p>}
+          <form action="/kampanyalar" method="get" className="mx-auto mt-8 flex max-w-xl items-center gap-2 rounded-2xl bg-white p-2 shadow-2xl">
+            <input name="q" type="search" placeholder="Kampanya veya yardım alanı ara…" className="min-w-0 flex-1 bg-transparent px-4 py-2.5 text-sm font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none" />
+            <button type="submit" className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-primary-700">Ara</button>
+          </form>
+          {data.categories.length > 0 && (
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {data.categories.slice(0, 5).map((cat) => (
+                <Link key={cat.id} href={cat.target_url || '/kampanyalar'} className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1 text-xs font-semibold text-white/90 backdrop-blur-sm hover:bg-white/20">
+                  {cat.title}
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  if (variant === 'dual_split_card') {
+    const camp = (o.campaign_id && data.campaigns.find((c) => c.id === o.campaign_id)) || data.campaigns[0]
+    return (
+      <section className="bg-gray-950 py-14 text-white lg:py-20">
+        <div className={`${container} grid items-center gap-10 lg:grid-cols-12`}>
+          <div className="lg:col-span-6">
+            {first?.badge && <span className="mb-4 inline-block rounded-full bg-accent-500/20 px-3.5 py-1 text-xs font-bold uppercase tracking-[2px] text-accent-300">{first.badge}</span>}
+            <h1 className="font-heading text-3xl font-extrabold leading-tight sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-base leading-relaxed text-gray-300 sm:text-lg">{first.text}</p>}
+            <div className="mt-7 flex flex-wrap gap-3">
+              {first?.button_url && <Link href={first.button_url} className="rounded-xl bg-accent-500 px-7 py-3.5 font-extrabold text-white shadow-lg hover:bg-accent-600">{first.button_label}</Link>}
+              {first?.button2_url && <Link href={first.button2_url} className="rounded-xl border border-white/25 px-6 py-3.5 font-semibold text-white hover:bg-white/10">{first.button2_label}</Link>}
+            </div>
+          </div>
+          {camp && (
+            <div className="lg:col-span-6">
+              <CampaignCard c={camp} t={t} locale={data.locale} showProgress showQuickAmounts />
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
 
   if (variant === 'split_form') {
     const campaign = (o.campaign_id && data.campaigns.find((c) => c.id === o.campaign_id)) || data.campaigns[0]
@@ -490,6 +579,63 @@ export function Categories({ data, t, o = {}, editing = false }: { data: HomeDat
     const href = hrefFor(k)
     const isFeaturedBento = look === 'bento' && idx === 0
     const { Icon: CatIcon } = resolveCategoryIcon(k.icon, (k as CategoryDto).donation_type)
+
+    if (look === 'icon_list_dense') {
+      return (
+        <Link key={k.id || k.title} href={href} className="group flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-gray-900 shadow-xs transition hover:border-primary-500 hover:text-primary-700">
+          <span className="flex items-center gap-2.5 truncate">
+            <CatIcon className="h-5 w-5 shrink-0 text-primary-600" />
+            <span className="truncate">{k.title}</span>
+          </span>
+          <span className="text-primary-600 transition-transform group-hover:translate-x-1">→</span>
+        </Link>
+      )
+    }
+
+    if (look === 'dark_accent_tiles') {
+      return (
+        <Link key={k.id || k.title} href={href} className="group flex flex-col justify-between rounded-2xl bg-gray-950 p-6 text-white ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:ring-accent-400">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-accent-300">
+            <CatIcon className="h-6 w-6" />
+          </div>
+          <div className="mt-4">
+            <div className="font-heading text-lg font-bold">{k.title}</div>
+            {showDesc && k.description && <p className="mt-1 line-clamp-2 text-xs text-gray-400">{k.description}</p>}
+          </div>
+        </Link>
+      )
+    }
+
+    if (look === 'story_circles') {
+      return (
+        <Link key={k.id || k.title} href={href} className="group flex flex-col items-center gap-2.5 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-primary-500 bg-primary-50 p-1 text-primary-700 shadow-sm transition group-hover:scale-105 group-hover:border-accent-500">
+            {k.image_url
+              ? <img src={k.image_url} alt={k.title} className="h-full w-full rounded-full object-cover" loading="lazy" />
+              : <CatIcon className="h-8 w-8" />}
+          </div>
+          <span className="max-w-[110px] truncate font-heading text-xs font-bold text-gray-800 group-hover:text-primary-700">{k.title}</span>
+        </Link>
+      )
+    }
+
+    if (look === 'mega_tiles') {
+      return (
+        <Link key={k.id || k.title} href={href}
+          className="group flex flex-col justify-between rounded-3xl border border-gray-200 bg-gradient-to-br from-white to-primary-50/40 p-7 shadow-sm transition hover:-translate-y-1 hover:border-primary-400 hover:shadow-xl">
+          <div className="flex items-start justify-between gap-3">
+            <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-600 text-white shadow-md">
+              <CatIcon className="h-8 w-8" />
+            </span>
+            {k.badge && <span className="rounded-full bg-accent-100 px-3 py-1 text-[11px] font-bold text-accent-800">{k.badge}</span>}
+          </div>
+          <div className="mt-6">
+            <h3 className="font-heading text-xl font-bold text-gray-900 group-hover:text-primary-700">{k.title}</h3>
+            {showDesc && k.description && <p className="mt-1.5 text-sm leading-relaxed text-gray-600">{k.description}</p>}
+          </div>
+        </Link>
+      )
+    }
 
     if (look === 'compact') {
       return (
@@ -833,7 +979,7 @@ export function Campaigns({ data, t, o = {} }: { data: HomeData; t: T; o?: Overr
   const buttonLabel = o.button_label ? String(o.button_label) : undefined
   const showQuickAmounts = Boolean(o.show_quick_amounts)
   const showDaysLeft = o.show_days_left !== false
-  const showFilters = Boolean(o.show_filters) && layout !== 'carousel'
+  const showFilters = Boolean(o.show_filters || layout === 'tabbed_categories') && layout !== 'carousel'
 
   const renderCard = (c: Campaign) => (
     <CampaignCard
@@ -1019,6 +1165,59 @@ export function FeaturedCampaign({ data, t, o = {}, editing = false }: { data: H
       ))}
     </div>
   )
+
+  if (look === 'urgent_ticker') {
+    return (
+      <section className="bg-gradient-to-r from-red-950 via-red-900 to-rose-900 py-10 text-white">
+        <div className={`${container} grid items-center gap-6 lg:grid-cols-12`}>
+          <div className="space-y-3 lg:col-span-7">
+            {urgentPill(true)}
+            <h2 className="font-heading text-2xl font-extrabold md:text-4xl">{title}</h2>
+            {summary && <p className="text-sm leading-relaxed text-white/80 md:text-base">{summary}</p>}
+            {showProgress && <div className="max-w-lg pt-1"><Progress c={c} locale={data.locale} light big /></div>}
+          </div>
+          <div className="flex flex-col gap-3 rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-md lg:col-span-5">
+            {quickChips(true)}
+            <Link href={`/kampanyalar/${c.slug}`} className="inline-flex items-center justify-center rounded-xl bg-white px-6 py-3.5 text-sm font-extrabold text-red-900 shadow transition hover:bg-red-50">
+              {ctaLabel} →
+            </Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'receipt_preview') {
+    return (
+      <section className="py-12">
+        <div className={container}>
+          <div className="grid items-center gap-8 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:p-10 lg:grid-cols-12">
+            <div className="space-y-4 lg:col-span-7">
+              {urgentPill(false)}
+              <h2 className="font-heading text-2xl font-bold text-gray-900 md:text-4xl">{title}</h2>
+              {summary && <p className="text-base leading-relaxed text-gray-600">{summary}</p>}
+              {showProgress && <Progress c={c} locale={data.locale} />}
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl bg-primary-600 px-7 py-3.5 font-extrabold text-white shadow hover:bg-primary-700">{ctaLabel}</Link>
+                {showDetails && <Link href={`/kampanyalar/${c.slug}`} className="rounded-xl border border-gray-200 px-6 py-3.5 font-semibold text-gray-700 hover:border-primary-600">{t('campaign.details')}</Link>}
+              </div>
+            </div>
+            <div className="rounded-2xl border-2 border-dashed border-primary-200 bg-primary-50/40 p-6 lg:col-span-5">
+              <div className="mb-3 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-primary-700">
+                <span>🧾 Resmi Bağış Makbuzu</span>
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] text-emerald-800">Anında SMS & PDF</span>
+              </div>
+              <div className="space-y-2 rounded-xl bg-white p-4 text-xs text-gray-600 shadow-xs">
+                <div className="flex justify-between"><span>Kampanya:</span><strong className="text-gray-900">{title}</strong></div>
+                <div className="flex justify-between"><span>Durum:</span><strong className="text-emerald-700">✓ Doğrulanmış Proje</strong></div>
+                <div className="flex justify-between"><span>Şeffaflık:</span><strong className="text-gray-900">Fotoğraflı Saha Raporu</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (look === 'alert_bar') {
     return (
@@ -1475,6 +1674,89 @@ export function ZakatBand({ t, o = {}, tpl = 'klasik', locale = 'tr' }: { t: T; 
       )}
     </div>
   )
+
+  if (look === 'gold_nisab_card') {
+    return (
+      <section className={py}>
+        <div className={container}>
+          <div className="rounded-3xl border-2 border-amber-300/70 bg-gradient-to-br from-amber-50 via-white to-amber-50/40 p-8 shadow-md md:p-12">
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <div className="max-w-2xl">
+                <span className="mb-2 inline-block rounded-full bg-amber-100 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-amber-900">🪙 {nisabNote || '85 gr Altın Nisap Eşiği'}</span>
+                <h3 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600 md:text-base">{text}</p>
+              </div>
+              {renderActions(false)}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'split_faq_zakat') {
+    return (
+      <section className={py}>
+        <div className={container}>
+          <div className="grid items-center gap-8 rounded-3xl border border-gray-200 bg-white p-8 shadow-sm lg:grid-cols-12 md:p-10">
+            <div className="space-y-4 lg:col-span-6">
+              {kicker && <span className="text-xs font-extrabold uppercase tracking-wider text-primary-700">{kicker}</span>}
+              <h3 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">{title}</h3>
+              <p className="text-sm leading-relaxed text-gray-600 md:text-base">{text}</p>
+              {renderActions(false)}
+            </div>
+            <div className="space-y-3 lg:col-span-6">
+              {(ZAKAT_ASSET_CLASSES[locale] || ZAKAT_ASSET_CLASSES.tr).slice(0, 3).map((item, idx) => (
+                <div key={idx} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                  <div className="font-heading text-sm font-bold text-gray-900">{item.icon} {item.title}</div>
+                  <div className="mt-0.5 text-xs text-gray-600">{item.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'nisab_ticker') {
+    return (
+      <section className={py}>
+        <div className={container}>
+          <div className="rounded-3xl border border-primary-200 bg-gradient-to-r from-primary-50 via-white to-accent-50 p-7 shadow-sm md:p-10">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-primary-100 pb-5">
+              <div>
+                {kicker && <span className="mb-1 inline-block text-xs font-extrabold uppercase tracking-wider text-primary-700">{kicker}</span>}
+                <h3 className="font-heading text-2xl font-bold text-gray-900 md:text-3xl">{title}</h3>
+              </div>
+              <span className="rounded-full bg-primary-600 px-4 py-1.5 text-xs font-extrabold text-white">🪙 {nisabNote || '85 gr Altın / 595 gr Gümüş Nisabı'}</span>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-6">
+              <p className="max-w-2xl text-sm leading-relaxed text-gray-600 md:text-base">{text}</p>
+              {renderActions(false)}
+            </div>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'dark_islamic_pattern') {
+    return (
+      <section className="relative overflow-hidden bg-primary-950 py-14 text-white">
+        <div className="pointer-events-none absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20px 20px, currentColor 1.5px, transparent 0)', backgroundSize: '40px 40px' }} aria-hidden />
+        <div className={`relative ${container}`}>
+          <div className="mx-auto max-w-3xl text-center">
+            {kicker && <span className="mb-2 inline-block rounded-full bg-white/10 px-3.5 py-1 text-xs font-bold uppercase tracking-widest text-accent-300">{kicker}</span>}
+            <h3 className="font-heading text-3xl font-bold md:text-4xl">{title}</h3>
+            <p className="mt-3 text-base leading-relaxed text-white/80">{text}</p>
+            {nisabNote && <p className="mt-2 text-xs font-bold text-accent-300">{nisabNote}</p>}
+            <div className="mt-6 flex justify-center">{renderActions(true)}</div>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (look === 'strip') {
     return (
@@ -1939,6 +2221,43 @@ export function CtaBand({ data, o = {} }: { data: HomeData; o?: Overrides }) {
     )
   }
 
+  if (look === 'whatsapp_direct') {
+    return (
+      <section className={py}>
+        <div className={wrap}>
+          <div className="flex flex-col items-center justify-between gap-6 rounded-3xl bg-gradient-to-r from-emerald-700 to-emerald-600 px-8 py-9 text-white shadow-lg md:flex-row md:px-12">
+            <div>
+              {band.kicker && <span className="mb-1.5 inline-block text-xs font-extrabold uppercase tracking-[2px] text-emerald-100">{band.kicker}</span>}
+              <h3 className="font-heading text-2xl font-bold md:text-3xl">{band.title}</h3>
+              {band.text && <p className="mt-1.5 max-w-xl text-sm text-emerald-50 md:text-base">{band.text}</p>}
+            </div>
+            <Link href={band.button_url} className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-white px-7 py-4 text-sm font-extrabold text-emerald-800 shadow-lg transition hover:-translate-y-0.5 hover:bg-emerald-50">
+              <span>💬</span> {band.button_label}
+            </Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  if (look === 'floating_pill') {
+    return (
+      <section className="py-8">
+        <div className={container}>
+          <div className="mx-auto flex max-w-4xl flex-col items-center justify-between gap-5 rounded-full border border-primary-200 bg-white px-8 py-5 shadow-xl sm:flex-row">
+            <div className="text-center sm:text-start">
+              <div className="font-heading text-lg font-bold text-gray-900">{band.title}</div>
+              {band.text && <div className="text-xs text-gray-500">{band.text}</div>}
+            </div>
+            <Link href={band.button_url} className="shrink-0 rounded-full bg-primary-600 px-6 py-3 text-sm font-extrabold text-white shadow transition hover:bg-primary-700">
+              {band.button_label} →
+            </Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   const isLight = look === 'soft' || look === 'bordered'
   const boxCls =
     look === 'dark'
@@ -2028,6 +2347,23 @@ export function News({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides 
   )
 
   const body = () => {
+    if (look === 'timeline_feed') {
+      return (
+        <ol className="mx-auto max-w-3xl space-y-5 border-s-2 border-primary-200 ps-6">
+          {list.map((n) => (
+            <li key={n.id} className="relative">
+              <span className="absolute -start-[31px] top-2 h-3.5 w-3.5 rounded-full border-2 border-white bg-primary-600 shadow" aria-hidden />
+              <Link href={hrefOf(n)} className="block rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition hover:border-primary-300 hover:shadow-md">
+                {showDate && n.published_at && <div className="mb-1 text-xs font-bold uppercase tracking-wider text-primary-600">{fmtDate(n)}</div>}
+                <h3 className="font-heading text-lg font-bold text-gray-900">{n.title}</h3>
+                {showSummary && n.summary && <p className="mt-1.5 line-clamp-2 text-sm text-gray-600">{n.summary}</p>}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      )
+    }
+
     if (look === 'magazine') {
       const [lead, ...rest] = list
       return (
@@ -2079,6 +2415,29 @@ export function News({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides 
               </div>
             </Link>
           ))}
+        </div>
+      )
+    }
+
+    if (look === 'photo_grid_2col') {
+      return (
+        <div className="grid gap-6 md:grid-cols-2">
+          {list.map(card)}
+        </div>
+      )
+    }
+
+    if (look === 'ticker_headlines') {
+      return (
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white py-3.5 shadow-xs">
+          <div className="bmq items-center gap-8" style={{ ['--bmq' as string]: `${Math.max(list.length * 7, 22)}s` }}>
+            {[...list, ...list].map((n, i) => (
+              <Link key={`${n.id}-${i}`} href={hrefOf(n)} className="inline-flex flex-none items-center gap-2.5 text-sm font-bold text-gray-800 hover:text-primary-700">
+                <span className="h-2 w-2 rounded-full bg-primary-600" />
+                <span>{n.title}</span>
+              </Link>
+            ))}
+          </div>
         </div>
       )
     }
@@ -2272,6 +2631,58 @@ export function Testimonials({ data, t, o = {} }: { data: HomeData; t: T; o?: Ov
         ) : look === 'masonry' ? (
           <div className="columns-1 gap-6 space-y-6 md:columns-2 lg:columns-3">
             {items.map((item, i) => <div key={i} className="break-inside-avoid">{cardNode(item, i)}</div>)}
+          </div>
+        ) : look === 'two_col_highlight' ? (
+          <div className="grid gap-6 md:grid-cols-2">{items.map((item, i) => cardNode(item, i))}</div>
+        ) : look === 'compact_avatar_row' ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {items.map((item, i) => (
+              <div key={i} className={`rounded-2xl p-4 ${dark ? 'bg-white/10 text-white' : 'border border-gray-200 bg-white text-gray-900 shadow-xs'}`}>
+                <p className="line-clamp-3 text-xs leading-relaxed opacity-85">“{item.quote}”</p>
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 text-[11px] font-bold text-white">{(item.name || '♥').charAt(0)}</span>
+                  <span className="truncate text-xs font-bold">{item.name}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : look === 'chat_bubbles' ? (
+          <div className="mx-auto grid max-w-4xl gap-5 md:grid-cols-2">
+            {items.map((item, i) => (
+              <div key={i} className={`rounded-3xl rounded-bs-sm p-6 shadow-sm ${dark ? 'bg-white/10 text-white' : 'border border-emerald-100 bg-emerald-50/60 text-gray-900'}`}>
+                <p className="text-sm leading-relaxed">“{item.quote}”</p>
+                <div className="mt-3 flex items-center justify-between text-xs opacity-75">
+                  <span className="font-bold">{item.name}</span>
+                  <span>{item.date || item.role || '✓✓'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : look === 'verified_donor_strip' ? (
+          <div className="grid gap-4 md:grid-cols-3">
+            {items.map((item, i) => (
+              <div key={i} className={`rounded-2xl p-5 ${dark ? 'bg-white/10 text-white' : 'border border-gray-200 bg-white text-gray-900 shadow-sm'}`}>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800">✓ Onaylı Bağışçı</span>
+                  {renderStars(item.rating, dark)}
+                </div>
+                <p className="text-sm leading-relaxed">{item.quote}</p>
+                {item.name && <div className="mt-3 text-xs font-bold opacity-80">— {item.name}</div>}
+              </div>
+            ))}
+          </div>
+        ) : look === 'video_stories' ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((item, i) => (
+              <div key={i} className="group relative overflow-hidden rounded-3xl bg-gray-900 text-white shadow-lg">
+                {item.image_url && <img src={item.image_url} alt={item.name || ''} className="aspect-[4/5] w-full object-cover opacity-70 transition duration-500 group-hover:scale-105" loading="lazy" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                <div className="relative p-6">
+                  <p className="font-heading text-base leading-relaxed">“{item.quote}”</p>
+                  {item.name && <div className="mt-3 text-xs font-bold text-accent-300">{item.name}</div>}
+                </div>
+              </div>
+            ))}
           </div>
         ) : look === 'spotlight' ? (
           <div className="mx-auto max-w-4xl space-y-6">

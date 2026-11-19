@@ -365,7 +365,8 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     }
     case 'quick_donation': {
       const c = campaignById(o.campaign_id) || data.campaigns[0]
-      const look = (o.look || 'card') as 'card' | 'band' | 'compact' | 'split' | 'inline' | 'glass' | 'single_step'
+      const rawLook = String(o.look || 'card')
+      const look = (rawLook === 'floating_bar' ? 'inline' : rawLook === 'impact_calculator' ? 'split' : rawLook) as 'card' | 'band' | 'compact' | 'split' | 'inline' | 'glass' | 'single_step'
       const parseAmounts = (raw?: string) =>
         (raw || '').split(',').map((v) => Number(v.trim())).filter((n) => Number.isFinite(n) && n > 0)
       const parseLabels = (raw?: string) => {
@@ -693,6 +694,57 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
 
+      if (o.layout === 'split_stats_overlay') {
+        return (
+          <div className="relative overflow-hidden bg-gray-950 py-14 text-white">
+            {o.image_url && <img src={o.image_url} alt={o.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-35" loading="lazy" />}
+            <div className={`relative ${container}`}>
+              <div className="max-w-2xl rounded-3xl border border-white/15 bg-black/50 p-8 backdrop-blur-md">
+                {text(true)}
+              </div>
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'minimal_border_top') {
+        return (
+          <div className={container}>
+            <div className="border-t-4 border-primary-600 bg-white p-8 shadow-sm">
+              {text(false)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'ribbon_corner') {
+        return (
+          <div className={container}>
+            <div className="relative overflow-hidden rounded-3xl border border-primary-200 bg-gradient-to-br from-primary-50 via-white to-accent-50 p-8 shadow-sm sm:p-12">
+              {o.kicker && <span className="absolute end-5 top-5 rounded-full bg-accent-500 px-3.5 py-1 text-xs font-extrabold uppercase tracking-wider text-white shadow">{o.kicker}</span>}
+              {text(false)}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'duotone_overlay') {
+        return (
+          <div className={container}>
+            <div className="relative overflow-hidden rounded-3xl bg-primary-900 p-8 text-white shadow-xl sm:p-14">
+              {o.image_url && <img src={o.image_url} alt={o.title || ''} className="absolute inset-0 h-full w-full object-cover opacity-35 grayscale mix-blend-luminosity" loading="lazy" />}
+              <div className="relative z-10">{text(true)}</div>
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'split_countdown') {
+        return (
+          <div className={container}>
+            <div className="grid items-center gap-8 rounded-3xl bg-gray-950 p-8 text-white shadow-xl md:grid-cols-12 sm:p-12">
+              <div className="md:col-span-8">{text(true)}</div>
+              {o.image_url && <div className="md:col-span-4"><img src={o.image_url} alt={o.title || ''} className="aspect-[4/3] w-full rounded-2xl object-cover" loading="lazy" /></div>}
+            </div>
+          </div>
+        )
+      }
       if (o.layout === 'diagonal') {
         return (
           <div className={container}>
@@ -1081,7 +1133,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const wrapCls = `${depth === 0 ? container : ''} ${alignCls}`.trim()
 
       const kickerNode = o.kicker ? (
-        look === 'badge' ? (
+        look === 'badge' || look === 'badge_accent' ? (
           <div className="mb-3 inline-flex items-center rounded-full bg-primary-50 px-4 py-1 text-xs font-extrabold uppercase tracking-[2px] text-primary-700 ring-1 ring-primary-200/70">
             {o.kicker}
           </div>
@@ -1093,14 +1145,14 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const titleNode = (
         <Tag
           className={`font-heading font-bold leading-tight ${size} ${
-            look === 'gradient' ? 'bg-gradient-to-r from-primary-700 via-primary-600 to-accent-500 bg-clip-text text-transparent' : ''
+            look === 'gradient' ? 'bg-gradient-to-r from-primary-700 via-primary-600 to-accent-500 bg-clip-text text-transparent' : look === 'editorial_serif' ? 'font-serif italic tracking-tight' : ''
           }`}
         >
           {o.text}
         </Tag>
       )
 
-      const underlineBar = look === 'underline' ? (
+      const underlineBar = look === 'underline' || look === 'badge_accent' ? (
         <div className={`mt-3 h-1 w-16 rounded-full bg-gradient-to-r from-primary-600 to-accent-500 ${o.align === 'center' ? 'mx-auto' : o.align === 'right' ? 'ms-auto' : ''}`} />
       ) : null
 
@@ -1202,11 +1254,15 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           ? 'aspect-square w-full rounded-full object-cover shadow-md'
           : look === 'full_bleed'
             ? `w-full ${hasAspect ? 'object-cover' : ''}`
-            : look === 'shadow'
-              ? `w-full rounded-2xl shadow-xl transition-transform duration-500 group-hover:scale-[1.02] ${hasAspect ? 'object-cover' : ''}`
-              : look === 'framed'
-                ? `w-full rounded-xl ${hasAspect ? 'object-cover' : ''}`
-                : `w-full rounded-2xl ${hasAspect ? 'object-cover' : ''}`
+            : look === 'polaroid_frame'
+              ? `w-full rounded-lg bg-white p-3 pb-10 shadow-xl ring-1 ring-gray-200 -rotate-1 ${hasAspect ? 'object-cover' : ''}`
+              : look === 'duotone_brand'
+                ? `w-full rounded-2xl grayscale contrast-125 mix-blend-multiply ${hasAspect ? 'object-cover' : ''}`
+                : look === 'shadow' || look === 'floating_badge'
+                  ? `w-full rounded-2xl shadow-xl transition-transform duration-500 group-hover:scale-[1.02] ${hasAspect ? 'object-cover' : ''}`
+                  : look === 'framed'
+                    ? `w-full rounded-xl ${hasAspect ? 'object-cover' : ''}`
+                    : `w-full rounded-2xl ${hasAspect ? 'object-cover' : ''}`
       const picture = (
         <picture className="block">
           {o.mobile_image_url && <source media="(max-width: 639px)" srcSet={o.mobile_image_url} />}
@@ -1319,8 +1375,9 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         <div className={depth === 0 ? container : ''}>
           <div className={`grid items-center ${look === 'full_bleed' ? 'gap-0' : 'gap-10'} ${gridCols} ${boxCls}`.trim()}>
             {pic && (
-              <div className={`${right ? 'md:order-2' : ''} ${look === 'overlap' ? 'relative p-2' : ''} ${look === 'badge_card' ? 'relative' : ''} ${look === 'full_bleed' ? 'h-full' : ''}`.trim()}>
+              <div className={`${right ? 'md:order-2' : ''} ${look === 'overlap' || look === 'collage_two_photos' ? 'relative p-2' : ''} ${look === 'badge_card' ? 'relative' : ''} ${look === 'full_bleed' ? 'h-full' : ''}`.trim()}>
                 {look === 'overlap' && <div className="absolute inset-0 -rotate-2 rounded-3xl bg-primary-100" aria-hidden />}
+                {look === 'collage_two_photos' && <div className="absolute -bottom-3 -end-3 h-3/4 w-3/4 rounded-2xl border-4 border-white bg-primary-100 shadow-lg" aria-hidden />}
                 {pic}
                 {look === 'badge_card' && (o.stat_value || o.stat_label) && (
                   <div className="absolute -bottom-4 end-4 rounded-2xl border border-primary-100 bg-white px-5 py-3 text-gray-900 shadow-xl">
@@ -1637,18 +1694,26 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const valignCls = minHCls
         ? (o.valign === 'center' ? 'justify-center' : o.valign === 'end' ? 'justify-end' : 'justify-start')
         : ''
-      const isBoxLook = look === 'card' || look === 'bordered' || look === 'glass'
-      const isDarkTone = o.tone === 'dark' || o.tone === 'brand' || o.tone === 'accent'
+      const isBoxLook = look === 'card' || look === 'bordered' || look === 'glass' || look === 'dark_glass_frame'
+      const isDarkTone = o.tone === 'dark' || o.tone === 'brand' || o.tone === 'accent' || look === 'dark_glass_frame'
       const boxCls = look === 'card'
         ? `rounded-3xl p-6 sm:p-10 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.12)] ring-1 ${isDarkTone ? 'ring-white/15 bg-white/5' : 'bg-white text-gray-900 ring-black/5'}`
         : look === 'bordered'
           ? `rounded-3xl p-6 sm:p-10 border ${isDarkTone ? 'border-white/20' : 'border-gray-200/90'}`
           : look === 'glass'
             ? `rounded-3xl p-6 sm:p-10 border backdrop-blur-md shadow-lg ${isDarkTone ? 'border-white/20 bg-white/10 text-white' : 'border-white/60 bg-white/75 text-gray-900'}`
-            : ''
+            : look === 'dark_glass_frame'
+              ? 'rounded-3xl border border-white/15 bg-gray-950/90 p-6 text-white shadow-2xl backdrop-blur-md sm:p-10'
+              : ''
       const outerCls = look === 'gradient'
         ? 'bg-gradient-to-br from-primary-700 via-primary-600 to-accent-500 text-white'
-        : ''
+        : look === 'gradient_mesh'
+          ? 'bg-gradient-to-tr from-primary-50 via-white to-accent-50'
+          : look === 'islamic_geometric'
+            ? 'bg-primary-50/40'
+            : look === 'wave_edges'
+              ? 'rounded-[40px] bg-primary-50/60'
+              : ''
       const renderShape = (shape: string | undefined, pos: 'top' | 'bottom') => {
         if (!shape || shape === 'none') return null
         const flip = pos === 'top' ? 'rotate-180' : ''
@@ -1966,7 +2031,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       return (
         <div className={`${depth === 0 ? container : ''} ${alignWrap}`.trim()}>
           {o.title && <div className="mb-3 text-sm font-bold">{o.title}</div>}
-          <div className={`flex flex-wrap items-center gap-2.5 ${JUSTIFY[o.align] || ''}`}>
+          <div className={`flex flex-wrap items-center gap-2.5 ${JUSTIFY[o.align] || ''} ${style === 'floating_dock' ? 'inline-flex rounded-full border border-gray-200/80 bg-white/90 px-4 py-2 shadow-lg backdrop-blur-md' : ''}`}>
             {links.map(([network, href], idx) => {
               const key = network.toLowerCase()
               const [name, short] = SOCIAL_LABELS[key] || [network, network.slice(0, 2).toUpperCase()]
@@ -2353,7 +2418,15 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const wrapCls = `${depth === 0 && !o.full_width ? container : ''} ${padCls}`.trim()
 
       let inner: ReactNode
-      if (look === 'double') {
+      if (look === 'ornament_islamic') {
+        inner = (
+          <div className={`${alignCls} flex items-center gap-4`} style={{ width }}>
+            <span className="h-px flex-1" style={{ backgroundColor: lineColor }} />
+            <span className="text-base text-primary-600">❖ ✦ ❖</span>
+            <span className="h-px flex-1" style={{ backgroundColor: lineColor }} />
+          </div>
+        )
+      } else if (look === 'double') {
         inner = (
           <hr
             className={`${alignCls} border-0 border-t`}
