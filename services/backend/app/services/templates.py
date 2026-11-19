@@ -1469,6 +1469,72 @@ for (_key, _label, _description), _block in zip(_HK_PARTS, _HK["home"]):
     _section(_key, _label, "Hayır Kapısı", _description, [_block])
 _section("hk-header", "Hayır Kapısı header", "Header", "Duyuru çubuğu, yeşil bilgi bandı, mega menü ve iki butonlu header.", _HK["header"], kind="header")
 _section("hk-footer", "Hayır Kapısı footer", "Footer", "Dört sütun, Çağrı Merkezi kutusu, alt menü ve telefon alt çubuğu.", _HK["footer"], kind="footer")
+
+_section("slider-floating-donate", "Hızlı Bağış Kartlı Slider", "Hero", "Slayt üzerinde sağda yüzen tutar seçicili hızlı bağış kartı.", [
+    B("slider", layout="floating_donate", height="lg", nav="progress", autoplay=True, slides=[
+        {"image_url": "/demo/water.webp", "badge": "ACİL YARDIM", "title": "Bir Damla Hayat Olun", "text": "Temiz suya erişemeyen köylerde kalıcı su kuyuları açıyoruz.", "button_url": "/bagis/su-kuyusu", "button_label": "Bağış Yap", "quick_amounts": "250,500,1000,2500"},
+        {"image_url": "/demo/orphan.webp", "badge": "YETİM SPONSORLUĞU", "title": "Bir Yetimin Yüzü Gülsün", "text": "Eğitim, gıda ve barınma desteğiyle yanlarındayız.", "button_url": "/bagis", "button_label": "Sponsor Ol", "quick_amounts": "500,1000,2000"},
+    ]),
+])
+_section("slider-spotlight", "Koyu Vitrin Çerçeveli Slider", "Hero", "Koyu zemin üzerinde çerçeveli modern slider vitrini.", [
+    B("slider", layout="spotlight", height="lg", nav="numbers", autoplay=True, slides=[
+        {"image_url": "/demo/relief.webp", "badge": "İNSANİ YARDIM", "title": "Sofralara Bereket Taşıyoruz", "text": "Gıda kolileri ve sıcak yemek dağıtımlarıyla ihtiyaç sahiplerinin yanındayız.", "button_url": "/bagis", "button_label": "Destek Ol"},
+        {"image_url": "/demo/education.webp", "badge": "EĞİTİM", "title": "İlimle Yetişen Nesiller", "text": "Öğrencilerimize burs ve eğitim materyali desteği sağlıyoruz.", "button_url": "/bagis/egitim", "button_label": "Burs Ver"},
+    ]),
+])
+_section("carousel-story-916", "9:16 Dikey Hikaye Kartları", "Carousel", "Instagram/Shorts tarzı dikey 9:16 saha hikayeleri ve video kartları.", [
+    B("carousel", look="story_916", kicker="SAHADAN HİKAYELER", title="İyilik Yolculuğumuzdan Kareler", columns=4, items=[
+        {"image_url": "/demo/water.webp", "badge": "Su Kuyusu", "title": "Çad Su Kuyusu Açılışı", "button_label": "İncele", "button_url": "/bagis"},
+        {"image_url": "/demo/orphan.webp", "badge": "Yetim", "title": "Bayramlık Sevinci", "button_label": "Destek Ol", "button_url": "/bagis"},
+        {"image_url": "/demo/relief.webp", "badge": "Gıda", "title": "Sıcak Yemek Dağıtımı", "button_label": "Katkı Sağla", "button_url": "/bagis"},
+        {"image_url": "/demo/education.webp", "badge": "Eğitim", "title": "Medrese Bursları", "button_label": "Burs Ver", "button_url": "/bagis"},
+    ]),
+])
+_section("carousel-polaroid", "Polaroid Hatıra Kartları", "Carousel", "Hafif açılı fotoğraf albümü tarzı proje ve faaliyet kartları.", [
+    B("carousel", look="polaroid", kicker="FAALİYETLERİMİZ", title="Sahadan Anılar", columns=3, items=[
+        {"image_url": "/demo/water.webp", "title": "Afrika Su Kuyuları", "subtitle": "120+ Köy", "text": "Temiz suya kavuşan yüzlerce aile."},
+        {"image_url": "/demo/orphan.webp", "title": "Yetim Hamiliği", "subtitle": "Aylık Destek", "text": "Düzenli eğitim ve yaşam desteği."},
+        {"image_url": "/demo/relief.webp", "title": "Acil Gıda Yardımı", "subtitle": "Kriz Bölgeleri", "text": "Hızlı ulaşan temel gıda paketleri."},
+    ]),
+])
+_section("stats-bento-dark", "Koyu Bento İstatistikler", "Güven", "Koyu zemin üzerinde büyük vurgulu etki sayıları.", [
+    B("stats", variant="bento_dark", mode="manual", kicker="ŞEFFAF ETKİ", title="Sizinle Büyüyen İyilik", items=[
+        {"value": "120", "suffix": "+", "label": "Açılan Su Kuyusu"},
+        {"value": "4500", "suffix": "+", "label": "Düzenli Desteklenen Yetim"},
+        {"value": "85000", "label": "Ulaştırılan Gıda Paketi"},
+        {"value": "18", "label": "Aktif Yardım Bölgesi"},
+    ]),
+])
+_section("slider-split-dark", "Koyu 2 Sütun Hero Slider", "Hero", "Koyu zeminli iki sütun vitrin slider.", [
+    B("slider", layout="split_dark", height="lg", autoplay=True, slides=[
+        {"image_url": "/demo/water.webp", "badge": "SU KUYUSU", "title": "Temiz Suya Açılan Kapı", "text": "Kurak bölgelerde kalıcı su kuyuları açarak yüzlerce aileye umut oluyoruz.", "button_url": "/bagis/su-kuyusu", "button_label": "Bağış Yap"},
+        {"image_url": "/demo/education.webp", "badge": "EĞİTİM", "title": "Geleceği İlimle İnşa Edin", "text": "Öğrencilerimize burs ve eğitim materyali desteği sağlıyoruz.", "button_url": "/bagis/egitim", "button_label": "Burs Ver"},
+    ]),
+])
+_section("slider-grid-collage", "3'lü Mozaik Kolaj Slider", "Hero", "Sol başlık + sağda 3'lü asimetrik fotoğraf kolajı.", [
+    B("slider", layout="grid_collage", height="lg", autoplay=True, slides=[
+        {"image_url": "/demo/orphan.webp", "badge": "YETİM DESTEĞİ", "title": "Her Çocuk Gülümsemeyi Hak Eder", "text": "Yetim yavrularımızın eğitim, gıda ve giyim ihtiyaçlarını karşılıyoruz.", "button_url": "/bagis", "button_label": "Sponsor Ol"},
+        {"image_url": "/demo/relief.webp", "badge": "ACİL YARDIM", "title": "Kriz Bölgelerine Hızlı Destek", "text": "Sıcak yemek ve temel gıda kolilerini ihtiyaç sahiplerine ulaştırıyoruz.", "button_url": "/bagis", "button_label": "Destek Ol"},
+        {"image_url": "/demo/water.webp", "badge": "SU KUYUSU", "title": "Bir Kuyu, Bin Hayat", "text": "Temiz suya erişemeyen köyler için kalıcı çözümler üretiyoruz.", "button_url": "/bagis/su-kuyusu", "button_label": "Katkı Sağla"},
+    ]),
+])
+_section("carousel-quote-card", "Tırnaklı Hikaye & Referans Carousel", "Carousel", "Büyük tırnak ikonlu bağışçı ve saha hikayesi kartları.", [
+    B("carousel", look="quote_card", kicker="SAHADAN SESLER", title="İyiliğin Hikayeleri", columns=3, items=[
+        {"title": "Köyümüze ilk kez temiz su geldi", "subtitle": "Çad Su Kuyusu Projesi", "text": "Çocuklarımız artık kilometrelerce yürümek zorunda kalmıyor.", "rating": 5},
+        {"title": "Eğitim bursumla üniversiteyi kazandım", "subtitle": "İlim Bursu Öğrencisi", "text": "Destek veren tüm hayırseverlere gönülden teşekkür ederim.", "rating": 5},
+        {"title": "Kurban hissemizin videosunu aynı gün izledik", "subtitle": "Bağışçı · İstanbul", "text": "Şeffaf ve güvenilir süreç için teşekkür ederiz.", "rating": 5},
+    ]),
+])
+_section("banner-floating-card", "Yüzen Kartlı Modern Banner", "Banner", "Tam genişlik görsel üzerinde sağda yüzen cam/beyaz kart.", [
+    B("banner", layout="floating_card", kicker="RAMAZAN & ZEKAT", title="Zekatlarınız Emanetimizdir", text="İhtiyaç sahiplerine ulaştırılan her kuruş şeffaf makbuzlarla kayıt altındadır.", button_label="Zekat Hesapla", button_url="/zekat-hesapla", image_url="/demo/relief.webp"),
+])
+_section("steps-zigzag", "Zikzak Bağış Adımları", "Güven", "Sağlı-sollu dönüşümlü modern bağış adımları.", [
+    B("steps", look="zigzag", kicker="NASIL ÇALIŞIR?", title="4 Adımda Güvenli Bağış"),
+])
+_section("testimonials-masonry", "Sosyal Duvar Teşekkür Mesajları", "Güven", "Çok sütunlu modern bağışçı yorum duvarı.", [
+    B("testimonials", look="masonry", kicker="SİZDEN GELENLER", title="Bağışçılarımız Ne Diyor?"),
+])
+
 SECTION_BY_KEY = {s["key"]: s for s in SECTIONS}
 
 PAGE_TEMPLATES += [

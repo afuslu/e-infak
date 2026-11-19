@@ -1,7 +1,10 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from app.core.config import settings
 from app.core.db import get_db
 from app.models.contact_message import ContactMessage

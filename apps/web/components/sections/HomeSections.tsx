@@ -1330,6 +1330,54 @@ export function Steps({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides
                   </li>
                 ))}
               </ol>
+            ) : look === 'zigzag' ? (
+              <div className="relative mx-auto max-w-4xl">
+                <div className="absolute bottom-4 start-5 top-4 w-0.5 bg-primary-200 md:start-1/2 md:-translate-x-1/2" aria-hidden="true" />
+                <ol className="space-y-8">
+                  {steps.map((s, i) => {
+                    const isEven = i % 2 === 0
+                    return (
+                      <li key={i} className={`relative flex items-start gap-5 md:items-center ${isEven ? 'md:flex-row' : 'md:flex-row-reverse'}`}>
+                        <div className="relative z-10 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-primary-600 font-heading text-sm font-bold text-white shadow-md ring-4 ring-white md:order-2">
+                          {s.icon || i + 1}
+                        </div>
+                        <div className={`min-w-0 flex-1 md:w-[calc(50%-2.5rem)] md:flex-none ${isEven ? 'md:order-1 md:text-end' : 'md:order-3 md:text-start'}`}>
+                          <StepWrap href={s.url} className={`block rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm ${s.url ? 'transition hover:-translate-y-0.5 hover:shadow-md' : ''}`}>
+                            {s.badge && <span className="mb-1.5 inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">{s.badge}</span>}
+                            <div className="font-heading text-lg font-bold text-gray-900">{s.title}</div>
+                            {s.text && <p className="mt-1.5 text-sm leading-relaxed text-gray-600">{s.text}</p>}
+                            {s.url && s.link_label && <span className="mt-2 inline-block text-xs font-bold text-primary-700">{s.link_label} →</span>}
+                          </StepWrap>
+                        </div>
+                        <div className="hidden md:order-2 md:block md:w-[calc(50%-2.5rem)]" />
+                      </li>
+                    )
+                  })}
+                </ol>
+              </div>
+            ) : look === 'horizontal_bar' ? (
+              <div className="rounded-3xl border border-gray-200/80 bg-white p-6 shadow-sm sm:p-8">
+                <ol className={`relative grid gap-6 ${gridCols}`}>
+                  {steps.map((s, i) => (
+                    <li key={i} className="relative">
+                      <StepWrap href={s.url} className={`group block ${s.url ? 'hover:opacity-90' : ''}`}>
+                        <div className="mb-4 flex items-center gap-3">
+                          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-primary-600 font-heading text-sm font-bold text-white shadow-sm">
+                            {s.icon || i + 1}
+                          </span>
+                          <div className="h-1 flex-1 rounded-full bg-primary-100">
+                            <div className="h-full rounded-full bg-primary-500 transition-all group-hover:w-full" style={{ width: `${Math.round(((i + 1) / steps.length) * 100)}%` }} />
+                          </div>
+                        </div>
+                        {s.badge && <span className="mb-1 inline-block rounded-full bg-primary-50 px-2 py-0.5 text-[10px] font-bold text-primary-700">{s.badge}</span>}
+                        <div className="font-heading text-base font-bold text-gray-900">{s.title}</div>
+                        {s.text && <p className="mt-1 text-sm leading-relaxed text-gray-600">{s.text}</p>}
+                        {s.url && s.link_label && <span className="mt-2 inline-block text-xs font-bold text-primary-700">{s.link_label} →</span>}
+                      </StepWrap>
+                    </li>
+                  ))}
+                </ol>
+              </div>
             ) : (
               <ol className={`relative grid gap-8 ${gridCols}`}>
                 {look !== 'cards' && steps.length >= 2 && steps.length <= 4 && (
@@ -2379,23 +2427,49 @@ export function Trust({ data, t, o = {} }: { data: HomeData; t: T; o?: Overrides
             <div className={
               look === 'strip'
                 ? `grid divide-y divide-gray-200/80 rounded-2xl border border-gray-200/80 bg-white shadow-sm sm:divide-x sm:divide-y-0 ${colCls}`
-                : `grid gap-6 ${colCls}`
+                : look === 'certificate_grid'
+                  ? `grid gap-5 ${colCls}`
+                  : `grid gap-6 ${colCls}`
             }>
               {items.map((item, i) => (
-                <StepWrap
-                  key={i}
-                  href={item.url}
-                  className={
-                    look === 'cards' || look === 'seals'
-                      ? `flex gap-4 rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm ${item.url ? 'transition hover:-translate-y-0.5 hover:shadow-md' : ''}`
-                      : look === 'strip'
-                        ? `flex items-center gap-3.5 p-4 ${item.url ? 'hover:bg-primary-50/40 transition-colors' : ''}`
-                        : `flex gap-4 rounded-2xl p-2 ${item.url ? 'hover:opacity-85 transition-opacity' : ''}`
-                  }
-                >
-                  {renderIcon(item, look === 'strip')}
-                  {renderBody(item)}
-                </StepWrap>
+                look === 'certificate_grid' ? (
+                  <StepWrap
+                    key={i}
+                    href={item.url}
+                    className={`relative flex flex-col items-center rounded-2xl border-2 border-primary-100 bg-gradient-to-b from-white to-primary-50/30 p-6 text-center shadow-sm ${item.url ? 'transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md' : ''}`}
+                  >
+                    <span className="absolute end-3 top-3 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+                      ✓ {item.badge || 'Onaylı'}
+                    </span>
+                    <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-600/10 text-2xl text-primary-700 ring-1 ring-primary-200">
+                      {item.icon || <Icon name={item.iconName || 'shield'} className="h-7 w-7" />}
+                    </div>
+                    {item.title && <div className="font-heading text-base font-bold text-gray-900">{item.title}</div>}
+                    {(item.tel || item.mail) ? (
+                      <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-2 text-sm text-gray-600">
+                        {item.tel && <span>{item.tel}</span>}
+                        {item.mail && <span>{item.mail}</span>}
+                      </div>
+                    ) : item.text && (
+                      <div className="mt-1.5 text-sm leading-relaxed text-gray-600">{item.text}</div>
+                    )}
+                  </StepWrap>
+                ) : (
+                  <StepWrap
+                    key={i}
+                    href={item.url}
+                    className={
+                      look === 'cards' || look === 'seals'
+                        ? `flex gap-4 rounded-2xl border border-gray-200/80 bg-white p-5 shadow-sm ${item.url ? 'transition hover:-translate-y-0.5 hover:shadow-md' : ''}`
+                        : look === 'strip'
+                          ? `flex items-center gap-3.5 p-4 ${item.url ? 'hover:bg-primary-50/40 transition-colors' : ''}`
+                          : `flex gap-4 rounded-2xl p-2 ${item.url ? 'hover:opacity-85 transition-opacity' : ''}`
+                    }
+                  >
+                    {renderIcon(item, look === 'strip')}
+                    {renderBody(item)}
+                  </StepWrap>
+                )
               ))}
             </div>
             {cta}

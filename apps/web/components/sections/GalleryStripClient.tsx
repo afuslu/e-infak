@@ -229,6 +229,24 @@ export function GalleryStripClient({
   )
 
   const renderBody = () => {
+    if (look === 'masonry_wall') {
+      const masonryAspects = ['aspect-[3/4]', 'aspect-square', 'aspect-[4/3]', 'aspect-[4/5]']
+      return (
+        <div className="mx-auto max-w-[var(--site-container)] px-6">
+          <div className="columns-2 gap-3.5 space-y-3.5 sm:columns-3 sm:gap-4 sm:space-y-4 lg:columns-4">
+            {items.map((g, i) =>
+              renderTile(
+                g,
+                i,
+                g.id,
+                `w-full break-inside-avoid rounded-2xl ${masonryAspects[i % masonryAspects.length]}`,
+              ),
+            )}
+          </div>
+        </div>
+      )
+    }
+
     if (look === 'grid') {
       const cols =
         items.length <= 3

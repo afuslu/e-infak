@@ -608,9 +608,10 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     case 'trust':
       return <Trust data={data} t={t} o={o} />
     case 'stats': {
-      if (o.variant === 'card' || o.variant === 'gradient' || o.variant === 'ring') {
+      if (o.variant === 'card' || o.variant === 'gradient' || o.variant === 'ring' || o.variant === 'bento_dark') {
         const isGrad = o.variant === 'gradient'
         const isRing = o.variant === 'ring'
+        const isDark = o.variant === 'bento_dark'
         const collected = data.campaigns.filter((c) => (c.currency || 'TRY') === 'TRY').reduce((sum, c) => sum + (c.collected_lira || 0), 0)
         const statItems: Array<{ value: string | number; suffix?: string; label: string; icon_url?: string }> =
           o.mode === 'manual' && Array.isArray(o.items) && o.items.length
@@ -631,21 +632,22 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                 {o.text && <p className="mt-2 text-sm leading-relaxed text-gray-600">{o.text}</p>}
               </div>
             )}
-            <div className={`grid grid-cols-2 gap-6 ${colCls} ${isGrad || isRing ? '' : 'gap-y-8 rounded-lg bg-white px-5 py-8 shadow-[0_8px_30px_-8px_rgba(0,0,0,.18)] lg:divide-x lg:divide-gray-100'}`}>
+            <div className={`grid grid-cols-2 gap-6 ${colCls} ${isGrad || isRing || isDark ? '' : 'gap-y-8 rounded-lg bg-white px-5 py-8 shadow-[0_8px_30px_-8px_rgba(0,0,0,.18)] lg:divide-x lg:divide-gray-100'}`}>
               {statItems.map((item, i) => {
                 const raw = String(item.value ?? '')
                 const n = typeof item.value === 'number' ? item.value : Number(raw.replace(/\./g, '').replace(',', '.'))
                 const isNum = typeof item.value === 'number' || (Number.isFinite(n) && /^[\d.,]+$/.test(raw))
                 return (
                   <div key={i} className={`flex flex-col items-center gap-2 text-center ${
+                    isDark ? 'rounded-3xl border border-white/10 bg-slate-900 p-7 text-white shadow-xl' :
                     isGrad ? 'rounded-2xl bg-gradient-to-br from-primary-700 to-primary-900 p-6 text-white shadow-lg' :
                     isRing ? 'rounded-2xl border border-primary-100 bg-white p-6 shadow-sm' : ''
                   }`}>
                     {item.icon_url && <img src={item.icon_url} alt="" className="h-14 w-14 object-contain" loading="lazy" />}
-                    <div className={`${isRing ? 'flex h-20 w-20 items-center justify-center rounded-full border-4 border-primary-600 bg-primary-50/50 text-xl' : 'text-3xl md:text-4xl'} font-heading font-bold ${isGrad ? 'text-white' : 'text-gray-900'}`}>
+                    <div className={`${isRing ? 'flex h-20 w-20 items-center justify-center rounded-full border-4 border-primary-600 bg-primary-50/50 text-xl' : 'text-3xl md:text-4xl'} font-heading font-bold ${isGrad || isDark ? 'text-white' : 'text-gray-900'}`}>
                       {isNum ? <CountUp value={n} locale={data.locale} suffix={item.suffix || ''} /> : raw}
                     </div>
-                    <div className={`text-[15px] ${isGrad ? 'text-white/85' : 'text-gray-700'}`}>{item.label}</div>
+                    <div className={`text-[15px] ${isGrad || isDark ? 'text-white/80' : 'text-gray-700'}`}>{item.label}</div>
                   </div>
                 )
               })}
@@ -690,6 +692,46 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           {actions}
         </div>
       )
+
+      if (o.layout === 'diagonal') {
+        return (
+          <div className={container}>
+            <div className="relative grid overflow-hidden rounded-3xl bg-primary-900 text-white shadow-xl lg:grid-cols-12">
+              <div className="relative z-10 p-8 sm:p-12 lg:col-span-7">{text(true)}</div>
+              {o.image_url && (
+                <div className="relative min-h-[240px] lg:col-span-5">
+                  <img src={o.image_url} alt={o.title || ''} className="h-full w-full object-cover" loading="lazy" />
+                  <div className="pointer-events-none absolute inset-y-0 start-0 hidden w-16 bg-gradient-to-r from-primary-900 to-transparent lg:block" />
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'floating_card') {
+        return (
+          <div className="relative overflow-hidden py-14 sm:py-20">
+            {o.image_url && <img src={o.image_url} alt={o.title || ''} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />}
+            <div className="absolute inset-0 bg-black/45" />
+            <div className={`relative ${container}`}>
+              <div className="ms-auto max-w-xl rounded-3xl border border-white/25 bg-white/95 p-8 shadow-2xl backdrop-blur-md">
+                {text(false)}
+              </div>
+            </div>
+          </div>
+        )
+      }
+      if (o.layout === 'ticker_banner') {
+        return (
+          <div className="overflow-hidden bg-primary-800 py-3 text-white">
+            <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-center gap-6 px-4 text-sm font-bold">
+              <span>★ {o.title || o.text || 'İyiliğe Ortak Olun'}</span>
+              {o.text && o.title && <span className="opacity-80">{o.text}</span>}
+              {primaryBtn}
+            </div>
+          </div>
+        )
+      }
 
       if (o.layout === 'poster') {
         const img = o.image_url ? (

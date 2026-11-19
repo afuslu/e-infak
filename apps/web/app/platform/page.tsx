@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Building2, CheckCircle2, Download, ExternalLink, HandCoins, LogIn, Plus, Power, Search } from 'lucide-react'
+import { AlertTriangle, Building2, CheckCircle2, Download, ExternalLink, HandCoins, LayoutGrid, LogIn, Plus, Power, Search, Table2 } from 'lucide-react'
 import { AlertList, AlertSummary } from '../../components/platform/AlertList'
+import { OrgCard } from '../../components/platform/OrgCard'
 import { PlatformSkeleton, downloadCsv, ptPrimaryBtn, ptSecondaryBtn } from '../../components/platform/PlatformUI'
 import { PlatformAlert, PlatformOrg, dateTr, platformCall, platformError } from '../../lib/platform-api'
 
@@ -14,6 +15,8 @@ export default function PlatformOrganizationsPage() {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'suspended'>('all')
   const [planFilter, setPlanFilter] = useState('all')
+  const [sortBy, setSortBy] = useState<'default' | 'name' | 'donations' | 'last_donation'>('default')
+  const [view, setView] = useState<'cards' | 'table'>('cards')
   const [busyOrgId, setBusyOrgId] = useState<string | null>(null)
   const [orgError, setOrgError] = useState('')
   const [alertError, setAlertError] = useState('')
@@ -25,12 +28,20 @@ export default function PlatformOrganizationsPage() {
       .catch((err) => setAlertError(platformError(err, 'Uyarılar kontrol edilemedi')))
   }, [])
 
-  const shown = useMemo(() => (orgs || []).filter((o) => {
-    if (statusFilter === 'active' && !o.is_active) return false
-    if (statusFilter === 'suspended' && o.is_active) return false
-    if (planFilter !== 'all' && o.plan !== planFilter) return false
-    return `${o.name} ${o.slug} ${o.domains.map((d) => d.domain).join(' ')}`.toLocaleLowerCase('tr').includes(query.toLocaleLowerCase('tr'))
-  }), [orgs, query, statusFilter, planFilter])
+  const shown = useMemo(() => {
+    const filtered = (orgs || []).filter((o) => {
+      if (statusFilter === 'active' && !o.is_active) return false
+      if (statusFilter === 'suspended' && o.is_active) return false
+      if (planFilter !== 'all' && o.plan !== planFilter) return false
+      return `${o.name} ${o.slug} ${o.domains.map((d) => d.domain).join(' ')}`.toLocaleLowerCase('tr').includes(query.toLocaleLowerCase('tr'))
+    })
+    if (sortBy === 'name') return [...filtered].sort((a, b) => a.name.localeCompare(b.name, 'tr'))
+    if (sortBy === 'donations') return [...filtered].sort((a, b) => (b.donation_count || 0) - (a.donation_count || 0))
+    if (sortBy === 'last_donation') {
+      return [...filtered].sort((a, b) => new Date(b.last_donation_at || 0).getTime() - new Date(a.last_donation_at || 0).getTime())
+    }
+    return filtered
+  }, [orgs, query, statusFilter, planFilter, sortBy])
   const alertCount = (orgId: string) => (alerts || []).filter((a) => a.organization_id === orgId && a.level !== 'info').length
   const visibleAlerts = (alerts || []).filter((a) => showInfo || a.level !== 'info')
 
@@ -128,31 +139,55 @@ export default function PlatformOrganizationsPage() {
 
       {/* KPI özet kartları */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+        <button
+          type="button"
+          onClick={() => setStatusFilter('all')}
+          className={`rounded-2xl border bg-white p-4 text-left shadow-xs transition hover:-translate-y-0.5 hover:shadow-sm ${
+            statusFilter === 'all' ? 'border-emerald-300 ring-2 ring-emerald-500/20' : 'border-slate-200/90'
+          }`}
+        >
           <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
             <span>Toplam Kurum</span>
-            <Building2 className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+              <Building2 className="h-4 w-4" aria-hidden="true" />
+            </span>
           </div>
           <div className="mt-2 text-2xl font-extrabold text-slate-900">{orgs ? totalOrgs : '—'}</div>
-        </div>
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter(statusFilter === 'active' ? 'all' : 'active')}
+          className={`rounded-2xl border bg-white p-4 text-left shadow-xs transition hover:-translate-y-0.5 hover:shadow-sm ${
+            statusFilter === 'active' ? 'border-emerald-300 ring-2 ring-emerald-500/20' : 'border-slate-200/90'
+          }`}
+        >
           <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
             <span>Aktif Kurum</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            </span>
           </div>
           <div className="mt-2 text-2xl font-extrabold text-emerald-700">{orgs ? activeOrgs : '—'}</div>
-        </div>
+        </button>
         <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
             <span>Toplam Bağış</span>
-            <HandCoins className="h-4 w-4 text-blue-500" aria-hidden="true" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <HandCoins className="h-4 w-4" aria-hidden="true" />
+            </span>
           </div>
           <div className="mt-2 text-2xl font-extrabold text-slate-900">{orgs ? totalDonations.toLocaleString('tr-TR') : '—'}</div>
         </div>
         <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
             <span>Açık Uyarı</span>
-            <AlertTriangle className={`h-4 w-4 ${openAlerts > 0 ? 'text-amber-500' : 'text-slate-400'}`} aria-hidden="true" />
+            <span
+              className={`flex h-8 w-8 items-center justify-center rounded-xl ${
+                openAlerts > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'
+              }`}
+            >
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+            </span>
           </div>
           <div className={`mt-2 text-2xl font-extrabold ${openAlerts > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
             {alerts ? openAlerts : '—'}
@@ -204,6 +239,17 @@ export default function PlatformOrganizationsPage() {
               <option value="orta">Orta</option>
               <option value="ileri">İleri</option>
             </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'default' | 'name' | 'donations' | 'last_donation')}
+              aria-label="Sıralama"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-600"
+            >
+              <option value="default">Varsayılan sıra</option>
+              <option value="name">Ada göre (A–Z)</option>
+              <option value="donations">En çok bağış</option>
+              <option value="last_donation">Son bağış</option>
+            </select>
             <div className="relative flex-1 sm:w-64 sm:flex-initial">
               <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
               <input
@@ -213,11 +259,56 @@ export default function PlatformOrganizationsPage() {
                 className="w-full rounded-xl border border-slate-200 bg-white py-2 pe-3 ps-9 text-sm outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15"
               />
             </div>
+            <div className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5" role="group" aria-label="Görünüm">
+              <button
+                type="button"
+                onClick={() => setView('cards')}
+                title="Kart görünümü"
+                aria-label="Kart görünümü"
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                  view === 'cards' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="hidden sm:inline">Kart</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('table')}
+                title="Tablo görünümü"
+                aria-label="Tablo görünümü"
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                  view === 'table' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                <Table2 className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="hidden sm:inline">Tablo</span>
+              </button>
+            </div>
           </div>
         </div>
 
         {orgError ? <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{orgError}</p>
-          : !orgs ? <PlatformSkeleton rows={5} /> : (
+          : !orgs ? <PlatformSkeleton rows={5} /> : view === 'cards' ? (
+            shown.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-12 text-center text-sm text-slate-500">
+                Aramanızla eşleşen kurum bulunamadı.
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {shown.map((o) => (
+                  <OrgCard
+                    key={o.id}
+                    org={o}
+                    alerts={alerts || []}
+                    busy={busyOrgId === o.id}
+                    onSupport={quickSupport}
+                    onToggleActive={quickToggle}
+                  />
+                ))}
+              </div>
+            )
+          ) : (
           <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
             <table className="w-full min-w-[760px] text-sm">
               <thead className="border-b border-slate-100 bg-slate-50/80 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">

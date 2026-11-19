@@ -147,6 +147,101 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
             </div>
           )
         }
+        if (look === 'quote_card') {
+          return (
+            <div key={i} className="flex h-full flex-col justify-between rounded-3xl border border-gray-200 bg-white p-6 text-gray-900 shadow-sm">
+              <div>
+                <div className="mb-2 font-serif text-4xl leading-none text-primary-600">“</div>
+                {renderStars(item.rating)}
+                {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+                {item.text && <p className="mt-2 text-sm leading-relaxed text-gray-600">{item.text}</p>}
+              </div>
+              {item.subtitle && <div className="mt-4 border-t border-gray-100 pt-3 text-xs font-bold text-primary-700">{item.subtitle}</div>}
+            </div>
+          )
+        }
+        if (look === 'progress_card') {
+          return (
+            <div key={i} className="flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-gray-900 shadow-sm">
+              {(item.image_url || item.video_url) && (
+                <div className="overflow-hidden bg-gray-100" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              <div className="flex flex-1 flex-col p-5">
+                {item.badge && <span className="mb-1.5 w-fit rounded-full bg-primary-50 px-2.5 py-0.5 text-[10px] font-bold uppercase text-primary-700">{item.badge}</span>}
+                {item.title && <h3 className="font-heading text-lg font-bold">{item.title}</h3>}
+                {item.text && <p className="mt-1.5 flex-1 text-sm text-gray-600">{item.text}</p>}
+                <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                  <div className="h-full rounded-full bg-primary-600" style={{ width: `${Math.min(100, Math.max(25, ((i + 1) * 23) % 95))}%` }} />
+                </div>
+                {item.button_label && href && <Go href={href} className="mt-3 inline-flex text-xs font-bold text-primary-700 hover:underline">{item.button_label} →</Go>}
+              </div>
+            </div>
+          )
+        }
+        if (look === 'video_reel') {
+          return (
+            <div key={i} className="group relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950 p-3 text-white shadow-lg">
+              <div className="relative overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: aspect }}>
+                <CardMedia item={item} className="h-full w-full object-cover opacity-90 transition group-hover:scale-105" />
+                <span className="pointer-events-none absolute end-3 top-3 rounded-full bg-red-600 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-white">▶ Video</span>
+              </div>
+              <div className="mt-3 px-1">
+                {item.title && <h3 className="font-heading text-base font-bold">{item.title}</h3>}
+                {item.subtitle && <div className="mt-0.5 text-xs text-slate-400">{item.subtitle}</div>}
+              </div>
+            </div>
+          )
+        }
+        if (look === 'story_916') {
+          return (
+            <div key={i} className="group relative overflow-hidden rounded-3xl bg-gray-950 text-white shadow-lg aspect-[9/16]">
+              <CardMedia item={item} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/25" />
+              <div className="relative flex h-full flex-col justify-between p-5">
+                <div>{item.badge && <span className="rounded-full bg-white/20 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider backdrop-blur-md">{item.badge}</span>}</div>
+                <div>
+                  {item.title && <h3 className="font-heading text-lg font-extrabold leading-snug">{item.title}</h3>}
+                  {item.subtitle && <div className="mt-0.5 text-xs text-white/75">{item.subtitle}</div>}
+                  {item.button_label && href && (
+                    <Go href={href} className="mt-3 inline-flex rounded-full bg-white px-4 py-1.5 text-xs font-bold text-gray-900 hover:bg-primary-50">{item.button_label} →</Go>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        }
+        if (look === 'polaroid') {
+          return (
+            <div key={i} className={`flex h-full flex-col rounded-xl border border-gray-200 bg-white p-3 pb-5 text-gray-900 shadow-md transition duration-300 hover:rotate-0 hover:shadow-xl ${i % 2 === 0 ? '-rotate-1' : 'rotate-1'}`}>
+              {(item.image_url || item.video_url) && (
+                <div className="mb-3 overflow-hidden rounded-lg bg-gray-100" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover" />
+                </div>
+              )}
+              {item.title && <h3 className="font-heading text-base font-bold text-gray-900">{item.title}</h3>}
+              {item.subtitle && <div className="text-xs font-semibold text-primary-700">{item.subtitle}</div>}
+              {item.text && <p className="mt-1 text-xs leading-relaxed text-gray-600">{item.text}</p>}
+            </div>
+          )
+        }
+        if (look === 'bento_strip') {
+          const highlight = i === 0
+          return (
+            <div key={i} className={`flex h-full flex-col overflow-hidden rounded-3xl border p-4 shadow-sm transition hover:shadow-lg ${highlight ? 'border-primary-300 bg-primary-50/60 text-gray-900' : 'border-gray-200 bg-white text-gray-900'}`}>
+              {(item.image_url || item.video_url) && (
+                <div className="mb-3 overflow-hidden rounded-2xl bg-gray-100" style={{ aspectRatio: aspect }}>
+                  <CardMedia item={item} className="h-full w-full object-cover transition-transform duration-500 hover:scale-105" />
+                </div>
+              )}
+              {item.badge && <span className="mb-1.5 w-fit rounded-full bg-primary-600 px-2.5 py-0.5 text-[10px] font-bold uppercase text-white">{item.badge}</span>}
+              {item.title && <h3 className="font-heading text-lg font-extrabold">{item.title}</h3>}
+              {item.text && <p className="mt-1.5 flex-1 text-sm text-gray-600">{item.text}</p>}
+              {item.button_label && href && <Go href={href} className="mt-3 inline-flex text-xs font-bold text-primary-700 hover:underline">{item.button_label} →</Go>}
+            </div>
+          )
+        }
         if (look === 'overlay') {
           return (
             <div key={i} className="group relative overflow-hidden rounded-2xl bg-gray-900 text-white shadow-md" style={{ aspectRatio: aspect }}>
