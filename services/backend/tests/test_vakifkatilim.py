@@ -139,6 +139,8 @@ def test_hash_strings_follow_documented_field_order():
     p = _provider()
     hp = p.hash_password
     assert p.api_hash() == _b64sha1(b"1hakderap\xfd" + hp.encode())
+    assert p.api_hash("EINF1") == _b64sha1(b"1EINF1hakderap\xfd" + hp.encode())
+    assert p.api_hash("EINF1", 150) == _b64sha1(b"1EINF1150hakderap\xfd" + hp.encode())
     expected = _b64sha1(b"1EINF1150" + b"https://a/ok" + b"https://a/fail" + b"hakderap\xfd" + hp.encode())
     assert p.payment_hash("EINF1", 150, "https://a/ok", "https://a/fail") == expected
 
@@ -206,7 +208,9 @@ def test_request_message_is_well_formed_and_escaped():
     assert [c.tag for c in root] == ["HashData", "MerchantId", "SubMerchantId", "CustomerId", "UserName",
                                      "HashPassword", "MerchantOrderId"]
     assert root.findtext("UserName") == "a&b<ı>" and root.findtext("SubMerchantId") == "0"
-    assert root.findtext("HashData") == p.api_hash()
+    assert root.findtext("HashData") == p.api_hash("X1")
+    reversal = ET.fromstring(vk.XML_DECLARATION.sub("", p._message([("MerchantOrderId", "X1"), ("Amount", 150)])))
+    assert reversal.findtext("HashData") == p.api_hash("X1", 150)
 
 
 # --- callback / query --------------------------------------------------------

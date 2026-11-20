@@ -15,8 +15,8 @@ Flow
 
 Hashes (doc §4.4, C# reference): HashPassword = Base64(SHA1(api_password)); HashData =
 Base64(SHA1(concat(...))), text encoded as ISO-8859-9. The payment page hashes MerchantId,
-MerchantOrderId, Amount, OkUrl, FailUrl, UserName, HashPassword; the API samples leave
-MerchantOrderId/Amount/URLs empty, i.e. MerchantId + UserName + HashPassword.
+MerchantOrderId, Amount, OkUrl, FailUrl, UserName, HashPassword. The API samples leave MerchantOrderId/Amount
+empty, but the live service wants the MerchantOrderId/Amount the message carries (see api_hash).
 
 Known risk: the payment-page form carries UserName and HashPassword, so they reach the donor's
 browser. Anyone who reads them can sign API calls (order lookups, cancels, refunds) — but only from an
@@ -146,9 +146,13 @@ class VakifKatilimProvider(PaymentProvider):
         return sha1_b64(hash_string(c["merchant_id"], merchant_order_id, amount, ok_url, fail_url, c["username"],
                                     self.hash_password))
 
-    def api_hash(self) -> str:
+    def api_hash(self, merchant_order_id: str = "", amount: int = 0) -> str:
+        """The PDF samples leave MerchantOrderId/Amount empty, but the live service rejects that with
+        HashDataError: like the bank's e-mail says, every hash field the message carries goes in
+        (checked 2026-11-20 against SelectOrderByMerchantOrderId)."""
         c = self._c
-        return sha1_b64(hash_string(c["merchant_id"], username=c["username"], hash_password=self.hash_password))
+        return sha1_b64(hash_string(c["merchant_id"], merchant_order_id, amount, username=c["username"],
+                                    hash_password=self.hash_password))
 
     async def start(self, ctx: CheckoutContext) -> StartResult:
         self.require_configured()
@@ -181,8 +185,9 @@ class VakifKatilimProvider(PaymentProvider):
 
     def _message(self, body: list[tuple[str, Any]]) -> str:
         c = self._c
+        fields = dict(body)
         items = [
-            ("HashData", self.api_hash()), ("MerchantId", c["merchant_id"]), ("SubMerchantId", "0"),
+            ("HashData", self.api_hash(str(fields.get("MerchantOrderId") or ""), int(fields.get("Amount") or 0))), ("MerchantId", c["merchant_id"]), ("SubMerchantId", "0"),
             ("CustomerId", c["customer_id"]), ("UserName", c["username"]), ("HashPassword", self.hash_password),
             *body,
         ]
