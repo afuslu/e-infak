@@ -84,6 +84,70 @@ export const MODE_LABEL: Record<SmsTemplate['auto_mode'], string> = {
   auto: 'Otomatik gönder', manual: 'Yalnızca elle', off: 'Kapalı',
 }
 
+import { adminSend } from './admin-access'
+
 /** 1.000,00 — the way amounts are written in SMS texts. */
 export const smsAmount = (cents: number) =>
   (cents / 100).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+const VARIABLE_ALIASES: Record<string, string> = {
+  donor_name: 'ad_soyad',
+  amount_lira: 'tutar',
+  campaign_name: 'bagis_kalemi',
+}
+
+/** Client-side preview mirroring backend `render_template`. */
+export function renderClientSmsTemplate(body: string, context: Record<string, string | null | undefined>): string {
+  const rendered = (body || '').replace(/\{(\w+)\}/g, (match, rawKey: string) => {
+    const key = VARIABLE_ALIASES[rawKey] || rawKey
+    if (!(key in context)) return match
+    return String(context[key] ?? '')
+  })
+  return rendered
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/ +([,.])/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
+ * Replaces concrete values in an edited SMS message with their `{variable}` placeholders
+ * so saving a live preview as a template keeps it reusable for future donors.
+ */
+export function templatizeSmsText(body: string, replacements: Array<[string | null | undefined, string]>): string {
+  const pairs = replacements
+    .map(([val, token]) => [String(val || '').trim(), token] as const)
+    .filter(([val, token]) => val.length >= 2 && !body.includes(token))
+    .sort((a, b) => b[0].length - a[0].length)
+
+  let result = body
+  for (const [val, token] of pairs) {
+    const escaped = val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    result = result.replace(new RegExp(escaped, 'g'), token)
+  }
+  return result.trim()
+}
+
+export async function updateSmsTemplateBody(template: SmsTemplate, nextBody: string): Promise<SmsTemplate> {
+  const res = await adminSend<SmsTemplate>('put', `/sms/templates/${template.id}`, {
+    name: template.name,
+    body: nextBody,
+    event_key: template.event_key,
+    campaign_id: template.campaign_id,
+    auto_mode: template.auto_mode,
+    is_active: template.is_active,
+  })
+  return res.data
+}
+
+export async function createSmsTemplate(name: string, body: string): Promise<SmsTemplate> {
+  const res = await adminSend<SmsTemplate>('post', '/sms/templates', {
+    name: name.trim(),
+    body,
+    event_key: null,
+    campaign_id: null,
+    auto_mode: 'manual',
+    is_active: true,
+  })
+  return res.data
+}

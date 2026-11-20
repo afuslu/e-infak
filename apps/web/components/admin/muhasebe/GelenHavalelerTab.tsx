@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDownLeft,
+  BookmarkCheck,
   Check,
   CheckCircle2,
   Copy,
@@ -24,8 +25,9 @@ import {
   XCircle,
 } from 'lucide-react';
 import { api } from '@/lib/axios';
-import { whatsappUrl } from '@/lib/admin-access';
-import { WhatsAppIcon } from '@/components/admin/ui';
+import { adminGet, apiErrorMessage, can, useAdminAccess, whatsappUrl } from '@/lib/admin-access';
+import { WhatsAppIcon, toast } from '@/components/admin/ui';
+import { type SmsTemplate, renderClientSmsTemplate, smsAmount, templatizeSmsText, updateSmsTemplateBody } from '@/lib/sms';
 import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps, ResponsiveDataToolbar, formatMoney } from './OnMuhasebeUI';
 import { BankReconciliationPanel } from '@/components/admin/BankReconciliationPanel';
 
@@ -1142,6 +1144,10 @@ function ApproveDialog({
       kurban_names: '',
     },
   ]);
+  const { data: access } = useAdminAccess();
+  const canSaveTemplate = can(access, 'sms.templates');
+  const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>([]);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [note, setNote] = useState(transfer.description || '');
   const [bookId, setBookId] = useState('');
   const [sendReceipt, setSendReceipt] = useState(true);
@@ -1153,14 +1159,68 @@ function ApproveDialog({
   const nextPaperNo = selectedBook ? `${selectedBook.series}-${String(selectedBook.next_no).padStart(4, '0')}` : undefined;
 
   useEffect(() => {
+    adminGet<SmsTemplate[]>('/sms/templates')
+      .then((res) => setSmsTemplates((res.data || []).filter((t) => t.is_active)))
+      .catch(() => {});
+  }, []);
+
+  const singleCampaignId = lines.length === 1 ? lines[0].campaign_id : '';
+  const activeTemplate =
+    (singleCampaignId && smsTemplates.find((t) => t.campaign_id === singleCampaignId)) ||
+    smsTemplates.find((t) => t.event_key === 'havale_eslesti') ||
+    null;
+
+  useEffect(() => {
     if (smsTouched) return;
     const dName = mode === 'existing' ? donorLabel : newName;
     const itemTitles = lines
       .map((l) => campaigns.find((c) => c.id === l.campaign_id)?.title)
       .filter(Boolean)
       .join(', ');
+    if (activeTemplate) {
+      const cleanName = dName.trim() || 'Hayırseverimiz';
+      const currencyLabel = (transfer.currency || 'TRY').toUpperCase() === 'TRY' ? 'TL' : transfer.currency;
+      setSmsBody(
+        renderClientSmsTemplate(activeTemplate.body, {
+          ad_soyad: cleanName,
+          ad: cleanName.split(/\s+/)[0] || cleanName,
+          tutar: smsAmount(transfer.amount_cents),
+          para_birimi: currencyLabel,
+          bagis_kalemi: itemTitles || 'bağış',
+          makbuz_no: nextPaperNo || '',
+        }),
+      );
+      return;
+    }
     setSmsBody(defaultSms(dName, transfer.amount_cents, transfer.currency, itemTitles, nextPaperNo));
-  }, [mode, donorLabel, newName, lines, campaigns, transfer.amount_cents, transfer.currency, nextPaperNo, smsTouched]);
+  }, [mode, donorLabel, newName, lines, campaigns, transfer.amount_cents, transfer.currency, nextPaperNo, smsTouched, activeTemplate]);
+
+  const handleSaveSmsTemplate = async () => {
+    if (!activeTemplate || smsBody.trim().length < 2 || savingTemplate) return;
+    setSavingTemplate(true);
+    try {
+      const dName = (mode === 'existing' ? donorLabel : newName).trim();
+      const itemTitles = lines
+        .map((l) => campaigns.find((c) => c.id === l.campaign_id)?.title)
+        .filter(Boolean)
+        .join(', ');
+      const nextBody = templatizeSmsText(smsBody, [
+        [formatMoney(transfer.amount_cents, transfer.currency), '{tutar} {para_birimi}'],
+        [smsAmount(transfer.amount_cents), '{tutar}'],
+        [dName, '{ad_soyad}'],
+        [itemTitles, '{bagis_kalemi}'],
+        [nextPaperNo, '{makbuz_no}'],
+      ]);
+      const updated = await updateSmsTemplateBody(activeTemplate, nextBody);
+      setSmsTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setSmsTouched(false);
+      toast.ok(`"${updated.name}" şablonu güncellendi`);
+    } catch (err) {
+      onError(apiErrorMessage(err, 'SMS şablonu kaydedilemedi'));
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
 
   useEffect(() => {
     if (donorSearch.trim().length < 2) {
@@ -1531,6 +1591,22 @@ function ApproveDialog({
                   }}
                   className="mt-2 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800"
                 />
+                {canSaveTemplate && activeTemplate ? (
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-500">
+                      Aktif şablon: <strong className="font-semibold text-slate-700">{activeTemplate.name}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      disabled={savingTemplate || smsBody.trim().length < 2}
+                      onClick={handleSaveSmsTemplate}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      <BookmarkCheck className="h-3.5 w-3.5" />
+                      {savingTemplate ? 'Kaydediliyor…' : 'Şablon olarak kaydet'}
+                    </button>
+                  </div>
+                ) : null}
                 {!(mode === 'new' ? newPhone.trim() : donorPhone.trim()) ? (
                   <p className="mt-1.5 text-[11px] font-medium text-amber-700">
                     Bağışçının telefon numarası kayıtlı değil; SMS gönderilmeyecek.

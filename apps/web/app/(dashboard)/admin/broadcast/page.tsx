@@ -6,7 +6,7 @@ import { BarChart3, BookmarkPlus, Check, CheckCircle2, ChevronDown, Edit3, Exter
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, useAdminAccess, can } from '../../../../lib/admin-access'
 import { Label, Notice, TextInput, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
-import { SegmentInfo, SmsMeta, SmsTemplate, segmentSummary } from '../../../../lib/sms'
+import { SegmentInfo, SmsMeta, SmsTemplate, segmentSummary, updateSmsTemplateBody } from '../../../../lib/sms'
 import { PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog } from '../../../../components/admin/ui'
 import { SmsPhonePreview } from '../../../../components/admin/SmsPhonePreview'
 
@@ -426,6 +426,22 @@ export default function BulkSmsPage() {
     }
   }
 
+  const updateSelectedTemplate = async () => {
+    const selected = templates.find((t) => t.id === templateId)
+    if (!selected || body.trim().length < 2 || savingTpl) return
+    setSavingTpl(true)
+    setMessage(null)
+    try {
+      await updateSmsTemplateBody(selected, body)
+      setMessage({ type: 'ok', text: `"${selected.name}" şablonu güncellendi.` })
+      loadTemplates()
+    } catch (err) {
+      setMessage({ type: 'error', text: apiErrorMessage(err, 'Şablon güncellenemedi') })
+    } finally {
+      setSavingTpl(false)
+    }
+  }
+
   const importNumbersFile = async (file?: File) => {
     if (!file) return
     const text = await file.text()
@@ -805,17 +821,30 @@ export default function BulkSmsPage() {
                 <h2 className="text-sm font-bold text-gray-900">Mesaj</h2>
               </div>
               {canSaveTemplate && body.trim().length >= 5 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTplName(name.trim() || '')
-                    setTplPromptOpen((v) => !v)
-                  }}
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-1 text-[11px] font-bold text-primary-800 transition hover:bg-primary-100"
-                >
-                  <BookmarkPlus className="h-3.5 w-3.5" />
-                  Şablon olarak kaydet
-                </button>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {templateId && templates.some((t) => t.id === templateId) && (
+                    <button
+                      type="button"
+                      disabled={savingTpl}
+                      onClick={updateSelectedTemplate}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Seçili şablonu güncelle
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTplName(name.trim() || '')
+                      setTplPromptOpen((v) => !v)
+                    }}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-1 text-[11px] font-bold text-primary-800 transition hover:bg-primary-100"
+                  >
+                    <BookmarkPlus className="h-3.5 w-3.5" />
+                    Yeni şablon olarak kaydet
+                  </button>
+                </div>
               )}
             </div>
 

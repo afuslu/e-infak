@@ -25,7 +25,8 @@ import {
   Users,
   Video,
 } from 'lucide-react'
-import { apiErrorMessage, downloadFile, formatMoney, useAdminAccess, v1Get, v1Send, whatsappUrl, can } from '../../../../lib/admin-access'
+import { adminGet, apiErrorMessage, downloadFile, formatMoney, useAdminAccess, v1Get, v1Send, whatsappUrl, can } from '../../../../lib/admin-access'
+import { type SmsTemplate, updateSmsTemplateBody } from '../../../../lib/sms'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm } from '../../../../components/admin/ManualReceiptForm'
 import { KurbanBulkEntry, downloadShareCards } from '../../../../components/admin/kurban/KurbanBulkEntry'
@@ -158,6 +159,9 @@ export default function KurbanAdminPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [statModal, setStatModal] = useState<'shares' | 'unassigned' | 'animals' | 'notified' | null>(null)
   const [slaughterModal, setSlaughterModal] = useState<{ ids: string[]; videoUrl: string; notify: boolean; date: string } | null>(null)
+  const [kurbanSmsTpl, setKurbanSmsTpl] = useState<SmsTemplate | null>(null)
+  const [kurbanSmsBody, setKurbanSmsBody] = useState('')
+  const [savingKurbanTpl, setSavingKurbanTpl] = useState(false)
   const [animalEditModal, setAnimalEditModal] = useState<{ animal: Animal; animalNumber: string; videoUrl: string; videoStatus: VideoStatus; slaughteredOn: string } | null>(null)
   const [addAnimalModal, setAddAnimalModal] = useState<{ count: string; animalNumber: string } | null>(null)
   const [shareEditModal, setShareEditModal] = useState<{ share: Share; onBehalfOf: string; kurbanType: string } | null>(null)
@@ -266,6 +270,28 @@ export default function KurbanAdminPage() {
   const slaughter = (ids: string[]) => {
     const single = ids.length === 1 ? animals.find((a) => a.id === ids[0]) : undefined
     setSlaughterModal({ ids, videoUrl: single?.video_url || '', notify: true, date: todayIso() })
+    adminGet<SmsTemplate[]>('/sms/templates')
+      .then((res) => {
+        const tpl = (res.data || []).find((t) => t.is_active && t.event_key === 'kurban_kesildi') || null
+        setKurbanSmsTpl(tpl)
+        if (tpl) setKurbanSmsBody(tpl.body)
+      })
+      .catch(() => {})
+  }
+
+  const saveKurbanSmsTemplate = async () => {
+    if (!kurbanSmsTpl || kurbanSmsBody.trim().length < 2 || savingKurbanTpl) return
+    setSavingKurbanTpl(true)
+    try {
+      const updated = await updateSmsTemplateBody(kurbanSmsTpl, kurbanSmsBody)
+      setKurbanSmsTpl(updated)
+      setKurbanSmsBody(updated.body)
+      toast.ok(`"${updated.name}" şablonu güncellendi`)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Şablon güncellenemedi'))
+    } finally {
+      setSavingKurbanTpl(false)
+    }
   }
 
   const submitSlaughter = async (e: React.FormEvent) => {
@@ -1545,6 +1571,32 @@ export default function KurbanAdminPage() {
               />
               Hissedarlara kesim SMS bildirimi gönder
             </label>
+            {slaughterModal.notify && kurbanSmsTpl && (
+              <div className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-slate-600">Kesim SMS Şablonu ({kurbanSmsTpl.name})</span>
+                  {can(access, 'sms.templates') && (
+                    <button
+                      type="button"
+                      disabled={savingKurbanTpl || kurbanSmsBody.trim().length < 2}
+                      onClick={saveKurbanSmsTemplate}
+                      className="cursor-pointer rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                    >
+                      {savingKurbanTpl ? 'Kaydediliyor…' : 'Şablon olarak kaydet'}
+                    </button>
+                  )}
+                </div>
+                <textarea
+                  rows={3}
+                  value={kurbanSmsBody}
+                  onChange={(e) => setKurbanSmsBody(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800"
+                />
+                <p className="text-[10px] text-slate-500">
+                  Değişkenler: {'{ad_soyad}'}, {'{kimin_adina}'}, {'{kurban_no}'}, {'{video}'}
+                </p>
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setSlaughterModal(null)}>Vazgeç</Button>
               <Button type="submit">Kesildi İşaretle</Button>

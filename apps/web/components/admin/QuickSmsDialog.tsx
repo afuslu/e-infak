@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { adminGet, adminSend, apiErrorMessage, whatsappUrl } from '../../lib/admin-access'
-import { RelatedSms, STATUS_CLASS, STATUS_LABEL, SmsTemplate, segmentSummary } from '../../lib/sms'
+import { adminGet, adminSend, apiErrorMessage, can, useAdminAccess, whatsappUrl } from '../../lib/admin-access'
+import { RelatedSms, STATUS_CLASS, STATUS_LABEL, SmsTemplate, createSmsTemplate, segmentSummary, templatizeSmsText, updateSmsTemplateBody } from '../../lib/sms'
 import { ghostButton, inputClass, primaryButton } from './FormKit'
-import { WhatsAppIcon, portalRoot } from './ui'
+import { WhatsAppIcon, portalRoot, toast } from './ui'
 
 export interface SmsTarget {
   donorId?: string | null
@@ -48,6 +48,8 @@ export function QuickSmsDialog({
   onClose: () => void
   onSent?: (result: SmsSent) => void
 }) {
+  const { data: access } = useAdminAccess()
+  const canSaveTemplate = can(access, 'sms.templates')
   const [templates, setTemplates] = useState<SmsTemplate[]>([])
   const [templateId, setTemplateId] = useState('')
   const [body, setBody] = useState(compose?.initial || '')
@@ -57,6 +59,52 @@ export function QuickSmsDialog({
   const [informational, setInformational] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [savingTpl, setSavingTpl] = useState(false)
+  const [newTplOpen, setNewTplOpen] = useState(false)
+  const [newTplName, setNewTplName] = useState('')
+
+  const selectedTemplate = templates.find((t) => t.id === templateId) || null
+
+  const buildTemplateBody = () =>
+    templatizeSmsText(body, [
+      [target.name, '{ad_soyad}'],
+      [target.variables?.tutar, '{tutar}'],
+      [target.variables?.bagis_kalemi, '{bagis_kalemi}'],
+      [target.variables?.makbuz_no, '{makbuz_no}'],
+    ])
+
+  const handleUpdateSelectedTemplate = async () => {
+    if (!selectedTemplate || body.trim().length < 2 || savingTpl) return
+    setSavingTpl(true)
+    setError('')
+    try {
+      const updated = await updateSmsTemplateBody(selectedTemplate, buildTemplateBody())
+      setTemplates((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+      toast.ok(`"${updated.name}" şablonu güncellendi`)
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Şablon güncellenemedi'))
+    } finally {
+      setSavingTpl(false)
+    }
+  }
+
+  const handleCreateTemplate = async () => {
+    if (!newTplName.trim() || body.trim().length < 2 || savingTpl) return
+    setSavingTpl(true)
+    setError('')
+    try {
+      const created = await createSmsTemplate(newTplName, buildTemplateBody())
+      setTemplates((prev) => [...prev, created])
+      setTemplateId(created.id)
+      setNewTplName('')
+      setNewTplOpen(false)
+      toast.ok(`"${created.name}" şablon olarak kaydedildi`)
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Şablon kaydedilemedi'))
+    } finally {
+      setSavingTpl(false)
+    }
+  }
 
   const aboutRecord = Boolean(target.donationId || target.transferId || compose)
   const hasDonor = Boolean(target.donorId || target.donationId)
@@ -165,6 +213,58 @@ export function QuickSmsDialog({
           </span>
           <span className="block font-normal text-gray-400">Türkçe karakterler SMS boyutunu etkiler.</span>
         </label>
+
+        {canSaveTemplate && (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedTemplate && (
+                <button
+                  type="button"
+                  disabled={savingTpl || body.trim().length < 2}
+                  onClick={handleUpdateSelectedTemplate}
+                  className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  {savingTpl ? 'Kaydediliyor…' : `"${selectedTemplate.name}" şablonunu güncelle`}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={savingTpl || body.trim().length < 2}
+                onClick={() => setNewTplOpen((v) => !v)}
+                className="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-bold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              >
+                Yeni şablon olarak kaydet
+              </button>
+            </div>
+            {newTplOpen && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/50 p-2.5">
+                <input
+                  type="text"
+                  value={newTplName}
+                  onChange={(e) => setNewTplName(e.target.value)}
+                  placeholder="Şablon adı (ör. Teşekkür SMS)"
+                  maxLength={100}
+                  className={`${inputClass} flex-1 bg-white py-1.5 text-xs`}
+                />
+                <button
+                  type="button"
+                  disabled={savingTpl || !newTplName.trim()}
+                  onClick={handleCreateTemplate}
+                  className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700 disabled:opacity-50"
+                >
+                  Kaydet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewTplOpen(false)}
+                  className="rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800"
+                >
+                  Vazgeç
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {needsConfirm && (
           <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
