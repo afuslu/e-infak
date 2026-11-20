@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -12,6 +12,7 @@ from app.core.db import get_db
 from app.core.config import settings
 from app.core.rate_limit import rate_limit
 from app.core.security import create_access_token, create_refresh_token, decode_token
+from app.models.campaign import Campaign
 from app.models.donation import Donor, Donation, DonationStatus
 from app.models.kurban import KurbanShare, KurbanAnimal, KurbanStatus
 from app.models.subscription import Subscription
@@ -408,7 +409,7 @@ async def update_my_subscription(
     db: AsyncSession = Depends(get_db),
 ):
     from datetime import datetime, timezone
-    from app.services.recurring import advance_charge_date
+    from app.services.recurring import next_date
 
     result = await db.execute(
         select(Subscription).where(
@@ -428,12 +429,10 @@ async def update_my_subscription(
         sub.status = "active"
         sub.failed_attempts = 0
         if not sub.next_charge_date or sub.next_charge_date < now:
-            sub.next_charge_date = advance_charge_date(now, sub.frequency or "monthly", sub.day_of_month)
+            sub.next_charge_date = next_date(now, sub.day_of_month or now.day)
     elif payload.action == "cancel":
         sub.status = "cancelled"
-        sub.cancelled_at = now
         sub.card_token = None
-        sub.card_user_key = None
     else:
         raise HTTPException(status_code=400, detail="Geçersiz işlem.")
 
@@ -465,10 +464,13 @@ async def cancel_subscription(
         raise HTTPException(status_code=404, detail="Abonelik bulunamadı.")
 
     sub.status = "cancelled"
-    sub.cancelled_at = datetime.now(timezone.utc)
     sub.card_token = None
-    sub.card_user_key = None
+    released = sub.card_ref if sub.provider == "vakifkatilim" else None
+    if released:
+        sub.card_ref = None
     await db.commit()
+    if released:
+        await _release_card(db, sub, released)
     return {"status": "success", "message": "Düzenli bağış talimatınız iptal edilmiştir."}
 
 
@@ -481,7 +483,7 @@ async def get_recurring_by_token(
         raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
     row = (
         await db.execute(
-            select(Subscription, Donor.name, Campaign.title, Campaign.slug)
+            select(Subscription, Donor.first_name, Donor.last_name, Campaign.title, Campaign.slug)
             .outerjoin(Donor, Subscription.donor_id == Donor.id)
             .outerjoin(Campaign, Subscription.campaign_id == Campaign.id)
             .where(Subscription.manage_token == manage_token)
@@ -489,7 +491,8 @@ async def get_recurring_by_token(
     ).first()
     if not row:
         raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
-    sub, donor_name, campaign_title, campaign_slug = row
+    sub, first_name, last_name, campaign_title, campaign_slug = row
+    donor_name = " ".join(p for p in (first_name, last_name) if p)
     saver = await _card_saver(db, sub)
     return {
         **_serialize_portal_sub(sub, campaign_title),
@@ -586,7 +589,7 @@ async def act_on_recurring_by_token(
     db: AsyncSession = Depends(get_db),
 ):
     from datetime import datetime, timezone
-    from app.services.recurring import advance_charge_date
+    from app.services.recurring import next_date
 
     if not manage_token or len(manage_token) < 16:
         raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
@@ -605,12 +608,10 @@ async def act_on_recurring_by_token(
         sub.status = "active"
         sub.failed_attempts = 0
         if not sub.next_charge_date or sub.next_charge_date < now:
-            sub.next_charge_date = advance_charge_date(now, sub.frequency or "monthly", sub.day_of_month)
+            sub.next_charge_date = next_date(now, sub.day_of_month or now.day)
     elif payload.action == "cancel":
         sub.status = "cancelled"
-        sub.cancelled_at = now
         sub.card_token = None
-        sub.card_user_key = None
     else:
         raise HTTPException(status_code=400, detail="Geçersiz işlem.")
 
