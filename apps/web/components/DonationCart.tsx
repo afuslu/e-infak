@@ -247,6 +247,7 @@ export function DonationCart() {
                   {cardPayments && <button type="button" onClick={() => setPaymentMethod('credit_card')} className={`rounded-xl border p-3 text-xs font-bold ${paymentMethod === 'credit_card' ? 'border-primary-600 bg-primary-50' : ''}`}>Kredi / Banka Kartı</button>}
                   <button type="button" onClick={() => setPaymentMethod('bank_transfer')} className={`rounded-xl border p-3 text-xs font-bold ${paymentMethod === 'bank_transfer' ? 'border-primary-600 bg-primary-50' : ''}`}>Havale / EFT</button>
                 </div>
+                {!cardPayments && <p role="status" className="rounded-lg bg-amber-50 p-2 text-xs font-semibold text-amber-800">Kartla bağış şu an kullanılamıyor; Havale / EFT ile bağış yapabilirsiniz.</p>}
                 <label className="flex gap-2 text-xs font-semibold"><input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} /> Başkası adına bağış yapıyorum</label>
                 {isGift && (
                   <input aria-label="Kimin adına" placeholder="Kimin adına? (makbuzda yazar)" maxLength={200} value={onBehalfOf}

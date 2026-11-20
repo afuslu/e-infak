@@ -62,6 +62,7 @@ const EXTRA_I18N: Record<'tr' | 'en' | 'ar', Record<string, string>> = {
     hideName: 'İsmimi bağışçı listesinde gizle',
     allowEmail: 'E-posta bilgilendirmelerine izin veriyorum',
     allowSms: 'SMS bilgilendirmelerine izin veriyorum',
+    cardUnavailable: 'Kartla bağış şu an kullanılamıyor; Havale / EFT ile bağış yapabilirsiniz.',
     secureNotice: 'Kart bilgileriniz bu siteye girilmez; bankanın veya ödeme kuruluşunun güvenli ödeme sayfasına yönlendirileceksiniz.',
     preparing: 'Hazırlanıyor…',
     proceedCard: 'Güvenli Ödemeye Geç',
@@ -94,6 +95,7 @@ const EXTRA_I18N: Record<'tr' | 'en' | 'ar', Record<string, string>> = {
     hideName: 'Hide my name on the public donor list',
     allowEmail: 'I agree to receive email updates',
     allowSms: 'I agree to receive SMS updates',
+    cardUnavailable: 'Card payments are not available right now; you can donate by bank transfer.',
     secureNotice: 'Card details are never entered on this site; you will be redirected to the bank/payment provider’s secure page.',
     preparing: 'Preparing…',
     proceedCard: 'Proceed to Secure Payment',
@@ -126,6 +128,7 @@ const EXTRA_I18N: Record<'tr' | 'en' | 'ar', Record<string, string>> = {
     hideName: 'إخفاء اسمي من قائمة المتبرعين',
     allowEmail: 'أوافق على استلام التحديثات عبر البريد الإلكتروني',
     allowSms: 'أوافق على استلام التحديثات عبر الرسائل النصية',
+    cardUnavailable: 'الدفع بالبطاقة غير متاح حاليًا؛ يمكنك التبرع عبر التحويل البنكي.',
     secureNotice: 'لا يتم إدخال بيانات البطاقة هنا؛ سيتم توجيهك إلى صفحة الدفع الآمنة.',
     preparing: 'جارٍ التحضير…',
     proceedCard: 'الانتقال إلى الدفع الآمن',
@@ -456,6 +459,7 @@ export function QuickDonationForm({
             🏦 {t('form.transfer')}
           </button>
         </div>
+        {!cardPayments && <p role="status" className="mt-2 rounded-lg bg-amber-50 p-2 text-xs font-semibold text-amber-800">{ex.cardUnavailable}</p>}
       </fieldset>
       {!isSingleStep && (
         <button type="button" onClick={goToDetails} className="w-full rounded-xl bg-primary-600 py-3.5 font-black text-white shadow-sm transition hover:bg-primary-700">
