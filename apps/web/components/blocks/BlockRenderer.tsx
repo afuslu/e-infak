@@ -121,7 +121,10 @@ function donationCards(o: Record<string, any>, data: HomeData, label: string): D
       unit, minAmount: (c.min_donation_cents || 100) / 100, quantity: s.quantity || '', maxQuantity: s.max_quantity || 21,
       niyet: list(s.niyet), durations: list(s.durations).map(Number).filter((n) => n > 0),
       shares: total ? { taken: Math.min(taken, total), total } : null, progress, suggestedAmounts,
-      note: s.note, button: s.button_label || o.button_label || label, tags: c.tags || [],
+      badge: s.badge || '', note: s.note, impactLabel: s.impact_label || '', tierLabels: list(s.tier_labels),
+      region: s.region || '', icon: s.icon || '', isPopular: Boolean(s.is_popular), features: list(s.features),
+      accentColor: s.accent_color || '', ribbon: s.ribbon || '', endDate: s.end_date || '', videoUrl: s.video_url || '',
+      button: s.button_label || o.button_label || label, tags: c.tags || [],
     }
   })
 }
@@ -1251,11 +1254,31 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
             layout={o.layout}
             columns={o.columns}
             cardStyle={o.card_style}
+            cardTheme={o.card_theme}
+            amountInputMode={o.amount_input_mode}
+            imageShape={o.image_shape}
+            hoverEffect={o.hover_effect}
             autoplay={o.autoplay !== false}
             switcher={o.currency_switcher}
             showProgress={Boolean(o.show_progress)}
+            showRemaining={Boolean(o.show_remaining)}
             showSummary={Boolean(o.show_summary)}
             allowRecurring={Boolean(o.allow_recurring)}
+            dualCta={Boolean(o.dual_cta)}
+            allowOnBehalf={Boolean(o.allow_on_behalf)}
+            showCartBadge={o.show_cart_badge !== false}
+            showShare={Boolean(o.show_share)}
+            showSearchSort={Boolean(o.show_search_sort)}
+            showDetailModal={Boolean(o.show_detail_modal)}
+            enableBundleSelect={Boolean(o.enable_bundle_select)}
+            showTrustTags={Boolean(o.show_trust_tags)}
+            showApproxFx={Boolean(o.show_approx_fx)}
+            showCountdown={Boolean(o.show_countdown)}
+            allowNote={Boolean(o.allow_note)}
+            peopleMultiplier={Boolean(o.people_multiplier)}
+            showIbanCopy={Boolean(o.show_iban_copy)}
+            ibanHolder={o.show_iban_copy ? (data.site.name || '') : ''}
+            allowAnonymous={Boolean(o.allow_anonymous)}
             ctaLabel={o.cta_label}
             ctaUrl={o.cta_url}
             locale={data.locale}
