@@ -1,0 +1,269 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { Copy, KeyRound, ListChecks, Phone, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOutgoing, RefreshCw, Users } from 'lucide-react'
+import { Card } from '@e-infak/ui'
+import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
+import { Label, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
+import { EmptyState, Modal, PageHeader, Pagination, StatCard, TBody, THead, Table, Tabs, Td, Th, Tr, toast } from '../../../../components/admin/ui'
+
+interface Account { configured: boolean; values: Record<string, string | null>; webhook_url: string | null; my_extension: string | null }
+interface Call {
+  id: string; direction: 'in' | 'out'; phone: string | null; extension: string | null; status: string; status_label: string
+  talk_seconds: number | null; recording_url: string | null; note: string | null; donor_id: string | null
+  donor_name: string | null; started_by: string | null; started_at: string | null
+}
+interface Stats { incoming: number; outgoing: number; missed: number; talk_seconds: number }
+interface Ext { id: string; name: string; email: string; extension: string | null }
+type Tab = 'calls' | 'extensions' | 'account'
+
+const FIELDS: [string, string, boolean][] = [
+  ['pbx_number', 'Santral numarası (850…, başında 0 olmadan)', false],
+  ['username', 'API kullanıcı adı (santral / abone numarası)', false],
+  ['password', 'API yetkili alt kullanıcı şifresi', true],
+  ['trunk', 'Arayan numara (trunk; boşsa santral numarası)', false],
+]
+const STATUS_CLASS: Record<string, string> = {
+  ringing: 'bg-amber-100 text-amber-800', answered: 'bg-sky-100 text-sky-800', ended: 'bg-emerald-100 text-emerald-800',
+  missed: 'bg-red-100 text-red-700', busy: 'bg-red-100 text-red-700', failed: 'bg-gray-100 text-gray-700',
+}
+const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }) : '—')
+const duration = (s: number | null) => (s == null ? '—' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`)
+
+export default function CallCenterPage() {
+  const [tab, setTab] = useState<Tab>('calls')
+  const [account, setAccount] = useState<Account | null>(null)
+  const [stats, setStats] = useState<Stats | null>(null)
+  const loadAccount = useCallback(() => {
+    adminGet<Account>('/call-center/account').then((r) => {
+      setAccount(r.data)
+      if (!r.data.configured) setTab('account')
+    }).catch((err) => toast.error(apiErrorMessage(err, 'Santral hesabı okunamadı')))
+  }, [])
+  useEffect(() => {
+    loadAccount()
+    adminGet<Stats>('/call-center/stats').then((r) => setStats(r.data)).catch(() => {})
+  }, [loadAccount])
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title={<span className="flex items-center gap-2"><PhoneCall className="h-6 w-6 text-primary-600" /> Çağrı Merkezi</span>}
+        description="NetGSM Netsantral ile bağışçıları sistemden arayın; gelen çağrılar bağışçı kartıyla ekranınıza düşer, ses kayıtları çağrıya bağlanır."
+        actions={<MyExtension account={account} onSaved={loadAccount} />}
+      />
+      {stats && (
+        <div className="grid gap-3 sm:grid-cols-4">
+          <StatCard label="Gelen (30 gün)" value={stats.incoming.toLocaleString('tr-TR')} icon={PhoneIncoming} />
+          <StatCard label="Giden (30 gün)" value={stats.outgoing.toLocaleString('tr-TR')} icon={PhoneOutgoing} />
+          <StatCard label="Cevapsız" value={stats.missed.toLocaleString('tr-TR')} tone={stats.missed ? 'bad' : 'neutral'} icon={PhoneMissed} />
+          <StatCard label="Konuşma süresi" value={`${Math.round(stats.talk_seconds / 60).toLocaleString('tr-TR')} dk`} />
+        </div>
+      )}
+      <Tabs<Tab> value={tab} onChange={setTab} tabs={[
+        { key: 'calls', label: 'Çağrılar', icon: ListChecks },
+        { key: 'extensions', label: 'Personel Dahilileri', icon: Users },
+        { key: 'account', label: 'Santral Ayarları', icon: KeyRound },
+      ]} />
+      {tab === 'calls' && <CallList />}
+      {tab === 'extensions' && <Extensions />}
+      {tab === 'account' && account && <AccountForm account={account} onSaved={loadAccount} />}
+    </div>
+  )
+}
+
+function MyExtension({ account, onSaved }: { account: Account | null; onSaved: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState('')
+  useEffect(() => setValue(account?.my_extension || ''), [account])
+  const save = async () => {
+    try {
+      await adminSend('put', '/call-center/my-extension', { extension: value.trim() || null })
+      toast.ok('Dahili numaranız kaydedildi')
+      setOpen(false)
+      onSaved()
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
+    }
+  }
+  return (
+    <>
+      <button type="button" className={`${ghostButton} flex items-center gap-1`} onClick={() => setOpen(true)}>
+        <Phone className="h-3.5 w-3.5" /> Dahilim: {account?.my_extension || 'tanımsız'}
+      </button>
+      {open && (
+        <Modal title="Santral dahili numaranız" description="Aramalar önce bu dahiliyi çaldırır; gelen çağrılar bu dahiliye düşünce ekranınızda görünür." onClose={() => setOpen(false)} size="sm"
+          footer={<button type="button" className={primaryButton} onClick={save}>Kaydet</button>}>
+          <input className={inputClass} inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value.replace(/\D/g, ''))} placeholder="ör. 101" />
+        </Modal>
+      )}
+    </>
+  )
+}
+
+function CallList() {
+  const [direction, setDirection] = useState('')
+  const [status, setStatus] = useState('')
+  const [q, setQ] = useState('')
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState<{ total: number; items: Call[] } | null>(null)
+  const [editing, setEditing] = useState<Call | null>(null)
+  const [note, setNote] = useState('')
+  const load = useCallback(() => {
+    adminGet<{ total: number; items: Call[] }>('/call-center/calls', { direction: direction || undefined, status: status || undefined, q: q.trim() || undefined, page, page_size: 50 })
+      .then((r) => setData(r.data)).catch((err) => toast.error(apiErrorMessage(err)))
+  }, [direction, status, q, page])
+  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
+  const call = async (c: Call) => {
+    try {
+      const r = await adminSend<{ message: string }>('post', '/call-center/call', { donor_id: c.donor_id, phone: c.phone })
+      toast.ok(r.data.message)
+      setTimeout(load, 3000)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Arama başlatılamadı'))
+    }
+  }
+  const saveNote = async () => {
+    if (!editing) return
+    try {
+      await adminSend('patch', `/call-center/calls/${editing.id}`, { note })
+      toast.ok('Not kaydedildi')
+      setEditing(null)
+      load()
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
+    }
+  }
+  return (
+    <Card className="space-y-4 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <select className={`${inputClass} max-w-[160px]`} value={direction} onChange={(e) => { setDirection(e.target.value); setPage(1) }}>
+          <option value="">Gelen + giden</option><option value="in">Gelen</option><option value="out">Giden</option>
+        </select>
+        <select className={`${inputClass} max-w-[160px]`} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}>
+          <option value="">Tüm durumlar</option><option value="ended">Tamamlandı</option><option value="missed">Cevapsız</option>
+          <option value="busy">Meşgul</option><option value="answered">Görüşmede</option><option value="ringing">Çalıyor</option>
+        </select>
+        <input className={`${inputClass} max-w-xs`} placeholder="Telefon, isim veya dahili" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
+        <button type="button" className={`${ghostButton} flex items-center gap-1`} onClick={load}><RefreshCw className="h-3.5 w-3.5" /> Yenile</button>
+      </div>
+      {data && !data.items.length ? <EmptyState icon={PhoneCall} title="Henüz çağrı yok" text="Santral webhook’u tanımlanınca gelen ve giden çağrılar burada listelenir." /> : (
+        <Table>
+          <THead><Tr><Th>Tarih</Th><Th>Yön</Th><Th>Bağışçı / Numara</Th><Th>Dahili</Th><Th>Durum</Th><Th>Süre</Th><Th>Kayıt</Th><Th /></Tr></THead>
+          <TBody>
+            {data?.items.map((c) => (
+              <Tr key={c.id}>
+                <Td className="whitespace-nowrap text-gray-500">{when(c.started_at)}</Td>
+                <Td>{c.direction === 'in' ? <PhoneIncoming className="h-4 w-4 text-sky-600" aria-label="Gelen" /> : <PhoneOutgoing className="h-4 w-4 text-emerald-600" aria-label="Giden" />}</Td>
+                <Td>
+                  {c.donor_id ? <Link className="font-medium text-primary-700 hover:underline" href={`/admin/bagiscilar?donor=${c.donor_id}`}>{c.donor_name}</Link> : <span className="text-gray-500">Kayıtlı değil</span>}
+                  <div className="text-xs text-gray-500">{c.phone}</div>
+                  {c.note && <div className="mt-1 max-w-xs truncate text-xs text-gray-700">📝 {c.note}</div>}
+                </Td>
+                <Td>{c.extension || '—'}{c.started_by && <div className="text-xs text-gray-500">{c.started_by}</div>}</Td>
+                <Td><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATUS_CLASS[c.status] || ''}`}>{c.status_label}</span></Td>
+                <Td className="tabular-nums">{duration(c.talk_seconds)}</Td>
+                <Td>{c.recording_url ? <audio controls preload="none" src={c.recording_url} className="h-8 w-48" /> : '—'}</Td>
+                <Td className="whitespace-nowrap">
+                  {c.phone && <button type="button" className={`${ghostButton} mr-1`} onClick={() => call(c)}>Ara</button>}
+                  <button type="button" className={ghostButton} onClick={() => { setEditing(c); setNote(c.note || '') }}>Not</button>
+                </Td>
+              </Tr>
+            ))}
+          </TBody>
+        </Table>
+      )}
+      {data && <Pagination page={page} pages={Math.ceil(data.total / 50)} total={data.total} onChange={setPage} />}
+      {editing && (
+        <Modal title="Görüşme notu" description={`${editing.donor_name || editing.phone} · ${when(editing.started_at)}`} onClose={() => setEditing(null)}
+          footer={<button type="button" className={primaryButton} onClick={saveNote}>Kaydet</button>}>
+          <textarea className={`${inputClass} min-h-[120px]`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} />
+        </Modal>
+      )}
+    </Card>
+  )
+}
+
+function Extensions() {
+  const [rows, setRows] = useState<Ext[]>([])
+  const load = () => adminGet<Ext[]>('/call-center/extensions').then((r) => setRows(r.data)).catch((err) => toast.error(apiErrorMessage(err)))
+  useEffect(() => { load() }, [])
+  const save = async (row: Ext, extension: string) => {
+    try {
+      await adminSend('put', '/call-center/extensions', { user_id: row.id, extension: extension || null })
+      toast.ok(`${row.name}: dahili kaydedildi`)
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
+    }
+  }
+  return (
+    <Card className="p-4">
+      <Table>
+        <THead><Tr><Th>Personel</Th><Th>E-posta</Th><Th>Santral dahilisi</Th></Tr></THead>
+        <TBody>
+          {rows.map((r) => (
+            <Tr key={r.id}>
+              <Td className="font-medium">{r.name}</Td>
+              <Td className="text-gray-500">{r.email}</Td>
+              <Td>
+                <input className={`${inputClass} max-w-[120px]`} inputMode="numeric" defaultValue={r.extension || ''} placeholder="—"
+                  onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); if (v !== (r.extension || '')) save(r, v) }} />
+              </Td>
+            </Tr>
+          ))}
+        </TBody>
+      </Table>
+    </Card>
+  )
+}
+
+function AccountForm({ account, onSaved }: { account: Account; onSaved: () => void }) {
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(FIELDS.map(([k, , secret]) => [k, secret ? '' : account.values[k] || ''])))
+  const [busy, setBusy] = useState(false)
+  const save = async () => {
+    setBusy(true)
+    try {
+      await adminSend('put', '/call-center/account', { values })
+      toast.ok('Santral hesabı kaydedildi')
+      onSaved()
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Kaydedilemedi'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card className="space-y-4 p-6">
+        <h2 className="font-bold text-gray-900">NetGSM Netsantral</h2>
+        {FIELDS.map(([key, label, secret]) => (
+          <Label key={key} label={label} hint={secret && account.values[key] ? `Kayıtlı (${account.values[key]}). Değiştirmek için yenisini yazın.` : undefined}>
+            <input className={inputClass} type={secret ? 'password' : 'text'} value={values[key]} autoComplete="off"
+              onChange={(e) => setValues({ ...values, [key]: e.target.value })} />
+          </Label>
+        ))}
+        <button type="button" className={primaryButton} disabled={busy} onClick={save}>{busy ? 'Kaydediliyor…' : 'Kaydet'}</button>
+      </Card>
+      <Card className="space-y-4 p-6 text-sm text-gray-700">
+        <h2 className="font-bold text-gray-900">Kurulum</h2>
+        <ol className="list-decimal space-y-2 pl-5">
+          <li>NetGSM’de <b>Abonelik İşlemleri › Alt Kullanıcı Hesapları</b>’ndan API yetkili bir alt kullanıcı açın (NetGSM onaylar).</li>
+          <li>Santral numarasını, kullanıcı adını ve alt kullanıcının şifresini soldaki forma girip kaydedin.</li>
+          <li>Netsantral arayüzünde <b>Ayarlar › Genel Ayarlar › API Talep Ayarları</b>’na aşağıdaki adresi girip aktif edin.</li>
+          <li>“Personel Dahilileri” sekmesinden her personelin dahili numarasını yazın.</li>
+        </ol>
+        {account.webhook_url ? (
+          <Label label="Çağrı bildirim adresi (URL’e yönlendirme)">
+            <div className="flex gap-2">
+              <input readOnly className={inputClass} value={account.webhook_url} />
+              <button type="button" className={ghostButton} onClick={() => navigator.clipboard.writeText(account.webhook_url!).then(() => toast.ok('Kopyalandı'))}><Copy className="h-4 w-4" /></button>
+            </div>
+          </Label>
+        ) : <p className="text-amber-700">Bildirim adresi, bilgileri ilk kaydettiğinizde oluşur.</p>}
+        <p className="text-xs text-gray-500">Not: NetGSM soket ve URL yönteminden yalnızca birini kullanmanızı ister; URL yöntemini seçin.</p>
+      </Card>
+    </div>
+  )
+}

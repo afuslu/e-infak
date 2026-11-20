@@ -59,6 +59,71 @@ XML_DECLARATION = re.compile(r"^\s*<\?xml[^>]*\?>")
 CALLBACK_RECHECK_SECONDS = 2.0
 
 
+class RawXml:
+    """A pre-built XML fragment placed into a request as is (e.g. the Addresses list)."""
+
+    def __init__(self, xml: str) -> None:
+        self.xml = xml
+
+
+class CardData:
+    """Card details on their way to CardSave. Lives only in memory; repr never shows the number."""
+    __slots__ = ("number", "expire_month", "expire_year", "cvv", "holder")
+
+    def __init__(self, number: str, expire_month: str, expire_year: str, cvv: str, holder: str) -> None:
+        self.number = re.sub(r"\D", "", number or "")
+        self.expire_month = re.sub(r"\D", "", expire_month or "").zfill(2)[-2:]
+        self.expire_year = re.sub(r"\D", "", expire_year or "")[-2:]
+        self.cvv = re.sub(r"\D", "", cvv or "")
+        self.holder = (holder or "").strip()[:60]
+
+    def __repr__(self) -> str:  # never leak the number into logs or error reports
+        return f"CardData(****{self.number[-4:]})"
+
+    @property
+    def last4(self) -> str:
+        return self.number[-4:]
+
+    def valid(self) -> Optional[str]:
+        """Error text, or None when the card looks usable (Luhn, length, expiry, CVV)."""
+        if not 13 <= len(self.number) <= 19 or not luhn_ok(self.number):
+            return "Kart numarası geçersiz"
+        if not (self.expire_month.isdigit() and 1 <= int(self.expire_month) <= 12) or len(self.expire_year) != 2:
+            return "Son kullanma tarihi geçersiz"
+        from datetime import date
+        today = date.today()
+        if (2000 + int(self.expire_year), int(self.expire_month)) < (today.year, today.month):
+            return "Kartın süresi dolmuş"
+        if len(self.cvv) not in (3, 4):
+            return "Güvenlik kodu (CVV) geçersiz"
+        if len(self.holder) < 3:
+            return "Kart üzerindeki isim gerekli"
+        return None
+
+
+def luhn_ok(number: str) -> bool:
+    total, alt = 0, False
+    for ch in reversed(number):
+        d = int(ch)
+        if alt:
+            d = d * 2 - 9 if d > 4 else d * 2
+        total += d
+        alt = not alt
+    return total % 10 == 0
+
+
+def card_brand(number: str) -> Optional[str]:
+    if number.startswith("4"):
+        return "Visa"
+    if number[:2] in {"51", "52", "53", "54", "55"} or 2221 <= int(number[:4] or 0) <= 2720:
+        return "MasterCard"
+    if number.startswith(("9792", "65")):
+        return "Troy"
+    if number.startswith(("34", "37")):
+        return "Amex"
+    return None
+
+
 def sha1_b64(text: str) -> str:
     """Doc §4.4 ComputeHash: SHA1 over ISO-8859-9 bytes, Base64. Unmappable characters become '?' as in .NET."""
     return base64.b64encode(hashlib.sha1(text.encode("iso-8859-9", errors="replace")).digest()).decode()
@@ -132,6 +197,9 @@ class VakifKatilimProvider(PaymentProvider):
     secret_fields = {"api_password"}
     currencies = set(CURRENCY_CODES)
     form_hosts = (HOST,)
+    # Cards are saved with CardSave (the number passes our server once, in memory, never stored) and
+    # charged monthly with MailOrderSale + CardGuid. The merchant must have Mail Order permission.
+    supports_stored_cards = True
 
     @property
     def _c(self) -> dict[str, str]:
@@ -183,18 +251,20 @@ class VakifKatilimProvider(PaymentProvider):
 
     # --- API -----------------------------------------------------------------
 
-    def _message(self, body: list[tuple[str, Any]]) -> str:
+    def _message(self, body: list[tuple[str, Any]], root: str = "VPosMessageContract") -> str:
         c = self._c
         fields = dict(body)
         items = [
-            ("HashData", self.api_hash(str(fields.get("MerchantOrderId") or ""), int(fields.get("Amount") or 0))), ("MerchantId", c["merchant_id"]), ("SubMerchantId", "0"),
+            ("HashData", self.api_hash(str(fields.get("MerchantOrderId") or ""), int(fields.get("Amount") or 0))),
+            ("MerchantId", c["merchant_id"]), ("SubMerchantId", "0"),
             ("CustomerId", c["customer_id"]), ("UserName", c["username"]), ("HashPassword", self.hash_password),
             *body,
         ]
-        inner = "".join(f"<{tag}>{escape(str(value))}</{tag}>" for tag, value in items)
+        inner = "".join(value.xml if isinstance(value, RawXml) else f"<{tag}>{escape(str(value))}</{tag}>"
+                        for tag, value in items)
         return ('<?xml version="1.0" encoding="utf-16"?>'
-                '<VPosMessageContract xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-                f'xmlns:xsd="http://www.w3.org/2001/XMLSchema">{inner}</VPosMessageContract>')
+                f'<{root} xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+                f'xmlns:xsd="http://www.w3.org/2001/XMLSchema">{inner}</{root}>')
 
     async def _post_xml(self, endpoint: str, message: str) -> bytes:
         # Like the doc's DataPost: a utf-16 declaration, sent as UTF-8 bytes.
@@ -251,6 +321,71 @@ class VakifKatilimProvider(PaymentProvider):
             message=order.get("ResponseExplain") or None,
             safe_response={**safe, "bank": {k: order[k] for k in ORDER_FIELDS if order.get(k)}},
         )
+
+    # --- stored cards ------------------------------------------------------------
+
+    async def save_card(self, card: CardData) -> dict[str, str]:
+        """CardSave (doc §3.2.1): returns the card reference to keep, {"card_guid": ...}."""
+        self.require_configured()
+        if not self.live:
+            raise PaymentProviderError("Vakıf Katılım'ın test ortamı yok; kart saklama yalnız canlı ortamda çalışır")
+        error = card.valid()
+        if error:
+            raise PaymentProviderError(error)
+        top, _ = parse_response(await self._post_xml("CardSave", self._message([
+            ("CardNumber", card.number), ("CardExpireDateYear", card.expire_year),
+            ("CardExpireDateMonth", card.expire_month), ("CardCVV2", card.cvv), ("CardHolderName", card.holder),
+        ], root="VPosCardDataContract")))
+        guid = (top.get("CardGuid") or "").strip()
+        if top.get("ResponseCode") != "00" or not guid:
+            raise PaymentProviderError(fix_text(top.get("ResponseMessage"))
+                                       or f"Kart kaydedilemedi ({top.get('ResponseCode') or 'bilinmeyen hata'})")
+        return {"card_guid": guid}
+
+    async def delete_card(self, card_ref: dict[str, str]) -> bool:
+        """CardDelete (doc §3.2.4): deactivate the saved card at the bank."""
+        guid = (card_ref or {}).get("card_guid")
+        if not guid:
+            return False
+        top, _ = parse_response(await self._post_xml("CardDelete", self._message(
+            [("CardGuid", guid)], root="VPosCardDataContract")))
+        return top.get("ResponseCode") == "00"
+
+    async def charge_stored(self, ctx: CheckoutContext, card_ref: dict[str, str]) -> PaymentResult:
+        """MailOrderSale with the saved CardGuid (doc §3.1.3), then the bank's own record decides."""
+        self.require_configured()
+        if not self.live:
+            raise PaymentProviderError("Vakıf Katılım'ın test ortamı yok; kayıtlı karttan çekim yalnız canlı ortamda çalışır")
+        guid = (card_ref or {}).get("card_guid")
+        if not guid:
+            raise PaymentProviderError("Kayıtlı kart bilgisi yok")
+        if ctx.currency not in CURRENCY_CODES:
+            raise PaymentProviderError(f"{ctx.currency} Vakıf Katılım'da desteklenmiyor")
+        name = f"{ctx.customer_first_name} {ctx.customer_last_name}".strip()[:60]
+        address = RawXml(
+            "<Addresses><VPosAddressContract><Type>1</Type>"
+            f"<Name>{escape(name)}</Name><PhoneNumber>{escape(re.sub(r'[^0-9]', '', ctx.customer_phone or ''))}</PhoneNumber>"
+            f"<OrderId>0</OrderId><AddressId>0</AddressId><Email>{escape(ctx.customer_email or '')}</Email>"
+            "</VPosAddressContract></Addresses>"
+        )
+        code = CURRENCY_CODES[ctx.currency]
+        top, _ = parse_response(await self._post_xml("MailOrderSale", self._message([
+            ("CustomerIPAddress", ctx.customer_ip or "127.0.0.1"), ("MerchantOrderId", ctx.merchant_payment_id),
+            ("InstallmentCount", 0), ("Amount", ctx.total_cents), ("DisplayAmount", ctx.total_cents),
+            ("FECAmount", 0), ("FECCurrencyCode", code), ("CurrencyCode", code), ("Addresses", address),
+            ("APIVersion", "1.0.0"), ("PaymentType", 1), ("TransactionSecurity", 1), ("CardGuid", guid),
+        ])))
+        # The sale answer is only a hint: the order record at the bank is what counts.
+        lookup_top, orders = await self.lookup(ctx.merchant_payment_id)
+        order = self._pick(orders)
+        if order is None:
+            message = fix_text(top.get("ResponseMessage")) or "Banka çekimi onaylamadı"
+            return PaymentResult(approved=False, merchant_payment_id=ctx.merchant_payment_id,
+                                 code=top.get("ResponseCode") or "NOTFOUND", message=message,
+                                 safe_response={"bank": {"ResponseCode": top.get("ResponseCode")}})
+        result = self._result(ctx.merchant_payment_id, lookup_top, order)
+        result.approved = result.approved and result.amount_cents == ctx.total_cents
+        return result
 
     # --- interface -----------------------------------------------------------
 

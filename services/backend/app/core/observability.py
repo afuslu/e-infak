@@ -18,4 +18,8 @@ def configure_observability() -> None:
         environment=settings.ENVIRONMENT,
         traces_sample_rate=0.05,
         send_default_pii=False,
+        # Card numbers pass through the card-saving endpoint (Vakıf Katılım CardSave): never ship
+        # request bodies or stack-frame variables to Sentry.
+        include_local_variables=False,
+        max_request_body_size="never",
     )

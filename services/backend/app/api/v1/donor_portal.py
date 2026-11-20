@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -490,11 +490,93 @@ async def get_recurring_by_token(
     if not row:
         raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
     sub, donor_name, campaign_title, campaign_slug = row
+    saver = await _card_saver(db, sub)
     return {
         **_serialize_portal_sub(sub, campaign_title),
         "donor_name": donor_name or "Bağışçı",
         "campaign_slug": campaign_slug,
+        # The organisation's card provider can keep a card at the bank (Vakıf Katılım CardSave).
+        "can_save_card": saver is not None and sub.status != "cancelled",
     }
+
+
+async def _card_saver(db: AsyncSession, sub: Subscription):
+    """The organisation's card provider when it saves cards through our form (Vakıf Katılım), else None."""
+    from app.models.organization import Organization
+    from app.payments import PaymentProviderError, provider_for
+
+    org = await db.get(Organization, sub.organization_id)
+    if not org or not org.is_active:
+        return None
+    try:
+        provider = await provider_for(db, org)
+    except (PaymentProviderError, Exception):  # noqa: BLE001 - no usable provider means no card form
+        return None
+    if not (hasattr(provider, "save_card") and provider.supports_stored_cards and provider.configured and provider.live):
+        return None
+    return provider
+
+
+class SaveCardPayload(BaseModel):
+    # Only ever held in memory for the CardSave call; never stored, logged or echoed back.
+    card_number: str = Field(min_length=12, max_length=23)
+    expire_month: str = Field(min_length=1, max_length=2)
+    expire_year: str = Field(min_length=2, max_length=4)
+    cvv: str = Field(min_length=3, max_length=4)
+    holder_name: str = Field(min_length=3, max_length=60)
+
+    def __repr__(self) -> str:
+        return "SaveCardPayload(****)"
+
+
+@router.post("/recurring/{manage_token}/card")
+async def save_recurring_card(
+    manage_token: str,
+    payload: SaveCardPayload,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("recurring-card-save", limit=5, window_seconds=900)),
+):
+    """Save the donor's card at the bank so the instruction is charged automatically every month."""
+    from app.payments import PaymentProviderError
+    from app.payments.providers.vakifkatilim import CardData, card_brand
+    from app.services.recurring import _encrypt
+    from app.services.tenant_credentials import decrypt
+
+    if not manage_token or len(manage_token) < 16:
+        raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
+    sub = (await db.execute(select(Subscription).where(Subscription.manage_token == manage_token))).scalar_one_or_none()
+    if not sub or sub.status == "cancelled":
+        raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
+    provider = await _card_saver(db, sub)
+    if provider is None:
+        raise HTTPException(status_code=400, detail="Kurumun ödeme altyapısı kart saklamayı desteklemiyor.")
+    card = CardData(payload.card_number, payload.expire_month, payload.expire_year, payload.cvv, payload.holder_name)
+    error = card.valid()
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    try:
+        card_ref = await provider.save_card(card)
+    except PaymentProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    finally:
+        last4, brand = card.last4, card_brand(card.number)
+        del card
+    stored = _encrypt(card_ref)
+    if not stored:
+        raise HTTPException(status_code=503, detail="Kart bilgisi şu an saklanamıyor; lütfen daha sonra deneyin.")
+    previous = sub.card_ref if sub.provider == provider.key else None
+    sub.mode, sub.provider, sub.card_ref = "card", provider.key, stored
+    sub.card_last_4, sub.card_brand = last4, brand
+    sub.failed_attempts, sub.last_error = 0, None
+    if sub.status == "paused":
+        sub.status = "active"
+    await db.commit()
+    if previous:
+        try:  # the replaced card is deactivated at the bank; failure here only leaves an unused card there
+            await provider.delete_card(decrypt(previous))
+        except Exception:  # noqa: BLE001
+            pass
+    return {**_serialize_portal_sub(sub), "message": "Kartınız kaydedildi; bağışınız her ay otomatik çekilecek."}
 
 
 @router.post("/recurring/{manage_token}/action")
@@ -535,8 +617,26 @@ async def act_on_recurring_by_token(
     if payload.day_of_month is not None:
         sub.day_of_month = max(1, min(28, int(payload.day_of_month)))
 
+    released = sub.card_ref if payload.action == "cancel" and sub.provider == "vakifkatilim" else None
+    if released:
+        sub.card_ref = None
     await db.commit()
+    if released:
+        await _release_card(db, sub, released)
     return _serialize_portal_sub(sub)
+
+
+async def _release_card(db: AsyncSession, sub: Subscription, encrypted_ref: str) -> None:
+    """Deactivate a saved card at the bank when the instruction ends (best effort)."""
+    from app.services.tenant_credentials import decrypt
+
+    provider = await _card_saver(db, sub)
+    if provider is None:
+        return
+    try:
+        await provider.delete_card(decrypt(encrypted_ref))
+    except Exception:  # noqa: BLE001 - an unused card left at the bank is harmless
+        pass
 
 
 @router.get("/me/pledges")

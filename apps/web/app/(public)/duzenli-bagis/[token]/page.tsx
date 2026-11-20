@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { Bell, Calendar, CheckCircle2, CreditCard, Pause, Play, Repeat, Trash2 } from 'lucide-react'
+import { Bell, Calendar, CheckCircle2, CreditCard, Lock, Pause, Play, Repeat, Trash2 } from 'lucide-react'
 import axios from 'axios'
 import { Button, Card } from '@e-infak/ui'
 import '../../../../lib/api'
@@ -25,6 +25,7 @@ interface RecurringInfo {
   card_last4?: string | null
   status: string
   next_charge_date?: string | null
+  can_save_card?: boolean
 }
 
 export default function ManageRecurringPage() {
@@ -163,6 +164,13 @@ export default function ManageRecurringPage() {
               </div>
             </div>
 
+            {info.can_save_card && (
+              <SaveCard token={token} hasCard={info.mode === 'card'} onSaved={(next, message) => {
+                setInfo((prev) => (prev ? { ...prev, ...next } : prev))
+                setNotice(message)
+              }} />
+            )}
+
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
               {info.status === 'active' && (
                 <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => runAction('pause')}>
@@ -200,5 +208,77 @@ export default function ManageRecurringPage() {
         ) : null}
       </Card>
     </div>
+  )
+}
+
+function SaveCard({ token, hasCard, onSaved }: {
+  token: string; hasCard: boolean; onSaved: (info: Partial<RecurringInfo>, message: string) => void
+}) {
+  const [open, setOpen] = useState(!hasCard)
+  const [number, setNumber] = useState('')
+  const [expiry, setExpiry] = useState('')
+  const [cvv, setCvv] = useState('')
+  const [holder, setHolder] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const input = 'w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm outline-none focus:border-emerald-600'
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const [month, year] = expiry.split('/').map((p) => p.trim())
+    setBusy(true)
+    setError('')
+    try {
+      const res = await axios.post<RecurringInfo & { message: string }>(
+        `${apiUrl}/api/v1/portal/recurring/${encodeURIComponent(token)}/card`,
+        { card_number: number.replace(/\s/g, ''), expire_month: month || '', expire_year: year || '', cvv, holder_name: holder },
+      )
+      // Clear the card from memory as soon as the bank has it.
+      setNumber(''); setCvv(''); setExpiry('')
+      setOpen(false)
+      onSaved(res.data, res.data.message)
+    } catch (err) {
+      const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null
+      setError(typeof detail === 'string' ? detail : 'Kart kaydedilemedi. Bilgileri kontrol edip tekrar deneyin.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="text-xs font-semibold text-emerald-700 hover:underline">
+        {hasCard ? 'Kartımı değiştir' : 'Kartımı kaydet, her ay otomatik çekilsin'}
+      </button>
+    )
+  }
+  return (
+    <form onSubmit={submit} className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4" autoComplete="on">
+      <div>
+        <h2 className="text-sm font-bold text-slate-900">{hasCard ? 'Kartı değiştir' : 'Otomatik ödeme için kartınızı kaydedin'}</h2>
+        <p className="mt-1 text-xs text-slate-600">
+          Kartınız bankada (Vakıf Katılım) güvenli olarak saklanır; derneğin sisteminde kart numarası tutulmaz.
+          Her ay aynı gün bağış tutarı bu karttan çekilir; talimatı bu sayfadan istediğiniz zaman durdurabilirsiniz.
+        </p>
+      </div>
+      <input className={input} inputMode="numeric" autoComplete="cc-number" placeholder="Kart numarası" maxLength={23} required
+        value={number} onChange={(e) => setNumber(e.target.value.replace(/[^0-9 ]/g, ''))} />
+      <div className="grid grid-cols-2 gap-3">
+        <input className={input} inputMode="numeric" autoComplete="cc-exp" placeholder="AA/YY" maxLength={5} required
+          value={expiry} onChange={(e) => {
+            const d = e.target.value.replace(/\D/g, '').slice(0, 4)
+            setExpiry(d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d)
+          }} />
+        <input className={input} inputMode="numeric" autoComplete="cc-csc" placeholder="CVV" maxLength={4} required
+          value={cvv} onChange={(e) => setCvv(e.target.value.replace(/\D/g, ''))} />
+      </div>
+      <input className={input} autoComplete="cc-name" placeholder="Kart üzerindeki isim" maxLength={60} required
+        value={holder} onChange={(e) => setHolder(e.target.value)} />
+      {error && <p className="text-xs font-medium text-rose-700">{error}</p>}
+      <div className="flex items-center gap-2">
+        <Button type="submit" size="sm" disabled={busy}><Lock className="mr-1.5 h-3.5 w-3.5" />{busy ? 'Kaydediliyor…' : 'Kartı kaydet'}</Button>
+        {hasCard && <button type="button" className="text-xs text-slate-500 hover:underline" onClick={() => setOpen(false)}>Vazgeç</button>}
+      </div>
+    </form>
   )
 }

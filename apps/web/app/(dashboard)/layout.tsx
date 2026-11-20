@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useState } from 'react'
 import Link from 'next/link'
 import { ExternalLink, Lock, type LucideIcon, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, X } from 'lucide-react'
 import { UiHost } from '../../components/admin/ui'
+import { IncomingCallPopup } from '../../components/admin/IncomingCallPopup'
 import { groupOf, NAV_GROUPS, navItemFor, type NavItem, searchKey } from '../../components/admin/admin-nav'
 import { AdminCommandPalette, AdminNotificationsBell, AdminProfileMenu } from '../../components/admin/AdminShellWidgets'
 import { hasFeature, hasModule, hasPermission, useAdminAccess, v1Get, adminGet } from '../../lib/admin-access'
@@ -549,6 +550,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onCycleTheme={theme.cycle}
       />
       <UiHost />
+      <IncomingCallPopup />
     </div>
   )
 }

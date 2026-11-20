@@ -380,3 +380,137 @@ async def test_amount_mismatch_goes_to_review(db_session, monkeypatch):
     assert "/bagis/hata" in redirect.headers["location"]
     db_session.expire_all()
     assert (await checkout._load_order(db_session, response.checkout_id)).status == PaymentOrderStatus.REVIEW
+
+
+# --- stored cards (CardSave + MailOrderSale) ---------------------------------
+
+VALID_CARD = ("4508 0345 0803 4509", "12", "39", "000", "Seçkin Bozkurt")
+
+
+def test_card_data_validation_and_no_leaks():
+    card = vk.CardData(*VALID_CARD)
+    assert card.valid() is None and card.last4 == "4509" and vk.card_brand(card.number) == "Visa"
+    assert "4508" not in repr(card)
+    assert vk.CardData("4508034508034500", "12", "39", "000", "Ali Veli").valid() == "Kart numarası geçersiz"
+    assert vk.CardData("4508034508034509", "13", "39", "000", "Ali Veli").valid() == "Son kullanma tarihi geçersiz"
+    assert vk.CardData("4508034508034509", "01", "20", "000", "Ali Veli").valid() == "Kartın süresi dolmuş"
+    assert vk.CardData("4508034508034509", "12", "39", "0", "Ali Veli").valid().startswith("Güvenlik kodu")
+    assert vk.card_brand("5353550000958906") == "MasterCard" and vk.card_brand("9792000000000016") == "Troy"
+
+
+async def test_card_save_sends_card_data_contract_and_returns_guid(monkeypatch):
+    sent: list = []
+    reply = (b'<?xml version="1.0" encoding="utf-16"?><VPosTransactionResponseContract><ResponseCode>00</ResponseCode>'
+             b'<ResponseMessage /><CardGuid>429675215AD44D38B05793911EAE1F9D</CardGuid></VPosTransactionResponseContract>')
+    _fake_bank(monkeypatch, [reply], sent)
+    p = _provider()
+    ref = await p.save_card(vk.CardData(*VALID_CARD))
+    assert ref == {"card_guid": "429675215AD44D38B05793911EAE1F9D"}
+    endpoint, message = sent[0]
+    root = ET.fromstring(vk.XML_DECLARATION.sub("", message))
+    assert endpoint == "CardSave" and root.tag == "VPosCardDataContract"
+    assert root.findtext("CardNumber") == "4508034508034509" and root.findtext("CardExpireDateMonth") == "12"
+    assert root.findtext("CardExpireDateYear") == "39" and root.findtext("CardCVV2") == "000"
+    assert root.findtext("HashData") == p.api_hash()  # no order or amount in the message
+
+
+async def test_card_save_error_and_test_mode_refused(monkeypatch):
+    _fake_bank(monkeypatch, [b"<VPosTransactionResponseContract><ResponseCode>CardError</ResponseCode>"
+                             b"<ResponseMessage>Kart kaydedilemedi</ResponseMessage></VPosTransactionResponseContract>"])
+    with pytest.raises(PaymentProviderError, match="Kart kaydedilemedi"):
+        await _provider().save_card(vk.CardData(*VALID_CARD))
+    with pytest.raises(PaymentProviderError, match="test ortamı"):
+        await vk.VakifKatilimProvider(CREDS, live=False).save_card(vk.CardData(*VALID_CARD))
+
+
+async def test_charge_stored_uses_mail_order_with_card_guid_and_trusts_the_lookup(monkeypatch):
+    sent: list = []
+    sale = (b"<VPosTransactionResponseContract><ResponseCode>00</ResponseCode><OrderId>5001</OrderId>"
+            b"</VPosTransactionResponseContract>")
+    _fake_bank(monkeypatch, [sale, _order_xml("EINF1", "150.00")], sent)
+    p = _provider()
+    result = await p.charge_stored(_ctx(merchant_payment_id="EINF1", total_cents=15000), {"card_guid": "G1"})
+    assert result.approved and result.provider_transaction_id == "5001"
+    endpoint, message = sent[0]
+    root = ET.fromstring(vk.XML_DECLARATION.sub("", message))
+    assert endpoint == "MailOrderSale" and root.findtext("CardGuid") == "G1"
+    assert root.findtext("Amount") == "15000" and root.findtext("TransactionSecurity") == "1"
+    assert root.find("Addresses/VPosAddressContract/Name") is not None
+    assert root.findtext("HashData") == p.api_hash("EINF1", 15000)
+    assert sent[1][0] == "SelectOrderByMerchantOrderId"
+
+    # The bank's record wins: no order there means not paid, whatever the sale answer said.
+    _fake_bank(monkeypatch, [sale, b"<VPosTransactionResponseContract><ResponseCode>00</ResponseCode>"
+                                   b"<VPosOrderData /></VPosTransactionResponseContract>"])
+    missing = await p.charge_stored(_ctx(merchant_payment_id="EINF2", total_cents=15000), {"card_guid": "G1"})
+    assert not missing.approved
+
+
+async def test_donor_saves_card_for_recurring_and_cancel_releases_it(db_session, monkeypatch):
+    """Manage page → CardSave → instruction switches to card mode; the number is never stored."""
+    from datetime import datetime, timedelta, timezone
+
+    from cryptography.fernet import Fernet
+    from sqlalchemy import text
+
+    from app.api.v1 import donor_portal
+    from app.core.config import settings
+    from app.models.campaign import Campaign
+    from app.models.donation import Donor
+    from app.models.organization import Organization
+    from app.models.subscription import Subscription
+    from app.services.tenant_credentials import decrypt, save_credentials
+
+    monkeypatch.setattr(settings, "CREDENTIALS_ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setattr(settings, "PAYMENTS_LIVE_ENABLED", True)
+    slug = f"vk-{uuid.uuid4().hex[:8]}"
+    org = Organization(slug=slug, name="HAKDER", legal_name="HAKDER", email=f"{slug}@example.com",
+                       primary_domain=f"{slug}.example.com", settings={"payment_provider": "vakifkatilim"})
+    db_session.add(org)
+    await db_session.flush()
+    await save_credentials(db_session, org.id, "vakifkatilim", CREDS, actor="t")
+    campaign = Campaign(organization_id=org.id, slug="su", title="Su", summary="s", target_cents=1, collected_cents=0)
+    donor = Donor(organization_id=org.id, first_name="Seçkin", last_name="Bozkurt", phone="05456236712")
+    db_session.add_all([campaign, donor])
+    await db_session.flush()
+    sub = Subscription(organization_id=org.id, donor_id=donor.id, campaign_id=campaign.id, amount_cents=10000,
+                       status="active", mode="reminder", day_of_month=5, manage_token="t" * 32,
+                       next_charge_date=datetime.now(timezone.utc) + timedelta(days=10))
+    db_session.add(sub)
+    await db_session.commit()
+
+    saved, deleted = [], []
+
+    async def fake_save(self, card):
+        saved.append(card.last4)
+        return {"card_guid": "GUID-1"}
+
+    async def fake_delete(self, ref):
+        deleted.append(ref["card_guid"])
+        return True
+
+    monkeypatch.setattr(vk.VakifKatilimProvider, "save_card", fake_save)
+    monkeypatch.setattr(vk.VakifKatilimProvider, "delete_card", fake_delete)
+
+    info = await donor_portal.get_recurring_by_token("t" * 32, db_session)
+    assert info["can_save_card"] is True
+    payload = donor_portal.SaveCardPayload(card_number="4508 0345 0803 4509", expire_month="12", expire_year="39",
+                                           cvv="000", holder_name="Seçkin Bozkurt")
+    assert "4508" not in repr(payload)
+    out = await donor_portal.save_recurring_card("t" * 32, payload, db_session, None)
+    assert out["mode"] == "card" and out["card_last4"] == "4509" and saved == ["4509"]
+    await db_session.refresh(sub)
+    assert sub.provider == "vakifkatilim" and decrypt(sub.card_ref) == {"card_guid": "GUID-1"}
+    dump = (await db_session.execute(text("select row_to_json(s)::text from subscriptions s where id = :i"),
+                                     {"i": sub.id})).scalar_one()
+    assert "4508034508034509" not in dump and "4509" in dump  # only the last four digits
+
+    bad = donor_portal.SaveCardPayload(card_number="4508034508034500", expire_month="12", expire_year="39",
+                                       cvv="000", holder_name="Seçkin Bozkurt")
+    with pytest.raises(Exception, match="Kart numarası geçersiz"):
+        await donor_portal.save_recurring_card("t" * 32, bad, db_session, None)
+
+    await donor_portal.act_on_recurring_by_token("t" * 32, donor_portal.SubscriptionActionPayload(action="cancel"),
+                                                 db_session)
+    await db_session.refresh(sub)
+    assert sub.status == "cancelled" and sub.card_ref is None and deleted == ["GUID-1"]

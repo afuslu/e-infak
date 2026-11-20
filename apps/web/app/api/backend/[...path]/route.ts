@@ -18,7 +18,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const timestamp = Math.floor(Date.now() / 1000).toString()
   const secret = process.env.TENANT_PROXY_SECRET || ''
   const headers = new Headers()
-  for (const header of ['accept', 'authorization', 'content-type', 'x-locale', 'user-agent', 'x-forwarded-proto']) {
+  // `range`: video seeking (iPhone Safari refuses to play without byte ranges).
+  for (const header of ['accept', 'authorization', 'content-type', 'x-locale', 'user-agent', 'x-forwarded-proto', 'range']) {
     const value = request.headers.get(header)
     if (value) headers.set(header, value)
   }
@@ -46,10 +47,13 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     cache: 'no-store',
   })
   const responseHeaders = new Headers()
-  for (const header of ['content-type', 'content-disposition', 'cache-control', 'retry-after']) {
+  for (const header of ['content-type', 'content-disposition', 'cache-control', 'retry-after', 'content-range', 'accept-ranges']) {
     const value = upstream.headers.get(header)
     if (value) responseHeaders.set(header, value)
   }
+  // fetch() unpacks compressed bodies, so a compressed response's length would be wrong here.
+  const length = upstream.headers.get('content-length')
+  if (length && !upstream.headers.get('content-encoding')) responseHeaders.set('content-length', length)
   return new NextResponse(upstream.body, { status: upstream.status, headers: responseHeaders })
 }
 

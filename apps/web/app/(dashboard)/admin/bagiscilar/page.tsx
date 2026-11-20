@@ -3,9 +3,9 @@
 import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Building2, Check, ChevronDown, Copy, MapPin, MessageSquare, Plus, RefreshCw, SlidersHorizontal, Tag, Trash2, TrendingUp, UserCheck, Users, X } from 'lucide-react'
+import { Building2, Check, ChevronDown, Copy, MapPin, MessageSquare, PhoneCall, Plus, RefreshCw, SlidersHorizontal, Tag, Trash2, TrendingUp, UserCheck, Users, X } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, downloadFile, formatMoney, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, downloadFile, formatMoney, hasFeature, useAdminAccess, whatsappUrl, can } from '../../../../lib/admin-access'
 import { AppPageHeader, GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
@@ -994,6 +994,7 @@ function DonorCardPanel({
               </a>
             ) : null
           })()}
+          {card.phone && <CallButton donorId={card.id} />}
           {perms.sms && <Button type="button" size="sm" onClick={() => setSmsOpen(true)}>SMS Gönder</Button>}
           {perms.remove && card.total_donations === 0 && (
             <button
@@ -1253,5 +1254,30 @@ function DonorCardPanel({
         />
       )}
     </Card>
+  )
+}
+
+
+/** Click-to-call through the organisation's cloud PBX (NetGSM Netsantral): the staff extension rings first. */
+function CallButton({ donorId }: { donorId: string }) {
+  const { data: access } = useAdminAccess()
+  const [busy, setBusy] = useState(false)
+  if (!hasFeature(access, 'call_center') || !access?.features.includes('call_center')) return null
+  const call = async () => {
+    setBusy(true)
+    try {
+      const r = await adminSend<{ message: string }>('post', '/call-center/call', { donor_id: donorId })
+      toast.ok(r.data.message)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Arama başlatılamadı'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button type="button" disabled={busy} onClick={call}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-800 hover:bg-sky-100 disabled:opacity-50">
+      <PhoneCall className="h-3.5 w-3.5" /> {busy ? 'Aranıyor…' : 'Santralden ara'}
+    </button>
   )
 }

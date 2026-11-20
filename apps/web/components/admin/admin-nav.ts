@@ -2,7 +2,8 @@ import {
   ArrowDownToLine, BarChart3, BellRing, Beef, Blocks, BookOpen, Calculator, CalendarDays, Coins, Droplets, FileUp, Film,
   FolderOpen, Globe2, GraduationCap, HandCoins, HandHelping, HeartHandshake, History, Home, IdCard, KeyRound,
   Landmark, LayoutDashboard, LifeBuoy, LogIn, type LucideIcon, MailPlus, Megaphone, MessagesSquare, Newspaper, Package,
-  PackageCheck, PiggyBank, Plug, Repeat, Send, Settings, ShieldCheck, Sparkles, Tags, Users, Wallet,
+  MessageSquareText, PackageCheck, PhoneCall, PiggyBank, Plug, Repeat, Send, Settings, ShieldCheck, Sparkles, Tags, Users, Video,
+  Wallet,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -54,6 +55,7 @@ export const NAV_GROUPS: NavGroup[] = [
     key: 'finans', label: 'Finans', items: [
       { href: '/admin/muhasebe', label: 'Ön Muhasebe', icon: Calculator, module: ['finance', 'bank'] },
       { href: '/admin/banka-odeme', label: 'Banka & Ödeme', icon: Landmark, module: ['bank', 'settings'] },
+      { href: '/admin/sms-bagislari', label: 'SMS Bağışları', icon: MessageSquareText, feature: 'sms_donation', module: ['receipts', 'bank'] },
     ],
   },
   {
@@ -63,6 +65,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/wells', label: 'Su Kuyuları', icon: Droplets, feature: 'water_well', module: 'operations' },
       { href: '/admin/kumbara', label: 'Kumbaralar', icon: PiggyBank, feature: 'money_box', module: 'operations' },
       { href: '/admin/yoksul-takip', label: 'Sosyal Yardım & Kumanya', icon: Home, feature: 'poverty_tracking', module: 'operations' },
+      { href: '/admin/videolar', label: 'Bağış Videoları', icon: Video, feature: 'donation_video', module: ['kurban', 'receipts'] },
     ],
   },
   {
@@ -78,6 +81,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: MessagesSquare, feature: 'sms', module: 'sms' },
       { href: '/admin/sms-gonderimleri', label: 'SMS Gönderimleri', icon: Send, feature: 'sms', module: 'sms' },
       { href: '/admin/sms', label: 'SMS Şablonları', icon: MailPlus, feature: 'sms', module: 'sms' },
+      { href: '/admin/whatsapp', label: 'WhatsApp Business', icon: MessagesSquare, feature: 'whatsapp', module: 'sms' },
+      { href: '/admin/cagri-merkezi', label: 'Çağrı Merkezi', icon: PhoneCall, feature: 'call_center', module: ['donors', 'sms'] },
     ],
   },
   {
