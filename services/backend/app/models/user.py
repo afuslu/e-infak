@@ -29,6 +29,7 @@ class User(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     phone = Column(String(20))
+    phone_extension = Column(String(10))  # call-center dahili for click-to-call and incoming-call pop-ups
     
     role = Column(Enum(UserRole), nullable=False, default=UserRole.READONLY)
     # Optional organization-defined unit and role. When staff_role_id is set its

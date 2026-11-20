@@ -1,67 +1,921 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useCreateCheckout, useOrgSettings, type CheckoutSessionResponse } from '@e-infak/api-client'
+import { errorMessage } from '../../lib/api-error'
+import { trackConversion } from '../../lib/analytics'
+import type { CheckoutStyle } from '../../lib/site-design'
+import { ConsentChecks, useCardFallback, useCheckoutLegal } from '../CheckoutConsent'
+import { PaymentTrustBadges } from './PaymentTrustBadges'
 
-interface CartSummaryItem {
-  campaignId?: string
-  campaignTitle?: string
-  amount?: number
+export interface CartSummaryItem {
+  campaignId: string
+  campaignTitle: string
+  amount: number
   quantity?: number
-  currency?: string
+  metadata?: Record<string, unknown>
+  currency?: 'TRY' | 'EUR' | 'USD'
 }
 
-const SYM: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€' }
+const SYM: Record<'TRY' | 'EUR' | 'USD', string> = { TRY: '₺', EUR: '€', USD: '$' }
+const CART_KEY = 'einfak_cart'
+const notifyCart = () => window.dispatchEvent(new Event('donation-cart-changed'))
 
-/** /bagis/sepetim: opens the site-wide donation cart drawer and keeps a clear summary on the page. */
-export function CartPageClient() {
-  const [items, setItems] = useState<CartSummaryItem[] | null>(null)
+/**
+ * /bagis/sepetim: Full-page world-class checkout supporting 6 configurable styles
+ * (`split_classic`, `stepper_minimal`, `express_single`, `dark_luxury`, `trust_split`, `transfer_first`).
+ */
+export function CartPageClient({
+  checkoutStyle = 'split_classic',
+  siteName,
+  microAddon = false,
+  showFaq = false,
+}: {
+  checkoutStyle?: CheckoutStyle
+  siteName?: string
+  microAddon?: boolean
+  showFaq?: boolean
+}) {
+  const [cart, setCart] = useState<CartSummaryItem[] | null>(null)
+  const [styleOverride, setStyleOverride] = useState<CheckoutStyle | null>(null)
+  const activeStyle = styleOverride || checkoutStyle
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [accordionOpen, setAccordionOpen] = useState<1 | 2 | 3>(2)
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [companyName, setCompanyName] = useState('')
+  const [taxNo, setTaxNo] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'bank_transfer'>(
+    activeStyle === 'transfer_first' ? 'bank_transfer' : 'credit_card',
+  )
+  const [currency, setCurrency] = useState<'TRY' | 'EUR' | 'USD'>('TRY')
+  const [kvkk, setKvkk] = useState(false)
+  const [terms, setTerms] = useState(false)
+  const [isGift, setIsGift] = useState(false)
+  const [onBehalfOf, setOnBehalfOf] = useState('')
+  const [allowEmail, setAllowEmail] = useState(false)
+  const [allowSms, setAllowSms] = useState(false)
+  const [error, setError] = useState('')
+  const [ibanCopied, setIbanCopied] = useState(false)
+  const [transfer, setTransfer] = useState<CheckoutSessionResponse | null>(null)
+
+  const { data: orgSettings } = useOrgSettings()
+  const { legal, cardPayments } = useCheckoutLegal()
+  const checkout = useCreateCheckout()
+  useCardFallback(cardPayments, paymentMethod, setPaymentMethod)
+
+  const enabledCurrencies = useMemo(() => {
+    return (orgSettings?.enabled_payment_currencies?.length
+      ? orgSettings.enabled_payment_currencies
+      : ['TRY']) as Array<'TRY' | 'EUR' | 'USD'>
+  }, [orgSettings?.enabled_payment_currencies])
+
   useEffect(() => {
+    if (!enabledCurrencies.includes(currency)) setCurrency(enabledCurrencies[0])
+  }, [enabledCurrencies, currency])
+
+  useEffect(() => {
+    const qStyle = new URLSearchParams(window.location.search).get('stil') as CheckoutStyle | null
+    if (qStyle) {
+      setStyleOverride(qStyle)
+      if (qStyle === 'transfer_first') setPaymentMethod('bank_transfer')
+    }
     const read = () => {
       try {
-        const parsed = JSON.parse(localStorage.getItem('einfak_cart') || '[]')
-        setItems(Array.isArray(parsed) ? parsed : [])
-      } catch { setItems([]) }
+        const parsed = JSON.parse(localStorage.getItem(CART_KEY) || '[]')
+        const list: CartSummaryItem[] = Array.isArray(parsed) ? parsed : []
+        setCart(list)
+        const itemCurr = list.find((it) => it.currency)?.currency
+        if (itemCurr) setCurrency(itemCurr)
+      } catch {
+        setCart([])
+      }
     }
     read()
     window.addEventListener('donation-cart-changed', read)
-    const timer = setTimeout(() => window.dispatchEvent(new Event('open-donation-cart')), 50)
-    return () => { clearTimeout(timer); window.removeEventListener('donation-cart-changed', read) }
+    return () => window.removeEventListener('donation-cart-changed', read)
   }, [])
-  const count = items?.length ?? null
-  return (
-    <section className="mx-auto max-w-xl px-4 py-16 sm:px-6">
-      <div className="rounded-2xl border border-gray-200/80 bg-white p-6 text-center shadow-sm sm:p-8">
-        <h1 className="font-heading text-3xl font-bold text-gray-900">Bağış Sepetim</h1>
-        <p className="mt-2.5 text-sm text-gray-600 sm:text-base">
-          {count === null ? '' : count ? `Sepetinizde ${count} bağış kalemi bulunuyor.` : 'Sepetinizde henüz bağış bulunmuyor.'}
-        </p>
-        {items && items.length > 0 && (
-          <ul className="mt-6 divide-y divide-gray-100 rounded-xl border border-gray-100 bg-gray-50/70 px-4 text-start text-sm">
-            {items.map((it, idx) => (
-              <li key={idx} className="flex items-center justify-between gap-3 py-3">
-                <span className="font-semibold text-gray-800">
-                  {it.campaignTitle || 'Bağış'}
-                  {it.quantity && it.quantity > 1 ? <span className="ms-1.5 text-xs text-gray-500">×{it.quantity}</span> : null}
-                </span>
-                <span className="font-bold text-primary-700">
-                  {((Number(it.amount) || 0) * (Number(it.quantity) || 1)).toLocaleString('tr-TR')} {SYM[it.currency || 'TRY'] || '₺'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="mt-7 flex flex-wrap justify-center gap-3">
-          {!!count && (
-            <button type="button" onClick={() => window.dispatchEvent(new Event('open-donation-cart'))}
-              className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-primary-700">
-              Sepeti Aç ve Tamamla
-            </button>
-          )}
-          <Link href="/bagis" className="rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-bold text-gray-700 transition hover:border-primary-400 hover:text-primary-700">
-            Bağış Sayfasına Git
-          </Link>
+
+  const persist = (next: CartSummaryItem[]) => {
+    setCart(next)
+    localStorage.setItem(CART_KEY, JSON.stringify(next))
+    notifyCart()
+  }
+
+  const updateItem = (idx: number, patch: Partial<CartSummaryItem>) => {
+    if (!cart) return
+    persist(cart.map((it, i) => (i === idx ? { ...it, ...patch } : it)))
+  }
+
+  const items = cart || []
+  const total = items.reduce((s, it) => s + (Number(it.amount) || 0) * (Number(it.quantity) || 1), 0)
+  const sym = SYM[currency] || '₺'
+  const isDark = activeStyle === 'dark_luxury'
+  const isEmerald = activeStyle === 'emerald_charity'
+  const isPaper = activeStyle === 'minimal_paper'
+  const isCompactMobile = activeStyle === 'compact_mobile'
+  const isGlass = activeStyle === 'glass_gradient'
+  const isWarm = activeStyle === 'warm_pastel'
+  const isCorporate = activeStyle === 'corporate_checkout'
+  const isOrnate = activeStyle === 'islamic_ornate'
+  const isHighContrast = activeStyle === 'high_contrast'
+  const isMinBordered = activeStyle === 'minimal_bordered'
+  const isElevated = activeStyle === 'card_elevated_split'
+  const isPillModern = activeStyle === 'pill_rounded_modern'
+
+  const submit = async () => {
+    if (!items.length) return
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
+      setError('Lütfen ad, soyad, e-posta ve telefon bilgilerini doldurun.')
+      return
+    }
+    if (!kvkk) {
+      setError('KVKK aydınlatma metni onayı zorunludur.')
+      return
+    }
+    if (paymentMethod === 'credit_card' && !terms) {
+      setError('Ön bilgilendirme formu ve mesafeli bağış sözleşmesi onayı zorunludur.')
+      return
+    }
+    if (isGift && !onBehalfOf.trim()) {
+      setError('Kimin adına bağış yaptığınızı yazın.')
+      return
+    }
+    setError('')
+    try {
+      trackConversion('checkout_started', { item_count: items.length, payment_method: paymentMethod, currency })
+      const result = await checkout.mutateAsync({
+        items: items.map((it) => ({
+          campaign_id: it.campaignId,
+          quantity: it.quantity || 1,
+          unit_amount_cents: Math.round((Number(it.amount) || 0) * 100),
+          on_behalf_of: isGift && onBehalfOf.trim()
+            ? onBehalfOf.trim()
+            : isCorporate && companyName.trim()
+              ? `${companyName.trim()}${taxNo.trim() ? ` (VKN: ${taxNo.trim()})` : ''}`
+              : undefined,
+          metadata: it.metadata,
+        })),
+        donor: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          is_anonymous: items.some((it) => Boolean(it.metadata?.anonim)),
+          allow_email: allowEmail,
+          allow_sms: allowSms,
+        },
+        payment_method: paymentMethod,
+        currency,
+        kvkk_accepted: kvkk,
+        terms_accepted: terms || paymentMethod === 'bank_transfer',
+        locale: 'tr',
+        idempotency_key: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
+        consent_version: 'v1',
+      })
+      if (result.redirect_url) {
+        trackConversion('payment_redirected', { payment_method: paymentMethod, currency })
+        window.location.assign(result.redirect_url)
+        return
+      }
+      trackConversion('payment_redirected', { payment_method: paymentMethod, currency })
+      setTransfer(result)
+      persist([])
+    } catch (err: any) {
+      trackConversion('payment_failed', { payment_method: paymentMethod, currency })
+      setError(errorMessage(err, 'Ödeme başlatılamadı. Lütfen tekrar deneyin.'))
+    }
+  }
+
+  const inputCls = isDark
+    ? 'w-full rounded-xl border border-white/15 bg-white/10 px-3.5 py-3 text-sm text-white placeholder:text-white/50 outline-none focus:border-amber-400'
+    : isCompactMobile
+      ? 'w-full rounded-2xl border border-gray-300 bg-white px-4 py-3.5 text-base text-gray-900 placeholder:text-gray-400 outline-none focus:border-primary-600'
+      : isPaper
+        ? 'w-full rounded-none border-b-2 border-stone-300 bg-transparent px-2 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 outline-none focus:border-stone-800'
+        : 'w-full rounded-xl border border-gray-200 bg-white px-3.5 py-3 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-500/15'
+
+  const cardCls = isDark
+    ? 'rounded-3xl border border-white/15 bg-white/5 p-6 backdrop-blur-md shadow-2xl'
+    : isOrnate
+      ? 'rounded-3xl border-2 border-amber-400/70 bg-[#FFFDF8] p-6 ring-1 ring-emerald-900/10 shadow-md'
+      : isHighContrast
+        ? 'rounded-2xl border-2 border-black bg-white p-6 text-base shadow-none'
+        : isGlass
+          ? 'rounded-3xl border border-white/60 bg-white/75 p-6 backdrop-blur-xl shadow-xl'
+          : isWarm
+            ? 'rounded-3xl border border-amber-200/80 bg-[#FFF8F0] p-6 shadow-sm'
+            : isEmerald
+              ? 'rounded-3xl border border-emerald-200 bg-[#FFFDF8] p-6 shadow-sm'
+              : isPaper
+                ? 'rounded-sm border-2 border-stone-800 bg-[#FFFDF9] p-6 shadow-[4px_4px_0_0_rgba(41,37,36,0.12)]'
+                : isMinBordered
+                  ? 'rounded-none border border-gray-300 bg-transparent p-6 shadow-none'
+                  : isElevated
+                    ? 'rounded-3xl border border-gray-100 bg-white p-7 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)]'
+                    : isPillModern
+                      ? 'rounded-[2rem] border border-primary-100 bg-white p-6 shadow-md'
+                      : 'rounded-3xl border border-gray-200/80 bg-white p-6 shadow-sm'
+
+  const primaryBtnCls = isDark
+    ? 'w-full rounded-xl bg-amber-500 py-3.5 text-sm font-black uppercase tracking-wider text-slate-950 shadow-lg transition hover:bg-amber-400 disabled:opacity-60'
+    : isHighContrast
+      ? 'w-full rounded-xl bg-black py-4 text-base font-black uppercase tracking-wider text-white transition hover:bg-neutral-800 disabled:opacity-60'
+      : isOrnate
+        ? 'w-full rounded-xl bg-emerald-800 py-3.5 text-sm font-black uppercase tracking-wider text-amber-100 shadow-md ring-1 ring-amber-400/50 transition hover:bg-emerald-900 disabled:opacity-60'
+        : isEmerald
+      ? 'w-full rounded-xl bg-emerald-700 py-3.5 text-sm font-black uppercase tracking-wider text-white shadow-md transition hover:bg-emerald-800 disabled:opacity-60'
+      : isPaper
+        ? 'w-full rounded-sm bg-stone-900 py-3.5 text-sm font-black uppercase tracking-widest text-white transition hover:bg-stone-800 disabled:opacity-60'
+        : isCompactMobile
+          ? 'w-full rounded-2xl bg-primary-600 py-4 text-base font-black uppercase tracking-wider text-white shadow-md transition hover:bg-primary-700 disabled:opacity-60'
+          : 'w-full rounded-xl bg-primary-600 py-3.5 text-sm font-black uppercase tracking-wider text-white shadow-md transition hover:bg-primary-700 disabled:opacity-60'
+
+  if (transfer) {
+    return (
+      <section className="mx-auto max-w-xl px-4 py-16 sm:px-6">
+        <div className="rounded-3xl border border-emerald-200 bg-white p-8 text-center shadow-lg">
+          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-3xl">🏦</div>
+          <h1 className="font-heading text-2xl font-black text-gray-900">Havale / EFT Kaydınız Hazır</h1>
+          <p className="mt-2 text-sm text-gray-600">Aşağıdaki hesap bilgilerine açıklama kodunu yazarak bağışınızı tamamlayabilirsiniz.</p>
+          <div className="mt-6 space-y-2 rounded-2xl bg-slate-50 p-5 text-start text-sm">
+            <p><b>Banka:</b> {transfer.bank_name || 'Tanımlanmadı'}</p>
+            <p><b>Alıcı:</b> {transfer.account_holder || siteName || 'Kurum hesabı'}</p>
+            <p className="break-all"><b>IBAN:</b> {transfer.iban || 'Tanımlanmadı'}</p>
+            <p className="mt-3 rounded-xl bg-amber-100 p-3 font-semibold text-amber-950">
+              <b>Açıklama Kodu:</b> {transfer.transfer_reference}
+            </p>
+          </div>
+          <div className="mt-5 flex flex-wrap justify-center gap-3">
+            {transfer.iban && (
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(`${transfer.iban}\nAçıklama: ${transfer.transfer_reference}`).then(() => {
+                    setIbanCopied(true)
+                    setTimeout(() => setIbanCopied(false), 2500)
+                  })
+                }}
+                className="rounded-xl border border-primary-200 bg-primary-50 px-5 py-2.5 text-xs font-bold text-primary-800 hover:bg-primary-100"
+              >
+                {ibanCopied ? 'IBAN ve Açıklama Kopyalandı ✓' : 'IBAN & Açıklamayı Kopyala'}
+              </button>
+            )}
+            <Link href="/kampanyalar" className="rounded-xl bg-primary-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-primary-700">
+              Kampanyalara Dön
+            </Link>
+          </div>
         </div>
+      </section>
+    )
+  }
+
+  if (cart !== null && !items.length) {
+    return (
+      <section className="mx-auto max-w-xl px-4 py-16 sm:px-6">
+        <div className="rounded-3xl border border-gray-200/80 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary-50 text-2xl">🤝</div>
+          <h1 className="font-heading text-3xl font-bold text-gray-900">Bağış Sepetiniz Boş</h1>
+          <p className="mt-2.5 text-sm text-gray-600">İhtiyaç sahiplerine ulaştırmak üzere kampanyalarımızdan dilediğinizi seçebilirsiniz.</p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            <Link href="/kampanyalar" className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-primary-700">
+              Kampanyaları İncele
+            </Link>
+            <Link href="/" className="rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+              Ana Sayfa
+            </Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  const orderSummary = (
+    <div className={cardCls}>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className={`font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Bağış Özeti ({items.length})
+        </h2>
+        {items.length > 0 && (
+          <button type="button" onClick={() => persist([])} className={`text-xs font-semibold ${isDark ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-red-600'}`}>
+            Temizle
+          </button>
+        )}
+      </div>
+      <div className="space-y-3">
+        {items.map((it, idx) => (
+          <div key={`${it.campaignId}-${idx}`} className={`rounded-2xl border p-3.5 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-100 bg-gray-50/70'}`}>
+            <div className="flex items-start justify-between gap-2">
+              <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{it.campaignTitle}</p>
+              <button type="button" onClick={() => persist(items.filter((_, i) => i !== idx))} className="text-xs font-bold text-rose-500 hover:underline">
+                Sil
+              </button>
+            </div>
+            <div className="mt-2.5 flex items-center gap-2">
+              <input
+                inputMode="numeric"
+                aria-label="Tutar"
+                value={it.amount}
+                onChange={(e) => updateItem(idx, { amount: Math.max(1, Number(e.target.value) || 0) })}
+                className={`w-28 rounded-lg border px-2.5 py-1.5 text-xs font-bold ${isDark ? 'border-white/15 bg-white/10 text-white' : 'border-gray-200 bg-white text-gray-900'}`}
+              />
+              <span className={`text-xs font-bold ${isDark ? 'text-white/70' : 'text-gray-500'}`}>{sym} ×</span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                aria-label="Adet"
+                value={it.quantity || 1}
+                onChange={(e) => updateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                className={`w-16 rounded-lg border px-2 py-1.5 text-xs font-bold ${isDark ? 'border-white/15 bg-white/10 text-white' : 'border-gray-200 bg-white text-gray-900'}`}
+              />
+              <span className={`ms-auto text-sm font-extrabold ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>
+                {((Number(it.amount) || 0) * (Number(it.quantity) || 1)).toLocaleString('tr-TR')} {sym}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className={`mt-5 flex items-center justify-between border-t pt-4 ${isDark ? 'border-white/15' : 'border-gray-100'}`}>
+        <span className={`text-sm font-semibold ${isDark ? 'text-white/80' : 'text-gray-600'}`}>Toplam Bağış</span>
+        <span className={`text-2xl font-black ${isDark ? 'text-amber-400' : 'text-primary-700'}`}>
+          {total.toLocaleString('tr-TR')} {sym}
+        </span>
+      </div>
+      {microAddon && items[0] && (
+        <div className={`mt-4 rounded-2xl border p-3.5 ${isDark ? 'border-white/15 bg-white/5' : 'border-primary-100 bg-primary-50/60'}`}>
+          <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-primary-900'}`}>Küçük bir iyilik ekleyin</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {[50, 100, 250].map((amt) => (
+              <button
+                key={amt}
+                type="button"
+                onClick={() => persist([...items, { campaignId: items[0].campaignId, campaignTitle: `${items[0].campaignTitle} (+${amt} ${sym})`, amount: amt, quantity: 1, currency }])}
+                className="rounded-xl border border-primary-200 bg-white px-3 py-1.5 text-xs font-bold text-primary-800 hover:bg-primary-100"
+              >
+                + {amt} {sym}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {activeStyle === 'trust_split' && (
+        <div className="mt-5 space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-xs text-emerald-900">
+          <p className="font-bold">✓ %100 Güvenli ve Şeffaf Süreç</p>
+          <p>• Bağışınızın tamamı seçtiğiniz kampanyaya aktarılır.</p>
+          <p>• Ödeme sonrası doğrulama kodlu PDF makbuzunuz anında oluşur.</p>
+          <p>• 256-bit SSL ve 3D Secure ile korunmaktadır.</p>
+        </div>
+      )}
+    </div>
+  )
+
+  const donorFields = (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <input aria-label="Ad" placeholder="Ad *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} />
+        <input aria-label="Soyad" placeholder="Soyad *" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputCls} />
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <input aria-label="E-posta" type="email" placeholder="E-posta *" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
+        <input aria-label="Telefon" type="tel" placeholder="Telefon *" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
+      </div>
+      {isCorporate && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <input aria-label="Kurum / Şirket Adı" placeholder="Kurum / Şirket Adı" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputCls} />
+          <input aria-label="Vergi Numarası" placeholder="Vergi No (isteğe bağlı)" value={taxNo} onChange={(e) => setTaxNo(e.target.value)} className={inputCls} />
+        </div>
+      )}
+      <label className={`flex cursor-pointer items-center gap-2 text-xs font-semibold ${isDark ? 'text-white/90' : 'text-gray-700'}`}>
+        <input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} className="rounded border-gray-300 text-primary-600" />
+        Başkası adına / Hediye bağış yapıyorum
+      </label>
+      {isGift && (
+        <input
+          aria-label="Kimin adına"
+          placeholder="Kimin adına? (makbuzda görünür)"
+          maxLength={200}
+          value={onBehalfOf}
+          onChange={(e) => setOnBehalfOf(e.target.value)}
+          className={inputCls}
+        />
+      )}
+      <div className={`flex flex-wrap gap-4 text-xs ${isDark ? 'text-white/80' : 'text-gray-600'}`}>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={allowEmail} onChange={(e) => setAllowEmail(e.target.checked)} /> E-posta bilgilendirme izni</label>
+        <label className="flex items-center gap-1.5"><input type="checkbox" checked={allowSms} onChange={(e) => setAllowSms(e.target.checked)} /> SMS bilgilendirme izni</label>
+      </div>
+    </div>
+  )
+
+  const paymentOptions = (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2.5">
+        {(activeStyle === 'transfer_first'
+          ? (['bank_transfer', 'credit_card'] as const)
+          : (['credit_card', 'bank_transfer'] as const)
+        ).map((m) => {
+          const disabled = m === 'credit_card' && !cardPayments
+          const active = paymentMethod === m
+          return (
+            <button
+              key={m}
+              type="button"
+              disabled={disabled}
+              onClick={() => setPaymentMethod(m)}
+              className={`rounded-xl border px-3 py-3 text-xs font-bold transition disabled:opacity-45 ${
+                active
+                  ? isDark
+                    ? 'border-amber-400 bg-amber-400/15 text-amber-300'
+                    : 'border-primary-600 bg-primary-50 text-primary-800 ring-1 ring-primary-500/20'
+                  : isDark
+                    ? 'border-white/15 bg-white/5 text-white/80'
+                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {m === 'credit_card' ? '💳 Kredi / Banka Kartı' : '🏦 Havale / EFT'}
+            </button>
+          )
+        })}
+      </div>
+      {enabledCurrencies.length > 1 && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className={isDark ? 'text-white/75' : 'text-gray-600'}>Para birimi:</span>
+          {enabledCurrencies.map((c) => (
+            <button
+              key={c}
+              type="button"
+              disabled={items.some((it) => it.currency)}
+              onClick={() => setCurrency(c)}
+              className={`rounded-lg border px-2.5 py-1 font-bold disabled:opacity-50 ${currency === c ? 'border-primary-600 bg-primary-600 text-white' : 'border-gray-200 bg-white text-gray-700'}`}
+            >
+              {c} {SYM[c]}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={isDark ? 'rounded-2xl bg-white p-4 text-gray-900' : ''}>
+        <ConsentChecks legal={legal} kvkk={kvkk} onKvkk={setKvkk} terms={terms} onTerms={setTerms} requireTerms={paymentMethod === 'credit_card'} />
+      </div>
+      {paymentMethod === 'credit_card' && (
+        <div className={`space-y-2 rounded-2xl p-3.5 text-xs ${isDark ? 'bg-white/10 text-white/85' : 'bg-emerald-50 text-emerald-800'}`}>
+          <p>Kart bilgileriniz yalnızca bankanın 3D Secure güvenli ödeme sayfasında girilir.</p>
+          <PaymentTrustBadges />
+        </div>
+      )}
+    </div>
+  )
+
+  const sectionCls = isDark
+    ? 'min-h-[80vh] bg-gradient-to-br from-slate-950 via-slate-900 to-primary-950 py-12 text-white'
+    : isEmerald
+      ? 'min-h-[80vh] bg-gradient-to-b from-emerald-950 via-emerald-900/95 to-stone-50 py-12'
+      : isGlass
+        ? 'min-h-[80vh] bg-gradient-to-br from-primary-50 via-emerald-50 to-amber-50 py-12'
+        : isWarm
+          ? 'min-h-[80vh] bg-[#FDF4EB] py-12'
+          : isPaper
+            ? 'min-h-[80vh] bg-stone-100 py-12'
+            : 'py-10 sm:py-14'
+
+  const headingCls = isDark || isEmerald ? 'text-white' : 'text-gray-900'
+  const subHeadingCls = isDark || isEmerald ? 'text-white/80' : 'text-gray-600'
+
+  return (
+    <section className={sectionCls}>
+      {activeStyle === 'hero_banner_checkout' && (
+        <div className="mb-8 bg-primary-800 py-10 text-center text-white">
+          <div className="mx-auto max-w-[var(--site-container)] px-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-accent-300">{siteName || 'Güvenli Bağış'}</p>
+            <h1 className="mt-1 font-heading text-3xl font-black sm:text-4xl">Güvenli Bağış Merkezi</h1>
+          </div>
+        </div>
+      )}
+      <div className="mx-auto max-w-[var(--site-container)] px-4 sm:px-6">
+        {checkoutStyle !== 'hero_banner_checkout' && (
+          <div className="mb-8 text-center">
+            <h1 className={`font-heading text-3xl font-black sm:text-4xl ${headingCls}`}>
+              Bağışınızı Tamamlayın
+            </h1>
+            <p className={`mt-2 text-sm ${subHeadingCls}`}>
+              {siteName ? `${siteName} güvenli bağış ekranı` : 'Güvenli bağış ve anında makbuz'}
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div role="alert" className="mx-auto mb-6 max-w-3xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+            {error}
+          </div>
+        )}
+
+        {activeStyle === 'progress_header_checkout' ? (
+          <div className="mx-auto max-w-2xl space-y-6">
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-bold text-gray-600">
+                <span>Adım {step} / 3</span>
+                <span>%{Math.round((step / 3) * 100)}</span>
+              </div>
+              <div className="h-2.5 overflow-hidden rounded-full bg-gray-200">
+                <div className="h-full rounded-full bg-primary-600 transition-all duration-300" style={{ width: `${(step / 3) * 100}%` }} />
+              </div>
+            </div>
+            {step === 1 && (
+              <div className="space-y-4">
+                {orderSummary}
+                <button type="button" onClick={() => setStep(2)} className={primaryBtnCls}>Devam Et →</button>
+              </div>
+            )}
+            {step === 2 && (
+              <div className={`${cardCls} space-y-4`}>
+                <h2 className="font-heading text-lg font-bold text-gray-900">Bağışçı Bilgileri</h2>
+                {donorFields}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setStep(1)} className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-bold text-gray-700">← Geri</button>
+                  <button type="button" onClick={() => setStep(3)} className="flex-1 rounded-xl bg-primary-600 py-3 text-sm font-bold text-white">Ödemeye Geç →</button>
+                </div>
+              </div>
+            )}
+            {step === 3 && (
+              <div className={`${cardCls} space-y-4`}>
+                <h2 className="font-heading text-lg font-bold text-gray-900">Ödeme &amp; Onay</h2>
+                {paymentOptions}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setStep(2)} className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-bold text-gray-700">← Geri</button>
+                  <button type="button" disabled={checkout.isPending} onClick={submit} className="flex-1 rounded-xl bg-primary-600 py-3 text-sm font-black text-white disabled:opacity-60">
+                    {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışla`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : activeStyle === 'magazine_editorial' ? (
+          <div className="grid items-start gap-10 lg:grid-cols-[1.4fr_1fr]">
+            <div className="space-y-6">
+              <div className="border-b-2 border-gray-900 pb-4">
+                <span className="text-xs font-extrabold uppercase tracking-[0.2em] text-primary-700">Editoryal Ödeme</span>
+                <h2 className="mt-1 font-heading text-3xl font-black text-gray-900">Katkınızla Bir Hayat Değişsin</h2>
+              </div>
+              <div className={`${cardCls} space-y-6`}>
+                {donorFields}
+                {paymentOptions}
+                <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                  {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+                </button>
+              </div>
+            </div>
+            <div className="lg:sticky lg:top-24">{orderSummary}</div>
+          </div>
+        ) : activeStyle === 'stepper_minimal' ? (
+          <div className="mx-auto max-w-2xl space-y-6">
+            <div className="grid grid-cols-3 gap-2 rounded-2xl bg-gray-100 p-1.5 text-xs font-bold">
+              {([
+                [1, '1. Sepet'],
+                [2, '2. Bilgiler'],
+                [3, '3. Ödeme'],
+              ] as const).map(([n, label]) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setStep(n)}
+                  className={`rounded-xl py-2.5 transition ${step === n ? 'bg-white text-primary-800 shadow-sm' : 'text-gray-500'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {step === 1 && (
+              <div className="space-y-4">
+                {orderSummary}
+                <button type="button" onClick={() => setStep(2)} className={primaryBtnCls}>
+                  Bilgilerime Geç →
+                </button>
+              </div>
+            )}
+            {step === 2 && (
+              <div className={`${cardCls} space-y-4`}>
+                <h2 className="font-heading text-lg font-bold text-gray-900">Bağışçı Bilgileri</h2>
+                {donorFields}
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => setStep(1)} className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-bold text-gray-700">← Geri</button>
+                  <button type="button" onClick={() => setStep(3)} className="flex-1 rounded-xl bg-primary-600 py-3 text-sm font-bold text-white">Ödemeye Geç →</button>
+                </div>
+              </div>
+            )}
+            {step === 3 && (
+              <div className={`${cardCls} space-y-4`}>
+                <h2 className="font-heading text-lg font-bold text-gray-900">Ödeme Yöntemi &amp; Onay</h2>
+                {paymentOptions}
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => setStep(2)} className="flex-1 rounded-xl border border-gray-200 py-3 text-sm font-bold text-gray-700">← Geri</button>
+                  <button type="button" disabled={checkout.isPending} onClick={submit} className="flex-1 rounded-xl bg-primary-600 py-3 text-sm font-black text-white disabled:opacity-60">
+                    {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışla`}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : activeStyle === 'express_single' || activeStyle === 'compact_mobile' ? (
+          <div className={`mx-auto space-y-6 ${activeStyle === 'compact_mobile' ? 'max-w-md' : 'max-w-3xl'}`}>
+            {orderSummary}
+            <div className={`${cardCls} space-y-5`}>
+              <h2 className="font-heading text-lg font-bold text-gray-900">Hızlı Bağış Formu</h2>
+              {donorFields}
+              {paymentOptions}
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Güvenle Bağışla`}
+              </button>
+            </div>
+          </div>
+        ) : activeStyle === 'bento_checkout' ? (
+          <div className="grid gap-6 lg:grid-cols-12">
+            <div className={`${cardCls} space-y-4 lg:col-span-7`}>
+              <h2 className="font-heading text-lg font-bold text-gray-900">1. Bağışçı Bilgileri</h2>
+              {donorFields}
+            </div>
+            <div className="lg:col-span-5">{orderSummary}</div>
+            <div className={`${cardCls} space-y-4 lg:col-span-7`}>
+              <h2 className="font-heading text-lg font-bold text-gray-900">2. Ödeme &amp; Onay</h2>
+              {paymentOptions}
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+            <div className={`${cardCls} flex flex-col justify-center space-y-2.5 text-xs text-gray-600 lg:col-span-5`}>
+              <h3 className="font-heading text-base font-bold text-gray-900">Neden Güvenli?</h3>
+              <p>✓ 256-bit SSL şifreleme ve banka 3D Secure koruması</p>
+              <p>✓ Ödeme sonrası anında doğrulama kodlu PDF makbuz</p>
+              <p>✓ SMS ve e-posta ile bağış bilgilendirmesi</p>
+            </div>
+          </div>
+        ) : activeStyle === 'split_reversed' ? (
+          <div className="grid items-start gap-8 lg:grid-cols-[1fr_1.25fr]">
+            <div className="lg:sticky lg:top-24">{orderSummary}</div>
+            <div className={`${cardCls} space-y-6`}>
+              <div>
+                <h2 className="mb-3 font-heading text-lg font-bold text-gray-900">1. Bağışçı Bilgileri</h2>
+                {donorFields}
+              </div>
+              <div className="border-t border-gray-100 pt-5">
+                <h2 className="mb-3 font-heading text-lg font-bold text-gray-900">2. Ödeme Yöntemi</h2>
+                {paymentOptions}
+              </div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+          </div>
+        ) : activeStyle === 'receipt_preview' ? (
+          <div className="grid items-start gap-8 lg:grid-cols-[1.2fr_1fr]">
+            <div className={`${cardCls} space-y-6`}>
+              <h2 className="font-heading text-lg font-bold text-gray-900">Bağışçı &amp; Ödeme Bilgileri</h2>
+              {donorFields}
+              {paymentOptions}
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+            <div className="space-y-4 lg:sticky lg:top-24">
+              <div className="rounded-2xl border-2 border-dashed border-stone-300 bg-[#FFFDF8] p-6 shadow-sm">
+                <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-stone-500">Makbuz Önizleme</span>
+                  <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">TASLAK</span>
+                </div>
+                <div className="mt-4 space-y-1 text-xs text-stone-600">
+                  <p><b>Kurum:</b> {siteName || 'Kurum'}</p>
+                  <p><b>Bağışçı:</b> {(firstName || lastName) ? `${firstName} ${lastName}`.trim() : 'Adınız Soyadınız'}</p>
+                  {isGift && onBehalfOf && <p><b>Adına:</b> {onBehalfOf}</p>}
+                </div>
+                <div className="mt-4 space-y-1.5 border-y border-stone-200 py-3 text-xs">
+                  {items.map((it, idx) => (
+                    <div key={idx} className="flex justify-between">
+                      <span>{it.campaignTitle} {it.quantity && it.quantity > 1 ? `×${it.quantity}` : ''}</span>
+                      <b>{((Number(it.amount) || 0) * (Number(it.quantity) || 1)).toLocaleString('tr-TR')} {sym}</b>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex justify-between text-base font-black text-stone-900">
+                  <span>TOPLAM</span>
+                  <span>{total.toLocaleString('tr-TR')} {sym}</span>
+                </div>
+              </div>
+              {orderSummary}
+            </div>
+          </div>
+        ) : activeStyle === 'multi_card_grid' ? (
+          <div className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((it, idx) => (
+                <div key={idx} className={cardCls}>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-heading text-base font-bold text-gray-900">{it.campaignTitle}</h3>
+                    <button type="button" onClick={() => persist(items.filter((_, i) => i !== idx))} className="text-xs font-bold text-rose-500">Sil</button>
+                  </div>
+                  <div className="mt-3 text-xl font-black text-primary-700">
+                    {((Number(it.amount) || 0) * (Number(it.quantity) || 1)).toLocaleString('tr-TR')} {sym}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className={`${cardCls} mx-auto max-w-2xl space-y-5`}>
+              {donorFields}
+              {paymentOptions}
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+          </div>
+        ) : activeStyle === 'one_step_sidebar' ? (
+          <div className="grid items-start gap-8 lg:grid-cols-[340px_1fr]">
+            <aside className="rounded-3xl bg-slate-900 p-6 text-white shadow-xl lg:sticky lg:top-24">
+              <div className="text-xs font-bold uppercase tracking-wider text-amber-400">{siteName || 'Bağış Özeti'}</div>
+              <div className="mt-4 space-y-2.5 text-sm">
+                {items.map((it, idx) => (
+                  <div key={idx} className="flex justify-between gap-2 border-b border-white/10 pb-2">
+                    <span className="text-white/85">{it.campaignTitle} {it.quantity && it.quantity > 1 ? `×${it.quantity}` : ''}</span>
+                    <span className="font-bold text-amber-300">{((Number(it.amount) || 0) * (Number(it.quantity) || 1)).toLocaleString('tr-TR')} {sym}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex items-baseline justify-between">
+                <span className="text-xs text-white/70">Toplam</span>
+                <span className="text-2xl font-black text-amber-400">{total.toLocaleString('tr-TR')} {sym}</span>
+              </div>
+            </aside>
+            <div className={`${cardCls} space-y-6`}>
+              {donorFields}
+              {paymentOptions}
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Güvenle Bağışla`}
+              </button>
+            </div>
+          </div>
+        ) : activeStyle === 'floating_cards' ? (
+          <div className="mx-auto max-w-3xl space-y-6">
+            <div className="shadow-xl rounded-3xl">{orderSummary}</div>
+            <div className={`${cardCls} shadow-xl`}>
+              <h2 className="mb-3 font-heading text-lg font-bold text-gray-900">Bağışçı Bilgileri</h2>
+              {donorFields}
+            </div>
+            <div className={`${cardCls} space-y-4 shadow-xl`}>
+              <h2 className="font-heading text-lg font-bold text-gray-900">Ödeme &amp; Onay</h2>
+              {paymentOptions}
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+          </div>
+        ) : activeStyle === 'split_fullscreen' ? (
+          <div className="grid overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl lg:grid-cols-[45%_55%]">
+            <div className="flex flex-col justify-between bg-slate-950 p-6 text-white sm:p-8">
+              <div>
+                <div className="mb-2 text-xs font-bold uppercase tracking-widest text-amber-400">{siteName || 'Güvenli Bağış'}</div>
+                <h2 className="font-heading text-2xl font-black">Bağışınızla Umut Olun</h2>
+                <p className="mt-2 text-xs text-white/75">Her katkınız şeffaflıkla ihtiyaç sahiplerine ulaştırılır.</p>
+              </div>
+              <div className="mt-6 space-y-2 border-t border-white/15 pt-4 text-sm">
+                {items.map((it, idx) => (
+                  <div key={idx} className="flex justify-between gap-2">
+                    <span className="text-white/85">{it.campaignTitle} {it.quantity && it.quantity > 1 ? `×${it.quantity}` : ''}</span>
+                    <span className="font-bold text-amber-300">{((Number(it.amount) || 0) * (Number(it.quantity) || 1)).toLocaleString('tr-TR')} {sym}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between border-t border-white/15 pt-3 text-lg font-black">
+                  <span>Toplam</span>
+                  <span className="text-amber-400">{total.toLocaleString('tr-TR')} {sym}</span>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-6 p-6 sm:p-8">
+              {donorFields}
+              {paymentOptions}
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+          </div>
+        ) : activeStyle === 'accordion_steps' ? (
+          <div className="mx-auto max-w-2xl space-y-3">
+            {([
+              [1, `1. Sepetiniz (${items.length} kalem · ${total.toLocaleString('tr-TR')} ${sym})`, orderSummary],
+              [2, '2. Bağışçı Bilgileri', donorFields],
+              [3, '3. Ödeme Yöntemi & Onay', (
+                <div key="pay" className="space-y-4">
+                  {paymentOptions}
+                  <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                    {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Güvenle Bağışla`}
+                  </button>
+                </div>
+              )],
+            ] as const).map(([n, label, content]) => (
+              <div key={n} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setAccordionOpen(n)}
+                  className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-bold text-gray-900"
+                >
+                  <span>{label}</span>
+                  <span>{accordionOpen === n ? '−' : '+'}</span>
+                </button>
+                {accordionOpen === n && <div className="border-t border-gray-100 p-5">{content}</div>}
+              </div>
+            ))}
+          </div>
+        ) : activeStyle === 'timeline_flow' ? (
+          <div className="mx-auto max-w-3xl space-y-6 border-s-2 border-primary-200 ps-6">
+            <div className="relative">
+              <span className="absolute -start-[33px] top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">1</span>
+              {orderSummary}
+            </div>
+            <div className="relative">
+              <span className="absolute -start-[33px] top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">2</span>
+              <div className={cardCls}>
+                <h2 className="mb-3 font-heading text-lg font-bold text-gray-900">Bağışçı Bilgileri</h2>
+                {donorFields}
+              </div>
+            </div>
+            <div className="relative">
+              <span className="absolute -start-[33px] top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary-600 text-xs font-bold text-white">3</span>
+              <div className={`${cardCls} space-y-4`}>
+                <h2 className="font-heading text-lg font-bold text-gray-900">Ödeme &amp; Onay</h2>
+                {paymentOptions}
+                <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                  {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : activeStyle === 'card_tabs' ? (
+          <div className="mx-auto max-w-4xl space-y-6">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={!cardPayments}
+                onClick={() => setPaymentMethod('credit_card')}
+                className={`rounded-2xl border p-4 text-left transition disabled:opacity-45 ${paymentMethod === 'credit_card' ? 'border-primary-600 bg-primary-50 ring-2 ring-primary-500/20' : 'border-gray-200 bg-white'}`}
+              >
+                <div className="text-lg font-black text-gray-900">💳 Kredi / Banka Kartı</div>
+                <div className="text-xs text-gray-500">3D Secure ile anında ödeme</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('bank_transfer')}
+                className={`rounded-2xl border p-4 text-left transition ${paymentMethod === 'bank_transfer' ? 'border-primary-600 bg-primary-50 ring-2 ring-primary-500/20' : 'border-gray-200 bg-white'}`}
+              >
+                <div className="text-lg font-black text-gray-900">🏦 Havale / EFT</div>
+                <div className="text-xs text-gray-500">IBAN ve referans kodu ile</div>
+              </button>
+            </div>
+            <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_1fr]">
+              <div className={`${cardCls} space-y-5`}>
+                {donorFields}
+                {paymentOptions}
+                <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                  {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+                </button>
+              </div>
+              <div className="lg:sticky lg:top-24">{orderSummary}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid items-start gap-8 lg:grid-cols-[1.25fr_1fr]">
+            <div className={`${cardCls} space-y-6`}>
+              <div>
+                <h2 className={`mb-3 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>1. Bağışçı Bilgileri</h2>
+                {donorFields}
+              </div>
+              <div className={`border-t pt-5 ${isDark ? 'border-white/15' : 'border-gray-100'}`}>
+                <h2 className={`mb-3 font-heading text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>2. Ödeme Yöntemi</h2>
+                {paymentOptions}
+              </div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+            <div className="lg:sticky lg:top-24">{orderSummary}</div>
+          </div>
+        )}
+        {showFaq && (
+          <div className="mx-auto mt-10 max-w-3xl rounded-3xl border border-gray-200/80 bg-white p-6 shadow-sm">
+            <h3 className="font-heading text-base font-bold text-gray-900">Sık Sorulan Sorular</h3>
+            <div className="mt-3 divide-y divide-gray-100 text-xs text-gray-600">
+              <details className="py-2.5">
+                <summary className="cursor-pointer font-semibold text-gray-800">Bağış makbuzum ne zaman ulaşır?</summary>
+                <p className="mt-1.5">Kredi kartı bağışlarında ödeme onaylandığı anda dijital PDF makbuzunuz oluşturulur ve e-posta/SMS ile iletilir.</p>
+              </details>
+              <details className="py-2.5">
+                <summary className="cursor-pointer font-semibold text-gray-800">Kart bilgilerim güvende mi?</summary>
+                <p className="mt-1.5">Kart bilgileriniz sistemimizde saklanmaz; doğrudan bankanın 256-bit SSL ve 3D Secure korumalı sayfasında işlenir.</p>
+              </details>
+              <details className="py-2.5">
+                <summary className="cursor-pointer font-semibold text-gray-800">Havale / EFT ile nasıl bağış yapabilirim?</summary>
+                <p className="mt-1.5">Havale / EFT seçeneğini seçip formu onayladığınızda size özel açıklama kodu ve IBAN bilgisi ekranda görünür.</p>
+              </details>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   )

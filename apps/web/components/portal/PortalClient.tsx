@@ -4,7 +4,22 @@ import { errorMessage } from '../../lib/api-error'
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
-import { Printer } from 'lucide-react'
+import {
+  BadgeCheck,
+  Building2,
+  Repeat,
+  ChevronLeft,
+  ChevronRight,
+  CreditCard,
+  Droplets,
+  HeartHandshake,
+  LayoutDashboard,
+  LogOut,
+  Printer,
+  Receipt,
+  Settings,
+  UserPlus,
+} from 'lucide-react'
 import { exportCsv } from '../../lib/admin-access'
 import { ExcelIcon, PdfIcon } from '../admin/ui'
 
@@ -107,10 +122,47 @@ interface DonorProjects {
   student_sponsorships: Array<{ id: string; person_name: string; active: boolean; amount_cents: number }>
 }
 
+interface SavedCard {
+  id: string
+  subscription_id: string
+  card_brand: string
+  card_last4: string
+  provider?: string | null
+  campaign_title: string
+  amount_lira: number
+  currency: string
+  status: string
+  next_charge_date?: string | null
+}
+
+interface DonorProfile {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
+  address: string
+  city: string
+  country: string
+  allow_email: boolean
+  allow_sms: boolean
+  is_anonymous: boolean
+}
+
 interface TransferInfo { bank_name?: string; iban?: string; transfer_reference?: string }
 
 type PayMethod = 'credit_card' | 'bank_transfer'
-type TabKey = 'ozet' | 'bagislar' | 'kurban' | 'destek' | 'uyelik' | 'duzenli' | 'odemeler'
+type TabKey =
+  | 'ozet'
+  | 'bagislar'
+  | 'ustlendiklerim'
+  | 'su-kuyularim'
+  | 'projelerim'
+  | 'talimatlarim'
+  | 'kartlarim'
+  | 'ayarlar'
+  | 'uyelik'
+  | 'odemeler'
 
 const SESSION_KEY = 'einfak-portal'
 const EMPTY_PROJECTS: DonorProjects = { water_wells: [], orphan_sponsorships: [], student_sponsorships: [] }
@@ -261,6 +313,21 @@ export function PortalClient({ siteName }: { siteName: string }) {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [paymentOrders, setPaymentOrders] = useState<PaymentOrder[]>([])
   const [projects, setProjects] = useState<DonorProjects>(EMPTY_PROJECTS)
+  const [savedCards, setSavedCards] = useState<SavedCard[]>([])
+  const [profile, setProfile] = useState<DonorProfile | null>(null)
+  const [profileForm, setProfileForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    city: '',
+    address: '',
+    allow_sms: false,
+    allow_email: false,
+    is_anonymous: false,
+  })
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [removingCardId, setRemovingCardId] = useState<string | null>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(true)
 
   const [payingId, setPayingId] = useState<string | null>(null)
   const [transferInfo, setTransferInfo] = useState<TransferInfo | null>(null)
@@ -306,10 +373,33 @@ export function PortalClient({ siteName }: { siteName: string }) {
       setPaymentOrders(ordersRes.data)
       setProjects(projectsRes.data)
       // Package-dependent modules: a failure here must not hide the rest of the dashboard.
-      const [pledgesRes, wellsRes, duesRes] = await Promise.allSettled([get('pledges'), get('water-wells'), get('member-dues')])
+      const [pledgesRes, wellsRes, duesRes, cardsRes, profileRes] = await Promise.allSettled([
+        get('pledges'),
+        get('water-wells'),
+        get('member-dues'),
+        get('cards'),
+        get('profile'),
+      ])
       if (pledgesRes.status === 'fulfilled') setPledges(pledgesRes.value.data)
       if (wellsRes.status === 'fulfilled') setMyWells(wellsRes.value.data)
       if (duesRes.status === 'fulfilled') setMemberships(duesRes.value.data)
+      if (cardsRes.status === 'fulfilled') setSavedCards(cardsRes.value.data)
+      if (profileRes.status === 'fulfilled') {
+        const p: DonorProfile = profileRes.value.data
+        setProfile(p)
+        setProfileForm({
+          first_name: p.first_name || '',
+          last_name: p.last_name || '',
+          email: p.email || '',
+          city: p.city || '',
+          address: p.address || '',
+          allow_sms: Boolean(p.allow_sms),
+          allow_email: Boolean(p.allow_email),
+          is_anonymous: Boolean(p.is_anonymous),
+        })
+        const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ')
+        if (fullName) setDisplayName(fullName)
+      }
     } catch (err) {
       if (!expired(err)) setErrorMsg('Bilgileriniz yüklenemedi. Lütfen sayfayı yenileyin.')
     } finally {
@@ -520,15 +610,67 @@ export function PortalClient({ siteName }: { siteName: string }) {
   const awaitingTransfers = paymentOrders.filter((o) => o.status === 'awaiting_transfer')
   const pendingCount = dueInstallments.length + openDues.length + awaitingTransfers.length
 
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!token) return
+    if (!profileForm.first_name.trim()) {
+      setErrorMsg('Ad alanı boş bırakılamaz.')
+      return
+    }
+    setSavingProfile(true)
+    setErrorMsg('')
+    setSuccessMsg('')
+    try {
+      const res = await axios.patch(`${apiBase()}/api/v1/portal/me/profile`, profileForm, { headers: authHeaders(token) })
+      const p: DonorProfile = res.data
+      setProfile(p)
+      const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ')
+      if (fullName) {
+        setDisplayName(fullName)
+        try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token, role: 'donor', name: fullName })) } catch { /* ignore */ }
+      }
+      setSuccessMsg('Hesap bilgileriniz ve tercihleriniz kaydedildi.')
+    } catch (err) {
+      if (!expired(err)) setErrorMsg(errorText(err, 'Bilgiler güncellenemedi.'))
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const removeSavedCard = async (cardId: string) => {
+    if (!token) return
+    if (!window.confirm('Bu kartı kaldırmak istediğinize emin misiniz? İlgili düzenli bağış talimatınız SMS hatırlatma moduna geçecektir.')) return
+    setRemovingCardId(cardId)
+    setErrorMsg('')
+    setSuccessMsg('')
+    try {
+      await axios.delete(`${apiBase()}/api/v1/portal/me/cards/${encodeURIComponent(cardId)}`, { headers: authHeaders(token) })
+      setSavedCards((prev) => prev.filter((c) => c.id !== cardId))
+      setSuccessMsg('Kayıtlı kart kaldırıldı.')
+      loadDashboard(token)
+    } catch (err) {
+      if (!expired(err)) setErrorMsg(errorText(err, 'Kart kaldırılamadı.'))
+    } finally {
+      setRemovingCardId(null)
+    }
+  }
+
+  const sponsorshipCount = pledges.length + projects.orphan_sponsorships.length + projects.student_sponsorships.length
+  const wellsCount = myWells.length + extraWells.length
+  const projectsCount = shares.length
+
   const tabs = ([
-    { key: 'ozet', label: 'Özet', count: pendingCount },
-    { key: 'bagislar', label: 'Bağışlarım', count: donations.length },
-    shares.length ? { key: 'kurban', label: 'Kurban', count: shares.length } : null,
-    pledges.length + myWells.length + extraProjectCount ? { key: 'destek', label: 'Sponsorluk & Projeler', count: pledges.length + myWells.length + extraProjectCount } : null,
-    memberships.length ? { key: 'uyelik', label: 'Üyelik & Aidat', count: openDuesCount } : null,
-    { key: 'duzenli', label: 'Düzenli Bağış', count: subscriptions.length },
-    paymentOrders.length ? { key: 'odemeler', label: 'Ödemeler', count: paymentOrders.length } : null,
-  ].filter(Boolean)) as { key: TabKey; label: string; count: number }[]
+    { key: 'ozet', label: 'Özet', icon: LayoutDashboard, count: pendingCount },
+    { key: 'bagislar', label: 'Bağışlarım', icon: HeartHandshake, count: donations.length },
+    { key: 'ustlendiklerim', label: 'Üstlendiklerim', icon: UserPlus, count: sponsorshipCount },
+    { key: 'su-kuyularim', label: 'Su Kuyularım', icon: Droplets, count: wellsCount },
+    { key: 'projelerim', label: 'Projelerim', icon: Building2, count: projectsCount },
+    { key: 'talimatlarim', label: 'Talimatlarım', icon: Repeat, count: subscriptions.length },
+    { key: 'kartlarim', label: 'Kayıtlı Kartlarım', icon: CreditCard, count: savedCards.length },
+    memberships.length ? { key: 'uyelik', label: 'Üyelik & Aidat', icon: BadgeCheck, count: openDuesCount } : null,
+    paymentOrders.length ? { key: 'odemeler', label: 'Ödemeler', icon: Receipt, count: paymentOrders.length } : null,
+    { key: 'ayarlar', label: 'Ayarlar', icon: Settings, count: 0 },
+  ].filter(Boolean)) as { key: TabKey; label: string; icon: React.ComponentType<{ className?: string }>; count: number }[]
 
   /* ---------- sections ---------- */
 
@@ -646,118 +788,302 @@ export function PortalClient({ siteName }: { siteName: string }) {
     </div>
   )
 
-  const kurban = (
-    <Panel title="Kurban kesim bilgisi ve video">
-      <div className="grid gap-4 md:grid-cols-2">
-        {shares.map((s) => (
-          <div key={s.id} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h4 className="text-sm font-bold text-slate-900">{s.campaign_title || (s.animal_type === 'cow' ? 'Büyükbaş kurban hissesi' : 'Kurban hissesi')}</h4>
-                <p className="mt-0.5 text-xs text-slate-600">{s.on_behalf_of || s.donor_name} adına · {s.kurban_type || 'Kurban'}{s.country ? ` · ${s.country}` : ''}</p>
-                <p className="mt-0.5 text-[11px] text-slate-400">Küpe no: {s.animal_number}{s.share_number ? ` · Hisse ${s.share_number}` : ''}</p>
+  const projelerim = (
+    <Panel title="Projelerim ve kurban hisselerim">
+      {shares.length === 0 ? (
+        <Empty icon="🕌" cta={donateLink}>Henüz proje veya kurban hissesi kaydınız bulunmuyor.</Empty>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {shares.map((s) => (
+            <div key={s.id} className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-slate-900">{s.campaign_title || (s.animal_type === 'cow' ? 'Büyükbaş kurban hissesi' : 'Kurban hissesi')}</h4>
+                  <p className="mt-0.5 text-xs text-slate-600">{s.on_behalf_of || s.donor_name} adına · {s.kurban_type || 'Kurban'}{s.country ? ` · ${s.country}` : ''}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">Küpe no: {s.animal_number}{s.share_number ? ` · Hisse ${s.share_number}` : ''}</p>
+                </div>
+                <Badge tone={s.status === 'slaughtered' ? 'bg-green-600 text-white' : 'bg-amber-100 text-amber-800'}>
+                  {s.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor'}
+                </Badge>
               </div>
-              <Badge tone={s.status === 'slaughtered' ? 'bg-green-600 text-white' : 'bg-amber-100 text-amber-800'}>
-                {s.status === 'slaughtered' ? 'Kesildi' : 'Bekliyor'}
-              </Badge>
+              {s.status === 'slaughtered' && s.video_url ? (
+                <a href={s.video_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 rounded-lg bg-slate-900 p-3 text-sm font-bold text-white hover:bg-slate-800">
+                  ▶ Kesim videosunu izle
+                </a>
+              ) : (
+                <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">
+                  {s.status === 'slaughtered' ? 'Kesim videosu hazırlanıyor.' : 'Kurbanınız kesildiğinde adınıza özel video buraya eklenecek.'}
+                </p>
+              )}
             </div>
-            {s.status === 'slaughtered' && s.video_url ? (
-              <a href={s.video_url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-lg bg-slate-900 p-3 text-sm font-bold text-white hover:bg-slate-800">
-                ▶ Kesim videosunu izle
-              </a>
-            ) : (
-              <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">
-                {s.status === 'slaughtered' ? 'Kesim videosu hazırlanıyor.' : 'Kurbanınız kesildiğinde adınıza özel video buraya eklenecek.'}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </Panel>
   )
 
-  const support = (
+  const ustlendiklerim = (
     <div className="space-y-6">
-      {pledges.length > 0 && (
-        <Panel title="Sponsorluklarım ve taksitlerim">
-          <div className="grid gap-4 md:grid-cols-2">
-            {pledges.map((p) => (
-              <div key={p.id} className="space-y-3 rounded-xl border border-slate-200 p-4">
-                <div className="flex gap-3">
-                  {p.beneficiary?.photo_url && <img src={p.beneficiary.photo_url} alt="" className="h-14 w-14 flex-shrink-0 rounded-xl object-cover" />}
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-bold text-slate-900">{p.beneficiary?.first_name || p.title}</h4>
-                    <p className="text-xs text-slate-500">
-                      {p.kind_label}{p.beneficiary?.school ? ` · ${p.beneficiary.school}` : ''}{p.beneficiary?.country ? ` · ${p.beneficiary.country}` : ''}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-700">
-                      {cents(p.installment_amount_cents, p.currency)} × {p.installment_count} · <b>{p.paid_count}/{p.installment_count}</b> taksit ödendi
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1" aria-label={`${p.paid_count} / ${p.installment_count} taksit ödendi`}>
-                  {p.installments.map((i) => (
-                    <span key={i.id} title={`${i.seq}. taksit · ${date(i.due_date)}`}
-                      className={`h-2 min-w-4 flex-1 rounded-full ${i.status === 'paid' ? 'bg-green-500' : i.status === 'overdue' ? 'bg-red-500' : 'bg-slate-200'}`} />
-                  ))}
-                </div>
-                {installmentAction(p)}
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
-
-      {myWells.length > 0 && (
-        <Panel title="Su kuyularım">
-          <div className="grid gap-4 md:grid-cols-2">
-            {myWells.map((w) => {
-              const pct = w.target_cents > 0 ? Math.min(100, Math.round((w.collected_cents / w.target_cents) * 100)) : null
-              return (
-                <div key={w.id} className="overflow-hidden rounded-xl border border-slate-200">
-                  {w.gallery_urls[0] && <img src={w.gallery_urls[0]} alt="" className="h-40 w-full object-cover" />}
-                  <div className="space-y-2 p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="text-sm font-bold text-slate-900">{w.name}</h4>
-                      <Badge tone={w.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-sky-100 text-sky-800'}>{WELL_STATUS[w.status] || w.status}</Badge>
-                    </div>
-                    <p className="text-xs text-slate-500">{[w.location_name, w.country].filter(Boolean).join(', ')}</p>
-                    <p className="text-xs font-semibold text-slate-700">{w.is_owner ? 'Kuyu sahibi' : w.my_shares ? `${w.my_shares} hisse` : 'Taksitli katkı'}</p>
-                    {pct !== null && (
-                      <div>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-primary-600" style={{ width: `${pct}%` }} /></div>
-                        <p className="mt-1 text-[11px] text-slate-500">%{pct} tamamlandı</p>
+      <Panel title="Üstlendiklerim ve sponsorluklarım">
+        {pledges.length === 0 && projects.orphan_sponsorships.length === 0 && projects.student_sponsorships.length === 0 ? (
+          <Empty icon="🤝" cta={donateLink}>Henüz aktif bir yetim, öğrenci veya aile sponsorluğunuz bulunmuyor.</Empty>
+        ) : (
+          <div className="space-y-4">
+            {pledges.length > 0 && (
+              <div className="grid gap-4 md:grid-cols-2">
+                {pledges.map((p) => (
+                  <div key={p.id} className="space-y-3 rounded-xl border border-slate-200 p-4">
+                    <div className="flex gap-3">
+                      {p.beneficiary?.photo_url && <img src={p.beneficiary.photo_url} alt="" className="h-14 w-14 flex-shrink-0 rounded-xl object-cover" />}
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-slate-900">{p.beneficiary?.first_name || p.title}</h4>
+                        <p className="text-xs text-slate-500">
+                          {p.kind_label}{p.beneficiary?.school ? ` · ${p.beneficiary.school}` : ''}{p.beneficiary?.country ? ` · ${p.beneficiary.country}` : ''}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-700">
+                          {cents(p.installment_amount_cents, p.currency)} × {p.installment_count} · <b>{p.paid_count}/{p.installment_count}</b> taksit ödendi
+                        </p>
                       </div>
-                    )}
+                    </div>
+                    <div className="flex flex-wrap gap-1" aria-label={`${p.paid_count} / ${p.installment_count} taksit ödendi`}>
+                      {p.installments.map((i) => (
+                        <span key={i.id} title={`${i.seq}. taksit · ${date(i.due_date)}`}
+                          className={`h-2 min-w-4 flex-1 rounded-full ${i.status === 'paid' ? 'bg-green-500' : i.status === 'overdue' ? 'bg-red-500' : 'bg-slate-200'}`} />
+                      ))}
+                    </div>
+                    {installmentAction(p)}
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        </Panel>
-      )}
-
-      {extraProjectCount > 0 && (
-        <Panel title="Proje ve sponsorluk takibi">
-          <div className="space-y-2.5">
-            {[
-              ...extraWells.map((item) => ({ id: item.id, title: item.name, detail: item.location, status: WELL_STATUS[item.status] || item.status })),
-              ...projects.orphan_sponsorships.map((item) => ({ id: item.id, title: `Yetim desteği: ${item.person_name}`, detail: undefined, status: item.active ? 'Aktif' : 'Tamamlandı' })),
-              ...projects.student_sponsorships.map((item) => ({ id: item.id, title: `Öğrenci desteği: ${item.person_name}`, detail: cents(item.amount_cents), status: item.active ? 'Aktif' : 'Tamamlandı' })),
-            ].map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3.5">
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-slate-900">{item.title}</p>
-                  {item.detail && <p className="mt-0.5 text-xs text-slate-500">{item.detail}</p>}
-                </div>
-                <Badge tone="bg-emerald-50 text-emerald-700">{item.status}</Badge>
+                ))}
               </div>
-            ))}
+            )}
+
+            {(projects.orphan_sponsorships.length > 0 || projects.student_sponsorships.length > 0) && (
+              <div className="space-y-2.5">
+                {[
+                  ...projects.orphan_sponsorships.map((item) => ({ id: item.id, title: `Yetim desteği: ${item.person_name}`, detail: undefined, status: item.active ? 'Aktif' : 'Tamamlandı' })),
+                  ...projects.student_sponsorships.map((item) => ({ id: item.id, title: `Öğrenci desteği: ${item.person_name}`, detail: cents(item.amount_cents), status: item.active ? 'Aktif' : 'Tamamlandı' })),
+                ].map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900">{item.title}</p>
+                      {item.detail && <p className="mt-0.5 text-xs text-slate-500">{item.detail}</p>}
+                    </div>
+                    <Badge tone="bg-emerald-50 text-emerald-700">{item.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </Panel>
-      )}
+        )}
+      </Panel>
     </div>
+  )
+
+  const suKuyularim = (
+    <Panel title="Su kuyularım">
+      {myWells.length === 0 && extraWells.length === 0 ? (
+        <Empty icon="💧" cta={donateLink}>Henüz su kuyusu katkınız bulunmuyor.</Empty>
+      ) : (
+        <div className="space-y-4">
+          {myWells.length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2">
+              {myWells.map((w) => {
+                const pct = w.target_cents > 0 ? Math.min(100, Math.round((w.collected_cents / w.target_cents) * 100)) : null
+                return (
+                  <div key={w.id} className="overflow-hidden rounded-xl border border-slate-200">
+                    {w.gallery_urls[0] && <img src={w.gallery_urls[0]} alt="" className="h-40 w-full object-cover" />}
+                    <div className="space-y-2 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="text-sm font-bold text-slate-900">{w.name}</h4>
+                        <Badge tone={w.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-sky-100 text-sky-800'}>{WELL_STATUS[w.status] || w.status}</Badge>
+                      </div>
+                      <p className="text-xs text-slate-500">{[w.location_name, w.country].filter(Boolean).join(', ')}</p>
+                      <p className="text-xs font-semibold text-slate-700">{w.is_owner ? 'Kuyu sahibi' : w.my_shares ? `${w.my_shares} hisse` : 'Taksitli katkı'}</p>
+                      {pct !== null && (
+                        <div>
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-primary-600" style={{ width: `${pct}%` }} /></div>
+                          <p className="mt-1 text-[11px] text-slate-500">%{pct} tamamlandı</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {extraWells.length > 0 && (
+            <div className="space-y-2.5">
+              {extraWells.map((item) => (
+                <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-slate-900">{item.name}</p>
+                    {item.location && <p className="mt-0.5 text-xs text-slate-500">{item.location}</p>}
+                  </div>
+                  <Badge tone="bg-sky-50 text-sky-700">{WELL_STATUS[item.status] || item.status}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Panel>
+  )
+
+  const kartlarim = (
+    <Panel title="Kayıtlı kartlarım">
+      {savedCards.length === 0 ? (
+        <Empty icon="💳" cta={donateLink}>
+          Kayıtlı kartınız bulunmuyor. Düzenli bağış talimatı sırasında kartınızı kaydettiğinizde burada görüntülenir.
+        </Empty>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {savedCards.map((c) => (
+            <div key={c.id} className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-300">{c.card_brand || 'Kart'}</p>
+                  <p className="mt-1 font-mono text-lg font-bold tracking-widest">•••• •••• •••• {c.card_last4}</p>
+                </div>
+                <Badge tone={c.status === 'active' ? 'bg-emerald-500/20 text-emerald-200' : 'bg-amber-500/20 text-amber-200'}>
+                  {c.status === 'active' ? 'Aktif' : 'Duraklatıldı'}
+                </Badge>
+              </div>
+              <div className="flex items-end justify-between gap-2 border-t border-white/10 pt-3">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-white">{c.campaign_title}</p>
+                  <p className="text-[11px] text-slate-300">{money(c.amount_lira, c.currency)} / dönem</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={removingCardId === c.id}
+                  onClick={() => removeSavedCard(c.id)}
+                  className="rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-600/80 disabled:opacity-50"
+                >
+                  {removingCardId === c.id ? 'Kaldırılıyor…' : 'Kartı Kaldır'}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  )
+
+  const ayarlar = (
+    <Panel title="Hesap ve iletişim ayarlarım">
+      <form onSubmit={saveProfile} className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="donor-first-name" className="mb-1 block text-xs font-bold text-slate-600">Ad</label>
+            <input
+              id="donor-first-name"
+              type="text"
+              required
+              value={profileForm.first_name}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, first_name: e.target.value }))}
+              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-600/20"
+            />
+          </div>
+          <div>
+            <label htmlFor="donor-last-name" className="mb-1 block text-xs font-bold text-slate-600">Soyad</label>
+            <input
+              id="donor-last-name"
+              type="text"
+              value={profileForm.last_name}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, last_name: e.target.value }))}
+              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-600/20"
+            />
+          </div>
+          <div>
+            <label htmlFor="donor-phone" className="mb-1 block text-xs font-bold text-slate-600">Telefon (Giriş Numarası)</label>
+            <input
+              id="donor-phone"
+              type="text"
+              readOnly
+              disabled
+              value={profile?.phone || phone}
+              className="w-full rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2.5 text-sm text-slate-500"
+            />
+          </div>
+          <div>
+            <label htmlFor="donor-email" className="mb-1 block text-xs font-bold text-slate-600">E-posta</label>
+            <input
+              id="donor-email"
+              type="email"
+              value={profileForm.email}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, email: e.target.value }))}
+              placeholder="ornek@eposta.com"
+              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-600/20"
+            />
+          </div>
+          <div>
+            <label htmlFor="donor-city" className="mb-1 block text-xs font-bold text-slate-600">Şehir</label>
+            <input
+              id="donor-city"
+              type="text"
+              value={profileForm.city}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, city: e.target.value }))}
+              placeholder="İstanbul"
+              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-600/20"
+            />
+          </div>
+          <div>
+            <label htmlFor="donor-address" className="mb-1 block text-xs font-bold text-slate-600">Adres</label>
+            <input
+              id="donor-address"
+              type="text"
+              value={profileForm.address}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, address: e.target.value }))}
+              placeholder="Açık adresiniz"
+              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-primary-600 focus:ring-2 focus:ring-primary-600/20"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500">İletişim ve Gizlilik Tercihleri</p>
+          <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={profileForm.allow_sms}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, allow_sms: e.target.checked }))}
+              className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
+            />
+            Kampanya ve bilgilendirme SMS&apos;leri almak istiyorum
+          </label>
+          <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={profileForm.allow_email}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, allow_email: e.target.checked }))}
+              className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
+            />
+            Faaliyet raporu ve e-posta bültenlerini almak istiyorum
+          </label>
+          <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={profileForm.is_anonymous}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, is_anonymous: e.target.checked }))}
+              className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
+            />
+            Varsayılan olarak bağışlarımda ismim gizli (Anonim) kalsın
+          </label>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={savingProfile}
+            className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
+          >
+            {savingProfile ? 'Kaydediliyor…' : 'Değişiklikleri Kaydet'}
+          </button>
+        </div>
+      </form>
+    </Panel>
   )
 
   const membership = (
@@ -1016,9 +1342,19 @@ export function PortalClient({ siteName }: { siteName: string }) {
   )
 
   const tabContent: Record<TabKey, React.ReactNode> = {
-    ozet: overview, bagislar: donationList, kurban, destek: support, uyelik: membership, duzenli: recurring, odemeler: orders,
+    ozet: overview,
+    bagislar: donationList,
+    ustlendiklerim,
+    'su-kuyularim': suKuyularim,
+    projelerim,
+    talimatlarim: recurring,
+    kartlarim,
+    ayarlar,
+    uyelik: membership,
+    odemeler: orders,
   }
   const activeTab = tabs.some((t) => t.key === tab) ? tab : 'ozet'
+  const activeTabMeta = tabs.find((t) => t.key === activeTab) || tabs[0]
 
   /* ---------- render ---------- */
 
@@ -1096,24 +1432,97 @@ export function PortalClient({ siteName }: { siteName: string }) {
   }
 
   const initials = (displayName || 'B').split(' ').map((part) => part[0]).slice(0, 2).join('').toLocaleUpperCase('tr')
+  const selectTab = (key: TabKey) => {
+    setTab(key)
+    setMobileMenuOpen(false)
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const brandedMenu = (
+    <aside className="overflow-hidden rounded-3xl bg-primary-700 text-white shadow-xl">
+      <div className="border-b border-white/15 px-6 pb-5 pt-6">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary-100/80">Merhaba</p>
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 text-sm font-bold text-white">
+            {initials}
+          </div>
+        </div>
+        <h1 className="mt-1 truncate font-heading text-2xl font-extrabold uppercase tracking-wide text-white">
+          {displayName || 'Değerli Bağışçı'}
+        </h1>
+        {(profile?.phone || phone) && (
+          <p className="mt-1 text-xs font-medium text-primary-100/80">{profile?.phone || phone}</p>
+        )}
+      </div>
+
+      <nav className="divide-y divide-white/10 px-3 py-2" aria-label="Bağışçı paneli menüsü">
+        {tabs.map((t) => {
+          const Icon = t.icon
+          const selected = activeTab === t.key && !mobileMenuOpen
+          const desktopSelected = activeTab === t.key
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => selectTab(t.key)}
+              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3.5 text-left text-sm font-bold uppercase tracking-wide transition ${
+                desktopSelected
+                  ? 'lg:bg-white/15 lg:text-white'
+                  : 'text-white/90 hover:bg-white/10 hover:text-white'
+              } ${selected ? 'bg-white/15 text-white' : ''}`}
+            >
+              <span className="flex min-w-0 items-center gap-3.5">
+                <Icon className="h-5 w-5 flex-shrink-0 text-amber-300" aria-hidden="true" />
+                <span className="truncate">{t.label}</span>
+              </span>
+              <span className="flex items-center gap-2">
+                {t.count > 0 && (
+                  <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold text-white">
+                    {t.count}
+                  </span>
+                )}
+                <ChevronRight className="h-4 w-4 text-white/50 lg:hidden" aria-hidden="true" />
+              </span>
+            </button>
+          )
+        })}
+      </nav>
+
+      <div className="border-t border-white/15 p-4">
+        <button
+          type="button"
+          onClick={() => logout()}
+          className="flex w-full items-center justify-center gap-2.5 rounded-2xl bg-white/15 px-4 py-3 text-sm font-extrabold uppercase tracking-wider text-white transition hover:bg-white/25"
+        >
+          <LogOut className="h-4 w-4" aria-hidden="true" />
+          Çıkış
+        </button>
+      </div>
+    </aside>
+  )
 
   return (
-    <div className="bg-slate-50 px-4 py-8 text-slate-800 antialiased sm:py-10">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-3.5">
-            <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-primary-600 text-base font-bold text-white">{initials}</div>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary-700">Bağışçı Paneli</p>
-              <h1 className="truncate font-heading text-xl font-bold text-slate-900 sm:text-2xl">{displayName ? `Merhaba, ${displayName.split(' ')[0]}` : 'Hoş geldiniz'}</h1>
-            </div>
-          </div>
+    <div className="bg-slate-50 px-4 py-6 text-slate-800 antialiased sm:py-10">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Link href="/kampanyalar" className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700">Bağış yap</Link>
-            <button type="button" onClick={() => logout()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
-              Çıkış
-            </button>
+            {!mobileMenuOpen && (
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-primary-200 bg-primary-50 px-3.5 py-2 text-sm font-bold text-primary-800 transition hover:bg-primary-100 lg:hidden"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                Panel Menüsü
+              </button>
+            )}
+            <span className="hidden text-xs font-bold uppercase tracking-[0.18em] text-primary-700 lg:inline">
+              Bağışçı Paneli
+            </span>
           </div>
+          <Link href="/kampanyalar" className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-primary-700">
+            ♥ Bağış Yap
+          </Link>
         </div>
 
         {messages}
@@ -1143,29 +1552,39 @@ export function PortalClient({ siteName }: { siteName: string }) {
             <div className="h-64 animate-pulse rounded-2xl bg-slate-200/70" />
           </div>
         ) : (
-          <div className="animate-fade-in space-y-6">
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <Stat label="Toplam destek" value={totalText} hint={`${confirmed.length} onaylı bağış`} accent />
-              <Stat label="Kurban hissesi" value={String(shares.length)} hint={shares.length ? `${shares.filter((s) => s.status === 'slaughtered').length} kesildi` : undefined} />
-              <Stat label="Sponsorluk & proje" value={String(pledges.length + myWells.length + projectCount)} />
-              <Stat label="Düzenli bağış" value={String(subscriptions.length)} hint={subscriptions.length ? 'aktif talimat' : undefined} />
+          <div className="animate-fade-in lg:grid lg:grid-cols-[300px_1fr] lg:items-start lg:gap-6">
+            <div className={mobileMenuOpen ? 'block' : 'hidden lg:block'}>
+              {brandedMenu}
             </div>
 
-            <div className="-mx-4 overflow-x-auto px-4" role="tablist" aria-label="Panel bölümleri">
-              <div className="flex w-max gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                {tabs.map((t) => (
-                  <button key={t.key} type="button" role="tab" aria-selected={activeTab === t.key} onClick={() => setTab(t.key)}
-                    className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-bold transition-colors ${activeTab === t.key ? 'bg-primary-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-                    {t.label}
-                    {t.count > 0 && (
-                      <span className={`rounded-full px-1.5 text-[11px] ${activeTab === t.key ? 'bg-white/25' : t.key === 'ozet' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}`}>{t.count}</span>
-                    )}
+            <div className={`space-y-6 ${mobileMenuOpen ? 'hidden lg:block' : 'block'}`}>
+              {activeTab === 'ozet' && (
+                <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+                  <Stat label="Toplam destek" value={totalText} hint={`${confirmed.length} onaylı bağış`} accent />
+                  <Stat label="Kurban & proje" value={String(shares.length)} hint={shares.length ? `${shares.filter((s) => s.status === 'slaughtered').length} kesildi` : undefined} />
+                  <Stat label="Üstlendiklerim" value={String(sponsorshipCount + wellsCount)} />
+                  <Stat label="Talimatlarım" value={String(subscriptions.length)} hint={subscriptions.length ? 'aktif talimat' : undefined} />
+                </div>
+              )}
+
+              {!mobileMenuOpen && activeTabMeta && (
+                <div className="flex items-center justify-between rounded-2xl bg-primary-700 px-4 py-3 text-white shadow-sm lg:hidden">
+                  <span className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide">
+                    <activeTabMeta.icon className="h-4 w-4 text-amber-300" aria-hidden="true" />
+                    {activeTabMeta.label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setMobileMenuOpen(true)}
+                    className="rounded-lg bg-white/15 px-2.5 py-1 text-xs font-bold text-white"
+                  >
+                    Menü
                   </button>
-                ))}
-              </div>
-            </div>
+                </div>
+              )}
 
-            <div role="tabpanel">{tabContent[activeTab]}</div>
+              <div role="tabpanel">{tabContent[activeTab]}</div>
+            </div>
           </div>
         )}
       </div>

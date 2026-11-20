@@ -16,7 +16,7 @@ from app.services.tenancy import normalize_host, resolve_org_slug
 BYPASS_PATHS = {"/health", "/docs", "/redoc", "/openapi.json"}
 # Login works on the platform host too; the user is then found by e-mail.
 ORGLESS_PATHS = {"/api/v1/auth/login", "/api/v1/auth/refresh"}
-BYPASS_PREFIXES = ("/api/v1/payments/", "/api/v1/internal/", "/api/v1/platform", "/api/v1/media/", "/api/v1/directory")
+BYPASS_PREFIXES = ("/api/v1/payments/", "/api/v1/hooks/", "/api/v1/internal/", "/api/v1/platform", "/api/v1/media/", "/api/v1/directory")
 
 
 class TenantMiddleware(BaseHTTPMiddleware):

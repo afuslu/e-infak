@@ -82,6 +82,8 @@ CONTAINERS = {"narrow": 1080, "normal": 1200, "wide": 1320, "full": 1440}
 DEFAULT_DESIGN = {
     "body_font": "public-sans", "heading_font": "lora", "radius": "medium", "container": "normal",
     "page_color": "#FAFAF9", "text_color": "#111827", "heading_weight": "700", "heading_case": "normal",
+    "cart_style": "drawer", "checkout_style": "split_classic",
+    "checkout_micro_addon": False, "checkout_show_faq": False,
 }
 
 # Ready-made looks: colours + design tokens applied together from the admin page.
@@ -254,6 +256,23 @@ class Design(BaseModel):
     text_color: str = DEFAULT_DESIGN["text_color"]
     heading_weight: Literal["500", "600", "700", "800", "900"] = "700"
     heading_case: Literal["normal", "uppercase"] = "normal"
+    cart_style: Literal[
+        "drawer", "page_redirect", "floating_popover", "bottom_sheet", "drawer_upsell",
+        "left_drawer", "centered_modal", "top_bar_slide", "mini_pill", "dark_drawer",
+        "fullscreen_overlay", "qty_stepper_drawer", "social_proof_drawer", "side_dock",
+        "compact_bar", "split_drawer", "receipt_drawer", "floating_pill_drawer",
+        "glass_drawer", "emerald_drawer",
+    ] = "drawer"
+    checkout_style: Literal[
+        "split_classic", "stepper_minimal", "express_single", "dark_luxury", "trust_split", "transfer_first",
+        "emerald_charity", "split_reversed", "card_tabs", "compact_mobile", "bento_checkout", "minimal_paper",
+        "split_fullscreen", "accordion_steps", "timeline_flow", "glass_gradient", "warm_pastel", "corporate_checkout",
+        "one_step_sidebar", "islamic_ornate", "high_contrast", "floating_cards",
+        "receipt_preview", "multi_card_grid", "minimal_bordered", "hero_banner_checkout",
+        "progress_header_checkout", "card_elevated_split", "magazine_editorial", "pill_rounded_modern",
+    ] = "split_classic"
+    checkout_micro_addon: bool = False
+    checkout_show_faq: bool = False
 
     @field_validator("body_font", "heading_font", mode="before")
     @classmethod

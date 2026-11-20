@@ -120,6 +120,13 @@ def dispatch_due_sms_task():
     return asyncio.run(dispatch_due())
 
 
+@celery_app.task(name="app.tasks.dispatch_whatsapp_task", ignore_result=True)
+def dispatch_whatsapp_task():
+    """Every minute (and right after a bulk send): queued WhatsApp messages."""
+    from app.services.whatsapp import dispatch
+    return asyncio.run(dispatch(AsyncSessionLocal))
+
+
 async def _fetch_donation_and_send_receipt(donation_id: str):
     """Async helper to load donation data from database and compose receipt email"""
     from app.models.donation import Donation
@@ -626,6 +633,10 @@ celery_app.conf.beat_schedule = {
     "warm-certificates-daily": {
         "task": "app.tasks.warm_all_certificates_task",
         "schedule": 86400.0,
+    },
+    "dispatch-whatsapp-every-minute": {
+        "task": "app.tasks.dispatch_whatsapp_task",
+        "schedule": 60.0,
     },
     "dispatch-due-sms-every-minute": {
         "task": "app.tasks.dispatch_due_sms_task",

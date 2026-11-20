@@ -6,7 +6,10 @@ import { adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
 import { ImageField } from '../admin/ImageField'
 import { TranslationEditor, type Translations } from '../admin/TranslationEditor'
 import { confirmDialog } from '../admin/ui'
-import { DEFAULT_DESIGN, siteDesignStyle, type SiteDesign } from '../../lib/site-design'
+import {
+  CART_STYLE_LABELS, CHECKOUT_STYLE_LABELS, DEFAULT_DESIGN, siteDesignStyle,
+  type CartStyle, type CheckoutStyle, type SiteDesign,
+} from '../../lib/site-design'
 
 export interface ThemeAppearance {
   template: 'klasik' | 'kategori' | 'sade'
@@ -350,6 +353,67 @@ export function ThemePanel({
                 {loaded.templates.map((t) => <option key={t.key} value={t.key}>{t.label.split(' — ')[0]}</option>)}
               </select>
             </label>
+            <div className="space-y-2.5 rounded-lg border border-gray-200 bg-gray-50/70 p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-gray-700">Sepet &amp; Ödeme Deneyimi</span>
+                <a
+                  href={`/bagis/sepetim?stil=${encodeURIComponent(design.checkout_style || 'split_classic')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] font-bold text-blue-600 hover:underline"
+                >
+                  Canlı Önizle ↗
+                </a>
+              </div>
+              <label className="block text-[11px] font-semibold text-gray-600">
+                <span className="mb-1 block">Sepet stili</span>
+                <select
+                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs"
+                  value={design.cart_style || 'drawer'}
+                  onChange={(e) => setDesign('cart_style', e.target.value as CartStyle)}
+                >
+                  {(Object.entries(CART_STYLE_LABELS) as [CartStyle, { label: string; desc: string }][]).map(([k, v]) => (
+                    <option key={k} value={k}>{v.label}</option>
+                  ))}
+                </select>
+                <span className="mt-1 block font-normal text-[10px] text-gray-500">
+                  {CART_STYLE_LABELS[(design.cart_style || 'drawer') as CartStyle]?.desc}
+                </span>
+              </label>
+              <label className="block text-[11px] font-semibold text-gray-600">
+                <span className="mb-1 block">Ödeme sayfası (/bagis/sepetim)</span>
+                <select
+                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs"
+                  value={design.checkout_style || 'split_classic'}
+                  onChange={(e) => setDesign('checkout_style', e.target.value as CheckoutStyle)}
+                >
+                  {(Object.entries(CHECKOUT_STYLE_LABELS) as [CheckoutStyle, { label: string; desc: string }][]).map(([k, v]) => (
+                    <option key={k} value={k}>{v.label}</option>
+                  ))}
+                </select>
+                <span className="mt-1 block font-normal text-[10px] text-gray-500">
+                  {CHECKOUT_STYLE_LABELS[(design.checkout_style || 'split_classic') as CheckoutStyle]?.desc}
+                </span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-[11px] font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(design.checkout_micro_addon)}
+                  onChange={(e) => setDesign('checkout_micro_addon', e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600"
+                />
+                Ödeme özetinde &quot;+50 / +100 İyilik Ekle&quot; kutusu
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-[11px] font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(design.checkout_show_faq)}
+                  onChange={(e) => setDesign('checkout_show_faq', e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600"
+                />
+                Ödeme sayfası altında mini SSS göster
+              </label>
+            </div>
             <button
               type="button"
               onClick={resetDefaults}

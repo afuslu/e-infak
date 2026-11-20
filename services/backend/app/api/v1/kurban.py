@@ -728,12 +728,16 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
             if share.donor_phone in notified_phones:
                 share.notified_at = now
                 continue
+            # {video}: kesim videosunun bağlantısı; yoksa bağışçı paneli. Sunucuya yüklenmiş videoda
+            # bağışçıya özel bağlantı gider, izleyip izlemediği görülür.
+            from app.services.videos import video_for_animal, watch_url
+            stored_video = await video_for_animal(db, animal.id)
+            video_link = (await watch_url(db, org_id, stored_video.id, share.donor_id) if stored_video
+                          else animal.video_url or portal)
             queued = await send_event_sms(
                 db, org_id, "kurban_kesildi", share.donor_phone, related=("kurban_share", share.id), source="kurban",
                 extra={"ad_soyad": share.donor_name, "kimin_adina": share.on_behalf_of or share.donor_name,
-                       "kurban_no": animal.animal_number, "portal": portal,
-                       # {video}: kesim videosunun bağlantısı; yoksa bağışçı paneli.
-                       "video": animal.video_url or portal},
+                       "kurban_no": animal.animal_number, "portal": portal, "video": video_link},
             )
             if queued:
                 queued.donor_id = share.donor_id

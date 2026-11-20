@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.middleware.tenant import TenantMiddleware
-from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, bank_sync, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, site_builder, media, poverty, receipt_books, data_tools, membership, accounting, inventory, sms, security, public_api, mobile, reminders
+from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, bank_sync, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, site_builder, media, poverty, receipt_books, data_tools, membership, accounting, inventory, sms, security, public_api, mobile, reminders, whatsapp, call_center, sms_donations, videos
 from app.core.db import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.audit_log import AuditLog
@@ -84,6 +84,8 @@ app.include_router(orphans.router, prefix="/api/v1")
 app.include_router(donor_portal.router, prefix="/api/v1")
 app.include_router(parent_portal.router, prefix="/api/v1")
 app.include_router(finance.router, prefix="/api/v1")
+# Before site.public_router: its /media/{org_id}/{name} would otherwise catch /media/video/{token}.
+app.include_router(videos.public_router, prefix="/api/v1")
 app.include_router(site.public_router, prefix="/api/v1")
 app.include_router(site.admin_router, prefix="/api/v1")
 app.include_router(media.router, prefix="/api/v1")
@@ -118,6 +120,13 @@ app.include_router(reconciliation.router, prefix="/api/v1")
 app.include_router(bank_sync.router, prefix="/api/v1")
 app.include_router(public_api.router, prefix="/api/v1")
 app.include_router(mobile.router, prefix="/api/v1")
+app.include_router(whatsapp.router, prefix="/api/v1")
+app.include_router(whatsapp.hooks_router, prefix="/api/v1")
+app.include_router(call_center.router, prefix="/api/v1")
+app.include_router(call_center.hooks_router, prefix="/api/v1")
+app.include_router(sms_donations.router, prefix="/api/v1")
+app.include_router(sms_donations.hooks_router, prefix="/api/v1")
+app.include_router(videos.router, prefix="/api/v1")
 
 
 @app.get("/health")

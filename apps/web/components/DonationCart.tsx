@@ -1,8 +1,11 @@
 'use client'
 
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { errorMessage } from '../lib/api-error'
 import { useEffect, useMemo, useState } from 'react'
 import { useCreateCheckout, useOrgSettings, type CheckoutSessionResponse } from '@e-infak/api-client'
+import type { CartStyle } from '../lib/site-design'
 import { trackConversion } from '../lib/analytics'
 import { ConsentChecks, useCardFallback, useCheckoutLegal } from './CheckoutConsent'
 import { PaymentTrustBadges } from './site/PaymentTrustBadges'
@@ -23,8 +26,10 @@ const notifyCart = () => window.dispatchEvent(new Event('donation-cart-changed')
 
 const makeKey = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`
 
-export function DonationCart() {
+export function DonationCart({ cartStyle = 'drawer' }: { cartStyle?: CartStyle }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [redirectNotice, setRedirectNotice] = useState(false)
   const [step, setStep] = useState<'cart' | 'donor' | 'transfer'>('cart')
   const [cart, setCart] = useState<CartItem[]>([])
   const [firstName, setFirstName] = useState('')
@@ -92,9 +97,20 @@ export function DonationCart() {
       })
       if (item.currency) setCurrency(item.currency)
       trackConversion('add_to_cart', { campaign_id: item.campaignId })
-      setOpen(true)
+      if (cartStyle === 'page_redirect') {
+        setRedirectNotice(true)
+        setTimeout(() => setRedirectNotice(false), 5000)
+      } else {
+        setOpen(true)
+      }
     }
-    const show = () => setOpen(true)
+    const show = () => {
+      if (cartStyle === 'page_redirect') {
+        router.push('/bagis/sepetim')
+      } else {
+        setOpen(true)
+      }
+    }
     const followSite = (event: Event) => setCurrency((event as CustomEvent<'TRY' | 'EUR' | 'USD'>).detail)
     window.addEventListener('add-to-donation-cart', add)
     window.addEventListener('open-donation-cart', show)
@@ -104,7 +120,7 @@ export function DonationCart() {
       window.removeEventListener('open-donation-cart', show)
       window.removeEventListener('site-currency-change', followSite)
     }
-  }, [])
+  }, [cartStyle, router])
 
   const update = (index: number, patch: Partial<CartItem>) => {
     persist(cart.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
@@ -174,21 +190,112 @@ export function DonationCart() {
 
   if (!cart.length && !open) return null
 
+  const isDarkCart = cartStyle === 'dark_drawer'
+
+  const overlayCls =
+    cartStyle === 'bottom_sheet' || cartStyle === 'compact_bar'
+      ? 'fixed inset-0 z-50 flex flex-col justify-end bg-black/60'
+      : cartStyle === 'top_bar_slide'
+        ? 'fixed inset-0 z-50 flex flex-col justify-start bg-black/60'
+        : cartStyle === 'centered_modal' || cartStyle === 'floating_pill_drawer'
+          ? 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm'
+          : cartStyle === 'fullscreen_overlay'
+            ? 'fixed inset-0 z-50 flex bg-white'
+            : cartStyle === 'left_drawer'
+              ? 'fixed inset-0 z-50 flex justify-start bg-black/60'
+              : cartStyle === 'floating_popover'
+                ? 'fixed inset-0 z-50 flex items-end justify-end bg-black/25 p-4 sm:p-6'
+                : 'fixed inset-0 z-50 flex justify-end bg-black/60'
+
+  const panelBase = isDarkCart
+    ? 'bg-slate-950 text-white border border-white/10'
+    : cartStyle === 'receipt_drawer'
+      ? 'bg-[#FFFDF8] text-stone-900 border-s-2 border-dashed border-stone-400'
+      : cartStyle === 'glass_drawer'
+        ? 'bg-white/85 backdrop-blur-xl text-slate-900 border-s border-white/50'
+        : cartStyle === 'emerald_drawer'
+          ? 'bg-[#FFFDF8] text-slate-900 border-t-4 border-t-emerald-700'
+          : 'bg-white text-slate-900'
+
+  const panelCls =
+    cartStyle === 'fullscreen_overlay'
+      ? 'mx-auto h-[100dvh] w-full max-w-3xl overflow-y-auto p-6 sm:p-10 bg-white text-slate-900'
+      : cartStyle === 'split_drawer'
+        ? `h-[100dvh] w-full max-w-2xl overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl ${panelBase}`
+        : cartStyle === 'compact_bar'
+          ? `w-full max-h-[65dvh] overflow-y-auto border-t p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl ${panelBase}`
+          : cartStyle === 'bottom_sheet'
+            ? `mx-auto max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-t-3xl p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl ${panelBase}`
+            : cartStyle === 'top_bar_slide'
+              ? `mx-auto max-h-[85dvh] w-full max-w-3xl overflow-y-auto rounded-b-3xl p-6 shadow-2xl ${panelBase}`
+              : cartStyle === 'centered_modal' || cartStyle === 'floating_pill_drawer'
+                ? `max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-3xl p-6 shadow-2xl ${panelBase}`
+                : cartStyle === 'floating_popover'
+                  ? `max-h-[82dvh] w-full max-w-md overflow-y-auto rounded-3xl border border-gray-200 p-6 shadow-2xl ${panelBase}`
+                  : `h-[100dvh] w-full max-w-md overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl ${panelBase}`
+
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
-        className="float-above-tabbar fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary-600 text-2xl text-white shadow-2xl">
-        🤝
-        {!!cart.length && <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1 text-xs font-black text-slate-900">{cart.length}</span>}
-      </button>
+      {redirectNotice && cartStyle === 'page_redirect' && cart.length > 0 && (
+        <div className="fixed bottom-24 right-6 z-50 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3 shadow-xl">
+          <span className="text-xs font-bold text-slate-800">Sepete eklendi ({cart.length})</span>
+          <Link href="/bagis/sepetim" onClick={() => setRedirectNotice(false)} className="rounded-xl bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700">
+            Ödemeye Git →
+          </Link>
+        </div>
+      )}
+      {cartStyle === 'mini_pill' ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
+          className="float-above-tabbar fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-primary-600 px-4 py-3 text-sm font-black text-white shadow-2xl transition hover:bg-primary-700"
+        >
+          <span>🤝</span>
+          <span>{total.toLocaleString('tr-TR')} {currencySymbol}</span>
+          <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs text-slate-900">{cart.length}</span>
+        </button>
+      ) : cartStyle === 'floating_pill_drawer' ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
+          className="float-above-tabbar fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-primary-600 px-5 py-3.5 text-xs font-black uppercase tracking-wider text-white shadow-2xl transition hover:bg-primary-700"
+        >
+          <span>Bağışı Tamamla ({cart.length}) →</span>
+        </button>
+      ) : cartStyle === 'side_dock' ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
+          className="fixed right-0 top-1/2 z-40 -translate-y-1/2 rounded-s-2xl bg-primary-600 px-2.5 py-4 text-xs font-black text-white shadow-2xl transition hover:bg-primary-700"
+          style={{ writingMode: 'vertical-rl' }}
+        >
+          🤝 SEPET ({cart.length})
+        </button>
+      ) : (
+        <button type="button" onClick={() => (cartStyle === 'page_redirect' ? router.push('/bagis/sepetim') : setOpen(true))} aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
+          className={`float-above-tabbar fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full text-2xl text-white shadow-2xl ${isDarkCart ? 'bg-amber-500 text-slate-950' : 'bg-primary-600'}`}>
+          🤝
+          {!!cart.length && <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1 text-xs font-black text-slate-900">{cart.length}</span>}
+        </button>
+      )}
       {open && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/60" role="dialog" aria-modal="true" aria-label="Bağış sepeti">
-          <button type="button" className="flex-1" aria-label="Sepeti kapat" onClick={() => setOpen(false)} />
-          <aside dir={locale === 'ar' ? 'rtl' : 'ltr'} className="h-[100dvh] w-full max-w-md overflow-y-auto bg-white p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl">
-            <header className="mb-5 flex items-center justify-between border-b pb-4">
-              <h2 className="text-xl font-black text-slate-900">Bağış Sepetim</h2>
+        <div className={overlayCls} role="dialog" aria-modal="true" aria-label="Bağış sepeti" onClick={() => setOpen(false)}>
+          {cartStyle !== 'centered_modal' && cartStyle !== 'floating_pill_drawer' && cartStyle !== 'top_bar_slide' && cartStyle !== 'bottom_sheet' && cartStyle !== 'compact_bar' && cartStyle !== 'left_drawer' && cartStyle !== 'fullscreen_overlay' && (
+            <button type="button" className="flex-1" aria-label="Sepeti kapat" onClick={() => setOpen(false)} />
+          )}
+          <aside dir={locale === 'ar' ? 'rtl' : 'ltr'} className={panelCls} onClick={(e) => e.stopPropagation()}>
+            <header className={`mb-5 flex items-center justify-between border-b pb-4 ${isDarkCart ? 'border-white/15' : ''}`}>
+              <h2 className={`text-xl font-black ${isDarkCart ? 'text-white' : 'text-slate-900'}`}>Bağış Sepetim</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Kapat" className="rounded-full p-2">✕</button>
             </header>
+            {cartStyle === 'social_proof_drawer' && (
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800">
+                ✓ 256-bit SSL Güvenli Ödeme · Anında PDF Makbuz
+              </div>
+            )}
             {error && <div role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
             {step === 'cart' && (
@@ -199,22 +306,56 @@ export function DonationCart() {
                       <p className="font-bold text-slate-800">{item.campaignTitle}</p>
                       <button type="button" onClick={() => persist(cart.filter((_, i) => i !== index))} className="text-xs font-bold text-red-600">Sil</button>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      <label className="text-xs font-bold text-slate-500">Tutar
-                        <input inputMode="numeric" value={item.amount} onChange={(e) => update(index, { amount: Math.max(1, Number(e.target.value)) })}
-                          className="mt-1 w-full rounded-lg border bg-white p-2 text-slate-900" />
-                      </label>
-                      <label className="text-xs font-bold text-slate-500">Adet
-                        <input type="number" min={1} max={100} value={item.quantity || 1} onChange={(e) => update(index, { quantity: Math.max(1, Number(e.target.value)) })}
-                          className="mt-1 w-full rounded-lg border bg-white p-2 text-slate-900" />
-                      </label>
-                    </div>
+                    {cartStyle === 'qty_stepper_drawer' ? (
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" onClick={() => update(index, { amount: item.amount + 100 })} className="rounded-lg border bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-primary-50">+100</button>
+                          <button type="button" onClick={() => update(index, { amount: item.amount + 500 })} className="rounded-lg border bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-primary-50">+500</button>
+                        </div>
+                        <div className="flex items-center rounded-xl border bg-white p-1">
+                          <button type="button" onClick={() => update(index, { quantity: Math.max(1, (item.quantity || 1) - 1) })} className="h-7 w-7 rounded-lg font-bold text-slate-700 hover:bg-slate-100">−</button>
+                          <span className="min-w-[2rem] text-center text-xs font-black text-slate-900">{item.quantity || 1}</span>
+                          <button type="button" onClick={() => update(index, { quantity: Math.min(100, (item.quantity || 1) + 1) })} className="h-7 w-7 rounded-lg font-bold text-slate-700 hover:bg-slate-100">+</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <label className="text-xs font-bold text-slate-500">Tutar
+                          <input inputMode="numeric" value={item.amount} onChange={(e) => update(index, { amount: Math.max(1, Number(e.target.value)) })}
+                            className="mt-1 w-full rounded-lg border bg-white p-2 text-slate-900" />
+                        </label>
+                        <label className="text-xs font-bold text-slate-500">Adet
+                          <input type="number" min={1} max={100} value={item.quantity || 1} onChange={(e) => update(index, { quantity: Math.max(1, Number(e.target.value)) })}
+                            className="mt-1 w-full rounded-lg border bg-white p-2 text-slate-900" />
+                        </label>
+                      </div>
+                    )}
                   </div>
                 ))}
                 {!!cart.length && (
                   <>
+                    {cartStyle === 'drawer_upsell' && cart[0] && (
+                      <div className="rounded-2xl border border-primary-100 bg-primary-50/60 p-3.5">
+                        <p className="text-xs font-bold text-primary-900">Bir küçük iyilik daha ekleyin</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {[100, 250, 500].map((amt) => (
+                            <button
+                              key={amt}
+                              type="button"
+                              onClick={() => persist([...cart, { campaignId: cart[0].campaignId, campaignTitle: `${cart[0].campaignTitle} (Ek Katkı)`, amount: amt, quantity: 1, currency }])}
+                              className="rounded-xl border border-primary-200 bg-white px-3 py-1.5 text-xs font-bold text-primary-800 hover:bg-primary-100"
+                            >
+                              + {amt} {currencySymbol}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex justify-between border-t pt-4"><span>Toplam</span><b className="text-xl">{total.toLocaleString('tr-TR')} {currencySymbol}</b></div>
                     <button type="button" onClick={() => setStep('donor')} className="w-full rounded-xl bg-primary-600 py-3 font-black text-white">Bağışı Tamamla</button>
+                    <Link href="/bagis/sepetim" onClick={() => setOpen(false)} className="block w-full rounded-xl border border-gray-200 py-2.5 text-center text-xs font-bold text-gray-700 hover:bg-gray-50">
+                      Tam Sayfa Ödemeye Git →
+                    </Link>
                     <button type="button" onClick={() => persist([])} className="w-full text-xs font-bold text-slate-400">Sepeti temizle</button>
                   </>
                 )}

@@ -249,6 +249,23 @@ async def get_my_projects(
         ],
     }
 
+@router.get("/me/videos")
+async def get_my_videos(current_donor: Donor = Depends(get_current_donor), db: AsyncSession = Depends(get_db)):
+    """Videos made for this donor's donations or for the campaigns they gave to (kurban videos are on the shares)."""
+    from app.models.channels import DonationVideo
+    from app.services.videos import watch_path
+
+    donation_ids = select(Donation.id).where(Donation.donor_id == current_donor.id)
+    campaign_ids = select(Donation.campaign_id).where(Donation.donor_id == current_donor.id)
+    videos = (await db.execute(select(DonationVideo).where(
+        DonationVideo.organization_id == current_donor.organization_id, DonationVideo.status == "ready",
+        DonationVideo.kurban_animal_id.is_(None),
+        DonationVideo.donation_id.in_(donation_ids) | DonationVideo.campaign_id.in_(campaign_ids),
+    ).order_by(DonationVideo.created_at.desc()).limit(100))).scalars().all()
+    return [{"id": str(v.id), "title": v.title or "Bağış videosu", "url": watch_path(v.id, current_donor.id),
+             "created_at": v.created_at.isoformat() if v.created_at else None} for v in videos]
+
+
 @router.get("/me/kurban-shares")
 async def get_my_kurban_shares(
     current_donor: Donor = Depends(get_current_donor),
@@ -266,6 +283,21 @@ async def get_my_kurban_shares(
         )
         .order_by(KurbanShare.created_at.desc())
     )).all()
+    from app.models.channels import DonationVideo
+    from app.services.videos import watch_path
+    animal_ids = [animal.id for _, animal, _ in rows if animal]
+    stored_videos = {}
+    if animal_ids:
+        for video in (await db.execute(select(DonationVideo).where(
+            DonationVideo.kurban_animal_id.in_(animal_ids), DonationVideo.status == "ready",
+        ).order_by(DonationVideo.created_at))).scalars():
+            stored_videos[video.kurban_animal_id] = video  # the newest one wins
+
+    def _video_link(animal):
+        if not animal or animal.status != KurbanStatus.SLAUGHTERED:
+            return None
+        video = stored_videos.get(animal.id)
+        return watch_path(video.id, current_donor.id) if video else animal.video_url
     return [
         {
             "id": s.id,
@@ -278,7 +310,7 @@ async def get_my_kurban_shares(
             "status": s.status,  # waiting, slaughtered
             "animal_number": animal.animal_number if animal else "Hayvan ataması bekleniyor",
             "animal_type": animal.type if animal else None,
-            "video_url": animal.video_url if animal and animal.status == KurbanStatus.SLAUGHTERED else None,
+            "video_url": _video_link(animal),
             "slaughtered_at": animal.slaughtered_at if animal else None,
             "created_at": s.created_at,
         }
@@ -999,3 +1031,139 @@ async def portal_donation_certificate_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="sertifika-{donation.receipt_number}.pdf"'},
     )
+
+
+class DonorProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    allow_email: Optional[bool] = None
+    allow_sms: Optional[bool] = None
+    is_anonymous: Optional[bool] = None
+
+
+def _serialize_donor_profile(donor: Donor) -> dict:
+    return {
+        "id": str(donor.id),
+        "first_name": donor.first_name or "",
+        "last_name": donor.last_name or "",
+        "email": donor.email or "",
+        "phone": donor.phone or "",
+        "address": donor.address or "",
+        "city": donor.city or "",
+        "country": donor.country or "Türkiye",
+        "allow_email": bool(donor.allow_email),
+        "allow_sms": bool(donor.allow_sms),
+        "is_anonymous": bool(donor.is_anonymous),
+        "total_donations": int(donor.total_donations or 0),
+        "total_donated_cents": int(donor.total_donated_cents or 0),
+    }
+
+
+@router.get("/me/profile")
+async def get_my_profile(current_donor: Donor = Depends(get_current_donor)):
+    """Return the authenticated donor's profile and notification settings."""
+    return _serialize_donor_profile(current_donor)
+
+
+@router.patch("/me/profile")
+async def update_my_profile(
+    payload: DonorProfileUpdate,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update editable donor contact details and communication preferences."""
+    if payload.first_name is not None:
+        cleaned = payload.first_name.strip()
+        if not cleaned:
+            raise HTTPException(status_code=400, detail="Ad alanı boş bırakılamaz.")
+        current_donor.first_name = cleaned[:100]
+    if payload.last_name is not None:
+        current_donor.last_name = payload.last_name.strip()[:100] or None
+    if payload.email is not None:
+        current_donor.email = payload.email.strip()[:255] or None
+    if payload.address is not None:
+        current_donor.address = payload.address.strip()[:1000] or None
+    if payload.city is not None:
+        current_donor.city = payload.city.strip()[:100] or None
+    if payload.allow_email is not None:
+        current_donor.allow_email = bool(payload.allow_email)
+    if payload.allow_sms is not None:
+        current_donor.allow_sms = bool(payload.allow_sms)
+    if payload.is_anonymous is not None:
+        current_donor.is_anonymous = bool(payload.is_anonymous)
+
+    await db.commit()
+    await db.refresh(current_donor)
+    return _serialize_donor_profile(current_donor)
+
+
+@router.get("/me/cards")
+async def get_my_saved_cards(
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    """List masked cards linked to the donor's recurring card instructions."""
+    from app.models.campaign import Campaign
+
+    result = await db.execute(
+        select(Subscription, Campaign.title)
+        .outerjoin(Campaign, Subscription.campaign_id == Campaign.id)
+        .where(
+            Subscription.donor_id == current_donor.id,
+            Subscription.organization_id == current_donor.organization_id,
+            Subscription.status != "cancelled",
+            Subscription.card_last_4.isnot(None),
+        )
+        .order_by(Subscription.created_at.desc())
+    )
+    cards = []
+    for sub, campaign_title in result.all():
+        cards.append({
+            "id": str(sub.id),
+            "subscription_id": str(sub.id),
+            "card_brand": sub.card_brand or "Kart",
+            "card_last4": sub.card_last_4,
+            "provider": sub.provider,
+            "campaign_title": campaign_title or "Düzenli Bağış",
+            "amount_lira": (sub.amount_cents or 0) / 100.0,
+            "currency": sub.currency or "TRY",
+            "status": sub.status,
+            "next_charge_date": sub.next_charge_date.isoformat() if sub.next_charge_date else None,
+        })
+    return cards
+
+
+@router.delete("/me/cards/{subscription_id}")
+async def remove_my_saved_card(
+    subscription_id: str,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    """Detach a saved card from a recurring instruction and switch it to SMS reminder mode."""
+    try:
+        sub_uuid = UUID(subscription_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Geçersiz kart kaydı.")
+
+    result = await db.execute(
+        select(Subscription).where(
+            Subscription.id == sub_uuid,
+            Subscription.donor_id == current_donor.id,
+            Subscription.organization_id == current_donor.organization_id,
+        )
+    )
+    sub = result.scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Kayıtlı kart bulunamadı.")
+
+    sub.card_ref = None
+    sub.card_token = None
+    sub.card_last_4 = None
+    sub.card_brand = None
+    if sub.mode == "card":
+        sub.mode = "reminder"
+    await db.commit()
+    return {"status": "success", "message": "Kayıtlı kart kaldırıldı."}

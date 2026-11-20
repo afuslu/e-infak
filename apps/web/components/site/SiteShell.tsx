@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { User } from 'lucide-react'
 import { ConsentLink } from './ConsentLink'
 import type { ReactNode } from 'react'
 import {
@@ -98,21 +99,41 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
           <header className="sticky top-0 z-40 border-b border-black/5 bg-white/95 backdrop-blur">
             <div className="mx-auto flex h-[76px] max-w-[var(--site-container)] items-center justify-between gap-4 px-4 sm:px-6">
               <Brand site={site} />
-              <details className="relative lg:hidden">
-                <summary className="cursor-pointer list-none rounded-lg border px-3 py-2 text-sm font-semibold">{t('nav.menu')} ☰</summary>
-                <nav className="absolute end-0 mt-2 flex w-60 flex-col rounded-xl border bg-white p-2 shadow-lg">
-                  <LanguageSwitcher className="m-2" />
-                  {headerLinks.map((link) => (
-                    <NavLink key={`${link.label}-${link.url}`} link={link} className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-gray-50" />
-                  ))}
-                  <Link href="/kampanyalar" className="m-2 rounded-lg bg-primary-600 px-4 py-2.5 text-center font-bold text-white">{t('nav.donate')}</Link>
-                </nav>
-              </details>
-              <nav className="hidden items-center gap-6 text-[15px] font-semibold lg:flex">
+              <div className="flex items-center gap-2 lg:hidden">
+                <Link
+                  href="/portal"
+                  aria-label={t('nav.donorLogin')}
+                  title={t('nav.donorLogin')}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-primary-700 transition hover:bg-primary-50"
+                >
+                  <User className="h-5 w-5" />
+                </Link>
+                <details className="relative">
+                  <summary className="cursor-pointer list-none rounded-lg border px-3 py-2 text-sm font-semibold">{t('nav.menu')} ☰</summary>
+                  <nav className="absolute end-0 mt-2 flex w-60 flex-col rounded-xl border bg-white p-2 shadow-lg">
+                    <LanguageSwitcher className="m-2" />
+                    {headerLinks.map((link) => (
+                      <NavLink key={`${link.label}-${link.url}`} link={link} className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-gray-50" />
+                    ))}
+                    <Link href="/portal" className="rounded-lg px-3 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50">
+                      {t('nav.donorLogin')}
+                    </Link>
+                    <Link href="/kampanyalar" className="m-2 rounded-lg bg-primary-600 px-4 py-2.5 text-center font-bold text-white">{t('nav.donate')}</Link>
+                  </nav>
+                </details>
+              </div>
+              <nav className="hidden items-center gap-5 text-[15px] font-semibold lg:flex">
                 {headerLinks.map((link) => (
                   <NavLink key={`${link.label}-${link.url}`} link={link} className="text-gray-700 hover:text-primary-600" />
                 ))}
                 <LanguageSwitcher />
+                <Link
+                  href="/portal"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50/60 px-3.5 py-2 text-sm font-bold text-primary-700 transition hover:bg-primary-100"
+                >
+                  <User className="h-4 w-4" />
+                  {t('nav.donorLogin')}
+                </Link>
                 <Link href="/kampanyalar" className={`px-5 py-2.5 font-bold text-white shadow-sm transition hover:-translate-y-0.5 ${site.template === 'kategori' ? 'rounded-full bg-accent-500 hover:bg-accent-600' : 'rounded-lg bg-primary-600 hover:bg-primary-700'}`}>♥ {t('nav.donate')}</Link>
               </nav>
             </div>
