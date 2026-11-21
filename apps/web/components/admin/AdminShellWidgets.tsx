@@ -306,6 +306,7 @@ export function AdminProfileMenu({
   email,
   roleLabel,
   logoUrl,
+  darkLogo,
   onLogout,
 }: {
   firstName?: string
@@ -313,6 +314,7 @@ export function AdminProfileMenu({
   email?: string
   roleLabel?: string
   logoUrl?: string | null
+  darkLogo?: boolean
   onLogout: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -335,7 +337,13 @@ export function AdminProfileMenu({
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
         className="flex items-center gap-2 rounded-lg border border-transparent px-1.5 py-1 transition-colors hover:border-gray-200 hover:bg-gray-50">
         {logoUrl ? (
-          <img src={logoUrl} alt={fullName} className="h-8 w-8 rounded-full bg-white object-contain p-0.5 ring-1 ring-gray-200" />
+          <img
+            src={logoUrl}
+            alt={fullName}
+            className={`h-8 w-8 rounded-full object-contain p-0.5 ring-1 ${
+              darkLogo ? 'bg-white/10 ring-white/15' : 'bg-[#FFFFFF] ring-gray-200'
+            }`}
+          />
         ) : (
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 text-[13px] font-bold text-white">
             {initial}

@@ -99,7 +99,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { data: access } = useAdminAccess()
   const { data: siteBrandRes } = useQuery({
     queryKey: ['admin-site-brand'],
-    queryFn: () => v1Get<{ name?: string; logo_url?: string | null }>('/public/site'),
+    queryFn: () => v1Get<{ name?: string; logo_url?: string | null; logo_dark_url?: string | null }>('/public/site'),
     staleTime: 5 * 60_000,
     retry: false,
   })
@@ -309,6 +309,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const panelVisible = !!needle || (!!shownRail && shownRail.sections.flatMap((s) => s.items).length > 1)
 
   const roleLabel = access?.builtin_roles?.find((r) => r.key === access?.me?.role)?.label || access?.me?.role
+  const useDarkLogo = theme.dark && !!siteBrand?.logo_dark_url
+  const brandLogo = useDarkLogo ? siteBrand.logo_dark_url : siteBrand?.logo_url
 
   const itemLink = (item: NavItem, hint?: string) => {
     const active = currentItem === item
@@ -374,11 +376,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav aria-label="Ana menü" className={`flex w-[76px] flex-shrink-0 flex-col items-center border-e ${line}`}>
           <Link href="/admin" title={siteBrand?.name || 'E-İnfak'} className={`flex h-[60px] w-full flex-shrink-0 items-center justify-center border-b ${line}`}>
             <img
-              src={siteBrand?.logo_url || '/images/e-infak/mark.png'}
+              src={brandLogo || '/images/e-infak/mark.png'}
               alt={siteBrand?.name || 'E-İnfak'}
-              className={`h-9 w-9 rounded-[9px] ring-1 ${
-                siteBrand?.logo_url
-                  ? `object-contain p-1 ${theme.dark ? 'bg-white ring-white/15' : 'bg-gray-50 ring-gray-200'}`
+              className={`h-10 w-10 rounded-[10px] ring-1 ${
+                brandLogo
+                  ? useDarkLogo
+                    ? 'bg-white/10 object-contain p-1 ring-white/15'
+                    : theme.dark
+                      ? 'bg-[#FFFFFF] object-contain p-1 ring-white/20 shadow-sm'
+                      : 'bg-gray-50 object-contain p-1 ring-gray-200'
                   : `object-cover ${theme.dark ? 'ring-white/15' : 'ring-gray-200'}`
               }`}
             />
@@ -547,7 +553,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 lastName={user.last_name}
                 email={user.email}
                 roleLabel={roleLabel}
-                logoUrl={siteBrand?.logo_url}
+                logoUrl={brandLogo}
+                darkLogo={useDarkLogo}
                 onLogout={handleLogout}
               />
             </div>
