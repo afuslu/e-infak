@@ -394,3 +394,35 @@ async def test_campaign_stk_fields_and_tabs(db_session):
 
     with pytest.raises(ValidationError):
         CampaignUpdate(redirect_mode="url", redirect_target="javascript:alert(1)")
+
+
+async def test_receipt_numbers_continue_and_receipts_group_lines(db_session):
+    org, admin, campaign = await _setup(db_session)
+    org.settings = {**(org.settings or {}), "receipt_seq_start": 2675}
+    donor = Donor(organization_id=org.id, first_name="Mehmet", last_name="Özgür", phone="905363643170", referral_source="Cami")
+    db_session.add(donor)
+    await db_session.commit()
+
+    def manual(key, lines):
+        return crm.ManualDonationIn(idempotency_key=key, donor_id=donor.id, payment_method="cash", send_receipt=False,
+                                    lines=[crm.ReceiptLine(campaign_id=campaign.id, amount_cents=c) for c in lines])
+
+    first = await crm.create_manual_donation(_request(org, "POST"), manual("k" * 20, [15_000_00, 1_000_00]), db_session, admin)
+    second = await crm.create_manual_donation(_request(org, "POST"), manual("m" * 20, [250_00]), db_session, admin)
+    assert first["receipt_seq"] == 2675 and second["receipt_seq"] == 2676
+
+    async def receipts(**kw):
+        params = dict(receipt_no=None, name=None, phone=None, start=None, end=None, created_type_filter=None,
+                      min_total_cents=None, max_total_cents=None, payment_method=None, staff=None, referral=None,
+                      status_filter=None, campaign_id=None, with_totals=False, sort="no_desc", page=1, page_size=25)
+        params.update(kw)
+        return await crm.list_receipts(_request(org), db=db_session, current_user=admin, **params)
+
+    listed = await receipts()
+    assert [(r["receipt_seq"], r["total_cents"], r["lines"]) for r in listed["items"]] == [(2676, 250_00, 1), (2675, 16_000_00, 2)]
+    assert listed["items"][0]["created_type"] == "Erp - Temsilci"
+    assert (await receipts(receipt_no="2675"))["total"] == 1
+    assert (await receipts(min_total_cents=1_000_000))["items"][0]["receipt_seq"] == 2675
+    assert (await receipts(referral="Cami", phone="0536 364"))["total"] == 2
+    totals = await receipts(with_totals=True)
+    assert totals["totals"] == [{"currency": "TRY", "total_cents": 16_250_00}]

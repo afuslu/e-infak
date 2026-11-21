@@ -146,6 +146,8 @@ class Donation(Base):
     # Matbu koçandan kesildiyse: koçan ve yaprak numarası ("A-1234")
     receipt_book_id = Column(UUID(as_uuid=True), ForeignKey("receipt_books.id", ondelete="SET NULL"), index=True)
     official_receipt_no = Column(String(40))
+    # "Makbuz No": sequential per organisation, shared by every line of one receipt (see services/receipt_seq)
+    receipt_seq = Column(Integer)
     receipt_sent_at = Column(DateTime(timezone=True))
     
     # Message

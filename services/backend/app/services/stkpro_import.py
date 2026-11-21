@@ -365,6 +365,8 @@ class StkProImporter:
                          "stkpro_campaign": _text(row.get("Kampanya Adı")), "stkpro_type": _text(row.get("Tipi")),
                          "staff": _text(row.get("Personel")), "country": _text(row.get("Kampanya Ülkesi"))},
                 metadata={"kurban_type": ckey.kurban_type} if ckey.kurban_type else {},
+                # STK PRO "Makbuz No" is kept as ours, so numbering continues after the import.
+                receipt_seq=int(receipt_no) if receipt_no and receipt_no.isdigit() and len(receipt_no) <= 9 else None,
             )
             if receipt_no and receipt_no not in used_receipts:
                 donation.official_receipt_no = receipt_no  # one receipt can hold several donations: first one carries it

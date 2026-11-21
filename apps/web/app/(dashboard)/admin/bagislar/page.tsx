@@ -130,7 +130,7 @@ export default function AdminDonationsPage() {
     const params = new URLSearchParams(window.location.search)
     const view = QUICK_VIEWS.find(([key]) => key === params.get('gorunum'))
     const next: typeof emptyFilters = { ...emptyFilters, ...(view ? view[2] : {}) }
-    const paramKeys = ['start', 'end', 'status', 'currency', 'campaign_id', 'payment_method'] as const
+    const paramKeys = ['start', 'end', 'status', 'currency', 'campaign_id', 'payment_method', 'q'] as const
     let hasQueryFilter = false
     for (const key of paramKeys) {
       const val = params.get(key)

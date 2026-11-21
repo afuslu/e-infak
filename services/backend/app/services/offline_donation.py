@@ -34,6 +34,7 @@ async def record_offline_donation(
     quantity: int = 1,
     metadata: Optional[dict] = None,
     pending: bool = False,
+    receipt_seq: Optional[int] = None,
 ) -> tuple[Donation, dict]:
     """Create a confirmed donation with its side effects; the caller commits.
 
@@ -42,8 +43,12 @@ async def record_offline_donation(
     applies them when the money arrives.
     """
     from app.api.v1.checkout import _receipt_number
+    from app.services.receipt_seq import next_receipt_seq
 
+    if receipt_seq is None:
+        receipt_seq = await next_receipt_seq(db, organization_id)
     donation = Donation(
+        receipt_seq=receipt_seq,
         organization_id=organization_id,
         campaign_id=campaign.id,
         donor_id=donor.id,

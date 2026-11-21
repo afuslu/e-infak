@@ -141,14 +141,20 @@ export default function KurbanAdminPage() {
   const [shares, setShares] = useState<Share[]>([])
   const [sharesTotal, setSharesTotal] = useState(0)
   const [sharePage, setSharePage] = useState(1)
-  const [tab, setTab] = useState<Tab>('animals')
+  // STK PRO menu: "Otomatik Hisse Dağıtma" opens the unassigned shares (?sekme=atanmamis).
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === 'undefined') return 'animals'
+    const s = new URLSearchParams(window.location.search).get('sekme')
+    return s === 'atanmamis' || s === 'hisseler' ? 'shares' : s === 'giris' ? 'entry' : 'animals'
+  })
   const [animalFilter, setAnimalFilter] = useState<'' | 'waiting' | 'slaughtered'>('')
   const [animalPartialOnly, setAnimalPartialOnly] = useState(false)
   const [animalVideoStatus, setAnimalVideoStatus] = useState<'' | VideoStatus>('')
   const [animalView, setAnimalView] = useState<'cards' | 'table'>('cards')
   const [videoModal, setVideoModal] = useState<{ ids: string[]; status: VideoStatus; videoUrl: string } | null>(null)
   const [search, setSearch] = useState('')
-  const [shareFilter, setShareFilter] = useState<'' | 'true' | 'false'>('')
+  const [shareFilter, setShareFilter] = useState<'' | 'true' | 'false'>(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sekme') === 'atanmamis' ? 'false' : '')
   const [shareKurbanType, setShareKurbanType] = useState('')
   const [shareStatus, setShareStatus] = useState<'' | 'waiting' | 'slaughtered'>('')
   const [shareNotifiedOnly, setShareNotifiedOnly] = useState(false)

@@ -226,7 +226,10 @@ async def create_public_api_donation(
     )
 
     receipt_no = f"API-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{secrets.token_hex(3).upper()}"
+    from app.services.receipt_seq import next_receipt_seq
+
     donation = Donation(
+        receipt_seq=await next_receipt_seq(db, key.organization_id),
         organization_id=key.organization_id,
         campaign_id=campaign_id,
         donor_id=donor.id,

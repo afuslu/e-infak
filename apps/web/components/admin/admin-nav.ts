@@ -3,7 +3,7 @@ import {
   FileUp, Film, FolderOpen, Globe2, HandCoins, HandHelping, HeartHandshake, HelpCircle, History, Home, IdCard, KeyRound,
   Landmark, LayoutDashboard, LayoutGrid, LifeBuoy, LogIn, type LucideIcon, MailPlus, Megaphone, MessageSquareText,
   MessagesSquare, Newspaper, PackageCheck, Palette, PanelsTopLeft, PhoneCall, PiggyBank, Plug, Repeat, Send, Settings,
-  ShieldCheck, Sparkles, Tags, Users, UsersRound, Video, Wallet,
+  Shuffle, ShieldCheck, Sparkles, Tags, Users, UsersRound, Video, Wallet,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -79,7 +79,8 @@ export const NAV_RAIL: NavRail[] = [
     key: 'operasyon', label: 'Operasyon', icon: LayoutGrid, sections: [
       {
         title: 'Bağış Yönetimi', items: [
-          { href: '/admin/bagislar', label: 'Makbuzlar / Bağışlar', icon: HandCoins, module: 'receipts' },
+          { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: FileText, module: 'receipts' },
+          { href: '/admin/bagislar', label: 'Tüm Bağışlar', icon: HandCoins, module: 'receipts' },
           { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: Repeat, feature: 'recurring', module: ['finance', 'donors', 'receipts'] },
           { href: '/admin/makbuz-kocanlari', label: 'Makbuz Koçanları', icon: BookOpen, feature: 'receipts', module: ['receipts', 'finance'] },
           { href: '/admin/zakat', label: 'Zekât Ayarları', icon: Coins, module: ['finance', 'settings', 'site'] },
@@ -95,6 +96,7 @@ export const NAV_RAIL: NavRail[] = [
       {
         title: 'Kurban Organizasyonu', items: [
           { href: '/admin/kurban', label: 'Kurbanlar', icon: Beef, feature: 'kurban', module: 'kurban' },
+          { href: '/admin/kurban?sekme=atanmamis', label: 'Otomatik Hisse Dağıtma', icon: Shuffle, feature: 'kurban', module: 'kurban' },
         ],
       },
       {
@@ -154,7 +156,7 @@ export const NAV_RAIL: NavRail[] = [
     key: 'finans', label: 'Finans', icon: CreditCard, sections: [
       {
         title: 'Operasyon', items: [
-          { href: '/admin/banka-odeme?sekme=online-bagis', label: 'Online Bağış', icon: CreditCard, module: ['bank', 'settings'] },
+          { href: '/admin/online-bagis', label: 'Online Bağış', icon: CreditCard, module: ['receipts', 'bank'] },
           { href: '/admin/banka-odeme?sekme=banka-hareketleri', label: 'Banka Hareketleri (Gelir)', icon: Landmark, module: ['bank', 'settings'] },
           { href: '/admin/banka-odeme?sekme=banka-hesaplari', label: 'Banka Hesapları', icon: Wallet, module: ['bank', 'settings'] },
           { href: '/admin/sms-bagislari', label: 'SMS Bağışları', icon: MessageSquareText, feature: 'sms_donation', module: ['receipts', 'bank'] },
@@ -173,6 +175,7 @@ export const NAV_RAIL: NavRail[] = [
       {
         title: 'Ayarlar', items: [
           { href: '/admin/odeme-sms', label: 'Sanal Pos & SMS Hesapları', icon: KeyRound, module: 'settings' },
+          { href: '/admin/banka-odeme?sekme=online-bagis', label: 'Sanal Pos Ayarları', icon: CreditCard, module: ['bank', 'settings'] },
           { href: '/admin/users', label: 'Kullanıcılar & Roller', icon: ShieldCheck, feature: 'roles', module: 'users' },
           { href: '/admin/kurlar', label: 'Döviz Kurları', icon: Coins },
           { href: '/admin/giris-kayitlari', label: 'Kullanıcı Giriş Logları', icon: LogIn, module: ['settings', 'users'] },

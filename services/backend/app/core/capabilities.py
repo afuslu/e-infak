@@ -141,6 +141,9 @@ ROUTE_RULES: tuple[tuple[str, frozenset | str, frozenset | str], ...] = tuple(
         *((f"/admin-features/{part}", {"operations"}, {"operations"}) for part in (
             "aid-", "beneficiaries", "households", "money-boxes", "water-wells", "students")),
         ("/admin-features/campaigns/", {"site"}, {"site"}),
+        ("/admin-features/campaign-tabs", {"site", "receipts"}, {"site"}),
+        ("/admin-features/campaign-pages", {"site"}, {"site"}),
+        ("/admin-features/receipts", {"receipts", "reports", "bank"}, {"receipts"}),
         *((f"/admin-features/{part}", {"site"}, {"site"}) for part in (
             "banners", "content-posts", "gallery", "media", "menu", "pages", "site-appearance", "site-builder",
             "site-domains")),

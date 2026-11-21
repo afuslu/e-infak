@@ -179,15 +179,21 @@ async def _finalize_paid_order(
     await db.flush()
     donation_ids: list[str] = []
     now = datetime.now(timezone.utc)
+    from app.services.receipt_seq import next_receipt_seq
+
+    order_seq: int | None = None  # every item of the order shares one "Makbuz No"
     for item in order.items:
         existing = await db.execute(
             select(Donation).where(Donation.payment_order_item_id == item.id)
         )
         if existing.scalar_one_or_none():
             continue
+        if order_seq is None:
+            order_seq = await next_receipt_seq(db, order.organization_id)
         donation = Donation(
             # Assigned here (not at flush) because the outbox events below reference it.
             id=uuid4(),
+            receipt_seq=order_seq,
             organization_id=order.organization_id,
             campaign_id=item.campaign_id,
             donor_id=order.donor_id,

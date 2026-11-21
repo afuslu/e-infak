@@ -856,6 +856,8 @@ def _donation_row(d: Donation, names: dict) -> dict:
         "id": str(d.id),
         "receipt_number": d.receipt_number,
         "official_receipt_no": d.official_receipt_no,
+        "receipt_seq": d.receipt_seq,
+        "created_type": created_type(d),
         "campaign_id": str(d.campaign_id),
         "campaign_title": d.campaign.title if d.campaign else None,
         "amount_cents": d.amount_cents,
@@ -870,6 +872,7 @@ def _donation_row(d: Donation, names: dict) -> dict:
         "paid_at": d.paid_at or d.created_at,
         "on_behalf_of": d.on_behalf_of,
         "donor_message": d.donor_message,
+        "transaction_id": d.transaction_id,
         "issued_by_id": str(d.issued_by_id) if d.issued_by_id else None,
         "issued_by_name": names.get(d.issued_by_id) if d.issued_by_id else None,
     }
@@ -995,6 +998,168 @@ async def search_donations(
         "totals": [{"currency": t[0], "count": int(t[1]), "total_cents": int(t[2])} for t in totals],
         "items": items,
     }
+
+
+def created_type(d: Donation) -> str:
+    """STK PRO "Oluşturma Tipi": Web (online), Erp - Temsilci (written by staff) or Erp - Otomatik (system)."""
+    provider = d.payment_provider or ""
+    if provider == "stkpro":
+        return (d.payment_details or {}).get("stkpro_type") or "Erp - Temsilci"
+    if provider == MANUAL_PROVIDER:
+        return "Erp - Temsilci"
+    if provider in ("import", "money_box", "sms_donation") or provider.startswith("bank:"):
+        return "Erp - Otomatik"
+    return "Web" if d.issued_by_id is None else "Erp - Temsilci"
+
+
+def _receipt_key():
+    """One key per receipt: its Makbuz No, else the manual receipt group, else the donation itself."""
+    from sqlalchemy import String, cast
+
+    return func.coalesce(cast(Donation.receipt_seq, String), Donation.payment_details["receipt_group"].astext,
+                         cast(Donation.id, String))
+
+
+@router.get("/receipts")
+async def list_receipts(
+    request: Request,
+    receipt_no: Annotated[Optional[str], Query(max_length=40)] = None,
+    name: Annotated[Optional[str], Query(max_length=100)] = None,
+    phone: Annotated[Optional[str], Query(max_length=30)] = None,
+    start: Optional[date] = None,
+    end: Optional[date] = None,
+    created_type_filter: Annotated[Optional[Literal["web", "temsilci", "otomatik"]], Query(alias="created_type")] = None,
+    min_total_cents: Annotated[Optional[int], Query(ge=0)] = None,
+    max_total_cents: Annotated[Optional[int], Query(ge=0)] = None,
+    payment_method: Optional[PaymentMethod] = None,
+    staff: Annotated[Optional[str], Query(description="'online' veya personel id")] = None,
+    referral: Annotated[Optional[str], Query(max_length=100)] = None,
+    status_filter: Annotated[Optional[DonationStatus], Query(alias="status")] = None,
+    campaign_id: Optional[UUID] = None,
+    with_totals: bool = False,
+    sort: Literal["date_desc", "date_asc", "no_desc", "no_asc", "total_desc", "total_asc"] = "date_desc",
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=200)] = 25,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """STK PRO "Makbuzlar": one row per receipt (all its lines summed), with per-column filters."""
+    from sqlalchemy import String, and_, cast
+
+    org_id = _org_id(request)
+    paid = func.coalesce(Donation.paid_at, Donation.created_at)
+    conditions = [Donation.organization_id == org_id]
+    if not has_capability(current_user, "receipts.view_all"):
+        conditions.append(Donation.issued_by_id == current_user.id)
+    lower, upper = _local_date_bounds(start, end)
+    if lower:
+        conditions.append(paid >= lower)
+    if upper:
+        conditions.append(paid < upper)
+    if receipt_no and receipt_no.strip():
+        text_no = receipt_no.strip().lstrip("#")
+        conditions.append(or_(cast(Donation.receipt_seq, String).like(f"{text_no}%"),
+                              Donation.official_receipt_no.ilike(f"{text_no}%"), Donation.receipt_number.ilike(f"%{text_no}%")))
+    if name and name.strip():
+        like = f"%{name.strip()}%"
+        conditions.append(or_((Donor.first_name + " " + func.coalesce(Donor.last_name, "")).ilike(like), Donor.company_name.ilike(like)))
+    if phone:
+        digits = re.sub(r"\D", "", phone)
+        if digits:
+            conditions.append(Donor.phone.ilike(f"%{digits}%"))
+    if created_type_filter == "web":
+        conditions.append(and_(Donation.issued_by_id.is_(None), func.coalesce(Donation.payment_provider, "").notin_(
+            ["manual", "import", "money_box", "sms_donation", "stkpro"]), ~func.coalesce(Donation.payment_provider, "").like("bank:%")))
+    elif created_type_filter == "temsilci":
+        conditions.append(Donation.payment_provider.in_(["manual", "stkpro"]))
+    elif created_type_filter == "otomatik":
+        conditions.append(or_(Donation.payment_provider.in_(["import", "money_box", "sms_donation"]),
+                              Donation.payment_provider.like("bank:%")))
+    if payment_method:
+        conditions.append(Donation.payment_method == payment_method)
+    if staff == "online":
+        conditions.append(Donation.issued_by_id.is_(None))
+    elif staff:
+        try:
+            conditions.append(Donation.issued_by_id == UUID(staff))
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Geçersiz personel filtresi")
+    if referral:
+        conditions.append(Donor.referral_source == referral)
+    if status_filter:
+        conditions.append(Donation.status == status_filter)
+    if campaign_id:
+        conditions.append(Donation.campaign_id == campaign_id)
+
+    key = _receipt_key().label("rkey")
+    grouped = (
+        select(
+            key,
+            func.max(Donation.receipt_seq).label("seq"),
+            func.max(Donation.official_receipt_no).label("official"),
+            func.min(Donation.receipt_number).label("receipt_number"),
+            func.min(cast(Donation.id, String)).label("first_id"),
+            func.min(cast(Donation.donor_id, String)).label("donor_id"),
+            func.min(paid).label("paid_at"),
+            func.sum(Donation.amount_cents).label("total_cents"),
+            func.min(Donation.currency).label("currency"),
+            func.count(Donation.id).label("lines"),
+            func.min(cast(Donation.status, String)).label("status"),
+        )
+        .join(Donor, Donor.id == Donation.donor_id)
+        .where(*conditions)
+        .group_by(key)
+    )
+    if min_total_cents is not None:
+        grouped = grouped.having(func.sum(Donation.amount_cents) >= min_total_cents)
+    if max_total_cents is not None:
+        grouped = grouped.having(func.sum(Donation.amount_cents) <= max_total_cents)
+    sub = grouped.subquery()
+    total = (await db.execute(select(func.count()).select_from(sub))).scalar_one()
+    order = {
+        "date_desc": (sub.c.paid_at.desc(),), "date_asc": (sub.c.paid_at.asc(),),
+        "no_desc": (sub.c.seq.desc().nullslast(), sub.c.paid_at.desc()), "no_asc": (sub.c.seq.asc().nullslast(), sub.c.paid_at.asc()),
+        "total_desc": (sub.c.total_cents.desc(),), "total_asc": (sub.c.total_cents.asc(),),
+    }[sort]
+    rows = (await db.execute(select(sub).order_by(*order).offset((page - 1) * page_size).limit(page_size))).all()
+
+    firsts = {}
+    if rows:
+        firsts = {str(d.id): d for d in (await db.execute(
+            select(Donation).options(selectinload(Donation.donor), selectinload(Donation.campaign))
+            .where(Donation.id.in_([UUID(r.first_id) for r in rows]))
+        )).scalars().all()}
+    names = await _staff_names(db, org_id)
+    items = []
+    for r in rows:
+        d = firsts.get(r.first_id)
+        donor = d.donor if d else None
+        items.append({
+            "key": r.rkey, "receipt_seq": r.seq, "official_receipt_no": r.official, "receipt_number": r.receipt_number,
+            "donation_id": r.first_id, "donor_id": r.donor_id,
+            "donor_name": donor.full_name if donor else "—",
+            "phone_code": (donor.phone_code if donor else None) or "90",
+            "donor_phone": mask_phone(donor.phone, current_user) if donor else None,
+            "referral": donor.referral_source if donor else None,
+            "paid_at": r.paid_at, "total_cents": int(r.total_cents or 0), "currency": r.currency, "lines": r.lines,
+            "status": (d.status.value if d else r.status.lower()),
+            "created_type": created_type(d) if d else "—",
+            "payment_method_label": ((d.payment_details or {}).get("bank_account_label")
+                                     or (d.payment_details or {}).get("payment_channel")
+                                     or METHOD_LABELS.get(d.payment_method, d.payment_method.value)) if d else "—",
+            "staff_name": names.get(d.issued_by_id) if d and d.issued_by_id else None,
+            "campaign_title": d.campaign.title if d and d.campaign else None,
+        })
+    out = {"total": total, "page": page, "page_size": page_size, "items": items}
+    if with_totals:
+        if not has_capability(current_user, "bank.totals") and not has_capability(current_user, "receipts.view_all"):
+            raise HTTPException(status_code=403, detail="Toplam tutarı görme yetkiniz yok")
+        sums = (await db.execute(
+            select(Donation.currency, func.coalesce(func.sum(Donation.amount_cents), 0))
+            .join(Donor, Donor.id == Donation.donor_id).where(*conditions).group_by(Donation.currency)
+        )).all()
+        out["totals"] = [{"currency": c, "total_cents": int(t)} for c, t in sums]
+    return out
 
 
 class ManualDonor(BaseModel):
@@ -1190,6 +1355,7 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
             # one e-mail/SMS for the whole receipt
             send_receipt=payload.send_receipt and index == 0,
             quantity=line.quantity, metadata=line.metadata, pending=payload.status == "pending",
+            receipt_seq=donations[0].receipt_seq if donations else None,  # one "Makbuz No" per receipt
         )
         if not donations and len(receipt_lines) > 1:
             donation.payment_details = {**donation.payment_details, "receipt_group": str(donation.id), "line": 0}
