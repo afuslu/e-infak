@@ -165,7 +165,7 @@ export default function HatirlaticiPage() {
             <span className="inline-flex items-center gap-1"><Repeat className="h-3.5 w-3.5" aria-hidden="true" />{REPEAT_LABEL[r.repeat]}</span>
           )}
           {r.donor && (
-            <Link href={`/admin/bagiscilar?donor=${r.donor.id}`} className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 font-semibold text-primary-700 hover:underline">
+            <Link href={`/admin/bagiscilar/${r.donor.id}`} className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 font-semibold text-primary-700 hover:underline">
               <User className="h-3.5 w-3.5" aria-hidden="true" />{r.donor.name}
             </Link>
           )}

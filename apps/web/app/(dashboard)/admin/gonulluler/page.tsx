@@ -715,7 +715,7 @@ export default function AdminVolunteersPage() {
                 </button>
                 {crmLinks[selected.id] && (
                   <Link
-                    href={`/admin/bagiscilar?donor=${crmLinks[selected.id]}`}
+                    href={`/admin/bagiscilar/${crmLinks[selected.id]}`}
                     className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
                   >
                     CRM Kartına Git →

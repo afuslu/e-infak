@@ -333,3 +333,14 @@ async def test_user_changes_own_password_and_keeps_current_session(db_session):
     await db_session.refresh(elsewhere)
     assert verify_password("yeni-sifre-12345", user.hashed_password)
     assert here.revoked_at is None and elsewhere.revoked_at is not None
+
+
+def test_bank_account_limit_follows_plan_and_platform_override():
+    from app.core.plans import org_bank_account_limit
+
+    org = Organization(plan="ileri", enabled_addons=[], extra_user_seats=0, settings={})
+    assert org_bank_account_limit(org) == 3
+    org.settings = {"bank_account_limit": "5"}
+    assert org_bank_account_limit(org) == 5
+    org.settings = {"bank_account_limit": "x"}
+    assert org_bank_account_limit(org) == 3

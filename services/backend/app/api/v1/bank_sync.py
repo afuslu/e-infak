@@ -21,6 +21,7 @@ from app.models.audit_log import AuditLog
 from app.models.automation import BankAccount, BankMatchRule, BankTransaction, ReconciliationStatus
 from app.models.campaign import Campaign
 from app.models.donation import Donor, DonorType
+from app.models.organization import Organization
 from app.models.user import User
 from app.services.tenant_credentials import CredentialsUnavailable, get_credentials, masked, save_credentials
 
@@ -135,6 +136,17 @@ async def create_account(payload: AccountIn, request: Request, db: AsyncSession 
     org_id = _org_id(request)
     if payload.bank_key not in CONNECTORS:
         raise HTTPException(status_code=404, detail="Bilinmeyen banka")
+    from app.core.plans import org_bank_account_limit
+
+    org = getattr(request.state, "organization", None) or await db.get(Organization, org_id)
+    limit = org_bank_account_limit(org)
+    used = (await db.execute(select(func.count(BankAccount.id)).where(
+        BankAccount.organization_id == org_id, BankAccount.enabled.is_(True)))).scalar_one()
+    if used >= limit:
+        raise HTTPException(status_code=409, detail={
+            "code": "bank_account_limit_reached", "limit": limit,
+            "message": f"Paketiniz en çok {limit} banka hesabına izin veriyor. Ek hesap için paketinizi yükseltin.",
+        })
     await _campaign(db, org_id, payload.default_campaign_id)
     iban = _normalize_validate_iban(payload.iban)
     account = BankAccount(organization_id=org_id, **payload.model_dump(exclude={"iban"}), iban=iban)

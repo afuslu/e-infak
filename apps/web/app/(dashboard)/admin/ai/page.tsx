@@ -314,7 +314,7 @@ export default function AdminAiPage() {
                         <Tr key={c.donor_id} className="hover:bg-slate-50/70">
                           <Td>
                             <Link
-                              href={`/admin/bagiscilar?donor=${c.donor_id}`}
+                              href={`/admin/bagiscilar/${c.donor_id}`}
                               className="font-semibold text-slate-900 hover:text-emerald-700"
                             >
                               {c.donor_name}
@@ -397,7 +397,7 @@ export default function AdminAiPage() {
                               </div>
                             ) : (
                               <Link
-                                href={`/admin/bagiscilar?donor=${c.donor_id}`}
+                                href={`/admin/bagiscilar/${c.donor_id}`}
                                 className="text-xs font-semibold text-emerald-700 hover:underline"
                               >
                                 Profil →
@@ -442,7 +442,7 @@ export default function AdminAiPage() {
                         <Tr key={u.donor_id} className="hover:bg-slate-50/70">
                           <Td>
                             <Link
-                              href={`/admin/bagiscilar?donor=${u.donor_id}`}
+                              href={`/admin/bagiscilar/${u.donor_id}`}
                               className="font-semibold text-slate-900 hover:text-emerald-700"
                             >
                               {u.donor_name}
@@ -481,7 +481,7 @@ export default function AdminAiPage() {
                               </div>
                             ) : (
                               <Link
-                                href={`/admin/bagiscilar?donor=${u.donor_id}`}
+                                href={`/admin/bagiscilar/${u.donor_id}`}
                                 className="text-xs font-semibold text-emerald-700 hover:underline"
                               >
                                 Profil →

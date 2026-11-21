@@ -732,7 +732,7 @@ export default function AdminDonationsPage() {
                       <Td>
                         <div className="flex items-center gap-1.5">
                           <Link
-                            href={`/admin/bagiscilar?donor=${r.donor_id}`}
+                            href={`/admin/bagiscilar/${r.donor_id}`}
                             onClick={(e) => e.stopPropagation()}
                             className="font-semibold text-slate-900 hover:text-emerald-700"
                           >
@@ -972,7 +972,7 @@ export default function AdminDonationsPage() {
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="rounded-lg bg-slate-50 p-3">
               <div className="text-slate-400">Bağışçı</div>
-              <Link href={`/admin/bagiscilar?donor=${detailRow.donor_id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
+              <Link href={`/admin/bagiscilar/${detailRow.donor_id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
                 {detailRow.donor_name}
               </Link>
               {detailRow.donor_phone && (

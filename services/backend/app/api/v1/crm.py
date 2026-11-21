@@ -39,6 +39,9 @@ router = APIRouter(
 
 TZ = ZoneInfo("Europe/Istanbul")
 HOME_COUNTRIES = {"türkiye", "turkiye", "turkey", "tr"}
+# Donor fields from the STK PRO donor form, settable on create, update and bulk update.
+PROFILE_FIELDS = ("membership_type", "blood_group", "gender", "occupation", "rating", "referral_source", "birth_date",
+                  "district", "neighbourhood", "phone_code", "phone2", "phone2_code", "staff_user_id")
 MANUAL_PROVIDER = "manual"
 # Staff-entered sources that may be cancelled (online payments go through refunds)
 OFFLINE_PROVIDERS = {MANUAL_PROVIDER, "money_box", "import"}
@@ -129,6 +132,14 @@ def _donor_summary(donor: Donor, staff_names: dict, viewer: Optional[User] = Non
         "allow_email": bool(donor.allow_email),
         "tags": donor.tags or [],
         "created_at": donor.created_at,
+        "external_ref": donor.external_ref,
+        "membership_type": donor.membership_type,
+        "referral_source": donor.referral_source,
+        "rating": donor.rating,
+        "district": donor.district,
+        "staff_user_id": str(donor.staff_user_id) if donor.staff_user_id else None,
+        "staff_user_name": staff_names.get(donor.staff_user_id),
+        "has_tc": bool(donor.tc_no),
     }
 
 
@@ -141,11 +152,37 @@ async def _staff_names(db: AsyncSession, org_id: UUID) -> dict:
 
 # --- Donors -----------------------------------------------------------------
 
-@router.get("/donors")
-async def list_donors(
-    request: Request,
+class DonorFilter(BaseModel):
+    """Donor list filters: the search box, the advanced panel and STK PRO style per-column filters."""
+    q: Optional[str] = Field(default=None, max_length=100)
+    assigned: Optional[str] = None  # 'me', 'none' or a staff id
+    staff: Optional[str] = None  # 'none' or a staff id ("Personel")
+    region: Optional[Literal["yurtici", "yurtdisi"]] = None
+    donor_type: Optional[Literal["individual", "corporate"]] = None
+    has_donation: Optional[bool] = None
+    allow_sms: Optional[bool] = None
+    allow_email: Optional[bool] = None
+    min_total_cents: Optional[int] = Field(default=None, ge=0)
+    max_total_cents: Optional[int] = Field(default=None, ge=0)
+    last_donation_start: Optional[date] = None
+    last_donation_end: Optional[date] = None
+    created_start: Optional[date] = None
+    created_end: Optional[date] = None
+    tag: Optional[str] = Field(default=None, max_length=40)
+    no: Optional[str] = Field(default=None, max_length=64)
+    name: Optional[str] = Field(default=None, max_length=100)
+    phone: Optional[str] = Field(default=None, max_length=30)
+    email: Optional[str] = Field(default=None, max_length=100)
+    tc: Optional[str] = Field(default=None, max_length=11)
+    city: Optional[str] = Field(default=None, max_length=100)
+    membership_type: Optional[str] = Field(default=None, max_length=60)
+    referral_source: Optional[str] = Field(default=None, max_length=100)
+
+
+def donor_filter_query(
     q: Annotated[Optional[str], Query(max_length=100)] = None,
     assigned: Annotated[Optional[str], Query(description="'me', 'none' veya personel id")] = None,
+    staff: Annotated[Optional[str], Query(description="'none' veya personel id")] = None,
     region: Optional[Literal["yurtici", "yurtdisi"]] = None,
     donor_type: Optional[Literal["individual", "corporate"]] = None,
     has_donation: Optional[bool] = None,
@@ -155,69 +192,130 @@ async def list_donors(
     max_total_cents: Annotated[Optional[int], Query(ge=0)] = None,
     last_donation_start: Optional[date] = None,
     last_donation_end: Optional[date] = None,
+    created_start: Optional[date] = None,
+    created_end: Optional[date] = None,
     tag: Annotated[Optional[str], Query(max_length=40)] = None,
-    sort: Literal["name", "recent", "total"] = "recent",
+    no: Annotated[Optional[str], Query(max_length=64)] = None,
+    name: Annotated[Optional[str], Query(max_length=100)] = None,
+    phone: Annotated[Optional[str], Query(max_length=30)] = None,
+    email: Annotated[Optional[str], Query(max_length=100)] = None,
+    tc: Annotated[Optional[str], Query(max_length=11)] = None,
+    city: Annotated[Optional[str], Query(max_length=100)] = None,
+    membership_type: Annotated[Optional[str], Query(max_length=60)] = None,
+    referral_source: Annotated[Optional[str], Query(max_length=100)] = None,
+) -> DonorFilter:
+    return DonorFilter(**{k: v for k, v in locals().items()})
+
+
+def _staff_condition(column, value: str, current_user: User):
+    if value == "me":
+        return column == current_user.id
+    if value == "none":
+        return column.is_(None)
+    try:
+        return column == UUID(value)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Geçersiz personel filtresi")
+
+
+def _donor_conditions(org_id: UUID, current_user: User, f: DonorFilter) -> list:
+    conditions = [Donor.organization_id == org_id]
+    if f.q:
+        like = f"%{f.q.strip()}%"
+        digits = re.sub(r"\D", "", f.q)
+        search = [
+            Donor.first_name.ilike(like), Donor.last_name.ilike(like), Donor.company_name.ilike(like),
+            Donor.email.ilike(like), Donor.city.ilike(like), Donor.external_ref.ilike(like),
+            (Donor.first_name + " " + func.coalesce(Donor.last_name, "")).ilike(like),
+        ]
+        if len(digits) >= 4:
+            search.append(Donor.phone.ilike(f"%{digits}%"))
+        conditions.append(or_(*search))
+    if f.name and f.name.strip():
+        like = f"%{f.name.strip()}%"
+        conditions.append(or_(
+            (Donor.first_name + " " + func.coalesce(Donor.last_name, "")).ilike(like), Donor.company_name.ilike(like),
+        ))
+    if f.no and f.no.strip():
+        conditions.append(Donor.external_ref.ilike(f"{f.no.strip()}%"))
+    if f.phone:
+        digits = re.sub(r"\D", "", f.phone)
+        if digits:
+            conditions.append(or_(Donor.phone.ilike(f"%{digits}%"), Donor.phone2.ilike(f"%{digits}%")))
+    if f.email and f.email.strip():
+        conditions.append(Donor.email.ilike(f"%{f.email.strip()}%"))
+    if f.tc and f.tc.strip():
+        conditions.append(Donor.tc_no.ilike(f"{f.tc.strip()}%"))
+    if f.city and f.city.strip():
+        conditions.append(Donor.city.ilike(f"%{f.city.strip()}%"))
+    if f.membership_type:
+        conditions.append(Donor.membership_type.is_(None) if f.membership_type == "none" else Donor.membership_type == f.membership_type)
+    if f.referral_source:
+        conditions.append(Donor.referral_source.is_(None) if f.referral_source == "none" else Donor.referral_source == f.referral_source)
+    if f.tag and f.tag.strip():
+        conditions.append(Donor.tags.contains([f.tag.strip()]))
+    if not has_capability(current_user, "donors.view_all"):
+        conditions.append(Donor.assigned_user_id == current_user.id)  # only donors this staff member represents
+    if f.assigned:
+        conditions.append(_staff_condition(Donor.assigned_user_id, f.assigned, current_user))
+    if f.staff:
+        conditions.append(_staff_condition(Donor.staff_user_id, f.staff, current_user))
+    country = func.lower(func.coalesce(Donor.country, "türkiye"))
+    if f.region == "yurtici":
+        conditions.append(country.in_(HOME_COUNTRIES))
+    elif f.region == "yurtdisi":
+        conditions.append(country.notin_(HOME_COUNTRIES))
+    if f.donor_type:
+        conditions.append(Donor.donor_type == DonorType(f.donor_type))
+    if f.has_donation is True:
+        conditions.append(Donor.total_donations > 0)
+    elif f.has_donation is False:
+        conditions.append(func.coalesce(Donor.total_donations, 0) == 0)
+    if f.allow_sms is not None:
+        conditions.append(Donor.allow_sms.is_(f.allow_sms))
+    if f.allow_email is not None:
+        conditions.append(Donor.allow_email.is_(f.allow_email))
+    if f.min_total_cents is not None:
+        conditions.append(func.coalesce(Donor.total_donated_cents, 0) >= f.min_total_cents)
+    if f.max_total_cents is not None:
+        conditions.append(func.coalesce(Donor.total_donated_cents, 0) <= f.max_total_cents)
+    d_lower, d_upper = _local_date_bounds(f.last_donation_start, f.last_donation_end)
+    if d_lower:
+        conditions.append(Donor.last_donation_at >= d_lower)
+    if d_upper:
+        conditions.append(Donor.last_donation_at < d_upper)
+    c_lower, c_upper = _local_date_bounds(f.created_start, f.created_end)
+    if c_lower:
+        conditions.append(Donor.created_at >= c_lower)
+    if c_upper:
+        conditions.append(Donor.created_at < c_upper)
+    return conditions
+
+
+@router.get("/donors")
+async def list_donors(
+    request: Request,
+    filters: DonorFilter = Depends(donor_filter_query),
+    sort: Literal["name", "recent", "total", "created", "no"] = "recent",
+    direction: Literal["asc", "desc"] = "desc",
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=200)] = 50,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     org_id = _org_id(request)
-    conditions = [Donor.organization_id == org_id]
-    if q:
-        like = f"%{q.strip()}%"
-        digits = re.sub(r"\D", "", q)
-        search = [
-            Donor.first_name.ilike(like), Donor.last_name.ilike(like), Donor.company_name.ilike(like),
-            Donor.email.ilike(like), Donor.city.ilike(like),
-            (Donor.first_name + " " + func.coalesce(Donor.last_name, "")).ilike(like),
-        ]
-        if len(digits) >= 4:
-            search.append(Donor.phone.ilike(f"%{digits}%"))
-        conditions.append(or_(*search))
-    if tag and tag.strip():
-        conditions.append(Donor.tags.contains([tag.strip()]))
-    if not has_capability(current_user, "donors.view_all"):
-        conditions.append(Donor.assigned_user_id == current_user.id)  # only donors this staff member represents
-    if assigned == "me":
-        conditions.append(Donor.assigned_user_id == current_user.id)
-    elif assigned == "none":
-        conditions.append(Donor.assigned_user_id.is_(None))
-    elif assigned:
-        try:
-            conditions.append(Donor.assigned_user_id == UUID(assigned))
-        except ValueError:
-            raise HTTPException(status_code=422, detail="Geçersiz personel filtresi")
-    country = func.lower(func.coalesce(Donor.country, "türkiye"))
-    if region == "yurtici":
-        conditions.append(country.in_(HOME_COUNTRIES))
-    elif region == "yurtdisi":
-        conditions.append(country.notin_(HOME_COUNTRIES))
-    if donor_type:
-        conditions.append(Donor.donor_type == DonorType(donor_type))
-    if has_donation is True:
-        conditions.append(Donor.total_donations > 0)
-    elif has_donation is False:
-        conditions.append(func.coalesce(Donor.total_donations, 0) == 0)
-    if allow_sms is not None:
-        conditions.append(Donor.allow_sms.is_(allow_sms))
-    if allow_email is not None:
-        conditions.append(Donor.allow_email.is_(allow_email))
-    if min_total_cents is not None:
-        conditions.append(func.coalesce(Donor.total_donated_cents, 0) >= min_total_cents)
-    if max_total_cents is not None:
-        conditions.append(func.coalesce(Donor.total_donated_cents, 0) <= max_total_cents)
-    d_lower, d_upper = _local_date_bounds(last_donation_start, last_donation_end)
-    if d_lower:
-        conditions.append(Donor.last_donation_at >= d_lower)
-    if d_upper:
-        conditions.append(Donor.last_donation_at < d_upper)
-
+    conditions = _donor_conditions(org_id, current_user, filters)
     total = (await db.execute(select(func.count(Donor.id)).where(*conditions))).scalar_one()
+    desc = direction == "desc"
     order = {
-        "name": (Donor.first_name.asc(), Donor.last_name.asc()),
-        "recent": (Donor.last_donation_at.desc().nullslast(), Donor.created_at.desc()),
-        "total": (Donor.total_donated_cents.desc().nullslast(),),
+        "name": (Donor.first_name.desc(), Donor.last_name.desc()) if desc else (Donor.first_name.asc(), Donor.last_name.asc()),
+        "recent": (Donor.last_donation_at.desc().nullslast(), Donor.created_at.desc()) if desc
+        else (Donor.last_donation_at.asc().nullslast(), Donor.created_at.asc()),
+        "total": (Donor.total_donated_cents.desc().nullslast(),) if desc else (Donor.total_donated_cents.asc().nullsfirst(),),
+        "created": (Donor.created_at.desc(),) if desc else (Donor.created_at.asc(),),
+        # STK PRO numbers are digits: order by length first so 9 < 10.
+        "no": (func.length(Donor.external_ref).desc().nullslast(), Donor.external_ref.desc(), Donor.created_at.desc()) if desc
+        else (func.length(Donor.external_ref).asc().nullslast(), Donor.external_ref.asc(), Donor.created_at.asc()),
     }[sort]
     rows = (await db.execute(
         select(Donor).where(*conditions).order_by(*order).offset((page - 1) * page_size).limit(page_size)
@@ -242,11 +340,38 @@ class DonorIn(BaseModel):
     allow_sms: bool = False
     allow_email: bool = False
     assigned_user_id: Optional[UUID] = None
+    # STK PRO donor form
+    membership_type: Optional[str] = Field(default=None, max_length=60)
+    blood_group: Optional[Literal["0+", "0-", "A+", "A-", "B+", "B-", "AB+", "AB-"]] = None
+    gender: Optional[Literal["erkek", "kadin"]] = None
+    occupation: Optional[str] = Field(default=None, max_length=100)
+    rating: Optional[str] = Field(default=None, max_length=60)
+    referral_source: Optional[str] = Field(default=None, max_length=100)
+    birth_date: Optional[date] = None
+    district: Optional[str] = Field(default=None, max_length=100)
+    neighbourhood: Optional[str] = Field(default=None, max_length=150)
+    phone_code: Optional[str] = Field(default=None, pattern=r"^\d{1,4}$")
+    phone2: Optional[str] = None
+    phone2_code: Optional[str] = Field(default=None, pattern=r"^\d{1,4}$")
+    staff_user_id: Optional[UUID] = None
 
     @field_validator("phone", mode="before")
     @classmethod
     def check_phone(cls, value):
         return _normalize_phone(value, allow_masked=True)
+
+    @field_validator("phone2", mode="before")
+    @classmethod
+    def check_phone2(cls, value):
+        return _normalize_phone(value, allow_masked=True)
+
+    @field_validator("membership_type", "occupation", "rating", "referral_source", "district", "neighbourhood",
+                     "blood_group", "gender", "phone_code", "phone2_code", "birth_date", mode="before")
+    @classmethod
+    def blank_to_none(cls, value):
+        if isinstance(value, str):
+            value = sanitize_public_text(value.strip()) if value.strip() else None
+        return value or None
 
     @field_validator("first_name", "last_name", "company_name", "address", "city", "country", mode="before")
     @classmethod
@@ -296,12 +421,15 @@ async def create_donor(request: Request, payload: DonorIn, db: AsyncSession = De
                        current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
     ensure_capability(current_user, "donors.create", "Bağışçı ekleme yetkiniz yok")
-    if payload.phone == MASKED_PHONE:
+    if MASKED_PHONE in (payload.phone, payload.phone2):
         raise HTTPException(status_code=422, detail="Telefon numarasını tam yazın")
     await _ensure_no_duplicate(db, org_id, payload.email, payload.phone)
     if payload.assigned_user_id:
         await _ensure_staff(db, org_id, payload.assigned_user_id)
+    if payload.staff_user_id:
+        await _ensure_staff(db, org_id, payload.staff_user_id)
     data = payload.model_dump()
+    data["staff_user_id"] = payload.staff_user_id or current_user.id  # "Personel": who registered the donor
     data["donor_type"] = DonorType(data["donor_type"])
     data["email"] = str(payload.email) if payload.email else None
     donor = Donor(organization_id=org_id, total_donations=0, total_donated_cents=0, **data)
@@ -350,6 +478,14 @@ async def get_donor_card(request: Request, donor_id: UUID, db: AsyncSession = De
         "address": donor.address,
         "tc_no_masked": f"{donor.tc_no[:3]}*****{donor.tc_no[-2:]}" if donor.tc_no else None,
         "tax_number": donor.tax_number,
+        "occupation": donor.occupation,
+        "blood_group": donor.blood_group,
+        "gender": donor.gender,
+        "birth_date": donor.birth_date,
+        "neighbourhood": donor.neighbourhood,
+        "phone_code": donor.phone_code,
+        "phone2": mask_phone(donor.phone2, current_user) if donor.phone2 else None,
+        "phone2_code": donor.phone2_code,
         "donations": [_donation_row(d, names) for d in donations],
         "notes": [
             {"id": str(n.id), "content": n.content, "created_at": n.created_at,
@@ -358,7 +494,107 @@ async def get_donor_card(request: Request, donor_id: UUID, db: AsyncSession = De
         ],
         "yearly": sorted(by_year.values(), key=lambda b: b["year"], reverse=True),
     })
+    card.update(await _donor_card_extras(db, org_id, donor, names))
     return card
+
+
+ACTION_LABELS = {
+    "bagisci_olustur": "Bağışçı oluşturuldu",
+    "bagisci_guncelle": "Bağışçı güncellendi",
+    "bagisci_toplu_guncelle": "Toplu güncelleme",
+    "bagisci_not_ekle": "Görüşme notu eklendi",
+    "bagisci_birlestir": "Mükerrer kayıt birleştirildi",
+    "bagisci_sms": "SMS gönderildi",
+}
+FIELD_LABELS = {
+    "first_name": "Ad", "last_name": "Soyad", "company_name": "Kurum adı", "phone": "Cep telefonu", "phone2": "Telefon",
+    "email": "E-posta", "address": "Adres", "city": "İl", "district": "İlçe", "neighbourhood": "Mahalle",
+    "country": "Ülke", "tax_number": "Vergi no", "tc_no": "T.C. kimlik", "tags": "Etiketler", "allow_sms": "SMS izni",
+    "allow_email": "E-posta izni", "donor_type": "Üyelik türü", "assigned_user_id": "Temsilci",
+    "staff_user_id": "Personel", "membership_type": "Üyelik tipi", "referral_source": "Referans", "rating": "Değerlendirme",
+    "occupation": "Meslek", "gender": "Cinsiyet", "blood_group": "Kan grubu", "birth_date": "Doğum tarihi",
+    "phone_code": "Cep kodu", "phone2_code": "Telefon kodu",
+}
+
+
+async def _donor_card_extras(db: AsyncSession, org_id: UUID, donor: Donor, names: dict) -> dict:
+    """STK PRO card tabs: Kurban, Sponsorluk and Su Kuyusu donations, plus the record's change history."""
+    from app.models.kurban import KurbanShare
+    from app.models.sponsorship import Pledge, WellShare
+    from app.models.water_well import WaterWell
+
+    shares = (await db.execute(
+        select(KurbanShare).options(selectinload(KurbanShare.animal), selectinload(KurbanShare.campaign),
+                                    selectinload(KurbanShare.donation))
+        .where(KurbanShare.organization_id == org_id, KurbanShare.donor_id == donor.id)
+        .order_by(KurbanShare.created_at.desc()).limit(500)
+    )).scalars().all()
+    pledges = (await db.execute(
+        select(Pledge).options(selectinload(Pledge.installments), selectinload(Pledge.beneficiary))
+        .where(Pledge.organization_id == org_id, Pledge.donor_id == donor.id).order_by(Pledge.created_at.desc())
+    )).scalars().all()
+    well_shares = (await db.execute(
+        select(WellShare, WaterWell.name).join(WaterWell, WaterWell.id == WellShare.water_well_id)
+        .where(WellShare.organization_id == org_id, WellShare.donor_id == donor.id).order_by(WellShare.created_at.desc())
+    )).all()
+    own_wells = (await db.execute(
+        select(WaterWell).where(WaterWell.organization_id == org_id, WaterWell.donor_id == donor.id)
+    )).scalars().all()
+    logs = (await db.execute(
+        select(AuditLog).where(AuditLog.organization_id == org_id, AuditLog.details["donor_id"].as_string() == str(donor.id))
+        .order_by(AuditLog.created_at.desc()).limit(100)
+    )).scalars().all()
+
+    def pledge_row(p):
+        paid = [i for i in p.installments if i.status == "paid"]
+        return {
+            "id": str(p.id), "kind": p.kind, "title": p.title or (f"{p.beneficiary.first_name} {p.beneficiary.last_name or ''}".strip() if p.beneficiary else None),
+            "installment_amount_cents": p.installment_amount_cents, "currency": p.currency,
+            "installment_count": p.installment_count, "paid_count": len(paid), "status": p.status,
+            "start_date": p.start_date,
+        }
+
+    def history_row(log):
+        changed = (log.details or {}).get("changed") or {}
+        return {
+            "id": str(log.id), "action": ACTION_LABELS.get(log.action, log.action),
+            "fields": [FIELD_LABELS.get(k, k) for k in changed] if isinstance(changed, dict) else [],
+            "user": names.get(log.user_id), "created_at": log.created_at,
+        }
+
+    return {
+        "kurban_shares": [{
+            "id": str(sh.id), "campaign": sh.campaign.title if sh.campaign else None,
+            "animal_number": sh.animal.animal_number if sh.animal else None, "share_number": sh.share_number,
+            "kurban_type": sh.kurban_type, "status": sh.status.value if hasattr(sh.status, "value") else sh.status,
+            "on_behalf_of": sh.on_behalf_of, "receipt_number": sh.donation.receipt_number if sh.donation else None,
+            "created_at": sh.created_at,
+        } for sh in shares],
+        "sponsorships": [pledge_row(p) for p in pledges if p.kind != "water_well"],
+        "water_wells": [pledge_row(p) for p in pledges if p.kind == "water_well"] + [{
+            "id": str(ws.id), "kind": "well_share", "title": name, "share_count": ws.share_count,
+            "on_behalf_of": ws.on_behalf_of, "created_at": ws.created_at,
+        } for ws, name in well_shares] + [{
+            "id": str(w.id), "kind": "well", "title": w.name, "created_at": w.created_at,
+        } for w in own_wells],
+        "history": [history_row(log) for log in logs],
+    }
+
+
+@router.get("/donors-options")
+async def donor_options(request: Request, db: AsyncSession = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
+    """Values already in use for the free-choice donor fields, for the form suggestions and column filters."""
+    org_id = _org_id(request)
+    out = {}
+    for key, column in (("membership_type", Donor.membership_type), ("referral_source", Donor.referral_source),
+                        ("rating", Donor.rating), ("occupation", Donor.occupation)):
+        rows = (await db.execute(
+            select(column, func.count()).where(Donor.organization_id == org_id, column.isnot(None))
+            .group_by(column).order_by(func.count().desc()).limit(60)
+        )).all()
+        out[key] = [r[0] for r in rows]
+    return out
 
 
 @router.put("/donors/{donor_id}")
@@ -372,9 +608,14 @@ async def update_donor(request: Request, donor_id: UUID, payload: DonorUpdate, d
     phone_given = "phone" in payload.model_fields_set and payload.phone != MASKED_PHONE
     await _ensure_no_duplicate(db, org_id, payload.email, payload.phone if phone_given else None, exclude_id=donor.id)
     changes = {}
-    for key in ("first_name", "last_name", "company_name", "phone", "address", "city", "country", "tax_number", "tags", "allow_sms", "allow_email"):
+    if "staff_user_id" in payload.model_fields_set and payload.staff_user_id and payload.staff_user_id != donor.staff_user_id:
+        await _ensure_staff(db, org_id, payload.staff_user_id)
+    for key in ("first_name", "last_name", "company_name", "phone", "address", "city", "country", "tax_number", "tags",
+                "allow_sms", "allow_email", *PROFILE_FIELDS):
         if key not in payload.model_fields_set or (key == "phone" and not phone_given):
             continue  # not sent (or sent back masked): keep the stored value
+        if key == "phone2" and payload.phone2 == MASKED_PHONE:
+            continue
         value = getattr(payload, key)
         if getattr(donor, key) != value:
             changes[key] = True
@@ -425,6 +666,157 @@ async def delete_donor(request: Request, donor_id: UUID, db: AsyncSession = Depe
     await db.delete(donor)
     await db.commit()
     return {"deleted": True}
+
+
+class DonorBulkUpdate(BaseModel):
+    """Fields "Toplu Güncelle" may set; unset fields are left alone."""
+    membership_type: Optional[str] = Field(default=None, max_length=60)
+    referral_source: Optional[str] = Field(default=None, max_length=100)
+    rating: Optional[str] = Field(default=None, max_length=60)
+    city: Optional[str] = Field(default=None, max_length=100)
+    assigned_user_id: Optional[UUID] = None
+    staff_user_id: Optional[UUID] = None
+    allow_sms: Optional[bool] = None
+    allow_email: Optional[bool] = None
+    add_tag: Optional[str] = Field(default=None, max_length=40)
+    remove_tag: Optional[str] = Field(default=None, max_length=40)
+
+
+class DonorBulkIn(BaseModel):
+    """STK PRO "Toplu İşlemler": either picked rows (ids) or every row matching the filters (select_all)."""
+    action: Literal["update", "delete", "export", "phones"]
+    ids: List[UUID] = Field(default_factory=list, max_length=5000)
+    select_all: bool = False
+    filters: DonorFilter = Field(default_factory=DonorFilter)
+    update: Optional[DonorBulkUpdate] = None
+    columns: List[str] = Field(default_factory=list, max_length=40)
+
+
+EXPORT_COLUMNS = {
+    "no": ("No", lambda d, n, u: d.external_ref or ""),
+    "donor_type": ("Üyelik Türü", lambda d, n, u: "Kurumsal" if d.donor_type == DonorType.CORPORATE else "Bireysel"),
+    "full_name": ("Ad Soyad", lambda d, n, u: d.full_name or ""),
+    "company_name": ("Kurum Adı", lambda d, n, u: d.company_name or ""),
+    "phone_code": ("Kod", lambda d, n, u: d.phone_code or "90"),
+    "phone": ("Cep Telefon", lambda d, n, u: mask_phone(d.phone, u) or ""),
+    "phone2": ("Diğer Telefon", lambda d, n, u: mask_phone(d.phone2, u) or ""),
+    "email": ("E-posta", lambda d, n, u: d.email or ""),
+    "tc_no": ("T.C. Kimlik", lambda d, n, u: (d.tc_no or "") if has_capability(u, "donors.phone") else ("*" * 11 if d.tc_no else "")),
+    "created_at": ("Üyelik Tarihi", lambda d, n, u: d.created_at.astimezone(TZ).strftime("%d.%m.%Y %H:%M") if d.created_at else ""),
+    "total": ("Toplam Bağış", lambda d, n, u: round((d.total_donated_cents or 0) / 100, 2)),
+    "total_donations": ("Bağış Sayısı", lambda d, n, u: d.total_donations or 0),
+    "last_donation_at": ("Son Bağış", lambda d, n, u: d.last_donation_at.astimezone(TZ).strftime("%d.%m.%Y") if d.last_donation_at else ""),
+    "membership_type": ("Üyelik Tipi", lambda d, n, u: d.membership_type or ""),
+    "referral_source": ("Referans", lambda d, n, u: d.referral_source or ""),
+    "assigned": ("Temsilci", lambda d, n, u: n.get(d.assigned_user_id, "")),
+    "staff": ("Personel", lambda d, n, u: n.get(d.staff_user_id, "")),
+    "rating": ("Değerlendirme", lambda d, n, u: d.rating or ""),
+    "occupation": ("Meslek", lambda d, n, u: d.occupation or ""),
+    "gender": ("Cinsiyet", lambda d, n, u: {"erkek": "Erkek", "kadin": "Kadın"}.get(d.gender or "", "")),
+    "blood_group": ("Kan Grubu", lambda d, n, u: d.blood_group or ""),
+    "birth_date": ("Doğum Tarihi", lambda d, n, u: d.birth_date.strftime("%d.%m.%Y") if d.birth_date else ""),
+    "country": ("Ülke", lambda d, n, u: d.country or ""),
+    "city": ("İl", lambda d, n, u: d.city or ""),
+    "district": ("İlçe", lambda d, n, u: d.district or ""),
+    "neighbourhood": ("Mahalle", lambda d, n, u: d.neighbourhood or ""),
+    "address": ("Adres", lambda d, n, u: d.address or ""),
+    "tags": ("Etiketler", lambda d, n, u: ", ".join(d.tags or [])),
+    "allow_sms": ("SMS İzni", lambda d, n, u: "Evet" if d.allow_sms else "Hayır"),
+    "allow_email": ("E-posta İzni", lambda d, n, u: "Evet" if d.allow_email else "Hayır"),
+}
+DEFAULT_EXPORT = ["no", "donor_type", "full_name", "phone_code", "phone", "email", "tc_no", "created_at", "total",
+                  "membership_type", "referral_source", "assigned", "staff"]
+BULK_LIMIT = 50_000
+
+
+@router.post("/donors/bulk")
+async def bulk_donors(request: Request, payload: DonorBulkIn, db: AsyncSession = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    """Toplu Güncelle / Sil / Dışa Aktar / telefon listesi, on picked rows or on every row matching the filters."""
+    from app.models.membership import Member
+
+    org_id = _org_id(request)
+    if payload.select_all:
+        conditions = _donor_conditions(org_id, current_user, payload.filters)
+    else:
+        if not payload.ids:
+            raise HTTPException(status_code=422, detail="Kayıt seçin")
+        conditions = _donor_conditions(org_id, current_user, DonorFilter()) + [Donor.id.in_(payload.ids)]
+    count = (await db.execute(select(func.count(Donor.id)).where(*conditions))).scalar_one()
+    if count > BULK_LIMIT:
+        raise HTTPException(status_code=422, detail=f"Tek seferde en çok {BULK_LIMIT:,} kayıt işlenebilir; filtreyi daraltın")
+
+    if payload.action == "export":
+        ensure_capability(current_user, "donors.export", "Bağışçıları dışa aktarma yetkiniz yok")
+        keys = [c for c in (payload.columns or DEFAULT_EXPORT) if c in EXPORT_COLUMNS] or DEFAULT_EXPORT
+        names = await _staff_names(db, org_id)
+        donors = (await db.execute(select(Donor).where(*conditions).order_by(Donor.created_at.desc()))).scalars().all()
+        _audit(db, org_id, current_user, "bagisci_disa_aktar", {"count": len(donors), "columns": keys})
+        await db.commit()
+        return {
+            "columns": [{"key": k, "label": EXPORT_COLUMNS[k][0]} for k in keys],
+            "rows": [[EXPORT_COLUMNS[k][1](d, names, current_user) for k in keys] for d in donors],
+        }
+
+    if payload.action == "phones":
+        # "SMS Listesi Oluştur" / quick SMS: numbers of donors who allow SMS.
+        rows = (await db.execute(
+            select(Donor.id, Donor.phone).where(*conditions, Donor.phone.isnot(None), Donor.allow_sms.is_(True))
+        )).all()
+        return {"total": count, "with_phone": len(rows), "donor_ids": [str(r[0]) for r in rows]}
+
+    if payload.action == "delete":
+        ensure_capability(current_user, "donors.delete", "Bağışçı silme yetkiniz yok")
+        if not has_capability(current_user, "donors.update_all"):
+            conditions.append(Donor.assigned_user_id == current_user.id)
+        has_donation = select(Donation.id).where(Donation.donor_id == Donor.id).exists()
+        has_member = select(Member.id).where(Member.donor_id == Donor.id).exists()
+        ids = (await db.execute(select(Donor.id).where(*conditions, ~has_donation, ~has_member))).scalars().all()
+        if ids:
+            from sqlalchemy import delete as sql_delete
+
+            await db.execute(sql_delete(Donor).where(Donor.id.in_(ids)))
+        _audit(db, org_id, current_user, "bagisci_toplu_sil", {"deleted": len(ids), "selected": count})
+        await db.commit()
+        return {"selected": count, "deleted": len(ids), "skipped": count - len(ids)}
+
+    # update
+    ensure_capability(current_user, "donors.update", "Bağışçı güncelleme yetkiniz yok")
+    if not has_capability(current_user, "donors.update_all"):
+        conditions.append(Donor.assigned_user_id == current_user.id)
+    upd = payload.update
+    if not upd or not upd.model_fields_set:
+        raise HTTPException(status_code=422, detail="Güncellenecek alan seçin")
+    values = {}
+    for key in ("membership_type", "referral_source", "rating", "city", "allow_sms", "allow_email"):
+        if key in upd.model_fields_set:
+            value = getattr(upd, key)
+            values[key] = value.strip() or None if isinstance(value, str) else value
+    for key in ("assigned_user_id", "staff_user_id"):
+        if key in upd.model_fields_set:
+            if getattr(upd, key):
+                await _ensure_staff(db, org_id, getattr(upd, key))
+            values[key] = getattr(upd, key)
+    from sqlalchemy import update as sql_update
+
+    updated = 0
+    if values:
+        result = await db.execute(sql_update(Donor).where(*conditions).values(**values).execution_options(synchronize_session=False))
+        updated = result.rowcount or 0
+    if upd.add_tag or upd.remove_tag:
+        donors = (await db.execute(select(Donor).where(*conditions))).scalars().all()
+        for donor in donors:
+            tags = list(donor.tags or [])
+            if upd.add_tag and upd.add_tag.strip() and upd.add_tag.strip() not in tags:
+                tags.append(upd.add_tag.strip())
+            if upd.remove_tag and upd.remove_tag.strip() in tags:
+                tags.remove(upd.remove_tag.strip())
+            donor.tags = tags
+        updated = max(updated, len(donors))
+    _audit(db, org_id, current_user, "bagisci_toplu_guncelle",
+           {"selected": count, "fields": sorted(upd.model_fields_set)})
+    await db.commit()
+    return {"selected": count, "updated": updated}
 
 
 class DonorSms(BaseModel):

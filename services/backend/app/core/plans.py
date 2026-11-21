@@ -179,6 +179,13 @@ def org_user_limit(organization) -> int:
 
 
 def org_bank_account_limit(organization) -> int:
+    """Banka hesabı sınırı; platform `settings.bank_account_limit` ile kuruma özel değer verebilir."""
+    override = (getattr(organization, "settings", None) or {}).get("bank_account_limit")
+    try:
+        if override is not None:
+            return max(0, int(override))
+    except (TypeError, ValueError):
+        pass
     return PLAN_LIMITS[org_plan(organization)]["bank_accounts"]
 
 

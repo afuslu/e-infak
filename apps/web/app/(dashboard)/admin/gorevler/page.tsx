@@ -1514,7 +1514,7 @@ export default function TasksPage() {
                   </select>
                   {selected.donor_id && (
                     <Link
-                      href={`/admin/bagiscilar?donor=${selected.donor_id}`}
+                      href={`/admin/bagiscilar/${selected.donor_id}`}
                       title="Bağışçı kartına git"
                       className="shrink-0 rounded-lg border border-slate-200 p-2 text-emerald-700 hover:bg-emerald-50"
                     >

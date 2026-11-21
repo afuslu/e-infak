@@ -116,7 +116,7 @@ function Records({ campaigns, onChange }: { campaigns: Campaign[]; onChange: () 
                 <Td className="font-mono text-xs">{r.keyword || '—'}</Td>
                 <Td className="text-right tabular-nums">{tl(r.amount_cents)}</Td>
                 <Td>{r.campaign_title || '—'}</Td>
-                <Td>{r.donor_id ? <Link className="text-primary-700 hover:underline" href={`/admin/bagiscilar?donor=${r.donor_id}`}>{r.donor_name}</Link> : '—'}</Td>
+                <Td>{r.donor_id ? <Link className="text-primary-700 hover:underline" href={`/admin/bagiscilar/${r.donor_id}`}>{r.donor_name}</Link> : '—'}</Td>
                 <Td>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATUS[r.status][1]}`}>{STATUS[r.status][0]}</span>
                   {r.error && r.status !== 'recorded' && <div className="mt-1 max-w-[220px] text-xs text-gray-500">{r.error}</div>}

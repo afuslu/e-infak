@@ -656,7 +656,7 @@ export default function SmsLogPage() {
                     </Td>
                     <Td>
                       {m.donor_id ? (
-                        <Link href={`/admin/bagiscilar?donor=${m.donor_id}`} className="font-semibold text-primary-700 hover:underline">
+                        <Link href={`/admin/bagiscilar/${m.donor_id}`} className="font-semibold text-primary-700 hover:underline">
                           {m.donor_name || 'Bağışçı'}
                         </Link>
                       ) : (

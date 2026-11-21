@@ -1,4 +1,4 @@
-from sqlalchemy import UniqueConstraint, Column, String, Boolean, DateTime, Text, Integer, Enum, ForeignKey, Index
+from sqlalchemy import UniqueConstraint, Column, String, Boolean, DateTime, Text, Integer, Enum, ForeignKey, Index, Date
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -39,6 +39,22 @@ class Donor(Base):
 
     # Number of this donor in the system the organisation migrated from (e.g. STK PRO "Bağışçı No")
     external_ref = Column(String(64))
+
+    # Profile (STK PRO donor form). Choice lists live in org settings ("donor_options").
+    membership_type = Column(String(60))
+    blood_group = Column(String(8))
+    gender = Column(String(10))
+    occupation = Column(String(100))
+    rating = Column(String(60))
+    referral_source = Column(String(100))
+    birth_date = Column(Date)
+    district = Column(String(100))
+    neighbourhood = Column(String(150))
+    phone_code = Column(String(6))
+    phone2 = Column(String(20))
+    phone2_code = Column(String(6))
+    # Staff member who registered / looks after the record ("Personel"), separate from the representative
+    staff_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
 
     # Stats
     total_donations = Column(Integer, default=0)

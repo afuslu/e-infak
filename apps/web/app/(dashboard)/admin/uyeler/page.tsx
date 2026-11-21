@@ -785,7 +785,7 @@ function MemberCard({ detail, canEdit, canCollect, canSms, onEdit, onClose, onCh
         </div>
         <div className="flex gap-2">
           {canEdit && <button className={ghostButton} onClick={onEdit}>Düzenle</button>}
-          <a className={ghostButton} href={`/admin/bagiscilar?donor=${detail.donor_id}`}>Bağışçı kartı</a>
+          <a className={ghostButton} href={`/admin/bagiscilar/${detail.donor_id}`}>Bağışçı kartı</a>
         </div>
       </div>
       {detail.notes && <p className="whitespace-pre-line rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{detail.notes}</p>}

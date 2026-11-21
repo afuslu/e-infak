@@ -243,8 +243,8 @@ async def test_online_donations_cannot_be_cancelled_and_filters_work(db_session)
                                       **_search_defaults(issued_by="manual"))
     assert none["total"] == 0
 
-    abroad = await crm.list_donors(_request(org), q=None, assigned=None, region="yurtdisi", donor_type=None,
-                                   has_donation=None, sort="recent", page=1, page_size=50, db=db_session, current_user=admin)
+    abroad = await crm.list_donors(_request(org), filters=crm.DonorFilter(region="yurtdisi"), sort="recent", page=1,
+                                   page_size=50, db=db_session, current_user=admin)
     assert [d["full_name"] for d in abroad["items"]] == ["Zeynep Kart"]
 
     updated = await crm.update_donor(
@@ -253,8 +253,8 @@ async def test_online_donations_cannot_be_cancelled_and_filters_work(db_session)
         db_session, admin,
     )
     assert updated["assigned_user_name"] == "Ayşe Admin"
-    mine = await crm.list_donors(_request(org), q=None, assigned="me", region=None, donor_type=None,
-                                 has_donation=None, sort="name", page=1, page_size=50, db=db_session, current_user=admin)
+    mine = await crm.list_donors(_request(org), filters=crm.DonorFilter(assigned="me"), sort="name", page=1,
+                                 page_size=50, db=db_session, current_user=admin)
     assert mine["total"] == 1
 
     with pytest.raises(HTTPException) as exc:
@@ -310,3 +310,54 @@ def select_group(group, org_id):
     from sqlalchemy import select
     from app.models.donation import Donation
     return select(Donation).where(Donation.organization_id == org_id, Donation.payment_details["receipt_group"].astext == group)
+
+
+async def test_donor_column_filters_and_bulk_actions(db_session):
+    org, admin, campaign = await _setup(db_session)
+    a = Donor(organization_id=org.id, first_name="Ali", last_name="Veli", phone="905321112233", external_ref="25739",
+              membership_type="Erp", referral_source="Cami", total_donations=1, total_donated_cents=960_000)
+    b = Donor(organization_id=org.id, first_name="Ayşe", last_name="Kaya", phone="905449998877", external_ref="9",
+              membership_type="Web", total_donations=0, total_donated_cents=0)
+    c = Donor(organization_id=org.id, first_name="Test", last_name="Silinecek", membership_type="Web")
+    db_session.add_all([a, b, c])
+    await db_session.flush()
+    db_session.add(Donation(organization_id=org.id, campaign_id=campaign.id, donor_id=a.id, receipt_number=f"R-{uuid.uuid4().hex[:8]}",
+                            amount_cents=960_000, currency="TRY", payment_method=PaymentMethod.BANK_TRANSFER,
+                            status=DonationStatus.CONFIRMED, paid_at=datetime.now(timezone.utc)))
+    await db_session.commit()
+
+    async def listed(**filters):
+        result = await crm.list_donors(_request(org), filters=crm.DonorFilter(**filters), sort="no", direction="asc",
+                                       page=1, page_size=10, db=db_session, current_user=admin)
+        return [d["first_name"] for d in result["items"]]
+
+    assert await listed(no="2573") == ["Ali"]
+    assert await listed(phone="0544 999") == ["Ayşe"]
+    assert await listed(membership_type="Web", name="ay") == ["Ayşe"]
+    assert await listed(referral_source="Cami") == ["Ali"]
+    assert (await listed(membership_type="Web"))[0] == "Ayşe"  # "9" sorts before "25739", empty numbers last
+
+    upd = await crm.bulk_donors(_request(org, "POST"), crm.DonorBulkIn(
+        action="update", select_all=True, filters=crm.DonorFilter(membership_type="Web"),
+        update=crm.DonorBulkUpdate(referral_source="Kermes", add_tag="2026"),
+    ), db_session, admin)
+    assert upd == {"selected": 2, "updated": 2}
+    assert await listed(referral_source="Kermes") == ["Ayşe", "Test"]
+
+    exported = await crm.bulk_donors(_request(org, "POST"), crm.DonorBulkIn(
+        action="export", ids=[a.id], columns=["no", "full_name", "total", "membership_type"],
+    ), db_session, admin)
+    assert [col["label"] for col in exported["columns"]] == ["No", "Ad Soyad", "Toplam Bağış", "Üyelik Tipi"]
+    assert exported["rows"] == [["25739", "Ali Veli", 9600.0, "Erp"]]
+
+    deleted = await crm.bulk_donors(_request(org, "POST"), crm.DonorBulkIn(action="delete", ids=[a.id, c.id]), db_session, admin)
+    assert deleted == {"selected": 2, "deleted": 1, "skipped": 1}  # the donor with a donation stays
+    assert await listed() == ["Ayşe", "Ali"]
+
+
+def test_donor_form_validates_profile_fields():
+    donor = crm.DonorIn(first_name="Ali", phone="0532 111 22 33", phone2="", blood_group="AB+", gender="erkek",
+                        birth_date="1990-05-01", membership_type="  ", phone2_code="49")
+    assert donor.phone2 is None and donor.membership_type is None and donor.blood_group == "AB+"
+    with pytest.raises(ValidationError):
+        crm.DonorIn(first_name="Ali", blood_group="C+")

@@ -676,7 +676,7 @@ export default function AdminDashboardPage() {
                           <div className="font-mono text-[10px] text-gray-400">{d.receipt_number}</div>
                         </td>
                         <td className="py-2.5 font-semibold text-gray-900">
-                          <Link href={`/admin/bagiscilar?donor=${d.donor_id}`} className="hover:text-primary-700">
+                          <Link href={`/admin/bagiscilar/${d.donor_id}`} className="hover:text-primary-700">
                             {d.donor_name}
                           </Link>
                         </td>

@@ -58,8 +58,8 @@ async def test_restricted_role_sees_own_donors_masked_and_cannot_backdate(db_ses
     assert Permission.DONOR_MANAGE in effective_permissions(clerk) and Permission.FINANCE_MANAGE in effective_permissions(clerk)
     assert "donors.view_all" not in effective_capabilities(clerk) and "donors.view_all" in effective_capabilities(admin)
 
-    listed = await crm.list_donors(_request(org), q=None, assigned=None, region=None, donor_type=None, has_donation=None,
-                                   tag=None, sort="name", page=1, page_size=50, db=db_session, current_user=clerk)
+    listed = await crm.list_donors(_request(org), filters=crm.DonorFilter(), sort="name", page=1, page_size=50,
+                                   db=db_session, current_user=clerk)
     assert [d["first_name"] for d in listed["items"]] == ["Benim"]
     assert listed["items"][0]["phone"] == "0532 *** ** 67"
     with pytest.raises(HTTPException) as exc:  # someone else's donor does not exist for this clerk

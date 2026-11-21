@@ -225,7 +225,7 @@ export const SanalPosHareketleri: React.FC = () => {
                     <tr key={d.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
                       <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">{formatDateTime(d.paid_at)}</td>
                       <td className="px-4 py-3">
-                        <Link href={`/admin/bagiscilar?donor=${d.donor_id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
+                        <Link href={`/admin/bagiscilar/${d.donor_id}`} className="font-semibold text-slate-900 hover:text-emerald-700">
                           {d.donor_name}
                         </Link>
                         {d.on_behalf_of ? <p className="text-xs text-slate-500">{d.on_behalf_of} adına</p> : null}

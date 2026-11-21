@@ -70,7 +70,7 @@ export function IncomingCallPopup() {
               <div>{c.phone}{c.donor.city ? ` · ${c.donor.city}` : ''}</div>
               <div><b>{tl(c.donor.total_cents)}</b> · {c.donor.donation_count} bağış{c.donor.last_donation_at ? ` · son ${new Date(c.donor.last_donation_at).toLocaleDateString('tr-TR')}` : ''}</div>
               {c.donor.tags.length > 0 && <div className="flex flex-wrap gap-1">{c.donor.tags.slice(0, 4).map((t) => <span key={t} className="rounded bg-gray-100 px-1.5 py-0.5 text-xs">{t}</span>)}</div>}
-              <Link href={`/admin/bagiscilar?donor=${c.donor.id}`} className="mt-2 inline-block font-semibold text-primary-700 hover:underline">Bağışçı kartını aç →</Link>
+              <Link href={`/admin/bagiscilar/${c.donor.id}`} className="mt-2 inline-block font-semibold text-primary-700 hover:underline">Bağışçı kartını aç →</Link>
             </div>
           ) : (
             <div className="mt-3 text-sm text-gray-600">

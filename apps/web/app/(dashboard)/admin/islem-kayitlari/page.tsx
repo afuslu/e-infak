@@ -246,7 +246,7 @@ export default function ActivityLogPage() {
                     <Td className="max-w-xl text-xs text-slate-600">
                       {summary(r.details) || '—'}
                       {r.donor_id && (
-                        <Link href={`/admin/bagiscilar?donor=${r.donor_id}`} className="ml-2 font-bold text-emerald-700 hover:underline">
+                        <Link href={`/admin/bagiscilar/${r.donor_id}`} className="ml-2 font-bold text-emerald-700 hover:underline">
                           Bağışçı kartı
                         </Link>
                       )}
@@ -281,7 +281,7 @@ export default function ActivityLogPage() {
               </span>
               {detailRow.donor_id && (
                 <Link
-                  href={`/admin/bagiscilar?donor=${detailRow.donor_id}`}
+                  href={`/admin/bagiscilar/${detailRow.donor_id}`}
                   className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-bold text-emerald-700 hover:underline"
                 >
                   Bağışçı Kartına Git →
