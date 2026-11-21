@@ -22,6 +22,32 @@ def _localized(campaign: Campaign, lang: Optional[str]) -> CampaignResponse:
     return response
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+
+# Columns that are NOT NULL: a null in the payload means "leave as is / use the default".
+NOT_NULL_STK = ("campaign_type", "reference_amounts", "fixed_amount", "groups", "is_zakat", "show_on_site",
+                "redirect_mode", "type_details")
+
+
+def _without_null_defaults(data: dict) -> dict:
+    return {k: v for k, v in data.items() if not (k in NOT_NULL_STK and v is None)}
+
+
+def _apply_fixed_amount(campaign: Campaign) -> None:
+    """"Sabit Tutar": the site's donation form offers only the TL reference amount (it already treats
+    allow_custom_amount=False + one suggested amount as a fixed price)."""
+    if campaign.fixed_amount and (campaign.reference_amounts or {}).get("TRY"):
+        campaign.allow_custom_amount = False
+        campaign.suggested_amounts_cents = [int(campaign.reference_amounts["TRY"])]
+
+
+async def _check_tab(db: AsyncSession, organization_id, tab_id) -> None:
+    if not tab_id:
+        return
+    from app.models.campaign import CampaignTab
+
+    tab = await db.get(CampaignTab, tab_id)
+    if not tab or str(tab.organization_id) != str(organization_id):
+        raise HTTPException(status_code=404, detail="Kampanya sekmesi bulunamadı")
 PUBLIC_STATUSES = (CampaignStatus.ACTIVE, CampaignStatus.PAUSED, CampaignStatus.COMPLETED)
 
 
@@ -34,7 +60,13 @@ async def list_campaigns(
     category: Optional[CampaignCategory] = None,
     featured: Optional[bool] = None,
     search: Optional[str] = None,
-    sort: Optional[str] = Query(None, pattern="^(display_order|collected_desc|newest|progress_desc)$"),
+    campaign_type: Optional[str] = None,
+    tab_id: Optional[UUID] = None,
+    country: Optional[str] = None,
+    group: Optional[str] = None,
+    is_zakat: Optional[bool] = None,
+    show_on_site: Optional[bool] = None,
+    sort: Optional[str] = Query(None, pattern="^(display_order|collected_desc|newest|progress_desc|oldest|title)$"),
     db: AsyncSession = Depends(get_db),
 ):
     """List campaigns with filtering and pagination"""
@@ -49,8 +81,9 @@ async def list_campaigns(
     ]
     staff = await optional_staff(request, db)
     if not staff:
-        # Drafts and cancelled campaigns are for the panel only.
+        # Drafts and cancelled campaigns are for the panel only; "Web / 1" off hides a campaign from the site lists.
         base_filter.append(Campaign.status.in_(PUBLIC_STATUSES))
+        base_filter.append(Campaign.show_on_site.is_(True))
 
     # Global stats across all visible campaigns for this organization
     stats_row = (await db.execute(
@@ -73,7 +106,20 @@ async def list_campaigns(
     if featured is not None:
         query = query.where(Campaign.is_featured == featured)
     if search:
-        query = query.where(Campaign.title.ilike(f"%{search}%"))
+        query = query.where(or_(Campaign.title.ilike(f"%{search}%"), Campaign.display_name.ilike(f"%{search}%"),
+                                Campaign.slug.ilike(f"%{search}%")))
+    if campaign_type:
+        query = query.where(Campaign.campaign_type == campaign_type)
+    if tab_id:
+        query = query.where(Campaign.tab_id == tab_id)
+    if country:
+        query = query.where(Campaign.country.ilike(f"%{country.strip()}%"))
+    if group:
+        query = query.where(func.array_to_string(Campaign.groups, ",").ilike(f"%{group.strip()}%"))
+    if is_zakat is not None:
+        query = query.where(Campaign.is_zakat.is_(is_zakat))
+    if show_on_site is not None:
+        query = query.where(Campaign.show_on_site.is_(show_on_site))
     
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
@@ -85,6 +131,10 @@ async def list_campaigns(
         query = query.order_by(Campaign.collected_cents.desc(), Campaign.created_at.desc())
     elif sort == "newest":
         query = query.order_by(Campaign.created_at.desc())
+    elif sort == "oldest":
+        query = query.order_by(Campaign.created_at.asc())
+    elif sort == "title":
+        query = query.order_by(Campaign.title.asc())
     elif sort == "progress_desc":
         ratio = (Campaign.collected_cents * 1.0) / func.nullif(Campaign.target_cents, 0)
         query = query.order_by(ratio.desc().nullslast(), Campaign.collected_cents.desc())
@@ -112,6 +162,22 @@ async def list_campaigns(
             total_collected_cents=int(stats_row.total_collected_cents or 0),
         ),
     )
+
+
+@router.get("/id/{campaign_id}", response_model=CampaignResponse)
+async def get_campaign_by_id(
+    request: Request,
+    campaign_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_module("site", write=False)),
+):
+    """Panel: one campaign by id, whatever its status (the edit page)."""
+    campaign = (await db.execute(select(Campaign).where(
+        Campaign.id == campaign_id, Campaign.organization_id == request.state.organization_id,
+    ))).scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Kampanya bulunamadı")
+    return campaign
 
 
 @router.get("/{slug}", response_model=CampaignResponse)
@@ -164,12 +230,17 @@ async def create_campaign(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Campaign slug already exists")
     
+    data = _without_null_defaults(campaign_in.model_dump(exclude={"slug"}))
+    if data.get("fixed_amount") and not (data.get("reference_amounts") or {}).get("TRY"):
+        raise HTTPException(status_code=422, detail="Sabit tutar için TL referans tutarını girin")
+    await _check_tab(db, organization_id, data.get("tab_id"))
     campaign = Campaign(
         organization_id=organization_id,
         slug=slug,
-        **campaign_in.model_dump(exclude={"slug"}),
+        **data,
     )
     
+    _apply_fixed_amount(campaign)
     db.add(campaign)
     await db.commit()
     await db.refresh(campaign)
@@ -201,7 +272,13 @@ async def update_campaign(
         raise HTTPException(status_code=404, detail="Campaign not found")
     
     # Update fields
-    payload = campaign_in.model_dump(exclude_unset=True)
+    payload = _without_null_defaults(campaign_in.model_dump(exclude_unset=True))
+    if "tab_id" in payload:
+        await _check_tab(db, organization_id, payload["tab_id"])
+    fixed = payload.get("fixed_amount", campaign.fixed_amount)
+    refs = payload.get("reference_amounts", campaign.reference_amounts) or {}
+    if fixed and not refs.get("TRY"):
+        raise HTTPException(status_code=422, detail="Sabit tutar için TL referans tutarını girin")
     if "slug" in payload and payload["slug"] is not None:
         new_slug = slugify(payload["slug"])
         if not new_slug:
@@ -221,6 +298,7 @@ async def update_campaign(
             payload.pop("slug", None)
     for field, value in payload.items():
         setattr(campaign, field, value)
+    _apply_fixed_amount(campaign)
     
     await db.commit()
     await db.refresh(campaign)

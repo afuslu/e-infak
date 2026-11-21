@@ -37,6 +37,26 @@ class CampaignCategory(str, enum.Enum):
     AKIKA = "akika"
 
 
+CAMPAIGN_TYPES = ("standard", "sponsorship", "kurban", "water_well", "project", "food_package")
+
+
+class CampaignTab(Base):
+    """STK PRO "Kampanya Sekmeler": the tabs campaigns are grouped under on the donation pages."""
+    __tablename__ = "campaign_tabs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("campaign_tabs.id", ondelete="SET NULL"), index=True)
+    name = Column(String(120), nullable=False)
+    slug = Column(String(140), nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
+    display_order = Column(Integer, nullable=False, default=0, server_default="0")
+    show_on_open = Column(Boolean, nullable=False, default=False, server_default="false")
+    translations = Column(JSONB, nullable=False, default=dict, server_default="{}")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+
 class Campaign(Base):
     __tablename__ = "campaigns"
 
@@ -80,6 +100,24 @@ class Campaign(Base):
     tags = Column(ARRAY(String), default=list)
     translations = Column(JSONB, nullable=False, default=dict)
     checkout_fields_schema = Column(JSONB, nullable=False, default=list)
+
+    # STK PRO campaign fields
+    campaign_type = Column(String(20), nullable=False, default="standard", server_default="standard")
+    display_name = Column(String(300))  # "Web Site Görünen Ad"; empty → title
+    country = Column(String(100))
+    reference_amounts = Column(JSONB, nullable=False, default=dict, server_default="{}")  # {"TRY": 1500000, "USD": …} cents
+    fixed_amount = Column(Boolean, nullable=False, default=False, server_default="false")  # donor cannot type another amount
+    quantity_multiplier = Column(Integer)  # receipts count adet × multiplier (1 purchase = N hisse)
+    declaration_item = Column(String(120))  # "Beyanname Kalemi"
+    groups = Column(ARRAY(String), nullable=False, default=list, server_default="{}")
+    is_zakat = Column(Boolean, nullable=False, default=False, server_default="false")
+    show_on_site = Column(Boolean, nullable=False, default=True, server_default="true")  # "Web / 1"
+    tab_id = Column(UUID(as_uuid=True), ForeignKey("campaign_tabs.id", ondelete="SET NULL"), index=True)
+    redirect_mode = Column(String(8), nullable=False, default="own", server_default="own")  # own | url | page
+    redirect_target = Column(String(500))
+    seo_title = Column(String(200))
+    seo_description = Column(String(400))
+    type_details = Column(JSONB, nullable=False, default=dict, server_default="{}")  # e.g. kurban type, cins, hisse
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

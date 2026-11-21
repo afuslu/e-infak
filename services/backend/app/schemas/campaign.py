@@ -2,14 +2,82 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Literal, Any, Optional, List, Dict
 from datetime import datetime
 from uuid import UUID
+from pydantic import model_validator
 from app.models.campaign import CampaignStatus, CampaignCategory
 from app.utils.content import sanitize_long_text
 from app.utils.i18n import clean_translations
 
 CAMPAIGN_I18N = ("title", "summary", "story")
 
+CampaignType = Literal["standard", "sponsorship", "kurban", "water_well", "project", "food_package"]
+RefCurrency = Literal["TRY", "USD", "EUR", "GBP", "RUB", "SAR", "CHF"]
 
-class CampaignBase(BaseModel):
+
+def _clean_reference_amounts(value):
+    if value is None:
+        return value
+    if not isinstance(value, dict):
+        raise ValueError("Referans tutarlar para birimi → kuruş olmalı")
+    out = {}
+    for currency, cents in value.items():
+        if cents in (None, "", 0):
+            continue
+        cents = int(cents)
+        if cents < 0 or cents > 10_000_000_000:
+            raise ValueError("Referans tutar geçersiz")
+        out[str(currency).upper()] = cents
+    return out
+
+
+class CampaignStkFields(BaseModel):
+    """STK PRO campaign form: type tabs, reference amounts, web site settings."""
+    campaign_type: Optional[CampaignType] = None
+    display_name: Optional[str] = Field(None, max_length=300)
+    country: Optional[str] = Field(None, max_length=100)
+    reference_amounts: Optional[Dict[RefCurrency, int]] = None
+    fixed_amount: Optional[bool] = None
+    quantity_multiplier: Optional[int] = Field(None, ge=1, le=1000)
+    declaration_item: Optional[str] = Field(None, max_length=120)
+    groups: Optional[List[str]] = Field(None, max_length=20)
+    is_zakat: Optional[bool] = None
+    show_on_site: Optional[bool] = None
+    tab_id: Optional[UUID] = None
+    redirect_mode: Optional[Literal["own", "url", "page"]] = None
+    redirect_target: Optional[str] = Field(None, max_length=500)
+    seo_title: Optional[str] = Field(None, max_length=200)
+    seo_description: Optional[str] = Field(None, max_length=400)
+    type_details: Optional[Dict[str, Any]] = None
+
+    @field_validator("reference_amounts", mode="before")
+    @classmethod
+    def ref_amounts(cls, value):
+        return _clean_reference_amounts(value)
+
+    @field_validator("groups", mode="before")
+    @classmethod
+    def clean_groups(cls, value):
+        if value is None:
+            return value
+        return [g.strip()[:60] for g in value if isinstance(g, str) and g.strip()]
+
+    @field_validator("display_name", "country", "declaration_item", "redirect_target", "seo_title", "seo_description", mode="before")
+    @classmethod
+    def blank(cls, value):
+        return value.strip() or None if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def check_redirect(self):
+        if self.redirect_mode in ("url", "page") and not self.redirect_target:
+            raise ValueError("Yönlendirme adresini yazın")
+        if self.redirect_mode == "url" and self.redirect_target and not self.redirect_target.startswith(("https://", "http://", "/")):
+            raise ValueError("Yönlendirme adresi http(s):// veya / ile başlamalı")
+        if self.fixed_amount and self.reference_amounts is not None and not self.reference_amounts.get("TRY"):
+            raise ValueError("Sabit tutar için TL referans tutarını girin")
+        return self
+
+
+
+class CampaignBase(CampaignStkFields):
     title: str = Field(..., max_length=300)
     summary: str
     story: Optional[str] = None
@@ -50,7 +118,7 @@ class CampaignCreate(CampaignBase):
     status: CampaignStatus = CampaignStatus.DRAFT
 
 
-class CampaignUpdate(BaseModel):
+class CampaignUpdate(CampaignStkFields):
     slug: Optional[str] = Field(None, max_length=200)
     title: Optional[str] = Field(None, max_length=300)
     summary: Optional[str] = None
@@ -88,6 +156,14 @@ class CampaignUpdate(BaseModel):
 
 
 class CampaignResponse(CampaignBase):
+    campaign_type: str = "standard"
+    reference_amounts: Dict[str, int] = {}
+    fixed_amount: bool = False
+    groups: List[str] = []
+    is_zakat: bool = False
+    show_on_site: bool = True
+    redirect_mode: str = "own"
+    type_details: Dict[str, Any] = {}
     id: UUID
     organization_id: UUID
     slug: str

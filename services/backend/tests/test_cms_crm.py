@@ -361,3 +361,36 @@ def test_donor_form_validates_profile_fields():
     assert donor.phone2 is None and donor.membership_type is None and donor.blood_group == "AB+"
     with pytest.raises(ValidationError):
         crm.DonorIn(first_name="Ali", blood_group="C+")
+
+
+async def test_campaign_stk_fields_and_tabs(db_session):
+    from app.api.v1 import campaign_tabs, campaigns
+    from app.schemas.campaign import CampaignCreate, CampaignUpdate
+
+    org, admin, _ = await _setup(db_session)
+    req = _request(org, "POST")
+    tab = await campaign_tabs.create_tab(campaign_tabs.TabIn(name="Gazze"), req, db_session, admin)
+    again = await campaign_tabs.create_tab(campaign_tabs.TabIn(name="Gazze"), req, db_session, admin)
+    assert tab["slug"] == "gazze" and again["slug"] == "gazze-2"
+
+    created = await campaigns.create_campaign(req, CampaignCreate(
+        title="Gazze Acil Çadır", summary="s", target_cents=1_500_000, campaign_type="project", country="Filistin",
+        reference_amounts={"TRY": 1_500_000, "USD": 0, "EUR": "40000"}, fixed_amount=True, tab_id=tab["id"],
+        groups=[" Acil ", ""], status="active",
+    ), db_session, admin)
+    assert created.campaign_type == "project" and created.reference_amounts == {"TRY": 1_500_000, "EUR": 40_000}
+    assert created.groups == ["Acil"]
+    assert created.allow_custom_amount is False and created.suggested_amounts_cents == [1_500_000]  # Sabit Tutar
+
+    with pytest.raises(HTTPException):  # fixed amount needs a TL reference
+        await campaigns.update_campaign(req, created.id, CampaignUpdate(reference_amounts={"USD": 5000}), db_session, admin)
+    hidden = await campaigns.update_campaign(req, created.id, CampaignUpdate(show_on_site=False, campaign_type=None), db_session, admin)
+    assert hidden.show_on_site is False and hidden.campaign_type == "project"
+
+    tabs = await campaign_tabs.list_tabs(_request(org), db_session, admin)
+    assert [t for t in tabs if t["id"] == tab["id"]][0]["campaign_count"] == 1
+    pages = await campaign_tabs.campaign_pages(_request(org), db_session, admin)
+    assert [p["slug"] for p in pages if p["title"] == "Gazze Acil Çadır"] == ["gazze-acil-cadir"]
+
+    with pytest.raises(ValidationError):
+        CampaignUpdate(redirect_mode="url", redirect_target="javascript:alert(1)")

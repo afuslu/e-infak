@@ -69,7 +69,8 @@ export const NAV_RAIL: NavRail[] = [
       {
         title: 'Kampanya Yönetimi', items: [
           { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: Megaphone, module: 'site' },
-          { href: '/admin/bagis-kalemleri', label: 'Kampanya Sekmeler', icon: Tags, module: 'site' },
+          { href: '/admin/kampanyalar/sekmeler', label: 'Kampanya Sekmeler', icon: LayoutGrid, module: 'site' },
+          { href: '/admin/kampanyalar/sayfalar', label: 'Kampanya Sayfaları', icon: Globe2, module: 'site' },
         ],
       },
     ],
@@ -123,6 +124,7 @@ export const NAV_RAIL: NavRail[] = [
           { href: '/admin/menu', label: 'Menüler', icon: PanelsTopLeft, module: 'site' },
           { href: '/admin/sayfalar', label: 'Sayfalar', icon: FileText, module: 'site' },
           { href: '/admin/banners', label: 'Slider', icon: Film, feature: 'website', module: 'site' },
+          { href: '/admin/bagis-kalemleri', label: 'Hızlı Bağış Kalemleri', icon: Tags, module: 'site' },
           { href: '/admin/icerikler', label: 'İçerikler', icon: Newspaper, feature: 'website', module: 'site' },
           { href: '/admin/galeri', label: 'Medya (Foto & Video Galeri)', icon: Film, feature: 'website', module: 'site' },
           { href: '/admin/medya', label: 'Ortam Kütüphanesi', icon: FolderOpen, module: 'site' },
