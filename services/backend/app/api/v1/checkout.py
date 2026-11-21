@@ -32,6 +32,7 @@ from app.schemas.checkout import (
     CheckoutStatusItem,
     CheckoutStatusResponse,
 )
+from app.banking.parsers import fold
 from app.utils.phone import phone_digits, phone_matches
 from app.utils.ziraatpay import ZiraatPayClient
 from app.core.rate_limit import rate_limit
@@ -88,8 +89,30 @@ def _receipt_number(org_id: UUID) -> str:
     return f"BG-{str(org_id)[:6].upper()}-{datetime.now():%Y%m%d}-{secrets.token_hex(4).upper()}"
 
 
+def _same_person(donor: Donor, first_name: str | None, last_name: str | None) -> bool:
+    """Does the name typed at checkout belong to this donor card?
+
+    Case, Turkish letters and punctuation are ignored. Surnames must agree; first names agree when
+    equal or when one is the other's first word ("Mehmet" / "Mehmet Ali"). A card without a name
+    (an old import) is taken as the same person, so its empty fields get filled.
+    """
+    card_first, card_last = fold(donor.first_name), fold(donor.last_name)
+    if not card_first and not card_last:
+        return True
+    first, last = fold(first_name), fold(last_name)
+    if card_last != last:
+        return False
+    return card_first == first or card_first.split(" ")[0] == first.split(" ")[0] != ""
+
+
 async def _get_or_create_donor(org_id: UUID, payload, db: AsyncSession) -> tuple[Donor, dict | None]:
-    """Find the donor by e-mail or phone, or create one.
+    """Find the donor by e-mail or phone *and* name, or create one.
+
+    E-mail or phone alone is not enough: a shared family phone, an association's common e-mail or
+    a staff member filling the form for a caller would otherwise pile different people's donations
+    (and receipts) onto one card. When the contact matches but the name does not, a new card is
+    opened; the duplicate finder (data_tools.find_duplicates) groups it with the old one by phone
+    or e-mail so staff can merge them if they really are the same person.
 
     A public checkout is unauthenticated, so it must never rewrite an existing donor's contact
     details: whoever knows a donor's e-mail could otherwise put their own phone on the record and
@@ -102,9 +125,9 @@ async def _get_or_create_donor(org_id: UUID, payload, db: AsyncSession) -> tuple
         select(Donor).where(
             Donor.organization_id == org_id,
             (func.lower(Donor.email) == email) | phone_matches(Donor.phone, phone),
-        ).order_by(Donor.created_at)
+        ).order_by(Donor.created_at).limit(50)
     )
-    donor = result.scalars().first()
+    donor = next((d for d in result.scalars() if _same_person(d, payload.first_name, payload.last_name)), None)
     values = payload.model_dump()
     values["email"] = email
     values["phone"] = phone
