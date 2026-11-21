@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Copy, KeyRound, ListChecks, Phone, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOutgoing, RefreshCw, Users } from 'lucide-react'
+import { Copy, KeyRound, Link2, ListChecks, Phone, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plus, RefreshCw, Users } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
 import { Label, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
@@ -41,10 +41,13 @@ export default function CallCenterPage() {
       if (!r.data.configured) setTab('account')
     }).catch((err) => toast.error(apiErrorMessage(err, 'Santral hesabı okunamadı')))
   }, [])
+  const loadStats = useCallback(() => {
+    adminGet<Stats>('/call-center/stats').then((r) => setStats(r.data)).catch(() => {})
+  }, [])
   useEffect(() => {
     loadAccount()
-    adminGet<Stats>('/call-center/stats').then((r) => setStats(r.data)).catch(() => {})
-  }, [loadAccount])
+    loadStats()
+  }, [loadAccount, loadStats])
 
   return (
     <div className="space-y-6">
@@ -66,7 +69,7 @@ export default function CallCenterPage() {
         { key: 'extensions', label: 'Personel Dahilileri', icon: Users },
         { key: 'account', label: 'Santral Ayarları', icon: KeyRound },
       ]} />
-      {tab === 'calls' && <CallList />}
+      {tab === 'calls' && <CallList onRefreshStats={loadStats} />}
       {tab === 'extensions' && <Extensions />}
       {tab === 'account' && account && <AccountForm account={account} onSaved={loadAccount} />}
     </div>
@@ -102,7 +105,9 @@ function MyExtension({ account, onSaved }: { account: Account | null; onSaved: (
   )
 }
 
-function CallList() {
+interface DonorOption { id: string; full_name: string; phone: string | null; city: string | null }
+
+function CallList({ onRefreshStats }: { onRefreshStats: () => void }) {
   const [direction, setDirection] = useState('')
   const [status, setStatus] = useState('')
   const [q, setQ] = useState('')
@@ -110,18 +115,64 @@ function CallList() {
   const [data, setData] = useState<{ total: number; items: Call[] } | null>(null)
   const [editing, setEditing] = useState<Call | null>(null)
   const [note, setNote] = useState('')
+  const [dialOpen, setDialOpen] = useState(false)
+  const [dialPhone, setDialPhone] = useState('')
+  const [dialBusy, setDialBusy] = useState(false)
+  const [linking, setLinking] = useState<Call | null>(null)
+  const [donorQuery, setDonorQuery] = useState('')
+  const [donorHits, setDonorHits] = useState<DonorOption[]>([])
+
   const load = useCallback(() => {
     adminGet<{ total: number; items: Call[] }>('/call-center/calls', { direction: direction || undefined, status: status || undefined, q: q.trim() || undefined, page, page_size: 50 })
       .then((r) => setData(r.data)).catch((err) => toast.error(apiErrorMessage(err)))
   }, [direction, status, q, page])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
+
+  useEffect(() => {
+    if (!linking) return
+    const term = donorQuery.trim()
+    const t = setTimeout(() => {
+      adminGet<{ items: DonorOption[] }>('/donors', { q: term || undefined, page_size: 10 })
+        .then((r) => setDonorHits(r.data.items)).catch(() => setDonorHits([]))
+    }, 200)
+    return () => clearTimeout(t)
+  }, [linking, donorQuery])
+
   const call = async (c: Call) => {
     try {
       const r = await adminSend<{ message: string }>('post', '/call-center/call', { donor_id: c.donor_id, phone: c.phone })
       toast.ok(r.data.message)
-      setTimeout(load, 3000)
+      setTimeout(() => { load(); onRefreshStats() }, 3000)
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Arama başlatılamadı'))
+    }
+  }
+  const dialManual = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!dialPhone.trim()) return
+    setDialBusy(true)
+    try {
+      const r = await adminSend<{ message: string }>('post', '/call-center/call', { phone: dialPhone.trim() })
+      toast.ok(r.data.message)
+      setDialOpen(false)
+      setDialPhone('')
+      setTimeout(() => { load(); onRefreshStats() }, 3000)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Arama başlatılamadı'))
+    } finally {
+      setDialBusy(false)
+    }
+  }
+  const linkDonor = async (donorId: string) => {
+    if (!linking) return
+    try {
+      await adminSend('patch', `/call-center/calls/${linking.id}`, { donor_id: donorId })
+      toast.ok('Çağrı bağışçıya bağlandı')
+      setLinking(null)
+      setDonorQuery('')
+      load()
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
     }
   }
   const saveNote = async () => {
@@ -146,7 +197,8 @@ function CallList() {
           <option value="busy">Meşgul</option><option value="answered">Görüşmede</option><option value="ringing">Çalıyor</option>
         </select>
         <input className={`${inputClass} max-w-xs`} placeholder="Telefon, isim veya dahili" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
-        <button type="button" className={`${ghostButton} flex items-center gap-1`} onClick={load}><RefreshCw className="h-3.5 w-3.5" /> Yenile</button>
+        <button type="button" className={`${ghostButton} flex items-center gap-1`} onClick={() => { load(); onRefreshStats() }}><RefreshCw className="h-3.5 w-3.5" /> Yenile</button>
+        <button type="button" className={`${primaryButton} ml-auto flex items-center gap-1`} onClick={() => setDialOpen(true)}><Plus className="h-3.5 w-3.5" /> Yeni Arama</button>
       </div>
       {data && !data.items.length ? <EmptyState icon={PhoneCall} title="Henüz çağrı yok" text="Santral webhook’u tanımlanınca gelen ve giden çağrılar burada listelenir." /> : (
         <Table>
@@ -167,7 +219,12 @@ function CallList() {
                 <Td>{c.recording_url ? <audio controls preload="none" src={c.recording_url} className="h-8 w-48" /> : '—'}</Td>
                 <Td className="whitespace-nowrap">
                   {c.phone && <button type="button" className={`${ghostButton} mr-1`} onClick={() => call(c)}>Ara</button>}
-                  <button type="button" className={ghostButton} onClick={() => { setEditing(c); setNote(c.note || '') }}>Not</button>
+                  <button type="button" className={`${ghostButton} mr-1`} onClick={() => { setEditing(c); setNote(c.note || '') }}>Not</button>
+                  {!c.donor_id && (
+                    <button type="button" className={ghostButton} title="Bağışçıya bağla" onClick={() => { setLinking(c); setDonorQuery(c.phone || '') }}>
+                      <Link2 className="mr-1 inline h-3.5 w-3.5" />Bağla
+                    </button>
+                  )}
                 </Td>
               </Tr>
             ))}
@@ -175,6 +232,37 @@ function CallList() {
         </Table>
       )}
       {data && <Pagination page={page} pages={Math.ceil(data.total / 50)} total={data.total} onChange={setPage} />}
+      {dialOpen && (
+        <Modal title="Yeni arama başlat" description="Önce kendi santral dahiliniz çalar, açınca girdiğiniz numara aranır." onClose={() => setDialOpen(false)} size="sm"
+          footer={<button type="button" disabled={dialBusy || !dialPhone.trim()} className={primaryButton} onClick={dialManual}>{dialBusy ? 'Aranıyor…' : 'Ara'}</button>}>
+          <form onSubmit={dialManual}>
+            <Label label="Telefon numarası">
+              <input className={inputClass} type="tel" autoFocus placeholder="05XX XXX XX XX" value={dialPhone} onChange={(e) => setDialPhone(e.target.value)} />
+            </Label>
+          </form>
+        </Modal>
+      )}
+      {linking && (
+        <Modal title="Çağrıyı bağışçıya bağla" description={`${linking.phone || 'Bilinmeyen numara'} · ${when(linking.started_at)}`} onClose={() => setLinking(null)} size="sm">
+          <div className="space-y-3">
+            <input className={inputClass} autoFocus placeholder="Ad, soyad veya telefonla bağışçı ara…" value={donorQuery} onChange={(e) => setDonorQuery(e.target.value)} />
+            <ul className="max-h-60 divide-y overflow-y-auto rounded-lg border">
+              {donorHits.map((d) => (
+                <li key={d.id}>
+                  <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50" onClick={() => linkDonor(d.id)}>
+                    <div>
+                      <div className="font-medium text-gray-900">{d.full_name}</div>
+                      <div className="text-xs text-gray-500">{d.phone || 'Telefon yok'}{d.city ? ` · ${d.city}` : ''}</div>
+                    </div>
+                    <span className="text-xs font-semibold text-primary-700">Seç</span>
+                  </button>
+                </li>
+              ))}
+              {!donorHits.length && <li className="px-3 py-4 text-center text-xs text-gray-400">Eşleşen bağışçı bulunamadı.</li>}
+            </ul>
+          </div>
+        </Modal>
+      )}
       {editing && (
         <Modal title="Görüşme notu" description={`${editing.donor_name || editing.phone} · ${when(editing.started_at)}`} onClose={() => setEditing(null)}
           footer={<button type="button" className={primaryButton} onClick={saveNote}>Kaydet</button>}>
@@ -187,31 +275,59 @@ function CallList() {
 
 function Extensions() {
   const [rows, setRows] = useState<Ext[]>([])
-  const load = () => adminGet<Ext[]>('/call-center/extensions').then((r) => setRows(r.data)).catch((err) => toast.error(apiErrorMessage(err)))
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const load = () => adminGet<Ext[]>('/call-center/extensions').then((r) => {
+    setRows(r.data)
+    setDrafts(Object.fromEntries(r.data.map((x) => [x.id, x.extension || ''])))
+  }).catch((err) => toast.error(apiErrorMessage(err)))
   useEffect(() => { load() }, [])
-  const save = async (row: Ext, extension: string) => {
+  const save = async (row: Ext) => {
+    const extension = (drafts[row.id] ?? '').replace(/\D/g, '')
+    if (extension === (row.extension || '')) return
     try {
       await adminSend('put', '/call-center/extensions', { user_id: row.id, extension: extension || null })
       toast.ok(`${row.name}: dahili kaydedildi`)
+      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, extension: extension || null } : r)))
     } catch (err) {
       toast.error(apiErrorMessage(err))
     }
   }
+  const counts = rows.reduce<Record<string, number>>((acc, r) => {
+    const v = (drafts[r.id] ?? r.extension ?? '').trim()
+    if (v) acc[v] = (acc[v] || 0) + 1
+    return acc
+  }, {})
   return (
     <Card className="p-4">
       <Table>
         <THead><Tr><Th>Personel</Th><Th>E-posta</Th><Th>Santral dahilisi</Th></Tr></THead>
         <TBody>
-          {rows.map((r) => (
-            <Tr key={r.id}>
-              <Td className="font-medium">{r.name}</Td>
-              <Td className="text-gray-500">{r.email}</Td>
-              <Td>
-                <input className={`${inputClass} max-w-[120px]`} inputMode="numeric" defaultValue={r.extension || ''} placeholder="—"
-                  onBlur={(e) => { const v = e.target.value.replace(/\D/g, ''); if (v !== (r.extension || '')) save(r, v) }} />
-              </Td>
-            </Tr>
-          ))}
+          {rows.map((r) => {
+            const val = drafts[r.id] ?? ''
+            const dirty = val !== (r.extension || '')
+            const duplicate = !!val && (counts[val] || 0) > 1
+            return (
+              <Tr key={r.id}>
+                <Td className="font-medium">{r.name}</Td>
+                <Td className="text-gray-500">{r.email}</Td>
+                <Td>
+                  <div className="flex items-center gap-2">
+                    <input
+                      className={`${inputClass} max-w-[120px]`}
+                      inputMode="numeric"
+                      value={val}
+                      placeholder="—"
+                      onChange={(e) => setDrafts((d) => ({ ...d, [r.id]: e.target.value.replace(/\D/g, '') }))}
+                      onBlur={() => save(r)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(r) } }}
+                    />
+                    {dirty && <button type="button" className={ghostButton} onClick={() => save(r)}>Kaydet</button>}
+                    {duplicate && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Ortak dahili</span>}
+                  </div>
+                </Td>
+              </Tr>
+            )
+          })}
         </TBody>
       </Table>
     </Card>
