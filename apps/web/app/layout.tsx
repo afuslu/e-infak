@@ -63,16 +63,19 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const locale = (await headers()).get('x-locale') || 'tr'
+  const requestHeaders = await headers()
+  const locale = requestHeaders.get('x-locale') || 'tr'
+  const pathname = requestHeaders.get('x-pathname') || '/'
   const site = await getSite()
   // Organisation colours are rendered here so the first paint is already themed.
   const brandStyle = site ? (brandCssVariables(site.primary_color, site.accent_color) as React.CSSProperties) : undefined
+  const showCart = Boolean(site) || pathname.startsWith('/bagis/sepetim')
   return (
     <html lang={locale} dir={isRtl(locale) ? 'rtl' : 'ltr'} className={fontVariables}>
       <body className="font-sans" style={brandStyle}>
         <Providers>
           {children}
-          {site && <DonationCart cartStyle={site.design?.cart_style} />}
+          {showCart && <DonationCart cartStyle={site?.design?.cart_style} />}
           {site && <SiteWidgets />}
           <VersionWatcher />
         </Providers>

@@ -1820,6 +1820,7 @@ export function SiteBuilderEditor() {
                       checkout_style: d.checkout_style || 'split_classic',
                       checkout_micro_addon: Boolean(d.checkout_micro_addon),
                       checkout_show_faq: Boolean(d.checkout_show_faq),
+                      open_cart_drawer: cartDrawerPreview,
                     }, window.location.origin)
                   }}
                 />
