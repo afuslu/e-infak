@@ -2,44 +2,26 @@
 
 import { useCurrentUser, useLogout } from '@e-infak/api-client'
 import { useQuery } from '@tanstack/react-query'
-import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import Link from 'next/link'
-import { ExternalLink, Lock, type LucideIcon, Monitor, Moon, PanelLeftClose, PanelLeftOpen, Search, Sun, X } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, ExternalLink, Lock, type LucideIcon, Monitor, Moon, Search, Sun, X } from 'lucide-react'
 import { UiHost } from '../../components/admin/ui'
 import { IncomingCallPopup } from '../../components/admin/IncomingCallPopup'
-import { groupOf, NAV_GROUPS, navItemFor, type NavItem, searchKey } from '../../components/admin/admin-nav'
+import { groupOf, NAV_RAIL, navItemFor, type NavItem, type NavRail, railOf, searchKey } from '../../components/admin/admin-nav'
 import { AdminCommandPalette, AdminNotificationsBell, AdminProfileMenu } from '../../components/admin/AdminShellWidgets'
 import SimulationBanner from '../../components/admin/SimulationBanner'
 import { exitSimulation, getSimulation, renewSimulation } from '../../lib/simulation'
 import { hasFeature, hasModule, hasPermission, useAdminAccess, v1Get, adminGet } from '../../lib/admin-access'
 
-const MENU_KEY = 'einfak-admin-menu'
 const COLLAPSE_KEY = 'einfak-admin-sidebar-collapsed'
-const DEFAULT_OPEN = ['genel', 'bagis']
 
-/** Which menu groups are open: the user's choice is remembered in the browser. */
-function useOpenGroups(activeGroup?: string) {
-  const [open, setOpen] = useState<string[]>(DEFAULT_OPEN)
-  useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(MENU_KEY) || 'null')
-      if (Array.isArray(saved)) setOpen(saved.filter((key) => typeof key === 'string'))
-    } catch {
-      // storage unavailable: keep the defaults
-    }
-  }, [])
-  // The group of the page being viewed is always shown open.
-  useEffect(() => {
-    if (activeGroup) setOpen((current) => (current.includes(activeGroup) ? current : [...current, activeGroup]))
-  }, [activeGroup])
-  const toggle = (key: string) =>
-    setOpen((current) => {
-      const next = current.includes(key) ? current.filter((k) => k !== key) : [...current, key]
-      try { localStorage.setItem(MENU_KEY, JSON.stringify(next)) } catch { /* ignore */ }
-      return next
-    })
-  return { open, toggle }
+/** Reports the query string; Suspense keeps useSearchParams from forcing the whole layout client-only. */
+function SearchWatcher({ onChange }: { onChange: (search: string) => void }) {
+  const params = useSearchParams()
+  const search = params.toString()
+  useEffect(() => { onChange(search) }, [search, onChange])
+  return null
 }
 
 // Admin panel'in kendi sabit markası (E-Medrese ile aynı zümrüt yeşili) — mevcut
@@ -114,13 +96,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const siteBrand = siteBrandRes?.data
   const logout = useLogout()
   const theme = useAdminTheme()
-  const currentItem = navItemFor(pathname)
+  const [search, setSearch] = useState('')
+  const currentItem = navItemFor(pathname, search)
   const currentGroup = groupOf(currentItem)
-  const menu = useOpenGroups(currentGroup?.key)
+  const currentRail = railOf(currentItem)
+  const [openRail, setOpenRail] = useState<string | undefined>(currentRail?.key)
   const [query, setQuery] = useState('')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  /** Sub-panel hidden: only the icon rail shows. */
   const [collapsed, setCollapsed] = useState(false)
+
+  // The sub-panel follows the page being viewed.
+  useEffect(() => { setOpenRail(currentRail?.key) }, [currentRail?.key])
 
   useEffect(() => {
     try {
@@ -130,12 +118,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [])
 
-  const toggleCollapsed = () => {
-    setCollapsed((prev) => {
-      const next = !prev
-      try { localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0') } catch { /* ignore */ }
-      return next
-    })
+  const setPanelHidden = (next: boolean) => {
+    setCollapsed(next)
+    try { localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0') } catch { /* ignore */ }
   }
 
   // Update browser tab title to match the active admin page.
@@ -260,7 +245,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const permitted = (item: NavItem) => hasPermission(access, item.permission) && hasModule(access, item.module)
   // Menu entries appear once access is known; a page is only reported blocked after that too.
   const allowed = (item: NavItem) => !!access && hasFeature(access, item.feature) && permitted(item)
-  const groups = NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter(allowed) })).filter((group) => group.items.length)
+  const rails: NavRail[] = NAV_RAIL
+    .map((rail) => ({
+      ...rail,
+      sections: rail.sections
+        .map((section) => ({ ...section, items: section.items.filter(allowed) }))
+        .filter((section) => section.items.length),
+    }))
+    .filter((rail) => rail.sections.length)
+  const groups = rails.map((rail) => ({ key: rail.key, label: rail.label, items: rail.sections.flatMap((s) => s.items) }))
   const blockedFeature = access && currentItem && !hasFeature(access, currentItem.feature) ? currentItem : undefined
   const blockedPermission = access && currentItem && !blockedFeature && !permitted(currentItem) ? currentItem : undefined
   const needle = searchKey(query.trim())
@@ -269,11 +262,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .filter((item) => searchKey(`${item.label} ${group.label}`).includes(needle))
       .map((item) => ({ item, group: group.label })))
     : []
+  const shownRail = rails.find((rail) => rail.key === openRail) ?? rails.find((rail) => rail.key === currentRail?.key)
+  // The sub-panel shows on phones always; from lg up the user may hide it.
+  // Single-page icons (Anasayfa, Takvim…) have nothing to list beside them.
+  const panelVisible = !!needle || (!!shownRail && shownRail.sections.flatMap((s) => s.items).length > 1)
 
   const roleLabel = access?.builtin_roles?.find((r) => r.key === access?.me?.role)?.label || access?.me?.role
 
   const itemLink = (item: NavItem, hint?: string) => {
-    const active = currentItem?.href === item.href
+    const active = currentItem === item
     const itemTone = theme.dark
       ? active
         ? 'bg-emerald-500/15 text-white shadow-[inset_3px_0_0_#34D399]'
@@ -287,162 +284,166 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Link
         key={item.href}
         href={item.href}
-        title={collapsed ? item.label : undefined}
         aria-current={active ? 'page' : undefined}
-        className={`flex items-center rounded-lg py-2 text-[13.5px] font-semibold transition-colors ${
-          collapsed ? 'lg:justify-center lg:px-2 px-3 gap-2.5' : 'gap-2.5 px-3'
-        } ${itemTone}`}
+        className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-semibold transition-colors ${itemTone}`}
       >
         <item.icon className="h-[18px] w-[18px] flex-shrink-0 opacity-90" strokeWidth={1.9} aria-hidden="true" />
-        <span className={`min-w-0 flex-1 truncate ${collapsed ? 'lg:hidden' : ''}`}>{item.label}</span>
-        {hint && !collapsed && <span className={`flex-shrink-0 text-[10px] font-medium ${hintTone}`}>{hint}</span>}
-        {!hint && !collapsed && active && !theme.dark && (
-          <span className="h-4 w-[3px] flex-shrink-0 rounded-full bg-white/80" aria-hidden="true" />
-        )}
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        {hint && <span className={`flex-shrink-0 text-[10px] font-medium ${hintTone}`}>{hint}</span>}
       </Link>
     )
   }
 
+  // A rail icon with a single page opens it; one with several shows its sub-panel.
+  const onRailClick = (rail: NavRail) => {
+    const items = rail.sections.flatMap((s) => s.items)
+    setQuery('')
+    if (items.length === 1) {
+      setOpenRail(rail.key)
+      router.push(items[0].href)
+      return
+    }
+    if (openRail === rail.key && !collapsed) {
+      setPanelHidden(true)
+      return
+    }
+    setOpenRail(rail.key)
+    setPanelHidden(false)
+  }
+
+  const railTone = (active: boolean) => theme.dark
+    ? active ? 'bg-emerald-500/15 text-white' : 'text-[#8FA3B5] hover:bg-white/[0.06] hover:text-white'
+    : active ? 'bg-primary-50 text-primary-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+  const line = theme.dark ? 'border-white/[0.08]' : 'border-gray-200'
+  const muted = theme.dark ? 'text-[#5F7488]' : 'text-gray-400'
+
   return (
     <div className={`flex min-h-screen bg-gray-100 ${theme.dark ? 'admin-dark' : ''}`} style={theme.dark ? ADMIN_PRIMARY_VARS_DARK : ADMIN_PRIMARY_VARS}>
+      <Suspense fallback={null}><SearchWatcher onChange={setSearch} /></Suspense>
       {drawerOpen && (
         <button type="button" aria-label="Menüyü kapat" onClick={() => setDrawerOpen(false)}
           className="fixed inset-0 z-30 bg-black/50 lg:hidden" />
       )}
 
-      {/* Sidebar: fixed drawer on phones, collapsible column from lg up */}
-      <aside className={`fixed inset-y-0 start-0 z-40 flex flex-shrink-0 flex-col transition-all duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
-        collapsed ? 'w-64 lg:w-[68px]' : 'w-64'
-      } ${
+      {/* Sidebar (STK PRO layout): icon rail + sub-panel. Fixed drawer on phones, sticky from lg up. */}
+      <aside className={`fixed inset-y-0 start-0 z-40 flex flex-shrink-0 transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
         drawerOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'
-      } ${theme.dark ? 'border-e border-white/[0.06] bg-[#0B1220] text-[#8FA3B5]' : 'border-e border-gray-200 bg-white text-gray-600'}`}>
-        <div className={`flex items-center justify-between border-b py-4 ${
-          theme.dark ? 'border-white/[0.08]' : 'border-gray-200'
-        } ${collapsed ? 'px-4 lg:justify-center lg:px-2' : 'px-4'}`}>
-          <Link href="/admin" className="flex items-center gap-2.5 min-w-0">
+      } ${theme.dark ? 'bg-[#0B1220] text-[#8FA3B5]' : 'bg-white text-gray-600'}`}>
+        {/* Icon rail */}
+        <nav aria-label="Ana menü" className={`flex w-[76px] flex-shrink-0 flex-col items-center border-e ${line}`}>
+          <Link href="/admin" title={siteBrand?.name || 'E-İnfak'} className={`flex h-[60px] w-full flex-shrink-0 items-center justify-center border-b ${line}`}>
             <img
               src={siteBrand?.logo_url || '/images/e-infak/mark.png'}
               alt={siteBrand?.name || 'E-İnfak'}
-              className={`h-9 w-9 shrink-0 rounded-[9px] ring-1 ${
+              className={`h-9 w-9 rounded-[9px] ring-1 ${
                 siteBrand?.logo_url
                   ? `object-contain p-1 ${theme.dark ? 'bg-white ring-white/15' : 'bg-gray-50 ring-gray-200'}`
                   : `object-cover ${theme.dark ? 'ring-white/15' : 'ring-gray-200'}`
               }`}
             />
-            <div className={`min-w-0 ${collapsed ? 'lg:hidden' : ''}`}>
-              <div className={`truncate font-extrabold text-[15px] tracking-wide ${theme.dark ? 'text-white' : 'text-gray-900'}`}>{siteBrand?.name || 'E-İNFAK'}</div>
-              <div className={`text-[10px] tracking-[1.2px] ${theme.dark ? 'text-[#5F7488]' : 'text-gray-400'}`}>E-İNFAK OTOMASYONU</div>
-            </div>
           </Link>
-          <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Menüyü kapat"
-            className={`flex h-8 w-8 items-center justify-center rounded-lg lg:hidden ${
-              theme.dark ? 'text-[#8FA3B5] hover:bg-white/10 hover:text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-            }`}>
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-          {!collapsed && (
-            <button type="button" onClick={toggleCollapsed} title="Menüyü daralt" aria-label="Menüyü daralt"
-              className={`hidden h-7 w-7 items-center justify-center rounded-md lg:flex ${
-                theme.dark ? 'text-[#5F7488] hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
-              }`}>
-              <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
-            </button>
-          )}
-        </div>
-
-        {collapsed && (
-          <div className="hidden justify-center pt-2.5 lg:flex">
-            <button type="button" onClick={toggleCollapsed} title="Menüyü genişlet" aria-label="Menüyü genişlet"
-              className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                theme.dark ? 'text-[#5F7488] hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'
-              }`}>
-              <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        )}
-
-        <div className={`px-3 pt-3 ${collapsed ? 'lg:hidden' : ''}`}>
-          <div className="relative">
-            <Search className={`pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 ${
-              theme.dark ? 'text-[#5F7488]' : 'text-gray-400'
-            }`} aria-hidden="true" />
-            <input
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && results[0]) router.push(results[0].item.href)
-                if (event.key === 'Escape') setQuery('')
-              }}
-              placeholder="Menüde ara…"
-              aria-label="Menüde ara"
-              className={`admin-menu-search w-full rounded-lg border py-2 ps-8 pe-12 text-[13px] outline-none ${
-                theme.dark
-                  ? 'border-white/10 bg-white/[0.06] text-white placeholder-[#5F7488] focus:border-emerald-400/60'
-                  : 'border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-primary-600 focus:bg-white'
-              }`}
-            />
-            {!query && (
-              <kbd className={`pointer-events-none absolute end-2 top-1/2 hidden -translate-y-1/2 rounded border px-1.5 text-[10px] lg:block ${
-                theme.dark ? 'border-white/10 text-[#5F7488]' : 'border-gray-200 bg-white text-gray-400'
-              }`}>Ctrl K</kbd>
-            )}
-          </div>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto px-2.5 py-3">
-          {needle && !collapsed ? (
-            <div className="flex flex-col gap-0.5">
-              {results.map(({ item, group }) => itemLink(item, group))}
-              {results.length === 0 && <p className={`px-3 py-6 text-center text-[12.5px] ${theme.dark ? 'text-[#5F7488]' : 'text-gray-400'}`}>“{query.trim()}” için sonuç yok.</p>}
-            </div>
-          ) : collapsed ? (
-            <div className="hidden flex-col gap-2 lg:flex">
-              {groups.map((group, gi) => (
-                <div
-                  key={group.key}
-                  className={`flex flex-col gap-1 ${gi > 0 ? `border-t pt-2 ${theme.dark ? 'border-white/[0.06]' : 'border-gray-100'}` : ''}`}
-                >
-                  {group.items.map((item) => itemLink(item))}
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-          <div className={collapsed ? 'lg:hidden' : ''}>
-            {!needle && groups.map((group) => {
-              const isOpen = menu.open.includes(group.key)
+          <div className="flex w-full flex-1 flex-col items-center gap-1 overflow-y-auto px-1.5 py-2.5">
+            {rails.map((rail) => {
+              const active = currentRail?.key === rail.key
+              const shown = shownRail?.key === rail.key && !collapsed
               return (
-                <div key={group.key} className="mb-1">
-                  <button type="button" onClick={() => menu.toggle(group.key)} aria-expanded={isOpen}
-                    className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-[10.5px] font-bold uppercase tracking-[1.2px] ${
-                      theme.dark ? 'text-[#5F7488] hover:text-white' : 'text-gray-400 hover:text-gray-700'
-                    }`}>
-                    <span>{group.label}</span>
-                    <span className="flex items-center gap-1.5">
-                      {!isOpen && <span className={`rounded-full px-1.5 text-[10px] font-semibold tracking-normal ${theme.dark ? 'bg-white/[0.08]' : 'bg-gray-100 text-gray-500'}`}>{group.items.length}</span>}
-                      <svg viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 transition-transform ${isOpen ? 'rotate-90' : ''}`} aria-hidden="true">
-                        <path d="M7.3 4.3a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1 0 1.4l-5 5a1 1 0 0 1-1.4-1.4L11.6 10 7.3 5.7a1 1 0 0 1 0-1.4Z" />
-                      </svg>
-                    </span>
+                <div key={rail.key} className="flex w-full flex-col items-center">
+                  {rail.divider && <div className={`mx-auto mb-1 w-9 border-t ${line}`} aria-hidden="true" />}
+                  <button
+                    type="button"
+                    onClick={() => onRailClick(rail)}
+                    aria-current={active ? 'page' : undefined}
+                    aria-expanded={rail.sections.flatMap((s) => s.items).length > 1 ? shown : undefined}
+                    className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10.5px] font-semibold leading-tight transition-colors ${railTone(active || shown)}`}
+                  >
+                    <rail.icon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+                    <span className="w-full truncate text-center">{rail.label}</span>
                   </button>
-                  {isOpen && <div className="flex flex-col gap-0.5">{group.items.map((item) => itemLink(item))}</div>}
                 </div>
               )
             })}
           </div>
+          <button type="button" onClick={() => setPanelHidden(!collapsed)}
+            title={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'} aria-label={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'}
+            className={`mb-2 hidden w-[64px] flex-col items-center gap-0.5 rounded-lg py-2 text-[10.5px] font-semibold lg:flex ${railTone(false)}`}>
+            {collapsed ? <ChevronsRight className="h-4 w-4" aria-hidden="true" /> : <ChevronsLeft className="h-4 w-4" aria-hidden="true" />}
+            {collapsed ? 'Genişlet' : 'Daralt'}
+          </button>
         </nav>
 
-        <div className={`border-t px-4 py-3.5 text-[11px] ${
-          theme.dark ? 'border-white/[0.08] text-[#5F7488]' : 'border-gray-200 text-gray-500'
-        } ${collapsed ? 'lg:hidden' : ''}`}>
-          {access ? (
-            <Link href="/admin/paket" className={`block truncate ${theme.dark ? 'hover:text-white' : 'hover:text-gray-900'}`}>
-              {access.plan_label} paket · {access.usage.users}/{access.limits.users} kullanıcı
-            </Link>
-          ) : (
-            <span>E-İnfak Yönetim</span>
-          )}
+        {/* Sub-panel */}
+        <div className={`w-60 flex-col border-e ${line} ${panelVisible ? 'flex' : 'hidden'} ${collapsed ? 'lg:hidden' : ''}`}>
+          <div className={`flex h-[60px] flex-shrink-0 items-center justify-between gap-2 border-b px-4 ${line}`}>
+            <div className="flex min-w-0 items-center gap-2">
+              {shownRail && <shownRail.icon className={`h-[18px] w-[18px] flex-shrink-0 ${theme.dark ? 'text-emerald-400' : 'text-primary-600'}`} aria-hidden="true" />}
+              <span className={`truncate text-[15px] font-bold ${theme.dark ? 'text-white' : 'text-gray-900'}`}>{needle ? 'Arama' : shownRail?.label}</span>
+            </div>
+            <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Menüyü kapat"
+              className={`flex h-8 w-8 items-center justify-center rounded-lg lg:hidden ${theme.dark ? 'hover:bg-white/10 hover:text-white' : 'hover:bg-gray-100 hover:text-gray-900'}`}>
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <button type="button" onClick={() => setPanelHidden(true)} title="Paneli kapat" aria-label="Paneli kapat"
+              className={`hidden h-7 w-7 items-center justify-center rounded-md lg:flex ${theme.dark ? 'text-[#5F7488] hover:bg-white/10 hover:text-white' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700'}`}>
+              <ChevronsLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className="px-3 pt-3">
+            <div className="relative">
+              <Search className={`pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 ${muted}`} aria-hidden="true" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && results[0]) router.push(results[0].item.href)
+                  if (event.key === 'Escape') setQuery('')
+                }}
+                placeholder="Menüde ara…"
+                aria-label="Menüde ara"
+                className={`admin-menu-search w-full rounded-lg border py-2 ps-8 pe-12 text-[13px] outline-none ${
+                  theme.dark
+                    ? 'border-white/10 bg-white/[0.06] text-white placeholder-[#5F7488] focus:border-emerald-400/60'
+                    : 'border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-primary-600 focus:bg-white'
+                }`}
+              />
+              {!query && (
+                <kbd className={`pointer-events-none absolute end-2 top-1/2 hidden -translate-y-1/2 rounded border px-1.5 text-[10px] lg:block ${
+                  theme.dark ? 'border-white/10 text-[#5F7488]' : 'border-gray-200 bg-white text-gray-400'
+                }`}>Ctrl K</kbd>
+              )}
+            </div>
+          </div>
+
+          <nav aria-label={shownRail?.label || 'Alt menü'} className="flex-1 overflow-y-auto px-2.5 py-3">
+            {needle ? (
+              <div className="flex flex-col gap-0.5">
+                {results.map(({ item, group }) => itemLink(item, group))}
+                {results.length === 0 && <p className={`px-3 py-6 text-center text-[12.5px] ${muted}`}>“{query.trim()}” için sonuç yok.</p>}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {shownRail?.sections.map((section, si) => (
+                  <div key={section.title || si} className="flex flex-col gap-0.5">
+                    {section.title && (
+                      <div className={`px-3 pb-1 text-[11px] font-semibold ${muted}`}>{section.title}</div>
+                    )}
+                    {section.items.map((item) => itemLink(item))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </nav>
+
+          <div className={`border-t px-4 py-3.5 text-[11px] ${line} ${muted}`}>
+            {access ? (
+              <Link href="/admin/paket" className={`block truncate ${theme.dark ? 'hover:text-white' : 'hover:text-gray-900'}`}>
+                {access.plan_label} paket · {access.usage.users}/{access.limits.users} kullanıcı
+              </Link>
+            ) : (
+              <span>E-İnfak Yönetim</span>
+            )}
+          </div>
         </div>
       </aside>
 
