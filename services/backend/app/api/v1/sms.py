@@ -691,6 +691,8 @@ async def _plan(db: AsyncSession, org_id: UUID, payload: BatchIn):
         raise HTTPException(status_code=422, detail="Etiket seçin")
     if payload.audience.kind == "city" and not (payload.audience.city or "").strip():
         raise HTTPException(status_code=422, detail="Şehir seçin")
+    if payload.audience.kind == "list" and not payload.audience.list_id:
+        raise HTTPException(status_code=422, detail="Liste seçin")
     recipients, stats = await resolve(db, org_id, payload.audience, commercial=payload.commercial)
     now = datetime.now(timezone.utc)
     send_at = payload.send_at

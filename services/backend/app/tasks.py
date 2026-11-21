@@ -120,6 +120,24 @@ def dispatch_due_sms_task():
     return asyncio.run(dispatch_due())
 
 
+@celery_app.task(name="app.tasks.send_mail_batch_task", ignore_result=True)
+def send_mail_batch_task(batch_id: str):
+    """Send one bulk e-mail ("Mail Gönderimleri")."""
+    from app.services.mailing import run_batch
+    return asyncio.run(run_batch(AsyncSessionLocal, batch_id))
+
+
+@celery_app.task(name="app.tasks.dispatch_due_mail_task", ignore_result=True)
+def dispatch_due_mail_task():
+    """Every minute: scheduled bulk e-mails whose time has come."""
+    from app.services.mailing import due_batches, run_batch
+
+    async def _run():
+        for batch_id in await due_batches(AsyncSessionLocal):
+            await run_batch(AsyncSessionLocal, batch_id)
+    return asyncio.run(_run())
+
+
 @celery_app.task(name="app.tasks.dispatch_whatsapp_task", ignore_result=True)
 def dispatch_whatsapp_task():
     """Every minute (and right after a bulk send): queued WhatsApp messages."""
@@ -718,6 +736,10 @@ celery_app.conf.beat_schedule = {
     },
     "dispatch-whatsapp-every-minute": {
         "task": "app.tasks.dispatch_whatsapp_task",
+        "schedule": 60.0,
+    },
+    "dispatch-due-mail-every-minute": {
+        "task": "app.tasks.dispatch_due_mail_task",
         "schedule": 60.0,
     },
     "dispatch-due-sms-every-minute": {

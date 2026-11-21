@@ -533,3 +533,66 @@ async def test_modern_bulk_features_csv_ab_throttle_optout_and_test_sms(db_sessi
     )
     stored = await db_session.get(SmsBatch, uuid.UUID(created["id"]))
     assert stored.name == "Güncel Ad" and stored.body == "Yeni Metin {ad}"
+
+
+async def test_recipient_lists_feed_sms_audience_and_mail(db_session, monkeypatch):
+    import uuid as _uuid
+    from starlette.requests import Request as _Request
+    from app.api.v1 import mailing as mailing_api
+    from app.api.v1.crm import DonorFilter
+    from app.models.donation import Donor
+    from app.models.organization import Organization
+    from app.models.user import User, UserRole
+    from app.services import mailing
+    from app.services.sms_audience import Audience, resolve
+
+    slug = f"t-{_uuid.uuid4().hex[:8]}"
+    org = Organization(slug=slug, name="Hakder", legal_name=slug, email=f"{slug}@example.com",
+                       primary_domain=f"{slug}.example.com", plan="ileri", enabled_addons=[], extra_user_seats=0)
+    db_session.add(org)
+    await db_session.flush()
+    admin = User(organization_id=org.id, email=f"{slug}@example.com", hashed_password="x", first_name="A", last_name="B",
+                 role=UserRole.STK_ADMIN)
+    a = Donor(organization_id=org.id, first_name="Ali", phone="905321112233", allow_sms=True, email="ali@example.com", allow_email=True, city="Eskişehir")
+    b = Donor(organization_id=org.id, first_name="Ayşe", phone="905449998877", allow_sms=False, email="ayse@example.com", allow_email=False, city="Eskişehir")
+    c = Donor(organization_id=org.id, first_name="Can", phone="905551110000", allow_sms=True, city="Ankara")
+    db_session.add_all([admin, a, b, c])
+    await db_session.commit()
+
+    req = _Request({"type": "http", "method": "POST", "path": "/api/v1/admin-features/x", "headers": [], "query_string": b"", "client": ("1.2.3.4", 1)})
+    req.state.organization_id = str(org.id)
+    made = await mailing_api.create_list(mailing_api.ListIn(
+        channel="sms", name="Eskişehir", target=mailing_api.DonorTarget(select_all=True, filters=DonorFilter(city="eskişehir"))),
+        req, db_session, admin)
+    assert made["member_count"] == 2 and made["added"] == 2
+    again = await mailing_api.create_list(mailing_api.ListIn(channel="sms", name="x", list_id=made["id"],
+                                          target=mailing_api.DonorTarget(ids=[a.id, c.id])), req, db_session, admin)
+    assert again["member_count"] == 3 and again["added"] == 1
+
+    recipients, stats = await resolve(db_session, org.id, Audience(kind="list", list_id=made["id"]))
+    assert sorted(r.phone for r in recipients) == ["905321112233", "905551110000"] and stats["no_consent"] == 1
+
+    preview = await mailing_api.send_mail(mailing_api.MailSendIn(
+        subject="Merhaba {ad}", body="Selam", target=mailing_api.DonorTarget(ids=[a.id, b.id, c.id]), preview=True),
+        req, db_session, admin)
+    assert preview["recipients"] == 1 and preview["no_consent"] == 1 and preview["no_email"] == 1
+
+    sent_to = []
+    monkeypatch.setattr(mailing, "deliver", lambda to, subject, body, **kw: sent_to.append((to, subject)))
+    monkeypatch.setattr("app.tasks.send_mail_batch_task.delay", lambda *a, **k: None)
+    created = await mailing_api.send_mail(mailing_api.MailSendIn(
+        subject="Merhaba {ad}", body="Selam\n\n<b>{kurum}</b>", target=mailing_api.DonorTarget(ids=[a.id, b.id])),
+        req, db_session, admin)
+    assert created["recipients"] == 1 and created["seq_no"] == 1
+
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def same_session():  # run_batch opens its own session; reuse the test one
+        yield db_session
+
+    result = await mailing.run_batch(same_session, created["batch_id"])
+    assert result == {"sent": 1, "failed": 0} and sent_to == [("ali@example.com", "Merhaba Ali")]
+    assert await mailing.run_batch(same_session, created["batch_id"]) == {"skipped": True}  # claimed once only
+    html_body = mailing.to_html("Selam\n\n<b>Hakder</b>", org_name="Hakder", commercial=True)
+    assert "&lt;b&gt;Hakder&lt;/b&gt;" in html_body and "izin verdiğiniz" in html_body

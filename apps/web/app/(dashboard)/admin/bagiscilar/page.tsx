@@ -4,8 +4,8 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Copy, Download, Eye, PencilLine, Plus, Smartphone, Trash2, Upload, Users, Zap } from 'lucide-react'
-import { adminGet, adminSend, apiErrorMessage, exportXlsx, formatMoney, whatsappUrl } from '../../../../lib/admin-access'
+import { Copy, Download, Eye, ListChecks, Mail, MailPlus, PencilLine, Plus, Send, Smartphone, Trash2, Upload, Users, Zap } from 'lucide-react'
+import { adminGet, adminSend, apiErrorMessage, can, exportXlsx, formatMoney, whatsappUrl } from '../../../../lib/admin-access'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import { Modal, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
@@ -13,6 +13,8 @@ import { EMPTY_SELECTION, type ListColumn, type ListSelection, ListView, RowActi
 import { DonorForm } from '../../../../components/admin/donors/DonorForm'
 import { CallButton } from '../../../../components/admin/donors/DonorCardView'
 import { useDonorContext } from '../../../../components/admin/donors/useDonorContext'
+import { MailComposer } from '../../../../components/admin/messaging/MailComposer'
+import { SaveToListModal } from '../../../../components/admin/messaging/RecipientLists'
 import { type DonorRow, formatPhone, staffName } from '../../../../components/admin/donors/types'
 
 /** Columns the export can carry; labels and order match STK PRO's Excel. */
@@ -46,7 +48,8 @@ export default function DonorsPageWrapper() {
 function DonorsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { staff, options, perms } = useDonorContext()
+  const { access, staff, options, perms } = useDonorContext()
+  const canBulk = can(access, 'sms.bulk')
   const [filters, setFilters] = useState<Record<string, string>>(() => ({ ...EMPTY_FILTERS, q: searchParams.get('q') || '' }))
   const [sort, setSort] = useState('recent')
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc')
@@ -59,6 +62,8 @@ function DonorsPage() {
   const [bulkUpdate, setBulkUpdate] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [smsFor, setSmsFor] = useState<DonorRow | null>(null)
+  const [listFor, setListFor] = useState<'sms' | 'mail' | null>(null)
+  const [mailOpen, setMailOpen] = useState(false)
 
   // Old links (?donor=…) open the full card page.
   useEffect(() => {
@@ -92,8 +97,19 @@ function DonorsPage() {
   useEffect(() => { load() }, [load])
 
   const applyFilters = (next: Record<string, string>) => { setFilters(next); setPage(1); setSelection(EMPTY_SELECTION) }
-  const target = () => (selection.all ? { select_all: true, filters: apiFilters } : { ids: selection.ids })
+  const target = () => ({ ids: selection.all ? [] : selection.ids, select_all: selection.all, filters: apiFilters })
   const picked = selection.all ? list.total : selection.ids.length
+
+  // "Gönderim Sihirbazı": the picked donors become a dated SMS list and open in the bulk SMS wizard.
+  const sendWizard = async () => {
+    try {
+      const name = `Seçim ${new Date().toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}`
+      const r = await adminSend<{ id: string }>('post', '/recipient-lists', { channel: 'sms', name, target: target() })
+      router.push(`/admin/broadcast?liste=${r.data.id}`)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Gönderim hazırlanamadı'))
+    }
+  }
 
   const runDelete = async () => {
     const ok = await confirmDialog({
@@ -214,6 +230,12 @@ function DonorsPage() {
           ...(perms.update ? [{ key: 'update', label: 'Toplu Güncelle', icon: PencilLine, tone: 'info' as const, onClick: () => setBulkUpdate(true) }] : []),
           ...(perms.remove ? [{ key: 'delete', label: 'Sil', icon: Trash2, tone: 'danger' as const, onClick: runDelete }] : []),
           ...(perms.exports ? [{ key: 'export', label: 'Dışa Aktar', icon: Download, tone: 'success' as const, onClick: () => setExportOpen(true) }] : []),
+          ...(canBulk ? [
+            { key: 'wizard', label: 'Gönderim Sihirbazı', icon: Send, tone: 'warning' as const, onClick: sendWizard },
+            { key: 'smslist', label: 'SMS Listesi Oluştur', icon: ListChecks, tone: 'info' as const, onClick: () => setListFor('sms') },
+            { key: 'mail', label: 'Mail Gönder', icon: Mail, tone: 'info' as const, onClick: () => setMailOpen(true) },
+            { key: 'maillist', label: 'Mail Listesi Oluştur', icon: MailPlus, tone: 'info' as const, onClick: () => setListFor('mail') },
+          ] : []),
         ]}
         rowActions={(d) => {
           const wa = whatsappUrl(d.phone, `Merhaba ${d.full_name}, bağışlarınız ve desteğiniz için teşekkür ederiz.`)
@@ -270,6 +292,13 @@ function DonorsPage() {
               toast.error(apiErrorMessage(err, 'Dışa aktarılamadı'))
             }
           }} />
+      )}
+      {listFor && (
+        <SaveToListModal channel={listFor} count={picked} target={target()} onClose={() => setListFor(null)}
+          onDone={() => { setListFor(null); setSelection(EMPTY_SELECTION) }} />
+      )}
+      {mailOpen && (
+        <MailComposer target={{ target: target() }} label={`${picked.toLocaleString('tr-TR')} seçili bağışçı`} onClose={() => setMailOpen(false)} />
       )}
       {smsFor && (
         <QuickSmsDialog

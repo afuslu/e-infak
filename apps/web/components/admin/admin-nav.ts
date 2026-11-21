@@ -1,7 +1,7 @@
 import {
   ArrowDownToLine, BarChart3, Beef, BellRing, Blocks, BookOpen, Calculator, CalendarDays, Coins, CreditCard, Droplets, FileText,
   FileUp, Film, FolderOpen, Globe2, HandCoins, HandHelping, HeartHandshake, HelpCircle, History, Home, IdCard, KeyRound,
-  Landmark, LayoutDashboard, LayoutGrid, LifeBuoy, LogIn, type LucideIcon, MailPlus, Megaphone, MessageSquareText,
+  Landmark, LayoutDashboard, LayoutGrid, LifeBuoy, ListChecks, Mail, LogIn, type LucideIcon, MailPlus, Megaphone, MessageSquareText,
   MessagesSquare, Newspaper, PackageCheck, Palette, PanelsTopLeft, PhoneCall, PiggyBank, Plug, Repeat, Send, Settings,
   Shuffle, ShieldCheck, Sparkles, Tags, Users, UsersRound, Video, Wallet,
 } from 'lucide-react'
@@ -139,8 +139,16 @@ export const NAV_RAIL: NavRail[] = [
       {
         title: 'SMS', items: [
           { href: '/admin/sms', label: 'SMS Şablonları', icon: MailPlus, feature: 'sms', module: 'sms' },
-          { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: MessagesSquare, feature: 'sms', module: 'sms' },
+          { href: '/admin/sms-listeleri', label: 'SMS Listeleri', icon: ListChecks, feature: 'sms', module: 'sms' },
           { href: '/admin/sms-gonderimleri', label: 'SMS Gönderimleri', icon: Send, feature: 'sms', module: 'sms' },
+          { href: '/admin/broadcast', label: 'Toplu SMS Gönder', icon: MessagesSquare, feature: 'sms', module: 'sms' },
+        ],
+      },
+      {
+        title: 'Mail', items: [
+          { href: '/admin/mail-sablonlari', label: 'Mail Şablonları', icon: MailPlus, module: 'sms' },
+          { href: '/admin/mail-listeleri', label: 'Mail Listeleri', icon: Mail, module: 'sms' },
+          { href: '/admin/mail-gonderimleri', label: 'Mail Gönderimleri', icon: Send, module: 'sms' },
         ],
       },
       {

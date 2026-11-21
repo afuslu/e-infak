@@ -28,18 +28,20 @@ AUDIENCE_KINDS = {
     "dues_overdue": "Aidatı geciken üyeler",
     "kurban": "{year} kurban bağışçıları",
     "numbers": "Numara listesi",
+    "list": "Liste: {list_name}",
 }
 
 
 class Audience(BaseModel):
     kind: Literal["all_donors", "active_donors", "lapsed_donors", "never_donated", "tag", "city", "campaign", "members",
-                  "dues_overdue", "kurban", "numbers"]
+                  "dues_overdue", "kurban", "numbers", "list"]
     months: int = Field(default=6, ge=1, le=120)
     tag: Optional[str] = Field(default=None, max_length=60)
     city: Optional[str] = Field(default=None, max_length=100)
     campaign_id: Optional[UUID] = None
     year: Optional[int] = Field(default=None, ge=2000, le=2100)
     numbers: Optional[str] = Field(default=None, max_length=400_000)
+    list_id: Optional[UUID] = None  # "SMS Listeleri": a saved recipient list
     # Informational messages only: also reach donors who have not given SMS permission.
     include_without_consent: bool = False
     # Optional combined segment refinements (ignored for raw pasted numbers).
@@ -68,9 +70,15 @@ async def audience_label(db: AsyncSession, org_id: UUID, audience: Audience) -> 
     if audience.kind == "campaign" and audience.campaign_id:
         campaign = (await db.execute(select(Campaign.title).where(
             Campaign.id == audience.campaign_id, Campaign.organization_id == org_id))).scalar() or ""
+    list_name = ""
+    if audience.kind == "list" and audience.list_id:
+        from app.models.mailing import RecipientList
+
+        list_name = (await db.execute(select(RecipientList.name).where(
+            RecipientList.id == audience.list_id, RecipientList.organization_id == org_id))).scalar() or ""
     base = AUDIENCE_KINDS[audience.kind].format(
         months=audience.months, tag=audience.tag or "", city=audience.city or "", campaign=campaign,
-        year=audience.year or "",
+        year=audience.year or "", list_name=list_name,
     )
     if audience.kind == "numbers":
         return base
@@ -190,6 +198,12 @@ async def resolve(db: AsyncSession, org_id: UUID, audience: Audience, *, commerc
             Donation.status == DonationStatus.CONFIRMED))
     elif audience.kind == "members":
         query = query.where(exists().where(Member.donor_id == Donor.id, Member.status == "active"))
+    elif audience.kind == "list":
+        from app.models.mailing import RecipientList, RecipientListMember
+
+        query = query.where(exists().where(
+            RecipientListMember.donor_id == Donor.id, RecipientListMember.list_id == audience.list_id,
+            RecipientList.id == RecipientListMember.list_id, RecipientList.organization_id == org_id))
     elif audience.kind == "dues_overdue":
         query = query.where(exists().where(
             Member.donor_id == Donor.id, MemberDue.member_id == Member.id, MemberDue.status == "open",
@@ -219,7 +233,14 @@ async def audience_options(db: AsyncSession, org_id: UUID) -> dict:
         select(KurbanCampaign.season_year).where(KurbanCampaign.organization_id == org_id,
                                                  KurbanCampaign.season_year.is_not(None)).distinct()
     )).scalars().all()
+    from app.models.mailing import RecipientList
+
+    lists = (await db.execute(
+        select(RecipientList.id, RecipientList.name, RecipientList.member_count)
+        .where(RecipientList.organization_id == org_id, RecipientList.channel == "sms").order_by(RecipientList.created_at.desc())
+    )).all()
     return {
+        "lists": [{"id": str(i), "name": n, "count": c} for i, n, c in lists],
         "kinds": [{"key": key, "label": label.split(":")[0].replace("{months} ", "N ").replace("{year} ", "")
                    .replace("{months}", "N")} for key, label in AUDIENCE_KINDS.items()],
         "tags": sorted(t for t in tags if t), "cities": [c for c, _n in cities],

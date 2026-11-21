@@ -16,6 +16,7 @@ interface Options {
   cities: string[]
   campaigns: { id: string; title: string }[]
   kurban_years: number[]
+  lists?: { id: string; name: string; count: number }[]
 }
 interface Preview {
   recipients: number
@@ -74,6 +75,7 @@ const KIND_LABEL: Record<string, string> = {
   dues_overdue: 'Aidatı geciken üyeler',
   kurban: 'Kurban bağışçıları',
   numbers: 'Numara listesi (yapıştır)',
+  list: 'Kayıtlı SMS listesi',
 }
 const STATE: Record<Batch['state'], [string, string]> = {
   sending: ['Gönderiliyor', 'border-amber-200 bg-amber-50 text-amber-700'],
@@ -117,6 +119,7 @@ export default function BulkSmsPage() {
   const [tag, setTag] = useState('')
   const [city, setCity] = useState('')
   const [campaignId, setCampaignId] = useState('')
+  const [listId, setListId] = useState('')
   const [year, setYear] = useState('')
   const [numbers, setNumbers] = useState('')
   const [filterCity, setFilterCity] = useState('')
@@ -175,6 +178,11 @@ export default function BulkSmsPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+    const urlList = params.get('liste')
+    if (urlList) {
+      setKind('list')
+      setListId(urlList)
+    }
     const urlKind = params.get('kind')
     if (urlKind && KIND_LABEL[urlKind]) {
       setKind(urlKind)
@@ -228,6 +236,7 @@ export default function BulkSmsPage() {
       campaign_id: campaignId || null,
       year: Number(year) || null,
       numbers: kind === 'numbers' ? numbers : null,
+      list_id: kind === 'list' ? listId || null : null,
       include_without_consent: withoutConsent && !commercial,
       filter_city: kind !== 'numbers' && kind !== 'city' ? filterCity || null : null,
       filter_tag: kind !== 'numbers' && kind !== 'tag' ? filterTag || null : null,
@@ -243,7 +252,8 @@ export default function BulkSmsPage() {
     (kind !== 'tag' || tag) &&
     (kind !== 'city' || city) &&
     (kind !== 'campaign' || campaignId) &&
-    (kind !== 'numbers' || numbers.trim())
+    (kind !== 'numbers' || numbers.trim()) &&
+    (kind !== 'list' || listId)
 
   // Recount whenever the audience or the text changes.
   useEffect(() => {
@@ -263,6 +273,7 @@ export default function BulkSmsPage() {
     tag,
     city,
     campaignId,
+    listId,
     year,
     numbers,
     filterCity,
@@ -649,6 +660,18 @@ export default function BulkSmsPage() {
                 </Label>
               )}
               {kind === 'kurban' && <TextInput label="Kurban yılı" type="number" min={2000} max={2100} value={year} onChange={setYear} />}
+              {kind === 'list' && (
+                <Label label="SMS listesi" hint={options && !options.lists?.length ? 'Henüz liste yok: Bağışçılar → Toplu İşlemler → SMS Listesi Oluştur.' : undefined}>
+                  <select className={inputClass} value={listId} onChange={(e) => setListId(e.target.value)}>
+                    <option value="">Seçin</option>
+                    {options?.lists?.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name} ({l.count})
+                      </option>
+                    ))}
+                  </select>
+                </Label>
+              )}
             </div>
             {kind === 'numbers' && (
               <div className="space-y-2">

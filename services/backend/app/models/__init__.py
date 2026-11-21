@@ -11,6 +11,7 @@ from app.models.field_ops import (
     Region, MoneyBox, MoneyBoxCollection, AidPackage, AidRecipient, AidDistribution, HouseholdMember, TaskTemplate, Task,
 )
 from app.models.campaign import Campaign, CampaignStatus, CampaignCategory, CampaignTab
+from app.models.mailing import MailBatch, MailMessage, MailTemplate, RecipientList, RecipientListMember
 from app.models.receipt_book import ReceiptBook
 from app.models.membership import Member, MemberDue
 from app.models.accounting import (
