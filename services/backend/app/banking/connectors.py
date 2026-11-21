@@ -19,6 +19,7 @@ class _PendingSpec(BankConnector):
 
 
 from app.banking import vakifkatilim  # noqa: E402,F401  (registers Vakıf Katılım first in the list)
+from app.banking import kuveytturk  # noqa: E402,F401  (registers Kuveyt Türk OAuth2 API connector)
 
 
 @register
@@ -28,15 +29,6 @@ class ZiraatKatilim(_PendingSpec):
     credential_fields = {"customer_no": "Müşteri no", "username": "Web servis kullanıcı adı",
                          "password": "Web servis şifresi"}
     secret_fields = ("password",)
-
-
-@register
-class KuveytTurk(_PendingSpec):
-    """Kuveyt Türk API Portal (OAuth2 client credentials)."""
-    key = "kuveytturk"
-    label = "Kuveyt Türk"
-    credential_fields = {"client_id": "Client ID", "client_secret": "Client secret", "customer_no": "Müşteri no"}
-    secret_fields = ("client_secret",)
 
 
 @register

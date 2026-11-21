@@ -39,9 +39,13 @@ import type { PublicMenu } from '../../lib/default-links'
 import { Fields } from './FieldInput'
 import { buildLinkGroups } from './link-presets'
 import { type DemoOptions, type Library, type LibraryDemo, LibraryPanel, type SavedBlock } from './LibraryPanel'
+import { CommandPaletteModal } from './CommandPaletteModal'
 import { MenuPanel } from './MenuPanel'
 import { PageSettingsModal } from './PageSettingsModal'
+import { QuickSetupWizard } from './QuickSetupWizard'
+import { SiteAuditModal } from './SiteAuditModal'
 import { type ThemeLivePatch, type ThemeSubTab, ThemePanel } from './ThemePanel'
+import { BlockRenderer } from '../blocks/BlockRenderer'
 
 interface PageSummary { id: string; kind: 'home' | 'page' | 'header' | 'footer'; slug: string | null; title: string; is_published: boolean; uses_blocks: boolean; has_draft: boolean; published_at: string | null; draft_updated_at: string | null }
 interface Revision { id: string; created_at: string; created_by: string | null; blocks: number }
@@ -148,6 +152,12 @@ export function SiteBuilderEditor() {
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
   const [conflict, setConflict] = useState<string | null>(null)
   const [modal, setModal] = useState<'publish' | 'versions' | 'new-page' | null>(null)
+  const [auditOpen, setAuditOpen] = useState(false)
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [cmdOpen, setCmdOpen] = useState(false)
+  const [copiedStyle, setCopiedStyle] = useState<{ style?: Block['style']; animation?: string; animation_delay?: number; animation_duration?: number } | null>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; block: Block } | null>(null)
+  const importInputRef = useRef<HTMLInputElement | null>(null)
   const [newPageTitle, setNewPageTitle] = useState('')
   const [newPageTemplate, setNewPageTemplate] = useState('')
   const [newPageAddMenu, setNewPageAddMenu] = useState(true)
@@ -499,6 +509,11 @@ export function SiteBuilderEditor() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setCmdOpen((v) => !v)
+        return
+      }
       if ((e.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) return
       if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault()
@@ -1118,6 +1133,12 @@ export function SiteBuilderEditor() {
                 setRenamingId(b.id)
                 setRenameVal(treeLabel(b, spec?.label))
               }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                dispatch({ type: 'select', id: b.id })
+                setCtxMenu({ x: e.clientX, y: e.clientY, block: b })
+              }}
               className={`group flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[12px] ${state.selectedId === b.id ? 'bg-blue-100 font-semibold text-blue-800' : 'hover:bg-gray-100'} ${((device === 'desktop' && b.advanced?.hide_desktop) || (device === 'tablet' && b.advanced?.hide_tablet) || (device === 'mobile' && b.advanced?.hide_mobile)) ? 'opacity-50' : ''} ${dropCls}`}
             >
               {hasChildren ? (
@@ -1319,6 +1340,77 @@ export function SiteBuilderEditor() {
             {languages.map((l) => <option key={l} value={l}>{LANG_LABEL[l] || l}</option>)}
           </select>
         )}
+        <button
+          type="button"
+          className="hidden lg:inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-semibold text-gray-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+          title="Hızlı komut paleti (Ctrl+K / ⌘K)"
+          onClick={() => setCmdOpen(true)}
+        >
+          <span>⌘K</span>
+        </button>
+        <button
+          type="button"
+          className={`hidden xl:inline-flex items-center gap-1 ${smallBtn}`}
+          title="3 adımlı hızlı site kurulum sihirbazı"
+          onClick={() => setWizardOpen(true)}
+        >
+          <span>✨ Sihirbaz</span>
+        </button>
+        <button
+          type="button"
+          className={`hidden md:inline-flex items-center gap-1 ${smallBtn}`}
+          title="Yayın öncesi SEO, bağlantı ve erişilebilirlik kontrolü"
+          onClick={() => setAuditOpen(true)}
+        >
+          <span>✓ Kontrol</span>
+        </button>
+        <button
+          type="button"
+          className="hidden xl:inline-flex items-center justify-center rounded-md border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-100"
+          title="Sayfa tasarımını JSON olarak dışa aktar (yedekle)"
+          onClick={() => {
+            const payload = { version: 1, page: page?.slug || page?.kind || 'sayfa', exported_at: new Date().toISOString(), blocks: state.blocks }
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `${page?.slug || page?.kind || 'sayfa'}-tasarim.json`
+            a.click()
+            URL.revokeObjectURL(url)
+            setMessage({ type: 'ok', text: 'Sayfa tasarımı JSON olarak indirildi.' })
+          }}
+        >
+          ↓ JSON
+        </button>
+        <button
+          type="button"
+          className="hidden xl:inline-flex items-center justify-center rounded-md border border-gray-200 px-2 py-1 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-100"
+          title="JSON yedeğinden sayfa tasarımını içe aktar"
+          onClick={() => importInputRef.current?.click()}
+        >
+          ↑ İçe Aktar
+        </button>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0]
+            e.target.value = ''
+            if (!file) return
+            try {
+              const parsed = JSON.parse(await file.text())
+              const rawBlocks: Block[] = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.blocks) ? parsed.blocks : []
+              if (!rawBlocks.length) throw new Error('Geçerli blok bulunamadı')
+              const fresh = rawBlocks.map((b) => cloneBlock(b))
+              dispatch({ type: 'commit', blocks: fresh, select: fresh[0]?.id || null })
+              setMessage({ type: 'ok', text: `${fresh.length} blok içe aktarıldı. Beğenmezseniz Ctrl+Z ile geri alabilirsiniz.` })
+            } catch {
+              setMessage({ type: 'error', text: 'Geçersiz JSON tasarım dosyası.' })
+            }
+          }}
+        />
         <button type="button" className={`inline-flex items-center gap-1 ${smallBtn}`} onClick={showVersions}><History className="h-3.5 w-3.5" /><span>Sürümler</span></button>
         {!CHROME.has(page?.kind || '') && <button type="button" className={`inline-flex items-center gap-1 ${smallBtn}`} disabled={previewing} onClick={openPreview}><span>{previewing ? 'Açılıyor…' : 'Önizle'}</span><ExternalLink className="h-3 w-3" /></button>}
         {CHROME.has(page?.kind || '') && page?.is_published && <button type="button" className={smallBtn} onClick={unpublish}>Yerleşik tasarıma dön</button>}
@@ -1598,8 +1690,20 @@ export function SiteBuilderEditor() {
                 </div>
 
                 {addSubTab === 'library' ? (
-                  <LibraryPanel library={library} catalog={catalog} kind={page?.kind || 'home'} saved={saved}
-                    onInsert={insertSection} onReplace={replacePage} onInsertSaved={insertSaved} onDeleteSaved={deleteSaved} onApplyDemo={applyDemo} />
+                  <LibraryPanel
+                    library={library}
+                    catalog={catalog}
+                    kind={page?.kind || 'home'}
+                    saved={saved}
+                    onInsert={insertSection}
+                    onReplace={replacePage}
+                    onInsertSaved={insertSaved}
+                    onDeleteSaved={deleteSaved}
+                    onApplyDemo={applyDemo}
+                    renderPreview={data ? (previewBlocks) => (
+                      <BlockRenderer blocks={previewBlocks} data={{ ...data, locale: lang }} editing={false} />
+                    ) : undefined}
+                  />
                 ) : addSubTab === 'media' ? (
                   <div className="space-y-2">
                     <p className="text-[11px] text-gray-500">Görseli kanvastaki bir bloğun üstüne veya arasına sürükleyip bırakın.</p>
@@ -1740,7 +1844,24 @@ export function SiteBuilderEditor() {
                     </div>
                   )}
                   {!state.blocks.length ? (
-                    <p className="text-[12px] text-gray-400">Sayfa boş</p>
+                    <div className="space-y-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/40 p-3">
+                      <p className="text-xs font-bold text-gray-800">Sayfa henüz boş</p>
+                      <p className="text-[11px] text-gray-500">Hızlı başlamak için aşağıdan bir yol seçin:</p>
+                      <div className="grid grid-cols-1 gap-1.5 pt-1">
+                        <button type="button" onClick={() => setWizardOpen(true)} className="rounded-lg border border-blue-200 bg-white px-2.5 py-2 text-left text-[11px] font-semibold text-blue-700 shadow-2xs hover:bg-blue-50">
+                          ✨ Hızlı Kurulum Sihirbazı (3 Adım)
+                        </button>
+                        <button type="button" onClick={() => { setLeftTab('add'); setAddSubTab('library') }} className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-left text-[11px] font-semibold text-gray-700 shadow-2xs hover:bg-gray-50">
+                          🧩 Hazır Bölüm / Şablon Ekle
+                        </button>
+                        <button type="button" onClick={() => setLeftTab('theme')} className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-left text-[11px] font-semibold text-gray-700 shadow-2xs hover:bg-gray-50">
+                          🎨 Tema & Renkleri Seç
+                        </button>
+                        <button type="button" onClick={() => importInputRef.current?.click()} className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-left text-[11px] font-semibold text-gray-700 shadow-2xs hover:bg-gray-50">
+                          ↑ JSON Tasarım Yedeği Yükle
+                        </button>
+                      </div>
+                    </div>
                   ) : !hasMatches ? (
                     <div className="rounded-lg border border-dashed border-gray-200 px-3 py-5 text-center text-xs text-gray-500">
                       Eşleşen blok bulunamadı.
@@ -1906,6 +2027,8 @@ export function SiteBuilderEditor() {
                 <span className="flex-1 truncate text-sm font-bold text-gray-900">{selectedSpec.label}</span>
                 {!FIXED_CHILD.has(selected.type) && (
                   <div className="flex items-center gap-1">
+                    <button type="button" title="Yukarı taşı (Alt+↑)" className="rounded-md border border-gray-200/80 bg-white px-1.5 py-1 text-xs font-bold text-gray-600 shadow-2xs transition hover:border-gray-300 hover:text-gray-900" onClick={() => blockAction(selected.id, 'up')}>↑</button>
+                    <button type="button" title="Aşağı taşı (Alt+↓)" className="rounded-md border border-gray-200/80 bg-white px-1.5 py-1 text-xs font-bold text-gray-600 shadow-2xs transition hover:border-gray-300 hover:text-gray-900" onClick={() => blockAction(selected.id, 'down')}>↓</button>
                     <button type="button" title="Çoğalt (Ctrl+D)" className="rounded-md border border-gray-200/80 bg-white p-1.5 text-gray-600 shadow-2xs transition hover:border-gray-300 hover:text-gray-900" onClick={() => blockAction(selected.id, 'duplicate')}><CopyPlus className="h-4 w-4" /></button>
                     <button type="button" title="Kopyala (Ctrl+C)" className="rounded-md border border-gray-200/80 bg-white p-1.5 text-gray-600 shadow-2xs transition hover:border-gray-300 hover:text-gray-900" onClick={copySelected}><Clipboard className="h-4 w-4" /></button>
                     <button type="button" title="Kayıtlı bloklara ekle" className="rounded-md border border-gray-200/80 bg-white p-1.5 text-gray-600 shadow-2xs transition hover:border-gray-300 hover:text-gray-900" onClick={saveSelectedBlock}><BookmarkPlus className="h-4 w-4" /></button>
@@ -1970,6 +2093,55 @@ export function SiteBuilderEditor() {
                 )}
                 {rightTab === 'style' && (
                   <>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCopiedStyle({
+                            style: selected.style ? JSON.parse(JSON.stringify(selected.style)) : undefined,
+                            animation: selected.advanced?.animation,
+                            animation_delay: selected.advanced?.animation_delay,
+                            animation_duration: selected.advanced?.animation_duration,
+                          })
+                          setMessage({ type: 'ok', text: 'Blok stili kopyalandı. Başka bir bloğu seçip yapıştırabilirsiniz.' })
+                        }}
+                        className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        📋 Stili Kopyala
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!copiedStyle}
+                        onClick={() => {
+                          if (!copiedStyle) return
+                          setSelected((b) => ({
+                            ...b,
+                            style: copiedStyle.style ? JSON.parse(JSON.stringify(copiedStyle.style)) : undefined,
+                            advanced: {
+                              ...(b.advanced || {}),
+                              ...(copiedStyle.animation !== undefined ? { animation: copiedStyle.animation } : {}),
+                              ...(copiedStyle.animation_delay !== undefined ? { animation_delay: copiedStyle.animation_delay } : {}),
+                              ...(copiedStyle.animation_duration !== undefined ? { animation_duration: copiedStyle.animation_duration } : {}),
+                            },
+                          }))
+                          setMessage({ type: 'ok', text: 'Kopyalanan stil bu bloğa uygulandı.' })
+                        }}
+                        className="flex-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-gray-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-40"
+                      >
+                        🎨 Yapıştır
+                      </button>
+                      <button
+                        type="button"
+                        title="Bu bloğun tüm özel stillerini sıfırla"
+                        onClick={() => {
+                          setSelected((b) => ({ ...b, style: undefined }))
+                          setMessage({ type: 'ok', text: 'Bloğun özel stilleri sıfırlandı.' })
+                        }}
+                        className="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-gray-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                      >
+                        ↺
+                      </button>
+                    </div>
                     <div className="flex gap-1 rounded-md bg-gray-100 p-1">
                       {(['desktop', 'tablet', 'mobile'] as Device[]).map((d) => {
                         const hasOverride = Object.keys(selected.style?.[d] || {}).length > 0
@@ -2108,6 +2280,16 @@ export function SiteBuilderEditor() {
               <>
                 <h2 className="mb-2 text-lg font-bold">“{page?.title || 'Ana sayfa'}” yayınlansın mı?</h2>
                 <p className="mb-3 text-sm text-gray-600">Yayınlandığında ziyaretçiler bu hali görür. Önceki hal “Sürümler”de saklanır ve geri yüklenebilir.</p>
+                <div className="mb-3 flex items-center justify-between rounded-lg border bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                  <span>Toplam <b>{countBlocks(state.blocks)}</b> blok yayına alınacak.</span>
+                  <button
+                    type="button"
+                    onClick={() => { setModal(null); setAuditOpen(true) }}
+                    className="font-semibold text-blue-600 hover:underline"
+                  >
+                    Detaylı SEO & Link Kontrolü →
+                  </button>
+                </div>
                 {issues.length > 0 ? (
                   <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                     <p className="mb-1 text-sm font-bold text-amber-900">Kontrol listesi</p>
@@ -2122,22 +2304,40 @@ export function SiteBuilderEditor() {
             )}
             {modal === 'versions' && (
               <>
-                <h2 className="mb-3 text-lg font-bold">Yayınlanmış sürümler</h2>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-bold">Yayınlanmış sürümler</h2>
+                  <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
+                    Mevcut taslak: {countBlocks(state.blocks)} blok
+                  </span>
+                </div>
                 {versionsLoading ? (
                   <p className="text-sm text-gray-500">Sürümler yükleniyor…</p>
                 ) : versionsError ? (
                   <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{versionsError}</p>
                 ) : revisions.length === 0 ? <p className="text-sm text-gray-500">Henüz yayınlanmış sürüm yok.</p> : (
                   <ul className="divide-y rounded-lg border">
-                    {revisions.map((r, i) => (
-                      <li key={r.id} className="flex items-center justify-between gap-3 p-3 text-sm">
-                        <span>
-                          <b>{new Date(r.created_at).toLocaleString('tr-TR')}</b>{i === 0 && <span className="ms-2 rounded bg-green-100 px-1.5 text-[11px] text-green-700">yayında</span>}
-                          <span className="block text-[12px] text-gray-500">{r.created_by || '—'} · {r.blocks} blok</span>
-                        </span>
-                        <button type="button" className={smallBtn} onClick={() => restore(r.id)}>Geri yükle</button>
-                      </li>
-                    ))}
+                    {revisions.map((r, i) => {
+                      const diff = countBlocks(state.blocks) - r.blocks
+                      return (
+                        <li key={r.id} className="flex items-center justify-between gap-3 p-3 text-sm">
+                          <span>
+                            <b>{new Date(r.created_at).toLocaleString('tr-TR')}</b>
+                            {i === 0 && <span className="ms-2 rounded bg-green-100 px-1.5 text-[11px] text-green-700">yayında</span>}
+                            <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-gray-500">
+                              <span>{r.created_by || '—'} · {r.blocks} blok</span>
+                              {diff !== 0 ? (
+                                <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${diff > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                  taslakta {diff > 0 ? `+${diff}` : diff} blok
+                                </span>
+                              ) : (
+                                <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">aynı blok sayısı</span>
+                              )}
+                            </span>
+                          </span>
+                          <button type="button" className={smallBtn} onClick={() => restore(r.id)}>Geri yükle</button>
+                        </li>
+                      )
+                    })}
                   </ul>
                 )}
                 <div className="mt-3 text-end"><button type="button" className={smallBtn} onClick={() => setModal(null)}>Kapat</button></div>
@@ -2186,6 +2386,113 @@ export function SiteBuilderEditor() {
             )}
           </div>
         </div>
+      )}
+      {ctxMenu && (
+        <div className="fixed inset-0 z-[80]" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null) }}>
+          <div
+            className="fixed w-48 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 text-xs shadow-2xl"
+            style={{ left: Math.min(ctxMenu.x, typeof window !== 'undefined' ? window.innerWidth - 205 : ctxMenu.x), top: Math.min(ctxMenu.y, typeof window !== 'undefined' ? window.innerHeight - 250 : ctxMenu.y) }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {!FIXED_CHILD.has(ctxMenu.block.type) && (
+              <>
+                <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100" onClick={() => { blockAction(ctxMenu.block.id, 'up'); setCtxMenu(null) }}>↑ Yukarı taşı</button>
+                <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100" onClick={() => { blockAction(ctxMenu.block.id, 'down'); setCtxMenu(null) }}>↓ Aşağı taşı</button>
+                <button type="button" className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100" onClick={() => { blockAction(ctxMenu.block.id, 'duplicate'); setCtxMenu(null) }}>⧉ Çoğalt</button>
+              </>
+            )}
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100"
+              onClick={() => {
+                setCopiedStyle({
+                  style: ctxMenu.block.style ? JSON.parse(JSON.stringify(ctxMenu.block.style)) : undefined,
+                  animation: ctxMenu.block.advanced?.animation,
+                  animation_delay: ctxMenu.block.advanced?.animation_delay,
+                  animation_duration: ctxMenu.block.advanced?.animation_duration,
+                })
+                setMessage({ type: 'ok', text: 'Blok stili kopyalandı.' })
+                setCtxMenu(null)
+              }}
+            >
+              📋 Stili kopyala
+            </button>
+            {copiedStyle && (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-emerald-700 hover:bg-emerald-50"
+                onClick={() => {
+                  commit(updateBlock(stateRef.current.blocks, ctxMenu.block.id, (b) => ({
+                    ...b,
+                    style: copiedStyle.style ? JSON.parse(JSON.stringify(copiedStyle.style)) : undefined,
+                    advanced: {
+                      ...(b.advanced || {}),
+                      ...(copiedStyle.animation !== undefined ? { animation: copiedStyle.animation } : {}),
+                      ...(copiedStyle.animation_delay !== undefined ? { animation_delay: copiedStyle.animation_delay } : {}),
+                      ...(copiedStyle.animation_duration !== undefined ? { animation_duration: copiedStyle.animation_duration } : {}),
+                    },
+                  })))
+                  setMessage({ type: 'ok', text: 'Stil yapıştırıldı.' })
+                  setCtxMenu(null)
+                }}
+              >
+                🎨 Stili yapıştır
+              </button>
+            )}
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-gray-700 hover:bg-gray-100"
+              onClick={() => {
+                setRenamingId(ctxMenu.block.id)
+                setRenameVal(treeLabel(ctxMenu.block, catalog?.blocks[ctxMenu.block.type]?.label))
+                setCtxMenu(null)
+              }}
+            >
+              ✎ Yeniden adlandır
+            </button>
+            {!FIXED_CHILD.has(ctxMenu.block.type) && (
+              <button type="button" className="mt-1 flex w-full items-center gap-2 border-t px-3 py-1.5 text-left font-semibold text-red-600 hover:bg-red-50" onClick={() => { blockAction(ctxMenu.block.id, 'delete'); setCtxMenu(null) }}>🗑 Sil</button>
+            )}
+          </div>
+        </div>
+      )}
+      {cmdOpen && (
+        <CommandPaletteModal
+          catalog={catalog}
+          pages={pages}
+          actions={[
+            { id: 'act-wizard', group: 'İşlemler', icon: '✨', label: 'Hızlı Site Kurulum Sihirbazı', run: () => setWizardOpen(true) },
+            { id: 'act-audit', group: 'İşlemler', icon: '✓', label: 'SEO & Bağlantı Kontrolünü Çalıştır', run: () => setAuditOpen(true) },
+            { id: 'act-save', group: 'İşlemler', icon: '💾', label: 'Taslağı Kaydet (Ctrl+S)', run: () => { save() } },
+            { id: 'act-publish', group: 'İşlemler', icon: '🚀', label: 'Sayfayı Yayınla', run: () => setModal('publish') },
+            { id: 'act-versions', group: 'İşlemler', icon: '🕒', label: 'Yayınlanmış Sürümleri Gör', run: showVersions },
+            { id: 'act-theme', group: 'İşlemler', icon: '🎨', label: 'Tema & Renk Ayarlarını Aç', run: () => { setLeftOpen(true); setLeftTab('theme') } },
+            { id: 'act-library', group: 'İşlemler', icon: '🧩', label: 'Hazır Bölümler Kütüphanesini Aç', run: () => { setLeftOpen(true); setLeftTab('add'); setAddSubTab('library') } },
+            { id: 'act-import', group: 'İşlemler', icon: '↑', label: 'JSON Tasarım İçe Aktar', run: () => importInputRef.current?.click() },
+            { id: 'act-undo', group: 'İşlemler', icon: '↩', label: 'Geri Al (Ctrl+Z)', run: () => dispatch({ type: 'undo' }) },
+            { id: 'act-redo', group: 'İşlemler', icon: '↪', label: 'Yinele (Ctrl+Y)', run: () => dispatch({ type: 'redo' }) },
+          ]}
+          onSelectPage={(id) => switchPage(id)}
+          onAddBlock={(type) => addBlock(type)}
+          onClose={() => setCmdOpen(false)}
+        />
+      )}
+      {auditOpen && catalog && (
+        <SiteAuditModal
+          blocks={state.blocks}
+          catalog={catalog}
+          pageKind={page?.kind || 'home'}
+          onSelectBlock={(id) => dispatch({ type: 'select', id })}
+          onClose={() => setAuditOpen(false)}
+          onPublish={() => setModal('publish')}
+        />
+      )}
+      {wizardOpen && library && (
+        <QuickSetupWizard
+          demos={library.demos}
+          onApplyDemo={applyDemo}
+          onClose={() => setWizardOpen(false)}
+        />
       )}
       {settingsPageId && (
         <PageSettingsModal

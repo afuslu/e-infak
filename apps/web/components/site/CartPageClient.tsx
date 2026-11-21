@@ -20,6 +20,7 @@ export interface CartSummaryItem {
 
 const SYM: Record<'TRY' | 'EUR' | 'USD', string> = { TRY: '₺', EUR: '€', USD: '$' }
 const CART_KEY = 'einfak_cart'
+const DONOR_PROFILE_KEY = 'einfak_donor_profile'
 const notifyCart = () => window.dispatchEvent(new Event('donation-cart-changed'))
 const PREVIEW_SAMPLE_CART: CartSummaryItem[] = [
   { campaignId: 'preview-1', campaignTitle: 'Kurban Bağışı (Örnek)', amount: 5000, quantity: 1, currency: 'TRY' },
@@ -67,6 +68,8 @@ export function CartPageClient({
   const [onBehalfOf, setOnBehalfOf] = useState('')
   const [allowEmail, setAllowEmail] = useState(false)
   const [allowSms, setAllowSms] = useState(false)
+  const [rememberDonor, setRememberDonor] = useState(true)
+  const [donorPrefilled, setDonorPrefilled] = useState(false)
   const [error, setError] = useState('')
   const [ibanCopied, setIbanCopied] = useState(false)
   const [transfer, setTransfer] = useState<CheckoutSessionResponse | null>(null)
@@ -94,6 +97,21 @@ export function CartPageClient({
     if (qStyle) {
       setStyleOverride(qStyle)
       if (qStyle === 'transfer_first') setPaymentMethod('bank_transfer')
+    }
+    if (params.get('odeme') === 'havale') {
+      setPaymentMethod('bank_transfer')
+    }
+    if (!preview) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(DONOR_PROFILE_KEY) || 'null')
+        if (saved && (saved.firstName || saved.phone)) {
+          if (saved.firstName) setFirstName(String(saved.firstName))
+          if (saved.lastName) setLastName(String(saved.lastName))
+          if (saved.phone) setPhone(String(saved.phone))
+          if (saved.email) setEmail(String(saved.email))
+          setDonorPrefilled(true)
+        }
+      } catch { /* ignore */ }
     }
     const qAddon = params.get('addon')
     if (qAddon === '1' || qAddon === '0') setMicroAddonOverride(qAddon === '1')
@@ -171,8 +189,8 @@ export function CartPageClient({
       setError('Önizleme modunda gerçek ödeme işlemi başlatılmaz.')
       return
     }
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
-      setError('Lütfen ad, soyad, e-posta ve telefon bilgilerini doldurun.')
+    if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
+      setError('Lütfen ad, soyad ve telefon bilgilerini doldurun.')
       return
     }
     if (!kvkk) {
@@ -189,6 +207,18 @@ export function CartPageClient({
     }
     setError('')
     try {
+      if (rememberDonor) {
+        try {
+          localStorage.setItem(DONOR_PROFILE_KEY, JSON.stringify({
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            phone: phone.trim(),
+            email: email.trim(),
+          }))
+        } catch { /* ignore */ }
+      } else {
+        try { localStorage.removeItem(DONOR_PROFILE_KEY) } catch { /* ignore */ }
+      }
       trackConversion('checkout_started', { item_count: items.length, payment_method: paymentMethod, currency })
       const result = await checkout.mutateAsync({
         items: items.map((it) => ({
@@ -418,14 +448,33 @@ export function CartPageClient({
 
   const donorFields = (
     <div className="space-y-3">
+      {donorPrefilled && (
+        <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-[11px] text-emerald-800">
+          <span>✓ Önceki bağışınızdan bilgileriniz otomatik dolduruldu.</span>
+          <button
+            type="button"
+            onClick={() => {
+              setFirstName(''); setLastName(''); setPhone(''); setEmail(''); setDonorPrefilled(false)
+              try { localStorage.removeItem(DONOR_PROFILE_KEY) } catch { /* ignore */ }
+            }}
+            className="font-bold underline hover:text-emerald-950"
+          >
+            Temizle
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <input aria-label="Ad" placeholder="Ad *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} />
-        <input aria-label="Soyad" placeholder="Soyad *" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputCls} />
+        <input aria-label="Ad" autoComplete="given-name" placeholder="Ad *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} />
+        <input aria-label="Soyad" autoComplete="family-name" placeholder="Soyad *" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputCls} />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <input aria-label="E-posta" type="email" placeholder="E-posta *" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
-        <input aria-label="Telefon" type="tel" placeholder="Telefon *" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
+        <input aria-label="Telefon" type="tel" autoComplete="tel" placeholder="Telefon *" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
+        <input aria-label="E-posta" type="email" autoComplete="email" placeholder="E-posta (isteğe bağlı)" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
       </div>
+      <label className="flex cursor-pointer items-center gap-2 text-xs opacity-80">
+        <input type="checkbox" checked={rememberDonor} onChange={(e) => setRememberDonor(e.target.checked)} />
+        <span>Sonraki bağışım için bilgilerimi bu cihazda hatırla</span>
+      </label>
       {isCorporate && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input aria-label="Kurum / Şirket Adı" placeholder="Kurum / Şirket Adı" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputCls} />

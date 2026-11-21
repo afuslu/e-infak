@@ -207,6 +207,57 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
           </div>
         </footer>
       )}
+
+      {(() => {
+        const waDigits = String(site.contact?.phone || '').replace(/\D+/g, '')
+        const waHref = waDigits
+          ? `https://wa.me/${waDigits.startsWith('0') ? `90${waDigits.slice(1)}` : waDigits.length === 10 ? `90${waDigits}` : waDigits}`
+          : null
+        const showWa = Boolean(site.design?.floating_whatsapp) && Boolean(waHref)
+        const showMobileBar = Boolean(site.design?.sticky_mobile_donate)
+        return (
+          <>
+            {showWa && waHref && (
+              <a
+                href={waHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={site.design?.floating_whatsapp_label || 'WhatsApp Destek'}
+                className={`fixed end-4 z-40 inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-xl transition hover:scale-105 hover:bg-emerald-700 ${showMobileBar ? 'bottom-20 sm:bottom-5' : 'bottom-5'}`}
+              >
+                <span aria-hidden className="text-base leading-none">💬</span>
+                {site.design?.floating_whatsapp_label ? (
+                  <span>{site.design.floating_whatsapp_label}</span>
+                ) : (
+                  <span className="hidden sm:inline">WhatsApp</span>
+                )}
+              </a>
+            )}
+            {showMobileBar && (
+              <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 px-4 py-2.5 shadow-[0_-6px_20px_-6px_rgba(0,0,0,0.12)] backdrop-blur-md sm:hidden">
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/kampanyalar"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary-600 py-3 text-sm font-bold text-white shadow-sm active:scale-[0.99]"
+                  >
+                    <span aria-hidden>❤️</span>
+                    <span>{t('nav.donate')}</span>
+                  </Link>
+                  {site.contact?.phone && (
+                    <a
+                      href={`tel:${site.contact.phone}`}
+                      aria-label="Ara"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-base text-gray-700"
+                    >
+                      📞
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )
+      })()}
     </div>
   )
 }

@@ -9,9 +9,9 @@ import { useDebounced, usePaged } from '@/lib/paged';
 import { remember } from '@/lib/selected';
 import { useCampaignOptions } from '@/api/hooks';
 import { CURRENCY_OPTIONS, Donation, DonationTotals, PAYMENT_OPTIONS, STATUS, STATUS_OPTIONS } from '@/api/types';
-import { Badge, Btn, Chips, Empty, ErrorView, Fab, Field, ListItem, Loading, SearchBar, Select, Sheet, ui } from '@/components/ui';
+import { Badge, Btn, Chips, Empty, ErrorView, Fab, Field, ListItem, Loading, SearchBar, Select, Sheet, useUi } from '@/components/ui';
 import { DateField } from '@/components/fields';
-import { colors, font, radius, space } from '@/theme';
+import { font, radius, space, useTheme } from '@/theme';
 
 const VIEWS = [
   { value: 'all', label: 'Tümü' },
@@ -37,6 +37,8 @@ export default function Donations() {
   const router = useRouter();
   const params = useLocalSearchParams<{ gorunum?: string }>();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const [view, setView] = useState(params.gorunum || 'all');
   const [term, setTerm] = useState('');
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);

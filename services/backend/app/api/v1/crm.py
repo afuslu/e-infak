@@ -1025,6 +1025,8 @@ def created_type(d: Donation) -> str:
         return "Erp - Temsilci"
     if provider in ("import", "money_box", "sms_donation") or provider.startswith("bank:"):
         return "Erp - Otomatik"
+    if d.payment_order_item_id is not None and d.payment_method == PaymentMethod.CREDIT_CARD:
+        return "Web"
     return "Web" if d.issued_by_id is None else "Erp - Temsilci"
 
 
@@ -1084,8 +1086,13 @@ async def list_receipts(
         if digits:
             conditions.append(Donor.phone.ilike(f"%{digits}%"))
     if created_type_filter == "web":
-        conditions.append(and_(Donation.issued_by_id.is_(None), func.coalesce(Donation.payment_provider, "").notin_(
-            ["manual", "import", "money_box", "sms_donation", "stkpro"]), ~func.coalesce(Donation.payment_provider, "").like("bank:%")))
+        conditions.append(and_(
+            or_(Donation.issued_by_id.is_(None),
+                and_(Donation.payment_order_item_id.is_not(None), Donation.payment_method == PaymentMethod.CREDIT_CARD)),
+            func.coalesce(Donation.payment_provider, "").notin_(
+                ["manual", "import", "money_box", "sms_donation", "stkpro"]),
+            ~func.coalesce(Donation.payment_provider, "").like("bank:%"),
+        ))
     elif created_type_filter == "temsilci":
         conditions.append(Donation.payment_provider.in_(["manual", "stkpro"]))
     elif created_type_filter == "otomatik":

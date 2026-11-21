@@ -210,14 +210,13 @@ def footer_dark_gold() -> list:
 
 
 def footer_newsletter_split() -> list:
-    """E-bülten formlu ve kurumsal menülü iki bölümlü footer."""
+    """E-bülten formlu ve kurumsal menülü üç sütunlu footer."""
     return [section([
-        columns("1-1",
-                [B("logo", light=True, show_about=True), B("newsletter", look="compact", title="İyilik Bültenine Katılın")],
-                [columns("1-1",
-                         [B("nav_menu", source="header", layout="vertical", mobile="inline", title="Projeler")],
-                         [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Bilgi")], gap=24)],
-                gap=48),
+        columns("2-1-1",
+                [B("logo", light=True, show_about=True), B("newsletter", look="inline_bar", title="İyilik Bültenine Katılın")],
+                [B("nav_menu", source="header", layout="vertical", mobile="inline", title="Projeler")],
+                [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Bilgi")],
+                gap=40),
         B("copyright", style={"margin_top": 36}, show_powered=True),
     ], tone="dark", top=56, bottom=20, margin_top=64)]
 
@@ -243,6 +242,212 @@ def footer_compact_pill() -> list:
         B("social_icons", p={"style": "pill"}, align="center"),
         B("copyright", show_powered=True),
     ], tone="soft", top=40, bottom=20, margin_top=48)]
+
+
+def header_transparent_hero() -> list:
+    """Kapak üstü şeffaf / yarı saydam modern header."""
+    return [_row({"tone": "dark", "height": 80, "sticky": True, "shrink": True, "border": False, "center_align": "center"},
+                 [B("logo", light=True, size=44)],
+                 [B("nav_menu", source="header", mobile="drawer")],
+                 [B("cart_button", show_label=False), B("donate_button", p={"style": "accent"}, size="md", heart=True)],
+                 style={"background": "rgba(15,23,42,0.72)", "backdrop_filter": "blur(14px)"})]
+
+
+def header_donor_hotline() -> list:
+    """Üstte 7/24 çağrı merkezi ve hesap linkleri, altta sepet + bağış."""
+    return [
+        _row({"tone": "dark", "height": 36, "border": False},
+             [B("contact_info", layout="inline")],
+             [B("richtext", text="Makbuz & Vekalet Takibi · 7/24 Bağışçı Hattı", advanced=_TABLET_DOWN)],
+             [B("account_links", layout="inline")], style={"font_size": 12}),
+        _row({"tone": "light", "height": 80, "sticky": True, "shrink": True, "center_align": "center"},
+             [B("logo", size=46)],
+             [B("nav_menu", source="header", mobile="drawer")],
+             [B("cart_button", show_label=False), B("donate_button", p={"style": "primary"}, size="md", heart=True)]),
+    ]
+
+
+def header_multilang_global() -> list:
+    """Uluslararası dernekler için dil + döviz + arama + bağış üst barı."""
+    return [
+        _row({"tone": "soft", "height": 36, "border": True},
+             [B("social_icons", p={"style": "text"})],
+             [],
+             [B("language_switcher", advanced=_TABLET_DOWN), B("currency_switcher", advanced=_TABLET_DOWN), B("account_links", layout="inline")],
+             style={"font_size": 12}),
+        _row({"tone": "light", "height": 78, "sticky": True, "shrink": True, "center_align": "center"},
+             [B("logo", size=44)],
+             [B("nav_menu", source="header", mobile="drawer")],
+             [B("site_search", advanced=_TABLET_DOWN), B("donate_button", p={"style": "accent"}, heart=True)]),
+    ]
+
+
+def header_brand_solid() -> list:
+    """Kurumsal ana renk zeminli tek satır güçlü header."""
+    return [_row({"tone": "brand", "height": 78, "sticky": True, "shrink": True, "border": False, "center_align": "center"},
+                 [B("logo", light=True, size=46)],
+                 [B("nav_menu", source="header", mobile="drawer")],
+                 [B("cart_button", show_label=False), B("donate_button", p={"style": "light"}, size="md", heart=True)])]
+
+
+def header_search_focus() -> list:
+    """Üstte logo + site içi arama + bağış, altta tam genişlik menü şeridi."""
+    return [
+        _row({"tone": "light", "height": 76, "border": True, "center_align": "center"},
+             [B("logo", size=46)],
+             [B("site_search", advanced=_TABLET_DOWN)],
+             [B("account_links", layout="inline", advanced=_TABLET_DOWN), B("donate_button", p={"style": "accent"}, heart=True)]),
+        _row({"tone": "soft", "height": 52, "sticky": True, "shrink": True, "center_align": "center"},
+             [], [B("nav_menu", source="header", mobile="drawer")], []),
+    ]
+
+
+def header_centered_dark_nav() -> list:
+    """Ortada büyük logo, üstte sosyal & bağış, altta koyu menü şeridi."""
+    return [
+        _row({"tone": "light", "height": 90, "border": False, "center_align": "center"},
+             [B("contact_info", layout="inline", advanced=_TABLET_DOWN)],
+             [B("logo", size=54)],
+             [B("cart_button", show_label=False), B("donate_button", p={"style": "accent"}, heart=True)]),
+        _row({"tone": "dark", "height": 54, "sticky": True, "shrink": True, "border": False, "center_align": "center"},
+             [], [B("nav_menu", source="header", mobile="drawer")], []),
+    ]
+
+
+def header_corporate_clean() -> list:
+    """Kurumsal ince çizgili, hesap bağlantısı ve çerçeveli bağış butonlu header."""
+    return [_row({"tone": "light", "height": 76, "sticky": True, "shrink": True, "border": True, "center_align": "left"},
+                 [B("logo", show_tagline=False, size=42)],
+                 [B("nav_menu", source="header", mobile="drawer")],
+                 [B("account_links", layout="inline", advanced=_TABLET_DOWN), B("donate_button", p={"style": "outline"}, size="sm", heart=True)])]
+
+
+def header_ramadan_banner() -> list:
+    """Üstte Ramazan & acil kampanya duyuru şeridi, altta koyu prestij menü."""
+    return [
+        _row({"tone": "brand", "height": 38, "border": False, "center_align": "center"},
+             [],
+             [B("richtext", text="Ramazan İyilik Seferberliği · Fitre, Zekat ve İftar Bağışları Başladı")],
+             [B("currency_switcher", advanced=_TABLET_DOWN)], style={"font_size": 13}),
+        _row({"tone": "dark", "height": 80, "sticky": True, "shrink": True, "border": False, "center_align": "center"},
+             [B("logo", light=True, size=46)],
+             [B("nav_menu", source="header", mobile="drawer")],
+             [B("cart_button", show_label=False), B("donate_button", p={"style": "accent"}, size="md", heart=True)]),
+    ]
+
+
+def footer_iban_bar() -> list:
+    """Üstte hızlı IBAN & banka hesap şeridi, altta 3 sütunlu koyu footer."""
+    return [section([
+        B("bank_accounts", title="Hızlı Havale / EFT Hesaplarımız", look="compact"),
+        B("divider", look="gradient", padding_y="md"),
+        columns("1-1-1",
+                [B("logo", light=True, show_about=True), B("social_icons", p={"style": "round"})],
+                [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Kurumsal")],
+                [B("contact_info", title="İletişim", layout="stacked", show_address=True)],
+                gap=36),
+        B("copyright", style={"margin_top": 32}, show_powered=True),
+    ], tone="dark", top=56, bottom=20, margin_top=64)]
+
+
+def footer_cta_banner() -> list:
+    """Üstte bağış çağrı bandı + altta 4 sütunlu kurumsal footer."""
+    return [section([
+        B("cta_band", kicker="İYİLİĞE ORTAK OLUN", title="Bugün bir ihtiyaç sahibinin yüzünü güldürün", button_label="Hemen Bağış Yap", button_url="/kampanyalar", look="brand"),
+        columns("1-1-1-1",
+                [B("logo", light=True, show_about=True), B("social_icons", p={"style": "round"})],
+                [B("nav_menu", source="header", layout="vertical", mobile="inline", title="Kampanyalar")],
+                [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Kurumsal")],
+                [B("contact_info", title="Bize Ulaşın", layout="stacked", show_address=True)],
+                gap=36),
+        B("copyright", style={"margin_top": 36}, show_powered=True),
+    ], tone="dark", top=56, bottom=24, margin_top=64)]
+
+
+def footer_light_corporate() -> list:
+    """Açık (beyaz) zeminli modern 4 sütunlu kurumsal vakıf footer'ı."""
+    return [section([
+        columns("1-1-1-1",
+                [B("logo", show_about=True), B("social_icons", p={"style": "pill"})],
+                [B("nav_menu", source="header", layout="vertical", mobile="inline", title="Çalışmalar")],
+                [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Kurumsal")],
+                [B("contact_info", title="İletişim", layout="stacked", show_address=True), B("donate_button", p={"style": "primary"}, heart=True)],
+                gap=36),
+        B("divider", look="line", padding_y="md"),
+        B("copyright", show_powered=True),
+    ], tone="soft", top=56, bottom=20, margin_top=64)]
+
+
+def footer_brand_tone() -> list:
+    """Kurumsal ana renk tonunda e-bültenli 3 sütunlu footer."""
+    return [section([
+        columns("1-1-1",
+                [B("logo", light=True, show_about=True), B("social_icons", p={"style": "round"})],
+                [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Hızlı Bağlantılar")],
+                [B("newsletter", look="inline_bar", title="Haber Bülteni")],
+                gap=36),
+        B("copyright", style={"margin_top": 36}, show_powered=True),
+    ], tone="brand", top=56, bottom=24, margin_top=64)]
+
+
+def footer_two_col_minimal() -> list:
+    """İki sütunlu sade modern vakıf footer'ı."""
+    return [section([
+        columns("1-1",
+                [B("logo", light=True, show_about=True), B("social_icons", p={"style": "pill"})],
+                [B("nav_menu", source="footer", layout="horizontal", mobile="inline"), B("contact_info", layout="inline")],
+                gap=40),
+        B("copyright", style={"margin_top": 28}, show_powered=True),
+    ], tone="dark", top=44, bottom=20, margin_top=48)]
+
+
+def footer_donor_support() -> list:
+    """Bağışçı destek hattı, makbuz bilgisi ve hızlı menülü 4 sütunlu footer."""
+    return [section([
+        columns("1-1-1-1",
+                [B("logo", light=True, show_about=True)],
+                [B("nav_menu", source="header", layout="vertical", mobile="inline", title="Bağış Alanları")],
+                [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Şeffaflık")],
+                [B("contact_info", title="7/24 Bağışçı Destek", layout="stacked", show_address=True), B("account_links", layout="inline")],
+                gap=36),
+        B("copyright", style={"margin_top": 36}, show_powered=True),
+    ], tone="dark", top=56, bottom=20, margin_top=64)]
+
+
+def footer_app_social() -> list:
+    """Sosyal medya, e-bülten ve mobil kanallar vurgulu modern koyu footer."""
+    return [section([
+        B("trust", look="seals"),
+        columns("1-1-1",
+                [B("logo", light=True, show_about=True), B("social_icons", p={"style": "round"})],
+                [B("nav_menu", source="footer", layout="vertical", mobile="inline", title="Bilgi Merkezi")],
+                [B("newsletter", look="inline_bar", title="Saha Raporlarını Alın"), B("donate_button", p={"style": "accent"}, heart=True)],
+                gap=36),
+        B("copyright", style={"margin_top": 32}, show_powered=True),
+    ], tone="dark", top=52, bottom=20, margin_top=64)]
+
+
+def footer_audit_trust() -> list:
+    """Mali şeffaflık, güven bandı ve 3 sütunlu kurumsal footer."""
+    return [section([
+        B("trust", look="minimal_divider_strip"),
+        columns("1-1-1",
+                [B("logo", show_about=True), B("social_icons", p={"style": "pill"})],
+                [B("nav_menu", source="header", layout="vertical", mobile="inline", title="Projelerimiz")],
+                [B("contact_info", title="Genel Merkez", layout="stacked", show_address=True), B("donate_button", p={"style": "primary"}, heart=True)],
+                gap=36),
+        B("copyright", style={"margin_top": 32}, show_powered=True),
+    ], tone="soft", top=48, bottom=20, margin_top=64)]
+
+
+def footer_centered_dark() -> list:
+    """Koyu zemin ortalı logo, yatay menü, sosyal ikonlar ve bağış butonu."""
+    return [section([
+        B("logo", light=True, style=dict(CENTER)),
+        B("nav_menu", source="footer", layout="horizontal", mobile="inline", align="center"),
+        B("social_icons", p={"style": "round"}, align="center"),
+        B("copyright", show_powered=True),
+    ], tone="dark", top=48, bottom=24, margin_top=64)]
 
 
 # --- Content sections ----------------------------------------------------------------
@@ -1160,9 +1365,37 @@ _section("header-classic", "Klasik header", "Header", "İletişim çubuğu + log
 _section("header-centered", "Ortalı logo", "Header", "Duyuru çubuğu, ortada logo, altta sabit menü.", header_centered(), kind="header")
 _section("header-dark", "Koyu tek satır", "Header", "Koyu zemin, ortada menü, sağda bağış.", header_dark(), kind="header")
 _section("header-minimal", "Sade", "Header", "Beyaz, ince, sloganısız.", header_minimal(), kind="header")
+_section("header-urgent", "Acil yardım üst bantlı", "Header", "Üstte 7/24 acil yardım şeridi, altta sepet ve bağış butonu.", header_top_bar_urgent(), kind="header")
+_section("header-split-cta", "Döviz + sepet + bağış", "Header", "Tek satırda döviz seçici, sepet ve ana bağış butonu.", header_split_cta(), kind="header")
+_section("header-glass", "Cam efektli (Glass)", "Header", "Yarı saydam buzlu cam efektli modern sabit üst bar.", header_glass_floating(), kind="header")
+_section("header-two-row", "Çift satırlı kurumsal", "Header", "Üstte koyu hesap/dil şeridi, altta sol hizalı menü.", header_two_row_catalog(), kind="header")
+_section("header-mobile-pill", "Kompakt mobil öncelikli", "Header", "İnce, sade ve hızlı aksiyonlu hap butonlu üst bar.", header_mobile_first_pill(), kind="header")
+_section("header-emerald-gold", "Zümrüt & altın vakıf", "Header", "Koyu zemin, büyük beyaz logo, sepet ve altın vurgulu bağış.", header_emerald_gold(), kind="header")
+_section("header-transparent-hero", "Şeffaf koyu cam", "Header", "Koyu yarı saydam cam efektli kapak üstü modern header.", header_transparent_hero(), kind="header")
+_section("header-donor-hotline", "Bağışçı hattı & takip", "Header", "Üstte telefon, makbuz takibi ve hesap; altta sepet + bağış.", header_donor_hotline(), kind="header")
+_section("header-multilang-global", "Uluslararası (Dil + Döviz)", "Header", "Çok dilli ve çok para birimli dernekler için tam donanımlı bar.", header_multilang_global(), kind="header")
+_section("header-brand-solid", "Kurumsal renkli tek satır", "Header", "Marka ana renginde tam genişlik güçlü tek satır header.", header_brand_solid(), kind="header")
+_section("header-search-focus", "Arama odaklı iki satır", "Header", "Üstte ortalanmış site içi arama çubuğu, altta sabit menü.", header_search_focus(), kind="header")
+_section("header-centered-dark-nav", "Ortalı logo + koyu menü", "Header", "Üstte iletişim ve büyük ortalı logo, altta koyu menü şeridi.", header_centered_dark_nav(), kind="header")
+_section("header-corporate-clean", "Kurumsal ince çizgili", "Header", "Sade beyaz zemin, hesap linki ve çerçeveli bağış butonu.", header_corporate_clean(), kind="header")
+_section("header-ramadan-banner", "Ramazan & kampanya bantlı", "Header", "Üstte kampanya duyuru şeridi ve döviz, altta koyu menü.", header_ramadan_banner(), kind="header")
+
 _section("footer-classic", "Üç sütunlu footer", "Footer", "Tanıtım, alt menü, iletişim.", default_footer_blocks(), kind="footer")
 _section("footer-four", "Dört sütunlu footer", "Footer", "İki menü, iletişim ve bağış butonu.", footer_four(), kind="footer")
 _section("footer-minimal", "Sade ortalı footer", "Footer", "Açık zemin, ortalı logo ve bağlantılar.", footer_minimal(), kind="footer")
+_section("footer-dark-gold", "Koyu 4 sütunlu vakıf", "Footer", "Koyu zemin, 4 sütun, ayırıcı çizgi ve bağışçı hattı.", footer_dark_gold(), kind="footer")
+_section("footer-newsletter", "E-bültenli iki blok", "Footer", "Solda logo ve e-bülten formu, sağda çift menü sütunu.", footer_newsletter_split(), kind="footer")
+_section("footer-trust", "Güven şeritli 3 sütun", "Footer", "Üstte şeffaflık/güven bandı ve altta 3 sütunlu koyu footer.", footer_trust_badges(), kind="footer")
+_section("footer-compact-pill", "Kompakt hap sosyal", "Footer", "Açık zemin, ortalı logo, yatay menü ve hap sosyal ikonlar.", footer_compact_pill(), kind="footer")
+_section("footer-iban-bar", "IBAN şeritli koyu footer", "Footer", "Üstte hızlı havale/EFT hesapları, altta 3 sütunlu koyu düzen.", footer_iban_bar(), kind="footer")
+_section("footer-cta-banner", "Bağış çağrılı 4 sütun", "Footer", "Üstte dikkat çekici bağış çağrı bandı ve 4 sütunlu alt menü.", footer_cta_banner(), kind="footer")
+_section("footer-light-corporate", "Açık kurumsal 4 sütun", "Footer", "Açık zeminli, modern ve okunaklı 4 sütunlu vakıf footer'ı.", footer_light_corporate(), kind="footer")
+_section("footer-brand-tone", "Kurumsal renkli e-bültenli", "Footer", "Marka ana rengi zemininde 3 sütun ve e-bülten aboneliği.", footer_brand_tone(), kind="footer")
+_section("footer-two-col-minimal", "İki sütunlu modern sade", "Footer", "Kompakt iki sütunlu, sade koyu vakıf footer'ı.", footer_two_col_minimal(), kind="footer")
+_section("footer-donor-support", "7/24 bağışçı destekli", "Footer", "Bağış alanları, şeffaflık, destek hattı ve hesap linkleri.", footer_donor_support(), kind="footer")
+_section("footer-app-social", "Rozetli & e-bültenli", "Footer", "Üstte güven rozetleri, altta e-bülten ve sosyal medya odağı.", footer_app_social(), kind="footer")
+_section("footer-audit-trust", "Şeffaflık bantlı açık", "Footer", "Açık zemin üzerinde şeffaflık şeridi ve 3 sütunlu yapı.", footer_audit_trust(), kind="footer")
+_section("footer-centered-dark", "Koyu ortalı sade", "Footer", "Koyu zemin üzerinde ortalanmış logo, yatay menü ve ikonlar.", footer_centered_dark(), kind="footer")
 
 # --- Pro Slider, Carousel & Interactive Section Presets ---
 _section("slider-coverflow", "Slider: 3D Coverflow Vitrini", "Kapak & Slider", "Yan slaytları 3D açıyla gösteren vitrin slider.", [
@@ -1635,7 +1868,7 @@ _section("banner-floating-card", "Yüzen Kartlı Modern Banner", "Banner", "Tam 
 _section("steps-zigzag", "Zikzak Bağış Adımları", "Güven", "Sağlı-sollu dönüşümlü modern bağış adımları.", [
     B("steps", look="zigzag", kicker="NASIL ÇALIŞIR?", title="4 Adımda Güvenli Bağış"),
 ])
-_section("testimonials-masonry", "Sosyal Duvar Teşekkür Mesajları", "Güven", "Çok sütunlu modern bağışçı yorum duvarı.", [
+_section("testimonials-masonry-wall", "Sosyal Duvar Teşekkür Mesajları", "Güven", "Çok sütunlu modern bağışçı yorum duvarı.", [
     B("testimonials", look="masonry", kicker="SİZDEN GELENLER", title="Bağışçılarımız Ne Diyor?"),
 ])
 _section("bento-magazine", "Asimetrik Bento Dergi Vitrini", "Medya", "Büyük manşet kutusu ve yanında destekleyici proje kutuları.", [
@@ -1911,7 +2144,7 @@ _section("kurban-live", "Kurban Kesim & Dağıtım Akışı", "Zekat & Bağış"
         {"region": "Tanzania / Zanzibar", "batch": "Parti #16 · 95 Hisse", "status": "Video Hazırlanıyor", "time": "12:05"},
     ]),
 ])
-_section("volunteer-roles", "Saha Gönüllülük & Görev Alanları", "İletişim", "Lojistik, medya, sağlık ve tercümanlık gönüllü rolleri.", [
+_section("volunteer-field-roles", "Saha Gönüllülük & Görev Alanları", "İletişim", "Lojistik, medya, sağlık ve tercümanlık gönüllü rolleri.", [
     B("volunteer_field_roles", look="role_cards", kicker="GÖNÜLLÜ OL", title="Yeteneklerinle İyilik Ekibine Katıl", cta_label="Gönüllü Başvurusu Yap", cta_url="/iletisim", items=[
         {"role": "Lojistik & Dağıtım", "commitment": "Hafta Sonu", "desc": "Kumanya paketleme ve yerel dağıtım organizasyonlarında görev alın."},
         {"role": "Medya & Dokümantasyon", "commitment": "Proje Bazlı", "desc": "Fotoğraf, video kurgu ve saha hikâyelerinin hazırlanmasına destek olun."},
@@ -1924,6 +2157,159 @@ _section("audit-summary", "Bağımsız Denetim & Mali Şeffaflık", "Kurumsal", 
         {"label": "Saha Lojistik & Dağıtım", "ratio": "%4.2", "note": "Nakliye, depolama ve saha koordinasyon giderleri."},
         {"label": "Genel Yönetim Payı", "ratio": "%2.4", "note": "Resmî mevzuat sınırlarının çok altında tutulan yönetim payı."},
     ]),
+])
+
+# --- Extended Rich Content Sections ---
+_section("stats-emerald-impact", "Zümrüt Yeşil Etki Sayaçları", "Etki & Güven", "Zümrüt tonlarında 4 sütunlu canlı artan etki rakamları.", [
+    B("stats", mode="manual", variant="emerald_counters", columns="4", kicker="SAHADA ETKİMİZ", title="Birlikte Başardıklarımız", items=[
+        {"value": "48", "label": "Ülkede Aktif Yardım"},
+        {"value": "1.240", "label": "Açılan Su Kuyusu"},
+        {"value": "18.500", "label": "Yetim Eğitim Desteği"},
+        {"value": "340.000", "label": "Ulaşılan Aile"},
+    ]),
+])
+_section("stats-soft-tint", "Yumuşak Tonlu Modern Sayaçlar", "Etki & Güven", "Pastel zeminli, okunaklı 4'lü başarı istatistikleri.", [
+    B("stats", mode="manual", variant="soft_tint_cards", columns="4", kicker="ŞEFFAF VERİLER", title="Rakamlarla İyilik Hareketi", items=[
+        {"value": "94%", "label": "Doğrudan Sahaya Ulaşım"},
+        {"value": "24 Saat", "label": "Hızlı Teslimat Bildirimi"},
+        {"value": "120+", "label": "Saha Gönüllü Ekibi"},
+        {"value": "15 Yıl", "label": "Kesintisiz Güven"},
+    ]),
+])
+_section("stats-top-border", "Üst Çizgili Kurumsal Metrikler", "Etki & Güven", "Kurumsal üst kenarlıklı 3 sütunlu resmi rapor sayaçları.", [
+    B("stats", mode="manual", variant="accent_top_border", columns="3", kicker="YILLIK ÖZET", title="2026 Faaliyet Göstergeleri", items=[
+        {"value": "64.200", "label": "Kurban Hissesi Teslimi"},
+        {"value": "92.000", "label": "Ramazan Kumanya Kolisi"},
+        {"value": "410", "label": "Güneş Enerjili Su Kuyusu"},
+    ]),
+])
+_section("stats-pill-badges", "Rozetli Kompakt Sayaç Şeridi", "Etki & Güven", "Yuvarlatılmış hap kartlar içinde 4 hızlı özet rakam.", [
+    B("stats", mode="manual", variant="pill_badge_stats", columns="4", items=[
+        {"value": "42", "label": "Aktif Ülke"},
+        {"value": "850+", "label": "Kuyu Projesi"},
+        {"value": "12.400", "label": "Yetim Kardeş"},
+        {"value": "%100", "label": "Makbuzlu Takip"},
+    ]),
+])
+_section("cta-emerald-glow", "Zümrüt Işıklı Hızlı Bağış Çağrısı", "Çağrı & Banner", "Zümrüt vurgulu butonlarla acil bağış aksiyon bloğu.", [
+    section([
+        heading("Bir Dokunuşla Hayatlara Umut Olun", kicker="HIZLI BAĞIŞ"),
+        B("richtext", text="Acil yardım, su kuyusu, kurban ve yetim projelerimize saniyeler içinde güvenle destek olabilirsiniz.", style=dict(CENTER)),
+        B("buttons", layout="emerald_glow", size="lg", gap="md", align="center", items=[
+            {"icon": "💧", "label": "Su Kuyusu Bağışı", "url": "/kampanyalar", "style": "primary"},
+            {"icon": "🤲", "label": "Acil Yardım Destek", "url": "/kampanyalar", "style": "accent"},
+            {"icon": "🧾", "label": "IBAN Bilgileri", "url": "/iletisim", "style": "outline"},
+        ]),
+    ], tone="soft", top=48, bottom=48),
+])
+_section("cta-split-full-bar", "Eşit Genişlikli Hızlı Aksiyon Barı", "Çağrı & Banner", "Tam genişliğe yayılan 3 büyük hızlı bağış butonu.", [
+    section([
+        B("buttons", layout="split_full_bar", size="lg", gap="md", align="center", items=[
+            {"icon": "🕌", "label": "Zekat & Fitre Bağışı", "url": "/kampanyalar", "style": "primary"},
+            {"icon": "🐑", "label": "Adak & Akika Hissesi", "url": "/kampanyalar", "style": "accent"},
+            {"icon": "🎒", "label": "Yetim Eğitim Sponsorluğu", "url": "/kampanyalar", "style": "dark"},
+        ]),
+    ], tone="light", top=28, bottom=28),
+])
+_section("cta-soft-pastel-actions", "Pastel Kart Hızlı Yönlendirme", "Çağrı & Banner", "Yumuşak pastel butonlarla kategorilere hızlı geçiş.", [
+    section([
+        heading("Hangi Alanda Destek Olmak İstersiniz?", kicker="HIZLI ERİŞİM"),
+        B("buttons", layout="soft_pastel_row", size="md", gap="md", align="center", items=[
+            {"icon": "💧", "label": "Su Kuyusu", "url": "/kampanyalar", "style": "primary"},
+            {"icon": "🍲", "label": "Sıcak Yemek", "url": "/kampanyalar", "style": "primary"},
+            {"icon": "📖", "label": "Mushaf Hediyesi", "url": "/kampanyalar", "style": "primary"},
+            {"icon": "🏥", "label": "Katarakt Ameliyatı", "url": "/kampanyalar", "style": "primary"},
+        ]),
+    ], tone="light", top=40, bottom=40),
+])
+_section("hero-ramadan-prestige", "Kapak: Ramazan Prestij Koyu", "Kapak & Slider", "Koyu zemin, cam efektli rozet ve çift butonlu Ramazan kapağı.", [
+    B("banner", layout="image", image_url="/demo/mosque.webp", kicker="RAMAZAN SEFERBERLİĞİ", title="Sofralara Bereket, Gönüllere Huzur Taşıyın", text="İftar, sahur, zekat ve fitre emanetlerinizi aynı gün ihtiyaç sahiplerine ulaştırıyoruz.", button_label="İftar & Zekat Bağışı", button_url="/kampanyalar", button2_label="Zekat Hesapla", button2_url="/zekat", align="center", height="lg"),
+])
+_section("hero-water-well-split", "Kapak: Su Kuyusu Odaklı Vitrin", "Kapak & Slider", "Temiz su projeleri için görselli ve iki aksiyonlu kapak.", [
+    B("banner", layout="split", image_url="/demo/water.webp", kicker="KALICI ESER", title="Bir Kuyu Açın, Bir Köyün Kaderi Değişsin", text="Afrika ve Asya'nın kurak bölgelerinde adınıza veya sevdiklerinizin hayrına kalıcı su kuyuları inşa ediyoruz.", button_label="Kuyu Bağışı Yap", button_url="/kampanyalar", button2_label="Kuyu Çeşitleri", button2_url="/kampanyalar", height="lg"),
+])
+_section("hero-urgent-crisis-dark", "Kapak: Acil İnsani Yardım Çağrısı", "Kapak & Slider", "Kriz bölgeleri için yüksek kontrastlı acil yardım kapağı.", [
+    B("banner", layout="image", image_url="/demo/relief.webp", tone="red", kicker="ACİL YARDIM", title="Kriz Bölgelerinde Sıcak Yemek ve İlaç Bekleyen Aileler Var", text="Gıda kolisi, temiz içme suyu, tıbbi sarf malzemesi ve barınma desteğinizle sahadayız.", button_label="Acil Bağış Yap", button_url="/kampanyalar", align="left", height="lg"),
+])
+_section("hero-orphan-warm", "Kapak: Yetim Sponsorluğu Sıcak Vitrin", "Kapak & Slider", "Yetim hamiliği için duygusal, güven veren tam genişlik kapak.", [
+    B("banner", layout="image", image_url="/demo/orphan.webp", kicker="YETİM HÂMİLİĞİ", title="Bir Yetimin Eğitimine ve Geleceğine Yoldaş Olun", text="Aylık düzenli desteğinizle bir çocuğun okul, beslenme ve barınma ihtiyaçlarını güvence altına alın.", button_label="Yetim Sponsoru Ol", button_url="/kampanyalar", button2_label="Nasıl Çalışır?", button2_url="/hakkimizda", align="center", height="lg"),
+])
+_section("donate-cards-dark-prestige", "Bağış Kartları: Lacivert Koyu 3'lü", "Bağış", "Lacivert koyu tema, hızlı tutar seçimi ve yüksek dönüşümlü bağış kartları.", [
+    B("donation_cards", source="latest", layout="grid", card_style="classic", card_theme="navy", kicker="HIZLI BAĞIŞ", title="Öne Çıkan Bağış Kalemleri", limit=6),
+])
+_section("donate-cards-compact-list", "Bağış Kartları: Kompakt Liste", "Bağış", "Çok sayıda bağış kalemini tek ekranda hızlıca sepete ekleme listesi.", [
+    B("donation_cards", source="latest", layout="list", card_style="bordered", kicker="TÜM BAĞIŞLAR", title="Saniyeler İçinde Sepete Ekleyin", limit=8),
+])
+_section("donate-iban-dark-band", "IBAN & Banka Hesapları (Koyu)", "Bağış", "Koyu zemin üzerinde tek tıkla kopyalanabilir IBAN kartları.", [
+    section([
+        B("bank_accounts", title="Resmî Banka & IBAN Hesaplarımız", look="cards"),
+    ], tone="dark", top=56, bottom=56),
+])
+_section("donate-zakat-and-steps", "Zekat Hesaplayıcı + 3 Adım Güven", "Bağış", "Zekat hesaplama aracı ve hemen altında şeffaf teslimat adımları.", [
+    B("zakat_band", kicker="ZEKAT HESAPLAMA", title="Zekatınızı Güncel Nisapla Hesaplayın"),
+    B("steps", look="horizontal_bar", kicker="ŞEFFAF SÜREÇ", title="Emanetiniz Nasıl Ulaşır?"),
+])
+_section("media-gallery-masonry-pro", "Saha Fotoğraf Galerisi (Izgara)", "Metin & Medya", "Sahadan yüksek çözünürlüklü kareleri modern ızgara düzende sergiler.", [
+    B("gallery_strip", kicker="SAHADAN KARELER", title="İyiliğin İzleri", look="grid", aspect="4/3", caption_mode="hover", click_action="lightbox", limit=12),
+])
+_section("media-video-and-cta", "Saha Belgeseli + Bağış Çağrısı", "Metin & Medya", "Video galerisi ve altında hızlı aksiyon butonları.", [
+    section([
+        B("video_gallery", kicker="SAHA VİDEOLARI", title="Emanetlerinizin Ulaştığı Anlar", layout="grid"),
+        B("buttons", layout="emerald_glow", size="md", align="center", items=[
+            {"icon": "❤️", "label": "Sen de Bir Projeye Destek Ol", "url": "/kampanyalar", "style": "primary"},
+        ]),
+    ], tone="soft", top=52, bottom=52),
+])
+_section("about-story-and-metrics", "Hikayemiz + Etki Rakamları", "Kurumsal & Hakkımızda", "Sol tanıtım metni, sağ görsel ve altta 4 sütunlu etki sayaçları.", [
+    section([
+        columns("1-1",
+                [heading("İyiliği Kalıcı Eserlere Dönüştürüyoruz", kicker="HİKAYEMİZ"),
+                 B("richtext", text="Kurulduğumuz günden bu yana bağışçılarımız ile ihtiyaç sahipleri arasında şeffaf, hızlı ve güvenilir bir iyilik köprüsü kuruyoruz."),
+                 B("buttons", layout="row", items=[{"label": "Faaliyet Raporumuz", "url": "/hakkimizda", "style": "primary"}])],
+                [B("image", image_url="/demo/hands.webp", alt="Saha çalışması", look="rounded")],
+                gap=40),
+        B("stats", mode="manual", variant="soft_tint_cards", columns="4", items=[
+            {"value": "48", "label": "Ülke"},
+            {"value": "1.200+", "label": "Su Kuyusu"},
+            {"value": "18.000", "label": "Yetim"},
+            {"value": "%100", "label": "Şeffaf Takip"},
+        ]),
+    ], tone="light", top=56, bottom=56),
+])
+_section("faq-and-concierge-combo", "SSS + Özel Bağışçı Danışma Hattı", "SSS & İletişim", "Sık sorulan sorular ve hemen altında birebir danışma hattı.", [
+    B("faq", look="accordion", kicker="MERAK EDİLENLER", title="Sık Sorulan Sorular", items=[
+        {"question": "Bağış makbuzuma nasıl ulaşabilirim?", "answer": "<p>Bağış işleminiz tamamlandığında resmî makbuzunuz SMS ve e-posta ile anında gönderilir; ayrıca bağışçı panelinden dilediğiniz zaman indirebilirsiniz.</p>"},
+        {"question": "Kurban ve su kuyusu videoları ne zaman iletilir?", "answer": "<p>Kesim veya kuyu açılış işlemi tamamlandığı gün isim okunarak çekilen video bağlantısı telefonunuza iletilir.</p>"},
+        {"question": "Zekat bağışlarım gerçekten ihtiyaç sahiplerine mi ulaşıyor?", "answer": "<p>Evet. Zekat fonu ayrı hesaplarda takip edilir ve yalnızca zekata müstehak ihtiyaç sahiplerine ulaştırılır.</p>"},
+    ]),
+    B("donor_concierge_bar", look="concierge_split", kicker="BİREBİR DESTEK", title="Aklınızdaki Sorular İçin Bizi Arayın", advisor_name="Bağışçı İlişkileri Ekibi", phone="+90 212 000 00 00", email="destek@kurum.org", hours="Hafta içi 09:00 - 18:00", cta_label="İletişime Geç", cta_url="/iletisim"),
+])
+_section("contact-newsletter-community", "İyilik Bülteni & Sosyal Topluluk", "SSS & İletişim", "E-bülten aboneliği ve sosyal medya kanalları bir arada.", [
+    section([
+        B("newsletter", look="split_with_benefits", title="Saha Raporlarından İlk Siz Haberdar Olun"),
+        B("social_icons", p={"style": "pill"}, align="center"),
+    ], tone="soft", top=48, bottom=48),
+])
+_section("layout-bento-3-cards", "Düzen: 3'lü Modern Hizmet Kartları", "Düzen", "İkonlu, dengeli 3 sütunlu tanıtım ve yönlendirme kartları.", [
+    section([
+        heading("Öncelikli Çalışma Alanlarımız", kicker="FAALİYETLER"),
+        card_columns("1-1-1", [
+            card("Temiz Su Kuyuları", "Kurak bölgelerde güneş enerjili ve derin sondajlı kalıcı su kuyuları.", "💧"),
+            card("Yetim & Eğitim", "Yetim çocukların aylık bakım, kırtasiye ve burs ihtiyaçlarının karşılanması.", "🎓"),
+            card("Acil İnsani Yardım", "Afet ve kriz bölgelerine sıcak yemek, gıda kolisi ve sağlık desteği.", "🚑"),
+        ]),
+    ], tone="light", top=52, bottom=52),
+])
+_section("layout-bento-4-pillars", "Düzen: 4'lü Şeffaflık & Güven İlkeleri", "Düzen", "Dört sütunlu kurumsal ilkeler ve güvence kartları.", [
+    section([
+        heading("Neden Bizi Tercih Ediyorlar?", kicker="GÜVEN İLKELERİMİZ"),
+        card_columns("1-1-1-1", [
+            card("Resmî Makbuz", "Her bağış anında kayıt altına alınır ve makbuzlanır.", "🧾"),
+            card("Video & Fotoğraf", "Adınıza yapılan projeler görsel olarak raporlanır.", "🎥"),
+            card("Bağımsız Denetim", "Yıllık mali tablolarımız kamuoyuna açık yayınlanır.", "🔍"),
+            card("Doğrudan Saha", "Aracısız, kendi ekiplerimizle yerinde teslimat.", "🌍"),
+        ]),
+    ], tone="soft", top=52, bottom=52),
 ])
 
 SECTION_BY_KEY = {s["key"]: s for s in SECTIONS}
@@ -2148,7 +2534,7 @@ PAGE_TEMPLATES += [
          _page_hero("Küçük Birikimler Büyük İyiliklere Dönüşür", "BEREKET KUMBARASI", "/demo/hands.webp"),
          *_blocks("charity-box", "steps", "contact"),
      ]},
-    {"key": "asevi-sicak-yemek", "label": "Aşevi & Sıcak Yemek", "slug": "asevi-sicak-yemek",
+    {"key": "asevi-gunluk-yemek", "label": "Aşevi & Sıcak Yemek", "slug": "asevi-gunluk-yemek",
      "description": "Günlük aşevi menüsü, öğün desteği ve teslimat şeffaflığı.",
      "blocks": [
          _page_hero("Her Gün Binlerce Kişiye Sıcak Sofra", "AŞEVİ HİZMETLERİ", "/demo/ramadan.webp"),
@@ -2350,6 +2736,29 @@ DEMOS += [
      "pages": ["zekat-dagitim-ilkeleri", "ramazan-iftar-cadirlari", "bank"]},
 ]
 
+from .templates_extra import register_extra_templates
+
+register_extra_templates({
+    "B": B,
+    "_row": _row,
+    "section": section,
+    "columns": columns,
+    "heading": heading,
+    "card": card,
+    "card_columns": card_columns,
+    "_section": _section,
+    "_slides": _slides,
+    "_page_hero": _page_hero,
+    "_blocks": _blocks,
+    "_TABLET_DOWN": _TABLET_DOWN,
+    "CENTER": CENTER,
+    "PAGE_TEMPLATES": PAGE_TEMPLATES,
+    "DEMOS": DEMOS,
+    "SECTIONS": SECTIONS,
+})
+
+SECTION_BY_KEY = {s["key"]: s for s in SECTIONS}
+PAGE_BY_KEY = {p["key"]: p for p in PAGE_TEMPLATES}
 DEMO_BY_KEY = {d["key"]: d for d in DEMOS}
 
 
@@ -2363,10 +2772,41 @@ def fresh_ids(blocks: list) -> list:
     return [walk(b) for b in copy.deepcopy(blocks)]
 
 
+_HIDDEN_SECTION_KEYS = {"membership-join", "winter-heating", "kurban-live"}
+_SECTION_GROUP_MAP = {
+    "Kapak": "Kapak & Slider",
+    "Hero": "Kapak & Slider",
+    "Slider": "Kapak & Slider",
+    "Kapak & Slider": "Kapak & Slider",
+    "Güven": "Etki & Güven",
+    "Etki & güven": "Etki & Güven",
+    "Etki & Güven": "Etki & Güven",
+    "İletişim": "SSS & İletişim",
+    "SSS & iletişim": "SSS & İletişim",
+    "SSS & İletişim": "SSS & İletişim",
+    "İçerik": "Metin & Medya",
+    "Medya": "Metin & Medya",
+    "Metin & medya": "Metin & Medya",
+    "Metin & Medya": "Metin & Medya",
+    "Kurumsal": "Kurumsal & Hakkımızda",
+    "Hakkımızda": "Kurumsal & Hakkımızda",
+    "Kurumsal & Hakkımızda": "Kurumsal & Hakkımızda",
+    "Çağrı": "Çağrı & Banner",
+    "Banner": "Çağrı & Banner",
+    "Çağrı & Banner": "Çağrı & Banner",
+    "Zekat & Bağış": "Bağış",
+}
+
+
 def library() -> dict:
     """What the editor's template panel shows (blocks included: insertion happens in the editor)."""
+    public_sections = [
+        {**s, "group": _SECTION_GROUP_MAP.get(s["group"], s["group"])}
+        for s in SECTIONS
+        if s["key"] not in _HIDDEN_SECTION_KEYS
+    ]
     return {
-        "sections": SECTIONS,
+        "sections": public_sections,
         "pages": [{k: p[k] for k in ("key", "label", "slug", "description", "blocks")} for p in PAGE_TEMPLATES],
         "demos": [{"key": d["key"], "label": d["label"], "description": d["description"], "image": d["image"], "kit": d["kit"],
                    "pages": [PAGE_BY_KEY[p]["label"] for p in d["pages"]]} for d in DEMOS],

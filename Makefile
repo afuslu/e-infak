@@ -19,7 +19,7 @@ dev: ## Start development servers
 	@echo "Starting backend..."
 	cd services/backend && uvicorn app.main:app --reload &
 	@echo "Starting frontend..."
-	$(PNPM) --filter web dev
+	$(PNPM) --filter @e-infak/web dev
 
 build: ## Build all packages
 	$(PNPM) build

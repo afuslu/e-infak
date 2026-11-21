@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "978243027530",
+    "project_id": "e-infak",
+    "storage_bucket": "e-infak.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:978243027530:android:64b1143e6c8c712f95dcb3",
+        "android_client_info": {
+          "package_name": "org.einfak.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGBMAXNRzCd2sYYghb53Vxb-GgyVqvVxE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -436,7 +436,8 @@ async def staff_receipt_report(
 ):
     """Personel makbuz raporu: havale onayı / mutabakatla makbuz kesen personel.
 
-    Kartla yapılan online bağışlar "Online (otomatik)" satırında toplanır.
+    Bağışçısında temsilci/personel tanımlı olan online kart bağışları o personele yazılır;
+    diğer online bağışlar "Online (otomatik)" satırında toplanır.
     """
     org_id = _org_id(request)
     currency = _currency(currency)
@@ -786,7 +787,9 @@ async def channel_report(request: Request, start: Optional[date] = None, end: Op
         (Donation.payment_provider == "money_box", "Kumbara"),
         (Donation.payment_provider == "sms_donation", "SMS bağışı"),
         (Donation.payment_provider == "import", "Aktarım"),
-        (Donation.issued_by_id.is_(None), "Web (online)"),
+        (or_(Donation.issued_by_id.is_(None),
+             and_(Donation.payment_order_item_id.is_not(None), Donation.payment_method == PaymentMethod.CREDIT_CARD)),
+         "Web (online)"),
         else_="Diğer",
     )
     by_channel = (await db.execute(
@@ -957,3 +960,124 @@ async def derbis_summary_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="derbis-icmal-{year}.pdf"'},
     )
+
+
+@router.get("/derbis-export", dependencies=ADVANCED)
+async def derbis_csv_export(
+    request: Request,
+    kind: str = Query("receipts", pattern="^(members|receipts|aid)$"),
+    year: int = Query(default_factory=lambda: datetime.now(timezone.utc).year, ge=2000, le=2100),
+    db: AsyncSession = Depends(get_db),
+):
+    """DERBİS / Excel uyumlu UTF-8 BOM CSV dışa aktarımı (üyeler, makbuzlar, yardımlar)."""
+    import csv
+    import io
+    from app.models.donation import Donor
+    from app.models.field_ops import AidDistribution, AidRecipient
+
+    org_id = _org_id(request)
+    buf = io.StringIO()
+    buf.write("\ufeff")  # UTF-8 BOM for Turkish Excel / DERBİS import
+    writer = csv.writer(buf, delimiter=";")
+
+    if kind == "members":
+        from app.models.membership import Member
+        writer.writerow(["Üye No", "Ad", "Soyad", "TCKN", "Telefon", "E-posta", "Üyelik Tarihi", "Durum"])
+        rows = (await db.execute(
+            select(Member).where(Member.organization_id == org_id).order_by(Member.created_at.desc())
+        )).scalars().all()
+        for m in rows:
+            writer.writerow([
+                getattr(m, "member_number", "") or "",
+                getattr(m, "first_name", "") or "",
+                getattr(m, "last_name", "") or "",
+                getattr(m, "national_id", "") or "",
+                getattr(m, "phone", "") or "",
+                getattr(m, "email", "") or "",
+                m.joined_at.strftime("%d.%m.%Y") if getattr(m, "joined_at", None) else "",
+                getattr(m, "status", "") or "",
+            ])
+    elif kind == "aid":
+        writer.writerow(["Tarih", "İhtiyaç Sahibi", "Telefon", "Bölge", "Tutar (TL)", "Not"])
+        rows = (await db.execute(
+            select(AidDistribution, AidRecipient)
+            .join(AidRecipient, AidRecipient.id == AidDistribution.recipient_id)
+            .where(
+                AidDistribution.organization_id == org_id,
+                extract("year", func.timezone(TZ, AidDistribution.distributed_at)) == year,
+            )
+            .order_by(AidDistribution.distributed_at.desc())
+        )).all()
+        for dist, rec in rows:
+            writer.writerow([
+                dist.distributed_at.strftime("%d.%m.%Y") if dist.distributed_at else "",
+                rec.full_name or "",
+                rec.phone or "",
+                getattr(rec, "address", "") or "",
+                f"{(getattr(dist, 'amount_cents', 0) or 0) / 100:.2f}",
+                getattr(dist, "notes", "") or "",
+            ])
+    else:
+        writer.writerow(["Makbuz No", "Tarih", "Bağışçı", "Telefon", "Kampanya", "Ödeme Yöntemi", "Tutar", "Para Birimi"])
+        rows = (await db.execute(
+            select(Donation, Donor, Campaign)
+            .outerjoin(Donor, Donor.id == Donation.donor_id)
+            .outerjoin(Campaign, Campaign.id == Donation.campaign_id)
+            .where(
+                Donation.organization_id == org_id,
+                Donation.status == DonationStatus.CONFIRMED,
+                extract("year", func.timezone(TZ, func.coalesce(Donation.paid_at, Donation.created_at))) == year,
+            )
+            .order_by(func.coalesce(Donation.paid_at, Donation.created_at).desc())
+        )).all()
+        for d, donor, camp in rows:
+            dt = d.paid_at or d.created_at
+            writer.writerow([
+                d.receipt_number or "",
+                dt.strftime("%d.%m.%Y") if dt else "",
+                donor.full_name if donor else "Anonim",
+                donor.phone if donor else "",
+                camp.title if camp else "Genel Bağış",
+                PAYMENT_METHOD_LABELS.get(d.payment_method, str(d.payment_method or "")),
+                f"{(d.amount_cents or 0) / 100:.2f}",
+                d.currency or "TRY",
+            ])
+
+    return Response(
+        content=buf.getvalue().encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="derbis-{kind}-{year}.csv"'},
+    )
+
+
+@router.get("/donor-segments", dependencies=ADVANCED)
+async def donor_segments(request: Request, db: AsyncSession = Depends(get_db)):
+    """Akıllı bağışçı segmentasyonu: pasifleşenler, yüksek tutarlılar, düzenli/tekrarlı ve yeni bağışçılar."""
+    from app.models.donation import Donor
+
+    org_id = _org_id(request)
+    now = datetime.now(timezone.utc)
+    cutoff_90 = now - timedelta(days=90)
+    cutoff_30 = now - timedelta(days=30)
+
+    dormant = int((await db.execute(select(func.count(Donor.id)).where(
+        Donor.organization_id == org_id, Donor.donation_count > 0, Donor.last_donation_at < cutoff_90
+    ))).scalar() or 0)
+    high_value = int((await db.execute(select(func.count(Donor.id)).where(
+        Donor.organization_id == org_id, Donor.total_donated_cents >= 1_000_000  # 10.000+ TL
+    ))).scalar() or 0)
+    repeat_donors = int((await db.execute(select(func.count(Donor.id)).where(
+        Donor.organization_id == org_id, Donor.donation_count >= 2
+    ))).scalar() or 0)
+    recent_30 = int((await db.execute(select(func.count(Donor.id)).where(
+        Donor.organization_id == org_id, Donor.created_at >= cutoff_30
+    ))).scalar() or 0)
+
+    return {
+        "segments": [
+            {"key": "dormant_90d", "label": "90+ Gündür Pasif Bağışçılar", "count": dormant, "description": "Daha önce bağış yapmış ancak son 90 günde bağış yapmamış kişiler"},
+            {"key": "high_value", "label": "Yüksek Tutarlı Bağışçılar (10.000+ ₺)", "count": high_value, "description": "Toplam bağış tutarı 10.000 TL ve üzerinde olan bağışçılar"},
+            {"key": "repeat_donors", "label": "Sadık / Tekrarlı Bağışçılar (2+)", "count": repeat_donors, "description": "En az 2 kez bağış yapmış bağışçılar"},
+            {"key": "recent_30d", "label": "Son 30 Gün Yeni Bağışçılar", "count": recent_30, "description": "Son 30 gün içinde sisteme dahil olan bağışçılar"},
+        ]
+    }

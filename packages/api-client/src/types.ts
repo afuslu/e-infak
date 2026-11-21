@@ -166,6 +166,7 @@ export interface UserRegister {
 export interface UserLogin {
   email: string
   password: string
+  totp_code?: string
 }
 
 export interface TokenResponse {

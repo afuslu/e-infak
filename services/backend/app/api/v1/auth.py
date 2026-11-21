@@ -92,6 +92,21 @@ async def login(
     reason = await denial(db, user, request.client.host if request.client else None)
     if reason:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
+
+    if getattr(user, "totp_enabled", False) and getattr(user, "totp_secret", None):
+        from app.services.totp import verify_totp
+        if not credentials.totp_code:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="2FA doğrulama kodu gereklidir",
+                headers={"X-2FA-Required": "totp"},
+            )
+        if not verify_totp(user.totp_secret, credentials.totp_code):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="2FA doğrulama kodu geçersiz",
+                headers={"X-2FA-Required": "totp"},
+            )
     
     # Create tokens
     pwd_fp = password_fingerprint(user.hashed_password)
@@ -150,10 +165,25 @@ async def refresh_token(
             detail="Oturumunuzun süresi doldu; lütfen yeniden giriş yapın",
         )
     
-    # Create new tokens
+    # Verify user is still active and password has not changed since token issuance
     user_id = payload.get("sub")
     user_obj = await db.get(User, UUID(str(user_id))) if user_id else None
-    pwd_fp = password_fingerprint(user_obj.hashed_password) if user_obj else payload.get("pwd")
+    if not user_obj or not user_obj.is_active:
+        session.revoked_at = datetime.now(timezone.utc)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Hesabınız aktif değil; lütfen yeniden giriş yapın",
+        )
+    current_pwd_fp = password_fingerprint(user_obj.hashed_password)
+    if payload.get("pwd") and payload.get("pwd") != current_pwd_fp:
+        session.revoked_at = datetime.now(timezone.utc)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Şifreniz değişti; lütfen yeniden giriş yapın",
+        )
+    pwd_fp = current_pwd_fp
     access_token = create_access_token({"sub": user_id, "pwd": pwd_fp})
     new_refresh_token = create_refresh_token({"sub": user_id, "pwd": pwd_fp})
     
@@ -351,3 +381,65 @@ async def confirm_password_reset(
     db.add(AuditLog(organization_id=user.organization_id, user_id=user.id, action="sifre_degisti", details={"by": "reset"}))
     await db.commit()
     return {"ok": True}
+
+
+class TotpCodeIn(BaseModel):
+    code: str = Field(min_length=6, max_length=12)
+
+
+@router.post("/2fa/setup")
+async def setup_2fa(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a new TOTP secret and otpauth URI for authenticator apps (Google Authenticator, Authy)."""
+    from app.services.totp import generate_secret, provisioning_uri
+
+    secret = generate_secret()
+    current_user.totp_secret = secret
+    current_user.totp_enabled = False
+    await db.commit()
+    return {
+        "secret": secret,
+        "otpauth_uri": provisioning_uri(secret, current_user.email),
+        "enabled": False,
+    }
+
+
+@router.post("/2fa/verify")
+async def verify_2fa_setup(
+    payload: TotpCodeIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify the first 6-digit TOTP code and enable 2FA for this account."""
+    from app.services.totp import verify_totp
+
+    if not current_user.totp_secret:
+        raise HTTPException(status_code=400, detail="Önce 2FA kurulumunu başlatın")
+    if not verify_totp(current_user.totp_secret, payload.code):
+        raise HTTPException(status_code=400, detail="Doğrulama kodu geçersiz")
+    current_user.totp_enabled = True
+    db.add(AuditLog(organization_id=current_user.organization_id, user_id=current_user.id, action="2fa_etkinlestirildi", details={}))
+    await db.commit()
+    return {"ok": True, "enabled": True}
+
+
+@router.post("/2fa/disable")
+async def disable_2fa(
+    payload: TotpCodeIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Disable 2FA after verifying the current TOTP code."""
+    from app.services.totp import verify_totp
+
+    if not current_user.totp_enabled or not current_user.totp_secret:
+        return {"ok": True, "enabled": False}
+    if not verify_totp(current_user.totp_secret, payload.code):
+        raise HTTPException(status_code=400, detail="Doğrulama kodu geçersiz")
+    current_user.totp_enabled = False
+    current_user.totp_secret = None
+    db.add(AuditLog(organization_id=current_user.organization_id, user_id=current_user.id, action="2fa_devre_disi", details={}))
+    await db.commit()
+    return {"ok": True, "enabled": False}

@@ -79,7 +79,7 @@ services:
       - /app/node_modules
       - /app/apps/web/node_modules
       - /app/apps/web/.next
-    command: pnpm --filter web dev
+    command: pnpm --filter @e-infak/web dev
 
   # Celery Worker
   celery-worker:
@@ -96,6 +96,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://einfak:einfak123@postgres:5432/einfak
       REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
     volumes:
@@ -117,6 +118,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://einfak:einfak123@postgres:5432/einfak
       REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
     volumes:

@@ -291,6 +291,9 @@ export interface SiteDesign {
   checkout_style?: CheckoutStyle
   checkout_micro_addon?: boolean
   checkout_show_faq?: boolean
+  sticky_mobile_donate?: boolean
+  floating_whatsapp?: boolean
+  floating_whatsapp_label?: string
 }
 
 export const DEFAULT_DESIGN: SiteDesign = {
@@ -298,6 +301,7 @@ export const DEFAULT_DESIGN: SiteDesign = {
   page_color: '#FAFAF9', text_color: '#111827', heading_weight: '700', heading_case: 'normal',
   cart_style: 'drawer', checkout_style: 'split_classic',
   checkout_micro_addon: false, checkout_show_faq: false,
+  sticky_mobile_donate: false, floating_whatsapp: false, floating_whatsapp_label: '',
 }
 
 const CONTAINERS = { narrow: 1080, normal: 1200, wide: 1320, full: 1440 }

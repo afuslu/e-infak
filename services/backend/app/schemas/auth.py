@@ -16,6 +16,7 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    totp_code: Optional[str] = None
 
 
 class TokenResponse(BaseModel):

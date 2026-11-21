@@ -32,6 +32,17 @@ export class ApiClient {
         if (this.accessToken) {
           config.headers.Authorization = `Bearer ${this.accessToken}`
         }
+        if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+          if (!window.location.pathname.startsWith('/admin')) {
+            const lang = document.cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith('lang='))?.slice(5)
+            if (lang && /^[a-z]{2}$/.test(lang)) config.headers['x-locale'] = lang
+          }
+          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          if (isLocal) {
+            const orgSlug = document.cookie.split(';').map((c) => c.trim()).find((c) => c.startsWith('org_slug='))?.slice(9)
+            if (orgSlug) config.headers['x-organization-slug'] = decodeURIComponent(orgSlug)
+          }
+        }
         return config
       },
       (error) => Promise.reject(error)
@@ -41,11 +52,14 @@ export class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
-        if (error.response?.status === 401) {
-          // Try to refresh token
+        const reqConfig = error.config as (typeof error.config & { _retried?: boolean }) | undefined
+        const reqUrl = String(reqConfig?.url || '')
+        if (error.response?.status === 401 && reqConfig && !reqConfig._retried && !reqUrl.includes('/auth/refresh')) {
+          reqConfig._retried = true
+          // Try to refresh token once
           const refreshed = await this.refreshToken()
-          if (refreshed && error.config) {
-            return this.client.request(error.config)
+          if (refreshed) {
+            return this.client.request(reqConfig)
           }
         }
         return Promise.reject(error)
@@ -71,9 +85,12 @@ export class ApiClient {
       })
 
       const { access_token, refresh_token: newRefreshToken } = response.data
+      if (!access_token) return false
       this.setAccessToken(access_token)
       localStorage.setItem('access_token', access_token)
-      localStorage.setItem('refresh_token', newRefreshToken)
+      if (newRefreshToken) {
+        localStorage.setItem('refresh_token', newRefreshToken)
+      }
 
       return true
     } catch {
@@ -111,7 +128,7 @@ export function createApiClient(config: ApiClientConfig): ApiClient {
 
 export function getApiClient(): ApiClient {
   if (!defaultClient) {
-    const baseURL = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    const baseURL = (typeof window !== 'undefined' ? window.location.origin : '') || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
     defaultClient = new ApiClient({ baseURL })
   }
   return defaultClient

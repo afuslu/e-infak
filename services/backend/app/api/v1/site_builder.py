@@ -1,12 +1,13 @@
 """Site builder API: block pages with drafts, publishing, revisions and private previews."""
 import hashlib
 import hmac
+import json
 import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -133,9 +134,26 @@ def _summary(page: SitePage) -> dict:
     }
 
 
+_STATIC_CACHE: dict[str, tuple[bytes, str]] = {}
+
+
+def _cached_static_json(key: str, builder, request: Request) -> Response:
+    cached = _STATIC_CACHE.get(key)
+    if cached is None:
+        raw = json.dumps(builder(), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        etag = f'"{hashlib.sha256(raw).hexdigest()[:16]}"'
+        cached = (raw, etag)
+        _STATIC_CACHE[key] = cached
+    raw, etag = cached
+    headers = {"ETag": etag, "Cache-Control": "private, max-age=300, must-revalidate"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+    return Response(content=raw, media_type="application/json", headers=headers)
+
+
 @admin_router.get("/catalog")
-async def builder_catalog():
-    return catalog()
+async def builder_catalog(request: Request):
+    return _cached_static_json("catalog", catalog, request)
 
 
 @admin_router.get("/pages")
@@ -323,7 +341,10 @@ async def restore_revision(page_id: str, revision_id: UUID, request: Request, db
     ))).scalar_one_or_none()
     if not revision:
         raise HTTPException(status_code=404, detail="Sürüm bulunamadı")
-    page.draft_blocks = validate_blocks(revision.blocks, page.kind)
+    try:
+        page.draft_blocks = validate_blocks(revision.blocks, page.kind)
+    except BlockError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     page.version += 1
     page.draft_updated_at, page.draft_updated_by = datetime.now(timezone.utc), current_user.email
     await db.commit()
@@ -345,8 +366,8 @@ async def preview_link(page_id: str, request: Request, db: AsyncSession = Depend
 # --- Library: sections, page templates, demos ---------------------------------------
 
 @admin_router.get("/library")
-async def builder_library():
-    return library()
+async def builder_library(request: Request):
+    return _cached_static_json("library", library, request)
 
 
 class DemoIn(BaseModel):
@@ -375,7 +396,10 @@ async def apply_demo(key: str, payload: DemoIn, request: Request, db: AsyncSessi
     touched = []
     for kind in ("home", "header", "footer"):
         page = await _page(db, org_id, kind, create_home=True)
-        page.draft_blocks = validate_blocks(fresh_ids(demo[kind]), kind)
+        try:
+            page.draft_blocks = validate_blocks(fresh_ids(demo[kind]), kind)
+        except BlockError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         page.version += 1
         page.draft_updated_at, page.draft_updated_by = now, current_user.email
         touched.append(page)
@@ -388,8 +412,12 @@ async def apply_demo(key: str, payload: DemoIn, request: Request, db: AsyncSessi
             if taken:
                 skipped.append(template["label"])
                 continue
+            try:
+                page_blocks = validate_blocks(fresh_ids(template["blocks"]), "page")
+            except BlockError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             page = SitePage(organization_id=org_id, kind="page", slug=template["slug"], title=template["label"], body="",
-                            is_published=False, translations={}, draft_blocks=validate_blocks(fresh_ids(template["blocks"]), "page"),
+                            is_published=False, translations={}, draft_blocks=page_blocks,
                             draft_updated_at=now, draft_updated_by=current_user.email)
             db.add(page)
             created.append({"title": template["label"], "slug": template["slug"]})

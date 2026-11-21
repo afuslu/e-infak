@@ -84,6 +84,7 @@ DEFAULT_DESIGN = {
     "page_color": "#FAFAF9", "text_color": "#111827", "heading_weight": "700", "heading_case": "normal",
     "cart_style": "drawer", "checkout_style": "split_classic",
     "checkout_micro_addon": False, "checkout_show_faq": False,
+    "sticky_mobile_donate": False, "floating_whatsapp": False, "floating_whatsapp_label": "",
 }
 
 # Ready-made looks: colours + design tokens applied together from the admin page.
@@ -179,6 +180,22 @@ THEME_KITS = [
      "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "montserrat", "radius": "small", "container": "wide", "page_color": "#FFF1F2", "text_color": "#4C0519"}},
     {"key": "saf-beyaz-zumrut", "label": "Saf Beyaz & İnce Zümrüt", "primary_color": "#064E3B", "accent_color": "#059669",
      "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "playfair", "radius": "none", "container": "wide", "page_color": "#FFFFFF", "text_color": "#064E3B"}},
+    {"key": "gece-altin-prestij", "label": "Gece Altın Prestij (Koyu)", "primary_color": "#0F172A", "accent_color": "#F59E0B",
+     "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "montserrat", "radius": "large", "container": "wide", "page_color": "#0B1120", "text_color": "#F8FAFC", "heading_weight": "800"}},
+    {"key": "bogaz-lacivert-turkuaz", "label": "Boğaz Lacivert & Turkuaz", "primary_color": "#1E3A8A", "accent_color": "#06B6D4",
+     "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "plus-jakarta", "radius": "large", "container": "wide", "page_color": "#F8FAFC", "text_color": "#0F172A"}},
+    {"key": "medine-zumrut-krem", "label": "Medine Zümrüt & Sıcak Krem", "primary_color": "#047857", "accent_color": "#D97706",
+     "design": {**DEFAULT_DESIGN, "body_font": "lora", "heading_font": "amiri", "radius": "medium", "container": "wide", "page_color": "#FFFBF2", "text_color": "#064E3B"}},
+    {"key": "acil-yardim-kontrast", "label": "Acil Yardım Yüksek Kontrast", "primary_color": "#B91C1C", "accent_color": "#111827",
+     "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "montserrat", "radius": "small", "container": "wide", "page_color": "#FFFFFF", "text_color": "#111827", "heading_weight": "800"}},
+    {"key": "kuzey-minimal-gri", "label": "Kuzey Minimal Taş Gri", "primary_color": "#334155", "accent_color": "#0EA5E9",
+     "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "outfit", "radius": "medium", "container": "wide", "page_color": "#F8FAFC", "text_color": "#1E293B"}},
+    {"key": "safran-ve-kahve", "label": "Safran Altın & Sıcak Kahve", "primary_color": "#713F12", "accent_color": "#EAB308",
+     "design": {**DEFAULT_DESIGN, "body_font": "open-sans", "heading_font": "playfair", "radius": "medium", "container": "wide", "page_color": "#FEFCE8", "text_color": "#422006"}},
+    {"key": "modern-indigo-mor", "label": "Modern İndigo & Vefa Moru", "primary_color": "#3730A3", "accent_color": "#A855F7",
+     "design": {**DEFAULT_DESIGN, "body_font": "inter", "heading_font": "poppins", "radius": "large", "container": "wide", "page_color": "#F5F3FF", "text_color": "#1E1B4B"}},
+    {"key": "ferah-nane-beyaz", "label": "Ferah Nane & Saf Beyaz", "primary_color": "#0D9488", "accent_color": "#F97316",
+     "design": {**DEFAULT_DESIGN, "body_font": "nunito", "heading_font": "outfit", "radius": "large", "container": "wide", "page_color": "#FFFFFF", "text_color": "#134E4A"}},
 ]
 
 
@@ -282,6 +299,14 @@ class Design(BaseModel):
     ] = "split_classic"
     checkout_micro_addon: bool = False
     checkout_show_faq: bool = False
+    sticky_mobile_donate: bool = False
+    floating_whatsapp: bool = False
+    floating_whatsapp_label: str = ""
+
+    @field_validator("floating_whatsapp_label", mode="before")
+    @classmethod
+    def clean_wa_label(cls, v):
+        return _clean(v, 40) or ""
 
     @field_validator("body_font", "heading_font", mode="before")
     @classmethod

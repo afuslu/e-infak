@@ -9,8 +9,8 @@ import { dateTime, money } from '@/lib/format';
 import { STATUS } from '@/api/types';
 import { useInflow } from '@/api/inflow';
 import { InflowCard } from '@/components/InflowCard';
-import { Badge, Btn, Card, Chips, ListItem, Notice, QueryView, Screen, SectionTitle, Stat, ui } from '@/components/ui';
-import { colors, font, radius, space } from '@/theme';
+import { Badge, Btn, Card, Chips, ListItem, Notice, QueryView, Screen, SectionTitle, Stat, useUi } from '@/components/ui';
+import { font, radius, space, useTheme } from '@/theme';
 
 type Stats = {
   sees_all: boolean;
@@ -40,13 +40,22 @@ function change(now: number, before: number): string | undefined {
   return `${pct >= 0 ? '+' : ''}${pct}% önceki döneme göre`;
 }
 
+const CURRENCIES = [
+  { value: 'TRY', label: '₺ TRY' },
+  { value: 'USD', label: '$ USD' },
+  { value: 'EUR', label: '€ EUR' },
+];
+
 export default function Dashboard() {
   const router = useRouter();
   const { access, me } = useAuth();
+  const { colors, dark } = useTheme();
+  const ui = useUi();
   const [period, setPeriod] = useState('month');
+  const [currency, setCurrency] = useState('TRY');
   const query = useQuery({
-    queryKey: ['stats', period],
-    queryFn: () => af<Stats>('/analytics/stats', { query: { months: 6, period, currency: 'TRY' } }),
+    queryKey: ['stats', period, currency],
+    queryFn: () => af<Stats>('/analytics/stats', { query: { months: 6, period, currency } }),
   });
   const sms = useQuery({
     queryKey: ['sms-counts'],
@@ -59,6 +68,14 @@ export default function Dashboard() {
   return (
     <Screen onRefresh={() => { query.refetch(); inflow.refetch(); }} refreshing={query.isRefetching}>
       <Text style={ui.title}>Merhaba, {me?.first_name}</Text>
+      <View style={{ flexDirection: 'row', gap: space.xs }}>
+        <Btn title="Bağışçılar" variant="ghost" style={{ flex: 1 }} onPress={() => router.push('/bagiscilar')} />
+        <Btn title="Bağışlar" variant="ghost" style={{ flex: 1 }} onPress={() => router.push('/bagislar')} />
+        {allowed(access, undefined, 'bank') ? (
+          <Btn title="Havaleler" variant="ghost" style={{ flex: 1 }} onPress={() => router.push('/havaleler')} />
+        ) : null}
+      </View>
+      <Chips options={CURRENCIES} value={currency} onChange={setCurrency} />
       {inflow.data ? (
         <InflowCard data={inflow.data} onPress={() => router.push('/para-girisleri')}
           onTransfers={allowed(access, undefined, 'bank') ? () => router.push('/havaleler') : undefined} />
@@ -81,7 +98,7 @@ export default function Dashboard() {
 
               {(data.pending_donations_count > 0 || failedSms > 0) ? (
                 <Card>
-                  <Text style={styles.cardTitle}>Bekleyen işler</Text>
+                  <Text style={[styles.cardTitle, { color: colors.text }]}>Bekleyen işler</Text>
                   {data.pending_donations_count > 0 ? (
                     <ListItem title={`${data.pending_donations_count} bekleyen bağış`} subtitle="Ödemesi onaylanmamış makbuzlar" chevron
                       onPress={() => router.push({ pathname: '/bagislar', params: { gorunum: 'bekleyen' } })} />
@@ -136,7 +153,7 @@ export default function Dashboard() {
                           <Text style={[ui.text, { flex: 1 }]} numberOfLines={1}>{c.title}</Text>
                           <Text style={ui.muted}>%{Math.round(c.progress || 0)}</Text>
                         </View>
-                        <View style={styles.track}><View style={[styles.fill, { width: `${Math.min(100, c.progress || 0)}%` }]} /></View>
+                        <View style={[styles.track, { backgroundColor: dark ? '#334155' : '#E6EBE9' }]}><View style={[styles.fill, { backgroundColor: colors.primary, width: `${Math.min(100, c.progress || 0)}%` }]} /></View>
                         <Text style={ui.muted}>{money(c.collected_cents, c.currency)}{c.target_cents ? ` / ${money(c.target_cents, c.currency)}` : ''}</Text>
                       </View>
                     ))}
@@ -170,13 +187,13 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  cardTitle: { fontSize: font.md, fontWeight: '700', color: colors.text },
+  cardTitle: { fontSize: font.md, fontWeight: '700' },
   bars: { flexDirection: 'row', alignItems: 'flex-end', gap: space.sm, height: 140 },
   barCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 4 },
-  bar: { width: '70%', backgroundColor: colors.primary, borderRadius: radius.sm },
-  barValue: { fontSize: 10, color: colors.muted },
-  barLabel: { fontSize: font.xs, color: colors.muted },
+  bar: { width: '70%', backgroundColor: '#10B981', borderRadius: radius.sm },
+  barValue: { fontSize: 10, color: '#94A3B8' },
+  barLabel: { fontSize: font.xs, color: '#94A3B8' },
   line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.md, paddingVertical: 4 },
-  track: { height: 8, borderRadius: 4, backgroundColor: '#E6EBE9', overflow: 'hidden' },
-  fill: { height: 8, backgroundColor: colors.primary, borderRadius: 4 },
+  track: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  fill: { height: 8, borderRadius: 4 },
 });

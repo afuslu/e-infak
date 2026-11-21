@@ -31,6 +31,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --prod --audit-level high
       - run: pnpm --filter @e-infak/web type-check
+      - run: pnpm --filter @e-infak/web lint
+      - run: pnpm --filter @e-infak/web test
+      - run: cd apps/mobile && npm ci && npm run type-check
       - uses: actions/setup-python@v5
         with: { python-version: '3.11' }
       - run: pip install -r services/backend/requirements.txt

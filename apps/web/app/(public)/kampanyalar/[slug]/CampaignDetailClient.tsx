@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { useCampaign, useOrgSettings, type Campaign } from '@e-infak/api-client'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -18,16 +19,24 @@ export default function CampaignDetailClient({ slug, locale = 'tr', initial }: {
   const error = campaign ? null : query.error
   const { data: orgSettings } = useOrgSettings()
   const taxDeduction = orgSettings?.legal?.tax_deduction_eligible === true
+  const [customAmount, setCustomAmount] = useState('')
+  const [justAdded, setJustAdded] = useState<number | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const curSymbol = CURRENCY_SYMBOL[campaign?.currency || 'TRY'] || '₺'
+
   const addToCart = (amountCents: number) => {
-    if (!campaign) return
+    if (!campaign || amountCents <= 0) return
     window.dispatchEvent(new CustomEvent('add-to-donation-cart', {
       detail: {
         campaignId: campaign.id,
         campaignTitle: campaign.title,
         amount: amountCents / 100,
         quantity: 1,
+        currency: campaign.currency || 'TRY',
       },
     }))
+    setJustAdded(amountCents)
+    setTimeout(() => setJustAdded((cur) => (cur === amountCents ? null : cur)), 2500)
   }
 
   if (isLoading) {
@@ -132,14 +141,50 @@ export default function CampaignDetailClient({ slug, locale = 'tr', initial }: {
                         key={amount}
                         type="button"
                         onClick={() => addToCart(amount)}
-                        className="rounded-lg border-2 border-gray-200 py-2 text-center font-semibold text-gray-700 transition-colors hover:border-primary-500 hover:bg-primary-50 hover:text-primary-700"
+                        className={`rounded-lg border-2 py-2 text-center font-semibold transition-colors ${
+                          justAdded === amount
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : 'border-gray-200 text-gray-700 hover:border-primary-500 hover:bg-primary-50 hover:text-primary-700'
+                        }`}
                       >
-                        {(amount / 100).toLocaleString('tr-TR')} ₺
+                        {justAdded === amount ? '✓ Eklendi' : `${(amount / 100).toLocaleString('tr-TR')} ${curSymbol}`}
                       </button>
                     ))}
                   </div>
                 </div>
               )}
+
+              {/* Custom Amount Quick Add */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const n = Number(customAmount.replace(/\./g, '').replace(',', '.'))
+                  if (Number.isFinite(n) && n > 0) {
+                    addToCart(Math.round(n * 100))
+                    setCustomAmount('')
+                  }
+                }}
+                className="mb-3 flex gap-2"
+              >
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    min="1"
+                    step="any"
+                    value={customAmount}
+                    onChange={(e) => setCustomAmount(e.target.value)}
+                    placeholder={`Özel tutar (${curSymbol})`}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={!customAmount || Number(customAmount) <= 0}
+                  className="shrink-0 rounded-lg bg-primary-50 px-3.5 py-2 text-xs font-bold text-primary-700 transition hover:bg-primary-100 disabled:opacity-40"
+                >
+                  + Sepete Ekle
+                </button>
+              </form>
 
               <Link href={`/bagis/${campaign.slug}`}>
                 <Button size="lg" className="w-full">
@@ -147,19 +192,43 @@ export default function CampaignDetailClient({ slug, locale = 'tr', initial }: {
                 </Button>
               </Link>
 
-              <a
-                href={`whatsapp://send?text=${encodeURIComponent(`${campaign.title} kampanyasına destek olun: ${typeof window !== 'undefined' ? window.location.href : `/kampanyalar/${campaign.slug}`}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-800 transition-colors hover:bg-green-100"
-              >
-                WhatsApp&apos;ta Paylaş
-              </a>
+              {justAdded !== null && (
+                <Link
+                  href="/bagis/sepetim"
+                  className="mt-2 flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  Sepete Git &amp; Ödemeyi Tamamla →
+                </Link>
+              )}
+
+              <div className="mt-2.5 grid grid-cols-2 gap-2">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`${campaign.title} kampanyasına destek olun: ${typeof window !== 'undefined' ? window.location.href : `/kampanyalar/${campaign.slug}`}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-xs font-semibold text-green-800 transition-colors hover:bg-green-100"
+                >
+                  WhatsApp&apos;ta Paylaş
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = typeof window !== 'undefined' ? window.location.href : `/kampanyalar/${campaign.slug}`
+                    navigator.clipboard?.writeText(url).then(() => {
+                      setLinkCopied(true)
+                      setTimeout(() => setLinkCopied(false), 2000)
+                    }).catch(() => undefined)
+                  }}
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                  {linkCopied ? '✓ Link Kopyalandı' : '🔗 Linki Kopyala'}
+                </button>
+              </div>
 
               <div className="mt-4 rounded-lg bg-gray-50 p-4">
                 <p className="text-xs text-gray-600">
                   {taxDeduction && <>Bağışlarınız vergi indirimi kapsamındadır.{' '}</>}
-                  Bağış makbuzunuz e-posta adresinize gönderilecektir.
+                  Bağış makbuzunuz SMS ve e-posta ile anında iletilir; bağışçı panelinizden de dilediğiniz zaman indirebilirsiniz.
                 </p>
               </div>
             </div>

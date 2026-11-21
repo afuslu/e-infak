@@ -119,12 +119,17 @@ async def _get_or_create_donor(org_id: UUID, payload, db: AsyncSession) -> tuple
     take over the donor portal (OTP goes to that phone). Only empty fields are filled; contact
     details that differ are returned so they can be kept on the order instead.
     """
-    email = str(payload.email).strip().lower()
+    email = str(payload.email).strip().lower() if payload.email else None
     phone = phone_digits(payload.phone) or payload.phone
+    match_cond = (
+        ((func.lower(Donor.email) == email) | phone_matches(Donor.phone, phone))
+        if email
+        else phone_matches(Donor.phone, phone)
+    )
     result = await db.execute(
         select(Donor).where(
             Donor.organization_id == org_id,
-            (func.lower(Donor.email) == email) | phone_matches(Donor.phone, phone),
+            match_cond,
         ).order_by(Donor.created_at).limit(50)
     )
     donor = next((d for d in result.scalars() if _same_person(d, payload.first_name, payload.last_name)), None)
@@ -182,6 +187,33 @@ async def lock_order(db: AsyncSession, order: PaymentOrder) -> PaymentOrderStatu
     return status
 
 
+async def _auto_staff_for_online_order(db: AsyncSession, order: PaymentOrder) -> UUID | None:
+    """For online card donations, attribute the receipt to the donor's representative/staff if active.
+
+    Bank transfers (havale/EFT) are intentionally excluded so they remain manually matched by staff.
+    """
+    if order.payment_method != PaymentMethod.CREDIT_CARD.value:
+        return None
+    donor = order.donor
+    if donor is None and order.donor_id:
+        donor = (await db.execute(select(Donor).where(Donor.id == order.donor_id))).scalar_one_or_none()
+    if donor is None:
+        return None
+    for candidate_id in (donor.assigned_user_id, donor.staff_user_id):
+        if not candidate_id:
+            continue
+        active_id = (await db.execute(
+            select(User.id).where(
+                User.id == candidate_id,
+                User.organization_id == order.organization_id,
+                User.is_active.is_(True),
+            )
+        )).scalar_one_or_none()
+        if active_id is not None:
+            return active_id
+    return None
+
+
 async def _finalize_paid_order(
     db: AsyncSession,
     order: PaymentOrder,
@@ -200,6 +232,11 @@ async def _finalize_paid_order(
 
     order.status = PaymentOrderStatus.PROCESSING
     await db.flush()
+    effective_issued_by_id = issued_by_id
+    auto_assigned_staff = False
+    if effective_issued_by_id is None:
+        effective_issued_by_id = await _auto_staff_for_online_order(db, order)
+        auto_assigned_staff = effective_issued_by_id is not None
     donation_ids: list[str] = []
     now = datetime.now(timezone.utc)
     from app.services.receipt_seq import next_receipt_seq
@@ -213,6 +250,9 @@ async def _finalize_paid_order(
             continue
         if order_seq is None:
             order_seq = await next_receipt_seq(db, order.organization_id)
+        payment_details = dict(attempt.safe_response or {})
+        if auto_assigned_staff:
+            payment_details["auto_assigned_staff"] = True
         donation = Donation(
             # Assigned here (not at flush) because the outbox events below reference it.
             id=uuid4(),
@@ -227,7 +267,7 @@ async def _finalize_paid_order(
             status=DonationStatus.CONFIRMED,
             transaction_id=attempt.pg_tran_id,
             payment_provider=attempt.provider,
-            payment_details=attempt.safe_response,
+            payment_details=payment_details,
             card_last_4=attempt.card_last_4,
             card_brand=attempt.card_brand,
             paid_at=now,
@@ -237,7 +277,7 @@ async def _finalize_paid_order(
             # Order keys are up to 128 chars; the donation column is 100.
             idempotency_key="co:" + hashlib.sha256(f"{order.idempotency_key}:{item.id}".encode()).hexdigest(),
             payment_order_item_id=item.id,
-            issued_by_id=issued_by_id,
+            issued_by_id=effective_issued_by_id,
         )
         db.add(donation)
         db.add(
@@ -465,7 +505,7 @@ async def create_checkout_session(
         customer_id=str(donor.id),
         customer_first_name=donor.first_name,
         customer_last_name=donor.last_name or "",
-        customer_email=donor.email or "",
+        customer_email=donor.email or f"{phone_digits(donor.phone) or 'bagisci'}@bagis.e-infak.org",
         customer_phone=donor.phone or "",
         customer_identity=donor.tc_no or "",
         customer_ip=request.client.host if request.client else "127.0.0.1",

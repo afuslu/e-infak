@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Copy, KeyRound, Link2, ListChecks, Phone, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plus, RefreshCw, Users } from 'lucide-react'
+import { Copy, KeyRound, Link2, ListChecks, Phone, PhoneCall, PhoneIncoming, PhoneMissed, PhoneOutgoing, Plus, RefreshCw, Sparkles, Users } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, formatMoney } from '../../../../lib/admin-access'
 import { Label, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { EmptyState, Modal, PageHeader, Pagination, StatCard, TBody, THead, Table, Tabs, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 
@@ -16,7 +16,30 @@ interface Call {
 }
 interface Stats { incoming: number; outgoing: number; missed: number; talk_seconds: number }
 interface Ext { id: string; name: string; email: string; extension: string | null }
-type Tab = 'calls' | 'extensions' | 'account'
+interface SmartQueueItem {
+  donor_id: string
+  full_name: string
+  phone: string
+  city: string | null
+  score: number
+  priority: 'high' | 'medium' | 'normal'
+  category: string
+  categories: string[]
+  reasons: string[]
+  suggested_script: string
+  total_cents: number
+  donation_count: number
+  avg_gap_days: number | null
+  days_since_last: number | null
+  last_donation_at: string | null
+  last_campaign: string | null
+  last_called_at: string | null
+}
+interface SmartQueueResponse {
+  items: SmartQueueItem[]
+  counts: Record<string, number>
+}
+type Tab = 'smart' | 'calls' | 'extensions' | 'account'
 
 const FIELDS: [string, string, boolean][] = [
   ['pbx_number', 'Santral numarası (850…, başında 0 olmadan)', false],
@@ -32,7 +55,7 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('tr-TR'
 const duration = (s: number | null) => (s == null ? '—' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`)
 
 export default function CallCenterPage() {
-  const [tab, setTab] = useState<Tab>('calls')
+  const [tab, setTab] = useState<Tab>('smart')
   const [account, setAccount] = useState<Account | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
   const loadAccount = useCallback(() => {
@@ -65,10 +88,12 @@ export default function CallCenterPage() {
         </div>
       )}
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
+        { key: 'smart', label: 'Bugün Kimi Arayalım?', icon: Sparkles },
         { key: 'calls', label: 'Çağrılar', icon: ListChecks },
         { key: 'extensions', label: 'Personel Dahilileri', icon: Users },
         { key: 'account', label: 'Santral Ayarları', icon: KeyRound },
       ]} />
+      {tab === 'smart' && <SmartQueue onRefreshStats={loadStats} />}
       {tab === 'calls' && <CallList onRefreshStats={loadStats} />}
       {tab === 'extensions' && <Extensions />}
       {tab === 'account' && account && <AccountForm account={account} onSaved={loadAccount} />}
@@ -381,5 +406,170 @@ function AccountForm({ account, onSaved }: { account: Account; onSaved: () => vo
         <p className="text-xs text-gray-500">Not: NetGSM soket ve URL yönteminden yalnızca birini kullanmanızı ister; URL yöntemini seçin.</p>
       </Card>
     </div>
+  )
+}
+
+const FOCUS_OPTIONS: { key: string; label: string }[] = [
+  { key: 'all', label: 'Tümü' },
+  { key: 'missed_callback', label: 'Cevapsız Dönüş' },
+  { key: 'monthly', label: 'Aylık Düzen' },
+  { key: 'churn_risk', label: 'Pasifleşme Riski' },
+  { key: 'seasonal', label: 'Ramazan / Kurban' },
+  { key: 'high_value', label: 'Yüksek Tutarlı' },
+]
+
+const PRIORITY_STYLE: Record<SmartQueueItem['priority'], { label: string; cls: string }> = {
+  high: { label: 'Yüksek Öncelik', cls: 'bg-rose-100 text-rose-800 border-rose-200' },
+  medium: { label: 'Orta Öncelik', cls: 'bg-amber-100 text-amber-800 border-amber-200' },
+  normal: { label: 'Normal', cls: 'bg-slate-100 text-slate-700 border-slate-200' },
+}
+
+function SmartQueue({ onRefreshStats }: { onRefreshStats: () => void }) {
+  const [focus, setFocus] = useState('all')
+  const [cooldownDays, setCooldownDays] = useState(7)
+  const [data, setData] = useState<SmartQueueResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [callingId, setCallingId] = useState<string | null>(null)
+  const [calledIds, setCalledIds] = useState<Record<string, boolean>>({})
+
+  const load = useCallback(() => {
+    setLoading(true)
+    adminGet<SmartQueueResponse>('/call-center/smart-queue', { focus, cooldown_days: cooldownDays, limit: 40 })
+      .then((r) => setData(r.data))
+      .catch((err) => toast.error(apiErrorMessage(err, 'Akıllı arama listesi yüklenemedi')))
+      .finally(() => setLoading(false))
+  }, [focus, cooldownDays])
+
+  useEffect(() => { load() }, [load])
+
+  const dialDonor = async (item: SmartQueueItem) => {
+    setCallingId(item.donor_id)
+    try {
+      const r = await adminSend<{ message: string }>('post', '/call-center/call', {
+        donor_id: item.donor_id,
+        phone: item.phone,
+      })
+      toast.ok(r.data.message)
+      setCalledIds((prev) => ({ ...prev, [item.donor_id]: true }))
+      setTimeout(() => onRefreshStats(), 3000)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Arama başlatılamadı'))
+    } finally {
+      setCallingId(null)
+    }
+  }
+
+  return (
+    <Card className="space-y-4 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-bold text-gray-900">
+            <Sparkles className="h-4 w-4 text-primary-600" /> Bugün Kimi Arayalım?
+          </h2>
+          <p className="text-xs text-gray-500">
+            Aylık bağış düzeni, Ramazan/Kurban mevsimselliği, pasifleşme riski ve cevapsız çağrılara göre otomatik önceliklendirilir.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className={`${inputClass} w-auto text-xs`}
+            value={cooldownDays}
+            onChange={(e) => setCooldownDays(Number(e.target.value))}
+          >
+            <option value={3}>Son 3 gün arananları gizle</option>
+            <option value={7}>Son 7 gün arananları gizle</option>
+            <option value={14}>Son 14 gün arananları gizle</option>
+            <option value={0}>Tümünü göster (soğuma yok)</option>
+          </select>
+          <button type="button" className={`${ghostButton} flex items-center gap-1`} onClick={load} disabled={loading}>
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Yenile
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {FOCUS_OPTIONS.map((opt) => {
+          const count = data?.counts?.[opt.key]
+          const active = focus === opt.key
+          return (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setFocus(opt.key)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                active
+                  ? 'border-primary-600 bg-primary-600 text-white'
+                  : 'border-gray-200 bg-white text-gray-700 hover:border-primary-300 hover:bg-primary-50/40'
+              }`}
+            >
+              <span>{opt.label}</span>
+              {typeof count === 'number' && (
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] ${active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {loading && !data ? (
+        <div className="py-10 text-center text-sm text-gray-500">Bağışçı geçmişi analiz ediliyor…</div>
+      ) : data && data.items.length === 0 ? (
+        <EmptyState
+          icon={Sparkles}
+          title="Bu filtrede öncelikli bağışçı yok"
+          text="Soğuma süresini kısaltabilir veya başka bir odak filtresi seçebilirsiniz."
+        />
+      ) : (
+        <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
+          {data?.items.map((item) => {
+            const p = PRIORITY_STYLE[item.priority]
+            const isCalled = Boolean(calledIds[item.donor_id])
+            return (
+              <div key={item.donor_id} className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${isCalled ? 'bg-emerald-50/40 opacity-75' : ''}`}>
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold ${p.cls}`}>
+                      {item.score} puan · {p.label}
+                    </span>
+                    <Link href={`/admin/bagiscilar?donor=${item.donor_id}`} className="text-sm font-bold text-gray-900 hover:text-primary-700 hover:underline">
+                      {item.full_name}
+                    </Link>
+                    <span className="text-xs text-gray-500">{item.phone}{item.city ? ` · ${item.city}` : ''}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {item.reasons.map((r, i) => (
+                      <span key={i} className="rounded-md bg-slate-100 px-2 py-0.5 text-[11.5px] font-medium text-slate-700">
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Toplam: <strong className="text-gray-800">{formatMoney(item.total_cents)}</strong> ({item.donation_count} bağış)
+                    {item.last_campaign ? ` · Son: ${item.last_campaign}` : ''}
+                    {item.days_since_last !== null ? ` (${item.days_since_last} gün önce)` : ''}
+                  </div>
+                  <p className="rounded-lg bg-primary-50/50 px-2.5 py-1.5 text-xs italic text-primary-900">
+                    💬 “{item.suggested_script}”
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={callingId === item.donor_id}
+                    onClick={() => dialDonor(item)}
+                    className={`${isCalled ? ghostButton : primaryButton} inline-flex items-center gap-1.5 whitespace-nowrap`}
+                  >
+                    <Phone className="h-3.5 w-3.5" />
+                    {callingId === item.donor_id ? 'Aranıyor…' : isCalled ? 'Tekrar Ara' : 'Hemen Ara'}
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </Card>
   )
 }

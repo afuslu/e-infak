@@ -77,7 +77,7 @@ export function SiteWidgets() {
       {(instagramUrl || number) && (
         <div className="float-above-tabbar fixed bottom-6 left-6 z-40 flex flex-col gap-3">
           {instagramUrl && <InstagramButton href={instagramUrl} />}
-          {number && <WhatsAppButton href={`whatsapp://send?phone=${number}${text.startsWith('?') ? `&${text.slice(1)}` : text}`} />}
+          {number && <WhatsAppButton href={`https://wa.me/${number}${text}`} />}
         </div>
       )}
     </>

@@ -22,9 +22,9 @@ def pushes(monkeypatch):
     """Capture pushes instead of calling Expo."""
     sent: list[dict] = []
 
-    async def fake_push(tokens, title, body, data=None, *, badge=None, channel_id="default"):
+    async def fake_push(tokens, title, body, data=None, *, badge=None, channel_id="default", category_id=None):
         tokens = list(tokens)
-        sent.append({"tokens": tokens, "title": title, "body": body, "data": data, "badge": badge})
+        sent.append({"tokens": tokens, "title": title, "body": body, "data": data, "badge": badge, "channel_id": channel_id, "category_id": category_id})
         return len(tokens), []
 
     monkeypatch.setattr("app.services.push_service.push_messages", fake_push)

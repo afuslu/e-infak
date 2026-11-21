@@ -86,6 +86,7 @@ async def test_push_notification(
         body="Push bildirim altyapısı başarıyla çalışıyor.",
         data={"type": "test"},
     )
+    await db.commit()
     if sent == 0:
         raise HTTPException(status_code=404, detail="Kayıtlı mobil cihaz token'ı bulunamadı")
     return {"sent": sent}
@@ -163,20 +164,38 @@ class SettingsIn(BaseModel):
     payment_failed: Optional[bool] = None
     refund: Optional[bool] = None
     digest: Optional[bool] = None
+    weekly_digest: Optional[bool] = None
+    tasks: Optional[bool] = None
+    donor_reminders: Optional[bool] = None
+    money_box_due: Optional[bool] = None
+    large_donation: Optional[bool] = None
+    large_donation_cents: Optional[int] = Field(default=None, ge=0, le=10_000_000_000)
+    recurring_failed: Optional[bool] = None
+    campaign_milestone: Optional[bool] = None
+    system_alert: Optional[bool] = None
     quiet_hours: Optional[bool] = None
     min_amount_cents: Optional[int] = Field(default=None, ge=0, le=1_000_000_000)
 
 
 def _settings_out(user: User, values: dict) -> dict:
     # Only the switches this person can actually receive are shown in the app.
+    sees_all = has_capability(user, "receipts.view_all")
     available = {
-        "online": has_capability(user, "receipts.view_all"),
+        "online": sees_all,
         "transfer": True,
         "offline": True,
         "transfer_waiting": has_capability(user, "bank.approve"),
-        "payment_failed": has_capability(user, "receipts.view_all"),
-        "refund": has_capability(user, "receipts.view_all"),
-        "digest": has_capability(user, "receipts.view_all"),
+        "payment_failed": sees_all,
+        "refund": sees_all,
+        "digest": sees_all,
+        "weekly_digest": sees_all,
+        "tasks": True,
+        "donor_reminders": True,
+        "money_box_due": True,
+        "large_donation": sees_all,
+        "recurring_failed": sees_all,
+        "campaign_milestone": sees_all,
+        "system_alert": sees_all,
     }
     return {"settings": values, "available": available}
 
@@ -289,5 +308,126 @@ async def inflow_overview(
         **current, "previous_total_cents": previous["total_cents"], "previous_count": previous["count"],
         "series": series, "series_unit": "hour" if bucket_hours else "day",
         "recent": recent, "waiting_transfers": waiting, "failed_payments_today": failed, "unread_notifications": unread,
+        "updated_at": datetime.now(timezone.utc),
+    }
+
+
+@router.get("/widget-bundle")
+async def widget_bundle(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Single compact payload that refreshes all home-screen widgets in one network call."""
+    from app.models.automation import BankTransaction, ReconciliationStatus
+    from app.models.campaign import Campaign, CampaignStatus
+    from app.models.field_ops import Task
+
+    org_id = _org(request, current_user)
+    user = await _staff_user(db, current_user)
+    sees_all = has_capability(user, "receipts.view_all")
+    mine = None if sees_all else user.id
+    now = datetime.now(staff_notify.TZ)
+    day_start, day_end = staff_notify.day_bounds(now)
+    month_start = staff_notify.day_bounds(now.replace(day=1))[0]
+
+    today = await staff_notify.inflow_by_channel(db, org_id, day_start, day_end, mine)
+    yesterday = await staff_notify.inflow_by_channel(db, org_id, day_start - timedelta(days=1), day_start, mine)
+    month = await staff_notify.inflow_by_channel(db, org_id, month_start, day_end, mine)
+
+    # Pending bank transfers
+    pending_transfers: dict = {"count": 0, "total_cents": 0, "items": []}
+    if has_capability(user, "bank.approve") or sees_all:
+        base_tx = [
+            BankTransaction.organization_id == org_id,
+            BankTransaction.amount_cents > 0,
+            BankTransaction.status.in_([ReconciliationStatus.UNMATCHED, ReconciliationStatus.AMBIGUOUS]),
+        ]
+        row = (await db.execute(select(func.count(), func.coalesce(func.sum(BankTransaction.amount_cents), 0)).where(*base_tx))).one()
+        tx_rows = (await db.execute(
+            select(BankTransaction).where(*base_tx).order_by(BankTransaction.booked_at.desc()).limit(4)
+        )).scalars().all()
+        pending_transfers = {
+            "count": int(row[0] or 0),
+            "total_cents": int(row[1] or 0),
+            "items": [
+                {
+                    "id": str(t.id),
+                    "sender": (t.sender_name or t.description or "Havale")[:40],
+                    "amount_cents": t.amount_cents,
+                    "booked_at": t.booked_at,
+                }
+                for t in tx_rows
+            ],
+        }
+
+    # Open tasks assigned to this staff member (or org-wide if manager)
+    today_date = now.date()
+    task_filters = [Task.organization_id == org_id, Task.status.in_(["todo", "in_progress"])]
+    if not sees_all:
+        task_filters.append(Task.assigned_to_id == user.id)
+    open_count = int((await db.execute(select(func.count()).select_from(Task).where(*task_filters))).scalar() or 0)
+    overdue_count = int((await db.execute(
+        select(func.count()).select_from(Task).where(*task_filters, Task.due_date.is_not(None), Task.due_date < today_date)
+    )).scalar() or 0)
+    task_rows = (await db.execute(
+        select(Task).where(*task_filters).order_by(Task.due_date.asc().nullslast(), Task.created_at.desc()).limit(4)
+    )).scalars().all()
+
+    # Featured / top active campaign with a target (excluding hidden system campaigns)
+    from sqlalchemy import or_
+    from app.models.campaign import HIDDEN_CAMPAIGN_TAG
+    camp = (await db.execute(
+        select(Campaign)
+        .where(
+            Campaign.organization_id == org_id,
+            Campaign.status == CampaignStatus.ACTIVE,
+            Campaign.target_cents > 0,
+            or_(Campaign.tags.is_(None), ~Campaign.tags.any(HIDDEN_CAMPAIGN_TAG)),
+        )
+        .order_by(Campaign.is_featured.desc(), Campaign.display_order.asc(), Campaign.created_at.desc())
+        .limit(1)
+    )).scalar_one_or_none()
+    campaign_out = None
+    if camp:
+        pct = min(100, round((camp.collected_cents or 0) * 100 / max(1, camp.target_cents)))
+        campaign_out = {
+            "id": str(camp.id),
+            "title": camp.title,
+            "target_cents": camp.target_cents,
+            "collected_cents": camp.collected_cents or 0,
+            "percent": pct,
+        }
+
+    unread = int((await db.execute(select(func.count()).select_from(StaffNotification).where(
+        StaffNotification.user_id == user.id, StaffNotification.organization_id == org_id,
+        StaffNotification.read_at.is_(None)))).scalar() or 0)
+
+    return {
+        "today": {
+            **today,
+            "previous_total_cents": yesterday["total_cents"],
+            "previous_count": yesterday["count"],
+        },
+        "month": {
+            "total_cents": month["total_cents"],
+            "count": month["count"],
+        },
+        "pending_transfers": pending_transfers,
+        "tasks": {
+            "open_count": open_count,
+            "overdue_count": overdue_count,
+            "items": [
+                {
+                    "id": str(t.id),
+                    "title": t.title,
+                    "due_date": t.due_date.isoformat() if t.due_date else None,
+                    "overdue": bool(t.due_date and t.due_date < today_date),
+                }
+                for t in task_rows
+            ],
+        },
+        "campaign": campaign_out,
+        "unread_notifications": unread,
         "updated_at": datetime.now(timezone.utc),
     }

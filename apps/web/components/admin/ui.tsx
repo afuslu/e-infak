@@ -529,7 +529,7 @@ export function ExportButtons({
         })
         if (rows.length > 12) lines.push(`... ve ${rows.length - 12} kayıt daha.`)
       }
-      window.location.href = `whatsapp://send?text=${encodeURIComponent(lines.join('\n'))}`
+      window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank', 'noopener,noreferrer')
     } catch {
       toast.error('WhatsApp paylaşımı hazırlanamadı.')
     }

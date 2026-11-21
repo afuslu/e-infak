@@ -151,7 +151,7 @@ export default function PublicVerifyReceiptPage() {
                   <span>🖨️</span> Yazdır
                 </button>
                 <a
-                  href={`whatsapp://send?text=${encodeURIComponent(`Bağış Makbuzu Doğrulama (#${data.receipt_number} - ${data.amount_lira.toLocaleString('tr-TR')} ₺): ${typeof window !== 'undefined' ? window.location.href : ''}`)}`}
+                  href={`https://wa.me/?text=${encodeURIComponent(`Bağış Makbuzu Doğrulama (#${data.receipt_number} - ${data.amount_lira.toLocaleString('tr-TR')} ₺): ${typeof window !== 'undefined' ? window.location.href : ''}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-green-50 hover:bg-green-100 text-green-800 text-xs font-bold py-2.5 transition-colors"

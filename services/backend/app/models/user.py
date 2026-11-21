@@ -40,6 +40,9 @@ class User(Base):
     is_verified = Column(Boolean, default=False)
     # Set when someone else hands out a temporary password; cleared by passwords.set_password.
     must_change_password = Column(Boolean, nullable=False, default=False, server_default="false")
+    # Two-factor authentication (TOTP)
+    totp_secret = Column(String(64))
+    totp_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
     
     last_login_at = Column(DateTime(timezone=True))
     # Panel presence (STK PRO "Aktif Oturumlar"): the page and time of the latest heartbeat

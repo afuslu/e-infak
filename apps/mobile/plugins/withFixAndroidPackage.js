@@ -1,4 +1,10 @@
-const { withMainActivity, withMainApplication, withAndroidManifest } = require("expo/config-plugins");
+let cp;
+try {
+  cp = require("expo/config-plugins");
+} catch {
+  cp = require("@expo/config-plugins");
+}
+const { withMainActivity, withMainApplication, withAndroidManifest } = cp;
 
 function fixPackage(contents, pkg) {
   return contents.replace(/^package\s+[^\s;]+/m, `package ${pkg}`);

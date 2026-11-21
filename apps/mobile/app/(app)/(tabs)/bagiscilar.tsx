@@ -8,8 +8,8 @@ import { initials, money, toCents } from '@/lib/format';
 import { useDebounced, usePaged } from '@/lib/paged';
 import { useStaffOptions } from '@/api/hooks';
 import { activity, Donor } from '@/api/types';
-import { Avatar, Badge, Btn, Chips, Empty, ErrorView, Fab, Field, ListItem, Loading, SearchBar, Select, Sheet, ui } from '@/components/ui';
-import { colors, font, radius, space } from '@/theme';
+import { Avatar, Badge, Btn, Chips, Empty, ErrorView, Fab, Field, ListItem, Loading, SearchBar, Select, Sheet, useUi } from '@/components/ui';
+import { font, radius, space, useTheme } from '@/theme';
 
 const SORTS = [
   { value: 'recent', label: 'Son bağış' },
@@ -27,6 +27,8 @@ const NONE: Filters = { assigned: null, region: null, donor_type: null, has_dona
 export default function Donors() {
   const router = useRouter();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const [term, setTerm] = useState('');
   const [sort, setSort] = useState('recent');
   const [filters, setFilters] = useState<Filters>(NONE);

@@ -1,7 +1,7 @@
 import { createApiClient } from '@e-infak/api-client'
 import axios from 'axios'
 import { getOrgSlugFromCookie } from './theme'
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8020'
 
 // In production requests use the same-origin gateway. It derives tenant from
 // the Host header, so a browser-controlled cookie/header cannot switch tenant.

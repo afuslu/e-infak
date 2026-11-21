@@ -743,13 +743,19 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     case 'trust':
       return <Trust data={data} t={t} o={o} />
     case 'stats': {
-      if (o.variant === 'card' || o.variant === 'gradient' || o.variant === 'ring' || o.variant === 'bento_dark' || o.variant === 'dark_gold_counters' || o.variant === 'bordered_metric_cards' || o.variant === 'minimal_inline_stats') {
+      if (o.variant === 'card' || o.variant === 'gradient' || o.variant === 'ring' || o.variant === 'bento_dark' || o.variant === 'dark_gold_counters' || o.variant === 'bordered_metric_cards' || o.variant === 'minimal_inline_stats' || o.variant === 'emerald_counters' || o.variant === 'soft_tint_cards' || o.variant === 'accent_top_border' || o.variant === 'pill_badge_stats' || o.variant === 'glass_dark' || o.variant === 'icon_pills' || o.variant === 'big_hero_numbers') {
         const isGrad = o.variant === 'gradient'
         const isRing = o.variant === 'ring'
-        const isDark = o.variant === 'bento_dark' || o.variant === 'dark_gold_counters'
+        const isDark = o.variant === 'bento_dark' || o.variant === 'dark_gold_counters' || o.variant === 'glass_dark'
+        const isGlassDark = o.variant === 'glass_dark'
         const isGoldDark = o.variant === 'dark_gold_counters'
         const isBordered = o.variant === 'bordered_metric_cards'
         const isInlineMin = o.variant === 'minimal_inline_stats'
+        const isEmerald = o.variant === 'emerald_counters'
+        const isSoftTint = o.variant === 'soft_tint_cards'
+        const isTopBorder = o.variant === 'accent_top_border'
+        const isPillBadge = o.variant === 'pill_badge_stats' || o.variant === 'icon_pills'
+        const isBigHero = o.variant === 'big_hero_numbers'
         const collected = data.campaigns.filter((c) => (c.currency || 'TRY') === 'TRY').reduce((sum, c) => sum + (c.collected_lira || 0), 0)
         const statItems: Array<{ value: string | number; suffix?: string; label: string; icon_url?: string }> =
           o.mode === 'manual' && Array.isArray(o.items) && o.items.length
@@ -760,7 +766,9 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
               data.categories.length ? { value: data.categories.length, label: t('home.stats.categories') } : null,
               { value: data.news.length, label: t('home.stats.news') },
             ].filter(Boolean) as Array<{ value: number; suffix?: string; label: string }>)
-        const colCls = ['', 'lg:grid-cols-1 max-w-sm mx-auto', 'lg:grid-cols-2', 'lg:grid-cols-3', 'lg:grid-cols-4', 'lg:grid-cols-5', 'lg:grid-cols-6'][Math.min(statItems.length, 6)] || 'lg:grid-cols-4'
+        const explicitCols = o.columns === '2' ? 'lg:grid-cols-2' : o.columns === '3' ? 'lg:grid-cols-3' : o.columns === '4' ? 'lg:grid-cols-4' : ''
+        const colCls = explicitCols || ['', 'lg:grid-cols-1 max-w-sm mx-auto', 'lg:grid-cols-2', 'lg:grid-cols-3', 'lg:grid-cols-4', 'lg:grid-cols-5', 'lg:grid-cols-6'][Math.min(statItems.length, 6)] || 'lg:grid-cols-4'
+        const standaloneCards = isGrad || isRing || isDark || isBordered || isInlineMin || isEmerald || isSoftTint || isTopBorder || isPillBadge || isBigHero
         return (
           <div className={`${container} w-full`}>
             {(o.kicker || o.title || o.text) && (
@@ -770,7 +778,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                 {o.text && <p className="mt-2 text-sm leading-relaxed text-gray-600">{o.text}</p>}
               </div>
             )}
-            <div className={`grid grid-cols-2 gap-6 ${colCls} ${isGrad || isRing || isDark || isBordered || isInlineMin ? '' : 'gap-y-8 rounded-lg bg-white px-5 py-8 shadow-[0_8px_30px_-8px_rgba(0,0,0,.18)] lg:divide-x lg:divide-gray-100'}`}>
+            <div className={`grid grid-cols-2 gap-6 ${colCls} ${standaloneCards ? '' : 'gap-y-8 rounded-lg bg-white px-5 py-8 shadow-[0_8px_30px_-8px_rgba(0,0,0,.18)] lg:divide-x lg:divide-gray-100'}`}>
               {statItems.map((item, i) => {
                 const raw = String(item.value ?? '')
                 const n = typeof item.value === 'number' ? item.value : Number(raw.replace(/\./g, '').replace(',', '.'))
@@ -778,17 +786,23 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                 return (
                   <div key={i} className={`flex flex-col items-center gap-2 text-center ${
                     isGoldDark ? 'rounded-3xl border border-amber-500/30 bg-slate-950 p-7 text-amber-300 shadow-xl' :
+                    isGlassDark ? 'rounded-3xl border border-white/15 bg-slate-900/80 p-7 text-white shadow-xl backdrop-blur-md' :
                     isDark ? 'rounded-3xl border border-white/10 bg-slate-900 p-7 text-white shadow-xl' :
+                    isEmerald ? 'rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-800 to-teal-950 p-7 text-white shadow-xl' :
                     isGrad ? 'rounded-2xl bg-gradient-to-br from-primary-700 to-primary-900 p-6 text-white shadow-lg' :
+                    isBigHero ? 'p-4' :
+                    isSoftTint ? 'rounded-2xl border border-primary-100/80 bg-primary-50/70 p-6 shadow-2xs' :
+                    isTopBorder ? 'rounded-xl border border-gray-100 border-t-4 border-t-primary-600 bg-white p-6 shadow-md' :
+                    isPillBadge ? 'rounded-full border border-gray-200 bg-white px-6 py-4 shadow-sm' :
                     isBordered ? 'rounded-2xl border-2 border-primary-200 bg-white p-6 shadow-sm' :
                     isInlineMin ? 'border-b-2 border-primary-500/30 pb-4' :
                     isRing ? 'rounded-2xl border border-primary-100 bg-white p-6 shadow-sm' : ''
                   }`}>
                     {item.icon_url && <img src={item.icon_url} alt="" className="h-14 w-14 object-contain" loading="lazy" />}
-                    <div className={`${isRing ? 'flex h-20 w-20 items-center justify-center rounded-full border-4 border-primary-600 bg-primary-50/50 text-xl' : 'text-3xl md:text-4xl'} font-heading font-bold ${isGoldDark ? 'text-amber-300' : isGrad || isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <div className={`${isRing ? 'flex h-20 w-20 items-center justify-center rounded-full border-4 border-primary-600 bg-primary-50/50 text-xl' : isBigHero ? 'text-4xl md:text-6xl tracking-tight' : isPillBadge ? 'text-2xl md:text-3xl' : 'text-3xl md:text-4xl'} font-heading font-bold ${isGoldDark ? 'text-amber-300' : isGrad || isDark || isEmerald ? 'text-white' : isBigHero || isSoftTint || isTopBorder ? 'text-primary-800' : 'text-gray-900'}`}>
                       {isNum ? <CountUp value={n} locale={data.locale} suffix={item.suffix || ''} /> : raw}
                     </div>
-                    <div className={`text-[15px] ${isGrad || isDark ? 'text-white/80' : 'text-gray-700'}`}>{item.label}</div>
+                    <div className={`text-[15px] ${isGrad || isDark || isEmerald ? 'text-white/85' : 'text-gray-700'}`}>{item.label}</div>
                   </div>
                 )
               })}
@@ -1949,10 +1963,17 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           : o.shape === 'square'
             ? '!rounded-none'
             : ''
-      const fullCls = o.full_width ? 'w-full' : ''
+      const fullCls = o.full_width || o.layout === 'split_full_bar' ? 'w-full' : ''
+      const gapCls = o.gap === 'sm' ? 'gap-2' : o.gap === 'lg' ? 'gap-5' : 'gap-3'
       const layoutExtra =
         o.layout === 'pill_shadow_group' || o.layout === 'floating_shadow' || o.layout === 'dark_pill_group' || o.layout === 'gradient_shadow_buttons'
           ? '!rounded-full shadow-lg hover:-translate-y-0.5'
+          : o.layout === 'emerald_glow'
+            ? '!rounded-full bg-emerald-600 text-white shadow-[0_10px_25px_-6px_rgba(5,150,105,.55)] hover:bg-emerald-700 hover:-translate-y-0.5'
+          : o.layout === 'glass_outline'
+            ? 'border border-white/30 bg-white/15 backdrop-blur-md shadow-sm hover:bg-white/25'
+          : o.layout === 'soft_pastel_row'
+            ? '!rounded-xl border border-primary-100 bg-primary-50 text-primary-800 hover:bg-primary-100'
           : o.layout === 'outline_to_solid' || o.layout === 'outline_icon_row'
             ? 'border-2 border-primary-600 transition-colors hover:bg-primary-600 hover:text-white'
             : o.layout === 'icon_split_pair'
@@ -1961,7 +1982,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const extraCls = `${sizeCls} ${shapeCls} ${fullCls} ${layoutExtra}`.trim()
 
       return (
-        <div className={`${depth === 0 ? container : ''} flex ${stack ? 'flex-col' : 'flex-wrap'} gap-3 ${justify}`}>
+        <div className={`${depth === 0 ? container : ''} ${o.layout === 'split_full_bar' ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-flow-col md:auto-cols-fr' : `flex ${stack ? 'flex-col' : 'flex-wrap'}`} ${gapCls} ${justify}`}>
           {(o.items || []).filter((b: any) => b.label && b.url).map((b: any, i: number) => {
             const autoDanger = (!b.style || b.style === 'primary' || b.style === 'accent') && /e-?devlet|348/i.test(`${b.label} ${b.url}`)
             return (
@@ -2612,7 +2633,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         entries.push({ key: 'phone', label: 'Telefon', value: phone, href: `tel:${phone.replace(/[^\d+]/g, '')}` })
       }
       if (waRaw && waClean) {
-        entries.push({ key: 'whatsapp', label: 'WhatsApp', value: waRaw, href: `whatsapp://send?phone=${waClean}`, external: true })
+        entries.push({ key: 'whatsapp', label: 'WhatsApp', value: waRaw, href: `https://wa.me/${waClean}`, external: true })
       }
       if (o.show_email !== false && email) {
         entries.push({ key: 'email', label: 'E-posta', value: email, href: `mailto:${email}` })
@@ -3102,6 +3123,25 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
   }
 }
 
+const PRO_VISUAL_SURFACE: Record<string, string> = {
+  pro_emerald_gold: 'rounded-3xl border border-amber-400/35 bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-white shadow-2xl [&_.bg-white]:!bg-white/10 [&_.bg-white]:!border-white/15 [&_.text-gray-900]:text-white [&_.text-gray-800]:text-emerald-50 [&_.text-gray-700]:text-emerald-100 [&_.text-gray-600]:text-emerald-100/85 [&_.text-gray-500]:text-emerald-200/75',
+  pro_dark_obsidian: 'rounded-3xl border border-amber-500/30 bg-gradient-to-b from-slate-950 to-zinc-900 text-white shadow-2xl [&_.bg-white]:!bg-white/10 [&_.bg-white]:!border-white/15 [&_.text-gray-900]:text-amber-50 [&_.text-gray-800]:text-zinc-100 [&_.text-gray-700]:text-zinc-200 [&_.text-gray-600]:text-zinc-300 [&_.text-gray-500]:text-zinc-400',
+  pro_sapphire_glass: 'rounded-3xl border border-sky-200/60 bg-gradient-to-br from-sky-50/90 via-white/85 to-indigo-50/90 shadow-xl backdrop-blur-md',
+  pro_warm_sand: 'rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/85 via-orange-50/50 to-stone-50 shadow-sm',
+  pro_crimson_urgent: 'rounded-3xl border-2 border-red-500/40 bg-gradient-to-br from-red-950 via-rose-900 to-red-950 text-white shadow-2xl [&_.bg-white]:!bg-white/10 [&_.bg-white]:!border-white/15 [&_.text-gray-900]:text-white [&_.text-gray-800]:text-rose-50 [&_.text-gray-700]:text-rose-100 [&_.text-gray-600]:text-rose-100/85 [&_.text-gray-500]:text-rose-200/75',
+  pro_nordic_minimal: 'rounded-2xl border border-gray-200/80 bg-white shadow-2xs',
+  pro_editorial_frame: 'rounded-none border-2 border-gray-900/15 bg-stone-50/80 ring-1 ring-inset ring-gray-900/5 shadow-sm',
+  pro_soft_pastel: 'rounded-3xl border border-primary-100 bg-primary-50/60 shadow-xs',
+  pro_gold_bordered: 'rounded-2xl border-2 border-amber-400/70 bg-gradient-to-b from-white to-amber-50/40 shadow-lg',
+  pro_teal_gradient: 'rounded-3xl border border-teal-400/30 bg-gradient-to-r from-teal-900 via-cyan-900 to-emerald-900 text-white shadow-xl [&_.bg-white]:!bg-white/10 [&_.bg-white]:!border-white/15 [&_.text-gray-900]:text-white [&_.text-gray-800]:text-teal-50 [&_.text-gray-700]:text-teal-100 [&_.text-gray-600]:text-teal-100/85',
+  pro_midnight_indigo: 'rounded-3xl border border-indigo-400/25 bg-gradient-to-br from-indigo-950 via-slate-900 to-blue-950 text-white shadow-2xl [&_.bg-white]:!bg-white/10 [&_.bg-white]:!border-white/15 [&_.text-gray-900]:text-white [&_.text-gray-800]:text-indigo-50 [&_.text-gray-700]:text-indigo-100 [&_.text-gray-600]:text-indigo-200/85',
+  pro_pill_elevated: 'rounded-[2rem] border border-gray-100 bg-white shadow-[0_20px_50px_-15px_rgba(15,23,42,0.16)]',
+  pro_paper_card: 'rounded-xl border border-stone-200 bg-[#FAF7F2] shadow-md',
+  pro_accent_ribbon: 'rounded-2xl border border-gray-200/80 border-t-4 border-t-primary-600 bg-white shadow-md',
+  pro_ottoman_turquoise: 'rounded-3xl border border-cyan-500/35 bg-gradient-to-br from-cyan-950 via-teal-900 to-sky-950 text-white shadow-2xl [&_.bg-white]:!bg-white/10 [&_.bg-white]:!border-white/15 [&_.text-gray-900]:text-white [&_.text-gray-800]:text-cyan-50 [&_.text-gray-700]:text-cyan-100 [&_.text-gray-600]:text-cyan-100/85',
+  pro_rose_warmth: 'rounded-3xl border border-rose-200/80 bg-gradient-to-br from-rose-50/85 via-white to-amber-50/70 shadow-md',
+}
+
 export function renderBlock(block: Block, opts: RenderOptions, depth = 0): ReactNode {
   const advanced = block.advanced || {}
   if (!opts.editing && advanced.langs && advanced.langs !== opts.data.locale) return null
@@ -3117,12 +3157,14 @@ export function renderBlock(block: Block, opts: RenderOptions, depth = 0): React
     : (block.type === 'section' || block.type === 'header_row')
       ? TONE[o.tone || (block.type === 'header_row' ? 'light' : '')]
       : ''
+  const visualKey = String(o.look || o.layout || o.variant || o.style || '')
+  const proSurface = PRO_VISUAL_SURFACE[visualKey] || ''
   const row = block.type === 'header_row'
     ? `${isTransparentHeader && !opts.editing ? ' absolute inset-x-0 top-0 z-40' : ''}${o.border !== false && !isTransparentHeader ? ' border-b border-black/5' : ''}${o.sticky && !opts.editing ? ` hrow-sticky${o.shrink !== false ? ' is-shrink' : ''}` : ''}`
     : ''
   let node: ReactNode = (
     <div key={block.id} id={advanced.anchor || undefined} aria-label={advanced.aria_label || undefined}
-      className={`b-block b-${block.id}${padded ? ' b-pad' : ''}${bleed && block.type !== 'header_row' ? ' b-fill' : ''}${tone ? ` ${tone}` : ''}${row}${advanced.css_class ? ` ${advanced.css_class}` : ''}`}>
+      className={`b-block b-${block.id}${padded ? ' b-pad' : ''}${bleed && block.type !== 'header_row' ? ' b-fill' : ''}${tone ? ` ${tone}` : ''}${row}${proSurface ? ` ${proSurface} my-2 p-4 sm:p-6` : ''}${advanced.css_class ? ` ${advanced.css_class}` : ''}`}>
       {hasOverlay && <div className="b-overlay" aria-hidden />}
       <div className="b-inner">{content(block, o, opts, depth)}</div>
     </div>

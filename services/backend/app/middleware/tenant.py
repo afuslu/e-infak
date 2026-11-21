@@ -14,8 +14,13 @@ from app.services.tenancy import normalize_host, resolve_org_slug
 
 # Paths that are not bound to one organisation.
 BYPASS_PATHS = {"/health", "/docs", "/redoc", "/openapi.json"}
-# Login works on the platform host too; the user is then found by e-mail.
-ORGLESS_PATHS = {"/api/v1/auth/login", "/api/v1/auth/refresh"}
+# Login & password-reset work on the platform host too; the user is then found by e-mail.
+ORGLESS_PATHS = {
+    "/api/v1/auth/login",
+    "/api/v1/auth/refresh",
+    "/api/v1/auth/password-reset/request",
+    "/api/v1/auth/password-reset/confirm",
+}
 BYPASS_PREFIXES = ("/api/v1/payments/", "/api/v1/hooks/", "/api/v1/internal/", "/api/v1/platform", "/api/v1/media/", "/api/v1/directory")
 
 
@@ -30,6 +35,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
+        if request.method == "OPTIONS":
+            return await call_next(request)
         path = request.url.path
         if path in BYPASS_PATHS or path.startswith(BYPASS_PREFIXES):
             return await call_next(request)

@@ -3,8 +3,8 @@
 /** STK PRO "Online Bağış": card donations from the virtual POS, refreshed every 60 seconds. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { CreditCard, Eye, EyeOff, FileDown, RefreshCw, UserRound } from 'lucide-react'
-import { adminGet, apiErrorMessage, can, formatMoney, useAdminAccess } from '../../../../lib/admin-access'
+import { CreditCard, Eye, EyeOff, FileDown, MessageCircle, RefreshCw, UserRound } from 'lucide-react'
+import { adminGet, apiErrorMessage, can, formatMoney, useAdminAccess, whatsappUrl } from '../../../../lib/admin-access'
 import { toast } from '../../../../components/admin/ui'
 import { type ListColumn, ListView, RowAction, usePageSize } from '../../../../components/admin/ListView'
 import { downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
@@ -115,6 +115,30 @@ export default function OnlineDonationsPage() {
           </button>
         </div>
       </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {([
+          ['confirmed', 'Başarılı'],
+          ['failed', 'Başarısız / Yarım Kalan'],
+          ['pending', 'Bekleyen'],
+          ['refunded', 'İade'],
+          ['', 'Tümü'],
+        ] as const).map(([val, lbl]) => (
+          <button
+            key={val || 'all'}
+            type="button"
+            onClick={() => { setFilters((f) => ({ ...f, status: val })); setPage(1) }}
+            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+              filters.status === val
+                ? val === 'failed'
+                  ? 'border-rose-600 bg-rose-600 text-white'
+                  : 'border-primary-600 bg-primary-600 text-white'
+                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 text-[13.5px] text-gray-500">
         <span>{STATUS[filters.status]?.[0] || 'Toplam'} işlem: <b className="tabular-nums text-gray-900">{success.toLocaleString('tr-TR')}</b> · özet her yenilemede güncellenir</span>
         {(can(access, 'bank.totals') || can(access, 'receipts.view_all')) && (
@@ -127,12 +151,36 @@ export default function OnlineDonationsPage() {
       <ListView storageKey="online-donations" columns={columns} rows={data.items} total={data.total} loading={loading} rowKey={(r) => r.id}
         page={page} pageSize={pageSize} onPage={setPage} onPageSize={(n) => { setPageSize(n); setPage(1) }}
         filters={filters} onApplyFilters={(f) => { setFilters(f); setPage(1) }}
-        rowActions={(r) => (
-          <>
-            <RowAction label="Makbuz PDF" icon={FileDown} tone="success" onClick={() => downloadReceiptPdf(r.id, r.receipt_number).catch(() => toast.error('PDF indirilemedi'))} />
-            <RowAction label="Bağışçı kartı" icon={UserRound} href={`/admin/bagiscilar/${r.donor_id}`} />
-          </>
-        )}
+        rowActions={(r) => {
+          const isFailedOrPending = r.status === 'failed' || r.status === 'pending'
+          const origin = typeof window !== 'undefined' ? window.location.origin : ''
+          const amountStr = formatMoney(r.amount_cents, r.currency)
+          const campStr = r.campaign_title ? ` (${r.campaign_title})` : ''
+          const wa = r.donor_phone
+            ? whatsappUrl(
+                r.donor_phone,
+                isFailedOrPending
+                  ? `Selamün aleyküm ${r.donor_name}, ${amountStr} tutarındaki${campStr} online bağış işleminizin tamamlanamadığını gördük. Dilerseniz buradan tekrar deneyebilir veya Havale/EFT ile tamamlayabilirsiniz: ${origin}/bagis/sepetim?odeme=havale`
+                  : `Selamün aleyküm ${r.donor_name}, ${amountStr} tutarındaki${campStr} bağışınız için çok teşekkür ederiz. Allah kabul etsin.`,
+              )
+            : null
+          return (
+            <>
+              {wa && (
+                <RowAction
+                  label={isFailedOrPending ? 'WhatsApp ile kurtar' : 'WhatsApp teşekkür'}
+                  icon={MessageCircle}
+                  tone="success"
+                  onClick={() => window.open(wa, '_blank', 'noopener,noreferrer')}
+                />
+              )}
+              {!isFailedOrPending && (
+                <RowAction label="Makbuz PDF" icon={FileDown} tone="success" onClick={() => downloadReceiptPdf(r.id, r.receipt_number).catch(() => toast.error('PDF indirilemedi'))} />
+              )}
+              <RowAction label="Bağışçı kartı" icon={UserRound} href={`/admin/bagiscilar/${r.donor_id}`} />
+            </>
+          )
+        }}
         empty="Online bağış yok" />
     </div>
   )

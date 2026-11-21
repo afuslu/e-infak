@@ -289,7 +289,7 @@ export async function exportPdf(
   await downloadPostExport('pdf', filename, title, header, rows, options)
 }
 
-/** Builds a direct WhatsApp (`whatsapp://send`) link for Turkish/international phone numbers. */
+/** Builds a universal WhatsApp (`https://wa.me/`) link for Turkish/international phone numbers. */
 export function whatsappUrl(phone: string | null | undefined, text: string): string | null {
   const digits = (phone || '').replace(/\D/g, '')
   if (digits.length < 10) return null
@@ -300,5 +300,5 @@ export function whatsappUrl(phone: string | null | undefined, text: string): str
       : digits.length === 10 && digits.startsWith('5')
         ? `90${digits}`
         : digits
-  return `whatsapp://send?phone=${normalized}&text=${encodeURIComponent(text)}`
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(text)}`
 }

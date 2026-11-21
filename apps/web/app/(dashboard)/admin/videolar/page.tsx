@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Eye, Film, Link2, MessageSquare, Trash2, Upload, Wand2 } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage, v1Get } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, v1Get, whatsappUrl } from '../../../../lib/admin-access'
 import { Label, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import { EmptyState, Modal, PageHeader, Pagination, StatCard, TBody, THead, Table, Td, Th, Tr, confirmDialog, toast } from '../../../../components/admin/ui'
 
@@ -128,7 +128,21 @@ export default function VideosPage() {
                   <Td>{v.viewers} kişi · {v.views} kez</Td>
                   <Td className="whitespace-nowrap text-gray-500">{when(v.created_at)}</Td>
                   <Td className="whitespace-nowrap">
-                    {v.status === 'ready' && <a className={`${ghostButton} mr-1 inline-block`} href={v.watch_path} target="_blank" rel="noreferrer">İzle</a>}
+                    {v.status === 'ready' && (
+                      <>
+                        <a className={`${ghostButton} mr-1 inline-block`} href={v.watch_path} target="_blank" rel="noreferrer">İzle</a>
+                        <button
+                          type="button"
+                          className={`${ghostButton} mr-1`}
+                          onClick={() => {
+                            const fullUrl = `${window.location.origin}${v.watch_path}`
+                            navigator.clipboard?.writeText(fullUrl).then(() => toast.ok('İzleme bağlantısı kopyalandı')).catch(() => toast.error('Kopyalanamadı'))
+                          }}
+                        >
+                          Linki kopyala
+                        </button>
+                      </>
+                    )}
                     <button type="button" className={`${ghostButton} mr-1`} onClick={() => setLinkOf(v)}><Link2 className="inline h-3.5 w-3.5" /> Bağla</button>
                     {v.target && <button type="button" className={`${ghostButton} mr-1`} onClick={() => setViewsOf(v)}><Eye className="inline h-3.5 w-3.5" /> İzleyenler</button>}
                     <button type="button" className={ghostButton} aria-label="Sil" onClick={() => remove(v)}><Trash2 className="inline h-3.5 w-3.5" /></button>
@@ -183,13 +197,29 @@ function MatchDialog({ onClose, onDone }: { onClose: () => void; onDone: () => v
 function ViewsDialog({ video, onClose }: { video: Video; onClose: () => void }) {
   const [data, setData] = useState<{ items: Viewer[]; viewed: number; audience: number; other_views: number } | null>(null)
   const [message, setMessage] = useState('Sayın {ad_soyad}, bağışınıza ait videoyu buradan izleyebilirsiniz: {video}')
-  const load = () => adminGet<{ items: Viewer[]; viewed: number; audience: number; other_views: number }>(`/videos/${video.id}/views`).then((r) => setData(r.data)).catch((err) => toast.error(apiErrorMessage(err)))
-  useEffect(() => { load() }, [])
+  const [channel, setChannel] = useState<'sms' | 'whatsapp' | 'both'>('sms')
+  const [waTemplate, setWaTemplate] = useState('')
+  useEffect(() => {
+    let active = true
+    adminGet<{ items: Viewer[]; viewed: number; audience: number; other_views: number }>(`/videos/${video.id}/views`)
+      .then((r) => { if (active) setData(r.data) })
+      .catch((err) => { if (active) toast.error(apiErrorMessage(err)) })
+    return () => { active = false }
+  }, [video.id])
   const notify = async () => {
-    if (!(await confirmDialog(`İzlememiş ${data ? data.audience - data.viewed : 0} bağışçıya SMS gönderilsin mi?`))) return
+    const channelLabel = channel === 'both' ? 'SMS ve WhatsApp' : channel === 'whatsapp' ? 'WhatsApp' : 'SMS'
+    if (!(await confirmDialog(`İzlememiş ${data ? data.audience - data.viewed : 0} bağışçıya ${channelLabel} gönderilsin mi?`))) return
     try {
-      const r = await adminSend<{ queued: number; skipped: number }>('post', `/videos/${video.id}/notify`, { message, only_unviewed: true })
-      toast.ok(`${r.data.queued} SMS kuyruğa alındı`)
+      const r = await adminSend<{ queued: number; whatsapp_queued?: number; skipped: number }>('post', `/videos/${video.id}/notify`, {
+        message,
+        only_unviewed: true,
+        channel,
+        whatsapp_template: waTemplate.trim() || undefined,
+      })
+      const parts = []
+      if (r.data.queued) parts.push(`${r.data.queued} SMS`)
+      if (r.data.whatsapp_queued) parts.push(`${r.data.whatsapp_queued} WhatsApp`)
+      toast.ok(`${parts.join(' · ') || '0 mesaj'} kuyruğa alındı`)
     } catch (err) {
       toast.error(apiErrorMessage(err))
     }
@@ -198,22 +228,50 @@ function ViewsDialog({ video, onClose }: { video: Video; onClose: () => void }) 
     <Modal title={`İzleyenler · ${video.title}`} description={data ? `${data.audience} bağışçıdan ${data.viewed} kişi izledi${data.other_views ? ` · ${data.other_views} kez bağlantısız izlenme` : ''}` : undefined} onClose={onClose} size="lg">
       <div className="max-h-80 overflow-y-auto">
         <Table>
-          <THead><Tr><Th>Bağışçı</Th><Th>Telefon</Th><Th>Durum</Th><Th>Son izlenme</Th></Tr></THead>
+          <THead><Tr><Th>Bağışçı</Th><Th>Telefon</Th><Th>Durum</Th><Th>Son izlenme</Th><Th /></Tr></THead>
           <TBody>
-            {data?.items.map((v) => (
-              <Tr key={v.donor_id}>
-                <Td>{v.name}</Td><Td>{v.phone || '—'}</Td>
-                <Td>{v.viewed ? <span className="text-emerald-700">İzledi ({v.view_count})</span> : <span className="text-gray-500">İzlemedi</span>}</Td>
-                <Td className="text-gray-500">{when(v.last_viewed_at)}</Td>
-              </Tr>
-            ))}
+            {data?.items.map((v) => {
+              const fullWatch = typeof window !== 'undefined' ? `${window.location.origin}${video.watch_path}` : video.watch_path
+              const wa = v.phone
+                ? whatsappUrl(v.phone, message.replace(/\{ad_soyad\}/g, v.name).replace(/\{video\}/g, fullWatch))
+                : null
+              return (
+                <Tr key={v.donor_id}>
+                  <Td>{v.name}</Td><Td>{v.phone || '—'}</Td>
+                  <Td>{v.viewed ? <span className="text-emerald-700">İzledi ({v.view_count})</span> : <span className="text-gray-500">İzlemedi</span>}</Td>
+                  <Td className="text-gray-500">{when(v.last_viewed_at)}</Td>
+                  <Td className="whitespace-nowrap">
+                    {wa && (
+                      <a
+                        href={wa}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                      >
+                        WhatsApp
+                      </a>
+                    )}
+                  </Td>
+                </Tr>
+              )
+            })}
           </TBody>
         </Table>
       </div>
-      <Label label="İzlemeyenlere SMS" hint="{video} her bağışçının kendi bağlantısı olur; {ad_soyad} adı.">
+      <div className="flex flex-wrap gap-2">
+        {([['sms', 'SMS'], ['whatsapp', 'WhatsApp'], ['both', 'SMS + WhatsApp']] as const).map(([key, lbl]) => (
+          <button key={key} type="button" onClick={() => setChannel(key)} className={channel === key ? primaryButton : ghostButton}>{lbl}</button>
+        ))}
+      </div>
+      {channel !== 'sms' && (
+        <Label label="WhatsApp şablon adı (opsiyonel)" hint="Onaylı şablon yoksa serbest metin olarak gönderilir.">
+          <input className={inputClass} value={waTemplate} onChange={(e) => setWaTemplate(e.target.value)} placeholder="Örn. bagis_video_tesekkur" maxLength={120} />
+        </Label>
+      )}
+      <Label label="İzlemeyenlere mesaj" hint="{video} her bağışçının kendi bağlantısı olur; {ad_soyad} adı.">
         <textarea className={`${inputClass} min-h-[80px]`} value={message} onChange={(e) => setMessage(e.target.value)} maxLength={600} />
       </Label>
-      <button type="button" className={`${primaryButton} flex items-center gap-2`} disabled={!data || data.audience === data.viewed} onClick={notify}><MessageSquare className="h-4 w-4" /> SMS gönder</button>
+      <button type="button" className={`${primaryButton} flex items-center gap-2`} disabled={!data || data.audience === data.viewed} onClick={notify}><MessageSquare className="h-4 w-4" /> Gönder</button>
     </Modal>
   )
 }

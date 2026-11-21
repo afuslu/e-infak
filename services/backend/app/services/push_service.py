@@ -41,7 +41,8 @@ async def _post(messages: list[dict]) -> tuple[int, list[str]]:
 
 
 async def push_messages(tokens: Iterable[str], title: str, body: str, data: Optional[dict] = None,
-                        *, badge: Optional[int] = None, channel_id: str = "default") -> tuple[int, list[str]]:
+                        *, badge: Optional[int] = None, channel_id: str = "default",
+                        category_id: Optional[str] = None) -> tuple[int, list[str]]:
     valid = list(dict.fromkeys(t for t in tokens if _is_expo_token(t)))
     messages = []
     for token in valid:
@@ -49,6 +50,8 @@ async def push_messages(tokens: Iterable[str], title: str, body: str, data: Opti
                    "channelId": channel_id, "priority": "high"}
         if badge is not None:
             message["badge"] = badge
+        if category_id:
+            message["categoryId"] = category_id
         messages.append(message)
     accepted, dead = 0, []
     for start in range(0, len(messages), CHUNK):

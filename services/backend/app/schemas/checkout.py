@@ -7,11 +7,18 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 class CheckoutDonor(BaseModel):
     first_name: str = Field(min_length=2, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
-    email: EmailStr
+    email: Optional[EmailStr] = None
     phone: str = Field(min_length=10, max_length=32)
     is_anonymous: bool = False
     allow_email: bool = False
     allow_sms: bool = False
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def clean_email(cls, value):
+        if value is None or not str(value).strip():
+            return None
+        return str(value).strip()
 
 
 class CheckoutItem(BaseModel):

@@ -234,6 +234,27 @@ async def stats(request: Request, days: int = Query(default=30, ge=1, le=365), d
     return {"days": days, **out}
 
 
+@router.get("/smart-queue")
+async def smart_call_queue(
+    request: Request,
+    focus: str = Query(default="all", pattern="^(all|missed_callback|monthly|churn_risk|seasonal|high_value)$"),
+    cooldown_days: int = Query(default=7, ge=0, le=90),
+    limit: int = Query(default=30, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(staff),
+):
+    """'Bugün Kimi Arayalım?' — bağış alışkanlıklarına göre önceliklendirilmiş günlük arama listesi."""
+    from app.services.smart_call_queue import build_smart_call_queue
+
+    return await build_smart_call_queue(
+        db,
+        _org_id(request),
+        focus=focus,
+        cooldown_days=cooldown_days,
+        limit=limit,
+    )
+
+
 class NoteIn(BaseModel):
     note: Optional[str] = Field(default=None, max_length=2000)
     donor_id: Optional[UUID] = None

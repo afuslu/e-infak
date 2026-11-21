@@ -72,3 +72,5 @@ tmp/
 # pnpm local store
 .pnpm-store/
 .test-out/
+*.tsbuildinfo
+.claude/

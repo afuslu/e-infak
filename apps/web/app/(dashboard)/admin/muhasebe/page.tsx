@@ -1180,7 +1180,7 @@ export default function OnMuhasebePage() {
     ]
       .filter(Boolean)
       .join('\n');
-    window.location.href = `whatsapp://send?text=${encodeURIComponent(msg)}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
   };
 
   const exportAccountsCSV = (type: 'kasa' | 'banka', list: any[]) => {

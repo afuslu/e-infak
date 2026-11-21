@@ -191,7 +191,29 @@ function CampaignsField({ spec, value, onChange, campaigns }: { spec: FieldSpec;
   )
 }
 
+const PRO_GLYPH_SWATCH: Record<string, string> = {
+  pro_emerald_gold: 'bg-gradient-to-br from-emerald-900 to-teal-950 ring-amber-400',
+  pro_dark_obsidian: 'bg-gradient-to-br from-slate-950 to-zinc-800 ring-amber-400/80',
+  pro_sapphire_glass: 'bg-gradient-to-br from-sky-200 to-indigo-200 ring-sky-400',
+  pro_warm_sand: 'bg-gradient-to-br from-amber-100 to-orange-100 ring-amber-300',
+  pro_crimson_urgent: 'bg-gradient-to-br from-red-800 to-rose-950 ring-red-400',
+  pro_nordic_minimal: 'bg-white ring-gray-300',
+  pro_editorial_frame: 'bg-stone-100 ring-gray-800',
+  pro_soft_pastel: 'bg-blue-50 ring-blue-300',
+  pro_gold_bordered: 'bg-amber-50 ring-amber-500',
+  pro_teal_gradient: 'bg-gradient-to-r from-teal-700 to-emerald-800 ring-teal-400',
+  pro_midnight_indigo: 'bg-gradient-to-br from-indigo-950 to-blue-900 ring-indigo-400',
+  pro_pill_elevated: 'bg-white ring-gray-300 shadow-md rounded-full',
+  pro_paper_card: 'bg-[#FAF7F2] ring-stone-300',
+  pro_accent_ribbon: 'bg-white border-t-2 border-t-blue-600 ring-gray-200',
+  pro_ottoman_turquoise: 'bg-gradient-to-br from-cyan-800 to-teal-950 ring-cyan-400',
+  pro_rose_warmth: 'bg-gradient-to-br from-rose-100 to-amber-100 ring-rose-300',
+}
+
 function VariantGlyph({ k }: { k: string }) {
+  if (PRO_GLYPH_SWATCH[k]) {
+    return <span className={`inline-block h-4 w-6 shrink-0 rounded-sm ring-1 ${PRO_GLYPH_SWATCH[k]}`} />
+  }
   const s = k.toLowerCase()
   if (s.includes('dark') || s.includes('emerald') || s.includes('captioned_dark')) {
     return <span className="inline-block h-4 w-6 rounded-sm bg-gray-900 ring-1 ring-gray-700" />
@@ -238,15 +260,23 @@ function VariantGlyph({ k }: { k: string }) {
 
 function VariantCardPicker({ spec, value, onChange }: { spec: FieldSpec; value: any; onChange: (v: any) => void }) {
   const [filter, setFilter] = useState('')
+  const [bucket, setBucket] = useState<'all' | 'base' | 'pro'>('all')
   const entries = Object.entries(spec.choices || {})
+  const hasPro = entries.some(([k]) => k.startsWith('pro_'))
+  const activeBucket = hasPro ? bucket : 'all'
   const current = String(value ?? spec.default ?? '')
-  const filtered = filter
-    ? entries.filter(([k, lbl]) => `${k} ${lbl}`.toLocaleLowerCase('tr').includes(filter.toLocaleLowerCase('tr')))
-    : entries
+  const filtered = entries.filter(([k, lbl]) => {
+    if (activeBucket === 'pro' && !k.startsWith('pro_')) return false
+    if (activeBucket === 'base' && k.startsWith('pro_')) return false
+    if (!filter) return true
+    return `${k} ${lbl}`.toLocaleLowerCase('tr').includes(filter.toLocaleLowerCase('tr'))
+  })
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[12px] font-semibold text-gray-600">{spec.label}</span>
+        <span className="text-[12px] font-semibold text-gray-600">
+          {spec.label} <span className="font-normal text-gray-400">({entries.length})</span>
+        </span>
         {entries.length > 8 && (
           <input
             value={filter}
@@ -256,7 +286,21 @@ function VariantCardPicker({ spec, value, onChange }: { spec: FieldSpec; value: 
           />
         )}
       </div>
-      <div className={`grid grid-cols-2 gap-1.5 ${entries.length > 8 ? 'max-h-52 overflow-y-auto pe-0.5' : ''}`}>
+      {hasPro && (
+        <div className="flex gap-1">
+          {([['all', 'Tümü'], ['base', 'Klasik'], ['pro', 'Pro Temalar']] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setBucket(id)}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${bucket === id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={`grid grid-cols-2 gap-1.5 ${entries.length > 8 ? 'max-h-60 overflow-y-auto pe-0.5' : ''}`}>
         {filtered.map(([k, lbl]) => {
           const active = current === k
           return (
@@ -351,7 +395,7 @@ export function FieldInput({ spec, value, onChange, ctx }: { spec: FieldSpec; va
       )
     case 'select': {
       const choiceCount = Object.keys(spec.choices || {}).length
-      const isVisualSelect = choiceCount >= 4 && /görünüm|oran/i.test(spec.label)
+      const isVisualSelect = choiceCount >= 4 && /görünüm|oran|düzen|dizilim|stil|tasarım|tema/i.test(spec.label)
       if (isVisualSelect) {
         return <VariantCardPicker spec={spec} value={value} onChange={onChange} />
       }

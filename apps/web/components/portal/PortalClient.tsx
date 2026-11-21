@@ -724,13 +724,19 @@ export function PortalClient({ siteName }: { siteName: string }) {
                 Sertifika
               </button>
               <a
-                href={`whatsapp://send?text=${encodeURIComponent(`${siteName} üzerinden ${money(d.amount_lira, d.currency)} bağış makbuzum (#${d.receipt_number}): ${typeof window !== 'undefined' ? window.location.origin : ''}/verify/receipt/${encodeURIComponent(d.receipt_number)}`)}`}
+                href={`https://wa.me/?text=${encodeURIComponent(`${siteName} üzerinden ${money(d.amount_lira, d.currency)} bağış makbuzum (#${d.receipt_number}): ${typeof window !== 'undefined' ? window.location.origin : ''}/verify/receipt/${encodeURIComponent(d.receipt_number)}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700 hover:bg-green-100"
               >
                 WhatsApp
               </a>
+              <Link
+                href="/kampanyalar"
+                className="rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-100"
+              >
+                Tekrar Bağış
+              </Link>
             </div>
           )}
         </div>

@@ -12,7 +12,7 @@ import { allowed } from '@/lib/access';
 import { useInflow } from '@/api/inflow';
 import { updateHomeWidgets } from '@/widgets';
 import { widgetProps } from '@/widgets/data';
-import { colors } from '@/theme';
+import { useTheme } from '@/theme';
 
 const KEY_ASKED = 'einfak_push_asked';
 
@@ -49,20 +49,22 @@ function usePushWiring() {
       import('@/lib/api').then(({ api }) => api('/mobile/notifications/read', { method: 'POST', body: { ids: [data.notification_id] } }))
         .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] })).catch(() => {});
     }
-    openNotificationTarget(router, data);
+    openNotificationTarget(router, data, last.actionId);
   }, [last, router, queryClient]);
 }
 
 /** Uygulama açıkken bugünkü para girişini ana ekran widget'ına aktarır. */
 function useWidgetSync() {
   const { access, site } = useAuth();
+  const { dark } = useTheme();
   const inflow = useInflow('today', Platform.OS !== 'web' && allowed(access, undefined, 'receipts'));
   useEffect(() => {
-    if (inflow.data) updateHomeWidgets(widgetProps(inflow.data, site?.name || 'e-İnfak'));
-  }, [inflow.data, site?.name]);
+    if (inflow.data) updateHomeWidgets(widgetProps(inflow.data, site?.name || 'e-İnfak', dark));
+  }, [inflow.data, site?.name, dark]);
 }
 
 export default function AppLayout() {
+  const { colors } = useTheme();
   usePushWiring();
   useWidgetSync();
   return (

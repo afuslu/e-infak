@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { FileText, MessageSquare, Phone } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
-import { af } from '@/lib/api';
+import { af, webBase } from '@/lib/api';
 import { allowed, can } from '@/lib/access';
 import { openPdf } from '@/lib/files';
 import { call, dateTime, isDialable, money, whatsapp } from '@/lib/format';
@@ -13,7 +13,7 @@ import { Donation, STATUS } from '@/api/types';
 import { Badge, Btn, Card, Field, Notice, QueryView, Row, Screen, Sheet, ui } from '@/components/ui';
 import { SmsSheet } from '@/components/SmsSheet';
 import { confirm, notify, notifyError } from '@/components/toast';
-import { colors, font, space } from '@/theme';
+import { font, space, useTheme } from '@/theme';
 
 const OFFLINE_SOURCES = ['manual', 'money_box', 'import'];
 
@@ -21,7 +21,8 @@ export default function DonationDetail() {
   const { id, no } = useLocalSearchParams<{ id: string; no?: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { access } = useAuth();
+  const { access, site } = useAuth();
+  const { colors } = useTheme();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -97,7 +98,23 @@ export default function DonationDetail() {
                 {isDialable(d.donor_phone) ? (
                   <>
                     <Btn title="Ara" variant="outline" small icon={<Phone size={16} color={colors.primaryDark} />} onPress={() => call(d.donor_phone!)} />
-                    <Btn title="WhatsApp" variant="outline" small onPress={() => whatsapp(d.donor_phone!)} />
+                    <Btn
+                      title="WhatsApp Makbuz"
+                      variant="outline"
+                      small
+                      onPress={() => {
+                        const verifyUrl = `${webBase()}/verify?no=${encodeURIComponent(d.receipt_number)}`;
+                        const msg = [
+                          `Sayın ${d.donor_name || 'Bağışçımız'},`,
+                          `${site?.name || 'Kurumumuz'} adına yaptığınız ${money(d.amount_cents, d.currency)} tutarındaki ${d.campaign_title || 'bağış'} kaydınız alınmıştır.`,
+                          `Makbuz No: ${d.receipt_number}`,
+                          `Tarih: ${dateTime(d.paid_at)}`,
+                          `Doğrulama: ${verifyUrl}`,
+                          `Allah kabul etsin.`,
+                        ].join('\n');
+                        whatsapp(d.donor_phone!, msg);
+                      }}
+                    />
                   </>
                 ) : null}
               </View>

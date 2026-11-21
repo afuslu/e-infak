@@ -9,12 +9,13 @@ import { authenticate, biometricAvailable, biometricEnabled, setBiometricEnabled
 import { openUrl } from '@/lib/format';
 import { pushEnabled, registerPush, unregisterPush } from '@/lib/notifications';
 import { getItem } from '@/lib/storage';
-import { Btn, Card, Field, Notice, Row, Screen, SectionTitle, SwitchRow, ui } from '@/components/ui';
+import { Btn, Card, Chips, Field, Notice, Row, Screen, SectionTitle, SwitchRow, ui } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
-import { space } from '@/theme';
+import { space, useTheme, type ThemeMode } from '@/theme';
 
 export default function Account() {
   const { me, site, signOut } = useAuth();
+  const { mode, setMode } = useTheme();
   const router = useRouter();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -83,6 +84,20 @@ export default function Account() {
         <Row label="Rol" value={ROLE_LABELS[me?.role || ''] || me?.role} />
         <Row label="Kurum" value={site?.name} />
         <Row label="Bağlantı" value={currentHost()} />
+      </Card>
+
+      <SectionTitle>Görünüm</SectionTitle>
+      <Card style={{ gap: space.sm }}>
+        <Chips<ThemeMode>
+          options={[
+            { value: 'system', label: 'Sistem' },
+            { value: 'light', label: 'Açık' },
+            { value: 'dark', label: 'Koyu' },
+          ]}
+          value={mode}
+          onChange={setMode}
+          wrap
+        />
       </Card>
 
       <SectionTitle>Güvenlik</SectionTitle>

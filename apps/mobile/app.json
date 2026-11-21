@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "einfak",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash.png",
@@ -25,7 +25,7 @@
     },
     "android": {
       "package": "org.einfak.app",
-      "versionCode": 22,
+      "versionCode": 25,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -85,6 +85,37 @@
                   "accessoryRectangular"
                 ]
               }
+            },
+            {
+              "name": "EinfakQuickActions",
+              "displayName": "Hızlı işlemler",
+              "description": "Tek dokunuşla makbuz kes, kumbara QR tara, havaleler ve arama.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemMedium"
+                ]
+              }
+            },
+            {
+              "name": "EinfakTransfers",
+              "displayName": "Bekleyen havaleler",
+              "description": "Eşleşmeyi bekleyen son havaleler ve toplam tutar.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium"
+                ]
+              }
+            },
+            {
+              "name": "EinfakTasksGoals",
+              "displayName": "Kampanya ve görevler",
+              "description": "Öne çıkan kampanya hedef ilerlemesi ve açık görevleriniz.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemMedium"
+                ]
+              }
             }
           ]
         }
@@ -97,9 +128,58 @@
               "name": "EinfakInflow",
               "label": "e-İnfak · Bugün gelen para",
               "description": "Bugün gelen bağışlar, kanal dağılımı ve bekleyen havaleler.",
+              "previewImage": "./assets/widgets/preview-inflow.png",
               "minWidth": "180dp",
               "minHeight": "110dp",
               "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "EinfakCompact",
+              "label": "e-İnfak · Mini sayaç",
+              "description": "Bugünkü toplam bağış ve bekleyen havale rozeti.",
+              "previewImage": "./assets/widgets/preview-compact.png",
+              "minWidth": "110dp",
+              "minHeight": "90dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "EinfakQuickActions",
+              "label": "e-İnfak · Hızlı işlemler",
+              "description": "Makbuz kes, kumbara QR tara, havaleler ve hızlı arama kısayolları.",
+              "previewImage": "./assets/widgets/preview-quick.png",
+              "minWidth": "250dp",
+              "minHeight": "60dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 1,
+              "resizeMode": "horizontal",
+              "updatePeriodMillis": 0
+            },
+            {
+              "name": "EinfakTransfers",
+              "label": "e-İnfak · Bekleyen havaleler",
+              "description": "Eşleşmeyi bekleyen havalelerin özeti ve son gelen satırlar.",
+              "previewImage": "./assets/widgets/preview-transfers.png",
+              "minWidth": "220dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "EinfakTasksGoals",
+              "label": "e-İnfak · Kampanya ve görevler",
+              "description": "Aktif kampanya hedef çubuğu ve açık görevleriniz.",
+              "previewImage": "./assets/widgets/preview-tasks.png",
+              "minWidth": "220dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
               "targetCellHeight": 2,
               "resizeMode": "horizontal|vertical",
               "updatePeriodMillis": 1800000

@@ -2,7 +2,7 @@
 matching by file name, view report, SMS notification, and the public watch page with streaming."""
 import os
 import re
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Query, Request
@@ -295,12 +295,15 @@ async def views(video_id: UUID, request: Request, db: AsyncSession = Depends(get
 class NotifyIn(BaseModel):
     message: str = Field(min_length=5, max_length=600)
     only_unviewed: bool = True
+    channel: Literal["sms", "whatsapp", "both"] = "sms"
+    whatsapp_template: Optional[str] = Field(default=None, max_length=120)
 
 
 @router.post("/{video_id}/notify")
 async def notify(video_id: UUID, payload: NotifyIn, request: Request, db: AsyncSession = Depends(get_db),
                  current_user: User = Depends(writer)):
-    """SMS each donor of the video their own watch link ({video} in the text; added at the end otherwise)."""
+    """Send each donor of the video their own watch link via SMS, WhatsApp, or both."""
+    from app.models.channels import WhatsAppMessage
     from app.services.sms_service import enqueue_sms, valid_phone
 
     org_id = _org_id(request)
@@ -308,7 +311,7 @@ async def notify(video_id: UUID, payload: NotifyIn, request: Request, db: AsyncS
     if video.status != "ready":
         raise HTTPException(status_code=400, detail="Video yüklemesi tamamlanmadı")
     viewed = set((await db.execute(select(VideoView.donor_id).where(VideoView.video_id == video.id))).scalars())
-    queued = skipped = 0
+    queued = whatsapp_queued = skipped = 0
     for person in await _audience(db, org_id, video):
         if payload.only_unviewed and person["donor_id"] in viewed:
             skipped += 1
@@ -321,13 +324,30 @@ async def notify(video_id: UUID, payload: NotifyIn, request: Request, db: AsyncS
         body = payload.message.replace("{video}", link).replace("{ad_soyad}", person.get("name") or "")
         if link not in body:
             body = f"{body} {link}"
-        msg = await enqueue_sms(db, org_id, phone, body, donor_id=person["donor_id"], source="kurban",
-                                created_by=current_user.id)
-        queued += 1 if msg else 0
-    db.add(AuditLog(organization_id=org_id, user_id=current_user.id, action="video_sms",
-                    details={"video": str(video.id), "queued": queued, "skipped": skipped}))
+        if payload.channel in ("sms", "both"):
+            msg = await enqueue_sms(db, org_id, phone, body, donor_id=person["donor_id"], source="kurban",
+                                    created_by=current_user.id)
+            queued += 1 if msg else 0
+        if payload.channel in ("whatsapp", "both"):
+            tpl = (payload.whatsapp_template or "").strip() or None
+            db.add(WhatsAppMessage(
+                organization_id=org_id,
+                donor_id=person["donor_id"],
+                phone=phone,
+                kind="template" if tpl else "text",
+                template_name=tpl,
+                language="tr" if tpl else None,
+                params=[person.get("name") or "Değerli Bağışçımız", link] if tpl else [],
+                body=body,
+                status="queued",
+                created_by=current_user.id,
+            ))
+            whatsapp_queued += 1
+    db.add(AuditLog(organization_id=org_id, user_id=current_user.id, action="video_bildirim",
+                    details={"video": str(video.id), "channel": payload.channel, "queued": queued,
+                             "whatsapp_queued": whatsapp_queued, "skipped": skipped}))
     await db.commit()
-    return {"queued": queued, "skipped": skipped}
+    return {"queued": queued, "whatsapp_queued": whatsapp_queued, "skipped": skipped}
 
 
 # --- public watch page and stream --------------------------------------------------------------

@@ -39,17 +39,27 @@ TZ = ZoneInfo("Europe/Istanbul")
 # --- Settings ------------------------------------------------------------------------------------
 
 DEFAULTS: dict[str, Any] = {
-    "online": True,            # online bağış / sanal POS
-    "transfer": True,          # havale / EFT girişi (otomatik ya da elle eşleşen)
-    "transfer_waiting": True,  # eşleşmeyi bekleyen havaleler
-    "offline": True,           # elden nakit, POS cihazı, kumbara, aidat, SMS bağışı
-    "payment_failed": True,    # reddedilen / incelemeye düşen kart ödemesi
-    "refund": True,            # iade
-    "digest": True,            # gün sonu özeti (21:00)
-    "min_amount_cents": 0,     # bunun altındaki girişler yalnız kutuya düşer, telefona gelmez
-    "quiet_hours": False,      # 22:00–08:00 arası sessiz (kutuya düşer, telefona gelmez)
+    "online": True,              # online bağış / sanal POS
+    "transfer": True,            # havale / EFT girişi (otomatik ya da elle eşleşen)
+    "transfer_waiting": True,    # eşleşmeyi bekleyen havaleler
+    "offline": True,             # elden nakit, POS cihazı, kumbara, aidat, SMS bağışı
+    "payment_failed": True,      # reddedilen / incelemeye düşen kart ödemesi
+    "refund": True,              # iade
+    "digest": True,              # gün sonu özeti (21:00)
+    "weekly_digest": True,       # haftalık yönetici özeti
+    "tasks": True,               # görev atamaları ve son teslim tarihleri
+    "donor_reminders": True,     # bağışçı arama / takip hatırlatmaları
+    "money_box_due": True,       # kumbara toplama / değişim zamanı
+    "large_donation": True,      # yüksek tutarlı bağış özel alarmı
+    "large_donation_cents": 1_000_000,  # 10.000 TL üstü büyük bağış alarmı
+    "recurring_failed": True,    # düzenli bağış / aidat tahsilat uyarısı
+    "campaign_milestone": True,  # kampanya hedefi %50 / %80 / %100 bildirimi
+    "system_alert": True,        # SMS kredisi azaldı / banka senkron koptu
+    "min_amount_cents": 0,       # bunun altındaki girişler yalnız kutuya düşer, telefona gelmez
+    "quiet_hours": False,        # 22:00–08:00 arası sessiz (kutuya düşer, telefona gelmez)
 }
 BOOL_KEYS = [k for k, v in DEFAULTS.items() if isinstance(v, bool)]
+INT_KEYS = ("min_amount_cents", "large_donation_cents")
 
 
 def merged(settings: Optional[dict]) -> dict:
@@ -57,7 +67,7 @@ def merged(settings: Optional[dict]) -> dict:
     for key, value in (settings or {}).items():
         if key in BOOL_KEYS and isinstance(value, bool):
             out[key] = value
-        elif key == "min_amount_cents" and isinstance(value, int) and 0 <= value <= 1_000_000_000:
+        elif key in INT_KEYS and isinstance(value, int) and 0 <= value <= 10_000_000_000:
             out[key] = value
     return out
 
@@ -202,14 +212,52 @@ async def deliver(db: AsyncSession, organization_id: UUID, recipients: list[User
                                  data=dict(data or {}))
         db.add(note)
         await db.flush()
+        from app.api.deps import has_capability
         pref = prefs[user.id]
-        wanted = pref.get(setting, True) and not (pref["quiet_hours"] and quiet_now)
-        if wanted and amount_cents is not None and (currency or "TRY") == "TRY" and amount_cents < pref["min_amount_cents"]:
+        is_large = (
+            amount_cents is not None
+            and (currency or "TRY") == "TRY"
+            and has_capability(user, "receipts.view_all")
+            and pref.get("large_donation", True)
+            and pref.get("large_donation_cents", 1_000_000) > 0
+            and amount_cents >= pref.get("large_donation_cents", 1_000_000)
+            and setting in {"online", "transfer", "offline"}
+        )
+        wanted = (pref.get(setting, True) or is_large) and not (pref["quiet_hours"] and quiet_now and not is_large)
+        if wanted and not is_large and amount_cents is not None and (currency or "TRY") == "TRY" and amount_cents < pref["min_amount_cents"]:
             wanted = False
         if not wanted or not tokens.get(user.id):
             continue
+        if is_large or setting in {"payment_failed", "system_alert", "recurring_failed"}:
+            push_channel = "urgent"
+        elif setting in {"online", "transfer", "transfer_waiting", "offline", "refund"}:
+            push_channel = "money_in"
+        elif setting in {"tasks", "donor_reminders", "money_box_due"}:
+            push_channel = "tasks"
+        elif setting in {"digest", "weekly_digest"}:
+            push_channel = "summary"
+        else:
+            push_channel = "default"
+
+        category_id: Optional[str] = None
+        if setting == "transfer_waiting":
+            category_id = "transfer_waiting"
+        elif setting in {"online", "transfer", "offline"}:
+            category_id = "donation"
+        elif setting == "tasks":
+            category_id = "task_assigned"
+
+        push_title = f"Büyük Bağış · {title}" if is_large and not title.startswith("Büyük Bağış") else title
         payload = {**(data or {}), "type": kind, "notification_id": str(note.id)}
-        accepted, dead = await push_messages(tokens[user.id], title, body, payload, badge=await _unread(db, user.id))
+        accepted, dead = await push_messages(
+            tokens[user.id],
+            push_title,
+            body,
+            payload,
+            badge=await _unread(db, user.id),
+            channel_id=push_channel,
+            category_id=category_id,
+        )
         await forget_tokens(db, dead)
         note.pushed = accepted
         pushed_total += accepted
@@ -260,7 +308,7 @@ async def _donation_paid(db: AsyncSession, organization_id: UUID, payload: dict)
     extra.append(f"makbuz {donation.receipt_number}")
 
     staff = await _staff(db, organization_id)
-    issuer = donation.issued_by_id if not details.get("automatic") else None
+    issuer = donation.issued_by_id if not (details.get("automatic") or details.get("auto_assigned_staff")) else None
     recipients = [
         u for u in staff
         if u.id != issuer and (_can(u, "receipts.view_all") or donation.issued_by_id == u.id
@@ -506,4 +554,107 @@ async def send_daily_digest(db: AsyncSession, organization_id: UUID, now: Option
         body=" · ".join(parts) + change,
         amount_cents=today["total_cents"], currency="TRY",
         data={"date": date_key, "route": "inflow"},
+    )
+
+
+async def send_weekly_digest(db: AsyncSession, organization_id: UUID, now: Optional[datetime] = None) -> int:
+    """7-day inflow summary pushed on Sunday evenings to staff who see every receipt."""
+    now = now or datetime.now(TZ)
+    _, end = day_bounds(now)
+    start = end - timedelta(days=7)
+    week = await inflow_by_channel(db, organization_id, start, end)
+    if not week["count"]:
+        return 0
+    prev = await inflow_by_channel(db, organization_id, start - timedelta(days=7), start)
+    week_key = now.astimezone(TZ).strftime("%G-W%V")
+    staff = [u for u in await _staff(db, organization_id) if _can(u, "receipts.view_all")]
+    already = set((await db.execute(select(StaffNotification.user_id).where(
+        StaffNotification.organization_id == organization_id, StaffNotification.kind == "weekly_digest",
+        StaffNotification.data["week"].astext == week_key))).scalars().all())
+    recipients = [u for u in staff if u.id not in already]
+    parts = [f"{c['label'].split(' (')[0]} {money(c['total_cents'])}" for c in week["channels"][:4]]
+    change = ""
+    if prev["total_cents"]:
+        pct = round((week["total_cents"] - prev["total_cents"]) * 100 / prev["total_cents"])
+        change = f"\nGeçen haftaya göre {'+' if pct >= 0 else ''}{pct}%"
+    return await deliver(
+        db, organization_id, recipients, kind="weekly_digest", setting="weekly_digest",
+        title=f"Haftalık özet: {money(week['total_cents'])} · {week['count']} bağış",
+        body=" · ".join(parts) + change,
+        amount_cents=week["total_cents"], currency="TRY",
+        data={"week": week_key, "route": "inflow"},
+    )
+
+
+async def send_money_box_due_alerts(db: AsyncSession, organization_id: UUID, now: Optional[datetime] = None) -> int:
+    """Notify operations staff about active money boxes overdue for collection (> 30 days)."""
+    from app.models.field_ops import MoneyBox
+    now = now or datetime.now(TZ)
+    cutoff = now - timedelta(days=30)
+    date_key = now.astimezone(TZ).date().isoformat()
+    due_boxes = (await db.execute(select(MoneyBox).where(
+        MoneyBox.organization_id == organization_id,
+        MoneyBox.status == "active",
+        func.coalesce(MoneyBox.last_collected_at, MoneyBox.created_at) <= cutoff,
+    ).limit(50))).scalars().all()
+    if not due_boxes:
+        return 0
+    staff = [u for u in await _staff(db, organization_id) if _can(u, "operations.manage") or _can(u, "receipts.view_all")]
+    already = set((await db.execute(select(StaffNotification.user_id).where(
+        StaffNotification.organization_id == organization_id, StaffNotification.kind == "money_box_due",
+        StaffNotification.data["date"].astext == date_key))).scalars().all())
+    recipients = [u for u in staff if u.id not in already]
+    sample = ", ".join(b.code for b in due_boxes[:4])
+    return await deliver(
+        db, organization_id, recipients, kind="money_box_due", setting="money_box_due",
+        title=f"{len(due_boxes)} kumbara tahsilat bekliyor",
+        body=f"30+ gündür toplanmayan kumbaralar: {sample}{'…' if len(due_boxes) > 4 else ''}",
+        data={"route": "money_box", "date": date_key, "count": len(due_boxes)},
+    )
+
+
+async def notify_recurring_failed(db: AsyncSession, organization_id: UUID, donor_name: str, amount_cents: int,
+                                  currency: str, reason: str, subscription_id: UUID) -> int:
+    staff = [u for u in await _staff(db, organization_id) if _can(u, "receipts.view_all")]
+    return await deliver(
+        db, organization_id, staff, kind="recurring_failed", setting="recurring_failed",
+        title=f"Düzenli bağış çekilemedi · {money(amount_cents, currency)}",
+        body=f"{donor_name} · {reason[:120]}",
+        amount_cents=amount_cents, currency=currency,
+        data={"route": "recurring", "subscription_id": str(subscription_id)},
+    )
+
+
+async def notify_campaign_milestone(db: AsyncSession, campaign: Campaign) -> int:
+    """Emit a milestone notification when a campaign crosses 50%, 80%, or 100% of its target."""
+    if not campaign.target_cents or campaign.target_cents <= 0:
+        return 0
+    pct = int((campaign.collected_cents or 0) * 100 / campaign.target_cents)
+    milestone = 100 if pct >= 100 else 80 if pct >= 80 else 50 if pct >= 50 else 0
+    if not milestone:
+        return 0
+    already = (await db.execute(select(StaffNotification.id).where(
+        StaffNotification.organization_id == campaign.organization_id,
+        StaffNotification.kind == "campaign_milestone",
+        StaffNotification.data["campaign_id"].astext == str(campaign.id),
+        StaffNotification.data["milestone"].astext == str(milestone),
+    ).limit(1))).first()
+    if already:
+        return 0
+    staff = [u for u in await _staff(db, campaign.organization_id) if _can(u, "receipts.view_all")]
+    return await deliver(
+        db, campaign.organization_id, staff, kind="campaign_milestone", setting="campaign_milestone",
+        title=f"Kampanya %{milestone} hedefine ulaştı!",
+        body=f"{campaign.title} · {money(campaign.collected_cents or 0)} / {money(campaign.target_cents)}",
+        amount_cents=campaign.collected_cents or 0, currency=campaign.currency or "TRY",
+        data={"route": "campaign", "campaign_id": str(campaign.id), "milestone": str(milestone)},
+    )
+
+
+async def notify_system_alert(db: AsyncSession, organization_id: UUID, title: str, body: str,
+                              data: Optional[dict[str, Any]] = None) -> int:
+    staff = [u for u in await _staff(db, organization_id) if _can(u, "settings.manage") or _can(u, "receipts.view_all")]
+    return await deliver(
+        db, organization_id, staff, kind="system_alert", setting="system_alert",
+        title=title, body=body, data=data or {},
     )

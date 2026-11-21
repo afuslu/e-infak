@@ -5,10 +5,11 @@ import { useAuth } from '@/context/AuthContext';
 import { Btn, Field, Notice, Screen } from '@/components/ui';
 import { MULTI_ORG_MESSAGE, webBase } from '@/lib/api';
 import { openUrl } from '@/lib/format';
-import { colors, font, space } from '@/theme';
+import { font, space, useTheme } from '@/theme';
 
 export default function Login() {
   const { signIn } = useAuth();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,8 +43,8 @@ export default function Login() {
     <Screen style={{ paddingTop: insets.top + space.xl * 2, gap: space.lg }}>
       <View style={styles.brand}>
         <Image source={require('../assets/icon.png')} style={styles.logo} accessibilityIgnoresInvertColors />
-        <Text style={styles.title}>e-İnfak Yönetim</Text>
-        <Text style={styles.sub}>Kurum yetkilisi hesabınızla giriş yapın. Kurumunuz hesabınızdan otomatik belirlenir.</Text>
+        <Text style={[styles.title, { color: colors.text }]}>e-İnfak Yönetim</Text>
+        <Text style={[styles.sub, { color: colors.muted }]}>Kurum yetkilisi hesabınızla giriş yapın. Kurumunuz hesabınızdan otomatik belirlenir.</Text>
       </View>
       {error ? <Notice text={error} tone="danger" /> : null}
       <Field label="E-posta" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false}
@@ -63,6 +64,6 @@ export default function Login() {
 const styles = StyleSheet.create({
   brand: { alignItems: 'center', gap: space.sm, marginBottom: space.md },
   logo: { width: 84, height: 84, borderRadius: 20 },
-  title: { fontSize: font.xxl, fontWeight: '800', color: colors.text },
-  sub: { fontSize: font.md, color: colors.muted, textAlign: 'center', lineHeight: 21 },
+  title: { fontSize: font.xxl, fontWeight: '800' },
+  sub: { fontSize: font.md, textAlign: 'center', lineHeight: 21 },
 });

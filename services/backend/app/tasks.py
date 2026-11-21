@@ -601,6 +601,52 @@ def send_daily_digests_task():
     return asyncio.run(_send_daily_digests())
 
 
+async def _send_weekly_digests():
+    from app.models.organization import Organization
+    from app.services.staff_notify import send_weekly_digest
+
+    sent = 0
+    async with AsyncSessionLocal() as session:
+        org_ids = (await session.execute(select(Organization.id).where(Organization.is_active.is_(True)))).scalars().all()
+    for org_id in org_ids:
+        async with AsyncSessionLocal() as session:
+            try:
+                sent += await send_weekly_digest(session, org_id)
+                await session.commit()
+            except Exception:  # noqa: BLE001
+                await session.rollback()
+    return {"pushed": sent, "organizations": len(org_ids)}
+
+
+@celery_app.task(name="app.tasks.send_weekly_digests_task")
+def send_weekly_digests_task():
+    """Sunday 20:00 in Türkiye: weekly inflow digest."""
+    return asyncio.run(_send_weekly_digests())
+
+
+async def _send_money_box_due_alerts():
+    from app.models.organization import Organization
+    from app.services.staff_notify import send_money_box_due_alerts
+
+    sent = 0
+    async with AsyncSessionLocal() as session:
+        org_ids = (await session.execute(select(Organization.id).where(Organization.is_active.is_(True)))).scalars().all()
+    for org_id in org_ids:
+        async with AsyncSessionLocal() as session:
+            try:
+                sent += await send_money_box_due_alerts(session, org_id)
+                await session.commit()
+            except Exception:  # noqa: BLE001
+                await session.rollback()
+    return {"pushed": sent, "organizations": len(org_ids)}
+
+
+@celery_app.task(name="app.tasks.send_money_box_due_alerts_task")
+def send_money_box_due_alerts_task():
+    """Daily 09:00 in Türkiye: alert operations staff about overdue money boxes."""
+    return asyncio.run(_send_money_box_due_alerts())
+
+
 async def _verify_pending_domains():
     from app.services import domains
     async with AsyncSessionLocal() as session:
@@ -749,6 +795,14 @@ celery_app.conf.beat_schedule = {
     "staff-daily-digest": {
         "task": "app.tasks.send_daily_digests_task",
         "schedule": crontab(hour=18, minute=0),  # 21:00 in Türkiye (Celery runs on UTC)
+    },
+    "staff-weekly-digest": {
+        "task": "app.tasks.send_weekly_digests_task",
+        "schedule": crontab(hour=17, minute=0, day_of_week="sun"),  # Pazar 20:00 TR
+    },
+    "money-box-due-alerts": {
+        "task": "app.tasks.send_money_box_due_alerts_task",
+        "schedule": crontab(hour=6, minute=0),  # Her gün 09:00 TR
     },
         "process-outbox-every-minute": {
         "task": "app.tasks.process_outbox_task",

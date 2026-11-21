@@ -40,7 +40,7 @@ async def verify_public_receipt(
 ):
     result = await db.execute(
         select(Donation)
-        .options(selectinload(Donation.donor))
+        .options(selectinload(Donation.donor), selectinload(Donation.campaign))
         .where(
             Donation.organization_id == request.state.organization_id,
             Donation.receipt_number == receipt_number,
@@ -50,27 +50,122 @@ async def verify_public_receipt(
     donation = result.scalar_one_or_none()
     if not donation:
         raise HTTPException(status_code=404, detail="Makbuz bulunamadı")
+    from app.models.channels import DonationVideo
+    from app.services import videos as vs
     from app.utils.receipt_pdf import code_matches
 
     # Receipt numbers can be sequential (receipt books); without the code printed on the receipt
     # only validity, amount and date are shown, not who gave.
     verified = code_matches(donation.receipt_number, donation.amount_cents, k)
     donor_name = None
+    video_url = None
     if verified:
         donor_name = "Anonim Bağışçı"
         if donation.donor and not donation.is_anonymous:
             last_initial = f"{donation.donor.last_name[0]}." if donation.donor.last_name else ""
             donor_name = f"{donation.donor.first_name} {last_initial}".strip()
+        vid = (await db.execute(
+            select(DonationVideo).where(
+                DonationVideo.organization_id == donation.organization_id,
+                DonationVideo.donation_id == donation.id,
+                DonationVideo.status == "ready",
+            ).order_by(DonationVideo.created_at.desc()).limit(1)
+        )).scalar_one_or_none()
+        if vid:
+            video_url = await vs.watch_url(db, donation.organization_id, vid.id, donation.donor_id)
+    code_qs = f"?k={k}" if k else ""
     return {
         "status": {DonationStatus.REFUNDED: "refunded", DonationStatus.CANCELLED: "cancelled"}.get(donation.status, "valid"),
         "receipt_number": donation.receipt_number,
         "code_verified": verified,
         "donor_name": donor_name,
+        "campaign_title": donation.campaign.title if donation.campaign else "Genel Bağış",
         "currency": donation.currency or "TRY",
         "amount_lira": donation.amount_cents / 100,
         "created_at": donation.paid_at or donation.created_at,
         "payment_method": "Kredi Kartı" if donation.payment_method == "credit_card" else "Havale / EFT",
+        "video_url": video_url,
+        "pdf_url": f"/api/v1/public/receipts/{donation.receipt_number}/pdf{code_qs}" if verified else None,
+        "certificate_url": f"/api/v1/public/receipts/{donation.receipt_number}/certificate{code_qs}" if verified else None,
     }
+
+
+@router.get("/receipts/{receipt_number}/certificate")
+async def download_public_receipt_certificate(
+    request: Request,
+    receipt_number: str,
+    k: str | None = None,
+    honoree: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("receipt-certificate", limit=20)),
+):
+    """Doğrulanmış bağış için yazdırılabilir / paylaşılabilir Teşekkür ve Hediye Sertifikası."""
+    import html as _html
+    from app.utils.receipt_pdf import code_matches
+
+    result = await db.execute(
+        select(Donation)
+        .options(selectinload(Donation.donor), selectinload(Donation.campaign))
+        .where(
+            Donation.organization_id == request.state.organization_id,
+            Donation.receipt_number == receipt_number,
+            Donation.status == DonationStatus.CONFIRMED,
+        ).limit(1)
+    )
+    donation = result.scalar_one_or_none()
+    if not donation or not code_matches(donation.receipt_number, donation.amount_cents, k):
+        raise HTTPException(status_code=404, detail="Sertifika için geçerli makbuz ve doğrulama kodu gereklidir")
+
+    org = getattr(request.state, "organization", None)
+    org_name = _html.escape(getattr(org, "name", None) or "e-İnfak")
+    primary = _html.escape(getattr(org, "theme_primary_color", None) or "#047857")
+    donor_display = "Değerli Bağışçımız"
+    if donation.donor and not donation.is_anonymous:
+        donor_display = f"{donation.donor.first_name} {donation.donor.last_name or ''}".strip() or donor_display
+    recipient = _html.escape((honoree or "").strip()[:120] or donor_display)
+    campaign_title = _html.escape(donation.campaign.title if donation.campaign else "İyilik ve Yardım Faaliyetleri")
+    dt = donation.paid_at or donation.created_at
+    date_str = dt.strftime("%d.%m.%Y") if dt else ""
+    amount_str = f"{donation.amount_cents / 100:,.2f} {donation.currency or 'TRY'}".replace(",", "X").replace(".", ",").replace("X", ".")
+    honoree_line = (
+        f"<p class='sub'><strong>{_html.escape(donor_display)}</strong> tarafından adınıza gerçekleştirilen</p>"
+        if (honoree or "").strip()
+        else "<p class='sub'>İhtiyaç sahiplerine umut olmak üzere gerçekleştirdiğiniz</p>"
+    )
+    page = f"""<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Teşekkür Sertifikası · {_html.escape(donation.receipt_number)}</title>
+<style>
+  @page {{ size: A4 landscape; margin: 0; }}
+  body {{ margin:0; font-family: Georgia, 'Times New Roman', serif; background:#f8fafc; color:#0f172a; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; box-sizing:border-box; }}
+  .cert {{ width:100%; max-width:960px; background:#fff; border:12px double {primary}; border-radius:16px; padding:56px 48px; text-align:center; box-shadow:0 20px 50px rgba(15,23,42,.12); position:relative; }}
+  .org {{ font-family: system-ui, sans-serif; font-size:14px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:{primary}; }}
+  h1 {{ font-size:40px; margin:16px 0 8px; color:#0f172a; font-weight:700; }}
+  .line {{ width:96px; height:3px; background:{primary}; margin:18px auto 28px; border-radius:99px; }}
+  .name {{ font-size:32px; font-weight:700; color:{primary}; margin:10px 0 18px; }}
+  .sub {{ font-size:17px; color:#475569; margin:8px 0; }}
+  .camp {{ font-size:22px; font-weight:700; color:#0f172a; margin:14px 0; }}
+  .meta {{ margin-top:36px; display:flex; justify-content:space-between; font-family:system-ui,sans-serif; font-size:13px; color:#64748b; border-top:1px solid #e2e8f0; padding-top:18px; }}
+  .actions {{ margin-top:24px; }}
+  .btn {{ font-family:system-ui,sans-serif; background:{primary}; color:#fff; border:none; padding:10px 22px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }}
+  @media print {{ body {{ background:#fff; padding:0; }} .cert {{ box-shadow:none; }} .actions {{ display:none; }} }}
+</style></head><body>
+<div class="cert">
+  <div class="org">{org_name}</div>
+  <h1>TEŞEKKÜR SERTİFİKASI</h1>
+  <div class="line"></div>
+  <div class="name">{recipient}</div>
+  {honoree_line}
+  <div class="camp">“{campaign_title}”</div>
+  <p class="sub">bağışınız için en kalbi duygularımızla teşekkür ederiz. İyiliğiniz ihtiyaç sahiplerine emanetle ulaştırılmaktadır.</p>
+  <div class="meta">
+    <span>Makbuz No: <strong>{_html.escape(donation.receipt_number)}</strong></span>
+    <span>Tutar: <strong>{amount_str}</strong></span>
+    <span>Tarih: <strong>{date_str}</strong></span>
+  </div>
+  <div class="actions"><button class="btn" onclick="window.print()">Yazdır / PDF Kaydet</button></div>
+</div></body></html>"""
+    return Response(content=page, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
 
 
 @router.get("/receipts/{receipt_number}/pdf")
@@ -385,4 +480,56 @@ async def public_trial_signup(payload: TrialSignupIn, db: AsyncSession = Depends
         "url": f"https://{org.primary_domain}",
         "login_url": login_url,
         "trial_ends_at": org.subscription_ends_at.isoformat(),
+    }
+
+
+class FundraiserCreateIn(BaseModel):
+    parent_campaign_id: Optional[str] = None
+    title: str = Field(min_length=5, max_length=160)
+    story: str = Field(min_length=10, max_length=2000)
+    target_lira: int = Field(ge=500, le=50_000_000)
+    organizer_name: str = Field(min_length=2, max_length=120)
+    organizer_phone: Optional[str] = Field(default=None, max_length=30)
+    organizer_email: Optional[EmailStr] = None
+
+
+@router.post("/fundraisers")
+async def create_peer_fundraiser(
+    request: Request,
+    payload: FundraiserCreateIn,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("p2p-fundraiser", limit=5, window_seconds=3600)),
+):
+    """Peer-to-Peer ('Kendi İyilik Kampanyanı Başlat'): onay bekleyen alt kampanya oluşturur."""
+    import re
+    import secrets as _secrets
+    from uuid import UUID as _UUID
+    from app.models.campaign import CampaignStatus
+
+    org_id = _UUID(str(request.state.organization_id))
+    base_slug = re.sub(r"[^a-z0-9]+", "-", payload.title.lower().translate(str.maketrans("çğıöşü", "cgiosu"))).strip("-")[:48] or "iyilik"
+    slug = f"p2p-{base_slug}-{_secrets.token_hex(3)}"
+    tags = ["p2p", f"organizer:{payload.organizer_name.strip()[:80]}"]
+    if payload.parent_campaign_id:
+        tags.append(f"parent:{payload.parent_campaign_id}")
+
+    camp = Campaign(
+        organization_id=org_id,
+        title=payload.title.strip(),
+        slug=slug,
+        short_description=f"{payload.organizer_name.strip()} tarafından başlatılan iyilik kampanyası.",
+        description=payload.story.strip(),
+        target_cents=payload.target_lira * 100,
+        currency="TRY",
+        status=CampaignStatus.DRAFT,
+        tags=tags,
+    )
+    db.add(camp)
+    await db.commit()
+    return {
+        "ok": True,
+        "id": str(camp.id),
+        "slug": camp.slug,
+        "status": "draft",
+        "message": "İyilik kampanyanız alındı; kurum onayının ardından yayına alınacaktır.",
     }

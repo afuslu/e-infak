@@ -10,3 +10,10 @@ v3/
 .pnpm-store/
 .git/
 *.log
+apps/mobile/.expo/
+apps/mobile/android/.gradle/
+apps/mobile/android/build/
+apps/mobile/android/app/build/
+apps/mobile/android/app/.cxx/
+apps/mobile/ios/Pods/
+apps/mobile/ios/build/

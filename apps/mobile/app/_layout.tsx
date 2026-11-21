@@ -11,7 +11,7 @@ import { Btn, Loading } from '@/components/ui';
 import { ForcePassword } from '@/components/ForcePassword';
 import { authenticate, biometricEnabled } from '@/lib/biometric';
 import { setupNotificationHandler } from '@/lib/notifications';
-import { colors, font, space } from '@/theme';
+import { colors, font, space, ThemeProvider, useTheme } from '@/theme';
 
 setupNotificationHandler();
 
@@ -26,6 +26,7 @@ const queryClient = new QueryClient({
 
 function Gate() {
   const { status, me } = useAuth();
+  const { colors } = useTheme();
   const [locked, setLocked] = useState(false);
   const away = useRef<number | null>(null);
 
@@ -59,17 +60,17 @@ function Gate() {
 
   if (status === 'loading') {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
         <Loading />
       </View>
     );
   }
   if (locked) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
         <Lock size={44} color={colors.primary} />
-        <Text style={styles.lockTitle}>e-İnfak kilitli</Text>
-        <Text style={styles.lockText}>Devam etmek için kimliğinizi doğrulayın.</Text>
+        <Text style={[styles.lockTitle, { color: colors.text }]}>e-İnfak kilitli</Text>
+        <Text style={[styles.lockText, { color: colors.muted }]}>Devam etmek için kimliğinizi doğrulayın.</Text>
         <Btn title="Kilidi aç" onPress={unlock} />
       </View>
     );
@@ -87,16 +88,27 @@ function Gate() {
   );
 }
 
+function ThemedRoot() {
+  const { dark } = useTheme();
+  return (
+    <>
+      <StatusBar style={dark ? 'light' : 'dark'} />
+      <Gate />
+      <ToastHost />
+    </>
+  );
+}
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <StatusBar style="dark" />
-          <Gate />
-          <ToastHost />
-        </AuthProvider>
-      </QueryClientProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <ThemedRoot />
+          </AuthProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

@@ -1147,9 +1147,14 @@ BLOCKS: dict[str, dict] = {
                 "dark_pill_group": "Koyu zemin hap buton grubu",
                 "gradient_shadow_buttons": "Gradyan gölgeli vurgu butonları",
                 "outline_icon_row": "Çerçeveli ikonlu aksiyon satırı",
+                "emerald_glow": "Zümrüt ışıklı vurgu butonları",
+                "glass_outline": "Cam efektli şeffaf butonlar",
+                "soft_pastel_row": "Yumuşak pastel kart butonlar",
+                "split_full_bar": "Eşit genişlikli bölünmüş bar",
             }, default="row"),
             "size": F("select", "Boyut", choices={"sm": "Küçük", "md": "Orta", "lg": "Büyük"}, default="md"),
             "shape": F("select", "Köşe şekli", choices={"rounded": "Yuvarlatılmış", "pill": "Hap (Tam yuvarlak)", "square": "Kare"}, default="rounded"),
+            "gap": F("select", "Buton aralığı", choices={"sm": "Dar", "md": "Orta", "lg": "Geniş"}, default="md"),
             "full_width": F("bool", "Tam genişlik", default=False),
             "align": F("select", "Hizalama", choices=ALIGN, default="left"),
             "mobile_align": F("select", "Mobilde hizalama", choices={"": "Bilgisayarla aynı", "left": "Sola", "center": "Ortala", "right": "Sağa"}, default=""),
@@ -1167,7 +1172,8 @@ BLOCKS: dict[str, dict] = {
                 "value": F("text", "Değer", max=20), "label": F("text", "Açıklama", max=60, translatable=True),
                 "icon_url": F("image", "Simge görseli"),
             }),
-            "variant": F("select", "Görünüm", choices={"": "Tema", "card": "Beyaz kutu (simgeli, sayarak artan)", "gradient": "Renk geçişli kutular", "ring": "Dairesel ilerleme halkaları", "bento_dark": "Koyu zemin vurgu kartları", "glass_dark": "Koyu cam efektli kutular", "icon_pills": "İkonlu yatay haplar", "big_hero_numbers": "Dev tipografik rakamlar", "dark_gold_counters": "Koyu zemin altın sayaçlar", "bordered_metric_cards": "Çerçeveli metrik kartları", "minimal_inline_stats": "Minimal yatay istatistik şeridi"}, default=""),
+            "variant": F("select", "Görünüm", choices={"": "Tema", "card": "Beyaz kutu (simgeli, sayarak artan)", "gradient": "Renk geçişli kutular", "ring": "Dairesel ilerleme halkaları", "bento_dark": "Koyu zemin vurgu kartları", "glass_dark": "Koyu cam efektli kutular", "icon_pills": "İkonlu yatay haplar", "big_hero_numbers": "Dev tipografik rakamlar", "dark_gold_counters": "Koyu zemin altın sayaçlar", "bordered_metric_cards": "Çerçeveli metrik kartları", "minimal_inline_stats": "Minimal yatay istatistik şeridi", "emerald_counters": "Zümrüt yeşil etki kartları", "soft_tint_cards": "Yumuşak tonlu modern kartlar", "accent_top_border": "Üst çizgili kurumsal kartlar", "pill_badge_stats": "Rozetli kompakt sayaçlar"}, default=""),
+            "columns": F("select", "Sütun sayısı", choices={"auto": "Otomatik", "2": "2 sütun", "3": "3 sütun", "4": "4 sütun"}, default="auto"),
         },
     },
     "steps": {
@@ -3715,7 +3721,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
         ),
     },
     "video_delivery_showcase": {
-        "label": "Video & WhatsApp Teslimat Vitrini", "group": "İçerik & medya", "icon": "📲",
+        "label": "Video & WhatsApp Teslimat Vitrini", "group": "Metin & medya", "icon": "📲",
         "help": "Kurban, su kuyusu ve kumanya teslimat videolarının bağışçılara nasıl ulaştırıldığını gösterir.",
         "fields": _head(
             look=F("select", "Görünüm", choices={
@@ -3743,7 +3749,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
             image=F("image", "Video / Teslimat Önizleme Görseli"),
             video_url=F("url", "Örnek Video Bağlantısı"),
             whatsapp_note=F("text", "WhatsApp Mesaj Örneği", max=220, translatable=True),
-            items=F("items", "Teslimat Özellikleri", schema={
+            items=F("list", "Teslimat Özellikleri", fields={
                 "title": F("text", "Başlık", max=120, translatable=True),
                 "desc": F("textarea", "Açıklama", translatable=True),
                 "badge": F("text", "Etiket / Süre", max=40, translatable=True),
@@ -3776,7 +3782,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
                 "bold_border_member": "Kalın çerçeveli yüksek kontrast",
                 "gradient_brand_member": "Marka renk geçişli vitrin",
             }, default="membership_tiers"),
-            items=F("items", "Üyelik / Katılım Kademeleri", schema={
+            items=F("list", "Üyelik / Katılım Kademeleri", fields={
                 "name": F("text", "Kademe Adı", max=100, translatable=True),
                 "amount": F("text", "Aylık Katkı / Durum", max=60, translatable=True),
                 "badge": F("text", "Rozet", max=40, translatable=True),
@@ -3880,7 +3886,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
                 "bold_border_winter": "Kalın çerçeveli yüksek kontrast",
                 "gradient_brand_winter": "Marka renk geçişli vitrin",
             }, default="winter_cards"),
-            items=F("items", "Yakacak & Isınma Kalemleri", schema={
+            items=F("list", "Yakacak & Isınma Kalemleri", fields={
                 "title": F("text", "Paket Adı", max=100, translatable=True),
                 "duration": F("text", "Süre / Miktar (ör. 1 Aylık Yakacak)", max=60, translatable=True),
                 "price": F("text", "Bedel", max=40, translatable=True),
@@ -3889,7 +3895,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
         ),
     },
     "donor_receipt_verify": {
-        "label": "Makbuz & Bağış Doğrulama Rehberi", "group": "Kurumsal & güven", "icon": "🧾",
+        "label": "Makbuz & Bağış Doğrulama Rehberi", "group": "Güven & etki", "icon": "🧾",
         "help": "Bağışçıların makbuz numarası veya SMS kodu ile bağış durumunu nasıl doğrulayacağını anlatır.",
         "fields": _head(
             look=F("select", "Görünüm", choices={
@@ -3916,7 +3922,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
             }, default="verify_steps"),
             cta_label=F("text", "Sorgulama / İletişim Butonu", max=50, translatable=True),
             cta_url=F("url", "Bağlantı"),
-            items=F("items", "Doğrulama Adımları", schema={
+            items=F("list", "Doğrulama Adımları", fields={
                 "step": F("text", "Adım", max=30, translatable=True),
                 "title": F("text", "Başlık", max=100, translatable=True),
                 "desc": F("textarea", "Açıklama", translatable=True),
@@ -3949,7 +3955,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
                 "bold_border_kurban": "Kalın çerçeveli yüksek kontrast",
                 "gradient_brand_kurban": "Marka renk geçişli vitrin",
             }, default="live_cards"),
-            items=F("items", "Kesim / Dağıtım Kayıtları", schema={
+            items=F("list", "Kesim / Dağıtım Kayıtları", fields={
                 "region": F("text", "Ülke / Bölge", max=80, translatable=True),
                 "batch": F("text", "Parti / Hisse Adedi", max=60, translatable=True),
                 "status": F("text", "Durum (ör. Kesim Tamamlandı)", max=60, translatable=True),
@@ -3985,7 +3991,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
             }, default="role_cards"),
             cta_label=F("text", "Başvuru Butonu", max=50, translatable=True),
             cta_url=F("url", "Başvuru Formu Bağlantısı"),
-            items=F("items", "Gönüllü Rolleri", schema={
+            items=F("list", "Gönüllü Rolleri", fields={
                 "role": F("text", "Görev Adı", max=100, translatable=True),
                 "commitment": F("text", "Süre / Şart", max=60, translatable=True),
                 "desc": F("textarea", "Görev Tanımı", translatable=True),
@@ -3993,7 +3999,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
         ),
     },
     "annual_audit_summary": {
-        "label": "Bağımsız Denetim & Mali Şeffaflık", "group": "Kurumsal & güven", "icon": "🔍",
+        "label": "Bağımsız Denetim & Mali Şeffaflık", "group": "Güven & etki", "icon": "🔍",
         "help": "Bağışların sahaya ulaşım oranını, yönetim gider payını ve bağımsız denetim özetini gösterir.",
         "fields": _head(
             look=F("select", "Görünüm", choices={
@@ -4020,7 +4026,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
             }, default="audit_cards"),
             cta_label=F("text", "Rapor İndir Butonu", max=50, translatable=True),
             cta_url=F("url", "Rapor Bağlantısı"),
-            items=F("items", "Mali Oranlar", schema={
+            items=F("list", "Mali Oranlar", fields={
                 "label": F("text", "Kalem (ör. Doğrudan Saha Yardımı)", max=100, translatable=True),
                 "ratio": F("text", "Oran (ör. %93.4)", max=20),
                 "note": F("text", "Açıklama", max=140, translatable=True),
@@ -4101,6 +4107,45 @@ ADVANCED_FIELDS: dict[str, dict] = {
     "css_class": F("text", "CSS sınıfı", max=80, pattern="css_class", help="Özel CSS sınıf adları (boşlukla ayırın)"),
     "z_index": F("number", "Katman sırası (z-index)", min=-10, max=100, help="Üst üste binen bloklarda önde görünme sırası"),
 }
+
+
+_PRO_VISUAL_PRESETS: dict[str, str] = {
+    "pro_emerald_gold": "Zümrüt & Altın Vakıf Teması",
+    "pro_dark_obsidian": "Gece Antrasit & Altın Prestij",
+    "pro_sapphire_glass": "Safir Cam Efektli Modern",
+    "pro_warm_sand": "Sıcak Kum & Krem Çerçeve",
+    "pro_crimson_urgent": "Acil Yardım Kırmızı Vurgu",
+    "pro_nordic_minimal": "İskandinav Ultra Minimal",
+    "pro_editorial_frame": "Editoryal Çift Çerçeveli",
+    "pro_soft_pastel": "Yumuşak Pastel Kart",
+    "pro_gold_bordered": "Altın Kenarlıklı Klasik",
+    "pro_teal_gradient": "Turkuaz Gradyan Vitrin",
+    "pro_midnight_indigo": "Gece Lacivert Modern",
+    "pro_pill_elevated": "Yüzen 3D Gölgeli Kart",
+    "pro_paper_card": "Kâğıt Dokulu Sıcak Kart",
+    "pro_accent_ribbon": "Üst Şeritli Kurumsal",
+    "pro_ottoman_turquoise": "Osmanlı Çini & Turkuaz",
+    "pro_rose_warmth": "Mercan & Umut Sıcak Ton",
+}
+
+
+def _enrich_block_varieties() -> None:
+    """Ensure every visible block with a visual selector offers rich, diverse design presets."""
+    for spec in BLOCKS.values():
+        if spec.get("hidden"):
+            continue
+        fields = spec.get("fields") or {}
+        for fname in ("look", "layout", "variant", "style"):
+            f = fields.get(fname)
+            if f and isinstance(f.get("choices"), dict):
+                choices = f["choices"]
+                for pk, plabel in _PRO_VISUAL_PRESETS.items():
+                    if pk not in choices:
+                        choices[pk] = plabel
+                break
+
+
+_enrich_block_varieties()
 
 
 def catalog() -> dict:

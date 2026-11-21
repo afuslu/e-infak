@@ -284,25 +284,45 @@ export function ThemePanel({
       {subTab === 'design' && (
         <div className="space-y-4">
           <div>
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-400">Tema Kitleri</p>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="mb-1.5 flex items-center justify-between">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">Tema Kitleri ({loaded.theme_kits.length})</p>
+            </div>
+            <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto pe-0.5">
               {loaded.theme_kits.map((kit) => {
                 const active = form.primary_color === kit.primary_color && form.accent_color === kit.accent_color
                   && JSON.stringify(design) === JSON.stringify({ ...DEFAULT_DESIGN, ...kit.design })
+                const rCls = kit.design.radius === 'none' ? 'rounded-none' : kit.design.radius === 'small' ? 'rounded' : kit.design.radius === 'large' ? 'rounded-full' : 'rounded-md'
                 return (
                   <button
                     key={kit.key}
                     type="button"
                     onClick={() => applyKit(kit)}
-                    style={{ ...(brandCssVariables(kit.primary_color, kit.accent_color) as React.CSSProperties), ...siteDesignStyle(kit.design) }}
-                    className={`site-design rounded-lg border p-2 text-left transition ${active ? 'border-blue-600 ring-2 ring-blue-100' : 'border-gray-200 hover:border-gray-300'}`}
+                    style={{
+                      ...(brandCssVariables(kit.primary_color, kit.accent_color) as React.CSSProperties),
+                      ...siteDesignStyle(kit.design),
+                      backgroundColor: kit.design.page_color || '#FFFFFF',
+                      color: kit.design.text_color || '#111827',
+                    }}
+                    className={`site-design group overflow-hidden rounded-xl border p-2 text-left transition ${active ? 'border-blue-600 ring-2 ring-blue-200' : 'border-gray-200 hover:border-blue-400 hover:shadow-sm'}`}
                   >
-                    <div className="flex gap-1">
-                      <span className="h-3.5 w-3.5 rounded-full" style={{ background: kit.primary_color }} />
-                      <span className="h-3.5 w-3.5 rounded-full" style={{ background: kit.accent_color }} />
-                      <span className="h-3.5 w-3.5 rounded-full border" style={{ background: kit.design.page_color }} />
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <div className="flex gap-1">
+                        <span className="h-3 w-3 rounded-full ring-1 ring-black/10" style={{ background: kit.primary_color }} />
+                        <span className="h-3 w-3 rounded-full ring-1 ring-black/10" style={{ background: kit.accent_color }} />
+                        <span className="h-3 w-3 rounded-full ring-1 ring-black/15" style={{ background: kit.design.page_color }} />
+                      </div>
+                      {active && <span className="rounded bg-blue-600 px-1 py-0.5 text-[8px] font-bold text-white">AKTİF</span>}
                     </div>
-                    <div className="mt-1.5 truncate font-heading text-xs font-bold">{kit.label}</div>
+                    <div className="truncate font-heading text-[11px] font-bold leading-tight">{kit.label}</div>
+                    <div className="mt-1.5 flex items-center justify-between gap-1">
+                      <span className="truncate text-[9px] opacity-70">{kit.design.heading_font || 'inter'}</span>
+                      <span
+                        className={`px-2 py-0.5 text-[9px] font-bold text-white ${rCls}`}
+                        style={{ backgroundColor: kit.primary_color }}
+                      >
+                        Bağış Yap
+                      </span>
+                    </div>
                   </button>
                 )
               })}
@@ -373,6 +393,35 @@ export function ThemePanel({
                 {loaded.templates.map((t) => <option key={t.key} value={t.key}>{t.label.split(' — ')[0]}</option>)}
               </select>
             </label>
+            <div className="space-y-2 rounded-lg border border-emerald-200/80 bg-emerald-50/40 p-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-emerald-800">Dönüşüm & Hızlı Erişim</p>
+              <label className="flex cursor-pointer items-center gap-2 text-[12px] text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(design.sticky_mobile_donate)}
+                  onChange={(e) => setDesign('sticky_mobile_donate', e.target.checked)}
+                />
+                <span>Mobilde sabit alt “Hızlı Bağış Yap” çubuğu</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-[12px] text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={Boolean(design.floating_whatsapp)}
+                  onChange={(e) => setDesign('floating_whatsapp', e.target.checked)}
+                />
+                <span>Sağ altta yüzen WhatsApp destek butonu</span>
+              </label>
+              {design.floating_whatsapp && (
+                <input
+                  type="text"
+                  value={design.floating_whatsapp_label || ''}
+                  onChange={(e) => setDesign('floating_whatsapp_label', e.target.value)}
+                  placeholder="Buton etiketi (ör. WhatsApp Destek)"
+                  maxLength={40}
+                  className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] outline-none focus:border-emerald-500"
+                />
+              )}
+            </div>
             <button
               type="button"
               onClick={resetDefaults}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import type { Block, BuilderCatalog } from '../../lib/blocks'
 
 export interface LibrarySection { key: string; label: string; group: string; description: string; kind: 'content' | 'header' | 'footer'; blocks: Block[] }
@@ -18,21 +18,178 @@ const subTab = (active: boolean) => `rounded-md px-2 py-1 text-[11px] font-semib
 function SectionWireframe({ blocks }: { blocks: Block[] }) {
   const first = blocks[0]
   if (!first) return null
-  const cols = first.children?.filter((c) => c.type === 'column' || c.type === 'header_slot') || []
-  if (cols.length >= 2) {
+  const flatTypes = new Set<string>()
+  const walk = (list: Block[]) => {
+    for (const b of list) {
+      flatTypes.add(b.type)
+      if (b.children?.length) walk(b.children)
+    }
+  }
+  walk(blocks)
+
+  // Header preview (1 or 2 rows)
+  if (first.type === 'header_row') {
     return (
-      <div className="mt-2 grid gap-1 rounded border border-gray-100 bg-gray-50 p-1.5" style={{ gridTemplateColumns: `repeat(${Math.min(cols.length, 4)}, minmax(0, 1fr))` }}>
-        {cols.slice(0, 4).map((c, idx) => (
-          <div key={idx} className="space-y-1 rounded bg-white p-1 shadow-2xs">
-            <div className="h-1.5 w-3/4 rounded bg-blue-200" />
-            <div className="h-1 w-full rounded bg-gray-200" />
-            <div className="h-1 w-2/3 rounded bg-gray-100" />
+      <div className="mt-2 space-y-1 rounded border border-gray-200 bg-gray-50 p-1.5">
+        {blocks.slice(0, 3).map((row, idx) => {
+          const tone = String(row.props?.tone || 'light')
+          const dark = tone === 'dark' || tone === 'brand'
+          const slots = row.children?.filter((c) => c.type === 'header_slot') || []
+          const isThin = Number(row.props?.height || 72) <= 44
+          return (
+            <div
+              key={idx}
+              className={`flex items-center justify-between rounded px-2 ${isThin ? 'h-3' : 'h-5'} ${
+                tone === 'brand' ? 'bg-blue-600/85' : dark ? 'bg-slate-800' : 'border border-gray-200 bg-white'
+              }`}
+            >
+              <div className={`h-1.5 w-8 rounded ${dark ? 'bg-white/75' : 'bg-gray-400'}`} />
+              <div className="flex gap-1">
+                {Array.from({ length: Math.max(2, Math.min(slots.length + 1, 4)) }).map((_, j) => (
+                  <div key={j} className={`h-1 w-4 rounded ${dark ? 'bg-white/40' : 'bg-gray-300'}`} />
+                ))}
+              </div>
+              <div className={`h-2 w-7 rounded-full ${dark ? 'bg-amber-400/90' : 'bg-blue-500/80'}`} />
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // Slider preview
+  if (first.type === 'slider' || flatTypes.has('slider')) {
+    return (
+      <div className="mt-2 flex flex-col justify-between rounded border border-indigo-200 bg-gradient-to-br from-slate-800 via-indigo-900 to-blue-900 p-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="h-3 w-3 rounded-full bg-white/20" />
+          <div className="flex-1 space-y-1 text-center">
+            <div className="mx-auto h-1 w-10 rounded bg-amber-300/80" />
+            <div className="mx-auto h-2 w-3/4 rounded bg-white/85" />
+            <div className="mx-auto h-1.5 w-12 rounded-full bg-emerald-400/85" />
+          </div>
+          <div className="h-3 w-3 rounded-full bg-white/20" />
+        </div>
+        <div className="mt-1.5 flex justify-center gap-1">
+          <span className="h-1 w-3 rounded-full bg-white/90" />
+          <span className="h-1 w-1 rounded-full bg-white/40" />
+          <span className="h-1 w-1 rounded-full bg-white/40" />
+        </div>
+      </div>
+    )
+  }
+
+  // Donation / Campaign cards preview
+  if (flatTypes.has('donation_cards') || flatTypes.has('campaigns') || flatTypes.has('campaign_card')) {
+    const dark = String(first.props?.card_theme || first.props?.tone || '') === 'dark'
+    return (
+      <div className={`mt-2 grid grid-cols-3 gap-1 rounded border p-1.5 ${dark ? 'border-slate-700 bg-slate-900' : 'border-emerald-100 bg-emerald-50/40'}`}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className={`space-y-1 rounded p-1 ${dark ? 'bg-slate-800' : 'bg-white shadow-2xs'}`}>
+            <div className={`h-4 rounded ${dark ? 'bg-slate-700' : 'bg-emerald-100'}`} />
+            <div className={`h-1 w-3/4 rounded ${dark ? 'bg-slate-500' : 'bg-gray-300'}`} />
+            <div className="h-1 w-full overflow-hidden rounded-full bg-gray-200/50">
+              <div className="h-full w-2/3 bg-emerald-500" />
+            </div>
+            <div className="h-1.5 w-full rounded bg-emerald-600/80" />
           </div>
         ))}
       </div>
     )
   }
-  if (first.type === 'hero' || first.type === 'cta_band') {
+
+  // IBAN / Bank accounts preview
+  if (flatTypes.has('bank_accounts')) {
+    return (
+      <div className="mt-2 space-y-1 rounded border border-sky-100 bg-sky-50/50 p-1.5">
+        {[0, 1].map((i) => (
+          <div key={i} className="flex items-center justify-between rounded bg-white px-1.5 py-1 shadow-2xs">
+            <div className="space-y-0.5">
+              <div className="h-1.5 w-14 rounded bg-sky-300" />
+              <div className="h-1 w-24 rounded bg-gray-200" />
+            </div>
+            <div className="h-2.5 w-8 rounded bg-sky-500/80" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Stats / counters preview
+  if (flatTypes.has('stats')) {
+    const dark = ['bento_dark', 'dark_gold_counters', 'emerald_counters', 'gradient'].includes(String(first.props?.variant || ''))
+    return (
+      <div className={`mt-2 grid grid-cols-4 gap-1 rounded border p-1.5 ${dark ? 'border-slate-800 bg-slate-900' : 'border-gray-100 bg-gray-50'}`}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className={`flex flex-col items-center gap-1 rounded p-1 ${dark ? 'bg-slate-800' : 'bg-white shadow-2xs'}`}>
+            <div className={`h-2 w-7 rounded ${dark ? 'bg-amber-400/90' : 'bg-blue-500/75'}`} />
+            <div className={`h-1 w-9 rounded ${dark ? 'bg-white/30' : 'bg-gray-200'}`} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Gallery / Video preview
+  if (flatTypes.has('gallery_strip') || flatTypes.has('image_gallery') || flatTypes.has('video_gallery')) {
+    const isVid = flatTypes.has('video_gallery')
+    return (
+      <div className="mt-2 grid grid-cols-4 gap-1 rounded border border-gray-100 bg-gray-50 p-1.5">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="flex h-6 items-center justify-center rounded bg-gradient-to-br from-slate-200 to-slate-300">
+            {isVid && <div className="h-2.5 w-2.5 rounded-full bg-white/90" />}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // FAQ preview
+  if (flatTypes.has('faq')) {
+    return (
+      <div className="mt-2 space-y-1 rounded border border-gray-100 bg-gray-50 p-1.5">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex items-center justify-between rounded bg-white px-1.5 py-1 shadow-2xs">
+            <div className="h-1 w-2/3 rounded bg-gray-300" />
+            <div className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  // Newsletter / Contact form preview
+  if (flatTypes.has('newsletter') || flatTypes.has('contact_form')) {
+    return (
+      <div className="mt-2 flex items-center gap-1.5 rounded border border-indigo-100 bg-indigo-50/50 p-1.5">
+        <div className="h-3.5 flex-1 rounded border border-indigo-200 bg-white" />
+        <div className="h-3.5 w-10 rounded bg-indigo-500/80" />
+      </div>
+    )
+  }
+
+  // Multi-column / Footer preview
+  const innerCols = (first.children || []).flatMap((c) => (c.type === 'columns' ? c.children || [] : c.type === 'column' ? [c] : []))
+  const cols = innerCols.filter((c) => c.type === 'column' || c.type === 'header_slot')
+  if (cols.length >= 2) {
+    const dark = String(first.props?.tone || '') === 'dark' || String(first.props?.tone || '') === 'brand'
+    return (
+      <div
+        className={`mt-2 grid gap-1 rounded border p-1.5 ${dark ? 'border-slate-700 bg-slate-900' : 'border-gray-100 bg-gray-50'}`}
+        style={{ gridTemplateColumns: `repeat(${Math.min(cols.length, 4)}, minmax(0, 1fr))` }}
+      >
+        {cols.slice(0, 4).map((_, idx) => (
+          <div key={idx} className={`space-y-1 rounded p-1 ${dark ? 'bg-slate-800' : 'bg-white shadow-2xs'}`}>
+            <div className={`h-1.5 w-3/4 rounded ${dark ? 'bg-amber-300/70' : 'bg-blue-200'}`} />
+            <div className={`h-1 w-full rounded ${dark ? 'bg-white/25' : 'bg-gray-200'}`} />
+            <div className={`h-1 w-2/3 rounded ${dark ? 'bg-white/15' : 'bg-gray-100'}`} />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (first.type === 'hero' || first.type === 'banner' || first.type === 'cta_band') {
     return (
       <div className="mt-2 flex flex-col items-center justify-center gap-1 rounded border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-2">
         <div className="h-2 w-1/2 rounded bg-blue-300" />
@@ -41,6 +198,7 @@ function SectionWireframe({ blocks }: { blocks: Block[] }) {
       </div>
     )
   }
+
   return (
     <div className="mt-2 space-y-1 rounded border border-gray-100 bg-gray-50 p-1.5">
       <div className="h-1.5 w-1/3 rounded bg-gray-300" />
@@ -62,7 +220,7 @@ function Outline({ blocks, catalog }: { blocks: Block[]; catalog: BuilderCatalog
   )
 }
 
-export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplace, onInsertSaved, onDeleteSaved, onApplyDemo }: {
+export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplace, onInsertSaved, onDeleteSaved, onApplyDemo, renderPreview }: {
   library: Library | null
   catalog: BuilderCatalog
   kind: string
@@ -72,11 +230,30 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
   onInsertSaved: (saved: SavedBlock) => void
   onDeleteSaved: (saved: SavedBlock) => void
   onApplyDemo: (demo: LibraryDemo, options: DemoOptions) => Promise<void>
+  renderPreview?: (blocks: Block[]) => ReactNode
 }) {
   const [tab, setTab] = useState<Tab>('sections')
   const [query, setQuery] = useState('')
   const [groupFilter, setGroupFilter] = useState<string>('Tümü')
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+  const [expandedLimits, setExpandedLimits] = useState<Record<string, boolean>>({})
+  const [previewSection, setPreviewSection] = useState<LibrarySection | null>(null)
+  const [favorites, setFavorites] = useState<string[]>([])
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('einfak_fav_sections')
+      if (raw) setFavorites(JSON.parse(raw))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+  const toggleFavorite = (key: string) => {
+    setFavorites((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      try { localStorage.setItem('einfak_fav_sections', JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
   const [demo, setDemo] = useState<LibraryDemo | null>(null)
   const [options, setOptions] = useState<DemoOptions>({ apply_theme: true, include_pages: true, publish: false })
   const [busy, setBusy] = useState(false)
@@ -89,8 +266,8 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
       if (chrome ? s.kind !== kind : s.kind !== 'content') continue
       set.add(s.group)
     }
-    return ['Tümü', ...Array.from(set)]
-  }, [library, kind, chrome])
+    return ['Tümü', ...(favorites.length > 0 ? ['★ Favoriler'] : []), ...Array.from(set)]
+  }, [library, kind, chrome, favorites.length])
 
   const activeGroupFilter = allGroups.includes(groupFilter) ? groupFilter : 'Tümü'
 
@@ -99,12 +276,16 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
     const q = query.trim().toLocaleLowerCase('tr')
     for (const s of library?.sections || []) {
       if (chrome ? s.kind !== kind : s.kind !== 'content') continue
-      if (activeGroupFilter !== 'Tümü' && s.group !== activeGroupFilter) continue
+      if (activeGroupFilter === '★ Favoriler') {
+        if (!favorites.includes(s.key)) continue
+      } else if (activeGroupFilter !== 'Tümü' && s.group !== activeGroupFilter) {
+        continue
+      }
       if (q && !`${s.label} ${s.description} ${s.group}`.toLocaleLowerCase('tr').includes(q)) continue
       ;(out[s.group] ||= []).push(s)
     }
     return Object.entries(out)
-  }, [library, kind, chrome, query, activeGroupFilter])
+  }, [library, kind, chrome, query, activeGroupFilter, favorites])
 
   const filteredDemos = useMemo(() => {
     const q = query.trim().toLocaleLowerCase('tr')
@@ -143,9 +324,9 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1">
         <button type="button" className={subTab(activeTab === 'sections')} onClick={() => setTab('sections')}>{chrome ? 'Hazır düzenler' : 'Bölümler'}</button>
-        {!chrome && <button type="button" className={subTab(activeTab === 'pages')} onClick={() => setTab('pages')}>Sayfa şablonları</button>}
-        <button type="button" className={subTab(activeTab === 'saved')} onClick={() => setTab('saved')}>Kayıtlılarım ({filteredSaved.length})</button>
-        <button type="button" className={subTab(activeTab === 'demos')} onClick={() => setTab('demos')}>Demolar</button>
+        {!chrome && <button type="button" className={subTab(activeTab === 'pages')} onClick={() => setTab('pages')}>Sayfa ({library.pages.length})</button>}
+        <button type="button" className={subTab(activeTab === 'saved')} onClick={() => setTab('saved')}>Kayıtlı ({filteredSaved.length})</button>
+        <button type="button" className={subTab(activeTab === 'demos')} onClick={() => setTab('demos')}>Demolar ({library.demos.length})</button>
       </div>
 
       {activeTab === 'sections' && (
@@ -177,29 +358,67 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
                   <span>{group} ({items.length})</span>
                   <span>{isCollapsed ? '▸' : '▾'}</span>
                 </button>
-                {!isCollapsed && (
-                  <div className="space-y-1.5">
-                    {items.map((s) => (
-                      <button
-                        key={s.key}
-                        type="button"
-                        draggable={!chrome}
-                        onDragStart={(e) => {
-                          if (chrome) return
-                          e.dataTransfer.setData('application/x-new-blocks', JSON.stringify(s.blocks))
-                          e.dataTransfer.effectAllowed = 'copy'
-                        }}
-                        onClick={() => (chrome ? onReplace(s.blocks, s.label) : onInsert(s.blocks))}
-                        className="block w-full rounded-lg border bg-white p-2.5 text-start hover:border-blue-500 hover:bg-blue-50"
-                      >
-                        <span className="block text-[12px] font-bold text-gray-800">{s.label}</span>
-                        <span className="block text-[11px] text-gray-500">{s.description}</span>
-                        <SectionWireframe blocks={s.blocks} />
-                        <Outline blocks={s.blocks} catalog={catalog} />
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {!isCollapsed && (() => {
+                  const limit = !query.trim() && activeGroupFilter === 'Tümü' && !expandedLimits[group] ? 10 : items.length
+                  const visibleItems = items.slice(0, limit)
+                  const remaining = items.length - visibleItems.length
+                  return (
+                    <div className="space-y-1.5">
+                      {visibleItems.map((s) => {
+                        const isFav = favorites.includes(s.key)
+                        return (
+                          <div key={s.key} className="group relative">
+                            <button
+                              type="button"
+                              draggable={!chrome}
+                              onDragStart={(e) => {
+                                if (chrome) return
+                                e.dataTransfer.setData('application/x-new-blocks', JSON.stringify(s.blocks))
+                                e.dataTransfer.effectAllowed = 'copy'
+                              }}
+                              onClick={() => (chrome ? onReplace(s.blocks, s.label) : onInsert(s.blocks))}
+                              className="block w-full rounded-lg border bg-white p-2.5 pr-7 text-start hover:border-blue-500 hover:bg-blue-50"
+                            >
+                              <span className="block text-[12px] font-bold text-gray-800">{s.label}</span>
+                              <span className="block text-[11px] text-gray-500">{s.description}</span>
+                              <SectionWireframe blocks={s.blocks} />
+                              <Outline blocks={s.blocks} catalog={catalog} />
+                            </button>
+                            <div className="absolute right-2 top-2 flex items-center gap-0.5">
+                              {renderPreview && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setPreviewSection(s) }}
+                                  title="Canlı önizle"
+                                  className="rounded px-1 py-0.5 text-[11px] text-gray-400 opacity-0 transition hover:bg-blue-100 hover:text-blue-700 group-hover:opacity-100"
+                                >
+                                  👁
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleFavorite(s.key) }}
+                                title={isFav ? 'Favorilerden çıkar' : 'Favorilere ekle'}
+                                className={`rounded p-0.5 text-xs transition ${isFav ? 'text-amber-500' : 'text-gray-300 opacity-0 hover:text-amber-400 group-hover:opacity-100'}`}
+                              >
+                                {isFav ? '★' : '☆'}
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {remaining > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedLimits((prev) => ({ ...prev, [group]: true }))}
+                          className="w-full rounded-md border border-dashed border-gray-200 bg-gray-50 py-1.5 text-[11px] font-semibold text-gray-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          +{remaining} şablon daha göster
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
@@ -295,6 +514,37 @@ export function LibraryPanel({ library, catalog, kind, saved, onInsert, onReplac
                   onClick={async () => { setBusy(true); try { await onApplyDemo(demo, options); setDemo(null) } finally { setBusy(false) } }}>
                   {busy ? 'Kuruluyor…' : 'Demoyu kur'}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {previewSection && renderPreview && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center bg-black/55 p-4 backdrop-blur-xs" onClick={() => setPreviewSection(null)}>
+          <div className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b px-5 py-3.5">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">{previewSection.label}</h3>
+                <p className="text-[11px] text-gray-500">{previewSection.description}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (chrome) onReplace(previewSection.blocks, previewSection.label)
+                    else onInsert(previewSection.blocks)
+                    setPreviewSection(null)
+                  }}
+                  className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                >
+                  {chrome ? 'Bu Düzeni Uygula' : '+ Sayfaya Ekle'}
+                </button>
+                <button type="button" onClick={() => setPreviewSection(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">✕</button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-gray-100 p-4">
+              <div className="mx-auto max-w-[1200px] overflow-hidden rounded-xl border bg-white shadow-sm">
+                <div className="pointer-events-none">{renderPreview(previewSection.blocks)}</div>
               </div>
             </div>
           </div>

@@ -489,6 +489,16 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [segments, setSegments] = useState<{ key: string; label: string; count: number; description: string }[]>([])
+
+  useEffect(() => {
+    if (!home || !advancedEnabled) return
+    let active = true
+    adminGet<{ segments: { key: string; label: string; count: number; description: string }[] }>('/reports/donor-segments')
+      .then((r) => { if (active) setSegments(r.data.segments || []) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [home, advancedEnabled, reloadKey])
 
   // Hydrate initial filters from URL query parameters
   useEffect(() => {
@@ -683,7 +693,28 @@ export default function ReportsPage() {
           <div className="mt-4 flex flex-wrap gap-2 text-[13px]">
             <button type="button" onClick={() => setReport('recurring')} className="rounded-lg border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50">Düzenli Bağışlar</button>
             <Link href="/admin/ai" className="rounded-lg border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50">AI Öngörüleri</Link>
+            {advancedEnabled && (
+              <>
+                <button type="button" onClick={() => void downloadFile('/admin-features/reports/derbis-export', `derbis-makbuzlar-${year}.csv`, { kind: 'receipts', year })} className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100">DERBİS Makbuz CSV ({year})</button>
+                <button type="button" onClick={() => void downloadFile('/admin-features/reports/derbis-export', `derbis-uyeler-${year}.csv`, { kind: 'members', year })} className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100">DERBİS Üye CSV</button>
+                <button type="button" onClick={() => void downloadFile('/admin-features/reports/derbis-export', `derbis-yardimlar-${year}.csv`, { kind: 'aid', year })} className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 font-semibold text-emerald-800 hover:bg-emerald-100">DERBİS Yardım CSV ({year})</button>
+              </>
+            )}
           </div>
+          {segments.length > 0 && (
+            <div className="mt-6 border-t border-gray-100 pt-5">
+              <h3 className="mb-3 text-[14.5px] font-bold text-gray-900">Akıllı Bağışçı Segmentleri</h3>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {segments.map((s) => (
+                  <div key={s.key} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                    <div className="text-2xl font-extrabold text-primary-700">{s.count.toLocaleString('tr-TR')}</div>
+                    <div className="mt-0.5 text-[13px] font-bold text-gray-900">{s.label}</div>
+                    <p className="mt-1 text-[11.5px] text-gray-500">{s.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       ) : locked ? (
         <Card className="border border-gray-100 p-8 text-center shadow-sm">
@@ -956,7 +987,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
     return (
       <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
         <p className="text-xs text-gray-500">
-          Havale/EFT onayı veya banka mutabakatıyla makbuz kesen personel. Kartla yapılan online bağışlar &quot;Online (otomatik)&quot; satırındadır.
+          Havale/EFT onayı veya banka mutabakatıyla makbuz kesen personel. Bağışçısında temsilci/personel kayıtlı olan sanal POS bağışları otomatik o personele yazılır; temsilcisiz online bağışlar &quot;Online (otomatik)&quot; satırındadır.
         </p>
         <ExportButton name={`personel-makbuz-${data.start}-${data.end}.csv`} header={header} rows={rows} />
         <SortableReportTable

@@ -15,8 +15,60 @@ export function setupNotificationHandler() {
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: true,
-      shouldSetBadge: false,
+      shouldSetBadge: true,
     }),
+  });
+  void setupInteractiveCategories();
+}
+
+async function setupInteractiveCategories() {
+  if (!supported) return;
+  try {
+    await Notifications.setNotificationCategoryAsync('transfer_waiting', [
+      { identifier: 'open_transfers', buttonTitle: 'İncele', options: { opensAppToForeground: true } },
+      { identifier: 'open_receipt', buttonTitle: 'Makbuz Kes', options: { opensAppToForeground: true } },
+    ]);
+    await Notifications.setNotificationCategoryAsync('task_assigned', [
+      { identifier: 'open_tasks', buttonTitle: 'Göreve Git', options: { opensAppToForeground: true } },
+    ]);
+    await Notifications.setNotificationCategoryAsync('donation', [
+      { identifier: 'open_donation', buttonTitle: 'Makbuzu Gör', options: { opensAppToForeground: true } },
+    ]);
+  } catch {
+    // Kategori kaydı desteklenmeyen ortamlarda sessizce geçilir.
+  }
+}
+
+async function ensureAndroidChannels() {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync('default', {
+    name: 'Genel',
+    importance: Notifications.AndroidImportance.DEFAULT,
+  });
+  await Notifications.setNotificationChannelAsync('money_in', {
+    name: 'Para Girişleri & Bağışlar',
+    description: 'Online bağış, havale ve makbuz bildirimleri',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 180, 120, 180],
+    lightColor: '#059669',
+  });
+  await Notifications.setNotificationChannelAsync('urgent', {
+    name: 'Acil Uyarılar & Büyük Bağışlar',
+    description: 'Yüksek tutarlı bağışlar, başarısız ödemeler ve sistem uyarıları',
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 150, 250],
+    lightColor: '#DC2626',
+  });
+  await Notifications.setNotificationChannelAsync('tasks', {
+    name: 'Görevler & Hatırlatmalar',
+    description: 'Personel görevleri, bağışçı takibi ve kumbara hatırlatmaları',
+    importance: Notifications.AndroidImportance.DEFAULT,
+    lightColor: '#0D9488',
+  });
+  await Notifications.setNotificationChannelAsync('summary', {
+    name: 'Günlük & Haftalık Özetler',
+    description: 'Gün sonu ve haftalık yönetici özet raporları',
+    importance: Notifications.AndroidImportance.LOW,
   });
 }
 
@@ -27,12 +79,8 @@ export async function registerPush(ask = true): Promise<{ ok: boolean; message: 
   let { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted' && ask) status = (await Notifications.requestPermissionsAsync()).status;
   if (status !== 'granted') return { ok: false, message: 'Bildirim izni verilmedi.' };
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Genel',
-      importance: Notifications.AndroidImportance.DEFAULT,
-    });
-  }
+  await ensureAndroidChannels();
+  await setupInteractiveCategories();
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
   const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
   await api('/mobile/device-token', { method: 'POST', body: { token, platform: Platform.OS } });

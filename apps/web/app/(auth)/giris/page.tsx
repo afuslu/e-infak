@@ -30,6 +30,8 @@ export default function LoginPage() {
   const router = useRouter()
   const login = useLogin()
   const [errorMsg, setErrorMsg] = useState('')
+  const [needsTotp, setNeedsTotp] = useState(false)
+  const [totpCode, setTotpCode] = useState('')
   // Platform operators (@e-infak.org) sign in at /platform/giris, not here: point them there.
   const [platformHint, setPlatformHint] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -100,10 +102,14 @@ export default function LoginPage() {
     setErrorMsg('')
     setPlatformHint(false)
     try {
-      await login.mutateAsync(data)
+      await login.mutateAsync({ ...data, ...(totpCode.trim() ? { totp_code: totpCode.trim() } : {}) })
       router.push('/admin')
-    } catch (error) {
-      setErrorMsg(authErrorText(error, 'E-posta veya şifre hatalı'))
+    } catch (error: any) {
+      const msg = authErrorText(error, 'E-posta veya şifre hatalı')
+      if (error?.response?.headers?.['x-2fa-required'] === 'totp' || msg.includes('2FA')) {
+        setNeedsTotp(true)
+      }
+      setErrorMsg(msg)
       setPlatformHint(data.email.trim().toLowerCase().endsWith('@e-infak.org'))
     }
   }
@@ -278,6 +284,25 @@ export default function LoginPage() {
                   </Link>
                 </div>
               </div>
+
+              {needsTotp && (
+                <div>
+                  <label htmlFor="totp_code" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-pt-muted">
+                    2FA Doğrulama Kodu (6 Haneli)
+                  </label>
+                  <input
+                    id="totp_code"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoFocus
+                    value={totpCode}
+                    onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    className="w-full rounded-xl border border-pt-line bg-pt-bg px-3.5 py-2.5 text-center font-mono text-lg tracking-[0.4em] text-pt-text outline-none transition-colors focus:border-pt-brand focus:ring-2 focus:ring-pt-brand/15"
+                  />
+                </div>
+              )}
 
               {errorMsg && (
                 <p

@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -11,12 +12,20 @@ from app.core.observability import configure_observability
 from uuid import UUID
 
 configure_observability()
+logger = logging.getLogger(__name__)
 
+_is_prod = settings.ENVIRONMENT == "production"
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     debug=settings.DEBUG,
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    openapi_url=None if _is_prod else "/openapi.json",
 )
+
+# Multi-tenant middleware (added first so CORSMiddleware wraps outside it in LIFO order)
+app.add_middleware(TenantMiddleware)
 
 # CORS middleware
 app.add_middleware(
@@ -26,9 +35,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Multi-tenant middleware
-app.add_middleware(TenantMiddleware)
 
 
 @app.middleware("http")
@@ -49,17 +55,20 @@ async def security_headers(request, call_next):
                     user_id = UUID(token_payload["sub"])
                 except (KeyError, TypeError, ValueError):
                     user_id = None
-        async with AsyncSessionLocal() as audit_session:
-            audit_session.add(AuditLog(
-                organization_id=UUID(request.state.organization_id),
-                user_id=user_id,
-                action=f"{request.method} {request.url.path}"[:100],
-                details={
-                    "status_code": response.status_code,
-                    "client_ip": request.client.host if request.client else None,
-                },
-            ))
-            await audit_session.commit()
+        try:
+            async with AsyncSessionLocal() as audit_session:
+                audit_session.add(AuditLog(
+                    organization_id=UUID(request.state.organization_id),
+                    user_id=user_id,
+                    action=f"{request.method} {request.url.path}"[:100],
+                    details={
+                        "status_code": response.status_code,
+                        "client_ip": request.client.host if request.client else None,
+                    },
+                ))
+                await audit_session.commit()
+        except Exception as exc:
+            logger.warning("Audit log write failed for %s %s: %s", request.method, request.url.path, exc)
     response.headers["X-Content-Type-Options"] = "nosniff"
     # Payment hand-off pages set their own, narrower policy (provider form / frame hosts).
     response.headers.setdefault("X-Frame-Options", "DENY")
