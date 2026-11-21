@@ -255,3 +255,9 @@
 .portal .pt-shadow { box-shadow: var(--pt-shadow); }
 .portal .pt-cta { background: #047857; color: #FFFFFF; }
 .portal .pt-cta:hover { background: #065F46; }
+
+
+/* "Görünüm: Sıkı" (STK PRO density switch): tighter table rows and cards across the panel. */
+.admin-compact table td { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+.admin-compact table th { padding-top: 0.4rem; padding-bottom: 0.4rem; }
+.admin-compact main { padding-top: 0.75rem; }

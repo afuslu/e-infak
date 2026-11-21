@@ -176,6 +176,56 @@ async def end_sessions(request: Request, user_id: Optional[UUID] = None, db: Asy
     return {"ended": result.rowcount or 0}
 
 
+# --- Presence ("Aktif Oturumlar") -----------------------------------------------------
+
+class PresenceIn(BaseModel):
+    path: str = Field(max_length=200)
+
+
+@router.post("/presence")
+async def presence(payload: PresenceIn, request: Request, db: AsyncSession = Depends(get_db),
+                   current_user: User = Depends(get_current_user)):
+    """Heartbeat from the panel: which page this staff member is on (every minute and on navigation)."""
+    path = payload.path if payload.path.startswith("/admin") else "/admin"
+    await db.execute(update(User).where(User.id == current_user.id).values(
+        last_seen_at=datetime.now(timezone.utc), last_seen_path=path[:200], last_seen_ip=_client_ip(request)))
+    await db.commit()
+    return {"ok": True}
+
+
+def _client_ip(request: Request) -> Optional[str]:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+    return (ip or None) and ip[:64]
+
+
+@router.get("/active-sessions")
+async def active_sessions(request: Request, live_only: bool = True, db: AsyncSession = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    """Staff with an open sign-in; "canlı" = seen in the last 5 minutes."""
+    _ensure_supervisor(current_user)
+    org_id = _org_id(request)
+    now = datetime.now(timezone.utc)
+    open_counts = dict((await db.execute(
+        select(UserSession.user_id, func.count()).join(User, User.id == UserSession.user_id)
+        .where(User.organization_id == org_id, UserSession.revoked_at.is_(None), UserSession.expires_at > now)
+        .group_by(UserSession.user_id)
+    )).all())
+    users = (await db.execute(select(User).where(User.organization_id == org_id, User.is_active.is_(True))
+                              .order_by(User.last_seen_at.desc().nullslast()))).scalars().all()
+    items = []
+    for u in users:
+        live = bool(u.last_seen_at and (now - u.last_seen_at).total_seconds() <= 300)
+        if live_only and not live:
+            continue
+        if not live and not open_counts.get(u.id):
+            continue
+        items.append({"user_id": str(u.id), "name": f"{u.first_name} {u.last_name}".strip(), "email": u.email,
+                      "path": u.last_seen_path, "ip": u.last_seen_ip, "last_seen_at": u.last_seen_at, "live": live,
+                      "open_sessions": open_counts.get(u.id, 0), "is_me": u.id == current_user.id})
+    return {"total": len(items), "items": items}
+
+
 # --- Activity log --------------------------------------------------------------------
 
 ACTION_LABELS = {
@@ -187,6 +237,8 @@ ACTION_LABELS = {
     "kurban_kesim": "Kurban kesildi", "rol_olustur": "Rol oluşturuldu", "rol_guncelle": "Rol güncellendi", "rol_sil": "Rol silindi",
     "ip_izin_ekle": "IP izni eklendi", "ip_engelle": "IP engellendi", "ip_kural_sil": "IP kuralı silindi",
     "oturumlari_kapat": "Oturumlar kapatıldı", "kurlari_guncelle": "Kurlar güncellendi",
+    "bagisci_disa_aktar": "Bağışçılar dışa aktarıldı", "bagisci_toplu_guncelle": "Bağışçılar toplu güncellendi",
+    "bagisci_toplu_sil": "Bağışçılar toplu silindi", "toplu_mail": "Toplu mail başlatıldı", "alici_listesi": "Alıcı listesi",
 }
 
 

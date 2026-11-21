@@ -426,3 +426,16 @@ async def test_receipt_numbers_continue_and_receipts_group_lines(db_session):
     assert (await receipts(referral="Cami", phone="0536 364"))["total"] == 2
     totals = await receipts(with_totals=True)
     assert totals["totals"] == [{"currency": "TRY", "total_cents": 16_250_00}]
+
+
+async def test_presence_active_sessions_and_representatives(db_session):
+    from app.api.v1 import security
+
+    org, admin, _ = await _setup(db_session)
+    db_session.add(Donor(organization_id=org.id, first_name="Ali", assigned_user_id=admin.id, total_donated_cents=5_000))
+    await db_session.commit()
+    await security.presence(security.PresenceIn(path="/admin/bagiscilar"), _request(org, "POST"), db_session, admin)
+    live = await security.active_sessions(_request(org), True, db_session, admin)
+    assert [(i["name"], i["path"], i["live"]) for i in live["items"]] == [("Ayşe Admin", "/admin/bagiscilar", True)]
+    reps = await crm.representatives(_request(org), db_session, admin)
+    assert [(r["name"], r["donor_count"], r["total_donated_cents"]) for r in reps] == [("Ayşe Admin", 1, 5_000)]

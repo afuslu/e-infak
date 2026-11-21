@@ -50,7 +50,7 @@ function DonorsPage() {
   const searchParams = useSearchParams()
   const { access, staff, options, perms } = useDonorContext()
   const canBulk = can(access, 'sms.bulk')
-  const [filters, setFilters] = useState<Record<string, string>>(() => ({ ...EMPTY_FILTERS, q: searchParams.get('q') || '' }))
+  const [filters, setFilters] = useState<Record<string, string>>(() => ({ ...EMPTY_FILTERS, q: searchParams.get('q') || '', assigned: searchParams.get('temsilci') || '' }))
   const [sort, setSort] = useState('recent')
   const [direction, setDirection] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(1)

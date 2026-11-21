@@ -581,6 +581,22 @@ async def _donor_card_extras(db: AsyncSession, org_id: UUID, donor: Donor, names
     }
 
 
+@router.get("/representatives")
+async def representatives(request: Request, db: AsyncSession = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    """STK PRO "Temsilciler": staff who represent donors, with how many donors and how much they gave."""
+    org_id = _org_id(request)
+    stats = {r[0]: (r[1], int(r[2] or 0)) for r in (await db.execute(
+        select(Donor.assigned_user_id, func.count(Donor.id), func.sum(Donor.total_donated_cents))
+        .where(Donor.organization_id == org_id, Donor.assigned_user_id.isnot(None)).group_by(Donor.assigned_user_id)
+    )).all()}
+    users = (await db.execute(select(User).where(User.organization_id == org_id).order_by(User.first_name))).scalars().all()
+    return [{
+        "id": str(u.id), "name": f"{u.first_name} {u.last_name}".strip(), "email": u.email, "is_active": bool(u.is_active),
+        "donor_count": stats.get(u.id, (0, 0))[0], "total_donated_cents": stats.get(u.id, (0, 0))[1],
+    } for u in users if u.is_active or u.id in stats]
+
+
 @router.get("/donors-options")
 async def donor_options(request: Request, db: AsyncSession = Depends(get_db),
                         current_user: User = Depends(get_current_user)):

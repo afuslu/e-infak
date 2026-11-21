@@ -200,6 +200,16 @@ export function AdminNotificationsBell() {
     retry: false,
   })
 
+  // Staff notifications (Bildirim Merkezi): the same feed the mobile app shows.
+  const { data: noteData } = useQuery({
+    queryKey: ['admin-bell-notes'],
+    queryFn: () => v1Get<{ unread: number; items: { id: string; title: string; body: string; created_at: string }[] }>(
+      '/mobile/notifications', { unread_only: true, page_size: 5 }),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+    retry: false,
+  })
+
   useEffect(() => {
     if (!open) return
     const onOutside = (e: MouseEvent) => {
@@ -211,12 +221,13 @@ export function AdminNotificationsBell() {
 
   const unmatchedCount = transferData?.data?.total || 0
   const failedSmsCount = smsData?.data?.counts?.failed || 0
-  const totalAlerts = unmatchedCount + failedSmsCount
+  const unreadNotes = noteData?.data?.unread || 0
+  const totalAlerts = unmatchedCount + failedSmsCount + unreadNotes
 
   return (
     <div ref={containerRef} className="relative">
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Bekleyen işlemler"
-        title="Bekleyen işlemler"
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Bildirimler"
+        title="Bildirimler"
         className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:border-primary-600 hover:text-primary-600">
         <Bell className="h-4 w-4" aria-hidden="true" />
         {totalAlerts > 0 && (
@@ -252,6 +263,16 @@ export function AdminNotificationsBell() {
                     </div>
                   </Link>
                 )}
+                {(noteData?.data?.items || []).map((n) => (
+                  <Link key={n.id} href="/admin/bildirimler" onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50">
+                    <Bell className="h-4 w-4 shrink-0 text-primary-600" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-gray-900">{n.title}</p>
+                      <p className="truncate text-xs text-gray-500">{n.body}</p>
+                    </div>
+                  </Link>
+                ))}
                 {failedSmsCount > 0 && (
                   <Link href="/admin/sms-gonderimleri" onClick={() => setOpen(false)}
                     className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-gray-50">
@@ -265,6 +286,10 @@ export function AdminNotificationsBell() {
               </>
             )}
           </div>
+          <Link href="/admin/bildirimler" onClick={() => setOpen(false)}
+            className="block border-t border-gray-100 px-4 py-2.5 text-center text-xs font-semibold text-primary-700 hover:bg-gray-50">
+            Bildirim Merkezi{unreadNotes ? ` (${unreadNotes} okunmamış)` : ''}
+          </Link>
         </div>
       )}
     </div>

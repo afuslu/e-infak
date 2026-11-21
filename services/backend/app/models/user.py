@@ -42,6 +42,10 @@ class User(Base):
     must_change_password = Column(Boolean, nullable=False, default=False, server_default="false")
     
     last_login_at = Column(DateTime(timezone=True))
+    # Panel presence (STK PRO "Aktif Oturumlar"): the page and time of the latest heartbeat
+    last_seen_at = Column(DateTime(timezone=True))
+    last_seen_path = Column(String(200))
+    last_seen_ip = Column(String(64))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

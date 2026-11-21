@@ -5,16 +5,33 @@ import { useQuery } from '@tanstack/react-query'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useLayoutEffect, useState } from 'react'
 import Link from 'next/link'
-import { ChevronsLeft, ChevronsRight, ExternalLink, Lock, type LucideIcon, Monitor, Moon, Search, Sun, X } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, ExternalLink, GraduationCap, Lock, type LucideIcon, Monitor, Moon, Rows3, Search, Sun, X } from 'lucide-react'
 import { UiHost } from '../../components/admin/ui'
 import { IncomingCallPopup } from '../../components/admin/IncomingCallPopup'
 import { groupOf, NAV_RAIL, navItemFor, type NavItem, type NavRail, railOf, searchKey } from '../../components/admin/admin-nav'
 import { AdminCommandPalette, AdminNotificationsBell, AdminProfileMenu } from '../../components/admin/AdminShellWidgets'
 import SimulationBanner from '../../components/admin/SimulationBanner'
 import { exitSimulation, getSimulation, renewSimulation } from '../../lib/simulation'
-import { hasFeature, hasModule, hasPermission, useAdminAccess, v1Get, adminGet } from '../../lib/admin-access'
+import { SHORTCUT_ACTIONS, loadShortcuts } from '../../components/admin/shortcuts'
+import { helpFor } from '../../components/admin/page-help'
+import { hasFeature, hasModule, hasPermission, useAdminAccess, v1Get, adminGet, adminSend } from '../../lib/admin-access'
 
 const COLLAPSE_KEY = 'einfak-admin-sidebar-collapsed'
+const TRAINING_KEY = 'einfak-admin-egitim-modu'
+const DENSITY_KEY = 'einfak-admin-gorunum'
+
+/** A remembered on/off switch for the panel (Eğitim Modu, Görünüm: Sıkı). */
+function useStoredFlag(key: string) {
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    try { setOn(localStorage.getItem(key) === '1') } catch { /* ignore */ }
+  }, [key])
+  const toggle = () => setOn((prev) => {
+    try { localStorage.setItem(key, prev ? '0' : '1') } catch { /* ignore */ }
+    return !prev
+  })
+  return [on, toggle] as const
+}
 
 /** Reports the query string; Suspense keeps useSearchParams from forcing the whole layout client-only. */
 function SearchWatcher({ onChange }: { onChange: (search: string) => void }) {
@@ -109,6 +126,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // The sub-panel follows the page being viewed.
   useEffect(() => { setOpenRail(currentRail?.key) }, [currentRail?.key])
+  const [training, toggleTraining] = useStoredFlag(TRAINING_KEY)
+  const [compact, toggleCompact] = useStoredFlag(DENSITY_KEY)
+
+  // Presence for "Aktif Oturumlar": on every page change and once a minute while the tab is visible.
+  useEffect(() => {
+    if (!user || !pathname?.startsWith('/admin')) return
+    const beat = () => { if (document.visibilityState === 'visible') adminSend('post', '/presence', { path: pathname }).catch(() => {}) }
+    beat()
+    const t = setInterval(beat, 60_000)
+    return () => clearInterval(t)
+  }, [user, pathname])
+
+  // STK PRO F-key shortcuts (Sistem → Kısayollar).
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!/^F([2-4]|[6-9]|10)$/.test(event.key) || event.ctrlKey || event.metaKey || event.altKey) return
+      const action = SHORTCUT_ACTIONS.find((a) => a.key === loadShortcuts()[event.key])
+      if (!action) return
+      event.preventDefault()
+      router.push(action.href)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [router])
 
   useEffect(() => {
     try {
@@ -318,7 +359,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const muted = theme.dark ? 'text-[#5F7488]' : 'text-gray-400'
 
   return (
-    <div className={`flex min-h-screen bg-gray-100 ${theme.dark ? 'admin-dark' : ''}`} style={theme.dark ? ADMIN_PRIMARY_VARS_DARK : ADMIN_PRIMARY_VARS}>
+    <div className={`flex min-h-screen bg-gray-100 ${theme.dark ? 'admin-dark' : ''} ${compact ? 'admin-compact' : ''}`} style={theme.dark ? ADMIN_PRIMARY_VARS_DARK : ADMIN_PRIMARY_VARS}>
       <Suspense fallback={null}><SearchWatcher onChange={setSearch} /></Suspense>
       {drawerOpen && (
         <button type="button" aria-label="Menüyü kapat" onClick={() => setDrawerOpen(false)}
@@ -478,6 +519,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="hidden md:inline">Hızlı git…</span>
                 <kbd className="hidden rounded border border-gray-200 px-1.5 text-[10px] font-semibold text-gray-400 lg:inline">⌘K</kbd>
               </button>
+              <button type="button" onClick={toggleTraining} aria-pressed={training} title="Eğitim Modu: sayfalarda kısa kullanım ipuçları"
+                className={`hidden items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[13px] font-semibold transition-colors md:flex ${
+                  training ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 text-gray-600 hover:border-primary-600'
+                }`}>
+                <GraduationCap className="h-4 w-4" aria-hidden="true" /><span className="hidden xl:inline">Eğitim Modu</span>
+              </button>
+              <button type="button" onClick={toggleCompact} aria-pressed={compact} title={`Görünüm: ${compact ? 'Sıkı' : 'Normal'}`}
+                className="hidden items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2 text-[13px] font-semibold text-gray-600 transition-colors hover:border-primary-600 md:flex">
+                <Rows3 className="h-4 w-4" aria-hidden="true" /><span className="hidden xl:inline">Görünüm: {compact ? 'Sıkı' : 'Normal'}</span>
+              </button>
               <AdminNotificationsBell />
               <button type="button" onClick={theme.cycle} title="Panel teması (Açık → Koyu → Sistem)"
                 className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-2 text-[13px] font-semibold text-gray-600 transition-colors hover:border-primary-600 hover:text-primary-600">
@@ -525,6 +576,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <p className="mt-0.5 text-xs opacity-90">{n.message}</p>
                 </div>
               ))}
+            </div>
+          )}
+          {training && helpFor(pathname) && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-[13.5px] text-primary-900">
+              <GraduationCap className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              <p>{helpFor(pathname)}</p>
             </div>
           )}
           {blockedFeature ? (

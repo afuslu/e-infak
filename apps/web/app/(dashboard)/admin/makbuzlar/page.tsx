@@ -46,6 +46,10 @@ export default function ReceiptsPage() {
   const [totals, setTotals] = useState<{ currency: string; total_cents: number }[] | null>(null)
   const [newOpen, setNewOpen] = useState(false)
 
+  // F2 / "Yeni Makbuz" shortcut opens the form straight away.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('yeni') === '1') setNewOpen(true)
+  }, [])
   useEffect(() => {
     adminGet<Staff[]>('/users').then((r) => setStaff(r.data.filter((s) => s.is_active))).catch(() => {})
     adminGet<{ referral_source: string[] }>('/donors-options').then((r) => setReferrals(r.data.referral_source)).catch(() => {})

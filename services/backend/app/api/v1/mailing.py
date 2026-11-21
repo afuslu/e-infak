@@ -380,3 +380,42 @@ async def retry_mail(batch_id: UUID, request: Request, db: AsyncSession = Depend
         except Exception:
             pass
     return {"requeued": result.rowcount or 0}
+
+
+# --- Toplu Mail settings (Sistem Ayarları) ---------------------------------------------
+
+class MailSettingsIn(BaseModel):
+    from_name: Optional[str] = Field(default=None, max_length=100)
+    reply_to: Optional[str] = Field(default=None, max_length=200)
+
+    @field_validator("reply_to", mode="before")
+    @classmethod
+    def check_reply(cls, value):
+        value = (value or "").strip()
+        if value and not mailing.EMAIL_RE.match(value):
+            raise ValueError("Yanıt adresi geçerli bir e-posta olmalı")
+        return value or None
+
+
+@router.get("/mail/settings")
+async def get_mail_settings(request: Request, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.core.config import settings as app_settings
+    from app.models.organization import Organization
+
+    org = await db.get(Organization, _org(request))
+    values = ((org.settings or {}) if org else {}).get("mail") or {}
+    return {"from_name": values.get("from_name") or (org.name if org else ""), "reply_to": values.get("reply_to") or (org.email if org else ""),
+            "from_email": app_settings.FROM_EMAIL, "provider_ready": bool(app_settings.SENDGRID_API_KEY)}
+
+
+@router.put("/mail/settings")
+async def put_mail_settings(payload: MailSettingsIn, request: Request, db: AsyncSession = Depends(get_db),
+                            user: User = Depends(get_current_user)):
+    from app.models.organization import Organization
+
+    ensure_capability(user, "settings.manage", "Ayarları değiştirme yetkiniz yok")
+    org = await db.get(Organization, _org(request))
+    org.settings = {**(org.settings or {}), "mail": {"from_name": (payload.from_name or "").strip() or None, "reply_to": payload.reply_to}}
+    db.add(AuditLog(organization_id=org.id, user_id=user.id, action="mail_ayarlari", details={}))
+    await db.commit()
+    return await get_mail_settings(request, db, user)

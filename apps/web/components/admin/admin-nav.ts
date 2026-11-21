@@ -1,5 +1,5 @@
 import {
-  ArrowDownToLine, BarChart3, Beef, BellRing, Blocks, BookOpen, Calculator, CalendarDays, Coins, CreditCard, Droplets, FileText,
+  ArrowDownToLine, Bell, Download, Keyboard, Radio, SlidersHorizontal, BarChart3, Beef, BellRing, Blocks, BookOpen, Calculator, CalendarDays, Coins, CreditCard, Droplets, FileText,
   FileUp, Film, FolderOpen, Globe2, HandCoins, HandHelping, HeartHandshake, HelpCircle, History, Home, IdCard, KeyRound,
   Landmark, LayoutDashboard, LayoutGrid, LifeBuoy, ListChecks, Mail, LogIn, type LucideIcon, MailPlus, Megaphone, MessageSquareText,
   MessagesSquare, Newspaper, PackageCheck, Palette, PanelsTopLeft, PhoneCall, PiggyBank, Plug, Repeat, Send, Settings,
@@ -182,23 +182,34 @@ export const NAV_RAIL: NavRail[] = [
     key: 'sistem', label: 'Sistem', icon: Settings, sections: [
       {
         title: 'Ayarlar', items: [
-          { href: '/admin/odeme-sms', label: 'Sanal Pos & SMS Hesapları', icon: KeyRound, module: 'settings' },
-          { href: '/admin/banka-odeme?sekme=online-bagis', label: 'Sanal Pos Ayarları', icon: CreditCard, module: ['bank', 'settings'] },
+          { href: '/admin/sistem-ayarlari', label: 'Sistem Ayarları', icon: Settings, module: 'settings' },
           { href: '/admin/users', label: 'Kullanıcılar & Roller', icon: ShieldCheck, feature: 'roles', module: 'users' },
+          { href: '/admin/temsilciler', label: 'Temsilciler', icon: UsersRound, module: ['users', 'donors', 'settings'] },
           { href: '/admin/kurlar', label: 'Döviz Kurları', icon: Coins },
           { href: '/admin/giris-kayitlari', label: 'Kullanıcı Giriş Logları', icon: LogIn, module: ['settings', 'users'] },
           { href: '/admin/ip-kurallari', label: 'IP İzinleri & Engellemeler', icon: Globe2, module: ['settings', 'users'] },
+          { href: '/admin/aktif-oturumlar', label: 'Aktif Oturumlar', icon: Radio, module: ['settings', 'users'] },
+          { href: '/admin/odeme-sms', label: 'Sanal Pos & SMS Hesapları', icon: KeyRound, module: 'settings' },
           { href: '/admin/integrations', label: 'API & Webhook', icon: Plug, module: 'settings' },
+        ],
+      },
+      {
+        title: 'Bildirim Merkezi', items: [
+          { href: '/admin/bildirimler', label: 'Bildirim Merkezi', icon: Bell },
+          { href: '/admin/bildirimler?sekme=kurallar', label: 'Bildirim Kuralları', icon: SlidersHorizontal },
         ],
       },
       {
         title: 'Loglar', items: [
           { href: '/admin/islem-kayitlari', label: 'İşlem Geçmişi', icon: History, module: ['settings', 'users'] },
+          { href: '/admin/disa-aktarimlar', label: 'Dışa Aktarımlar', icon: Download, module: ['settings', 'users'] },
         ],
       },
       {
         title: 'Hesap', items: [
           { href: '/admin/paket', label: 'Paket & Modüller', icon: PackageCheck },
+          { href: '/admin/tercihlerim', label: 'Tercihlerim', icon: SlidersHorizontal },
+          { href: '/admin/kisayollar', label: 'Kısayollar', icon: Keyboard },
         ],
       },
     ],
