@@ -10,10 +10,10 @@ from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import Date, Integer, and_, case, cast, distinct, extract, func, or_, select
+from sqlalchemy import Date, Integer, String, and_, case, cast, distinct, extract, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_admin_route_feature, require_admin_route_permission, require_feature
+from app.api.deps import get_current_user, require_admin_route_feature, require_admin_route_permission, require_feature
 from app.core.db import get_db
 from app.core.plans import Feature
 from app.models.campaign import Campaign, CampaignCategory, CampaignStatus
@@ -754,6 +754,154 @@ async def _compute_derbis(db: AsyncSession, org_id: UUID, year: int) -> dict:
         "receipt_books_count": len(books),
         "used_sheets": used_sheets,
         "voided_sheets": voided_sheets,
+    }
+
+
+def _optional_range(start: Optional[date], end: Optional[date]):
+    """STK PRO reports: an empty range means "all time"."""
+    if start and end and end < start:
+        raise HTTPException(status_code=422, detail="Bitiş tarihi başlangıçtan önce olamaz")
+    conditions = []
+    if start:
+        conditions.append(_local_day >= start)
+    if end:
+        conditions.append(_local_day <= end)
+    return conditions
+
+
+@router.get("/channels", dependencies=ADVANCED)
+async def channel_report(request: Request, start: Optional[date] = None, end: Optional[date] = None,
+                         currency: str = "TRY", db: AsyncSession = Depends(get_db)):
+    """Bağış Kanalı Dağılımı: totals by payment method, and online vs staff-entered."""
+    org_id = _org_id(request)
+    currency = _currency(currency)
+    where = [*_confirmed(org_id, currency), *_optional_range(start, end)]
+    by_method = (await db.execute(
+        select(Donation.payment_method, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
+        .where(*where).group_by(Donation.payment_method)
+    )).all()
+    channel = case(
+        (Donation.payment_provider.like("bank:%"), "Banka eşleşmesi"),
+        (Donation.payment_provider.in_(["manual", "stkpro"]), "Personel (makbuz)"),
+        (Donation.payment_provider == "money_box", "Kumbara"),
+        (Donation.payment_provider == "sms_donation", "SMS bağışı"),
+        (Donation.payment_provider == "import", "Aktarım"),
+        (Donation.issued_by_id.is_(None), "Web (online)"),
+        else_="Diğer",
+    )
+    by_channel = (await db.execute(
+        select(channel, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0)).where(*where).group_by(channel)
+    )).all()
+    return {
+        "currency": currency,
+        "methods": [{"label": PAYMENT_METHOD_LABELS.get(m, m.value), "count": int(c), "total_cents": int(t)}
+                    for m, c, t in sorted(by_method, key=lambda r: r[2], reverse=True)],
+        "channels": [{"label": l, "count": int(c), "total_cents": int(t)} for l, c, t in sorted(by_channel, key=lambda r: r[2], reverse=True)],
+    }
+
+
+@router.get("/sources", dependencies=ADVANCED)
+async def source_report(request: Request, start: Optional[date] = None, end: Optional[date] = None,
+                        db: AsyncSession = Depends(get_db)):
+    """Bağışçı Kaynağı: donors by referral source (and membership type); the range applies to the join date."""
+    from app.models.donation import Donor
+
+    org_id = _org_id(request)
+    joined = cast(func.timezone(TZ, Donor.created_at), Date)
+    where = [Donor.organization_id == org_id]
+    if start:
+        where.append(joined >= start)
+    if end:
+        where.append(joined <= end)
+    out = {}
+    for key, column in (("sources", Donor.referral_source), ("membership_types", Donor.membership_type)):
+        rows = (await db.execute(
+            select(func.coalesce(column, "Belirtilmemiş"), func.count(Donor.id), func.coalesce(func.sum(Donor.total_donated_cents), 0))
+            .where(*where).group_by(func.coalesce(column, "Belirtilmemiş")).order_by(func.count(Donor.id).desc())
+        )).all()
+        out[key] = [{"label": l, "count": int(c), "total_cents": int(t)} for l, c, t in rows]
+    return out
+
+
+TYPE_LABELS = {"standard": "Standart", "sponsorship": "Sponsorluk", "kurban": "Kurban", "water_well": "Su Kuyusu",
+               "project": "Proje", "food_package": "Kumanya"}
+
+
+@router.get("/types", dependencies=ADVANCED)
+async def type_report(request: Request, start: Optional[date] = None, end: Optional[date] = None,
+                      currency: str = "TRY", db: AsyncSession = Depends(get_db)):
+    """Türlere Göre Bağış: by campaign type (Standart, Kurban, Su Kuyusu…) and by donation category."""
+    org_id = _org_id(request)
+    currency = _currency(currency)
+    where = [*_confirmed(org_id, currency), *_optional_range(start, end)]
+    by_type = (await db.execute(
+        select(Campaign.campaign_type, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
+        .join(Campaign, Campaign.id == Donation.campaign_id).where(*where).group_by(Campaign.campaign_type)
+    )).all()
+    by_category = (await db.execute(
+        select(Campaign.category, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
+        .join(Campaign, Campaign.id == Donation.campaign_id).where(*where).group_by(Campaign.category)
+    )).all()
+    return {
+        "currency": currency,
+        "types": [{"label": TYPE_LABELS.get(t, t), "count": int(c), "total_cents": int(v)} for t, c, v in sorted(by_type, key=lambda r: r[2], reverse=True)],
+        "categories": [{"label": CATEGORY_LABELS.get(k, str(k)), "count": int(c), "total_cents": int(v)} for k, c, v in sorted(by_category, key=lambda r: r[2], reverse=True)],
+    }
+
+
+@router.get("/stk-dashboard")
+async def stk_dashboard(request: Request, year: Optional[int] = None, month: Optional[int] = None,
+                        db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """STK PRO Anasayfa cards and the "Günlere Göre Yapılan Bağışlar" chart of one month."""
+    from app.models.automation import BankTransaction, ReconciliationStatus
+    from app.models.donation import Donor
+    from app.models.kurban import KurbanShare, KurbanStatus
+    from app.models.payment import PaymentOrder, PaymentOrderStatus
+
+    org_id = _org_id(request)
+    today = today_local()
+    now = datetime.now(ZoneInfo(TZ))
+    since = now - timedelta(days=30)
+    receipt_key = func.coalesce(cast(Donation.receipt_seq, String), Donation.payment_details["receipt_group"].astext,
+                                cast(Donation.id, String))
+    today_row = (await db.execute(
+        select(func.count(distinct(receipt_key)), func.coalesce(func.sum(Donation.amount_cents), 0))
+        .where(*_confirmed(org_id, "TRY"), _local_day == today)
+    )).one()
+    donors_today = (await db.execute(select(func.count(Donor.id)).where(
+        Donor.organization_id == org_id, cast(func.timezone(TZ, Donor.created_at), Date) == today))).scalar_one()
+    donors_total = (await db.execute(select(func.count(Donor.id)).where(Donor.organization_id == org_id))).scalar_one()
+    # Paid online but no donation written yet (the payment callback did not finish).
+    stuck_online = (await db.execute(select(func.count(PaymentOrder.id)).where(
+        PaymentOrder.organization_id == org_id, PaymentOrder.created_at >= since,
+        PaymentOrder.status == PaymentOrderStatus.PROCESSING,
+        PaymentOrder.created_at < now - timedelta(minutes=15),
+    ))).scalar_one()
+    unmatched_bank = (await db.execute(select(func.count(BankTransaction.id)).where(
+        BankTransaction.organization_id == org_id, BankTransaction.booked_at >= since, BankTransaction.amount_cents > 0,
+        BankTransaction.status.in_([ReconciliationStatus.UNMATCHED, ReconciliationStatus.AMBIGUOUS]),
+    ))).scalar_one()
+    unassigned_kurban = (await db.execute(select(func.count(KurbanShare.id)).where(
+        KurbanShare.organization_id == org_id, KurbanShare.animal_id.is_(None), KurbanShare.status == KurbanStatus.WAITING,
+    ))).scalar_one()
+
+    year = year or today.year
+    month = month or today.month
+    if not (2000 <= year <= 2100 and 1 <= month <= 12):
+        raise HTTPException(status_code=422, detail="Geçersiz ay")
+    first = date(year, month, 1)
+    last = (first + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    rows = dict((await db.execute(
+        select(_local_day, func.coalesce(func.sum(Donation.amount_cents), 0))
+        .where(*_confirmed(org_id, "TRY"), _local_day.between(first, last)).group_by(_local_day)
+    )).all())
+    days = [{"day": d, "total_cents": int(rows.get(first + timedelta(days=d - 1), 0))} for d in range(1, last.day + 1)]
+    return {
+        "today_receipts": int(today_row[0] or 0), "today_cents": int(today_row[1] or 0),
+        "donors_today": int(donors_today), "donors_total": int(donors_total),
+        "unmatched_online_30d": int(stuck_online), "unmatched_bank_30d": int(unmatched_bank),
+        "unassigned_kurban": int(unassigned_kurban),
+        "year": year, "month": month, "days": days,
     }
 
 

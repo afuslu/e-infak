@@ -7,7 +7,7 @@ import { Card } from '@e-infak/ui'
 import { adminGet, apiErrorMessage, downloadFile, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
 import { ExportButtons, PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
-type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors' | 'recurring'
+type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors' | 'recurring' | 'channels' | 'sources' | 'types'
 
 const REPORTS: { key: ReportKey; label: string; advanced: boolean }[] = [
   { key: 'monthly', label: 'Aylık Bağış', advanced: false },
@@ -17,7 +17,27 @@ const REPORTS: { key: ReportKey; label: string; advanced: boolean }[] = [
   { key: 'staff', label: 'Personel Makbuz', advanced: true },
   { key: 'donors', label: 'Bağışçı Sayısı', advanced: true },
   { key: 'recurring', label: 'Düzenli Bağışlar', advanced: true },
+  { key: 'channels', label: 'Bağış Kanalı Dağılımı', advanced: true },
+  { key: 'sources', label: 'Bağışçı Kaynağı', advanced: true },
+  { key: 'types', label: 'Türlere Göre Bağış', advanced: true },
 ]
+
+/** STK PRO's 12 report cards ("Aşağıdaki 12 rapordan birini seçin"); detailed ones open the list screens. */
+const CARDS: { title: string; text: string; report?: ReportKey; href?: string }[] = [
+  { title: 'Günlere Göre Yapılan Toplam Bağış Tutarı', text: 'Seçilen aralıkta gün gün toplam bağış (grafik + tablo).', report: 'daily' },
+  { title: 'Aylık Bazda Bağış Raporu', text: 'Seçilen yılda ay ay bağış toplamları.', report: 'monthly' },
+  { title: 'Son 5 Yıl Karşılaştırmalı Rapor', text: 'Son 5 yılın aylık bazda karşılaştırması.', report: 'yearly' },
+  { title: 'En Çok Bağış Yapılan Kampanyalar', text: 'Bağış toplamına göre en çok bağış alan kampanyalar.', report: 'campaigns' },
+  { title: 'Bağış Kanalı Dağılımı', text: 'Ödeme şekline ve kanala göre bağış dağılımı; aralık boşsa tüm zamanlar.', report: 'channels' },
+  { title: 'Bağışçı Kaynağı', text: 'Bağışçıların referans/kaynak dağılımı; aralık üyelik tarihine uygulanır.', report: 'sources' },
+  { title: 'Personel Makbuz Raporu', text: 'Tarih aralığında personel başına makbuz adedi ve tutarı.', report: 'staff' },
+  { title: 'Personel Makbuz Raporu (Detaylı)', text: 'Personel bazında makbuz dökümü (Makbuzlar ekranında Personel sütunundan filtreleyin).', href: '/admin/makbuzlar' },
+  { title: 'Kampanya/Bağış Raporu', text: 'Tarih aralığında kampanya bazında bağış toplamları.', report: 'campaigns' },
+  { title: 'Kampanya/Bağış Raporu (Detaylı)', text: 'Kampanya bazında bağış dökümü (Tüm Bağışlar ekranında kampanyayı seçin).', href: '/admin/bagislar' },
+  { title: 'Türlere Göre Bağış Raporu', text: 'Bağış türlerine (standart, kurban, su kuyusu, proje…) göre dağılım.', report: 'types' },
+  { title: 'Bağışçı Sayısı Raporu', text: 'Tarih aralığında bağışçı sayıları.', report: 'donors' },
+]
+const RANGE_REPORTS: ReportKey[] = ['daily', 'campaigns', 'staff', 'donors', 'channels', 'sources', 'types']
 
 const ENDPOINTS: Record<ReportKey, string> = {
   monthly: '/reports/monthly',
@@ -27,6 +47,9 @@ const ENDPOINTS: Record<ReportKey, string> = {
   staff: '/reports/staff-receipts',
   donors: '/reports/donors',
   recurring: '/reports/recurring',
+  channels: '/reports/channels',
+  sources: '/reports/sources',
+  types: '/reports/types',
 }
 
 // Local calendar date; toISOString() would shift to UTC and land on the previous day in Türkiye.
@@ -451,7 +474,10 @@ export default function ReportsPage() {
   const advancedEnabled = hasFeature(access, 'reports_advanced')
   const today = new Date()
 
-  const [report, setReport] = useState<ReportKey>('monthly')
+  const [report, setReportKey] = useState<ReportKey>('monthly')
+  // STK PRO opens on the report cards; picking one (or a ?tab= link) shows that report.
+  const [home, setHome] = useState(true)
+  const setReport = (key: ReportKey) => { setReportKey(key); setHome(false) }
   const [currency, setCurrency] = useState('TRY')
   const [year, setYear] = useState(today.getFullYear())
   const [yearsCount, setYearsCount] = useState(5)
@@ -494,12 +520,12 @@ export default function ReportsPage() {
       sp.set('years', String(yearsCount))
       if (ytd) sp.set('ytd', '1')
     }
-    if (['daily', 'campaigns', 'staff', 'donors'].includes(report)) {
+    if (RANGE_REPORTS.includes(report)) {
       sp.set('start', start)
       sp.set('end', end)
     }
-    window.history.replaceState(null, '', `?${sp.toString()}`)
-  }, [report, currency, year, yearsCount, ytd, start, end])
+    window.history.replaceState(null, '', home ? window.location.pathname : `?${sp.toString()}`)
+  }, [report, currency, year, yearsCount, ytd, start, end, home])
 
   const applyPreset = (preset: '7d' | '30d' | 'this_month' | 'last_month' | 'this_year') => {
     const now = new Date()
@@ -536,6 +562,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     const meta = REPORTS.find((r) => r.key === report)
+    if (home) return
     if (meta?.advanced && !advancedEnabled) {
       setDataState(null)
       return
@@ -548,7 +575,7 @@ export default function ReportsPage() {
       .catch((err) => { if (!cancelled) { setDataState(null); setError(apiErrorMessage(err, 'Rapor yüklenemedi')) } })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [report, params, advancedEnabled, reloadKey])
+  }, [report, params, advancedEnabled, reloadKey, home])
 
   const locked = REPORTS.find((r) => r.key === report)?.advanced && !advancedEnabled
   const money = (cents: number) => formatMoney(cents, currency)
@@ -576,7 +603,7 @@ export default function ReportsPage() {
                 </label>
               </>
             )}
-            {['daily', 'campaigns', 'staff', 'donors'].includes(report) && (
+            {RANGE_REPORTS.includes(report) && !home && (
               <>
                 <input type="date" value={start} max={end} onChange={(e) => setStart(e.target.value)} className="rounded-lg border bg-white p-2" />
                 <span className="text-gray-400">–</span>
@@ -610,20 +637,15 @@ export default function ReportsPage() {
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-        <div className="flex flex-wrap gap-2">
-          {REPORTS.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => setReport(r.key)}
-              className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition ${
-                report === r.key ? 'border-primary-600 bg-primary-600 text-white' : 'bg-white text-gray-700 hover:border-primary-600'
-              }`}
-            >
-              {r.label}{r.advanced && !advancedEnabled ? ' (üst pakette)' : ''}
-            </button>
-          ))}
-        </div>
-        {['daily', 'campaigns', 'staff', 'donors'].includes(report) && (
+        <label className="flex min-w-[280px] flex-1 items-center gap-2 text-sm">
+          <span className="whitespace-nowrap text-gray-500">Tüm Raporlar</span>
+          <select value={home ? '' : report} onChange={(e) => (e.target.value ? setReport(e.target.value as ReportKey) : setHome(true))}
+            className="w-full rounded-lg border bg-white p-2.5 font-semibold">
+            <option value="">Rapor seçin…</option>
+            {REPORTS.map((r) => <option key={r.key} value={r.key}>{r.label}{r.advanced && !advancedEnabled ? ' (üst pakette)' : ''}</option>)}
+          </select>
+        </label>
+        {RANGE_REPORTS.includes(report) && !home && (
           <div className="flex flex-wrap gap-1.5 text-xs">
             {([
               ['7d', 'Son 7 Gün'],
@@ -645,7 +667,25 @@ export default function ReportsPage() {
         )}
       </div>
 
-      {locked ? (
+      {home ? (
+        <section className="rounded-2xl border border-slate-200/80 bg-white p-5">
+          <h2 className="text-[16px] font-bold text-gray-900">Raporlar</h2>
+          <p className="mb-4 text-[13px] text-gray-500">Aşağıdaki {CARDS.length} rapordan birini seçin; grafikler ve tablolar seçtiğiniz filtrelere göre hesaplanır. Üstteki listeden de seçebilirsiniz.</p>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {CARDS.map((c) => {
+              const cls = 'block h-full rounded-xl border border-gray-200 p-4 text-left transition hover:border-primary-400 hover:shadow-sm'
+              const inner = <><div className="text-[14.5px] font-bold text-gray-900">{c.title}</div><p className="mt-1.5 text-[12.5px] text-gray-500">{c.text}</p></>
+              return c.href
+                ? <Link key={c.title} href={c.href} className={cls}>{inner}</Link>
+                : <button key={c.title} type="button" onClick={() => setReport(c.report!)} className={cls}>{inner}</button>
+            })}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2 text-[13px]">
+            <button type="button" onClick={() => setReport('recurring')} className="rounded-lg border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50">Düzenli Bağışlar</button>
+            <Link href="/admin/ai" className="rounded-lg border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50">AI Öngörüleri</Link>
+          </div>
+        </section>
+      ) : locked ? (
         <Card className="border border-gray-100 p-8 text-center shadow-sm">
           <p className="mb-4 text-sm text-gray-600">Bu rapor <strong>Gelişmiş Raporlar</strong> modülünün parçası ve kurumunuzun paketinde yer almıyor.</p>
           <Link href="/admin/paket" className="text-sm font-semibold text-primary-700 hover:underline">Paketleri karşılaştır →</Link>
@@ -661,7 +701,60 @@ export default function ReportsPage() {
   )
 }
 
+function SplitTable({ title, rows, money, countLabel = 'Adet' }: { title: string; rows: { label: string; count: number; total_cents: number }[]; money: (c: number) => string; countLabel?: string }) {
+  const total = rows.reduce((n, r) => n + r.total_cents, 0)
+  return (
+    <Card className="border border-gray-100 p-5 shadow-sm">
+      <h3 className="mb-3 font-bold text-gray-900">{title}</h3>
+      <Table>
+        <THead><Tr><Th>Kalem</Th><Th className="text-right">{countLabel}</Th><Th className="text-right">Tutar</Th><Th className="text-right">Pay</Th></Tr></THead>
+        <TBody>
+          {rows.map((r) => (
+            <Tr key={r.label}>
+              <Td className="font-semibold">{r.label}</Td>
+              <Td className="text-right tabular-nums">{r.count.toLocaleString('tr-TR')}</Td>
+              <Td className="text-right tabular-nums">{money(r.total_cents)}</Td>
+              <Td className="text-right tabular-nums">%{total ? ((r.total_cents * 100) / total).toLocaleString('tr-TR', { maximumFractionDigits: 1 }) : 0}</Td>
+            </Tr>
+          ))}
+          {!rows.length && <Tr><Td className="py-6 text-center text-gray-400">Kayıt yok.</Td></Tr>}
+        </TBody>
+      </Table>
+    </Card>
+  )
+}
+
 function ReportBody({ report, data, money, currency }: { report: ReportKey; data: any; money: (c: number) => string; currency: string }) {
+  if (report === 'channels') {
+    return (
+      <div className="grid gap-5 lg:grid-cols-2">
+        <DonutBreakdown title="Ödeme Şekli" items={data.methods.map((m: any) => ({ label: m.label, value: m.total_cents, count: m.count }))} currency={currency} />
+        <DonutBreakdown title="Bağış Kanalı" items={data.channels.map((m: any) => ({ label: m.label, value: m.total_cents, count: m.count }))} currency={currency} />
+        <SplitTable title="Ödeme Şekline Göre" rows={data.methods} money={money} />
+        <SplitTable title="Kanala Göre" rows={data.channels} money={money} />
+      </div>
+    )
+  }
+  if (report === 'sources') {
+    return (
+      <div className="grid gap-5 lg:grid-cols-2">
+        <DonutBreakdown title="Bağışçı Kaynağı (kişi)" isCount items={data.sources.map((m: any) => ({ label: m.label, value: m.count }))} currency={currency} />
+        <DonutBreakdown title="Üyelik Tipi (kişi)" isCount items={data.membership_types.map((m: any) => ({ label: m.label, value: m.count }))} currency={currency} />
+        <SplitTable title="Kaynağa Göre (bağışçı / toplam bağışları)" rows={data.sources} money={money} countLabel="Bağışçı" />
+        <SplitTable title="Üyelik Tipine Göre" rows={data.membership_types} money={money} countLabel="Bağışçı" />
+      </div>
+    )
+  }
+  if (report === 'types') {
+    return (
+      <div className="grid gap-5 lg:grid-cols-2">
+        <DonutBreakdown title="Kampanya Türü" items={data.types.map((m: any) => ({ label: m.label, value: m.total_cents, count: m.count }))} currency={currency} />
+        <DonutBreakdown title="Bağış Türü" items={data.categories.map((m: any) => ({ label: m.label, value: m.total_cents, count: m.count }))} currency={currency} />
+        <SplitTable title="Kampanya Türüne Göre" rows={data.types} money={money} />
+        <SplitTable title="Bağış Türüne Göre" rows={data.categories} money={money} />
+      </div>
+    )
+  }
   if (report === 'monthly') {
     const rows = data.months.map((m: any) => [m.label, m.count, m.donor_count, money(m.total_cents)])
     return (

@@ -439,3 +439,25 @@ async def test_presence_active_sessions_and_representatives(db_session):
     assert [(i["name"], i["path"], i["live"]) for i in live["items"]] == [("Ayşe Admin", "/admin/bagiscilar", True)]
     reps = await crm.representatives(_request(org), db_session, admin)
     assert [(r["name"], r["donor_count"], r["total_donated_cents"]) for r in reps] == [("Ayşe Admin", 1, 5_000)]
+
+
+async def test_stk_dashboard_and_type_reports(db_session):
+    from app.api.v1 import reports
+
+    org, admin, campaign = await _setup(db_session)
+    campaign.campaign_type = "kurban"
+    donor = Donor(organization_id=org.id, first_name="Ali", referral_source="Cami")
+    db_session.add(donor)
+    await db_session.commit()
+    row = await crm.create_manual_donation(_request(org, "POST"), crm.ManualDonationIn(
+        idempotency_key="d" * 20, donor_id=donor.id, payment_method="cash", send_receipt=False,
+        lines=[crm.ReceiptLine(campaign_id=campaign.id, amount_cents=1_000_00), crm.ReceiptLine(campaign_id=campaign.id, amount_cents=500_00)],
+    ), db_session, admin)
+    assert row["receipt_seq"]
+    dash = await reports.stk_dashboard(_request(org), None, None, db_session, admin)
+    assert dash["today_receipts"] == 1 and dash["today_cents"] == 1_500_00 and dash["donors_today"] == 1
+    assert sum(d["total_cents"] for d in dash["days"]) == 1_500_00
+    types = await reports.type_report(_request(org), None, None, "TRY", db_session)
+    assert types["types"] == [{"label": "Kurban", "count": 2, "total_cents": 1_500_00}]
+    sources = await reports.source_report(_request(org), None, None, db_session)
+    assert sources["sources"] == [{"label": "Cami", "count": 1, "total_cents": 1_500_00}]

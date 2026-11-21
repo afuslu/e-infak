@@ -167,6 +167,7 @@ ROUTE_RULES: tuple[tuple[str, frozenset | str, frozenset | str], ...] = tuple(
         ("/admin-features/members", {"members"}, {"members"}),
         ("/admin-features/pledges", {"operations", "donors", "receipts"}, {"operations", "donors", "receipts"}),
         ("/admin-features/receipt-books", {"receipts", "finance", "bank"}, {"receipts", "finance"}),
+        ("/admin-features/reports/stk-dashboard", {"reports", "receipts", "donors", "bank"}, {"reports"}),
         ("/admin-features/reports/", {"reports"}, {"reports"}),
         # SMS endpoints check sms.send / sms.bulk / sms.templates themselves.
         ("/admin-features/sms/account", {"sms", "settings"}, {"settings"}),
