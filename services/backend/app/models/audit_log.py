@@ -22,3 +22,7 @@ class AuditLog(Base):
 
     def __repr__(self):
         return f"<AuditLog {self.action} by user {self.user_id} at {self.created_at}>"
+
+
+# Registers the listener that tags rows written during a platform simulation.
+import app.core.impersonation  # noqa: E402,F401

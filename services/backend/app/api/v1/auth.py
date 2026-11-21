@@ -28,6 +28,7 @@ from app.schemas.auth import (
 )
 from app.api.deps import get_current_user
 from app.core.rate_limit import rate_limit
+from app.core.impersonation import SIMULATION_FORBIDDEN, current_impersonator, is_impersonating
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -178,7 +179,10 @@ async def logout(
     db: AsyncSession = Depends(get_db),
 ):
     """Logout user (revoke all sessions)"""
-    
+    # A platform simulation ends in the browser; the admin's own sessions stay intact.
+    if is_impersonating():
+        return {"message": "Simulation ended"}
+
     # Revoke all user sessions
     result = await db.execute(
         select(UserSession).where(
@@ -197,9 +201,19 @@ async def logout(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
-    """Get current user profile"""
-    return current_user
+async def get_me(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Get current user profile; `impersonated_by` names the platform operator of a simulation."""
+    data = UserResponse.model_validate(current_user)
+    operator_id = current_impersonator.get()
+    if operator_id:
+        from app.models.platform import PlatformUser
+        try:
+            operator = await db.get(PlatformUser, UUID(operator_id))
+        except ValueError:
+            operator = None
+        data.impersonated_by = {"id": operator_id, "email": operator.email if operator else None,
+                                "name": getattr(operator, "full_name", None) if operator else None}
+    return data
 
 
 class PasswordChange(BaseModel):
@@ -216,6 +230,8 @@ async def change_my_password(
     _: None = Depends(rate_limit("staff-password", limit=10, window_seconds=600)),
 ):
     """The signed-in user changes their own password; other devices are signed out."""
+    if is_impersonating():
+        raise HTTPException(status_code=403, detail=SIMULATION_FORBIDDEN)
     if not verify_password(payload.current_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Mevcut şifre hatalı")
     if payload.new_password == payload.current_password:

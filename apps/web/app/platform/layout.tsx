@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BarChart3, Building2, History, Inbox, KeyRound, LifeBuoy, LogOut, Megaphone, Moon, PlusCircle, Search, Sun, Users, X, type LucideIcon } from 'lucide-react'
+import OrgSimulateSwitcher from '../../components/platform/OrgSimulateSwitcher'
 import { PlatformMe, PlatformOrg, platformCall, platformError, platformToken, setPlatformToken } from '../../lib/platform-api'
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
@@ -134,6 +135,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
             <span>E‑İnfak Platform</span>
           </Link>
           <div className="flex shrink-0 items-center gap-1.5 lg:order-3">
+            {!mustChange && <OrgSimulateSwitcher orgs={orgs.length ? orgs : undefined} label="Simüle et" />}
             {!mustChange && (
               <button
                 type="button"

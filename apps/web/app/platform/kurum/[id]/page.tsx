@@ -6,6 +6,7 @@ import { Download, Printer } from 'lucide-react'
 import { AlertList } from '../../../../components/platform/AlertList'
 import { AuditEntry, AuditTable } from '../../../../components/platform/AuditTable'
 import { SubscriptionCard } from '../../../../components/platform/SubscriptionCard'
+import { startSimulation } from '../../../../lib/simulation'
 import {
   Catalog, Credentials, PlatformAlert, PlatformDomain, PlatformOrg, copyText, credentialsText, dateTr, platformCall, platformError, platformToken,
 } from '../../../../lib/platform-api'
@@ -147,6 +148,17 @@ export default function PlatformOrganizationPage() {
     }
   }
 
+  const simulate = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await startSimulation(org.id)
+    } catch (err) {
+      setMsg({ type: 'error', text: errorText(err, 'Simülasyon başlatılamadı') })
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
@@ -199,7 +211,10 @@ export default function PlatformOrganizationPage() {
             <Printer className="h-4 w-4" aria-hidden="true" />
             <span>Yazdır</span>
           </button>
-          <button type="button" onClick={supportSignIn} disabled={!org.is_active}
+          <button type="button" onClick={simulate} disabled={!org.is_active}
+            className="rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-40"
+            title="Kurumun panelini bu sekmede yönetici olarak açar">Simüle et</button>
+          <button type="button" onClick={supportSignIn} disabled={!org.is_active} title="Kurumun kendi adresinde yeni sekmede açar"
             className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40">Panele destek girişi</button>
           {org.is_active ? (
             <button type="button" className="rounded-xl bg-red-600 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-red-700"

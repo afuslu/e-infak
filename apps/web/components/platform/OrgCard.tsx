@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { startSimulation } from '../../lib/simulation'
 import {
   AlertTriangle,
+  Eye,
   ArrowRight,
   Check,
   Copy,
@@ -18,7 +20,7 @@ import {
   StickyNote,
   Users,
 } from 'lucide-react'
-import { PlatformAlert, PlatformOrg, copyText, dateTr } from '../../lib/platform-api'
+import { PlatformAlert, PlatformOrg, copyText, dateTr, platformError } from '../../lib/platform-api'
 
 interface OrgCardProps {
   org: PlatformOrg
@@ -271,6 +273,17 @@ export function OrgCard({ org, alerts, busy, onSupport, onToggleActive }: OrgCar
         </Link>
 
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            disabled={!org.is_active || busy}
+            onClick={() => startSimulation(org.id).catch((err) => window.alert(platformError(err, 'Simülasyon başlatılamadı')))}
+            title="Paneli bu sekmede yönetici olarak aç"
+            aria-label={`${org.name} simüle et`}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-40"
+          >
+            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Simüle et</span>
+          </button>
           <button
             type="button"
             disabled={!org.is_active || busy}

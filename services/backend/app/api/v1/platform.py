@@ -38,6 +38,8 @@ _bearer = HTTPBearer(auto_error=False)
 
 PLATFORM_TOKEN_HOURS = 8
 SUPPORT_TOKEN_MINUTES = 30
+# In-console simulation (same tab, platform host): longer, renewable from the banner.
+SIMULATION_TOKEN_MINUTES = 60
 
 
 # --- Auth -----------------------------------------------------------------------
@@ -644,12 +646,23 @@ async def reset_user_password(org_id: UUID, user_id: UUID, request: Request, db:
     return {"email": user.email, "temporary_password": password, "login_url": login_url, "email_sent": email_sent}
 
 
+class SupportSessionIn(BaseModel):
+    # True: the console keeps the token and opens the panel in the same tab (simulation).
+    inline: bool = False
+    renew: bool = False
+
+
 @router.post("/organizations/{org_id}/support-session")
-async def support_session(org_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
+async def support_session(org_id: UUID, request: Request, body: Optional[SupportSessionIn] = None,
+                          db: AsyncSession = Depends(get_db),
                           operator: PlatformUser = Depends(get_platform_user)):
     """Short sign-in to the organisation's panel as its administrator, for support.
 
-    Recorded in both the platform log and the organisation's own audit log."""
+    `inline` returns the token itself so the platform console can simulate the
+    organisation in place (E-Medrese style kurum seçici); otherwise a link that opens
+    the panel on the organisation's own address. Recorded in both the platform log and
+    the organisation's own audit log."""
+    body = body or SupportSessionIn()
     org = await _org_or_404(db, org_id)
     if not org.is_active:
         raise HTTPException(status_code=409, detail="Askıdaki kurumun paneline girilemez")
@@ -658,14 +671,24 @@ async def support_session(org_id: UUID, request: Request, db: AsyncSession = Dep
     ).order_by(User.created_at).limit(1))).scalar_one_or_none()
     if not admin:
         raise HTTPException(status_code=409, detail="Kurumda aktif yönetici yok")
-    token = create_access_token({"sub": str(admin.id), "imp": str(operator.id)},
-                                expires_delta=timedelta(minutes=SUPPORT_TOKEN_MINUTES))
-    _audit(db, request, operator, "destek_girisi", org.id, as_user=admin.email)
-    db.add(AuditLog(organization_id=org.id, user_id=admin.id, action="platform_destek_girisi",
-                    details={"by": operator.email, "minutes": SUPPORT_TOKEN_MINUTES}))
-    await db.commit()
+    minutes = SIMULATION_TOKEN_MINUTES if body.inline else SUPPORT_TOKEN_MINUTES
+    token = create_access_token({"sub": str(admin.id), "imp": str(operator.id), "org": str(org.id)},
+                                expires_delta=timedelta(minutes=minutes))
+    mode = "simulasyon" if body.inline else "yeni_sekme"
+    if not body.renew:
+        _audit(db, request, operator, "destek_girisi", org.id, as_user=admin.email, mode=mode)
+        db.add(AuditLog(organization_id=org.id, user_id=admin.id, action="platform_destek_girisi",
+                        details={"by": operator.email, "minutes": minutes, "mode": mode}))
+        await db.commit()
+    if body.inline:
+        return {
+            "token": token,
+            "expires_in": minutes * 60,
+            "organization": {"id": str(org.id), "name": org.name, "slug": org.slug},
+            "as_user": {"email": admin.email, "name": admin.full_name},
+        }
     # The token travels in the URL fragment: browsers never send it to a server or log it.
-    return {"url": f"{await site_url(db, org)}/giris#destek={token}", "expires_in": SUPPORT_TOKEN_MINUTES * 60}
+    return {"url": f"{await site_url(db, org)}/giris#destek={token}", "expires_in": minutes * 60}
 
 
 # --- Demo requests from the landing page ----------------------------------------

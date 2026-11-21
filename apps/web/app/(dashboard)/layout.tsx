@@ -10,6 +10,8 @@ import { UiHost } from '../../components/admin/ui'
 import { IncomingCallPopup } from '../../components/admin/IncomingCallPopup'
 import { groupOf, NAV_GROUPS, navItemFor, type NavItem, searchKey } from '../../components/admin/admin-nav'
 import { AdminCommandPalette, AdminNotificationsBell, AdminProfileMenu } from '../../components/admin/AdminShellWidgets'
+import SimulationBanner from '../../components/admin/SimulationBanner'
+import { exitSimulation, getSimulation, renewSimulation } from '../../lib/simulation'
 import { hasFeature, hasModule, hasPermission, useAdminAccess, v1Get, adminGet } from '../../lib/admin-access'
 
 const MENU_KEY = 'einfak-admin-menu'
@@ -161,6 +163,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!isLoading && !user) {
+      // Kurum simülasyonu: an expired token is renewed from the platform session, else back to it.
+      if (getSimulation()) {
+        renewSimulation().then((token) => (token ? window.location.reload() : exitSimulation()))
+        return
+      }
       router.push('/giris')
     }
   }, [user, isLoading, router])
@@ -169,7 +176,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Platform support sessions are exempt, as on the server.
   const [support, setSupport] = useState(false)
   useEffect(() => {
-    try { setSupport(sessionStorage.getItem('support_session') === '1') } catch { /* ignore */ }
+    try { setSupport(sessionStorage.getItem('support_session') === '1' || !!getSimulation()) } catch { /* ignore */ }
   }, [])
   const mustChangePassword = !!user?.must_change_password && !support
   useEffect(() => {
@@ -231,6 +238,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const handleLogout = async () => {
+    // Simulation: back to the platform console; the organisation admin's sessions stay open.
+    if (getSimulation()) {
+      exitSimulation()
+      return
+    }
     try {
       await logout.mutateAsync()
     } catch {
@@ -436,6 +448,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
+        <SimulationBanner operatorEmail={(user as { impersonated_by?: { email?: string | null } | null }).impersonated_by?.email} />
         {/* Topbar */}
         <header className="sticky top-0 z-20 h-[60px] flex-shrink-0 border-b border-gray-200 bg-white/90 backdrop-blur-md">
           <div className="flex h-full items-center justify-between gap-3 px-4 sm:px-6">

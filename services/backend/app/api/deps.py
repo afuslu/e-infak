@@ -9,6 +9,7 @@ import enum
 from uuid import UUID
 from app.core.db import get_db
 from app.core.security import decode_token, password_fingerprint
+from app.core.impersonation import current_impersonator
 from app.models.user import User, UserRole
 from app.models.organization import Organization
 from app.core.plans import Feature, org_has_feature, FEATURE_LABELS
@@ -116,6 +117,7 @@ async def get_current_user(
             and not request.url.path.endswith(PASSWORD_CHANGE_PATHS)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_CHANGE_REQUIRED)
     _viewer.set(user)
+    current_impersonator.set(str(payload["imp"]) if payload.get("imp") else None)
     return user
 
 

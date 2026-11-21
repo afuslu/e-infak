@@ -2,6 +2,7 @@
 
 import axios from 'axios'
 import { useQuery } from '@tanstack/react-query'
+import { exitSimulation, getSimulation, renewSimulation } from './simulation'
 
 export interface FeatureInfo {
   key: string
@@ -47,6 +48,8 @@ let refreshInFlight: Promise<string | null> | null = null
 
 async function refreshAccessToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null
+  // Kurum simülasyonu: no refresh token; the platform session issues a new one.
+  if (getSimulation()) return renewSimulation()
   if (refreshInFlight) return refreshInFlight
   const refreshToken = localStorage.getItem('refresh_token')
   if (!refreshToken) return null
@@ -70,6 +73,10 @@ async function refreshAccessToken(): Promise<string | null> {
 
 function redirectToLogin() {
   if (typeof window === 'undefined') return
+  if (getSimulation()) {
+    exitSimulation()
+    return
+  }
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')
   if (!window.location.pathname.startsWith('/giris')) {

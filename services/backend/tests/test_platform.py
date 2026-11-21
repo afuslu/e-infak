@@ -260,3 +260,59 @@ async def test_demo_request_is_stored_and_bots_are_dropped(db_session):
     plans = await site.platform_plans()
     assert [p["key"] for p in plans] == ["baslangic", "orta", "ileri"] and [p["users"] for p in plans] == [1, 3, 5]
     assert plans[1]["new_features"] and not set(plans[1]["new_features"]) & set(plans[0]["new_features"])
+
+
+async def test_console_simulation_acts_for_the_organisation(db_session, http):
+    """Kurum simülasyonu: the console keeps a token, works on the platform host, and every
+    audit row written meanwhile names the operator; logout and password change cannot touch
+    the real admin's account."""
+    from app.core.security import get_password_hash as hash_
+    from app.models.user import Session as UserSession
+    from datetime import datetime, timedelta, timezone
+
+    op, password = await _operator(db_session)
+    token = (await http.post("/api/v1/platform/auth/login", json={"email": op.email, "password": password})).json()["access_token"]
+    auth = {"Authorization": f"Bearer {token}"}
+    org, admin = await _small_org(db_session, plan="ileri")
+    admin.hashed_password = hash_("admin-sifresi-123456")
+    db_session.add(UserSession(user_id=admin.id, refresh_token=f"r-{uuid.uuid4().hex}",
+                               expires_at=datetime.now(timezone.utc) + timedelta(days=1)))
+    await db_session.commit()
+
+    res = await http.post(f"/api/v1/platform/organizations/{org.id}/support-session", json={"inline": True}, headers=auth)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert "url" not in body and body["organization"]["slug"] == org.slug
+    assert body["as_user"]["email"] == admin.email and body["expires_in"] == 60 * 60
+    sim = {"Authorization": f"Bearer {body['token']}"}
+
+    # Platform host (no tenant header): the organisation comes from the token.
+    me = await http.get("/api/v1/auth/me", headers=sim)
+    assert me.status_code == 200, me.text
+    assert me.json()["organization_id"] == str(org.id)
+    assert me.json()["impersonated_by"]["email"] == op.email
+
+    saved = await http.put("/api/v1/admin-features/zakat-settings", headers=sim,
+                           json={"gold_price_per_gram": 3000, "nisap_amount_lira": 255000, "is_auto_sync": False})
+    assert saved.status_code == 200, saved.text
+    row = (await db_session.execute(select(AuditLog).where(
+        AuditLog.organization_id == org.id, AuditLog.action == "zekat_ayari_guncelle"))).scalar_one()
+    assert row.details["platform_operator_id"] == str(op.id)
+
+    pwd = await http.post("/api/v1/auth/me/password", headers=sim,
+                          json={"current_password": "admin-sifresi-123456", "new_password": "yepyeni-sifre-123456"})
+    assert pwd.status_code == 403
+    assert (await http.post("/api/v1/auth/logout", headers=sim)).status_code == 200
+    admin_id, org_id = admin.id, org.id
+    db_session.expire_all()
+    live = (await db_session.execute(select(UserSession).where(
+        UserSession.user_id == admin_id, UserSession.revoked_at.is_(None)))).scalars().all()
+    assert live, "simulation logout must not revoke the admin's own sessions"
+
+    # Renewal does not log a new sign-in; the first one is in both logs with its mode.
+    renew = await http.post(f"/api/v1/platform/organizations/{org_id}/support-session",
+                            json={"inline": True, "renew": True}, headers=auth)
+    assert renew.status_code == 200
+    org_logs = (await db_session.execute(select(AuditLog).where(
+        AuditLog.organization_id == org_id, AuditLog.action == "platform_destek_girisi"))).scalars().all()
+    assert len(org_logs) == 1 and org_logs[0].details["mode"] == "simulasyon"

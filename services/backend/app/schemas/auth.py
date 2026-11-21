@@ -41,6 +41,8 @@ class UserResponse(BaseModel):
     must_change_password: bool = False
     organization_id: UUID
     created_at: datetime
+    # Set only while a platform operator simulates the organisation.
+    impersonated_by: Optional[dict] = None
 
     class Config:
         from_attributes = True
