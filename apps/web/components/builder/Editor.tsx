@@ -222,7 +222,12 @@ export function SiteBuilderEditor() {
   }, [])
   useEffect(() => {
     adminGet<BuilderCatalog>('/site-builder/catalog').then((r) => setCatalog(r.data)).catch((e) => setMessage({ type: 'error', text: apiErrorMessage(e) }))
-    adminGet<Library>('/site-builder/library').then((r) => setLibrary(r.data)).catch(() => undefined)
+    adminGet<Library>('/site-builder/library')
+      .then((r) => setLibrary(r.data))
+      .catch((e) => {
+        setMessage({ type: 'error', text: apiErrorMessage(e, 'Şablon kütüphanesi yüklenemedi') })
+        setLibrary({ sections: [], pages: [], demos: [] })
+      })
     loadSaved()
     loadData()
   }, [loadData, loadSaved])

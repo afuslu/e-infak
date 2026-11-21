@@ -48,13 +48,16 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set('x-locale', locale)
   // Root metadata uses it for the canonical address and noindex of private pages.
   requestHeaders.set('x-pathname', url.pathname)
+  const allowSameOriginFrame =
+    url.pathname === '/site-yapici-cerceve' ||
+    (url.pathname === '/bagis/sepetim' && url.searchParams.get('preview') === '1')
   const nonce = createNonce()
   const contentSecurityPolicy = [
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
-    // The site builder shows its live preview in a same-origin frame; nothing else may be framed.
-    url.pathname === '/site-yapici-cerceve' ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
+    // The site builder shows its live preview (and checkout preview) in a same-origin frame; nothing else may be framed.
+    allowSameOriginFrame ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
     "img-src 'self' data: https:",
     "style-src 'self' 'unsafe-inline' https://*.tawk.to",
     "font-src 'self' data: https://*.tawk.to",
@@ -93,7 +96,7 @@ export async function middleware(request: NextRequest) {
   })
   response.headers.set('Content-Security-Policy', contentSecurityPolicy)
   response.headers.set('X-Content-Type-Options', 'nosniff')
-  response.headers.set('X-Frame-Options', url.pathname === '/site-yapici-cerceve' ? 'SAMEORIGIN' : 'DENY')
+  response.headers.set('X-Frame-Options', allowSameOriginFrame ? 'SAMEORIGIN' : 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
   if (process.env.NODE_ENV === 'production') {

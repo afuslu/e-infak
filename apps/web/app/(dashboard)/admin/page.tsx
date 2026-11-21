@@ -75,6 +75,13 @@ const PERIOD_LABELS: Record<ChannelPeriod, string> = {
 
 const CURRENCIES = ['TRY', 'USD', 'EUR', 'GBP'] as const
 
+const toLocalDateStr = (d: Date) => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 const QUICK_LINKS: { href: string; label: string; icon: LucideIcon; feature?: string; module?: string }[] = [
   { href: '/admin/bagislar', label: 'Bağışlar', icon: HandCoins, module: 'receipts' },
   { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: Megaphone, module: 'site' },
@@ -215,6 +222,12 @@ export default function AdminDashboardPage() {
 
   const callCount = (todo.callToday || 0) + (todo.callLate || 0)
   const hasTodo = callCount > 0 || !!todo.transfers || !!todo.smsFailed || !!todo.smsWaiting || pendingDonations > 0
+  const now = new Date()
+  const monthStart = toLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1))
+  const todayStr = toLocalDateStr(now)
+  const monthDonationsHref = kpis
+    ? `/admin/bagislar?start=${monthStart}&end=${todayStr}&status=confirmed&currency=${encodeURIComponent(kpis.currency)}`
+    : '/admin/bagislar'
 
   return (
     <div className="space-y-6">
@@ -374,34 +387,7 @@ export default function AdminDashboardPage() {
                 tone="brand"
                 value={formatMoney(kpis.month_cents, kpis.currency)}
                 hint={<Change current={kpis.month_cents} previous={kpis.last_month_to_date_cents} label="geçen ayın aynı dönemine göre" />}
-                detail={{
-                  title: `Aylık Bağış Trendi (Son ${months} Ay)`,
-                  description: `Bu ay: ${formatMoney(kpis.month_cents, kpis.currency)} · Geçen ay aynı dönem: ${formatMoney(kpis.last_month_to_date_cents, kpis.currency)}`,
-                  content: () => (
-                    <div className="space-y-4">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                          <thead className="border-b text-[11px] font-bold uppercase text-gray-500">
-                            <tr><th className="py-2">Dönem</th><th className="py-2 text-right">İşlem</th><th className="py-2 text-right">Toplam Bağış</th></tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {trends.map((t, i) => (
-                              <tr key={i}>
-                                <td className="py-2 font-semibold">{t.month}</td>
-                                <td className="py-2 text-right tabular-nums text-gray-500">{t.count ?? 0}</td>
-                                <td className="py-2 text-right font-semibold tabular-nums">{formatMoney(trendCents(t), kpis.currency)}</td>
-                              </tr>
-                            ))}
-                            {trends.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-gray-400">Trend verisi yok.</td></tr>}
-                          </tbody>
-                        </table>
-                      </div>
-                      <div className="flex justify-end">
-                        <Link href="/admin/raporlar" className="text-xs font-bold text-primary-700 hover:underline">Detaylı raporlara git →</Link>
-                      </div>
-                    </div>
-                  ),
-                }}
+                href={monthDonationsHref}
               />
               <StatCard
                 label="Bağış yapan bağışçı"

@@ -127,8 +127,22 @@ export default function AdminDonationsPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   useEffect(() => {
-    const view = QUICK_VIEWS.find(([key]) => key === new URLSearchParams(window.location.search).get('gorunum'))
-    if (view) setFilters({ ...emptyFilters, ...view[2] })
+    const params = new URLSearchParams(window.location.search)
+    const view = QUICK_VIEWS.find(([key]) => key === params.get('gorunum'))
+    const next: typeof emptyFilters = { ...emptyFilters, ...(view ? view[2] : {}) }
+    const paramKeys = ['start', 'end', 'status', 'currency', 'campaign_id', 'payment_method'] as const
+    let hasQueryFilter = false
+    for (const key of paramKeys) {
+      const val = params.get(key)
+      if (val) {
+        next[key] = val
+        hasQueryFilter = true
+      }
+    }
+    if (view || hasQueryFilter) {
+      setFilters(next)
+      if (hasQueryFilter) setShowFilters(true)
+    }
   }, [])
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<SearchResult | null>(null)

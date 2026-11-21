@@ -6,6 +6,7 @@
  * dark theme (.admin-dark in globals.css) already flips.
  */
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import Link from 'next/link'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, Eye, Inbox, Printer, X, XCircle, type LucideIcon } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
@@ -42,13 +43,13 @@ export interface StatCardDetail {
   content: () => ReactNode
 }
 
-export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, detail, className }: {
+export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, detail, href, className }: {
   label: string; value: ReactNode; hint?: ReactNode; tone?: keyof typeof TONES; icon?: LucideIcon
-  detail?: StatCardDetail; className?: string
+  detail?: StatCardDetail; href?: string; className?: string
 }) {
   const [open, setOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
-  const clickable = !!detail
+  const clickable = !!href || !!detail
 
   const exportModalTable = (fmt: 'xlsx' | 'pdf') => {
     const table = contentRef.current?.querySelector('table')
@@ -79,33 +80,51 @@ export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, det
     win.print()
   }
 
+  const cardClasses = join(
+    'block rounded-xl border border-gray-100 bg-white p-4 shadow-sm',
+    clickable && 'group cursor-pointer transition hover:border-primary-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500/40',
+    className,
+  )
+
+  const cardInner = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</div>
+        <div className="flex items-center gap-1.5">
+          {href ? (
+            <span className="inline-flex items-center gap-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 transition group-hover:bg-primary-50 group-hover:text-primary-700">
+              Kayıtlar <ChevronRight className="h-3 w-3" aria-hidden="true" />
+            </span>
+          ) : detail ? (
+            <span className="inline-flex items-center gap-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 transition group-hover:bg-primary-50 group-hover:text-primary-700">
+              <Eye className="h-3 w-3" aria-hidden="true" /> Detay
+            </span>
+          ) : null}
+          {Icon && <Icon className="h-4 w-4 text-gray-400" aria-hidden="true" />}
+        </div>
+      </div>
+      <div className={`mt-1 text-2xl font-black tabular-nums ${TONES[tone]}`}>{value}</div>
+      {hint && <div className="mt-0.5 text-xs text-gray-500">{hint}</div>}
+    </>
+  )
+
   return (
     <>
-      <div
-        role={clickable ? 'button' : undefined}
-        tabIndex={clickable ? 0 : undefined}
-        onClick={clickable ? () => setOpen(true) : undefined}
-        onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true) } } : undefined}
-        className={join(
-          'rounded-xl border border-gray-100 bg-white p-4 shadow-sm',
-          clickable && 'group cursor-pointer transition hover:border-primary-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-500/40',
-          className,
-        )}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</div>
-          <div className="flex items-center gap-1.5">
-            {clickable && (
-              <span className="inline-flex items-center gap-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 transition group-hover:bg-primary-50 group-hover:text-primary-700">
-                <Eye className="h-3 w-3" aria-hidden="true" /> Detay
-              </span>
-            )}
-            {Icon && <Icon className="h-4 w-4 text-gray-400" aria-hidden="true" />}
-          </div>
+      {href ? (
+        <Link href={href} className={cardClasses}>
+          {cardInner}
+        </Link>
+      ) : (
+        <div
+          role={detail ? 'button' : undefined}
+          tabIndex={detail ? 0 : undefined}
+          onClick={detail ? () => setOpen(true) : undefined}
+          onKeyDown={detail ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true) } } : undefined}
+          className={cardClasses}
+        >
+          {cardInner}
         </div>
-        <div className={`mt-1 text-2xl font-black tabular-nums ${TONES[tone]}`}>{value}</div>
-        {hint && <div className="mt-0.5 text-xs text-gray-500">{hint}</div>}
-      </div>
+      )}
       {open && detail && (
         <Modal
           title={detail.title}

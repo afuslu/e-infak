@@ -3751,7 +3751,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
         ),
     },
     "membership_plans": {
-        "label": "Gönüllü & Üyelik Katılım Planları", "group": "Bağış & kampanya", "icon": "🪪",
+        "label": "Gönüllü & Üyelik Katılım Planları", "group": "Bağış & kampanya", "icon": "🪪", "hidden": True,
         "help": "Aylık düzenli destek, gönüllü temsilcilik veya kurumsal üyelik paketlerini sunar.",
         "fields": _head(
             look=F("select", "Görünüm", choices={
@@ -3855,7 +3855,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
         ),
     },
     "winter_fuel_heating": {
-        "label": "Kış Yakacak & Soba Desteği", "group": "Bağış & kampanya", "icon": "🔥",
+        "label": "Kış Yakacak & Soba Desteği", "group": "Bağış & kampanya", "icon": "🔥", "hidden": True,
         "help": "Kış şartlarında kömür, odun, soba ve battaniye paketlerinin birim maliyetlerini listeler.",
         "fields": _head(
             look=F("select", "Görünüm", choices={
@@ -3924,7 +3924,7 @@ EXTRA_BLOCKS: dict[str, dict] = {
         ),
     },
     "kurban_live_feed": {
-        "label": "Kurban Kesim & Dağıtım Akışı", "group": "Bağış & kampanya", "icon": "📡",
+        "label": "Kurban Kesim & Dağıtım Akışı", "group": "Bağış & kampanya", "icon": "📡", "hidden": True,
         "help": "Sahada kesilen ve dağıtılan kurban partilerini saat damgası ve bölge bilgisiyle canlı listeler.",
         "fields": _head(
             look=F("select", "Görünüm", choices={
