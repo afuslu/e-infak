@@ -22,6 +22,18 @@ export type CartStyle =
   | 'floating_pill_drawer'
   | 'glass_drawer'
   | 'emerald_drawer'
+  | 'warm_drawer'
+  | 'gold_ornate_drawer'
+  | 'minimal_line_drawer'
+  | 'impact_badge_drawer'
+  | 'quick_amount_drawer'
+  | 'high_contrast_drawer'
+  | 'gradient_drawer'
+  | 'wide_left_drawer'
+  | 'navy_corporate_drawer'
+  | 'soft_sage_drawer'
+  | 'floating_card_modal'
+  | 'summary_top_drawer'
 
 export type CheckoutStyle =
   | 'split_classic'
@@ -54,6 +66,24 @@ export type CheckoutStyle =
   | 'card_elevated_split'
   | 'magazine_editorial'
   | 'pill_rounded_modern'
+  | 'two_column_compact'
+  | 'ramadan_special'
+  | 'donor_wall_split'
+  | 'mobile_app_sheet'
+  | 'quick_preset_checkout'
+  | 'soft_sage_charity'
+  | 'split_sticky_dark'
+  | 'certificate_preview'
+  | 'nordic_clean'
+  | 'midnight_emerald'
+  | 'royal_navy_gold'
+  | 'terracotta_warm'
+  | 'wide_three_column'
+  | 'top_summary_strip'
+  | 'split_bordered_classic'
+  | 'impact_counter_checkout'
+  | 'dua_blessing_header'
+  | 'minimal_single_focus'
 
 export const CART_STYLE_LABELS: Record<CartStyle, { label: string; desc: string }> = {
   drawer: { label: 'Sağ Çekmece (Klasik)', desc: 'Sağdan kayan hızlı sepet ve ödeme çekmecesi.' },
@@ -76,6 +106,18 @@ export const CART_STYLE_LABELS: Record<CartStyle, { label: string; desc: string 
   floating_pill_drawer: { label: 'Canlı CTA Hap Buton + Modal', desc: 'Sağ altta "Bağışı Tamamla (X) →" hap butonu.' },
   glass_drawer: { label: 'Buzlu Cam Çekmece', desc: 'Arkası hafif bulanık yarı saydam modern cam sepet.' },
   emerald_drawer: { label: 'Zümrüt Vakıf Çekmecesi', desc: 'Zümrüt yeşili vurgulu ve krem zeminli vakıf sepeti.' },
+  warm_drawer: { label: 'Sıcak Pastel Çekmece', desc: 'Bej ve tarçın tonlarında yumuşak köşeli sıcak sepet.' },
+  gold_ornate_drawer: { label: 'Altın Çerçeveli Vakıf Çekmecesi', desc: 'İnce altın çerçeveli ve krem zeminli prestij sepet.' },
+  minimal_line_drawer: { label: 'İnce Çizgili Minimal Çekmece', desc: 'Gölgesiz, net çizgili İsviçre stili sade sepet.' },
+  impact_badge_drawer: { label: 'Etki & Dua Mesajlı Sepet', desc: 'Sepet üstünde bağışın ulaştıracağı etkiyi vurgular.' },
+  quick_amount_drawer: { label: 'Hızlı Tutar Artırmalı Sepet', desc: 'Sepet içinde tek tıkla +100 / +250 / +500 ekleme butonları.' },
+  high_contrast_drawer: { label: 'Yüksek Kontrast (Erişilebilir)', desc: 'Siyah-beyaz yüksek kontrastlı, büyük puntolu sepet.' },
+  gradient_drawer: { label: 'Gradyan Başlıklı Sepet', desc: 'Üst kısmı kurum rengi gradyan başlıklı modern çekmece.' },
+  wide_left_drawer: { label: 'Geniş Sol Çekmece', desc: 'Ekranın solundan açılan geniş ve ferah sepet paneli.' },
+  navy_corporate_drawer: { label: 'Lacivert Kurumsal Çekmece', desc: 'Derin lacivert zemin ve altın vurgulu kurumsal sepet.' },
+  soft_sage_drawer: { label: 'Adaçayı & Krem Çekmece', desc: 'Doğal adaçayı yeşili kenarlıklı huzurlu vakıf sepeti.' },
+  floating_card_modal: { label: 'Yüzen Kart Modalı', desc: 'Ekstra yuvarlatılmış, gölgeli kart görünümünde sepet.' },
+  summary_top_drawer: { label: 'Önce Özet & Hızlı Ödeme', desc: 'Toplam tutarı ve ödeme butonunu üstte vurgulayan düzen.' },
 }
 
 export const CHECKOUT_STYLE_LABELS: Record<CheckoutStyle, { label: string; desc: string }> = {
@@ -109,6 +151,131 @@ export const CHECKOUT_STYLE_LABELS: Record<CheckoutStyle, { label: string; desc:
   card_elevated_split: { label: 'Yükseltilmiş Gölgeli Kartlar', desc: 'Açık gri zeminde derin gölgeli net odaklı iki sütun.' },
   magazine_editorial: { label: 'Dergi / Editoryal Düzen', desc: 'Büyük serif başlıklar ve ince yan özet sütunu.' },
   pill_rounded_modern: { label: 'Genç & Modern Yuvarlak Hatlar', desc: 'Ekstra yuvarlatılmış köşeli modern mobil uygulama estetiği.' },
+  two_column_compact: { label: 'Sıkıştırılmış İki Sütun', desc: 'Daha az boşlukla tek bakışta tüm formu ve özeti gösterir.' },
+  ramadan_special: { label: 'Ramazan & İnfak Özel', desc: 'Koyu zümrüt ve altın vurgulu özel kampanya ödeme sayfası.' },
+  donor_wall_split: { label: 'Şeffaflık & Güven Akışlı', desc: 'Özet altında anlık güven rozetleri ve şeffaflık taahhüdü.' },
+  mobile_app_sheet: { label: 'Mobil Uygulama Kart Akışı', desc: 'Uygulama içi ödeme ekranı gibi yuvarlak kartlar ve alt özet.' },
+  quick_preset_checkout: { label: 'Hızlı Tutar Eklemeli Ödeme', desc: 'Özet üstünde tek tıkla ekstra bağış ekleme çipleri.' },
+  soft_sage_charity: { label: 'Yumuşak Adaçayı & Krem', desc: 'Doğal adaçayı yeşili ve krem tonlarında sakin bağış sayfası.' },
+  split_sticky_dark: { label: 'Sağ Koyu Yapışkan Özet', desc: 'Sol taraf ferah beyaz form, sağ taraf koyu antrasit özet.' },
+  certificate_preview: { label: 'Dijital Sertifika Önizlemeli', desc: 'Sağ sütunda adınıza hazırlanacak teşekkür sertifikası önizlemesi.' },
+  nordic_clean: { label: 'İskandinav Ferah & Sade', desc: 'Bol beyaz boşluklu, yumuşak gri çerçeveli sade tasarım.' },
+  midnight_emerald: { label: 'Gece Zümrütü & Altın', desc: 'Koyu zümrüt-siyah zemin üzerinde altın detaylı vakıf sayfası.' },
+  royal_navy_gold: { label: 'Kraliyet Laciverti & Altın', desc: 'Koyu lacivert özet alanı ve altın vurgulu kurumsal düzen.' },
+  terracotta_warm: { label: 'Toprak & Tarçın Sıcaklığı', desc: 'Doğal toprak tonlarında sıcak insani yardım görünümü.' },
+  wide_three_column: { label: 'Üç Sütunlu Geniş Masaüstü', desc: 'Sol sütunda kalemler, ortada bilgiler, sağda ödeme.' },
+  top_summary_strip: { label: 'Üst Yatay Özet Şeritli', desc: 'Sayfa başında yatay toplam tutar şeridi, altında tek sütun form.' },
+  split_bordered_classic: { label: 'Klasik Çift Çerçeveli', desc: 'Net ince çerçeveli, gölgesiz geleneksel vakıf düzeni.' },
+  impact_counter_checkout: { label: 'Etki Göstergeli Ödeme', desc: 'Üstte bağışın yaratacağı etki mesajını gösteren düzen.' },
+  dua_blessing_header: { label: 'Dua & Bereket Başlıklı', desc: 'Üstte zarif teşekkür ve dua mesajı bandı bulunan vakıf düzeni.' },
+  minimal_single_focus: { label: 'Tek Sütun Ultra Odak', desc: 'Yan kutular olmadan dar, merkezlenmiş hızlı ödeme.' },
+}
+
+export type CartCategory = 'all' | 'drawer' | 'modal' | 'bar' | 'theme' | 'interactive'
+export type CheckoutCategory = 'all' | 'split' | 'focused' | 'dark' | 'charity' | 'corporate'
+
+export const CART_CATEGORY_LABELS: { key: CartCategory; label: string }[] = [
+  { key: 'all', label: 'Tümü' },
+  { key: 'drawer', label: 'Çekmece' },
+  { key: 'modal', label: 'Modal' },
+  { key: 'bar', label: 'Bar & Hap' },
+  { key: 'theme', label: 'Vakıf & Tema' },
+  { key: 'interactive', label: 'Etkileşimli' },
+]
+
+export const CHECKOUT_CATEGORY_LABELS: { key: CheckoutCategory; label: string }[] = [
+  { key: 'all', label: 'Tümü' },
+  { key: 'split', label: 'İki Sütun' },
+  { key: 'focused', label: 'Adımlı & Odak' },
+  { key: 'dark', label: 'Koyu & Prestij' },
+  { key: 'charity', label: 'Vakıf & Sıcak' },
+  { key: 'corporate', label: 'Kurumsal & Mobil' },
+]
+
+export const CART_STYLE_CATEGORIES: Record<CartStyle, Exclude<CartCategory, 'all'>> = {
+  drawer: 'drawer',
+  left_drawer: 'drawer',
+  wide_left_drawer: 'drawer',
+  split_drawer: 'drawer',
+  minimal_line_drawer: 'drawer',
+  page_redirect: 'bar',
+  mini_pill: 'bar',
+  side_dock: 'bar',
+  compact_bar: 'bar',
+  bottom_sheet: 'bar',
+  top_bar_slide: 'bar',
+  floating_popover: 'modal',
+  centered_modal: 'modal',
+  fullscreen_overlay: 'modal',
+  floating_pill_drawer: 'modal',
+  floating_card_modal: 'modal',
+  dark_drawer: 'theme',
+  navy_corporate_drawer: 'theme',
+  glass_drawer: 'theme',
+  emerald_drawer: 'theme',
+  warm_drawer: 'theme',
+  soft_sage_drawer: 'theme',
+  gold_ornate_drawer: 'theme',
+  receipt_drawer: 'theme',
+  gradient_drawer: 'theme',
+  high_contrast_drawer: 'theme',
+  drawer_upsell: 'interactive',
+  qty_stepper_drawer: 'interactive',
+  social_proof_drawer: 'interactive',
+  impact_badge_drawer: 'interactive',
+  quick_amount_drawer: 'interactive',
+  summary_top_drawer: 'interactive',
+}
+
+export const CHECKOUT_STYLE_CATEGORIES: Record<CheckoutStyle, Exclude<CheckoutCategory, 'all'>> = {
+  split_classic: 'split',
+  split_reversed: 'split',
+  split_fullscreen: 'split',
+  two_column_compact: 'split',
+  wide_three_column: 'split',
+  split_bordered_classic: 'split',
+  card_elevated_split: 'split',
+  floating_cards: 'split',
+  multi_card_grid: 'split',
+  nordic_clean: 'split',
+  stepper_minimal: 'focused',
+  accordion_steps: 'focused',
+  timeline_flow: 'focused',
+  express_single: 'focused',
+  progress_header_checkout: 'focused',
+  top_summary_strip: 'focused',
+  minimal_single_focus: 'focused',
+  minimal_bordered: 'focused',
+  minimal_paper: 'focused',
+  dark_luxury: 'dark',
+  one_step_sidebar: 'dark',
+  split_sticky_dark: 'dark',
+  ramadan_special: 'dark',
+  midnight_emerald: 'dark',
+  royal_navy_gold: 'dark',
+  glass_gradient: 'dark',
+  emerald_charity: 'charity',
+  warm_pastel: 'charity',
+  terracotta_warm: 'charity',
+  soft_sage_charity: 'charity',
+  islamic_ornate: 'charity',
+  trust_split: 'charity',
+  donor_wall_split: 'charity',
+  receipt_preview: 'charity',
+  certificate_preview: 'charity',
+  impact_counter_checkout: 'charity',
+  dua_blessing_header: 'charity',
+  quick_preset_checkout: 'charity',
+  transfer_first: 'corporate',
+  card_tabs: 'corporate',
+  corporate_checkout: 'corporate',
+  compact_mobile: 'corporate',
+  mobile_app_sheet: 'corporate',
+  bento_checkout: 'corporate',
+  hero_banner_checkout: 'corporate',
+  magazine_editorial: 'corporate',
+  pill_rounded_modern: 'corporate',
+  high_contrast: 'corporate',
 }
 
 export interface SiteDesign {

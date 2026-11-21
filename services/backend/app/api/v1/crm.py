@@ -494,7 +494,7 @@ async def search_donations(
     currency: Optional[Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"]] = None,
     min_amount_cents: Annotated[Optional[int], Query(ge=0)] = None,
     max_amount_cents: Annotated[Optional[int], Query(ge=0)] = None,
-    issued_by: Annotated[Optional[str], Query(description="'online', 'manual' veya personel id")] = None,
+    issued_by: Annotated[Optional[str], Query(description="'online', 'pos', 'manual' veya personel id")] = None,
     assigned: Annotated[Optional[str], Query(description="Bağışçı temsilcisi: 'me' veya personel id")] = None,
     on_behalf: Optional[bool] = None,
     q: Annotated[Optional[str], Query(max_length=100)] = None,
@@ -531,6 +531,10 @@ async def search_donations(
         conditions.append(Donation.issued_by_id.is_(None))
     elif issued_by == "manual":
         conditions.append(Donation.payment_provider.in_(OFFLINE_PROVIDERS))
+    elif issued_by == "pos":
+        # Sanal POS / ödeme kuruluşu üzerinden gelen kartlı tahsilatlar (manuel, kumbara, aktarım hariç).
+        conditions.append(Donation.payment_provider.is_not(None))
+        conditions.append(Donation.payment_provider.not_in(OFFLINE_PROVIDERS | {"stkpro"}))
     elif issued_by:
         try:
             conditions.append(Donation.issued_by_id == UUID(issued_by))

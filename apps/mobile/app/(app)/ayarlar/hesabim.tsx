@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, Text } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuth } from '@/context/AuthContext';
 import { api, currentHost, webBase } from '@/lib/api';
 import { ROLE_LABELS } from '@/lib/access';
 import { authenticate, biometricAvailable, biometricEnabled, setBiometricEnabled } from '@/lib/biometric';
 import { openUrl } from '@/lib/format';
-import { pushEnabled, registerPush, sendTestPush, unregisterPush } from '@/lib/notifications';
+import { pushEnabled, registerPush, unregisterPush } from '@/lib/notifications';
 import { getItem } from '@/lib/storage';
 import { Btn, Card, Field, Notice, Row, Screen, SectionTitle, SwitchRow, ui } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
@@ -15,6 +15,7 @@ import { space } from '@/theme';
 
 export default function Account() {
   const { me, site, signOut } = useAuth();
+  const router = useRouter();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [again, setAgain] = useState('');
@@ -95,11 +96,9 @@ export default function Account() {
       <SectionTitle>Bildirimler</SectionTitle>
       <Card style={{ gap: space.md }}>
         {native ? (
-          <>
-            <SwitchRow label="Anlık bildirimler" hint="Size görev atandığında bildirim alırsınız." value={push} onValueChange={togglePush} />
-            {push ? <Btn title="Deneme bildirimi gönder" variant="outline" small onPress={() => sendTestPush().then(() => notify('Deneme bildirimi gönderildi.')).catch(notifyError)} /> : null}
-          </>
-        ) : <Text style={ui.muted}>Bildirimler yalnızca telefonda kullanılabilir.</Text>}
+          <SwitchRow label="Bu telefona bildirim gönder" hint="Bağış, havale, sanal POS girişleri ve görevler." value={push} onValueChange={togglePush} />
+        ) : null}
+        <Btn title="Bildirim ayarları" variant="outline" small onPress={() => router.push('/ayarlar/bildirimler')} />
       </Card>
 
       <SectionTitle>Şifre değiştir</SectionTitle>

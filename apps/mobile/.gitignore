@@ -4,3 +4,8 @@
 
 expo-env.d.ts
 # @end expo-cli
+.expo/
+
+# Yerel derleme (expo prebuild / run) çıktıları; EAS bunları kendisi üretir
+/android
+/ios

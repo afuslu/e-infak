@@ -30,6 +30,7 @@ import { WhatsAppIcon, toast } from '@/components/admin/ui';
 import { type SmsTemplate, renderClientSmsTemplate, smsAmount, templatizeSmsText, updateSmsTemplateBody } from '@/lib/sms';
 import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps, ResponsiveDataToolbar, formatMoney } from './OnMuhasebeUI';
 import { BankReconciliationPanel } from '@/components/admin/BankReconciliationPanel';
+import { SanalPosHareketleri } from './SanalPosHareketleri';
 
 interface Candidate {
   id: string;
@@ -171,7 +172,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
   onDataChanged,
   onUnmatchedCountChange,
 }) => {
-  const [viewMode, setViewMode] = useState<'havaleler' | 'mutabakat'>('havaleler');
+  const [viewMode, setViewMode] = useState<'havaleler' | 'sanal-pos' | 'mutabakat'>('havaleler');
   const [statusTab, setStatusTab] = useState<'unmatched' | 'ambiguous' | 'matched' | 'ignored' | 'duplicates'>('unmatched');
   const [items, setItems] = useState<Transfer[]>([]);
   const [total, setTotal] = useState(0);
@@ -538,6 +539,15 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => setViewMode('sanal-pos')}
+                className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-bold transition ${
+                  viewMode === 'sanal-pos' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Sanal POS Tahsilatları
+              </button>
+              <button
+                type="button"
                 onClick={() => setViewMode('mutabakat')}
                 className={`cursor-pointer rounded-lg px-3.5 py-1.5 text-xs font-bold transition ${
                   viewMode === 'mutabakat' ? 'bg-emerald-700 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
@@ -549,6 +559,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
           </div>
         </div>
 
+        {viewMode !== 'sanal-pos' ? (
         <div className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
           <GlobalStatCard
             id="bekleyen"
@@ -621,6 +632,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
             }}
           />
         </div>
+        ) : null}
       </div>
 
       <MuhasebeStatModal
@@ -756,7 +768,9 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
       {tabNavigation ? <div>{tabNavigation}</div> : null}
 
       {/* 4. İçerik */}
-      {viewMode === 'mutabakat' ? (
+      {viewMode === 'sanal-pos' ? (
+        <SanalPosHareketleri />
+      ) : viewMode === 'mutabakat' ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
           <BankReconciliationPanel />
         </div>

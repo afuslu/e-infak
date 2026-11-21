@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { af, api, clearSession, loadSession, login, setSessionLostHandler } from '@/lib/api';
 import type { AdminAccess } from '@/lib/access';
 import { unregisterPush } from '@/lib/notifications';
+import { updateHomeWidgets } from '@/widgets';
 
 export type Me = {
   id: string;
@@ -13,6 +14,8 @@ export type Me = {
   phone: string | null;
   role: string;
   organization_id: string;
+  /** Geçici şifreyle girildi: şifre değişene dek diğer tüm istekler 403 döner. */
+  must_change_password?: boolean;
 };
 
 export type Site = { slug: string; name: string; logo_url: string | null; url?: string };
@@ -34,8 +37,11 @@ const AuthContext = createContext<Auth | null>(null);
 const EMPTY: State = { status: 'signedOut', me: null, access: null, site: null };
 
 async function fetchProfile(): Promise<Omit<State, 'status'>> {
+  const me = await api<Me>('/auth/me');
+  // Geçici şifrede yalnızca /auth/me ve şifre değiştirme açık; gerisi şifre değişince yüklenir.
+  if (me.must_change_password) return { me, access: null, site: null };
   // /access yalnızca yönetim paneline girebilen personelde 200 döner.
-  const [me, access] = await Promise.all([api<Me>('/auth/me'), af<AdminAccess>('/access')]);
+  const access = await af<AdminAccess>('/access');
   const site = await api<Site>('/public/site').catch(() => null);
   return { me, access, site };
 }
@@ -45,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const drop = useCallback(() => {
+    updateHomeWidgets(null).catch(() => {});
     queryClient.clear();
     setState(EMPTY);
   }, [queryClient]);
@@ -80,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // /auth/logout web paneli dahil tüm oturumları kapattığı için çağrılmaz;
     // yalnızca bu cihazın bildirim kaydı ve yerel oturum silinir.
     await unregisterPush().catch(() => {});
+    await updateHomeWidgets(null).catch(() => {});
     await clearSession();
     drop();
   }, [drop]);

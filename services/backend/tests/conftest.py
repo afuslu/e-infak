@@ -26,6 +26,15 @@ def sms_kicks(monkeypatch):
     return kicked
 
 
+@pytest.fixture(autouse=True)
+def push_kicks(monkeypatch):
+    """No broker in tests: collect the outbox events that would be handed to the push worker."""
+    from app.services import staff_notify
+    kicked: list = []
+    monkeypatch.setattr(staff_notify, "_kick", kicked.append)
+    return kicked
+
+
 @pytest.fixture
 async def db_session():
     """Database session on a function-scoped engine.

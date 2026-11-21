@@ -1,8 +1,70 @@
-import React from 'react';
-import { Stack } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { useQueryClient } from '@tanstack/react-query';
+import { registerPush } from '@/lib/notifications';
+import { useLastNotificationData } from '@/lib/lastNotification';
+import { openNotificationTarget } from '@/lib/notificationRoute';
+import { getItem, setItem } from '@/lib/storage';
+import { useAuth } from '@/context/AuthContext';
+import { allowed } from '@/lib/access';
+import { useInflow } from '@/api/inflow';
+import { updateHomeWidgets } from '@/widgets';
+import { widgetProps } from '@/widgets/data';
 import { colors } from '@/theme';
 
+const KEY_ASKED = 'einfak_push_asked';
+
+/** Push: ilk girişte bir kez izin ister, dokunulan bildirimin ekranını açar, gelen bildirimde panoları yeniler. */
+function usePushWiring() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const handled = useRef<string | null>(null);
+  const last = useLastNotificationData();
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    (async () => {
+      const asked = await getItem(KEY_ASKED);
+      await registerPush(!asked).catch(() => undefined);
+      if (!asked) await setItem(KEY_ASKED, '1');
+    })();
+    const received = Notifications.addNotificationReceivedListener(() => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['inflow'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['donations'] });
+    });
+    return () => received.remove();
+  }, [queryClient]);
+
+  // Uygulama kapalıyken dokunulan bildirim de dahil: her yanıt bir kez işlenir.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !last) return;
+    if (handled.current === last.id) return;
+    handled.current = last.id;
+    const data = last.data;
+    if (data?.notification_id) {
+      import('@/lib/api').then(({ api }) => api('/mobile/notifications/read', { method: 'POST', body: { ids: [data.notification_id] } }))
+        .then(() => queryClient.invalidateQueries({ queryKey: ['notifications'] })).catch(() => {});
+    }
+    openNotificationTarget(router, data);
+  }, [last, router, queryClient]);
+}
+
+/** Uygulama açıkken bugünkü para girişini ana ekran widget'ına aktarır. */
+function useWidgetSync() {
+  const { access, site } = useAuth();
+  const inflow = useInflow('today', Platform.OS !== 'web' && allowed(access, undefined, 'receipts'));
+  useEffect(() => {
+    if (inflow.data) updateHomeWidgets(widgetProps(inflow.data, site?.name || 'e-İnfak'));
+  }, [inflow.data, site?.name]);
+}
+
 export default function AppLayout() {
+  usePushWiring();
+  useWidgetSync();
   return (
     <Stack
       screenOptions={{

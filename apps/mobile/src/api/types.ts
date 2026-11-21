@@ -120,3 +120,71 @@ export function activity(last: string | null): { label: string; tone: 'ok' | 'wa
 export const SMS_STATUS: Record<string, string> = {
   scheduled: 'Zamanlandı', queued: 'Kuyrukta', sent: 'Gönderildi', delivered: 'İletildi', failed: 'Başarısız', cancelled: 'İptal',
 };
+
+export type MoneyBox = {
+  id: string; code: string; region_id: string | null; region_name: string | null; location_name: string; address: string | null;
+  city: string | null; district: string | null; contact_name: string | null; contact_phone: string | null; responsible_user_id: string | null;
+  campaign_id: string | null; status: string; placed_at: string | null; last_collected_at: string | null; days_since_collection: number | null;
+  notes: string | null; collection_count: number; total_collected_cents: number;
+};
+
+export type Task = {
+  id: string; title: string; description: string | null; priority: 'low' | 'normal' | 'high' | 'urgent'; category: string | null;
+  status: 'todo' | 'in_progress' | 'done' | 'cancelled'; start_date: string | null; due_date: string | null; overdue: boolean;
+  assigned_to_id: string | null; assigned_to_name: string | null; donor_id: string | null; donor_name: string | null;
+  comments: { id: string; user_id: string; user_name: string; text: string; created_at: string }[];
+  created_by_name: string | null; created_at: string; recurrence: string; subtasks_total: number; subtasks_done: number;
+};
+
+export const TASK_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'muted' | 'info' | 'danger' }> = {
+  todo: { label: 'Yapılacak', tone: 'info' },
+  in_progress: { label: 'Sürüyor', tone: 'warn' },
+  done: { label: 'Tamamlandı', tone: 'ok' },
+  cancelled: { label: 'İptal', tone: 'muted' },
+};
+
+export const PRIORITY: Record<string, string> = { low: 'Düşük', normal: 'Normal', high: 'Yüksek', urgent: 'Acil' };
+
+export type Member = {
+  id: string; member_no: string | null; member_type: string; member_type_label: string; status: string; status_label: string;
+  joined_on: string | null; left_on: string | null; dues_cents: number | null; dues_period: 'monthly' | 'yearly' | null; notes: string | null;
+  donor_id: string; full_name: string | null; phone: string | null; email: string | null; city: string | null;
+  open_dues_cents: number; overdue_count: number; last_paid_at: string | null;
+};
+
+export type MemberDue = {
+  id: string; member_id: string; period: string; due_date: string; amount_cents: number; status: 'open' | 'paid' | 'waived' | string;
+  status_label: string; overdue: boolean; days_overdue: number; donation_id: string | null; paid_at: string | null; waived_reason: string | null;
+};
+
+export const MEMBER_TYPES = [
+  { value: 'asil', label: 'Asil' }, { value: 'onursal', label: 'Onursal' }, { value: 'fahri', label: 'Fahri' }, { value: 'genc', label: 'Genç' },
+];
+export const MEMBER_STATUSES = [
+  { value: 'active', label: 'Aktif' }, { value: 'passive', label: 'Pasif' }, { value: 'resigned', label: 'İstifa' },
+  { value: 'expelled', label: 'İhraç' }, { value: 'deceased', label: 'Vefat' },
+];
+
+export const CAMPAIGN_STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'muted' | 'info' | 'danger' }> = {
+  draft: { label: 'Taslak', tone: 'muted' },
+  active: { label: 'Yayında', tone: 'ok' },
+  paused: { label: 'Durduruldu', tone: 'warn' },
+  completed: { label: 'Tamamlandı', tone: 'info' },
+  cancelled: { label: 'İptal', tone: 'danger' },
+};
+
+export type DonationCategory = {
+  id: string; icon: string; image_url: string | null; title: string; description: string; campaign_id: string | null; campaign_title: string | null;
+  donation_type: string | null; target_url: string | null; suggested_amounts_cents: number[]; translations: Record<string, Record<string, string>>;
+  display_order: number; is_active: boolean;
+};
+
+/** PUT tüm alanları ister; satırı gövdeye çevirir. */
+export function categoryBody(c: DonationCategory, patch: Partial<DonationCategory> = {}) {
+  const x = { ...c, ...patch };
+  return {
+    icon: x.icon, image_url: x.image_url, title: x.title, description: x.description, campaign_id: x.campaign_id,
+    donation_type: x.donation_type, target_url: x.target_url, suggested_amounts_cents: x.suggested_amounts_cents,
+    translations: x.translations, display_order: x.display_order, is_active: x.is_active,
+  };
+}

@@ -142,10 +142,11 @@ export function StickyShrink() {
 
 export function SiteSearchBox({ target = 'campaigns', look = 'icon', placeholder = 'Ara…' }: {
   target?: 'campaigns' | 'news'
-  look?: 'icon' | 'input'
+  look?: string
   placeholder?: string
 }) {
-  const [open, setOpen] = useState(look === 'input')
+  const isInline = look !== 'icon' && look !== 'command_palette'
+  const [open, setOpen] = useState(isInline)
   const [query, setQuery] = useState('')
   const action = target === 'news' ? '/haberler' : '/kampanyalar'
 
@@ -155,31 +156,50 @@ export function SiteSearchBox({ target = 'campaigns', look = 'icon', placeholder
     window.location.href = q ? `${action}?q=${encodeURIComponent(q)}` : action
   }
 
-  if (look === 'icon' && !open) {
+  if ((look === 'icon' || look === 'command_palette') && !open) {
     return (
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Ara"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-current/15 text-sm transition hover:bg-current/10"
+        className={look === 'command_palette'
+          ? 'inline-flex items-center gap-2 rounded-xl border border-current/20 bg-current/[0.04] px-3 py-1.5 text-xs font-semibold transition hover:bg-current/10'
+          : 'flex h-9 w-9 items-center justify-center rounded-full border border-current/15 text-sm transition hover:bg-current/10'}
       >
-        🔍
+        <span>🔍</span>
+        {look === 'command_palette' && <><span className="opacity-70">Ara</span><kbd className="rounded bg-current/10 px-1.5 py-0.5 text-[10px] font-bold">⌘K</kbd></>}
       </button>
     )
   }
 
+  const formCls = look === 'dark_search_bar'
+    ? 'flex items-center gap-1.5 rounded-full border border-white/20 bg-slate-900 px-3.5 py-1.5 text-white shadow-sm'
+    : look === 'glass_search'
+      ? 'flex items-center gap-1.5 rounded-full border border-white/60 bg-white/75 px-3.5 py-1.5 text-gray-900 shadow-md backdrop-blur-md'
+      : look === 'minimal_underline'
+        ? 'flex items-center gap-1.5 border-b border-current/30 px-1 py-1'
+        : look === 'boxed_button'
+          ? 'flex items-center overflow-hidden rounded-xl border border-current/20 bg-white text-gray-900 shadow-sm'
+          : 'flex items-center gap-1 rounded-full border border-current/20 bg-white/90 px-3 py-1 text-gray-900 shadow-sm'
+
   return (
-    <form onSubmit={submit} className="flex items-center gap-1 rounded-full border border-current/20 bg-white/90 px-3 py-1 text-gray-900 shadow-sm">
+    <form onSubmit={submit} className={formCls}>
       <input
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
-        className="w-36 bg-transparent text-xs outline-none sm:w-44"
-        autoFocus={look === 'icon'}
+        className={`w-36 bg-transparent text-xs outline-none sm:w-44 ${look === 'boxed_button' ? 'px-3 py-1.5' : ''}`}
+        autoFocus={!isInline}
       />
-      <button type="submit" className="text-xs font-bold text-primary-700" aria-label="Ara">🔍</button>
-      {look === 'icon' && (
+      <button
+        type="submit"
+        className={look === 'boxed_button' ? 'bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700' : 'text-xs font-bold text-primary-700'}
+        aria-label="Ara"
+      >
+        {look === 'boxed_button' ? 'Ara' : '🔍'}
+      </button>
+      {!isInline && (
         <button type="button" onClick={() => setOpen(false)} className="ml-0.5 text-xs text-gray-400 hover:text-gray-700" aria-label="Kapat">✕</button>
       )}
     </form>

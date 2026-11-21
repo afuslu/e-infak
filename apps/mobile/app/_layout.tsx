@@ -8,6 +8,7 @@ import { Lock } from 'lucide-react-native';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ToastHost } from '@/components/toast';
 import { Btn, Loading } from '@/components/ui';
+import { ForcePassword } from '@/components/ForcePassword';
 import { authenticate, biometricEnabled } from '@/lib/biometric';
 import { setupNotificationHandler } from '@/lib/notifications';
 import { colors, font, space } from '@/theme';
@@ -24,7 +25,7 @@ const queryClient = new QueryClient({
 });
 
 function Gate() {
-  const { status } = useAuth();
+  const { status, me } = useAuth();
   const [locked, setLocked] = useState(false);
   const away = useRef<number | null>(null);
 
@@ -73,6 +74,7 @@ function Gate() {
       </View>
     );
   }
+  if (status === 'signedIn' && me?.must_change_password) return <ForcePassword />;
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={status === 'signedIn'}>

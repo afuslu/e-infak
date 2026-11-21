@@ -11,20 +11,21 @@ export function DateField({ label, value, onChange, hint }: {
     if ((trDateToIso(text) || null) !== (value || null)) setText(isoToTrDate(value));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
-  const invalid = !!text && !trDateToIso(text);
+  // Yazım sürerken (8 rakam tamamlanmadan) hata gösterilmez.
+  const invalid = text.length === 10 && !trDateToIso(text);
   return (
     <Field
       label={label}
       value={text}
       placeholder="GG.AA.YYYY"
-      keyboardType="numbers-and-punctuation"
+      keyboardType="number-pad"
       maxLength={10}
       hint={hint}
       error={invalid ? 'Tarihi GG.AA.YYYY biçiminde yazın.' : null}
       onChangeText={(next) => {
-        // Rakam yazıldıkça noktaları kendiliğinden ekler.
-        let t = next.replace(/[^\d.]/g, '');
-        if (t.length > text.length && /^\d{2}$|^\d{2}\.\d{2}$/.test(t)) t += '.';
+        // Yalnızca rakamlar tutulur, noktalar GG.AA.YYYY düzenine göre eklenir.
+        const d = next.replace(/\D/g, '').slice(0, 8);
+        const t = d.length > 4 ? `${d.slice(0, 2)}.${d.slice(2, 4)}.${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}.${d.slice(2)}` : d;
         setText(t);
         onChange(trDateToIso(t));
       }}

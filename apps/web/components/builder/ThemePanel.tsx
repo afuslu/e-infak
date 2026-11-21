@@ -7,8 +7,10 @@ import { ImageField } from '../admin/ImageField'
 import { TranslationEditor, type Translations } from '../admin/TranslationEditor'
 import { confirmDialog } from '../admin/ui'
 import {
-  CART_STYLE_LABELS, CHECKOUT_STYLE_LABELS, DEFAULT_DESIGN, siteDesignStyle,
-  type CartStyle, type CheckoutStyle, type SiteDesign,
+  CART_CATEGORY_LABELS, CART_STYLE_CATEGORIES, CART_STYLE_LABELS,
+  CHECKOUT_CATEGORY_LABELS, CHECKOUT_STYLE_CATEGORIES, CHECKOUT_STYLE_LABELS,
+  DEFAULT_DESIGN, siteDesignStyle,
+  type CartCategory, type CartStyle, type CheckoutCategory, type CheckoutStyle, type SiteDesign,
 } from '../../lib/site-design'
 
 export interface ThemeAppearance {
@@ -96,19 +98,37 @@ function ColorInput({ label, value, fallback, onChange }: { label: string; value
   )
 }
 
+export type ThemeSubTab = 'design' | 'brand' | 'footer' | 'checkout'
+
 export function ThemePanel({
   onLivePreview,
   onDirtyChange,
   saveRef,
+  subTab: controlledSubTab,
+  onSubTabChange,
+  cartPreviewOpen,
+  onToggleCartPreview,
 }: {
   onLivePreview: (patch: ThemeLivePatch) => void
   onDirtyChange?: (dirty: boolean) => void
   saveRef?: MutableRefObject<(() => Promise<boolean>) | null>
+  subTab?: ThemeSubTab
+  onSubTabChange?: (tab: ThemeSubTab) => void
+  cartPreviewOpen?: boolean
+  onToggleCartPreview?: (open: boolean) => void
 }) {
   const [loaded, setLoaded] = useState<LoadedAppearance | null>(null)
   const [saved, setSaved] = useState<ThemeAppearance | null>(null)
   const [form, setForm] = useState<ThemeAppearance | null>(null)
-  const [subTab, setSubTab] = useState<'design' | 'brand' | 'footer'>('design')
+  const [internalSubTab, setInternalSubTab] = useState<ThemeSubTab>('design')
+  const [cartCat, setCartCat] = useState<CartCategory>('all')
+  const [checkoutCat, setCheckoutCat] = useState<CheckoutCategory>('all')
+  const [styleSearch, setStyleSearch] = useState('')
+  const subTab = controlledSubTab ?? internalSubTab
+  const setSubTab = (tab: ThemeSubTab) => {
+    setInternalSubTab(tab)
+    onSubTabChange?.(tab)
+  }
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
@@ -248,8 +268,8 @@ export function ThemePanel({
         </p>
       )}
 
-      <div className="grid grid-cols-3 rounded-lg border bg-gray-50 p-0.5 text-[11px] font-semibold">
-        {([['design', 'Tasarım'], ['brand', 'Marka'], ['footer', 'Alt Bilgi']] as const).map(([key, label]) => (
+      <div className="grid grid-cols-4 rounded-lg border bg-gray-50 p-0.5 text-[11px] font-semibold">
+        {([['design', 'Tasarım'], ['brand', 'Marka'], ['footer', 'Alt Bilgi'], ['checkout', 'Sepet']] as const).map(([key, label]) => (
           <button
             key={key}
             type="button"
@@ -353,49 +373,153 @@ export function ThemePanel({
                 {loaded.templates.map((t) => <option key={t.key} value={t.key}>{t.label.split(' — ')[0]}</option>)}
               </select>
             </label>
-            <div className="space-y-2.5 rounded-lg border border-gray-200 bg-gray-50/70 p-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-bold text-gray-700">Sepet &amp; Ödeme Deneyimi</span>
-                <a
-                  href={`/bagis/sepetim?stil=${encodeURIComponent(design.checkout_style || 'split_classic')}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[10px] font-bold text-blue-600 hover:underline"
+            <button
+              type="button"
+              onClick={resetDefaults}
+              className="w-full rounded-md border border-dashed border-gray-300 py-1.5 text-[11px] font-semibold text-gray-600 hover:border-gray-400 hover:bg-gray-50"
+            >
+              Varsayılan temaya sıfırla
+            </button>
+          </div>
+        </div>
+      )}
+
+      {subTab === 'checkout' && (() => {
+        const q = styleSearch.trim().toLocaleLowerCase('tr')
+        const cartList = (Object.entries(CART_STYLE_LABELS) as [CartStyle, { label: string; desc: string }][]).filter(
+          ([k, v]) => (cartCat === 'all' || CART_STYLE_CATEGORIES[k] === cartCat) && (!q || v.label.toLocaleLowerCase('tr').includes(q) || v.desc.toLocaleLowerCase('tr').includes(q)),
+        )
+        const checkoutList = (Object.entries(CHECKOUT_STYLE_LABELS) as [CheckoutStyle, { label: string; desc: string }][]).filter(
+          ([k, v]) => (checkoutCat === 'all' || CHECKOUT_STYLE_CATEGORIES[k] === checkoutCat) && (!q || v.label.toLocaleLowerCase('tr').includes(q) || v.desc.toLocaleLowerCase('tr').includes(q)),
+        )
+        const curCart = (design.cart_style || 'drawer') as CartStyle
+        const curCheckout = (design.checkout_style || 'split_classic') as CheckoutStyle
+        const stepCart = (dir: -1 | 1) => {
+          if (!cartList.length) return
+          const idx = cartList.findIndex(([k]) => k === curCart)
+          const next = cartList[(idx + dir + cartList.length) % cartList.length][0]
+          setDesign('cart_style', next)
+        }
+        const stepCheckout = (dir: -1 | 1) => {
+          if (!checkoutList.length) return
+          const idx = checkoutList.findIndex(([k]) => k === curCheckout)
+          const next = checkoutList[(idx + dir + checkoutList.length) % checkoutList.length][0]
+          setDesign('checkout_style', next)
+        }
+        return (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-blue-100 bg-blue-50/70 px-2.5 py-2 text-[11px] text-blue-800">
+              Ödeme sayfası ve sepet çekmecesi ortadaki tuvalde örnek ürünlerle canlı önizlenir.
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={styleSearch}
+                onChange={(e) => setStyleSearch(e.target.value)}
+                placeholder="Stil ara… (ör. zümrüt, koyu, mobil)"
+                className="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 pr-7 text-[11px] outline-none focus:border-blue-500"
+              />
+              {styleSearch && (
+                <button
+                  type="button"
+                  onClick={() => setStyleSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 hover:text-gray-700"
+                  aria-label="Aramayı temizle"
                 >
-                  Canlı Önizle ↗
-                </a>
+                  ✕
+                </button>
+              )}
+            </div>
+            <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/70 p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-gray-700">Sepet Stili ({cartList.length})</span>
+                {onToggleCartPreview && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleCartPreview(!cartPreviewOpen)}
+                    className={`rounded-md px-2 py-1 text-[10px] font-bold transition ${cartPreviewOpen ? 'bg-slate-900 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                  >
+                    {cartPreviewOpen ? 'Çekmeceyi Kapat' : 'Sepeti Önizle'}
+                  </button>
+                )}
               </div>
-              <label className="block text-[11px] font-semibold text-gray-600">
-                <span className="mb-1 block">Sepet stili</span>
+              <div className="flex flex-wrap gap-1">
+                {CART_CATEGORY_LABELS.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setCartCat(c.key)}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${cartCat === c.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-100'}`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => stepCart(-1)} title="Önceki sepet stili" className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-100">‹</button>
                 <select
-                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs"
-                  value={design.cart_style || 'drawer'}
+                  className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs"
+                  value={curCart}
                   onChange={(e) => setDesign('cart_style', e.target.value as CartStyle)}
                 >
-                  {(Object.entries(CART_STYLE_LABELS) as [CartStyle, { label: string; desc: string }][]).map(([k, v]) => (
+                  {!cartList.some(([k]) => k === curCart) && (
+                    <option value={curCart}>{CART_STYLE_LABELS[curCart]?.label || curCart}</option>
+                  )}
+                  {cartList.map(([k, v]) => (
                     <option key={k} value={k}>{v.label}</option>
                   ))}
                 </select>
-                <span className="mt-1 block font-normal text-[10px] text-gray-500">
-                  {CART_STYLE_LABELS[(design.cart_style || 'drawer') as CartStyle]?.desc}
-                </span>
-              </label>
-              <label className="block text-[11px] font-semibold text-gray-600">
-                <span className="mb-1 block">Ödeme sayfası (/bagis/sepetim)</span>
+                <button type="button" onClick={() => stepCart(1)} title="Sonraki sepet stili" className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-100">›</button>
+              </div>
+              <span className="block font-normal text-[10px] text-gray-500">
+                {CART_STYLE_LABELS[curCart]?.desc}
+              </span>
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/70 p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-gray-700">Ödeme Sayfası ({checkoutList.length})</span>
+                <a
+                  href={`/bagis/sepetim?preview=1&stil=${encodeURIComponent(curCheckout)}&addon=${design.checkout_micro_addon ? '1' : '0'}&faq=${design.checkout_show_faq ? '1' : '0'}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[10px] font-semibold text-gray-500 hover:text-blue-600 hover:underline"
+                >
+                  Yeni sekme ↗
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {CHECKOUT_CATEGORY_LABELS.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setCheckoutCat(c.key)}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition ${checkoutCat === c.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 ring-1 ring-gray-200 hover:bg-gray-100'}`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => stepCheckout(-1)} title="Önceki ödeme stili" className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-100">‹</button>
                 <select
-                  className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs"
-                  value={design.checkout_style || 'split_classic'}
+                  className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-xs"
+                  value={curCheckout}
                   onChange={(e) => setDesign('checkout_style', e.target.value as CheckoutStyle)}
                 >
-                  {(Object.entries(CHECKOUT_STYLE_LABELS) as [CheckoutStyle, { label: string; desc: string }][]).map(([k, v]) => (
+                  {!checkoutList.some(([k]) => k === curCheckout) && (
+                    <option value={curCheckout}>{CHECKOUT_STYLE_LABELS[curCheckout]?.label || curCheckout}</option>
+                  )}
+                  {checkoutList.map(([k, v]) => (
                     <option key={k} value={k}>{v.label}</option>
                   ))}
                 </select>
-                <span className="mt-1 block font-normal text-[10px] text-gray-500">
-                  {CHECKOUT_STYLE_LABELS[(design.checkout_style || 'split_classic') as CheckoutStyle]?.desc}
-                </span>
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-[11px] font-medium text-gray-700">
+                <button type="button" onClick={() => stepCheckout(1)} title="Sonraki ödeme stili" className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-100">›</button>
+              </div>
+              <span className="block font-normal text-[10px] text-gray-500">
+                {CHECKOUT_STYLE_LABELS[curCheckout]?.desc}
+              </span>
+              <label className="flex cursor-pointer items-center gap-2 pt-1 text-[11px] font-medium text-gray-700">
                 <input
                   type="checkbox"
                   checked={Boolean(design.checkout_micro_addon)}
@@ -414,16 +538,9 @@ export function ThemePanel({
                 Ödeme sayfası altında mini SSS göster
               </label>
             </div>
-            <button
-              type="button"
-              onClick={resetDefaults}
-              className="w-full rounded-md border border-dashed border-gray-300 py-1.5 text-[11px] font-semibold text-gray-600 hover:border-gray-400 hover:bg-gray-50"
-            >
-              Varsayılan temaya sıfırla
-            </button>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {subTab === 'brand' && (
         <div className="space-y-3">

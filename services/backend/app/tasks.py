@@ -432,6 +432,9 @@ async def _process_outbox():
                         raise RuntimeError("Makbuz verisi bulunamadı")
                 elif current.event_type.startswith("webhook."):
                     await _deliver_webhooks(current)
+                elif current.event_type.startswith("push."):
+                    from app.services.staff_notify import handle_event
+                    await handle_event(session, current)
                 current.status = OutboxStatus.DELIVERED
                 current.processing_started_at = None
                 current.delivered_at = datetime.now(timezone.utc)
@@ -499,6 +502,85 @@ def sync_zakat_rates_task():
 @celery_app.task(name="app.tasks.process_outbox_task")
 def process_outbox_task():
     return asyncio.run(_process_outbox())
+
+
+async def deliver_outbox_event(event_id: str, own_engine: bool = False) -> bool:
+    """Deliver one push event right after the request that queued it committed.
+
+    Claims the row only if it is still pending, so the minute-by-minute outbox runner and this
+    never send the same notification twice. A failure leaves the row for the runner to retry.
+    """
+    from uuid import UUID as _UUID
+    from sqlalchemy import update
+    from app.models.automation import OutboxEvent, OutboxStatus
+    from app.services.staff_notify import handle_event
+
+    engine = None
+    maker = AsyncSessionLocal
+    if own_engine:  # called from a request thread with its own event loop: do not share the app pool
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+        from sqlalchemy.pool import NullPool
+        engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
+        maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        async with maker() as session:
+            now = datetime.now(timezone.utc)
+            claimed = (await session.execute(
+                update(OutboxEvent)
+                .where(OutboxEvent.id == _UUID(event_id), OutboxEvent.status == OutboxStatus.PENDING)
+                .values(status=OutboxStatus.PROCESSING, processing_started_at=now)
+                .returning(OutboxEvent.id)
+            )).scalar_one_or_none()
+            await session.commit()
+            if not claimed:
+                return False
+            current = await session.get(OutboxEvent, claimed)
+            try:
+                await handle_event(session, current)
+                current.status = OutboxStatus.DELIVERED
+                current.delivered_at = datetime.now(timezone.utc)
+                current.last_error = None
+            except Exception as exc:  # noqa: BLE001 - the outbox runner retries with backoff
+                await session.rollback()
+                current = await session.get(OutboxEvent, claimed)
+                current.status = OutboxStatus.FAILED
+                current.attempts += 1
+                current.last_error = str(exc)[:2000]
+                current.next_attempt_at = datetime.now(timezone.utc) + timedelta(minutes=2)
+            current.processing_started_at = None
+            await session.commit()
+            return current.status == OutboxStatus.DELIVERED
+    finally:
+        if engine is not None:
+            await engine.dispose()
+
+
+@celery_app.task(name="app.tasks.deliver_outbox_event_task")
+def deliver_outbox_event_task(event_id: str):
+    return asyncio.run(deliver_outbox_event(event_id))
+
+
+async def _send_daily_digests():
+    from app.models.organization import Organization
+    from app.services.staff_notify import send_daily_digest
+
+    sent = 0
+    async with AsyncSessionLocal() as session:
+        org_ids = (await session.execute(select(Organization.id).where(Organization.is_active.is_(True)))).scalars().all()
+    for org_id in org_ids:
+        async with AsyncSessionLocal() as session:
+            try:
+                sent += await send_daily_digest(session, org_id)
+                await session.commit()
+            except Exception:  # noqa: BLE001 - one organisation must not stop the others
+                await session.rollback()
+    return {"pushed": sent, "organizations": len(org_ids)}
+
+
+@celery_app.task(name="app.tasks.send_daily_digests_task")
+def send_daily_digests_task():
+    """21:00 in Türkiye: today's money in, by channel, to staff who see every receipt."""
+    return asyncio.run(_send_daily_digests())
 
 
 async def _verify_pending_domains():
@@ -642,7 +724,11 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.dispatch_due_sms_task",
         "schedule": 60.0,
     },
-    "process-outbox-every-minute": {
+    "staff-daily-digest": {
+        "task": "app.tasks.send_daily_digests_task",
+        "schedule": crontab(hour=18, minute=0),  # 21:00 in Türkiye (Celery runs on UTC)
+    },
+        "process-outbox-every-minute": {
         "task": "app.tasks.process_outbox_task",
         "schedule": 60.0,
     },

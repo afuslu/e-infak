@@ -45,6 +45,206 @@ function Go({ href, className, children }: { href?: string; className?: string; 
 const Empty = ({ editing, text }: { editing?: boolean; text: string }) =>
   editing ? <p className="rounded-xl border border-dashed p-6 text-center text-sm text-gray-400">{text}</p> : null
 
+interface LookStyle {
+  dark: boolean
+  emerald: boolean
+  glass: boolean
+  warm: boolean
+  minimal: boolean
+  sectionBg: string
+  wrap: string
+  card: string
+  softBox: string
+  accent: string
+  badge: string
+  btn: string
+  muted: string
+  mode: 'grid' | 'bento' | 'compact' | 'timeline' | 'table' | 'featured' | 'pills' | 'split'
+}
+
+/** Resolves surface palette and structural layout mode from a block's `look` key. */
+function lookTheme(look: string): LookStyle {
+  const k = String(look || '')
+  const emerald = k.includes('emerald') || k.includes('forest')
+  const darkGold = k.includes('dark_gold') || k.includes('ornate_dark') || k.includes('plum_gold') || k.includes('navy_gold') || k.includes('indigo_silver')
+  const ruby = k.includes('ruby') || k.includes('crimson')
+  const sapphire = k.includes('sapphire') || k.includes('dark_aqua') || k.includes('midnight')
+  const dark = emerald || darkGold || ruby || sapphire || k.startsWith('dark_') || k.includes('_dark') || k === 'dark'
+  const glass = !dark && k.includes('glass')
+  const warm = !dark && (k.includes('warm') || k.includes('parchment') || k.includes('amber') || k.includes('fire') || k.includes('terracotta') || k.includes('ottoman'))
+  const softTint = !dark && (k.includes('pastel') || k.includes('mint') || k.includes('sky') || k.includes('aqua') || k.includes('soft_'))
+  const boldOutline = !dark && (k.includes('brutalist') || k.includes('bold_border') || k.includes('high_contrast'))
+  const gradientBrand = !dark && k.includes('gradient_brand')
+  const minimal = !dark && (k.includes('minimal') || k.includes('bordered') || k.includes('classic') || k.includes('editorial'))
+
+  const mode: LookStyle['mode'] =
+    k.includes('bento') ? 'bento'
+    : (k.includes('timeline') || k.includes('diary_timeline') || k.includes('vertical_log') || k.includes('step') || k.includes('numbered')) ? 'timeline'
+    : (k.includes('table') || k.includes('matrix') || k.includes('breakdown')) ? 'table'
+    : (k.includes('compact') || k.includes('strip') || k.includes('rows') || k.includes('inline') || k.includes('agenda')) ? 'compact'
+    : (k.includes('featured') || k.includes('spotlight') || k.includes('chair') || k.includes('issue') || k.includes('magazine')) ? 'featured'
+    : k.includes('pill') ? 'pills'
+    : k.includes('split') ? 'split'
+    : 'grid'
+
+  if (ruby) {
+    return {
+      dark: true, emerald: false, glass: false, warm: false, minimal: false, mode,
+      sectionBg: 'bg-gradient-to-br from-rose-950 via-red-950 to-slate-950 py-14 text-white',
+      wrap: 'rounded-3xl border border-rose-400/30 bg-rose-950 p-6 text-white shadow-2xl sm:p-8',
+      card: 'rounded-2xl border border-rose-400/25 bg-white/5 text-white',
+      softBox: 'rounded-2xl border border-rose-400/20 bg-rose-900/40',
+      accent: 'text-rose-300',
+      badge: 'bg-rose-400/20 text-rose-200 border border-rose-400/30',
+      btn: 'bg-rose-500 text-white hover:bg-rose-400',
+      muted: 'text-rose-100/75',
+    }
+  }
+  if (sapphire) {
+    return {
+      dark: true, emerald: false, glass: false, warm: false, minimal: false, mode,
+      sectionBg: 'bg-gradient-to-br from-slate-950 via-sky-950 to-cyan-950 py-14 text-white',
+      wrap: 'rounded-3xl border border-cyan-400/30 bg-slate-950 p-6 text-white shadow-2xl sm:p-8',
+      card: 'rounded-2xl border border-cyan-400/20 bg-white/5 text-white',
+      softBox: 'rounded-2xl border border-cyan-400/20 bg-sky-900/40',
+      accent: 'text-cyan-300',
+      badge: 'bg-cyan-400/20 text-cyan-200 border border-cyan-400/30',
+      btn: 'bg-cyan-400 text-slate-950 hover:bg-cyan-300',
+      muted: 'text-sky-100/75',
+    }
+  }
+  if (emerald) {
+    return {
+      dark: true, emerald: true, glass: false, warm: false, minimal: false, mode,
+      sectionBg: 'bg-emerald-950 py-14 text-white',
+      wrap: 'rounded-3xl border border-amber-400/30 bg-emerald-950 p-6 text-white shadow-xl sm:p-8',
+      card: 'rounded-2xl border border-amber-400/25 bg-emerald-900/60 text-white shadow-sm',
+      softBox: 'rounded-2xl border border-amber-400/20 bg-emerald-900/40',
+      accent: 'text-amber-300',
+      badge: 'bg-amber-400/20 text-amber-300 border border-amber-400/30',
+      btn: 'bg-amber-400 text-slate-950 hover:bg-amber-300',
+      muted: 'text-emerald-100/75',
+    }
+  }
+  if (darkGold) {
+    const bg = k.includes('plum') ? 'from-purple-950 via-slate-950 to-slate-900' : k.includes('navy') || k.includes('indigo') ? 'from-indigo-950 via-slate-950 to-slate-900' : 'from-slate-950 via-primary-950 to-slate-900'
+    return {
+      dark: true, emerald: false, glass: false, warm: false, minimal: false, mode,
+      sectionBg: `bg-gradient-to-br ${bg} py-14 text-white`,
+      wrap: 'rounded-3xl border border-amber-400/30 bg-slate-950 p-6 text-white shadow-2xl sm:p-8',
+      card: 'rounded-2xl border border-amber-400/25 bg-white/5 text-white',
+      softBox: 'rounded-2xl border border-amber-400/20 bg-amber-400/10',
+      accent: 'text-amber-300',
+      badge: 'bg-amber-400/20 text-amber-300 border border-amber-400/30',
+      btn: 'bg-amber-400 text-slate-950 hover:bg-amber-300',
+      muted: 'text-white/75',
+    }
+  }
+  if (dark) {
+    return {
+      dark: true, emerald: false, glass: false, warm: false, minimal: false, mode,
+      sectionBg: 'bg-slate-950 py-14 text-white',
+      wrap: 'rounded-3xl border border-white/10 bg-slate-950 p-6 text-white shadow-2xl sm:p-8',
+      card: 'rounded-2xl border border-white/10 bg-white/5 text-white',
+      softBox: 'rounded-2xl border border-white/10 bg-white/5',
+      accent: 'text-accent-300',
+      badge: 'bg-white/10 text-white border border-white/15',
+      btn: 'bg-primary-600 text-white hover:bg-primary-500',
+      muted: 'text-white/70',
+    }
+  }
+  if (gradientBrand) {
+    return {
+      dark: true, emerald: false, glass: false, warm: false, minimal: false, mode,
+      sectionBg: 'bg-gradient-to-br from-primary-800 via-primary-700 to-accent-700 py-14 text-white',
+      wrap: 'rounded-3xl bg-gradient-to-br from-primary-700 to-accent-600 p-6 text-white shadow-xl sm:p-8',
+      card: 'rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-sm',
+      softBox: 'rounded-2xl border border-white/20 bg-white/10',
+      accent: 'text-amber-200',
+      badge: 'bg-white/20 text-white',
+      btn: 'bg-white text-primary-800 hover:bg-gray-100',
+      muted: 'text-white/85',
+    }
+  }
+  if (glass) {
+    return {
+      dark: false, emerald: false, glass: true, warm: false, minimal: false, mode,
+      sectionBg: 'bg-gradient-to-br from-primary-50/70 via-white to-accent-50/60 py-12',
+      wrap: 'rounded-3xl border border-white/70 bg-white/75 p-6 shadow-xl backdrop-blur-md sm:p-8',
+      card: 'rounded-2xl border border-white/70 bg-white/80 shadow-lg backdrop-blur-md',
+      softBox: 'rounded-2xl border border-primary-100/70 bg-white/60 backdrop-blur',
+      accent: 'text-primary-700',
+      badge: 'bg-primary-600/10 text-primary-800 border border-primary-200',
+      btn: 'bg-primary-600 text-white hover:bg-primary-700',
+      muted: 'text-gray-600',
+    }
+  }
+  if (softTint) {
+    const isSky = k.includes('sky') || k.includes('aqua')
+    return {
+      dark: false, emerald: false, glass: false, warm: false, minimal: false, mode,
+      sectionBg: isSky ? 'bg-sky-50/60 py-12' : 'bg-emerald-50/50 py-12',
+      wrap: isSky ? 'rounded-3xl border border-sky-200 bg-sky-50/70 p-6 shadow-sm sm:p-8' : 'rounded-3xl border border-emerald-200 bg-emerald-50/70 p-6 shadow-sm sm:p-8',
+      card: isSky ? 'rounded-2xl border border-sky-200/80 bg-white shadow-sm' : 'rounded-2xl border border-emerald-200/80 bg-white shadow-sm',
+      softBox: isSky ? 'rounded-2xl border border-sky-100 bg-sky-50/80' : 'rounded-2xl border border-emerald-100 bg-emerald-50/80',
+      accent: isSky ? 'text-sky-700' : 'text-emerald-700',
+      badge: isSky ? 'bg-sky-100 text-sky-900' : 'bg-emerald-100 text-emerald-900',
+      btn: isSky ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-emerald-700 text-white hover:bg-emerald-800',
+      muted: 'text-gray-600',
+    }
+  }
+  if (boldOutline) {
+    return {
+      dark: false, emerald: false, glass: false, warm: false, minimal: true, mode,
+      sectionBg: '',
+      wrap: 'rounded-2xl border-2 border-gray-900 bg-white p-6 shadow-[6px_6px_0px_0px_rgba(17,24,39,1)] sm:p-8',
+      card: 'rounded-xl border-2 border-gray-900 bg-white shadow-[4px_4px_0px_0px_rgba(17,24,39,1)]',
+      softBox: 'rounded-xl border-2 border-gray-900 bg-gray-50',
+      accent: 'text-gray-900',
+      badge: 'bg-gray-900 text-white',
+      btn: 'bg-gray-900 text-white hover:bg-gray-800',
+      muted: 'text-gray-700',
+    }
+  }
+  if (warm) {
+    return {
+      dark: false, emerald: false, glass: false, warm: true, minimal: false, mode,
+      sectionBg: 'bg-amber-50/40 py-12',
+      wrap: 'rounded-3xl border border-amber-200 bg-amber-50/70 p-6 shadow-sm sm:p-8',
+      card: 'rounded-2xl border border-amber-200/80 bg-white shadow-sm',
+      softBox: 'rounded-2xl border border-amber-200/70 bg-amber-50/80',
+      accent: 'text-amber-800',
+      badge: 'bg-amber-100 text-amber-900 border border-amber-200',
+      btn: 'bg-amber-600 text-white hover:bg-amber-700',
+      muted: 'text-amber-950/70',
+    }
+  }
+  if (minimal) {
+    return {
+      dark: false, emerald: false, glass: false, warm: false, minimal: true, mode,
+      sectionBg: '',
+      wrap: 'rounded-2xl border-2 border-gray-900/10 bg-white p-6 sm:p-8',
+      card: 'rounded-xl border border-gray-200/90 bg-white',
+      softBox: 'rounded-xl border border-gray-200 bg-gray-50/60',
+      accent: 'text-gray-900',
+      badge: 'bg-gray-100 text-gray-800 border border-gray-200',
+      btn: 'bg-gray-900 text-white hover:bg-gray-800',
+      muted: 'text-gray-600',
+    }
+  }
+  return {
+    dark: false, emerald: false, glass: false, warm: false, minimal: false, mode,
+    sectionBg: '',
+    wrap: 'rounded-3xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8',
+    card: 'rounded-2xl border border-gray-200 bg-white shadow-sm',
+    softBox: 'rounded-2xl border border-gray-100 bg-gray-50',
+    accent: 'text-primary-600',
+    badge: 'bg-primary-50 text-primary-700',
+    btn: 'bg-primary-600 text-white hover:bg-primary-700',
+    muted: 'text-gray-600',
+  }
+}
+
 export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): ReactNode | undefined {
   const { container, editing } = ctx
   const words = WORDS[ctx.locale] || WORDS.tr
@@ -2930,19 +3130,19 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       if (!src) return <Empty editing={editing} text="Harita: adres veya yerleştirme URL’si girin." />
       const mapsLink = address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : src
       const mapLook = o.look || 'standard'
-      if (mapLook === 'dark_framed_map') {
+      const t = lookTheme(mapLook)
+
+      if (mapLook === 'full_bleed_overlay' || mapLook === 'glass_overlay_map') {
         return (
           <div className={container}>
             <Head o={o} />
-            <div className="overflow-hidden rounded-3xl bg-gray-950 p-4 text-white shadow-2xl ring-1 ring-white/10 sm:p-6">
-              <div className="overflow-hidden rounded-2xl border border-white/10">
-                <iframe src={src} title={o.title || address || 'Harita'} style={{ height }} className="w-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
-              </div>
+            <div className="relative overflow-hidden rounded-3xl border border-gray-200 shadow-lg">
+              <iframe src={src} title={o.title || address || 'Harita'} style={{ height }} className="w-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
               {(address || o.show_directions !== false) && (
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 px-1">
-                  {address && <p className="text-sm font-medium text-gray-200">📍 {address}</p>}
+                <div className={`bottom-4 left-4 right-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4 sm:absolute sm:max-w-lg ${mapLook === 'glass_overlay_map' ? 'border border-white/60 bg-white/80 shadow-xl backdrop-blur-md' : 'border border-gray-200 bg-white/95 shadow-xl'}`}>
+                  {address && <p className="text-sm font-bold text-gray-900">📍 {address}</p>}
                   {o.show_directions !== false && (
-                    <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl bg-accent-500 px-4 py-2 text-xs font-extrabold text-gray-950 hover:bg-accent-400">
+                    <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-xl bg-primary-600 px-4 py-2 text-xs font-extrabold text-white hover:bg-primary-700">
                       Yol tarifi al ↗
                     </a>
                   )}
@@ -2952,20 +3152,58 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      if (mapLook === 'card_with_hours' || mapLook === 'compact_branch_map') {
+      if (t.dark) {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className={`${t.wrap} overflow-hidden`}>
+              {mapLook === 'emerald_split_map' ? (
+                <div className="grid items-center gap-6 md:grid-cols-[1fr_1.5fr]">
+                  <div className="space-y-3">
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-extrabold ${t.badge}`}>Konum & Ziyaret</span>
+                    {address && <p className="text-base font-bold">{address}</p>}
+                    {o.hours && <p className={`text-sm ${t.muted}`}>🕒 {o.hours}</p>}
+                    {o.show_directions !== false && <a href={mapsLink} target="_blank" rel="noopener noreferrer" className={`inline-flex rounded-xl px-5 py-2.5 text-xs font-extrabold ${t.btn}`}>Yol tarifi al ↗</a>}
+                  </div>
+                  <div className="overflow-hidden rounded-2xl border border-white/15">
+                    <iframe src={src} title={o.title || address || 'Harita'} style={{ height }} className="w-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-hidden rounded-2xl border border-white/10">
+                    <iframe src={src} title={o.title || address || 'Harita'} style={{ height }} className="w-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
+                  </div>
+                  {(address || o.show_directions !== false) && (
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 px-1">
+                      {address && <p className="text-sm font-medium opacity-90">📍 {address}</p>}
+                      {o.show_directions !== false && (
+                        <a href={mapsLink} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-extrabold ${t.btn}`}>
+                          Yol tarifi al ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )
+      }
+      if (mapLook === 'split_contact_map' || mapLook === 'card_with_hours' || mapLook === 'compact_branch_map' || mapLook === 'two_tone_map') {
         return (
           <div className={container}>
             <Head o={o} />
             <div className="grid overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-md md:grid-cols-[1fr_1.4fr]">
-              <div className="flex flex-col justify-between gap-4 p-6 sm:p-8">
+              <div className={`flex flex-col justify-between gap-4 p-6 sm:p-8 ${mapLook === 'two_tone_map' ? 'bg-slate-900 text-white' : ''}`}>
                 <div>
-                  <span className="inline-flex rounded-full bg-primary-50 px-3 py-1 text-xs font-extrabold text-primary-700">Konum & Ziyaret</span>
-                  {address && <p className="mt-3 text-base font-bold text-gray-900">📍 {address}</p>}
-                  {o.hours && <p className="mt-2 text-sm text-gray-600">🕒 {o.hours}</p>}
-                  {o.phone && <p className="mt-1 text-sm font-semibold text-primary-700">📞 {o.phone}</p>}
+                  <span className={`inline-flex rounded-full px-3 py-1 text-xs font-extrabold ${mapLook === 'two_tone_map' ? 'bg-white/10 text-amber-300' : 'bg-primary-50 text-primary-700'}`}>Konum & Ziyaret</span>
+                  {address && <p className="mt-3 text-base font-bold">📍 {address}</p>}
+                  {o.hours && <p className={`mt-2 text-sm ${mapLook === 'two_tone_map' ? 'text-white/75' : 'text-gray-600'}`}>🕒 {o.hours}</p>}
+                  {o.phone && <p className={`mt-1 text-sm font-semibold ${mapLook === 'two_tone_map' ? 'text-amber-300' : 'text-primary-700'}`}>📞 {o.phone}</p>}
                 </div>
                 {o.show_directions !== false && (
-                  <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="inline-flex w-fit items-center gap-1.5 rounded-xl bg-primary-600 px-5 py-2.5 text-xs font-extrabold text-white hover:bg-primary-700">
+                  <a href={mapsLink} target="_blank" rel="noopener noreferrer" className={`inline-flex w-fit items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-extrabold ${mapLook === 'two_tone_map' ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
                     Yol tarifi al ↗
                   </a>
                 )}
@@ -2980,27 +3218,14 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       return (
         <div className={container}>
           <Head o={o} />
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 shadow-sm">
-            <iframe
-              src={src}
-              title={o.title || address || 'Harita'}
-              style={{ height }}
-              className="w-full border-0"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              allowFullScreen
-            />
+          <div className={`overflow-hidden bg-gray-100 ${mapLook === 'minimal_bordered' ? 'rounded-xl border-2 border-gray-900/15' : 'rounded-2xl border border-gray-200 shadow-sm'}`}>
+            <iframe src={src} title={o.title || address || 'Harita'} style={{ height }} className="w-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen />
           </div>
           {(address || o.show_directions !== false) && (
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               {address && <p className="text-sm font-medium text-gray-700">📍 {address}</p>}
               {o.show_directions !== false && (
-                <a
-                  href={mapsLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700"
-                >
+                <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700">
                   Yol tarifi al ↗
                 </a>
               )}
@@ -3307,88 +3532,79 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const donations = items.filter((i) => i.donor || i.amount)
       if (!donations.length) return <Empty editing={editing} text="Canlı bağış kaydı ekleyin" />
       const look = o.look || 'feed_cards'
-      if (look === 'emerald_live_ticker') {
+      const t = lookTheme(look)
+      if (look === 'emerald_live_ticker' || look === 'ticker_strip') {
         return (
-          <div className="overflow-hidden border-y border-amber-400/30 bg-emerald-950 py-3.5 text-sm text-white">
+          <div className={`overflow-hidden border-y py-3.5 text-sm ${look === 'emerald_live_ticker' ? 'border-amber-400/30 bg-emerald-950 text-white' : 'border-emerald-200 bg-emerald-50/80 text-emerald-950'}`}>
             <div className="bmq items-center gap-8" style={{ ['--bmq' as string]: `${Math.max(donations.length * 6, 20)}s` }}>
               {[...donations, ...donations].map((d, i) => (
                 <span key={i} className="inline-flex flex-none items-center gap-2 font-semibold">
-                  <span className="h-2 w-2 rounded-full bg-amber-400" />
-                  <strong>{d.donor}</strong> · <span className="font-extrabold text-amber-300">{d.amount}</span> {d.campaign ? `(${d.campaign})` : ''}
+                  <span className={`h-2 w-2 rounded-full ${look === 'emerald_live_ticker' ? 'bg-amber-400' : 'bg-emerald-500'}`} />
+                  <strong>{d.donor}</strong> · <span className={`font-extrabold ${look === 'emerald_live_ticker' ? 'text-amber-300' : 'text-emerald-700'}`}>{d.amount}</span> {d.campaign ? `(${d.campaign})` : ''}
                 </span>
               ))}
             </div>
           </div>
         )
       }
-      if (look === 'minimal_donor_cards') {
+      if (look === 'minimal_donor_cards' || look === 'glass_live_cards' || look === 'bento_donor_grid') {
         return (
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {donations.map((d, i) => (
-                <div key={i} className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3.5 shadow-xs">
-                  <div className="min-w-0">
-                    <div className="truncate font-heading text-sm font-bold text-gray-900">{d.donor}</div>
-                    {d.campaign && <div className="truncate text-[11px] text-gray-500">{d.campaign}</div>}
+          <div className={t.sectionBg}>
+            <div className={container}>
+              <Head o={o} />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {donations.map((d, i) => (
+                  <div key={i} className={`${t.card} flex items-center justify-between gap-3 px-4 py-3.5 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2 bg-primary-50/60 border-primary-200' : ''}`}>
+                    <div className="min-w-0">
+                      <div className="truncate font-heading text-sm font-bold">{d.donor}</div>
+                      {d.campaign && <div className={`truncate text-[11px] ${t.muted}`}>{d.campaign}</div>}
+                    </div>
+                    {d.amount && <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-extrabold ${t.badge}`}>{d.amount}</span>}
                   </div>
-                  {d.amount && <span className="shrink-0 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-extrabold text-primary-700">{d.amount}</span>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         )
       }
-      if (look === 'urgent_live_feed') {
+      if (look === 'urgent_live_feed' || look === 'compact_pulse_list') {
         return (
           <div className={container}>
             <Head o={o} />
-            <div className="mx-auto max-w-3xl divide-y divide-red-100 rounded-3xl border-2 border-red-200 bg-white shadow-sm">
+            <div className={`mx-auto max-w-3xl divide-y rounded-3xl bg-white shadow-sm ${look === 'urgent_live_feed' ? 'divide-red-100 border-2 border-red-200' : 'divide-emerald-100 border border-emerald-200'}`}>
               {donations.map((d, i) => (
                 <div key={i} className="flex items-center justify-between gap-3 px-6 py-4">
                   <div className="flex items-center gap-3">
-                    <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" />
+                    <span className={`h-2.5 w-2.5 animate-pulse rounded-full ${look === 'urgent_live_feed' ? 'bg-red-600' : 'bg-emerald-500'}`} />
                     <div>
                       <div className="font-heading text-sm font-bold text-gray-900">{d.donor}</div>
                       {d.campaign && <div className="text-xs text-gray-500">{d.campaign}</div>}
                     </div>
                   </div>
-                  {d.amount && <span className="rounded-lg bg-red-50 px-3 py-1 font-heading text-sm font-extrabold text-red-700">{d.amount}</span>}
+                  {d.amount && <span className={`rounded-lg px-3 py-1 font-heading text-sm font-extrabold ${look === 'urgent_live_feed' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>{d.amount}</span>}
                 </div>
               ))}
             </div>
           </div>
         )
       }
-      if (look === 'ticker_strip') {
+      if (look === 'donor_wall' || look === 'dark_gold_wall') {
         return (
-          <div className="overflow-hidden border-y border-emerald-200 bg-emerald-50/80 py-3 text-sm text-emerald-950">
-            <div className="bmq items-center gap-8" style={{ ['--bmq' as string]: `${Math.max(donations.length * 6, 20)}s` }}>
-              {[...donations, ...donations].map((d, i) => (
-                <span key={i} className="inline-flex flex-none items-center gap-2 font-semibold">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <strong>{d.donor}</strong> · <span className="text-emerald-700 font-extrabold">{d.amount}</span> {d.campaign ? `(${d.campaign})` : ''}
-                </span>
-              ))}
-            </div>
-          </div>
-        )
-      }
-      if (look === 'donor_wall') {
-        return (
-          <div className={container}>
-            <Head o={o} />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {donations.map((d, i) => (
-                <div key={i} className="rounded-2xl border border-primary-100 bg-white p-5 text-center shadow-sm">
-                  <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-primary-50 font-heading text-base font-extrabold text-primary-700">
-                    {String(d.donor || '♥').charAt(0)}
+          <div className={t.sectionBg}>
+            <div className={container}>
+              <Head o={o} />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {donations.map((d, i) => (
+                  <div key={i} className={`${t.card} p-5 text-center`}>
+                    <div className={`mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full font-heading text-base font-extrabold ${t.badge}`}>
+                      {String(d.donor || '♥').charAt(0)}
+                    </div>
+                    <div className="font-heading text-sm font-bold">{d.donor}</div>
+                    {d.amount && <div className={`mt-1 font-heading text-lg font-extrabold ${t.accent}`}>{d.amount}</div>}
+                    {d.campaign && <div className={`mt-0.5 text-xs ${t.muted}`}>{d.campaign}</div>}
                   </div>
-                  <div className="font-heading text-sm font-bold text-gray-900">{d.donor}</div>
-                  {d.amount && <div className="mt-1 font-heading text-lg font-extrabold text-primary-700">{d.amount}</div>}
-                  {d.campaign && <div className="mt-0.5 text-xs text-gray-500">{d.campaign}</div>}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         )
@@ -3418,23 +3634,23 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'fidyah_calculator': {
       const look = o.look || 'card_widget'
-      const isDark = look === 'dark_ramadan'
+      const isDark = look === 'dark_ramadan' || look === 'emerald_ramadan'
       return (
-        <div className={isDark ? 'bg-primary-950 py-14 text-white' : ''}>
+        <div className={look === 'emerald_ramadan' ? 'bg-emerald-950 py-14 text-white' : look === 'dark_ramadan' ? 'bg-primary-950 py-14 text-white' : look === 'glass_calculator' ? 'bg-gradient-to-br from-primary-50/70 via-white to-accent-50/60 py-12' : ''}>
           <div className={container}>
-            {look === 'split_explainer' ? (
+            {look === 'split_explainer' || look === 'two_tone_split' ? (
               <div className="grid items-center gap-8 lg:grid-cols-12">
                 <div className="lg:col-span-5">
                   <Head o={o} center={false} />
                 </div>
                 <div className="lg:col-span-7">
-                  <FidyahCalculator unitAmount={o.unit_amount} defaultPeople={o.default_people} defaultDays={o.default_days} buttonLabel={o.button_label} buttonUrl={o.button_url} />
+                  <FidyahCalculator unitAmount={o.unit_amount} defaultPeople={o.default_people} defaultDays={o.default_days} buttonLabel={o.button_label} buttonUrl={o.button_url} look={look} />
                 </div>
               </div>
             ) : (
-              <div className="mx-auto max-w-2xl">
+              <div className={look === 'minimal_inline' ? 'mx-auto max-w-4xl' : 'mx-auto max-w-2xl'}>
                 <Head o={o} />
-                <FidyahCalculator unitAmount={o.unit_amount} defaultPeople={o.default_people} defaultDays={o.default_days} buttonLabel={o.button_label} buttonUrl={o.button_url} dark={isDark} />
+                <FidyahCalculator unitAmount={o.unit_amount} defaultPeople={o.default_people} defaultDays={o.default_days} buttonLabel={o.button_label} buttonUrl={o.button_url} dark={isDark} look={look} />
               </div>
             )}
           </div>
@@ -3443,56 +3659,52 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'transparency_bar': {
       const look = o.look || 'official_seals'
+      const t = lookTheme(look)
       const seals = items.filter((i) => i.title)
-      if (look === 'emerald_audit_bar') {
-        const fieldPct = Math.min(100, Math.max(0, Number(o.field_pct) || 92))
+      const fieldPct = Math.min(100, Math.max(0, Number(o.field_pct) || 92))
+      const opsPct = Math.max(0, 100 - fieldPct)
+      if (look === 'emerald_audit_bar' || look === 'dark_gold_seals') {
         return (
-          <div className="bg-emerald-950 py-10 text-white">
+          <div className={t.sectionBg}>
             <div className={container}>
               <Head o={o} />
-              <div className="mx-auto max-w-3xl rounded-3xl border border-amber-400/30 bg-emerald-900/60 p-7">
+              <div className={`mx-auto max-w-4xl ${t.wrap}`}>
                 <div className="mb-3 flex justify-between text-sm font-bold">
-                  <span className="text-amber-300">%{fieldPct} Doğrudan Saha Yardımları</span>
-                  <span className="text-emerald-200/80">%{Math.max(0, 100 - fieldPct)} Operasyon</span>
+                  <span className={t.accent}>%{fieldPct} Doğrudan Saha Yardımları</span>
+                  <span className={t.muted}>%{opsPct} Operasyon</span>
                 </div>
                 <div className="flex h-3.5 overflow-hidden rounded-full bg-black/30">
                   <div className="bg-amber-400" style={{ width: `${fieldPct}%` }} />
                 </div>
-                {o.permit_no && <div className="mt-4 text-xs text-emerald-100/80">İzin / DERBİS: <strong className="text-white">{o.permit_no}</strong></div>}
+                {o.permit_no && <div className={`mt-4 text-xs ${t.muted}`}>İzin / DERBİS: <strong className="text-white">{o.permit_no}</strong></div>}
+                {seals.length > 0 && (
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {seals.map((s, i) => (
+                      <Go key={i} href={s.url} className={`${t.softBox} flex items-center gap-3 p-3.5`}>
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${t.badge}`}>{s.icon || '✓'}</span>
+                        <div className="min-w-0">
+                          <div className="truncate font-heading text-xs font-bold">{s.title}</div>
+                          {s.code && <div className={`text-[11px] font-mono ${t.muted}`}>{s.code}</div>}
+                        </div>
+                      </Go>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )
       }
-      if (look === 'minimal_percent_bar') {
-        const fieldPct = Math.min(100, Math.max(0, Number(o.field_pct) || 92))
+      if (look === 'minimal_percent_bar' || look === 'ledger_summary') {
         return (
           <div className={container}>
             <Head o={o} />
-            <div className="mx-auto max-w-3xl border-y border-gray-200 py-6">
-              <div className="mb-2 flex justify-between text-xs font-extrabold uppercase tracking-wider text-gray-700">
-                <span>Saha Yardım Oranı: %{fieldPct}</span>
-                {o.permit_no && <span>DERBİS: {o.permit_no}</span>}
-              </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-gray-100">
-                <div className="h-full rounded-full bg-primary-600" style={{ width: `${fieldPct}%` }} />
-              </div>
-            </div>
-          </div>
-        )
-      }
-      if (look === 'ledger_summary') {
-        const fieldPct = Math.min(100, Math.max(0, Number(o.field_pct) || 92))
-        const opsPct = Math.max(0, 100 - fieldPct)
-        return (
-          <div className={container}>
-            <Head o={o} />
-            <div className="mx-auto max-w-3xl rounded-3xl border border-gray-200 bg-white p-7 shadow-sm">
+            <div className={`mx-auto max-w-3xl ${look === 'minimal_percent_bar' ? 'border-y border-gray-200 py-6' : 'rounded-3xl border border-gray-200 bg-white p-7 shadow-sm'}`}>
               <div className="mb-3 flex justify-between text-sm font-bold">
                 <span className="text-primary-700">%{fieldPct} Doğrudan Saha Yardımları</span>
                 <span className="text-gray-500">%{opsPct} Operasyon & Lojistik</span>
               </div>
-              <div className="flex h-4 overflow-hidden rounded-full bg-gray-100">
+              <div className="flex h-3.5 overflow-hidden rounded-full bg-gray-100">
                 <div className="bg-primary-600" style={{ width: `${fieldPct}%` }} />
                 <div className="bg-gray-300" style={{ width: `${opsPct}%` }} />
               </div>
@@ -3501,19 +3713,36 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
+      if (look === 'compact_pill_bar') {
+        return (
+          <div className={container}>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 py-4">
+              {o.permit_no && <span className="rounded-full bg-primary-600 px-4 py-1.5 text-xs font-extrabold text-white">🏛️ {o.permit_no}</span>}
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-extrabold text-emerald-800">✓ %{fieldPct} Saha Yardımı</span>
+              {seals.map((s, i) => (
+                <Go key={i} href={s.url} className="rounded-full border border-gray-200 bg-white px-4 py-1.5 text-xs font-bold text-gray-800 shadow-2xs">
+                  {s.icon || '✓'} {s.title}
+                </Go>
+              ))}
+            </div>
+          </div>
+        )
+      }
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${look === 'verified_banner' ? 'rounded-3xl border-2 border-emerald-200 bg-emerald-50/40 p-6' : look === 'bordered_seal_strip' ? 'rounded-3xl border-2 border-primary-200 bg-white p-6 shadow-sm' : ''}`}>
-            {seals.map((s, i) => (
-              <Go key={i} href={s.url} className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-lg text-emerald-700">{s.icon || '✓'}</span>
-                <div className="min-w-0">
-                  <div className="truncate font-heading text-sm font-bold text-gray-900">{s.title}</div>
-                  {s.code && <div className="text-xs font-mono text-gray-500">{s.code}</div>}
-                </div>
-              </Go>
-            ))}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${look === 'verified_banner' ? 'rounded-3xl border-2 border-emerald-200 bg-emerald-50/40 p-6' : look === 'bordered_seal_strip' ? 'rounded-3xl border-2 border-primary-200 bg-white p-6 shadow-sm' : look === 'glass_trust_strip' ? t.wrap : ''}`}>
+              {seals.map((s, i) => (
+                <Go key={i} href={s.url} className={`flex items-center gap-3 p-4 ${t.card} ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-lg text-emerald-700">{s.icon || '✓'}</span>
+                  <div className="min-w-0">
+                    <div className="truncate font-heading text-sm font-bold text-gray-900">{s.title}</div>
+                    {s.code && <div className="text-xs font-mono text-gray-500">{s.code}</div>}
+                  </div>
+                </Go>
+              ))}
+            </div>
           </div>
         </div>
       )
@@ -3521,18 +3750,20 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'audio_player': {
       const tracks = items.filter((i) => i.title)
       if (!tracks.length) return <Empty editing={editing} text="Ses kaydı ekleyin" />
-      const isDark = o.look === 'dark_studio'
+      const look = o.look || 'playlist_card'
+      const t = lookTheme(look)
+      const isGrid = look === 'grid_episodes' || look === 'featured_episode'
       return (
-        <div className={isDark ? 'bg-gray-950 py-14 text-white' : ''}>
+        <div className={t.sectionBg}>
           <div className={container}>
             <Head o={o} />
-            <div className="mx-auto max-w-3xl space-y-4">
+            <div className={isGrid ? 'grid gap-5 md:grid-cols-2' : 'mx-auto max-w-3xl space-y-4'}>
               {tracks.map((tr, i) => (
-                <div key={i} className={`flex flex-col gap-4 rounded-2xl p-5 sm:flex-row sm:items-center ${isDark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
-                  {tr.cover_url && <img src={tr.cover_url} alt={tr.title || ''} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />}
+                <div key={i} className={`${t.card} flex flex-col gap-4 p-5 sm:flex-row sm:items-center ${look === 'featured_episode' && i === 0 ? 'md:col-span-2 border-2 border-primary-300 bg-primary-50/40' : ''}`}>
+                  {tr.cover_url && <img src={tr.cover_url} alt={tr.title || ''} className={`${look === 'minimal_bar' || look === 'compact_rows' ? 'h-12 w-12' : 'h-16 w-16'} shrink-0 rounded-xl object-cover`} loading="lazy" />}
                   <div className="min-w-0 flex-1">
                     <div className="font-heading text-base font-bold">{tr.title}</div>
-                    {(tr.speaker || tr.duration) && <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{[tr.speaker, tr.duration].filter(Boolean).join(' · ')}</div>}
+                    {(tr.speaker || tr.duration) && <div className={`text-xs ${t.muted}`}>{[tr.speaker, tr.duration].filter(Boolean).join(' · ')}</div>}
                     {tr.audio_url && <audio controls className="mt-2.5 h-9 w-full" src={tr.audio_url} />}
                   </div>
                 </div>
@@ -3543,34 +3774,36 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       )
     }
     case 'volunteer_cta': {
+      const look = o.look || 'role_cards'
+      const t = lookTheme(look)
       const roles = items.filter((i) => i.title)
-      if (o.look === 'emerald_volunteer_banner') {
+      if (look === 'emerald_volunteer_banner' || look === 'dark_gold_cta') {
         return (
-          <div className="bg-emerald-950 py-14 text-white">
+          <div className={t.sectionBg}>
             <div className={container}>
-              <div className="grid items-center gap-8 rounded-3xl border border-amber-400/30 bg-emerald-900/50 p-8 md:grid-cols-12">
+              <div className={`${t.wrap} grid items-center gap-8 md:grid-cols-12`}>
                 <div className="md:col-span-8">
                   <Head o={o} center={false} />
                   {roles.length > 0 && (
                     <div className="mt-4 flex flex-wrap gap-2">
                       {roles.map((r, i) => (
-                        <span key={i} className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-amber-200">{r.icon || '🤝'} {r.title}</span>
+                        <span key={i} className={`rounded-full px-3 py-1 text-xs font-bold ${t.badge}`}>{r.icon || '🤝'} {r.title}</span>
                       ))}
                     </div>
                   )}
                 </div>
                 <div className="md:col-span-4 md:text-end">
-                  {o.button_label && o.button_url && <Go href={o.button_url} className="inline-flex rounded-xl bg-amber-400 px-7 py-3.5 text-sm font-extrabold text-slate-950 hover:bg-amber-300">{o.button_label} →</Go>}
+                  {o.button_label && o.button_url && <Go href={o.button_url} className={`inline-flex rounded-xl px-7 py-3.5 text-sm font-extrabold ${t.btn}`}>{o.button_label} →</Go>}
                 </div>
               </div>
             </div>
           </div>
         )
       }
-      if (o.look === 'minimal_split_volunteer') {
+      if (look === 'minimal_split_volunteer' || look === 'compact_banner') {
         return (
           <div className={container}>
-            <div className="flex flex-wrap items-center justify-between gap-6 border-y border-gray-200 py-8">
+            <div className={`flex flex-wrap items-center justify-between gap-6 ${look === 'minimal_split_volunteer' ? 'border-y border-gray-200 py-8' : 'rounded-3xl border border-primary-100 bg-primary-50/50 p-6 sm:p-8'}`}>
               <div className="max-w-2xl">
                 {o.title && <h2 className="font-heading text-2xl font-bold text-gray-900">{o.title}</h2>}
                 {o.subtitle && <p className="mt-1 text-sm text-gray-600">{o.subtitle}</p>}
@@ -3580,7 +3813,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      if (o.look === 'pill_role_cta') {
+      if (look === 'pill_role_cta') {
         return (
           <div className={container}>
             <Head o={o} />
@@ -3601,53 +3834,89 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
         )
       }
       return (
-        <div className={container}>
-          <Head o={o} />
-          {o.look === 'split_photo' && (
-            <div className="grid items-center gap-8 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:grid-cols-12 md:p-10">
-              {o.image_url && <div className="md:col-span-5"><img src={o.image_url} alt={o.title || ''} className="aspect-[4/3] w-full rounded-2xl object-cover" loading="lazy" /></div>}
-              <div className={o.image_url ? 'md:col-span-7' : 'md:col-span-12'}>
-                {o.button_label && o.button_url && <Go href={o.button_url} className="inline-flex rounded-xl bg-primary-600 px-7 py-3.5 text-sm font-extrabold text-white shadow hover:bg-primary-700">{o.button_label} →</Go>}
-              </div>
-            </div>
-          )}
-          {roles.length > 0 && o.look !== 'split_photo' && (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {roles.map((r, i) => (
-                <div key={i} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <div className="mb-3 text-2xl">{r.icon || '🤝'}</div>
-                  <h3 className="font-heading text-lg font-bold text-gray-900">{r.title}</h3>
-                  {r.text && <p className="mt-1.5 text-sm text-gray-600">{r.text}</p>}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            {look === 'split_photo' && (
+              <div className="grid items-center gap-8 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm md:grid-cols-12 md:p-10">
+                {o.image_url && <div className="md:col-span-5"><img src={o.image_url} alt={o.title || ''} className="aspect-[4/3] w-full rounded-2xl object-cover" loading="lazy" /></div>}
+                <div className={o.image_url ? 'md:col-span-7' : 'md:col-span-12'}>
+                  {o.button_label && o.button_url && <Go href={o.button_url} className="inline-flex rounded-xl bg-primary-600 px-7 py-3.5 text-sm font-extrabold text-white shadow hover:bg-primary-700">{o.button_label} →</Go>}
                 </div>
-              ))}
-            </div>
-          )}
-          {o.look !== 'split_photo' && o.button_label && o.button_url && (
-            <div className="mt-8 text-center">
-              <Go href={o.button_url} className="inline-flex rounded-xl bg-primary-600 px-7 py-3.5 text-sm font-extrabold text-white shadow hover:bg-primary-700">{o.button_label} →</Go>
-            </div>
-          )}
+              </div>
+            )}
+            {roles.length > 0 && look !== 'split_photo' && (
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {roles.map((r, i) => (
+                  <div key={i} className={`${t.card} p-6 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                    <div className="mb-3 text-2xl">{r.icon || '🤝'}</div>
+                    <h3 className="font-heading text-lg font-bold">{r.title}</h3>
+                    {r.text && <p className={`mt-1.5 text-sm ${t.muted}`}>{r.text}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {look !== 'split_photo' && o.button_label && o.button_url && (
+              <div className="mt-8 text-center">
+                <Go href={o.button_url} className={`inline-flex rounded-xl px-7 py-3.5 text-sm font-extrabold shadow ${t.btn}`}>{o.button_label} →</Go>
+              </div>
+            )}
+          </div>
         </div>
       )
     }
     case 'press_mentions': {
       const mentions = items.filter((i) => i.outlet || i.quote)
       if (!mentions.length) return <Empty editing={editing} text="Basın haberi ekleyin" />
+      const look = o.look || 'newspaper_cards'
+      const t = lookTheme(look)
+      if (look === 'marquee_strip') {
+        return (
+          <div className="overflow-hidden border-y border-gray-200 bg-gray-50 py-5">
+            <div className="bmq items-center gap-10" style={{ ['--bmq' as string]: `${Math.max(mentions.length * 6, 22)}s` }}>
+              {[...mentions, ...mentions].map((m, i) => (
+                <Go key={i} href={m.url} className="inline-flex flex-none items-center gap-3 rounded-full border border-gray-200 bg-white px-5 py-2.5 shadow-2xs">
+                  <span className="font-heading text-xs font-extrabold uppercase tracking-wider text-primary-700">{m.outlet}</span>
+                  {m.quote && <span className="max-w-xs truncate text-xs text-gray-600">“{m.quote}”</span>}
+                </Go>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      if (look === 'minimal_logo_rows') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-4xl divide-y divide-gray-200 border-y border-gray-200">
+              {mentions.map((m, i) => (
+                <Go key={i} href={m.url} className="flex flex-wrap items-center justify-between gap-4 py-4 hover:bg-gray-50/60">
+                  <span className="w-36 shrink-0 font-heading text-sm font-extrabold uppercase tracking-wider text-primary-700">{m.outlet}</span>
+                  {m.quote && <p className="min-w-0 flex-1 text-sm text-gray-700">“{m.quote}”</p>}
+                  {m.date && <span className="text-xs text-gray-400">{m.date}</span>}
+                </Go>
+              ))}
+            </div>
+          </div>
+        )
+      }
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-5 md:grid-cols-3">
-            {mentions.map((m, i) => (
-              <Go key={i} href={m.url} className="flex flex-col justify-between rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-md">
-                <div>
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <span className="font-heading text-sm font-extrabold uppercase tracking-wider text-primary-700">{m.outlet}</span>
-                    {m.date && <span className="text-xs text-gray-400">{m.date}</span>}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-5 md:grid-cols-3">
+              {mentions.map((m, i) => (
+                <Go key={i} href={m.url} className={`${t.card} flex flex-col justify-between p-6 transition hover:shadow-md ${t.mode === 'bento' && i === 0 ? 'md:col-span-2' : ''}`}>
+                  <div>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <span className={`font-heading text-sm font-extrabold uppercase tracking-wider ${t.accent}`}>{m.outlet}</span>
+                      {m.date && <span className={`text-xs ${t.muted}`}>{m.date}</span>}
+                    </div>
+                    {m.quote && <p className={`leading-relaxed ${look === 'editorial_quotes' ? 'font-heading text-base font-semibold' : 'text-sm'} ${t.dark ? 'text-white/85' : 'text-gray-700'}`}>“{m.quote}”</p>}
                   </div>
-                  {m.quote && <p className="text-sm leading-relaxed text-gray-700">“{m.quote}”</p>}
-                </div>
-              </Go>
-            ))}
+                </Go>
+              ))}
+            </div>
           </div>
         </div>
       )
@@ -3655,24 +3924,78 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'impact_reports': {
       const reports = items.filter((i) => i.title)
       if (!reports.length) return <Empty editing={editing} text="Dağıtım raporu ekleyin" />
+      const look = o.look || 'proof_grid'
+      const t = lookTheme(look)
+      if (look === 'table_ledger') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <table className="w-full min-w-[540px] text-start text-sm">
+                <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
+                  <tr>
+                    <th className="px-5 py-3.5 font-bold">Proje</th>
+                    <th className="px-5 py-3.5 font-bold">Konum</th>
+                    <th className="px-5 py-3.5 font-bold">Tarih</th>
+                    <th className="px-5 py-3.5 text-end font-bold">Ulaşılan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {reports.map((r, i) => (
+                    <tr key={i}>
+                      <td className="px-5 py-4 font-bold text-gray-900">{r.title}</td>
+                      <td className="px-5 py-4 text-gray-600">{r.location}</td>
+                      <td className="px-5 py-4 text-xs text-gray-500">{r.date}</td>
+                      <td className="px-5 py-4 text-end"><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">{r.beneficiaries || '—'}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+      if (look === 'compact_list' || look === 'timeline_reports') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-3xl space-y-3">
+              {reports.map((r, i) => (
+                <Go key={i} href={r.url} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    {r.image_url && <img src={r.image_url} alt={r.title || ''} className="h-12 w-16 rounded-xl object-cover" loading="lazy" />}
+                    <div>
+                      <div className="font-heading text-sm font-bold text-gray-900">{r.title}</div>
+                      <div className="text-xs text-gray-500">{[r.location, r.date].filter(Boolean).join(' · ')}</div>
+                    </div>
+                  </div>
+                  {r.beneficiaries && <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">✓ {r.beneficiaries}</span>}
+                </Go>
+              ))}
+            </div>
+          </div>
+        )
+      }
       const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
-            {reports.map((r, i) => (
-              <Go key={i} href={r.url} className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-                {r.image_url && <img src={r.image_url} alt={r.title || ''} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />}
-                <div className="p-5">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-primary-600">
-                    {r.location && <span>📍 {r.location}</span>}
-                    {r.date && <span className="text-gray-400">· {r.date}</span>}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
+              {reports.map((r, i) => (
+                <Go key={i} href={r.url} className={`${t.card} group overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg ${(t.mode === 'bento' || t.mode === 'featured') && i === 0 ? 'sm:col-span-2' : ''}`}>
+                  {r.image_url && <img src={r.image_url} alt={r.title || ''} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />}
+                  <div className="p-5">
+                    <div className={`flex flex-wrap items-center gap-2 text-xs font-bold ${t.accent}`}>
+                      {r.location && <span>📍 {r.location}</span>}
+                      {r.date && <span className={t.muted}>· {r.date}</span>}
+                    </div>
+                    <h3 className="mt-1.5 font-heading text-base font-bold">{r.title}</h3>
+                    {r.beneficiaries && <div className={`mt-2 inline-block rounded-full px-3 py-0.5 text-xs font-extrabold ${t.badge}`}>✓ {r.beneficiaries}</div>}
                   </div>
-                  <h3 className="mt-1.5 font-heading text-base font-bold text-gray-900">{r.title}</h3>
-                  {r.beneficiaries && <div className="mt-2 inline-block rounded-full bg-emerald-50 px-3 py-0.5 text-xs font-extrabold text-emerald-700">✓ {r.beneficiaries}</div>}
-                </div>
-              </Go>
-            ))}
+                </Go>
+              ))}
+            </div>
           </div>
         </div>
       )
@@ -3681,6 +4004,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const shares = items.filter((i) => i.title)
       if (!shares.length) return <Empty editing={editing} text="Kurban hisse grubu ekleyin" />
       const look = o.look || 'share_cards'
+      const t = lookTheme(look)
       if (look === 'country_matrix') {
         return (
           <div className={container}>
@@ -3712,37 +4036,73 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
           </div>
         )
       }
-      const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
-            {shares.map((s, i) => {
-              const total = Math.max(1, Number(s.total) || 7)
-              const taken = Math.min(total, Math.max(0, Number(s.taken) ?? 5))
-              return (
-                <div key={i} className="flex flex-col justify-between rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
+      if (look === 'compact_rows') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-3xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+              {shares.map((s, i) => {
+                const total = Math.max(1, Number(s.total) || 7)
+                const taken = Math.min(total, Math.max(0, Number(s.taken) ?? 5))
+                return (
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+                    <div className="flex items-center gap-3">
                       <span className="text-2xl">{s.flag || '🐑'}</span>
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${look === 'urgent_shares' ? 'bg-red-50 text-red-700' : 'bg-primary-50 text-primary-700'}`}>
-                        {total - taken > 0 ? `Son ${total - taken} Hisse` : 'Tamamlandı'}
-                      </span>
+                      <div>
+                        <div className="font-heading text-sm font-bold text-gray-900">{s.title}</div>
+                        <div className="text-xs text-gray-500">{taken}/{total} Hisse Dolu</div>
+                      </div>
                     </div>
-                    <h3 className="mt-3 font-heading text-lg font-bold text-gray-900">{s.title}</h3>
-                    {s.amount && <div className="mt-1 font-heading text-2xl font-extrabold text-primary-700">{s.amount}</div>}
-                    <div className="mt-4 flex gap-1.5" aria-label={`${taken}/${total} hisse`}>
-                      {Array.from({ length: total }).map((_, idx) => (
-                        <span key={idx} className={`h-2.5 flex-1 rounded-full ${idx < taken ? 'bg-primary-600' : 'bg-gray-200'}`} />
-                      ))}
+                    <div className="flex items-center gap-4">
+                      {s.amount && <span className="font-heading text-base font-extrabold text-primary-700">{s.amount}</span>}
+                      <Go href={s.url || '/bagis'} className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700">{s.button_label || 'Hisse Al'}</Go>
                     </div>
                   </div>
-                  <Go href={s.url || '/bagis'} className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-primary-700">
-                    {s.button_label || 'Hisse Al'} →
-                  </Go>
-                </div>
-              )
-            })}
+                )
+              })}
+            </div>
+          </div>
+        )
+      }
+      const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
+              {shares.map((s, i) => {
+                const total = Math.max(1, Number(s.total) || 7)
+                const taken = Math.min(total, Math.max(0, Number(s.taken) ?? 5))
+                return (
+                  <div key={i} className={`${t.card} flex flex-col justify-between p-6 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-2xl">{s.flag || '🐑'}</span>
+                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${look === 'urgent_shares' ? 'bg-red-50 text-red-700' : t.badge}`}>
+                          {total - taken > 0 ? `Son ${total - taken} Hisse` : 'Tamamlandı'}
+                        </span>
+                      </div>
+                      <h3 className="mt-3 font-heading text-lg font-bold">{s.title}</h3>
+                      {s.amount && <div className={`mt-1 font-heading text-2xl font-extrabold ${t.accent}`}>{s.amount}</div>}
+                      {look === 'progress_bars' ? (
+                        <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-gray-200/60">
+                          <div className="h-full rounded-full bg-primary-600" style={{ width: `${Math.round((taken / total) * 100)}%` }} />
+                        </div>
+                      ) : (
+                        <div className="mt-4 flex gap-1.5" aria-label={`${taken}/${total} hisse`}>
+                          {Array.from({ length: total }).map((_, idx) => (
+                            <span key={idx} className={`h-2.5 flex-1 rounded-full ${idx < taken ? (t.dark ? 'bg-amber-400' : 'bg-primary-600') : (t.dark ? 'bg-white/15' : 'bg-gray-200')}`} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Go href={s.url || '/bagis'} className={`mt-5 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-bold transition ${t.btn}`}>
+                      {s.button_label || 'Hisse Al'} →
+                    </Go>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )
@@ -3750,32 +4110,60 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'water_well_showcase': {
       const wells = items.filter((i) => i.title)
       if (!wells.length) return <Empty editing={editing} text="Su kuyusu ekleyin" />
+      const look = o.look || 'status_cards'
+      const t = lookTheme(look)
       const statusBadge: Record<string, { label: string; cls: string }> = {
         opened: { label: 'Açıldı ✓', cls: 'bg-emerald-100 text-emerald-800' },
         drilling: { label: 'Sondaj Aşamasında', cls: 'bg-amber-100 text-amber-800' },
         planned: { label: 'Planlanan', cls: 'bg-gray-100 text-gray-700' },
       }
+      if (look === 'compact_table' || look === 'progress_list') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-4xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+              {wells.map((w, i) => {
+                const st = statusBadge[w.status || 'opened'] || statusBadge.opened
+                return (
+                  <Go key={i} href={w.url} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 hover:bg-gray-50/70">
+                    <div className="flex items-center gap-3">
+                      {w.image_url && <img src={w.image_url} alt={w.title || ''} className="h-12 w-16 rounded-xl object-cover" loading="lazy" />}
+                      <div>
+                        <div className="font-heading text-sm font-bold text-gray-900">{w.title}</div>
+                        <div className="text-xs text-gray-500">{[w.country, w.beneficiaries].filter(Boolean).join(' · ')}</div>
+                      </div>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold ${st.cls}`}>{st.label}</span>
+                  </Go>
+                )
+              })}
+            </div>
+          </div>
+        )
+      }
       const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
-            {wells.map((w, i) => {
-              const st = statusBadge[w.status || 'opened'] || statusBadge.opened
-              return (
-                <Go key={i} href={w.url} className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-                  {w.image_url && <img src={w.image_url} alt={w.title || ''} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />}
-                  <div className="p-5">
-                    <div className="flex items-center justify-between gap-2">
-                      {w.country && <span className="text-xs font-bold text-primary-600">💧 {w.country}</span>}
-                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold ${st.cls}`}>{st.label}</span>
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-6 sm:grid-cols-2 ${cols}`}>
+              {wells.map((w, i) => {
+                const st = statusBadge[w.status || 'opened'] || statusBadge.opened
+                return (
+                  <Go key={i} href={w.url} className={`${t.card} group overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg ${(t.mode === 'bento' || t.mode === 'featured') && i === 0 ? 'sm:col-span-2' : ''}`}>
+                    {w.image_url && <img src={w.image_url} alt={w.title || ''} className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />}
+                    <div className="p-5">
+                      <div className="flex items-center justify-between gap-2">
+                        {w.country && <span className={`text-xs font-bold ${t.accent}`}>💧 {w.country}</span>}
+                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold ${st.cls}`}>{st.label}</span>
+                      </div>
+                      <h3 className="mt-2 font-heading text-lg font-bold">{w.title}</h3>
+                      {w.beneficiaries && <div className={`mt-1 text-xs ${t.muted}`}>{w.beneficiaries}</div>}
                     </div>
-                    <h3 className="mt-2 font-heading text-lg font-bold text-gray-900">{w.title}</h3>
-                    {w.beneficiaries && <div className="mt-1 text-xs text-gray-500">{w.beneficiaries}</div>}
-                  </div>
-                </Go>
-              )
-            })}
+                  </Go>
+                )
+              })}
+            </div>
           </div>
         </div>
       )
@@ -3783,32 +4171,57 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'impact_comparison': {
       const cols = items.filter((i) => i.title)
       if (!cols.length) return <Empty editing={editing} text="Karşılaştırma kalemi ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-6 md:grid-cols-2">
-            {cols.map((c, i) => {
-              const pts = String(c.points || '').split('\n').map((l) => l.trim()).filter(Boolean)
-              return (
-                <div key={i} className={`flex flex-col justify-between rounded-3xl p-7 ${c.highlighted ? 'border-2 border-primary-600 bg-primary-50/40 shadow-lg' : 'border border-gray-200 bg-white shadow-sm'}`}>
+      const look = o.look || 'side_by_side_matrix'
+      const t = lookTheme(look)
+      if (look === 'compact_table') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-4xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+              {cols.map((c, i) => (
+                <div key={i} className={`flex flex-wrap items-center justify-between gap-4 px-6 py-5 ${c.highlighted ? 'bg-primary-50/50' : ''}`}>
                   <div>
-                    {c.badge && <span className="mb-2 inline-block rounded-full bg-primary-600 px-3 py-0.5 text-[11px] font-bold text-white">{c.badge}</span>}
-                    <div className="flex items-baseline justify-between gap-2">
-                      <h3 className="font-heading text-xl font-bold text-gray-900">{c.title}</h3>
-                      {c.amount && <span className="font-heading text-2xl font-extrabold text-primary-700">{c.amount}</span>}
-                    </div>
-                    {pts.length > 0 && (
-                      <ul className="mt-5 space-y-2.5 text-sm text-gray-700">
-                        {pts.map((pt, idx) => <li key={idx} className="flex items-start gap-2"><span className="font-bold text-primary-600">✓</span><span>{pt}</span></li>)}
-                      </ul>
-                    )}
+                    {c.badge && <span className="mb-1 inline-block rounded-full bg-primary-600 px-2.5 py-0.5 text-[10px] font-bold text-white">{c.badge}</span>}
+                    <h3 className="font-heading text-base font-bold text-gray-900">{c.title}</h3>
                   </div>
-                  <Go href={c.url || '/bagis'} className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-primary-600 px-5 py-3 text-sm font-bold text-white hover:bg-primary-700">
-                    Destek Ol →
-                  </Go>
+                  <div className="flex items-center gap-4">
+                    {c.amount && <span className="font-heading text-xl font-extrabold text-primary-700">{c.amount}</span>}
+                    <Go href={c.url || '/bagis'} className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white hover:bg-primary-700">Destek Ol →</Go>
+                  </div>
                 </div>
-              )
-            })}
+              ))}
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-6 ${cols.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+              {cols.map((c, i) => {
+                const pts = String(c.points || '').split('\n').map((l) => l.trim()).filter(Boolean)
+                return (
+                  <div key={i} className={`flex flex-col justify-between p-7 ${c.highlighted ? (t.dark ? 'rounded-3xl border-2 border-amber-400 bg-white/10 shadow-xl' : 'rounded-3xl border-2 border-primary-600 bg-primary-50/40 shadow-lg') : t.card} ${t.mode === 'bento' && i === 0 ? 'md:col-span-2' : ''}`}>
+                    <div>
+                      {c.badge && <span className={`mb-2 inline-block rounded-full px-3 py-0.5 text-[11px] font-bold ${t.badge}`}>{c.badge}</span>}
+                      <div className="flex items-baseline justify-between gap-2">
+                        <h3 className="font-heading text-xl font-bold">{c.title}</h3>
+                        {c.amount && <span className={`font-heading text-2xl font-extrabold ${t.accent}`}>{c.amount}</span>}
+                      </div>
+                      {pts.length > 0 && (
+                        <ul className={`mt-5 space-y-2.5 text-sm ${t.dark ? 'text-white/85' : 'text-gray-700'}`}>
+                          {pts.map((pt, idx) => <li key={idx} className="flex items-start gap-2"><span className={`font-bold ${t.accent}`}>✓</span><span>{pt}</span></li>)}
+                        </ul>
+                      )}
+                    </div>
+                    <Go href={c.url || '/bagis'} className={`mt-6 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-bold ${t.btn}`}>
+                      Destek Ol →
+                    </Go>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )
@@ -3816,52 +4229,138 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'donation_quiz': {
       const options = items.filter((i) => i.title)
       if (!options.length) return <Empty editing={editing} text="Yardım alanı ekleyin" />
+      const look = o.look || 'card_selector'
+      const t = lookTheme(look)
+      if (look === 'pill_selector') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="flex flex-wrap justify-center gap-3">
+              {options.map((opt, i) => {
+                const base = String(opt.url || '/bagis')
+                const sep = base.includes('?') ? '&' : '?'
+                const href = opt.suggested_amount ? `${base}${sep}tutar=${opt.suggested_amount}` : base
+                return (
+                  <Go key={i} href={href} className="inline-flex items-center gap-2.5 rounded-full border border-primary-200 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:border-primary-600 hover:bg-primary-600 hover:text-white">
+                    <span>{opt.icon || '🤲'}</span>
+                    <span>{opt.title}</span>
+                    {opt.suggested_amount && <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-extrabold text-primary-700">{opt.suggested_amount} ₺</span>}
+                  </Go>
+                )
+              })}
+            </div>
+          </div>
+        )
+      }
+      if (look === 'compact_list') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-3xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+              {options.map((opt, i) => {
+                const base = String(opt.url || '/bagis')
+                const sep = base.includes('?') ? '&' : '?'
+                const href = opt.suggested_amount ? `${base}${sep}tutar=${opt.suggested_amount}` : base
+                return (
+                  <Go key={i} href={href} className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-primary-50/40">
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{opt.icon || '🤲'}</span>
+                      <div>
+                        <div className="font-heading text-sm font-bold text-gray-900">{opt.title}</div>
+                        {opt.text && <div className="text-xs text-gray-500">{opt.text}</div>}
+                      </div>
+                    </div>
+                    {opt.suggested_amount && <span className="rounded-xl bg-primary-600 px-3.5 py-1.5 text-xs font-extrabold text-white">{opt.suggested_amount} ₺ →</span>}
+                  </Go>
+                )
+              })}
+            </div>
+          </div>
+        )
+      }
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {options.map((opt, i) => {
-              const base = String(opt.url || '/bagis')
-              const sep = base.includes('?') ? '&' : '?'
-              const href = opt.suggested_amount ? `${base}${sep}tutar=${opt.suggested_amount}` : base
-              return (
-                <Go key={i} href={href} className="group flex flex-col justify-between rounded-3xl border border-gray-200 bg-white p-6 text-center shadow-sm transition hover:-translate-y-1 hover:border-primary-500 hover:shadow-xl">
-                  <div>
-                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-3xl transition group-hover:bg-primary-600 group-hover:text-white">{opt.icon || '🤲'}</div>
-                    <h3 className="font-heading text-lg font-bold text-gray-900">{opt.title}</h3>
-                    {opt.text && <p className="mt-1.5 text-xs leading-relaxed text-gray-500">{opt.text}</p>}
-                  </div>
-                  {opt.suggested_amount && <div className="mt-4 rounded-xl bg-primary-50 py-2 text-xs font-extrabold text-primary-800 group-hover:bg-primary-600 group-hover:text-white">{opt.suggested_amount} ₺ ile Başla →</div>}
-                </Go>
-              )
-            })}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {options.map((opt, i) => {
+                const base = String(opt.url || '/bagis')
+                const sep = base.includes('?') ? '&' : '?'
+                const href = opt.suggested_amount ? `${base}${sep}tutar=${opt.suggested_amount}` : base
+                return (
+                  <Go key={i} href={href} className={`${t.card} group flex flex-col justify-between p-6 text-center transition hover:-translate-y-1 hover:shadow-xl ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                    <div>
+                      <div className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl text-3xl transition ${t.badge}`}>{opt.icon || '🤲'}</div>
+                      <h3 className="font-heading text-lg font-bold">{opt.title}</h3>
+                      {opt.text && <p className={`mt-1.5 text-xs leading-relaxed ${t.muted}`}>{opt.text}</p>}
+                    </div>
+                    {opt.suggested_amount && <div className={`mt-4 rounded-xl py-2 text-xs font-extrabold ${t.btn}`}>{opt.suggested_amount} ₺ ile Başla →</div>}
+                  </Go>
+                )
+              })}
+            </div>
           </div>
         </div>
       )
     }
     case 'prayer_calendar': {
       const days = items.filter((i) => i.title)
-      const isDarkGold = (o.look || 'dark_gold_card') === 'dark_gold_card'
+      const look = o.look || 'dark_gold_card'
+      const t = lookTheme(look)
+      if (look === 'compact_strip' || look === 'pill_schedule') {
+        return (
+          <div className={container}>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50/70 px-6 py-4">
+              <div className="flex flex-wrap items-center gap-3">
+                {o.hijri_date && <span className="rounded-full bg-amber-500 px-3 py-1 text-xs font-extrabold text-gray-950">🕌 {o.hijri_date}</span>}
+                {days.slice(0, 3).map((d, i) => (
+                  <span key={i} className="rounded-full bg-white px-3 py-1 text-xs font-bold text-gray-800 shadow-2xs">{d.date ? `${d.date}: ` : ''}{d.title}</span>
+                ))}
+              </div>
+              {o.button_label && o.button_url && <Go href={o.button_url} className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-extrabold text-white">{o.button_label} →</Go>}
+            </div>
+          </div>
+        )
+      }
+      if (look === 'timeline_days') {
+        return (
+          <div className={container}>
+            <div className="mx-auto max-w-3xl">
+              <Head o={o} />
+              <div className="space-y-4 border-s-2 border-primary-200 ps-6">
+                {days.map((d, i) => (
+                  <div key={i} className="relative rounded-2xl border border-gray-200 bg-white p-4 shadow-xs">
+                    <span className="absolute -start-[31px] top-5 h-3 w-3 rounded-full bg-primary-600 ring-4 ring-white" />
+                    {d.date && <div className="text-xs font-bold uppercase text-primary-600">{d.date}</div>}
+                    <div className="font-heading text-base font-bold text-gray-900">{d.title}</div>
+                    {d.note && <div className="mt-1 text-xs text-gray-500">{d.note}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      }
       return (
-        <div className={isDarkGold ? 'bg-gradient-to-br from-gray-950 via-primary-950 to-amber-950/60 py-14 text-white' : ''}>
+        <div className={t.sectionBg}>
           <div className={container}>
             <div className="mx-auto max-w-4xl">
               <Head o={o} />
-              {o.hijri_date && <div className="mb-6 text-center"><span className="rounded-full bg-amber-500/20 px-4 py-1 text-xs font-extrabold tracking-widest text-amber-300 ring-1 ring-amber-400/30">🕌 {o.hijri_date}</span></div>}
+              {o.hijri_date && <div className="mb-6 text-center"><span className={`rounded-full px-4 py-1 text-xs font-extrabold tracking-widest ${t.badge}`}>🕌 {o.hijri_date}</span></div>}
               {days.length > 0 && (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {days.map((d, i) => (
-                    <div key={i} className={`rounded-2xl p-5 ${isDarkGold ? 'border border-amber-400/20 bg-white/5' : 'border border-gray-200 bg-white text-gray-900 shadow-sm'}`}>
-                      {d.date && <div className={`text-xs font-bold uppercase ${isDarkGold ? 'text-amber-300' : 'text-primary-600'}`}>{d.date}</div>}
+                    <div key={i} className={`${t.card} p-5 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                      {d.date && <div className={`text-xs font-bold uppercase ${t.accent}`}>{d.date}</div>}
                       <div className="mt-1 font-heading text-base font-bold">{d.title}</div>
-                      {d.note && <div className={`mt-1 text-xs ${isDarkGold ? 'text-gray-300' : 'text-gray-500'}`}>{d.note}</div>}
+                      {d.note && <div className={`mt-1 text-xs ${t.muted}`}>{d.note}</div>}
                     </div>
                   ))}
                 </div>
               )}
               {o.button_label && o.button_url && (
                 <div className="mt-8 text-center">
-                  <Go href={o.button_url} className="inline-flex rounded-xl bg-amber-500 px-7 py-3.5 text-sm font-extrabold text-gray-950 shadow-lg hover:bg-amber-400">{o.button_label} →</Go>
+                  <Go href={o.button_url} className={`inline-flex rounded-xl px-7 py-3.5 text-sm font-extrabold shadow-lg ${t.btn}`}>{o.button_label} →</Go>
                 </div>
               )}
             </div>
@@ -3872,39 +4371,82 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'events_calendar': {
       const evs = items.filter((i) => i.title)
       if (!evs.length) return <Empty editing={editing} text="Etkinlik ekleyin" />
+      const look = o.look || 'event_cards'
+      const t = lookTheme(look)
+      if (look === 'upcoming_list' || look === 'compact_agenda' || look === 'timeline_events') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-3xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+              {evs.map((e, i) => (
+                <Go key={i} href={e.url} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 hover:bg-gray-50/70">
+                  <div className="flex items-center gap-4">
+                    {e.date && <span className="rounded-xl bg-primary-50 px-3 py-1.5 text-xs font-extrabold text-primary-700">{e.date}</span>}
+                    <div>
+                      <div className="font-heading text-base font-bold text-gray-900">{e.title}</div>
+                      {e.location && <div className="text-xs text-gray-500">📍 {e.location}</div>}
+                    </div>
+                  </div>
+                  {e.url && <span className="text-xs font-bold text-primary-600">Detay →</span>}
+                </Go>
+              ))}
+            </div>
+          </div>
+        )
+      }
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {evs.map((e, i) => (
-              <Go key={i} href={e.url} className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg">
-                {e.image_url && <img src={e.image_url} alt={e.title || ''} className="aspect-[16/10] w-full object-cover" loading="lazy" />}
-                <div className="p-5">
-                  {e.date && <div className="text-xs font-extrabold uppercase tracking-wider text-primary-600">📅 {e.date}</div>}
-                  <h3 className="mt-1.5 font-heading text-lg font-bold text-gray-900">{e.title}</h3>
-                  {e.location && <div className="mt-1 text-xs text-gray-500">📍 {e.location}</div>}
-                </div>
-              </Go>
-            ))}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {evs.map((e, i) => (
+                <Go key={i} href={e.url} className={`${t.card} group overflow-hidden transition hover:-translate-y-0.5 hover:shadow-lg ${(t.mode === 'bento' || t.mode === 'featured') && i === 0 ? 'sm:col-span-2' : ''}`}>
+                  {e.image_url && <img src={e.image_url} alt={e.title || ''} className="aspect-[16/10] w-full object-cover" loading="lazy" />}
+                  <div className="p-5">
+                    {e.date && <div className={`text-xs font-extrabold uppercase tracking-wider ${t.accent}`}>📅 {e.date}</div>}
+                    <h3 className="mt-1.5 font-heading text-lg font-bold">{e.title}</h3>
+                    {e.location && <div className={`mt-1 text-xs ${t.muted}`}>📍 {e.location}</div>}
+                  </div>
+                </Go>
+              ))}
+            </div>
           </div>
         </div>
       )
     }
     case 'app_promo': {
-      const isDark = o.look === 'dark_app_banner'
-      return (
-        <div className={isDark ? 'bg-gray-950 py-14 text-white' : ''}>
+      const look = o.look || 'phone_mockup_split'
+      const t = lookTheme(look)
+      if (look === 'compact_store_bar') {
+        return (
           <div className={container}>
-            <div className={`grid items-center gap-8 rounded-3xl p-8 md:grid-cols-12 md:p-12 ${isDark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-primary-50/50'}`}>
-              <div className={o.image_url ? 'md:col-span-7' : 'md:col-span-12'}>
-                <Head o={o} center={false} />
-                <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
+              <div>
+                {o.title && <div className="font-heading text-lg font-bold text-gray-900">{o.title}</div>}
+                {o.text && <div className="text-xs text-gray-500">{o.text}</div>}
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                {o.ios_url && <a href={o.ios_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white">App Store ↗</a>}
+                {o.android_url && <a href={o.android_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-bold text-white">Google Play ↗</a>}
+                {o.whatsapp_url && <a href={o.whatsapp_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white">WhatsApp ↗</a>}
+              </div>
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <div className={`${t.wrap} grid items-center gap-8 md:grid-cols-12 md:p-12`}>
+              <div className={o.image_url && look !== 'centered_showcase' ? 'md:col-span-7' : 'md:col-span-12 text-center'}>
+                <Head o={o} center={look === 'centered_showcase'} />
+                <div className={`flex flex-wrap gap-3 ${look === 'centered_showcase' ? 'justify-center' : ''}`}>
                   {o.ios_url && <a href={o.ios_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-gray-900 px-5 py-3 text-xs font-bold text-white hover:bg-gray-800">App Store ↗</a>}
                   {o.android_url && <a href={o.android_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-primary-600 px-5 py-3 text-xs font-bold text-white hover:bg-primary-700">Google Play ↗</a>}
                   {o.whatsapp_url && <a href={o.whatsapp_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-bold text-white hover:bg-emerald-700">WhatsApp Kanalı ↗</a>}
                 </div>
               </div>
-              {o.image_url && (
+              {o.image_url && look !== 'centered_showcase' && (
                 <div className="flex justify-center md:col-span-5">
                   <img src={o.image_url} alt={o.title || ''} className="max-h-72 rounded-3xl object-contain shadow-xl" loading="lazy" />
                 </div>
@@ -3917,24 +4459,58 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'impact_chart': {
       const rows = items.filter((i) => i.label)
       if (!rows.length) return <Empty editing={editing} text="Dağılım kalemi ekleyin" />
+      const look = o.look || 'horizontal_bars'
+      const t = lookTheme(look)
+      if (look === 'bento_metrics' || look === 'annual_comparison' || look === 'pill_breakdown') {
+        return (
+          <div className={t.sectionBg}>
+            <div className={container}>
+              <Head o={o} />
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {rows.map((r, i) => {
+                  const pct = Math.min(100, Math.max(0, Number(r.percent) || 0))
+                  return (
+                    <div key={i} className={`${t.card} p-6 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                      <div className={`font-heading text-3xl font-black ${t.accent}`}>%{pct}</div>
+                      <div className="mt-1 font-heading text-base font-bold">{r.label}</div>
+                      {r.amount && <div className={`mt-1 text-xs ${t.muted}`}>{r.amount}</div>}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )
+      }
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="mx-auto max-w-3xl space-y-4 rounded-3xl border border-gray-200 bg-white p-7 shadow-sm">
-            {rows.map((r, i) => {
-              const pct = Math.min(100, Math.max(0, Number(r.percent) || 0))
-              return (
-                <div key={i}>
-                  <div className="mb-1.5 flex items-baseline justify-between text-sm font-bold text-gray-900">
-                    <span>{r.label}</span>
-                    <span className="text-primary-700">%{pct} {r.amount ? <span className="text-xs font-normal text-gray-500">({r.amount})</span> : null}</span>
-                  </div>
-                  <div className="h-3 overflow-hidden rounded-full bg-gray-100">
-                    <div className="h-full rounded-full bg-gradient-to-r from-primary-600 to-accent-500" style={{ width: `${pct}%` }} />
-                  </div>
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`mx-auto max-w-3xl space-y-4 ${t.wrap}`}>
+              {look === 'stacked_strip' && (
+                <div className="mb-4 flex h-4 overflow-hidden rounded-full bg-gray-200/40">
+                  {rows.map((r, i) => {
+                    const pct = Math.min(100, Math.max(0, Number(r.percent) || 0))
+                    const shades = ['bg-primary-600', 'bg-emerald-500', 'bg-amber-400', 'bg-sky-500', 'bg-rose-500']
+                    return <div key={i} className={shades[i % shades.length]} style={{ width: `${pct}%` }} title={`${r.label}: %${pct}`} />
+                  })}
                 </div>
-              )
-            })}
+              )}
+              {rows.map((r, i) => {
+                const pct = Math.min(100, Math.max(0, Number(r.percent) || 0))
+                return (
+                  <div key={i}>
+                    <div className="mb-1.5 flex items-baseline justify-between text-sm font-bold">
+                      <span>{r.label}</span>
+                      <span className={t.accent}>%{pct} {r.amount ? <span className={`text-xs font-normal ${t.muted}`}>({r.amount})</span> : null}</span>
+                    </div>
+                    <div className={`h-3 overflow-hidden rounded-full ${t.dark ? 'bg-white/10' : 'bg-gray-100'}`}>
+                      <div className={`h-full rounded-full ${t.dark ? 'bg-amber-400' : 'bg-gradient-to-r from-primary-600 to-accent-500'}`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )
@@ -3942,39 +4518,67 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'branches_directory': {
       const branches = items.filter((i) => i.city || i.address)
       if (!branches.length) return <Empty editing={editing} text="Şube ekleyin" />
+      const look = o.look || 'city_cards'
+      const t = lookTheme(look)
+      if (look === 'compact_directory' || look === 'table_directory' || look === 'minimal_list') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-4xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+              {branches.map((b, i) => (
+                <div key={i} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+                  <div>
+                    <div className="font-heading text-base font-bold text-gray-900">📍 {b.city}</div>
+                    {b.address && <div className="text-xs text-gray-500">{b.address}</div>}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-bold">
+                    {b.phone && <a href={`tel:${String(b.phone).replace(/\s+/g, '')}`} className="text-primary-700 hover:underline">📞 {b.phone}</a>}
+                    {b.map_url && <a href={b.map_url} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-gray-100 px-3 py-1.5 text-gray-700">Harita ↗</a>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }
       const cols = COLS[Math.min(4, Math.max(2, Number(o.columns) || 3))] || COLS[3]
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`grid gap-5 sm:grid-cols-2 ${cols}`}>
-            {branches.map((b, i) => (
-              <div key={i} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <div className="font-heading text-lg font-bold text-gray-900">📍 {b.city}</div>
-                {b.address && <p className="mt-1.5 text-sm text-gray-600">{b.address}</p>}
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-bold">
-                  {b.phone && <a href={`tel:${String(b.phone).replace(/\s+/g, '')}`} className="text-primary-700 hover:underline">📞 {b.phone}</a>}
-                  {b.map_url && <a href={b.map_url} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:underline">Harita ↗</a>}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid gap-5 sm:grid-cols-2 ${cols}`}>
+              {branches.map((b, i) => (
+                <div key={i} className={`${t.card} p-5 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                  <div className="font-heading text-lg font-bold">📍 {b.city}</div>
+                  {b.address && <p className={`mt-1.5 text-sm ${t.muted}`}>{b.address}</p>}
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-bold">
+                    {b.phone && <a href={`tel:${String(b.phone).replace(/\s+/g, '')}`} className={`${t.accent} hover:underline`}>📞 {b.phone}</a>}
+                    {b.map_url && <a href={b.map_url} target="_blank" rel="noopener noreferrer" className={`${t.muted} hover:underline`}>Harita ↗</a>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )
     }
     case 'help_desk_card': {
-      const isDark = o.look === 'dark_help_bar'
+      const look = o.look || 'floating_support_card'
+      const t = lookTheme(look)
       return (
-        <div className={container}>
-          <div className={`rounded-3xl p-7 shadow-lg md:p-10 ${isDark ? 'bg-gray-950 text-white' : 'border border-gray-200 bg-white text-gray-900'}`}>
-            <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-              <div>
-                <Head o={o} center={false} />
-                {o.hours && <div className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>🕒 {o.hours}</div>}
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {o.phone && <a href={`tel:${String(o.phone).replace(/\s+/g, '')}`} className="rounded-xl bg-primary-600 px-5 py-3 text-xs font-extrabold text-white hover:bg-primary-700">📞 {o.phone}</a>}
-                {o.whatsapp && <a href={`https://wa.me/${String(o.whatsapp).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-extrabold text-white hover:bg-emerald-700">💬 WhatsApp</a>}
-                {o.email && <a href={`mailto:${o.email}`} className={`rounded-xl border px-5 py-3 text-xs font-extrabold ${isDark ? 'border-white/20 text-white hover:bg-white/10' : 'border-gray-200 text-gray-800 hover:bg-gray-50'}`}>✉️ {o.email}</a>}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <div className={`${t.wrap} md:p-10`}>
+              <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+                <div>
+                  <Head o={o} center={false} />
+                  {o.hours && <div className={`text-xs font-semibold ${t.muted}`}>🕒 {o.hours}</div>}
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {o.phone && <a href={`tel:${String(o.phone).replace(/\s+/g, '')}`} className={`rounded-xl px-5 py-3 text-xs font-extrabold ${t.btn}`}>📞 {o.phone}</a>}
+                  {o.whatsapp && <a href={`https://wa.me/${String(o.whatsapp).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-emerald-600 px-5 py-3 text-xs font-extrabold text-white hover:bg-emerald-700">💬 WhatsApp</a>}
+                  {o.email && <a href={`mailto:${o.email}`} className={`rounded-xl border px-5 py-3 text-xs font-extrabold ${t.dark ? 'border-white/20 text-white hover:bg-white/10' : 'border-gray-200 text-gray-800 hover:bg-gray-50'}`}>✉️ {o.email}</a>}
+                </div>
               </div>
             </div>
           </div>
@@ -3984,27 +4588,47 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'milestone_tracker': {
       const phases = items.filter((i) => i.title)
       if (!phases.length) return <Empty editing={editing} text="Proje aşaması ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {phases.map((p, i) => {
-              const cls = p.status === 'done'
-                ? 'border-emerald-200 bg-emerald-50/50 text-emerald-950'
-                : p.status === 'active'
-                  ? 'border-primary-400 bg-primary-50/60 text-primary-950 ring-2 ring-primary-200'
-                  : 'border-gray-200 bg-white text-gray-700'
-              return (
-                <div key={i} className={`rounded-2xl border p-5 shadow-xs ${cls}`}>
+      const look = o.look || 'horizontal_stepper'
+      const t = lookTheme(look)
+      if (look === 'vertical_log' || look === 'minimal_timeline') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-3xl space-y-4 border-s-2 border-primary-200 ps-6">
+              {phases.map((p, i) => (
+                <div key={i} className="relative rounded-2xl border border-gray-200 bg-white p-5 shadow-2xs">
+                  <span className={`absolute -start-[31px] top-6 h-3 w-3 rounded-full ring-4 ring-white ${p.status === 'done' ? 'bg-emerald-500' : p.status === 'active' ? 'bg-primary-600' : 'bg-gray-300'}`} />
                   <div className="flex items-center justify-between text-xs font-extrabold">
-                    <span>{p.step || `Faz ${i + 1}`}</span>
-                    <span>{p.status === 'done' ? '✓ Tamamlandı' : p.status === 'active' ? '● Devam Ediyor' : 'Planlandı'}</span>
+                    <span className="text-primary-700">{p.step || `Faz ${i + 1}`}</span>
+                    <span className={p.status === 'done' ? 'text-emerald-700' : p.status === 'active' ? 'text-primary-700' : 'text-gray-400'}>{p.status === 'done' ? '✓ Tamamlandı' : p.status === 'active' ? '● Devam Ediyor' : 'Planlandı'}</span>
                   </div>
-                  <div className="mt-2 font-heading text-base font-bold">{p.title}</div>
-                  {p.date && <div className="mt-1 text-xs opacity-70">{p.date}</div>}
+                  <div className="mt-1 font-heading text-base font-bold text-gray-900">{p.title}</div>
+                  {p.date && <div className="mt-1 text-xs text-gray-500">{p.date}</div>}
                 </div>
-              )
-            })}
+              ))}
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {phases.map((p, i) => {
+                const cls = t.dark ? t.card : p.status === 'done' ? 'rounded-2xl border border-emerald-200 bg-emerald-50/50 text-emerald-950' : p.status === 'active' ? 'rounded-2xl border border-primary-400 bg-primary-50/60 text-primary-950 ring-2 ring-primary-200' : t.card
+                return (
+                  <div key={i} className={`${cls} p-5 shadow-xs ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                    <div className="flex items-center justify-between text-xs font-extrabold">
+                      <span className={t.accent}>{p.step || `Faz ${i + 1}`}</span>
+                      <span>{p.status === 'done' ? '✓ Tamamlandı' : p.status === 'active' ? '● Devam Ediyor' : 'Planlandı'}</span>
+                    </div>
+                    <div className="mt-2 font-heading text-base font-bold">{p.title}</div>
+                    {p.date && <div className="mt-1 text-xs opacity-70">{p.date}</div>}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )
@@ -4012,14 +4636,32 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'social_feed_grid': {
       const posts = items.filter((i) => i.image_url)
       if (!posts.length) return <Empty editing={editing} text="Sosyal medya görseli ekleyin" />
-      const isDark = o.look === 'dark_gallery'
-      return (
-        <div className={isDark ? 'bg-gray-950 py-14 text-white' : ''}>
+      const look = o.look || 'instagram_grid'
+      const t = lookTheme(look)
+      if (look === 'story_highlights') {
+        return (
           <div className={container}>
             <Head o={o} />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="flex flex-wrap justify-center gap-6">
               {posts.map((p, i) => (
-                <Go key={i} href={p.url || o.profile_url} className="group relative aspect-square overflow-hidden rounded-2xl bg-gray-900">
+                <Go key={i} href={p.url || o.profile_url} className="group flex w-28 flex-col items-center text-center">
+                  <div className="h-24 w-24 overflow-hidden rounded-full border-2 border-primary-600 p-1">
+                    <img src={p.image_url} alt={p.caption || ''} className="h-full w-full rounded-full object-cover transition group-hover:scale-105" loading="lazy" />
+                  </div>
+                  {p.caption && <span className="mt-2 line-clamp-2 text-xs font-bold text-gray-800">{p.caption}</span>}
+                </Go>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 ${look === 'minimal_4col' ? 'gap-0.5 overflow-hidden rounded-2xl' : 'gap-3'}`}>
+              {posts.map((p, i) => (
+                <Go key={i} href={p.url || o.profile_url} className={`group relative overflow-hidden bg-gray-900 ${look === 'minimal_4col' ? 'aspect-square' : 'aspect-square rounded-2xl'} ${(t.mode === 'bento' || t.mode === 'featured') && i === 0 ? 'col-span-2 row-span-2' : ''}`}>
                   <img src={p.image_url} alt={p.caption || ''} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
                   {p.caption && (
                     <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/75 via-transparent to-transparent p-3 opacity-0 transition group-hover:opacity-100">
@@ -4031,7 +4673,7 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
             </div>
             {(o.handle || o.profile_url) && (
               <div className="mt-6 text-center">
-                <a href={o.profile_url || '#'} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-full bg-primary-600 px-6 py-2.5 text-xs font-extrabold text-white shadow hover:bg-primary-700">
+                <a href={o.profile_url || '#'} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-xs font-extrabold shadow ${t.btn}`}>
                   📸 {o.handle || 'Takip Et'} ↗
                 </a>
               </div>
@@ -4044,31 +4686,49 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       const defAmt = Number(o.default_amount) || 300
       const unitP = Number(o.unit_price) || 100
       const presets = [150, defAmt, defAmt * 2, defAmt * 4].filter((v, idx, arr) => v > 0 && arr.indexOf(v) === idx)
-      const isDark = o.look === 'dark_gold'
+      const look = o.look || 'slider_calc'
+      const t = lookTheme(look)
       const annualUnits = Math.max(1, Math.round((defAmt * 12) / unitP))
+      if (look === 'compact_strip') {
+        return (
+          <div className={container}>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary-200 bg-primary-50/60 px-6 py-4">
+              <div>
+                <div className="font-heading text-base font-bold text-gray-900">{o.title || 'Düzenli Bağış Kumbarası'}</div>
+                <div className="text-xs text-gray-600">Aylık {defAmt.toLocaleString('tr-TR')} ₺ · Yılda {annualUnits}× etki</div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {presets.map((amt) => (
+                  <Link key={amt} href={`${o.button_url || '/bagis'}?amount=${amt}`} className="rounded-xl border border-primary-200 bg-white px-3.5 py-2 text-xs font-extrabold text-primary-800 hover:bg-primary-600 hover:text-white">{amt.toLocaleString('tr-TR')} ₺</Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      }
       return (
-        <div className={isDark ? 'bg-gradient-to-br from-slate-950 via-primary-950 to-slate-900 py-14 text-white' : ''}>
+        <div className={t.sectionBg}>
           <div className={container}>
             <Head o={o} />
-            <div className={`mx-auto max-w-4xl rounded-3xl border p-7 sm:p-10 ${isDark ? 'border-amber-400/30 bg-white/5' : 'border-primary-100 bg-white shadow-lg'}`}>
+            <div className={`mx-auto max-w-4xl p-7 sm:p-10 ${t.wrap}`}>
               <div className="grid items-center gap-8 md:grid-cols-12">
                 <div className="md:col-span-7">
-                  <div className={`text-xs font-bold uppercase tracking-widest ${isDark ? 'text-amber-300' : 'text-primary-600'}`}>Aylık Kumbara Seçenekleri</div>
+                  <div className={`text-xs font-bold uppercase tracking-widest ${t.accent}`}>Aylık Kumbara Seçenekleri</div>
                   <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {presets.map((amt) => (
-                      <Link key={amt} href={`${o.button_url || '/bagis'}?amount=${amt}`} className={`rounded-2xl border p-3.5 text-center transition hover:-translate-y-0.5 ${amt === defAmt ? (isDark ? 'border-amber-400 bg-amber-400/15 text-amber-200' : 'border-primary-600 bg-primary-50 text-primary-900') : (isDark ? 'border-white/15 bg-white/5 text-white hover:border-white/30' : 'border-gray-200 bg-gray-50 text-gray-900 hover:border-primary-300')}`}>
+                      <Link key={amt} href={`${o.button_url || '/bagis'}?amount=${amt}`} className={`rounded-2xl border p-3.5 text-center transition hover:-translate-y-0.5 ${amt === defAmt ? (t.dark ? 'border-amber-400 bg-amber-400/15 text-amber-200' : 'border-primary-600 bg-primary-50 text-primary-900') : (t.dark ? 'border-white/15 bg-white/5 text-white hover:border-white/30' : 'border-gray-200 bg-gray-50 text-gray-900 hover:border-primary-300')}`}>
                         <div className="font-heading text-lg font-extrabold">{amt.toLocaleString('tr-TR')} ₺</div>
-                        <div className={`text-[11px] ${isDark ? 'text-white/70' : 'text-gray-500'}`}>/ ay</div>
+                        <div className={`text-[11px] ${t.muted}`}>/ ay</div>
                       </Link>
                     ))}
                   </div>
-                  {o.unit_label && <p className={`mt-4 text-xs font-semibold ${isDark ? 'text-white/75' : 'text-gray-600'}`}>💡 {o.unit_label}</p>}
+                  {o.unit_label && <p className={`mt-4 text-xs font-semibold ${t.muted}`}>💡 {o.unit_label}</p>}
                 </div>
-                <div className={`rounded-2xl p-6 text-center md:col-span-5 ${isDark ? 'bg-amber-400/10 border border-amber-400/25' : 'bg-primary-50'}`}>
-                  <div className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>Yıllık Toplam Etki</div>
-                  <div className={`mt-1 font-heading text-4xl font-black ${isDark ? 'text-white' : 'text-primary-900'}`}>{annualUnits}×</div>
-                  <div className={`mt-1 text-xs ${isDark ? 'text-white/75' : 'text-gray-600'}`}>Aylık {defAmt.toLocaleString('tr-TR')} ₺ düzenli destek ile yılda {(defAmt * 12).toLocaleString('tr-TR')} ₺</div>
-                  <Link href={`${o.button_url || '/bagis'}?amount=${defAmt}`} className={`mt-5 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-extrabold shadow transition ${isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
+                <div className={`${t.softBox} p-6 text-center md:col-span-5`}>
+                  <div className={`text-xs font-bold uppercase tracking-wider ${t.accent}`}>Yıllık Toplam Etki</div>
+                  <div className="mt-1 font-heading text-4xl font-black">{annualUnits}×</div>
+                  <div className={`mt-1 text-xs ${t.muted}`}>Aylık {defAmt.toLocaleString('tr-TR')} ₺ düzenli destek ile yılda {(defAmt * 12).toLocaleString('tr-TR')} ₺</div>
+                  <Link href={`${o.button_url || '/bagis'}?amount=${defAmt}`} className={`mt-5 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-extrabold shadow transition ${t.btn}`}>
                     {o.button_label || 'Düzenli Bağışa Başla'} →
                   </Link>
                 </div>
@@ -4081,49 +4741,78 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'field_representatives': {
       const reps = items.filter((i) => i.city || i.name)
       if (!reps.length) return <Empty editing={editing} text="Temsilci ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {reps.map((r, i) => (
-              <div key={i} className="flex flex-col justify-between rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">{r.region || 'Türkiye'}</span>
-                    {r.status && <span className="text-[11px] font-semibold text-emerald-700">● {r.status}</span>}
+      const look = o.look || 'cards_grid'
+      const t = lookTheme(look)
+      if (look === 'compact_directory' || look === 'avatar_list') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-4xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+              {reps.map((r, i) => (
+                <div key={i} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50 font-heading text-sm font-extrabold text-primary-700">{String(r.city || 'T').charAt(0)}</span>
+                    <div>
+                      <div className="font-heading text-sm font-bold text-gray-900">{r.city} {r.region ? <span className="text-xs font-normal text-gray-400">({r.region})</span> : null}</div>
+                      {r.name && <div className="text-xs text-gray-500">{r.name}</div>}
+                    </div>
                   </div>
-                  <h3 className="mt-2.5 font-heading text-lg font-bold text-gray-900">{r.city}</h3>
-                  {r.name && <p className="text-sm text-gray-600">{r.name}</p>}
+                  <div className="flex gap-2">
+                    {r.phone && <a href={`tel:${String(r.phone).replace(/\s+/g, '')}`} className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-800">📞 {r.phone}</a>}
+                    {r.whatsapp && <a href={`https://wa.me/${String(r.whatsapp).replace(/\D+/g, '')}`} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">💬 WhatsApp</a>}
+                  </div>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
-                  {r.phone && <a href={`tel:${String(r.phone).replace(/\s+/g, '')}`} className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-800 hover:bg-gray-200">📞 {r.phone}</a>}
-                  {r.whatsapp && <a href={`https://wa.me/${String(r.whatsapp).replace(/\D+/g, '')}`} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100">💬 WhatsApp</a>}
+              ))}
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {reps.map((r, i) => (
+                <div key={i} className={`${t.card} flex flex-col justify-between p-5 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${t.badge}`}>{r.region || 'Türkiye'}</span>
+                      {r.status && <span className="text-[11px] font-semibold text-emerald-500">● {r.status}</span>}
+                    </div>
+                    <h3 className="mt-2.5 font-heading text-lg font-bold">{r.city}</h3>
+                    {r.name && <p className={`text-sm ${t.muted}`}>{r.name}</p>}
+                  </div>
+                  <div className={`mt-4 flex flex-wrap gap-2 border-t pt-3 ${t.dark ? 'border-white/10' : 'border-gray-100'}`}>
+                    {r.phone && <a href={`tel:${String(r.phone).replace(/\s+/g, '')}`} className={`rounded-lg px-3 py-1.5 text-xs font-bold ${t.dark ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>📞 {r.phone}</a>}
+                    {r.whatsapp && <a href={`https://wa.me/${String(r.whatsapp).replace(/\D+/g, '')}`} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100">💬 WhatsApp</a>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       )
     }
     case 'qurbani_status': {
       const stages = items.filter((i) => i.title)
-      const isDark = o.look === 'dark_verified'
+      const look = o.look || 'lookup_card'
+      const t = lookTheme(look)
       return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+        <div className={t.sectionBg}>
           <div className={container}>
             <Head o={o} />
-            <div className={`mx-auto max-w-4xl rounded-3xl border p-7 sm:p-10 ${isDark ? 'border-white/15 bg-white/5' : 'border-primary-100 bg-white shadow-sm'}`}>
+            <div className={`mx-auto max-w-4xl p-7 sm:p-10 ${t.wrap}`}>
               <form action={o.support_url || '/iletisim'} method="get" className="flex flex-col gap-3 sm:flex-row">
-                <input name="q" type="text" placeholder={o.placeholder || 'Bağış kodunuz veya 05XX...'} className={`min-w-0 flex-1 rounded-xl border px-4 py-3 text-sm font-medium focus:outline-none ${isDark ? 'border-white/20 bg-white/10 text-white placeholder:text-white/50' : 'border-gray-200 bg-gray-50 text-gray-900'}`} />
-                <button type="submit" className="rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white shadow hover:bg-primary-700">Durum Sorgula</button>
+                <input name="q" type="text" placeholder={o.placeholder || 'Bağış kodunuz veya 05XX...'} className={`min-w-0 flex-1 rounded-xl border px-4 py-3 text-sm font-medium focus:outline-none ${t.dark ? 'border-white/20 bg-white/10 text-white placeholder:text-white/50' : 'border-gray-200 bg-gray-50 text-gray-900'}`} />
+                <button type="submit" className={`rounded-xl px-6 py-3 text-sm font-extrabold shadow ${t.btn}`}>Durum Sorgula</button>
               </form>
               {stages.length > 0 && (
-                <div className="mt-7 grid gap-4 sm:grid-cols-3">
+                <div className={`mt-7 grid gap-4 ${t.mode === 'timeline' ? 'sm:grid-cols-1' : 'sm:grid-cols-3'}`}>
                   {stages.map((st, i) => (
-                    <div key={i} className={`rounded-2xl border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-100 bg-gray-50'}`}>
-                      <div className="text-xs font-extrabold text-primary-600">{st.step || `0${i + 1}`}</div>
-                      <div className={`mt-1 font-heading text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{st.title}</div>
-                      {st.detail && <p className={`mt-1 text-xs ${isDark ? 'text-white/70' : 'text-gray-600'}`}>{st.detail}</p>}
+                    <div key={i} className={`${t.softBox} p-4 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                      <div className={`text-xs font-extrabold ${t.accent}`}>{st.step || `0${i + 1}`}</div>
+                      <div className="mt-1 font-heading text-base font-bold">{st.title}</div>
+                      {st.detail && <p className={`mt-1 text-xs ${t.muted}`}>{st.detail}</p>}
                     </div>
                   ))}
                 </div>
@@ -4136,54 +4825,84 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'publications_shelf': {
       const pubs = items.filter((i) => i.title)
       if (!pubs.length) return <Empty editing={editing} text="Yayın ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {pubs.map((p, i) => (
-              <Go key={i} href={p.file_url || '#'} className="group flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-                <div className="aspect-[3/4] overflow-hidden bg-gray-100">
-                  {p.image_url ? <img src={p.image_url} alt={p.title || ''} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" /> : <div className="flex h-full items-center justify-center text-4xl">📚</div>}
-                </div>
-                <div className="flex flex-1 flex-col justify-between p-4">
-                  <div>
-                    {p.issue && <div className="text-[11px] font-bold uppercase tracking-wider text-primary-600">{p.issue}</div>}
-                    <h3 className="mt-1 font-heading text-base font-bold text-gray-900">{p.title}</h3>
-                    {p.summary && <p className="mt-1 line-clamp-2 text-xs text-gray-600">{p.summary}</p>}
+      const look = o.look || 'magazine_grid'
+      const t = lookTheme(look)
+      if (look === 'compact_list' || look === 'horizontal_cards') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-4xl space-y-3">
+              {pubs.map((p, i) => (
+                <Go key={i} href={p.file_url || '#'} className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-2xs hover:shadow-md">
+                  <div className="flex items-center gap-4">
+                    {p.image_url && <img src={p.image_url} alt={p.title || ''} className="h-16 w-12 rounded-lg object-cover" loading="lazy" />}
+                    <div>
+                      {p.issue && <div className="text-[11px] font-bold uppercase text-primary-600">{p.issue}</div>}
+                      <div className="font-heading text-base font-bold text-gray-900">{p.title}</div>
+                      {p.summary && <div className="line-clamp-1 text-xs text-gray-500">{p.summary}</div>}
+                    </div>
                   </div>
-                  {p.file_url && <span className="mt-3 inline-flex text-xs font-extrabold text-primary-700">Oku / İndir →</span>}
-                </div>
-              </Go>
-            ))}
+                  {p.file_url && <span className="shrink-0 rounded-xl bg-primary-50 px-3.5 py-2 text-xs font-extrabold text-primary-700">İndir →</span>}
+                </Go>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {pubs.map((p, i) => (
+                <Go key={i} href={p.file_url || '#'} className={`${t.card} group flex flex-col overflow-hidden transition hover:-translate-y-1 hover:shadow-md ${(t.mode === 'bento' || t.mode === 'featured') && i === 0 ? 'sm:col-span-2' : ''}`}>
+                  <div className="aspect-[3/4] overflow-hidden bg-gray-100">
+                    {p.image_url ? <img src={p.image_url} alt={p.title || ''} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" /> : <div className="flex h-full items-center justify-center text-4xl">📚</div>}
+                  </div>
+                  <div className="flex flex-1 flex-col justify-between p-4">
+                    <div>
+                      {p.issue && <div className={`text-[11px] font-bold uppercase tracking-wider ${t.accent}`}>{p.issue}</div>}
+                      <h3 className="mt-1 font-heading text-base font-bold">{p.title}</h3>
+                      {p.summary && <p className={`mt-1 line-clamp-2 text-xs ${t.muted}`}>{p.summary}</p>}
+                    </div>
+                    {p.file_url && <span className={`mt-3 inline-flex text-xs font-extrabold ${t.accent}`}>Oku / İndir →</span>}
+                  </div>
+                </Go>
+              ))}
+            </div>
           </div>
         </div>
       )
     }
     case 'tax_exemption_info': {
       const perks = items.filter((i) => i.title)
+      const look = o.look || 'split_summary'
+      const t = lookTheme(look)
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="rounded-3xl border border-primary-100 bg-gradient-to-br from-primary-50/70 via-white to-white p-7 shadow-sm sm:p-10">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-gray-200/80 pb-5">
-              <div>
-                {o.law_ref && <span className="inline-block rounded-full bg-primary-600 px-3 py-1 text-xs font-bold text-white">{o.law_ref}</span>}
-                <p className="mt-2 text-sm text-gray-600">Kurumsal ve bireysel bağışçılarımız için resmi vergi muafiyeti ve dekont avantajları.</p>
-              </div>
-              {o.button_label && (
-                <Link href={o.button_url || '/iletisim'} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-extrabold text-white shadow hover:bg-primary-700">
-                  {o.button_label}
-                </Link>
-              )}
-            </div>
-            <div className="grid gap-5 md:grid-cols-3">
-              {perks.map((p, i) => (
-                <div key={i} className="rounded-2xl border border-gray-200 bg-white p-5">
-                  {p.badge && <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-extrabold text-emerald-700">{p.badge}</span>}
-                  <h3 className="mt-2 font-heading text-base font-bold text-gray-900">{p.title}</h3>
-                  {p.text && <p className="mt-1.5 text-sm text-gray-600">{p.text}</p>}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`${t.wrap} p-7 sm:p-10`}>
+              <div className={`mb-6 flex flex-wrap items-center justify-between gap-4 border-b pb-5 ${t.dark ? 'border-white/15' : 'border-gray-200/80'}`}>
+                <div>
+                  {o.law_ref && <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${t.badge}`}>{o.law_ref}</span>}
+                  <p className={`mt-2 text-sm ${t.muted}`}>Kurumsal ve bireysel bağışçılarımız için resmi vergi muafiyeti ve dekont avantajları.</p>
                 </div>
-              ))}
+                {o.button_label && (
+                  <Link href={o.button_url || '/iletisim'} className={`rounded-xl px-5 py-2.5 text-sm font-extrabold shadow ${t.btn}`}>
+                    {o.button_label}
+                  </Link>
+                )}
+              </div>
+              <div className={`grid gap-5 ${t.mode === 'compact' ? 'md:grid-cols-1' : 'md:grid-cols-3'}`}>
+                {perks.map((p, i) => (
+                  <div key={i} className={`${t.softBox} p-5 ${t.mode === 'bento' && i === 0 ? 'md:col-span-2' : ''}`}>
+                    {p.badge && <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-extrabold ${t.badge}`}>{p.badge}</span>}
+                    <h3 className="mt-2 font-heading text-base font-bold">{p.title}</h3>
+                    {p.text && <p className={`mt-1.5 text-sm ${t.muted}`}>{p.text}</p>}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -4192,27 +4911,33 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'mushaf_distribution': {
       const list = items.filter((i) => i.country)
       if (!list.length) return <Empty editing={editing} text="Ülke ekleyin" />
+      const look = o.look || 'counter_cards'
+      const t = lookTheme(look)
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="rounded-3xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/60 via-white to-white p-6 shadow-sm sm:p-9">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-emerald-100 pb-5">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-widest text-emerald-700">1 Mushaf Bedeli</div>
-                <div className="font-heading text-3xl font-black text-gray-900">{o.unit_price || '150 ₺'}</div>
-              </div>
-              <Link href={o.button_url || '/bagis'} className="rounded-xl bg-emerald-700 px-6 py-3 text-sm font-extrabold text-white shadow hover:bg-emerald-800">
-                📖 {o.button_label || 'Mushaf Hediye Et'}
-              </Link>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {list.map((m, i) => (
-                <div key={i} className="rounded-2xl border border-gray-200 bg-white p-4">
-                  <div className="font-heading text-2xl font-black text-emerald-700">{m.count}</div>
-                  <div className="mt-1 font-heading text-base font-bold text-gray-900">{m.country}</div>
-                  {m.note && <div className="mt-1 text-xs text-gray-500">{m.note}</div>}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`${t.wrap} p-6 sm:p-9`}>
+              <div className={`mb-6 flex flex-wrap items-center justify-between gap-4 border-b pb-5 ${t.dark ? 'border-white/15' : 'border-emerald-100'}`}>
+                <div>
+                  <div className={`text-xs font-bold uppercase tracking-widest ${t.accent}`}>1 Mushaf Bedeli</div>
+                  <div className="font-heading text-3xl font-black">{o.unit_price || '150 ₺'}</div>
                 </div>
-              ))}
+                <Link href={o.button_url || '/bagis'} className={`rounded-xl px-6 py-3 text-sm font-extrabold shadow ${t.btn}`}>
+                  📖 {o.button_label || 'Mushaf Hediye Et'}
+                </Link>
+              </div>
+              <div className={t.mode === 'compact' || t.mode === 'table' ? 'divide-y divide-current/10' : 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4'}>
+                {list.map((m, i) => (
+                  <div key={i} className={t.mode === 'compact' || t.mode === 'table' ? 'flex items-center justify-between py-3' : `${t.softBox} p-4 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                    <div>
+                      <div className={`font-heading text-2xl font-black ${t.accent}`}>{m.count}</div>
+                      <div className="mt-0.5 font-heading text-base font-bold">{m.country}</div>
+                    </div>
+                    {m.note && <div className={`mt-1 text-xs ${t.muted}`}>{m.note}</div>}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -4221,20 +4946,44 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'governance_board': {
       const members = items.filter((i) => i.name)
       if (!members.length) return <Empty editing={editing} text="Kurul üyesi ekleyin" />
-      const isDark = o.look === 'dark_executive'
+      const look = o.look || 'board_grid'
+      const t = lookTheme(look)
+      if (look === 'list_with_roles' || look === 'compact_table' || look === 'minimal_list') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-4xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+              {members.map((m, i) => (
+                <div key={i} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-11 w-11 overflow-hidden rounded-full bg-primary-50">
+                      {m.image_url ? <img src={m.image_url} alt={m.name} className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full items-center justify-center font-heading text-base font-bold text-primary-700">{String(m.name).charAt(0)}</div>}
+                    </div>
+                    <div>
+                      <div className="font-heading text-base font-bold text-gray-900">{m.name}</div>
+                      {m.role && <div className="text-xs font-semibold text-primary-600">{m.role}</div>}
+                    </div>
+                  </div>
+                  {m.committee && <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">{m.committee}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }
       return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+        <div className={t.sectionBg}>
           <div className={container}>
             <Head o={o} />
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {members.map((m, i) => (
-                <div key={i} className={`rounded-2xl border p-5 text-center ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
+                <div key={i} className={`${t.card} p-5 text-center ${(t.mode === 'bento' || t.mode === 'featured') && i === 0 ? 'sm:col-span-2' : ''}`}>
                   <div className="mx-auto h-20 w-20 overflow-hidden rounded-full bg-primary-50">
                     {m.image_url ? <img src={m.image_url} alt={m.name} className="h-full w-full object-cover object-top" loading="lazy" /> : <div className="flex h-full items-center justify-center font-heading text-2xl font-bold text-primary-700">{String(m.name).charAt(0)}</div>}
                   </div>
-                  <h3 className={`mt-3 font-heading text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{m.name}</h3>
-                  {m.role && <div className={`mt-0.5 text-xs font-bold ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>{m.role}</div>}
-                  {m.committee && <div className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${isDark ? 'bg-white/10 text-white/80' : 'bg-gray-100 text-gray-600'}`}>{m.committee}</div>}
+                  <h3 className="mt-3 font-heading text-base font-bold">{m.name}</h3>
+                  {m.role && <div className={`mt-0.5 text-xs font-bold ${t.accent}`}>{m.role}</div>}
+                  {m.committee && <div className={`mt-2 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${t.badge}`}>{m.committee}</div>}
                 </div>
               ))}
             </div>
@@ -4243,22 +4992,23 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
       )
     }
     case 'sacred_days_banner': {
-      const isDark = o.look !== 'compact_strip'
+      const look = o.look || 'ornate_dark'
+      const t = lookTheme(look)
       return (
         <div className={container}>
-          <div className={`rounded-3xl p-8 sm:p-12 ${isDark ? 'border border-amber-400/30 bg-gradient-to-br from-slate-950 via-primary-950 to-slate-900 text-white shadow-2xl' : 'border border-primary-200 bg-primary-50/70 text-gray-900'}`}>
+          <div className={`rounded-3xl p-8 sm:p-12 ${t.dark ? t.wrap : look === 'gradient_banner' ? 'bg-gradient-to-r from-primary-700 via-primary-600 to-accent-600 text-white shadow-xl' : t.wrap}`}>
             <div className="flex flex-wrap items-center justify-between gap-6">
               <div className="max-w-2xl">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider ${isDark ? 'bg-amber-400/20 text-amber-300' : 'bg-primary-600 text-white'}`}>
+                  <span className={`rounded-full px-3 py-1 text-xs font-extrabold uppercase tracking-wider ${look === 'gradient_banner' ? 'bg-white/20 text-white' : t.badge}`}>
                     🌙 {o.occasion || 'Mübarek Gün'}
                   </span>
-                  {o.date_label && <span className={`text-xs font-bold ${isDark ? 'text-white/70' : 'text-gray-600'}`}>{o.date_label}</span>}
+                  {o.date_label && <span className={`text-xs font-bold ${look === 'gradient_banner' ? 'text-white/80' : t.muted}`}>{o.date_label}</span>}
                 </div>
                 {o.title && <h2 className="mt-3 font-heading text-2xl font-extrabold sm:text-3xl">{o.title}</h2>}
-                {o.text && <p className={`mt-2 text-sm sm:text-base ${isDark ? 'text-white/80' : 'text-gray-600'}`}>{o.text}</p>}
+                {o.text && <p className={`mt-2 text-sm sm:text-base ${look === 'gradient_banner' ? 'text-white/85' : t.muted}`}>{o.text}</p>}
               </div>
-              <Link href={o.button_url || '/bagis'} className={`rounded-xl px-7 py-3.5 text-sm font-extrabold shadow-lg ${isDark ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
+              <Link href={o.button_url || '/bagis'} className={`rounded-xl px-7 py-3.5 text-sm font-extrabold shadow-lg ${look === 'gradient_banner' ? 'bg-white text-primary-800 hover:bg-gray-100' : t.btn}`}>
                 {o.button_label || 'Kandil Sadakası Ver'} →
               </Link>
             </div>
@@ -4268,13 +5018,14 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'documentary_spotlight': {
       const chapters = items.filter((i) => i.title)
-      const isDark = o.look === 'playlist_dark'
+      const look = o.look || 'theater_split'
+      const t = lookTheme(look)
       return (
-        <div className={isDark ? 'bg-slate-950 py-14 text-white' : ''}>
+        <div className={t.sectionBg}>
           <div className={container}>
             <Head o={o} />
-            <div className={`grid items-center gap-8 rounded-3xl border p-6 sm:p-8 lg:grid-cols-12 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-white shadow-sm'}`}>
-              <div className="overflow-hidden rounded-2xl bg-black lg:col-span-7">
+            <div className={`${t.wrap} grid items-center gap-8 sm:p-8 ${look === 'vertical_stack' ? 'grid-cols-1' : 'lg:grid-cols-12'}`}>
+              <div className={`overflow-hidden rounded-2xl bg-black ${look === 'vertical_stack' ? '' : 'lg:col-span-7'}`}>
                 {o.poster_url ? (
                   <a href={o.video_url || '#'} target="_blank" rel="noopener noreferrer" className="group relative block aspect-video">
                     <img src={o.poster_url} alt={o.title || ''} className="h-full w-full object-cover opacity-85 transition group-hover:scale-105" />
@@ -4285,12 +5036,12 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
                   <div className="flex aspect-video items-center justify-center text-4xl text-white/40">🎬</div>
                 )}
               </div>
-              <div className="space-y-3 lg:col-span-5">
-                <div className={`text-xs font-bold uppercase tracking-widest ${isDark ? 'text-accent-300' : 'text-primary-600'}`}>Belgesel Bölümleri</div>
+              <div className={`space-y-3 ${look === 'vertical_stack' ? 'grid gap-3 space-y-0 sm:grid-cols-2' : 'lg:col-span-5'}`}>
+                <div className={`text-xs font-bold uppercase tracking-widest ${t.accent} ${look === 'vertical_stack' ? 'sm:col-span-2' : ''}`}>Belgesel Bölümleri</div>
                 {chapters.map((ch, i) => (
-                  <div key={i} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-100 bg-gray-50'}`}>
-                    <span className={`rounded-md px-2 py-0.5 text-xs font-extrabold ${isDark ? 'bg-accent-500/20 text-accent-300' : 'bg-primary-100 text-primary-700'}`}>{ch.time || `0${i + 1}:00`}</span>
-                    <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{ch.title}</span>
+                  <div key={i} className={`${t.softBox} flex items-center gap-3 px-4 py-3`}>
+                    <span className={`rounded-md px-2 py-0.5 text-xs font-extrabold ${t.badge}`}>{ch.time || `0${i + 1}:00`}</span>
+                    <span className="text-sm font-bold">{ch.title}</span>
                   </div>
                 ))}
               </div>
@@ -4302,109 +5053,166 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     case 'field_diaries': {
       const notes = items.filter((i) => i.title)
       if (!notes.length) return <Empty editing={editing} text="Saha günlüğü ekleyin" />
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className="grid gap-5 md:grid-cols-3">
-            {notes.map((d, i) => (
-              <article key={i} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                {d.image_url && <img src={d.image_url} alt={d.title || ''} className="aspect-[16/10] w-full object-cover" loading="lazy" />}
-                <div className="p-5">
-                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-primary-600">
-                    {d.date && <span>📅 {d.date}</span>}
-                    {d.location && <span>📍 {d.location}</span>}
+      const look = o.look || 'photo_notes_grid'
+      const t = lookTheme(look)
+      if (look === 'diary_timeline' || look === 'compact_updates' || look === 'magazine_rows') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            <div className="mx-auto max-w-4xl space-y-4">
+              {notes.map((d, i) => (
+                <article key={i} className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
+                  {d.image_url && <img src={d.image_url} alt={d.title || ''} className="aspect-[16/10] w-full rounded-xl object-cover sm:w-44" loading="lazy" />}
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-primary-600">
+                      {d.date && <span>📅 {d.date}</span>}
+                      {d.location && <span>📍 {d.location}</span>}
+                    </div>
+                    <h3 className="mt-1 font-heading text-base font-bold text-gray-900">{d.title}</h3>
+                    {d.note && <p className="mt-1 text-sm text-gray-600">{d.note}</p>}
                   </div>
-                  <h3 className="mt-2 font-heading text-base font-bold text-gray-900">{d.title}</h3>
-                  {d.note && <p className="mt-1.5 text-sm text-gray-600">{d.note}</p>}
-                </div>
-              </article>
-            ))}
+                </article>
+              ))}
+            </div>
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className="grid gap-5 md:grid-cols-3">
+              {notes.map((d, i) => (
+                <article key={i} className={`${t.card} overflow-hidden ${(t.mode === 'bento' || t.mode === 'featured') && i === 0 ? 'md:col-span-2' : ''}`}>
+                  {d.image_url && <img src={d.image_url} alt={d.title || ''} className="aspect-[16/10] w-full object-cover" loading="lazy" />}
+                  <div className="p-5">
+                    <div className={`flex flex-wrap items-center gap-2 text-[11px] font-bold ${t.accent}`}>
+                      {d.date && <span>📅 {d.date}</span>}
+                      {d.location && <span>📍 {d.location}</span>}
+                    </div>
+                    <h3 className="mt-2 font-heading text-base font-bold">{d.title}</h3>
+                    {d.note && <p className={`mt-1.5 text-sm ${t.muted}`}>{d.note}</p>}
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       )
     }
     case 'video_delivery_showcase': {
       const look = o.look || 'whatsapp_preview_split'
+      const t = lookTheme(look)
       const steps = items.filter((i) => i.title)
-      const dark = look === 'dark_showcase'
       return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`grid items-center gap-8 rounded-3xl p-6 sm:p-10 lg:grid-cols-2 ${dark ? 'bg-gray-950 text-white shadow-2xl' : 'border border-gray-200 bg-white shadow-sm'}`}>
-            <div className="space-y-4">
-              {o.whatsapp_note && (
-                <div className={`rounded-2xl p-4 text-sm font-medium ${dark ? 'border border-emerald-500/30 bg-emerald-950/60 text-emerald-100' : 'border border-emerald-200 bg-emerald-50 text-emerald-950'}`}>
-                  📲 {o.whatsapp_note}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`${t.wrap} grid items-center gap-8 sm:p-10 ${t.mode === 'compact' ? 'lg:grid-cols-1' : 'lg:grid-cols-2'}`}>
+              <div className="space-y-4">
+                {o.whatsapp_note && (
+                  <div className={`rounded-2xl p-4 text-sm font-medium ${t.dark ? 'border border-emerald-500/30 bg-emerald-950/60 text-emerald-100' : 'border border-emerald-200 bg-emerald-50 text-emerald-950'}`}>
+                    📲 {o.whatsapp_note}
+                  </div>
+                )}
+                <div className={t.mode === 'bento' ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
+                  {steps.map((s, i) => (
+                    <div key={i} className={`${t.softBox} p-4 ${t.mode === 'bento' && i === 0 ? 'sm:col-span-2' : ''}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-heading text-base font-bold">{s.title}</h3>
+                        {s.badge && <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${t.badge}`}>{s.badge}</span>}
+                      </div>
+                      {s.desc && <p className={`mt-1 text-xs leading-relaxed ${t.muted}`}>{s.desc}</p>}
+                    </div>
+                  ))}
+                </div>
+                {o.video_url && <Go href={o.video_url} className={`inline-flex rounded-xl px-5 py-2.5 text-xs font-extrabold ${t.btn}`}>Örnek Teslimat Videosu ▶</Go>}
+              </div>
+              {o.image && (
+                <div className="overflow-hidden rounded-2xl border border-current/10">
+                  <img src={o.image} alt={o.title || ''} className="h-full w-full object-cover" loading="lazy" />
                 </div>
               )}
-              {steps.map((s, i) => (
-                <div key={i} className={`rounded-2xl p-4 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-100 bg-gray-50'}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-heading text-base font-bold">{s.title}</h3>
-                    {s.badge && <span className="rounded-full bg-primary-600 px-2.5 py-0.5 text-[11px] font-bold text-white">{s.badge}</span>}
-                  </div>
-                  {s.desc && <p className="mt-1 text-xs leading-relaxed opacity-80">{s.desc}</p>}
-                </div>
-              ))}
-              {o.video_url && <Go href={o.video_url} className="inline-flex rounded-xl bg-primary-600 px-5 py-2.5 text-xs font-extrabold text-white hover:bg-primary-700">Örnek Teslimat Videosu ▶</Go>}
             </div>
-            {o.image && (
-              <div className="overflow-hidden rounded-2xl border border-current/10">
-                <img src={o.image} alt={o.title || ''} className="h-full w-full object-cover" loading="lazy" />
-              </div>
-            )}
           </div>
         </div>
       )
     }
     case 'membership_plans': {
       const look = o.look || 'membership_tiers'
+      const t = lookTheme(look)
       const plans = items.filter((i) => i.name)
-      const dark = look === 'dark_member_card'
-      return (
-        <div className={container}>
-          <Head o={o} />
-          {!plans.length ? <Empty editing={editing} text="Üyelik / katılım kademelerini ekleyin" /> : (
-            <div className={`grid gap-6 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
-              {plans.map((p, i) => (
-                <div key={i} className={`flex flex-col justify-between rounded-3xl p-6 ${dark ? 'border border-white/15 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
-                  <div>
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <h3 className="font-heading text-xl font-bold">{p.name}</h3>
-                      {p.badge && <span className="rounded-full bg-accent-500 px-3 py-0.5 text-[11px] font-extrabold text-gray-950">{p.badge}</span>}
+      if (look === 'compact_rows') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            {!plans.length ? <Empty editing={editing} text="Üyelik / katılım kademelerini ekleyin" /> : (
+              <div className="mx-auto max-w-4xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+                {plans.map((p, i) => (
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-heading text-lg font-bold text-gray-900">{p.name}</h3>
+                        {p.badge && <span className="rounded-full bg-accent-500 px-2.5 py-0.5 text-[10px] font-extrabold text-gray-950">{p.badge}</span>}
+                      </div>
+                      {p.amount && <div className="text-sm font-bold text-primary-700">{p.amount}</div>}
                     </div>
-                    {p.amount && <div className={`mb-4 font-heading text-2xl font-extrabold ${dark ? 'text-accent-300' : 'text-primary-700'}`}>{p.amount}</div>}
-                    {p.perks && (
-                      <ul className="space-y-2 text-sm opacity-85">
-                        {String(p.perks).split('\n').filter(Boolean).map((line, li) => <li key={li}>✓ {line}</li>)}
-                      </ul>
+                    {p.cta_label && p.cta_url && <Go href={p.cta_url} className="rounded-xl bg-primary-600 px-5 py-2.5 text-xs font-extrabold text-white">{p.cta_label} →</Go>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            {!plans.length ? <Empty editing={editing} text="Üyelik / katılım kademelerini ekleyin" /> : (
+              <div className="grid gap-6 md:grid-cols-3">
+                {plans.map((p, i) => (
+                  <div key={i} className={`${t.card} flex flex-col justify-between p-6 ${look === 'highlighted_center' && i === 1 ? 'ring-2 ring-primary-500 md:-translate-y-2 shadow-xl' : ''} ${t.mode === 'bento' && i === 0 ? 'md:col-span-2' : ''}`}>
+                    <div>
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <h3 className="font-heading text-xl font-bold">{p.name}</h3>
+                        {p.badge && <span className={`rounded-full px-3 py-0.5 text-[11px] font-extrabold ${t.badge}`}>{p.badge}</span>}
+                      </div>
+                      {p.amount && <div className={`mb-4 font-heading text-2xl font-extrabold ${t.accent}`}>{p.amount}</div>}
+                      {p.perks && (
+                        <ul className="space-y-2 text-sm opacity-85">
+                          {String(p.perks).split('\n').filter(Boolean).map((line, li) => <li key={li}>✓ {line}</li>)}
+                        </ul>
+                      )}
+                    </div>
+                    {p.cta_label && p.cta_url && (
+                      <Go href={p.cta_url} className={`mt-6 inline-flex justify-center rounded-xl px-5 py-3 text-sm font-extrabold ${t.btn}`}>{p.cta_label}</Go>
                     )}
                   </div>
-                  {p.cta_label && p.cta_url && (
-                    <Go href={p.cta_url} className={`mt-6 inline-flex justify-center rounded-xl px-5 py-3 text-sm font-extrabold ${dark ? 'bg-white text-gray-950 hover:bg-gray-100' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>{p.cta_label}</Go>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )
     }
     case 'donor_concierge_bar': {
       const look = o.look || 'concierge_split'
-      const dark = look === 'dark_vip_desk'
+      const t = lookTheme(look)
       return (
-        <div className={container}>
-          <div className={`flex flex-wrap items-center justify-between gap-6 rounded-3xl p-6 sm:p-8 ${dark ? 'bg-gray-950 text-white shadow-2xl ring-1 ring-white/10' : 'border border-primary-200 bg-primary-50/60 text-gray-900'}`}>
-            <div className="space-y-1.5">
-              {o.kicker && <div className={`text-xs font-extrabold uppercase tracking-[2px] ${dark ? 'text-accent-400' : 'text-primary-700'}`}>{o.kicker}</div>}
-              {o.title && <h3 className="font-heading text-2xl font-bold">{o.title}</h3>}
-              {o.advisor_name && <div className="text-sm font-semibold opacity-85">👤 {o.advisor_name} {o.hours ? `• ${o.hours}` : ''}</div>}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              {o.phone && <a href={`tel:${String(o.phone).replace(/\s+/g, '')}`} className={`rounded-xl px-4 py-2.5 text-sm font-extrabold ${dark ? 'bg-white/10 text-white' : 'bg-white text-gray-900 shadow-sm'}`}>📞 {o.phone}</a>}
-              {o.email && <a href={`mailto:${o.email}`} className={`rounded-xl px-4 py-2.5 text-sm font-extrabold ${dark ? 'bg-white/10 text-white' : 'bg-white text-gray-900 shadow-sm'}`}>✉️ {o.email}</a>}
-              {o.cta_label && o.cta_url && <Go href={o.cta_url} className={`rounded-xl px-5 py-2.5 text-sm font-extrabold ${dark ? 'bg-accent-500 text-gray-950' : 'bg-primary-600 text-white'}`}>{o.cta_label} →</Go>}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <div className={`${t.wrap} flex flex-wrap items-center justify-between gap-6 sm:p-8`}>
+              <div className="space-y-1.5">
+                {o.kicker && <div className={`text-xs font-extrabold uppercase tracking-[2px] ${t.accent}`}>{o.kicker}</div>}
+                {o.title && <h3 className="font-heading text-2xl font-bold">{o.title}</h3>}
+                {o.advisor_name && <div className="text-sm font-semibold opacity-85">👤 {o.advisor_name} {o.hours ? `• ${o.hours}` : ''}</div>}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {o.phone && <a href={`tel:${String(o.phone).replace(/\s+/g, '')}`} className={`rounded-xl px-4 py-2.5 text-sm font-extrabold ${t.dark ? 'bg-white/10 text-white' : 'bg-white text-gray-900 shadow-sm border border-gray-200'}`}>📞 {o.phone}</a>}
+                {o.email && <a href={`mailto:${o.email}`} className={`rounded-xl px-4 py-2.5 text-sm font-extrabold ${t.dark ? 'bg-white/10 text-white' : 'bg-white text-gray-900 shadow-sm border border-gray-200'}`}>✉️ {o.email}</a>}
+                {o.cta_label && o.cta_url && <Go href={o.cta_url} className={`rounded-xl px-5 py-2.5 text-sm font-extrabold ${t.btn}`}>{o.cta_label} →</Go>}
+              </div>
             </div>
           </div>
         </div>
@@ -4412,147 +5220,231 @@ export function extraContent(block: Block, o: Record<string, any>, ctx: Ctx): Re
     }
     case 'charity_box_request': {
       const look = o.look || 'split_box_promo'
-      const dark = look === 'dark_request_card'
+      const t = lookTheme(look)
       return (
-        <div className={container}>
-          <div className={`grid items-center gap-8 rounded-3xl p-6 sm:p-10 md:grid-cols-2 ${dark ? 'bg-slate-950 text-white shadow-2xl' : 'border border-amber-200 bg-amber-50/60 text-gray-900'}`}>
-            <div className="space-y-4">
-              {o.kicker && <div className={`text-xs font-extrabold uppercase tracking-[2px] ${dark ? 'text-amber-300' : 'text-amber-800'}`}>{o.kicker}</div>}
-              {o.title && <h3 className="font-heading text-2xl font-bold sm:text-3xl">{o.title}</h3>}
-              {o.text && <p className="text-sm leading-relaxed opacity-85">{o.text}</p>}
-              {o.phone && <div className="text-sm font-bold">📞 {o.phone}</div>}
-              <div className="flex flex-wrap gap-3 pt-2">
-                {o.cta_label && o.cta_url && <Go href={o.cta_url} className="rounded-xl bg-primary-600 px-5 py-3 text-sm font-extrabold text-white hover:bg-primary-700">{o.cta_label}</Go>}
-                {o.secondary_label && o.secondary_url && <Go href={o.secondary_url} className={`rounded-xl border px-5 py-3 text-sm font-bold ${dark ? 'border-white/25 text-white' : 'border-gray-300 bg-white text-gray-900'}`}>{o.secondary_label}</Go>}
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <div className={`${t.wrap} grid items-center gap-8 sm:p-10 ${look === 'compact_cta' || look === 'centered_promo' ? 'md:grid-cols-1 text-center' : 'md:grid-cols-2'}`}>
+              <div className="space-y-4">
+                {o.kicker && <div className={`text-xs font-extrabold uppercase tracking-[2px] ${t.accent}`}>{o.kicker}</div>}
+                {o.title && <h3 className="font-heading text-2xl font-bold sm:text-3xl">{o.title}</h3>}
+                {o.text && <p className={`text-sm leading-relaxed ${t.muted}`}>{o.text}</p>}
+                {o.phone && <div className="text-sm font-bold">📞 {o.phone}</div>}
+                <div className={`flex flex-wrap gap-3 pt-2 ${look === 'compact_cta' || look === 'centered_promo' ? 'justify-center' : ''}`}>
+                  {o.cta_label && o.cta_url && <Go href={o.cta_url} className={`rounded-xl px-5 py-3 text-sm font-extrabold ${t.btn}`}>{o.cta_label}</Go>}
+                  {o.secondary_label && o.secondary_url && <Go href={o.secondary_url} className={`rounded-xl border px-5 py-3 text-sm font-bold ${t.dark ? 'border-white/25 text-white' : 'border-gray-300 bg-white text-gray-900'}`}>{o.secondary_label}</Go>}
+                </div>
               </div>
+              {o.image && look !== 'compact_cta' && <img src={o.image} alt={o.title || ''} className="aspect-[16/10] w-full rounded-2xl object-cover shadow-md" loading="lazy" />}
             </div>
-            {o.image && <img src={o.image} alt={o.title || ''} className="aspect-[16/10] w-full rounded-2xl object-cover shadow-md" loading="lazy" />}
           </div>
         </div>
       )
     }
     case 'winter_fuel_heating': {
       const look = o.look || 'winter_cards'
+      const t = lookTheme(look)
       const fuels = items.filter((i) => i.title)
-      const dark = look === 'dark_frost_panel'
-      return (
-        <div className={container}>
-          <Head o={o} />
-          {!fuels.length ? <Empty editing={editing} text="Yakacak kalemlerini ekleyin" /> : (
-            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
-              {fuels.map((f, i) => (
-                <div key={i} className={`flex flex-col justify-between rounded-2xl p-6 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
-                  <div>
-                    {f.duration && <span className="text-xs font-extrabold uppercase tracking-wider text-primary-600">{f.duration}</span>}
-                    <h3 className="mt-1 font-heading text-lg font-bold">🔥 {f.title}</h3>
-                    {f.price && <div className="mt-2 font-heading text-2xl font-extrabold">{f.price}</div>}
-                  </div>
-                  {f.cta_url && <Go href={f.cta_url} className="mt-4 inline-flex justify-center rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-extrabold text-white">Destek Ol →</Go>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )
-    }
-    case 'donor_receipt_verify': {
-      const look = o.look || 'verify_steps'
-      const steps = items.filter((i) => i.title)
-      const dark = look === 'dark_trust_portal'
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`rounded-3xl p-6 sm:p-8 ${dark ? 'bg-slate-950 text-white shadow-xl' : 'border border-gray-200 bg-white shadow-sm'}`}>
-            {!steps.length ? <Empty editing={editing} text="Doğrulama adımlarını ekleyin" /> : (
-              <div className="grid gap-4 md:grid-cols-3">
-                {steps.map((s, i) => (
-                  <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-100 bg-gray-50'}`}>
-                    <div className="mb-1 text-xs font-extrabold text-primary-600">{s.step || `Adım ${i + 1}`}</div>
-                    <h3 className="font-heading text-base font-bold">{s.title}</h3>
-                    {s.desc && <p className="mt-1.5 text-xs leading-relaxed opacity-80">{s.desc}</p>}
+      if (look === 'compact_fuel_rows' || look === 'pill_list') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            {!fuels.length ? <Empty editing={editing} text="Yakacak kalemlerini ekleyin" /> : (
+              <div className="mx-auto max-w-3xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+                {fuels.map((f, i) => (
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+                    <div>
+                      <div className="font-heading text-base font-bold text-gray-900">🔥 {f.title}</div>
+                      {f.duration && <div className="text-xs text-gray-500">{f.duration}</div>}
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {f.price && <span className="font-heading text-lg font-extrabold text-primary-700">{f.price}</span>}
+                      {f.cta_url && <Go href={f.cta_url} className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-extrabold text-white">Destek Ol →</Go>}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-            {o.cta_label && o.cta_url && (
-              <div className="mt-6 text-center">
-                <Go href={o.cta_url} className="inline-flex rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white hover:bg-primary-700">{o.cta_label} →</Go>
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            {!fuels.length ? <Empty editing={editing} text="Yakacak kalemlerini ekleyin" /> : (
+              <div className="grid gap-4 md:grid-cols-3">
+                {fuels.map((f, i) => (
+                  <div key={i} className={`${t.card} flex flex-col justify-between p-6 ${t.mode === 'bento' && i === 0 ? 'md:col-span-2' : ''}`}>
+                    <div>
+                      {f.duration && <span className={`text-xs font-extrabold uppercase tracking-wider ${t.accent}`}>{f.duration}</span>}
+                      <h3 className="mt-1 font-heading text-lg font-bold">🔥 {f.title}</h3>
+                      {f.price && <div className="mt-2 font-heading text-2xl font-extrabold">{f.price}</div>}
+                    </div>
+                    {f.cta_url && <Go href={f.cta_url} className={`mt-4 inline-flex justify-center rounded-xl px-4 py-2.5 text-xs font-extrabold ${t.btn}`}>Destek Ol →</Go>}
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
       )
     }
+    case 'donor_receipt_verify': {
+      const look = o.look || 'verify_steps'
+      const t = lookTheme(look)
+      const steps = items.filter((i) => i.title)
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`${t.wrap} sm:p-8`}>
+              {!steps.length ? <Empty editing={editing} text="Doğrulama adımlarını ekleyin" /> : (
+                <div className={`grid gap-4 ${t.mode === 'timeline' || t.mode === 'compact' ? 'md:grid-cols-1' : 'md:grid-cols-3'}`}>
+                  {steps.map((s, i) => (
+                    <div key={i} className={`${t.softBox} p-5 ${t.mode === 'bento' && i === 0 ? 'md:col-span-2' : ''}`}>
+                      <div className={`mb-1 text-xs font-extrabold ${t.accent}`}>{s.step || `Adım ${i + 1}`}</div>
+                      <h3 className="font-heading text-base font-bold">{s.title}</h3>
+                      {s.desc && <p className={`mt-1.5 text-xs leading-relaxed ${t.muted}`}>{s.desc}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {o.cta_label && o.cta_url && (
+                <div className="mt-6 text-center">
+                  <Go href={o.cta_url} className={`inline-flex rounded-xl px-6 py-3 text-sm font-extrabold ${t.btn}`}>{o.cta_label} →</Go>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )
+    }
     case 'kurban_live_feed': {
       const look = o.look || 'live_cards'
+      const t = lookTheme(look)
       const rows = items.filter((i) => i.region)
-      const dark = look === 'dark_dispatch_board'
-      return (
-        <div className={container}>
-          <Head o={o} />
-          {!rows.length ? <Empty editing={editing} text="Kurban kesim/dağıtım kayıtlarını ekleyin" /> : (
-            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
-              {rows.map((r, i) => (
-                <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
-                  <div className="mb-2 flex items-center justify-between text-xs font-extrabold">
-                    <span className="inline-flex items-center gap-1.5 text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" />{r.status || 'Tamamlandı'}</span>
-                    {r.time && <span className="opacity-60">{r.time}</span>}
+      if (look === 'compact_ticker_rows' || look === 'table_dispatch' || look === 'minimal_rows' || look === 'timeline_feed') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            {!rows.length ? <Empty editing={editing} text="Kurban kesim/dağıtım kayıtlarını ekleyin" /> : (
+              <div className="mx-auto max-w-4xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm">
+                {rows.map((r, i) => (
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-4 px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                      <div>
+                        <div className="font-heading text-sm font-bold text-gray-900">{r.region}</div>
+                        {r.batch && <div className="text-xs text-gray-500">{r.batch}</div>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-bold">
+                      <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{r.status || 'Tamamlandı'}</span>
+                      {r.time && <span className="text-gray-400">{r.time}</span>}
+                    </div>
                   </div>
-                  <h3 className="font-heading text-base font-bold">{r.region}</h3>
-                  {r.batch && <div className="mt-1 text-xs font-semibold opacity-75">{r.batch}</div>}
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      }
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            {!rows.length ? <Empty editing={editing} text="Kurban kesim/dağıtım kayıtlarını ekleyin" /> : (
+              <div className="grid gap-4 md:grid-cols-3">
+                {rows.map((r, i) => (
+                  <div key={i} className={`${t.card} p-5 ${t.mode === 'bento' && i === 0 ? 'md:col-span-2' : ''}`}>
+                    <div className="mb-2 flex items-center justify-between text-xs font-extrabold">
+                      <span className="inline-flex items-center gap-1.5 text-emerald-500"><span className={`h-2 w-2 rounded-full bg-emerald-500 ${look === 'urgent_pulse' ? 'animate-ping' : ''}`} />{r.status || 'Tamamlandı'}</span>
+                      {r.time && <span className={t.muted}>{r.time}</span>}
+                    </div>
+                    <h3 className="font-heading text-base font-bold">{r.region}</h3>
+                    {r.batch && <div className={`mt-1 text-xs font-semibold ${t.muted}`}>{r.batch}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )
     }
     case 'volunteer_field_roles': {
       const look = o.look || 'role_cards'
+      const t = lookTheme(look)
       const roles = items.filter((i) => i.role)
-      const dark = look === 'dark_team_roles'
+      if (look === 'compact_apply_list' || look === 'pill_roles') {
+        return (
+          <div className={container}>
+            <Head o={o} />
+            {!roles.length ? <Empty editing={editing} text="Gönüllü rollerini ekleyin" /> : (
+              <div className={look === 'pill_roles' ? 'flex flex-wrap justify-center gap-3' : 'mx-auto max-w-3xl divide-y divide-gray-100 rounded-3xl border border-gray-200 bg-white shadow-sm'}>
+                {roles.map((r, i) => look === 'pill_roles' ? (
+                  <span key={i} className="rounded-full border border-primary-200 bg-primary-50/70 px-4 py-2 text-sm font-bold text-primary-900">{r.role} {r.commitment ? `· ${r.commitment}` : ''}</span>
+                ) : (
+                  <div key={i} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+                    <div>
+                      <div className="font-heading text-base font-bold text-gray-900">{r.role}</div>
+                      {r.desc && <div className="text-xs text-gray-500">{r.desc}</div>}
+                    </div>
+                    {r.commitment && <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-bold text-primary-700">{r.commitment}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {o.cta_label && o.cta_url && <div className="mt-6 text-center"><Go href={o.cta_url} className="inline-flex rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white">{o.cta_label} →</Go></div>}
+          </div>
+        )
+      }
       return (
-        <div className={container}>
-          <Head o={o} />
-          {!roles.length ? <Empty editing={editing} text="Gönüllü rollerini ekleyin" /> : (
-            <div className={`grid gap-4 md:grid-cols-3 ${dark ? 'rounded-3xl bg-slate-950 p-6 text-white' : ''}`}>
-              {roles.map((r, i) => (
-                <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-200 bg-white shadow-sm'}`}>
-                  {r.commitment && <span className="mb-2 inline-block rounded-full bg-primary-50 px-2.5 py-0.5 text-[11px] font-bold text-primary-700">{r.commitment}</span>}
-                  <h3 className="font-heading text-lg font-bold">{r.role}</h3>
-                  {r.desc && <p className="mt-2 text-xs leading-relaxed opacity-80">{r.desc}</p>}
-                </div>
-              ))}
-            </div>
-          )}
-          {o.cta_label && o.cta_url && (
-            <div className="mt-6 text-center"><Go href={o.cta_url} className="inline-flex rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white">{o.cta_label} →</Go></div>
-          )}
-        </div>
-      )
-    }
-    case 'annual_audit_summary': {
-      const look = o.look || 'audit_cards'
-      const ratios = items.filter((i) => i.label)
-      const dark = look === 'dark_transparency_vault'
-      return (
-        <div className={container}>
-          <Head o={o} />
-          <div className={`rounded-3xl p-6 sm:p-8 ${dark ? 'bg-slate-950 text-white shadow-xl' : 'border border-gray-200 bg-white shadow-sm'}`}>
-            {!ratios.length ? <Empty editing={editing} text="Mali şeffaflık oranlarını ekleyin" /> : (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            {!roles.length ? <Empty editing={editing} text="Gönüllü rollerini ekleyin" /> : (
               <div className="grid gap-4 md:grid-cols-3">
-                {ratios.map((r, i) => (
-                  <div key={i} className={`rounded-2xl p-5 ${dark ? 'border border-white/10 bg-white/5' : 'border border-gray-100 bg-gray-50'}`}>
-                    <div className={`font-heading text-3xl font-extrabold ${dark ? 'text-emerald-400' : 'text-primary-700'}`}>{r.ratio}</div>
-                    <h3 className="mt-1 font-heading text-base font-bold">{r.label}</h3>
-                    {r.note && <p className="mt-1.5 text-xs opacity-75">{r.note}</p>}
+                {roles.map((r, i) => (
+                  <div key={i} className={`${t.card} p-5 ${t.mode === 'bento' && i === 0 ? 'md:col-span-2' : ''}`}>
+                    {r.commitment && <span className={`mb-2 inline-block rounded-full px-2.5 py-0.5 text-[11px] font-bold ${t.badge}`}>{r.commitment}</span>}
+                    <h3 className="font-heading text-lg font-bold">{r.role}</h3>
+                    {r.desc && <p className={`mt-2 text-xs leading-relaxed ${t.muted}`}>{r.desc}</p>}
                   </div>
                 ))}
               </div>
             )}
             {o.cta_label && o.cta_url && (
-              <div className="mt-6 text-center"><Go href={o.cta_url} className="inline-flex rounded-xl bg-primary-600 px-6 py-3 text-sm font-extrabold text-white">{o.cta_label} →</Go></div>
+              <div className="mt-6 text-center"><Go href={o.cta_url} className={`inline-flex rounded-xl px-6 py-3 text-sm font-extrabold ${t.btn}`}>{o.cta_label} →</Go></div>
             )}
+          </div>
+        </div>
+      )
+    }
+    case 'annual_audit_summary': {
+      const look = o.look || 'audit_cards'
+      const t = lookTheme(look)
+      const ratios = items.filter((i) => i.label)
+      return (
+        <div className={t.sectionBg}>
+          <div className={container}>
+            <Head o={o} />
+            <div className={`${t.wrap} sm:p-8`}>
+              {!ratios.length ? <Empty editing={editing} text="Mali şeffaflık oranlarını ekleyin" /> : (
+                <div className={`grid gap-4 ${t.mode === 'compact' || t.mode === 'table' ? 'md:grid-cols-1' : 'md:grid-cols-3'}`}>
+                  {ratios.map((r, i) => (
+                    <div key={i} className={`${t.softBox} p-5 ${t.mode === 'bento' && i === 0 ? 'md:col-span-2' : ''}`}>
+                      <div className={`font-heading text-3xl font-extrabold ${t.accent}`}>{r.ratio}</div>
+                      <h3 className="mt-1 font-heading text-base font-bold">{r.label}</h3>
+                      {r.note && <p className={`mt-1.5 text-xs ${t.muted}`}>{r.note}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {o.cta_label && o.cta_url && (
+                <div className="mt-6 text-center"><Go href={o.cta_url} className={`inline-flex rounded-xl px-6 py-3 text-sm font-extrabold ${t.btn}`}>{o.cta_label} →</Go></div>
+              )}
+            </div>
           </div>
         </div>
       )

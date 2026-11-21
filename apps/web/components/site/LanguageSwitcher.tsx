@@ -84,22 +84,29 @@ export function LanguageSwitcher({
   const sizeCls = size === 'md' ? 'text-sm px-3 py-1.5' : 'text-xs px-2.5 py-1'
   const justifyCls = align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : 'justify-start'
 
-  if (look === 'buttons') {
+  if (look === 'buttons' || look === 'globe_pill' || look === 'glass_pill' || look === 'segmented_control' || look === 'full_bar') {
+    const wrapCls = look === 'segmented_control'
+      ? 'inline-flex rounded-full bg-current/10 p-1 gap-0.5'
+      : look === 'full_bar'
+        ? 'flex w-full justify-center gap-2 border-y border-current/15 py-2'
+        : `inline-flex flex-wrap items-center gap-1 ${justifyCls}`
     return (
-      <div className={`inline-flex flex-wrap items-center gap-1 ${justifyCls} ${className}`} role="group" aria-label="Dil / Language">
+      <div className={`${wrapCls} ${className}`} role="group" aria-label="Dil / Language">
+        {look === 'globe_pill' && <span aria-hidden className="me-1 text-sm">🌐</span>}
         {languages.map((lang) => {
           const isActive = lang === active
+          const btnCls = look === 'glass_pill'
+            ? (isActive ? 'bg-primary-600 text-white shadow-sm' : 'border border-white/50 bg-white/70 text-gray-900 backdrop-blur-md hover:bg-white')
+            : isActive
+              ? 'bg-primary-600 text-white shadow-sm'
+              : 'border border-current/20 opacity-80 hover:bg-current/10 hover:opacity-100'
           return (
             <button
               key={lang}
               type="button"
               onClick={() => change(lang)}
               aria-pressed={isActive}
-              className={`rounded-full font-semibold transition-colors ${sizeCls} ${
-                isActive
-                  ? 'bg-primary-600 text-white shadow-sm'
-                  : 'border border-current/20 opacity-80 hover:bg-current/10 hover:opacity-100'
-              }`}
+              className={`rounded-full font-semibold transition-colors ${sizeCls} ${btnCls}`}
             >
               {formatLabel(lang)}
             </button>
@@ -109,13 +116,14 @@ export function LanguageSwitcher({
     )
   }
 
-  if (look === 'list') {
+  if (look === 'list' || look === 'minimal_slash') {
     return (
-      <ul className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${justifyCls} ${size === 'md' ? 'text-sm' : 'text-xs'} ${className}`}>
-        {languages.map((lang) => {
+      <ul className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 ${justifyCls} ${size === 'md' ? 'text-sm' : 'text-xs'} ${className}`}>
+        {languages.map((lang, idx) => {
           const isActive = lang === active
           return (
-            <li key={lang}>
+            <li key={lang} className="inline-flex items-center gap-2.5">
+              {look === 'minimal_slash' && idx > 0 && <span aria-hidden className="opacity-35">/</span>}
               <button
                 type="button"
                 onClick={() => change(lang)}
@@ -130,7 +138,7 @@ export function LanguageSwitcher({
     )
   }
 
-  if (look === 'dropdown') {
+  if (look === 'dropdown' || look === 'dark_dropdown') {
     return (
       <div ref={ref} className={`relative inline-block text-start ${className}`}>
         <button
@@ -138,7 +146,7 @@ export function LanguageSwitcher({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-haspopup="listbox"
-          className={`inline-flex items-center gap-1.5 rounded-lg border border-current/20 bg-transparent font-semibold transition-colors hover:bg-current/5 ${sizeCls}`}
+          className={`inline-flex items-center gap-1.5 rounded-lg border font-semibold transition-colors ${sizeCls} ${look === 'dark_dropdown' ? 'border-white/20 bg-slate-900 text-white hover:bg-slate-800' : 'border-current/20 bg-transparent hover:bg-current/5'}`}
         >
           {showIcon && <span aria-hidden>🌐</span>}
           <span>{formatLabel(active)}</span>

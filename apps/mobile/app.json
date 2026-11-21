@@ -43,7 +43,6 @@
         "expo-build-properties",
         {
           "android": {
-            "kotlinVersion": "1.9.25",
             "compileSdkVersion": 36,
             "targetSdkVersion": 36
           }
@@ -67,6 +66,44 @@
         "expo-notifications",
         {
           "color": "#059669"
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "groupIdentifier": "group.org.einfak.app",
+          "widgets": [
+            {
+              "name": "EinfakInflow",
+              "displayName": "Bugün gelen para",
+              "description": "Kurumunuza bugün gelen bağışlar: toplam, kanal dağılımı ve bekleyen havaleler.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "accessoryRectangular"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "EinfakInflow",
+              "label": "e-İnfak · Bugün gelen para",
+              "description": "Bugün gelen bağışlar, kanal dağılımı ve bekleyen havaleler.",
+              "minWidth": "180dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
         }
       ]
     ],

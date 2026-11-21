@@ -46,7 +46,7 @@ export function Card({ children, style, onPress }: { children: React.ReactNode; 
 export function SectionTitle({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
     <View style={styles.sectionRow}>
-      <Text style={styles.section}>{children}</Text>
+      <Text style={styles.section}>{typeof children === 'string' ? children.toLocaleUpperCase('tr-TR') : children}</Text>
       {right}
     </View>
   );
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
   footer: { padding: space.lg, paddingTop: space.md, backgroundColor: colors.card, borderTopWidth: 1, borderTopColor: colors.line, gap: space.sm },
   card: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.lg, gap: space.sm },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: space.sm },
-  section: { fontSize: font.sm, fontWeight: '700', color: colors.muted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  section: { fontSize: font.sm, fontWeight: '700', color: colors.muted, letterSpacing: 0.6 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: space.md, paddingVertical: 6 },
   rowLabel: { fontSize: font.sm, color: colors.muted, flexShrink: 0 },
   rowValue: { fontSize: font.md, color: colors.text, flex: 1, textAlign: 'right' },

@@ -262,6 +262,10 @@ class Design(BaseModel):
         "fullscreen_overlay", "qty_stepper_drawer", "social_proof_drawer", "side_dock",
         "compact_bar", "split_drawer", "receipt_drawer", "floating_pill_drawer",
         "glass_drawer", "emerald_drawer",
+        "warm_drawer", "gold_ornate_drawer", "minimal_line_drawer",
+        "impact_badge_drawer", "quick_amount_drawer", "high_contrast_drawer",
+        "gradient_drawer", "wide_left_drawer", "navy_corporate_drawer",
+        "soft_sage_drawer", "floating_card_modal", "summary_top_drawer",
     ] = "drawer"
     checkout_style: Literal[
         "split_classic", "stepper_minimal", "express_single", "dark_luxury", "trust_split", "transfer_first",
@@ -270,6 +274,11 @@ class Design(BaseModel):
         "one_step_sidebar", "islamic_ornate", "high_contrast", "floating_cards",
         "receipt_preview", "multi_card_grid", "minimal_bordered", "hero_banner_checkout",
         "progress_header_checkout", "card_elevated_split", "magazine_editorial", "pill_rounded_modern",
+        "two_column_compact", "ramadan_special", "donor_wall_split", "mobile_app_sheet",
+        "quick_preset_checkout", "soft_sage_charity", "split_sticky_dark", "certificate_preview",
+        "nordic_clean", "midnight_emerald", "royal_navy_gold", "terracotta_warm",
+        "wide_three_column", "top_summary_strip", "split_bordered_classic",
+        "impact_counter_checkout", "dua_blessing_header", "minimal_single_focus",
     ] = "split_classic"
     checkout_micro_addon: bool = False
     checkout_show_faq: bool = False

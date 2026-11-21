@@ -1317,7 +1317,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         workingHours={o.working_hours}
         button={o.button_label} askEmail={o.ask_email !== false} editing={opts.editing} />
     case 'mobile_tab_bar':
-      return <MobileTabBar items={o.items || []} editing={opts.editing} />
+      return <MobileTabBar items={o.items || []} editing={opts.editing} look={o.look} />
     case 'currency_switcher': {
       const alignCls = o.align === 'center' ? 'text-center' : o.align === 'right' ? 'text-right' : ''
       return (
@@ -2219,13 +2219,38 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </div>
       )
     }
-    case 'header_row':
+    case 'header_row': {
+      const hLook = (o.look as string) || 'standard'
+      const hLookCls = hLook === 'floating_capsule'
+        ? 'my-2 rounded-full border border-current/15 bg-white/95 px-6 shadow-lg backdrop-blur'
+        : hLook === 'glass_blur'
+          ? 'border-b border-white/25 bg-white/70 backdrop-blur-md'
+          : hLook === 'dark_emerald'
+            ? 'bg-emerald-950 text-white border-b border-amber-400/25'
+            : hLook === 'bordered_editorial'
+              ? 'border-y border-current/15'
+              : hLook === 'elevated_card'
+                ? 'my-1.5 rounded-2xl shadow-md bg-white/95'
+                : hLook === 'top_accent_bar'
+                  ? 'border-t-4 border-primary-600'
+                  : hLook === 'navy_gold_bar'
+                    ? 'bg-indigo-950 text-white border-b border-amber-400/30'
+                    : hLook === 'ruby_urgent_bar'
+                      ? 'bg-rose-950 text-white border-b border-rose-400/30'
+                      : hLook === 'gradient_brand_bar'
+                        ? 'bg-gradient-to-r from-primary-700 to-accent-600 text-white shadow-md'
+                        : hLook === 'soft_pill_bar'
+                          ? 'my-2 rounded-full bg-primary-50/90 px-6 border border-primary-100'
+                          : hLook === 'bold_border_bar'
+                            ? 'border-b-2 border-gray-900'
+                            : ''
       return (
-        <div className={`${container} hrow`} style={{ ['--hrow-h' as string]: `${o.height ?? 76}px`, ['--hrow-center' as string]: o.center_align === 'left' ? 'flex-start' : o.center_align === 'right' ? 'flex-end' : 'center' }}>
+        <div className={`${container} hrow ${hLookCls}`.trim()} style={{ ['--hrow-h' as string]: `${o.height ?? 76}px`, ['--hrow-center' as string]: o.center_align === 'left' ? 'flex-start' : o.center_align === 'right' ? 'flex-end' : 'center' }}>
           {o.sticky && o.shrink !== false && !opts.editing && <StickyShrink />}
           {children(block.children)}
         </div>
       )
+    }
     case 'header_slot':
       return <div className="hslot">{children(block.children)}</div>
     case 'logo': {
@@ -2234,7 +2259,29 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       const src = (o.light && site.logo_dark_url) || site.logo_url
       const displayName = (typeof o.custom_name === 'string' && o.custom_name.trim()) || site.name
       const displayTagline = (typeof o.custom_tagline === 'string' && o.custom_tagline.trim()) || site.tagline
-      const stacked = o.layout === 'stacked'
+      const lay = (o.layout as string) || 'horizontal'
+      const stacked = lay === 'stacked'
+      const reverse = lay === 'horizontal_reverse'
+      const compactIcon = lay === 'compact_icon'
+      const logoWrapCls = lay === 'badge_pill'
+        ? 'rounded-full border border-current/15 bg-current/[0.04] px-3.5 py-1.5'
+        : lay === 'card_boxed'
+          ? 'rounded-2xl border border-current/15 bg-white/90 px-4 py-2 text-gray-900 shadow-sm'
+          : lay === 'dark_gold_emblem'
+            ? 'rounded-2xl border border-amber-400/40 bg-slate-950 px-4 py-2 text-white shadow-md'
+            : lay === 'emerald_emblem'
+              ? 'rounded-2xl border border-amber-400/30 bg-emerald-950 px-4 py-2 text-white shadow-md'
+              : lay === 'navy_gold_emblem'
+                ? 'rounded-2xl border border-amber-400/35 bg-indigo-950 px-4 py-2 text-white shadow-md'
+                : lay === 'glass_pill_logo'
+                  ? 'rounded-full border border-white/60 bg-white/75 px-4 py-1.5 text-gray-900 shadow-md backdrop-blur-md'
+                  : lay === 'soft_card_logo'
+                    ? 'rounded-2xl border border-primary-100 bg-primary-50/80 px-4 py-2 text-gray-900'
+                    : lay === 'bold_border_logo'
+                      ? 'rounded-xl border-2 border-gray-900 bg-white px-4 py-2 text-gray-900 shadow-[3px_3px_0px_0px_rgba(17,24,39,1)]'
+                      : lay === 'gradient_badge_logo'
+                        ? 'rounded-2xl bg-gradient-to-r from-primary-700 to-accent-600 px-4 py-2 text-white shadow-md'
+                        : ''
       const shape = o.shape || 'contain'
       const nameSizeCls = o.name_size === 'sm' ? 'text-base' : o.name_size === 'lg' ? 'text-xl' : o.name_size === 'xl' ? 'text-2xl' : 'text-lg'
       const alignWrap = o.align === 'center' ? 'text-center' : o.align === 'right' ? 'text-right' : ''
@@ -2281,13 +2328,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </span>
       )
 
-      const textNode = o.show_name !== false && (
-        <span className={`flex min-w-0 flex-col leading-tight ${stacked ? 'items-center text-center' : ''}`}>
-          <span className={`truncate font-heading font-bold tracking-wide ${nameSizeCls} ${o.light ? 'text-white' : ''}`}>
+      const textNode = o.show_name !== false && !compactIcon && (
+        <span className={`flex min-w-0 flex-col leading-tight ${stacked ? 'items-center text-center' : ''} ${lay === 'editorial_divider' ? 'border-s border-current/25 ps-3' : ''}`}>
+          <span className={`truncate font-heading font-bold tracking-wide ${nameSizeCls} ${o.light || lay === 'dark_gold_emblem' ? 'text-white' : ''}`}>
             {displayName}
           </span>
           {o.show_tagline !== false && displayTagline && (
-            <span className={`truncate text-[11px] font-semibold tracking-[2px] ${o.light ? 'text-white/75' : 'text-primary-600'}`}>
+            <span className={`truncate text-[11px] font-semibold tracking-[2px] ${lay === 'dark_gold_emblem' ? 'text-amber-300' : o.light ? 'text-white/75' : 'text-primary-600'}`}>
               {displayTagline.toLocaleUpperCase(data.locale)}
             </span>
           )}
@@ -2295,7 +2342,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       )
 
       const href = (typeof o.url === 'string' && o.url.trim()) || '/'
-      const linkCls = `inline-flex min-w-0 items-center gap-3 ${stacked ? 'flex-col text-center' : ''} ${o.light ? 'text-white' : ''}`
+      const linkCls = `inline-flex min-w-0 items-center gap-3 ${stacked ? 'flex-col text-center' : reverse ? 'flex-row-reverse' : ''} ${logoWrapCls} ${o.light ? 'text-white' : ''}`
       const inner = (
         <>
           {logoNode}
@@ -2451,7 +2498,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         <div className={depth === 0 ? container : ''}>
           <SiteSearchBox
             target={o.target === 'news' ? 'news' : 'campaigns'}
-            look={o.look === 'input' ? 'input' : 'icon'}
+            look={typeof o.look === 'string' && o.look ? o.look : 'icon'}
             placeholder={typeof o.placeholder === 'string' && o.placeholder.trim() ? o.placeholder : 'Kampanya veya konu ara…'}
           />
         </div>
@@ -2492,7 +2539,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
               ) : (
                 <span className="text-xs font-bold">{short}</span>
               )
-              const boxBase = style === 'round'
+              const boxBase = (style === 'round' || style === 'glass_round' || style === 'dark_gold' || style === 'outlined_round')
                 ? `flex ${sz.box} items-center justify-center rounded-full transition-transform hover:scale-105`
                 : style === 'square'
                   ? `flex ${sz.box} items-center justify-center rounded-xl transition-transform hover:scale-105`
@@ -2500,13 +2547,21 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                     ? 'inline-flex items-center justify-center p-1 transition-opacity hover:opacity-75'
                     : style === 'text'
                       ? `${sz.text} font-medium hover:underline underline-offset-4`
-                      : `inline-flex items-center gap-2 rounded-full ${sz.pill} font-medium transition-colors`
+                      : style === 'grid_cards'
+                        ? `inline-flex items-center gap-2 rounded-xl border border-current/15 bg-current/[0.04] ${sz.pill} font-semibold transition hover:border-current/35`
+                        : `inline-flex items-center gap-2 rounded-full ${sz.pill} font-medium transition-colors`
 
               const neutralBg = (style === 'round' || style === 'square')
                 ? 'bg-current/10 hover:bg-current/20'
-                : style === 'pill'
-                  ? 'border border-current/20 hover:bg-current/10'
-                  : ''
+                : style === 'glass_round'
+                  ? 'border border-white/40 bg-white/60 backdrop-blur-md shadow-sm hover:bg-white/90'
+                  : style === 'dark_gold'
+                    ? 'border border-amber-400/35 bg-slate-950 text-amber-300 hover:bg-slate-900'
+                    : style === 'outlined_round'
+                      ? 'border border-current/25 hover:bg-current/10'
+                      : style === 'pill'
+                        ? 'border border-current/20 hover:bg-current/10'
+                        : ''
               const inlineStyle = colored && meta
                 ? (style === 'icons' || style === 'text'
                     ? { color: meta.color }
@@ -2524,7 +2579,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                   className={`${boxBase} ${colored && meta ? '' : neutralBg}`}
                   style={inlineStyle}
                 >
-                  {style === 'text' ? name : style === 'pill' ? <>{svgIcon}<span>{name}</span></> : svgIcon}
+                  {style === 'text' ? name : (style === 'pill' || style === 'grid_cards') ? <>{svgIcon}<span>{name}</span></> : svgIcon}
                 </a>
               )
             })}
@@ -2581,8 +2636,15 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         </svg>
       ) : null
 
-      if (look === 'cards') {
+      if (look === 'cards' || look === 'icon_cards' || look === 'glass_cards' || look === 'emerald_cards') {
         const cols = entries.length <= 2 ? 'sm:grid-cols-2' : entries.length === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2 lg:grid-cols-4'
+        const cardCls = look === 'glass_cards'
+          ? 'rounded-2xl border border-white/60 bg-white/75 p-4 text-start shadow-md backdrop-blur-md transition hover:shadow-lg'
+          : look === 'emerald_cards'
+            ? 'rounded-2xl border border-amber-400/25 bg-emerald-950 p-4 text-start text-white shadow-sm'
+            : look === 'icon_cards'
+              ? 'rounded-2xl border border-primary-100 bg-primary-50/40 p-4 text-start transition hover:bg-primary-50/70'
+              : 'rounded-2xl border border-current/15 bg-current/[0.03] p-4 text-start transition-colors hover:border-current/30'
         return (
           <div className={`${depth === 0 ? container : ''} ${alignWrap}`.trim()}>
             {o.title && <div className="mb-4 font-heading text-lg font-bold">{o.title}</div>}
@@ -2590,14 +2652,13 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
               {entries.map((item) => {
                 const body = (
                   <>
-                    <div className="mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider opacity-65">
+                    <div className={`mb-1.5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${look === 'emerald_cards' ? 'text-amber-300' : 'opacity-65'}`}>
                       {iconEl(item.key)}
                       <span>{item.label}</span>
                     </div>
                     <div className={`font-semibold leading-snug ${sizeCls}`}>{item.value}</div>
                   </>
                 )
-                const cardCls = 'rounded-2xl border border-current/15 bg-current/[0.03] p-4 text-start transition-colors hover:border-current/30'
                 return item.href ? (
                   <a
                     key={item.key}
@@ -2617,13 +2678,15 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         )
       }
 
-      const isStacked = o.layout === 'stacked'
-      const itemCls = look === 'pills'
+      const isStacked = o.layout === 'stacked' || look === 'dark_footer_list'
+      const itemCls = (look === 'pills' || look === 'split_badges')
         ? 'inline-flex items-center gap-2 rounded-full border border-current/20 px-3 py-1 transition-colors hover:bg-current/10'
         : 'inline-flex items-center gap-2'
       const wrapCls = look === 'bordered'
         ? 'rounded-2xl border border-current/15 p-4'
-        : ''
+        : look === 'compact_bar'
+          ? 'border-y border-current/15 py-2.5'
+          : ''
 
       return (
         <div className={`${depth === 0 ? container : ''} ${alignWrap}`.trim()}>
@@ -2698,23 +2761,25 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           {o.title && <div className="mb-3 font-bold">{o.title}</div>}
           <div className={`${sizeCls} ${isStacked ? `flex flex-col gap-2 ${o.align === 'center' ? 'items-center' : o.align === 'right' ? 'items-end' : 'items-start'}` : `flex flex-wrap items-center ${look === 'divided' ? 'gap-x-2 gap-y-1' : 'gap-x-4 gap-y-2'} ${JUSTIFY[o.align] || ''}`}`}>
             {accLinks.map((item, i) => {
-              const cls = look === 'buttons'
+              const cls = look === 'buttons' || look === 'glass_buttons'
                 ? item.primary
-                  ? `inline-flex items-center gap-1.5 rounded-lg bg-primary-600 font-semibold text-white transition-colors hover:bg-primary-700 ${padCls}`
-                  : `inline-flex items-center gap-1.5 rounded-lg border border-current/25 font-medium transition-colors hover:bg-current/10 ${padCls}`
-                : look === 'pills'
-                  ? `inline-flex items-center gap-1.5 rounded-full border border-current/20 font-medium transition-colors hover:bg-current/10 ${sm ? 'px-2.5 py-1' : 'px-3 py-1.5'}`
-                  : `inline-flex items-center gap-1.5 ${item.primary ? 'font-semibold' : ''} hover:underline`
+                  ? `inline-flex items-center gap-1.5 rounded-lg ${look === 'glass_buttons' ? 'bg-primary-600/90 backdrop-blur' : 'bg-primary-600'} font-semibold text-white transition-colors hover:bg-primary-700 ${padCls}`
+                  : `inline-flex items-center gap-1.5 rounded-lg border ${look === 'glass_buttons' ? 'border-white/40 bg-white/60 backdrop-blur' : 'border-current/25 hover:bg-current/10'} font-medium transition-colors ${padCls}`
+                : look === 'pills' || look === 'dark_gold_pills' || look === 'card_badge'
+                  ? `inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors ${look === 'dark_gold_pills' ? 'border-amber-400/35 bg-slate-950 text-amber-300 hover:bg-slate-900' : 'border-current/20 hover:bg-current/10'} ${sm ? 'px-2.5 py-1' : 'px-3 py-1.5'}`
+                  : look === 'outlined_stack'
+                    ? `inline-flex items-center gap-1.5 rounded-xl border border-current/20 ${padCls} font-medium hover:bg-current/5`
+                    : `inline-flex items-center gap-1.5 ${item.primary ? 'font-semibold' : ''} ${look === 'minimal_underline' ? 'underline underline-offset-4' : 'hover:underline'}`
               return (
                 <span key={item.key} className="inline-flex items-center gap-2">
                   {!isStacked && look === 'divided' && i > 0 && <span aria-hidden className="opacity-40">·</span>}
-                  <Link href={item.href} className={cls}>
-                    {showIcons && (
+                  <Link href={item.href} className={cls} aria-label={item.label} title={item.label}>
+                    {(showIcons || look === 'icon_only_compact') && (
                       <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4 shrink-0 opacity-80" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         {item.icon}
                       </svg>
                     )}
-                    <span>{item.label}</span>
+                    {look !== 'icon_only_compact' && <span>{item.label}</span>}
                   </Link>
                 </span>
               )
@@ -2726,9 +2791,43 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
     case 'copyright': {
       const year = String(new Date().getFullYear())
       const text = o.text ? String(o.text).replace(/\{(yıl|year)\}/g, year) : `© ${year} ${data.site.name}`
+      const cLook = (o.look as string) || 'centered_minimal'
+      if (cLook === 'split_with_badges' || cLook === 'compact_two_col' || cLook === 'pill_badges_bar') {
+        return (
+          <div className={container}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4 text-xs opacity-80" style={{ borderColor: 'color-mix(in srgb, currentColor 15%, transparent)' }}>
+              <span>{text}{o.show_powered !== false && ' · E-İnfak altyapısıyla'}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {(cLook === 'split_with_badges' || cLook === 'pill_badges_bar') && (
+                  <>
+                    <span className="rounded-full border border-current/20 px-2.5 py-0.5 text-[10px] font-bold">🔒 256-Bit SSL</span>
+                    <span className="rounded-full border border-current/20 px-2.5 py-0.5 text-[10px] font-bold">✓ Resmi Bağış</span>
+                  </>
+                )}
+                <ConsentLink className="hover:underline" />
+              </div>
+            </div>
+          </div>
+        )
+      }
+      const cWrapCls = cLook === 'emerald_bar'
+        ? 'rounded-xl bg-emerald-950 px-4 py-3 text-emerald-100'
+        : cLook === 'glass_footer_bar'
+          ? 'rounded-xl border border-white/40 bg-white/60 px-4 py-3 backdrop-blur-md'
+          : cLook === 'dark_gold_line'
+            ? 'border-t-2 border-amber-400/50 pt-4 text-amber-200/80'
+            : cLook === 'navy_gold_footer'
+              ? 'rounded-xl border border-amber-400/30 bg-indigo-950 px-4 py-3 text-amber-200'
+              : cLook === 'soft_sky_footer'
+                ? 'rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-900'
+                : cLook === 'gradient_brand_footer'
+                  ? 'rounded-xl bg-gradient-to-r from-primary-700 to-accent-600 px-4 py-3 text-white'
+                  : cLook === 'bold_border_footer'
+                    ? 'border-t-2 border-gray-900 pt-4 font-semibold'
+                    : 'border-t pt-4 opacity-70'
       return (
         <div className={container}>
-          <div className="border-t pt-4 text-center text-xs opacity-70" style={{ borderColor: 'color-mix(in srgb, currentColor 15%, transparent)' }}>
+          <div className={`text-center text-xs ${cWrapCls}`} style={cLook === 'centered_minimal' || cLook === 'dark_bordered' ? { borderColor: 'color-mix(in srgb, currentColor 15%, transparent)' } : undefined}>
             {text}{o.show_powered !== false && ' · E-İnfak altyapısıyla'} · <ConsentLink className="hover:underline" />
           </div>
         </div>
@@ -2768,7 +2867,29 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
             ? 'rounded-2xl border border-gray-200/90'
             : look === 'dark'
               ? 'rounded-2xl bg-primary-950 text-primary-100'
-              : ''
+              : look === 'glass'
+                ? 'rounded-2xl border border-white/60 bg-white/75 text-gray-900 shadow-lg backdrop-blur-md'
+                : look === 'emerald'
+                  ? 'rounded-2xl border border-amber-400/25 bg-emerald-950 text-white'
+                  : look === 'dark_gold'
+                    ? 'rounded-2xl border border-amber-400/35 bg-slate-950 text-white'
+                    : look === 'elevated'
+                      ? 'rounded-2xl bg-white text-gray-900 shadow-xl ring-1 ring-black/5'
+                      : look === 'gradient_soft'
+                        ? 'rounded-2xl bg-gradient-to-br from-primary-50 via-white to-accent-50 text-gray-900 ring-1 ring-primary-100'
+                        : look === 'navy_gold'
+                          ? 'rounded-2xl border border-amber-400/30 bg-indigo-950 text-white'
+                          : look === 'ruby_urgent'
+                            ? 'rounded-2xl border border-rose-400/30 bg-rose-950 text-white'
+                            : look === 'sapphire_aqua'
+                              ? 'rounded-2xl border border-cyan-400/30 bg-slate-950 text-white'
+                              : look === 'warm_amber'
+                                ? 'rounded-2xl border border-amber-200 bg-amber-50/80 text-gray-900'
+                                : look === 'soft_sky'
+                                  ? 'rounded-2xl border border-sky-200 bg-sky-50/80 text-gray-900'
+                                  : look === 'bold_border'
+                                    ? 'rounded-xl border-2 border-gray-900 bg-white text-gray-900 shadow-[4px_4px_0px_0px_rgba(17,24,39,1)]'
+                                    : ''
       const padCls = o.padding === 'sm'
         ? 'p-4'
         : o.padding === 'md'

@@ -26,8 +26,16 @@ const notifyCart = () => window.dispatchEvent(new Event('donation-cart-changed')
 
 const makeKey = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`
 
-export function DonationCart({ cartStyle = 'drawer' }: { cartStyle?: CartStyle }) {
+const PREVIEW_SAMPLE_CART: CartItem[] = [
+  { campaignId: 'preview-1', campaignTitle: 'Kurban Bağışı (Örnek)', amount: 5000, quantity: 1, currency: 'TRY' },
+  { campaignId: 'preview-2', campaignTitle: 'Su Kuyusu Hissesi (Örnek)', amount: 1250, quantity: 1, currency: 'TRY' },
+]
+
+export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyle?: CartStyle }) {
   const router = useRouter()
+  const [styleOverride, setStyleOverride] = useState<CartStyle | null>(null)
+  const [isPreviewMode, setIsPreviewMode] = useState(false)
+  const cartStyle = styleOverride || propCartStyle
   const [open, setOpen] = useState(false)
   const [redirectNotice, setRedirectNotice] = useState(false)
   const [step, setStep] = useState<'cart' | 'donor' | 'transfer'>('cart')
@@ -63,14 +71,18 @@ export function DonationCart({ cartStyle = 'drawer' }: { cartStyle?: CartStyle }
 
   const persist = (next: CartItem[]) => {
     setCart(next)
+    if (isPreviewMode) return
     localStorage.setItem('einfak_cart', JSON.stringify(next))
     notifyCart()
   }
 
   useEffect(() => {
+    const preview = new URLSearchParams(window.location.search).get('preview') === '1'
+    if (preview) setIsPreviewMode(true)
     try {
       const saved = JSON.parse(localStorage.getItem('einfak_cart') || '[]')
-      if (Array.isArray(saved)) setCart(saved)
+      if (Array.isArray(saved) && saved.length > 0) setCart(saved)
+      else if (preview) setCart(PREVIEW_SAMPLE_CART)
     } catch {
       localStorage.removeItem('einfak_cart')
     }
@@ -112,13 +124,31 @@ export function DonationCart({ cartStyle = 'drawer' }: { cartStyle?: CartStyle }
       }
     }
     const followSite = (event: Event) => setCurrency((event as CustomEvent<'TRY' | 'EUR' | 'USD'>).detail)
+    const onPreviewMsg = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      const msg = event.data
+      if (msg?.source !== 'einfak-builder' || msg?.type !== 'checkout-preview-patch') return
+      setIsPreviewMode(true)
+      if (msg.cart_style) setStyleOverride(msg.cart_style as CartStyle)
+      if (typeof msg.open_cart_drawer === 'boolean') {
+        if (msg.open_cart_drawer) {
+          setCart((cur) => (cur.length > 0 ? cur : PREVIEW_SAMPLE_CART))
+          setStep('cart')
+          setOpen(true)
+        } else {
+          setOpen(false)
+        }
+      }
+    }
     window.addEventListener('add-to-donation-cart', add)
     window.addEventListener('open-donation-cart', show)
     window.addEventListener('site-currency-change', followSite)
+    window.addEventListener('message', onPreviewMsg)
     return () => {
       window.removeEventListener('add-to-donation-cart', add)
       window.removeEventListener('open-donation-cart', show)
       window.removeEventListener('site-currency-change', followSite)
+      window.removeEventListener('message', onPreviewMsg)
     }
   }, [cartStyle, router])
 
@@ -190,37 +220,49 @@ export function DonationCart({ cartStyle = 'drawer' }: { cartStyle?: CartStyle }
 
   if (!cart.length && !open) return null
 
-  const isDarkCart = cartStyle === 'dark_drawer'
+  const isDarkCart = cartStyle === 'dark_drawer' || cartStyle === 'navy_corporate_drawer'
 
   const overlayCls =
     cartStyle === 'bottom_sheet' || cartStyle === 'compact_bar'
       ? 'fixed inset-0 z-50 flex flex-col justify-end bg-black/60'
       : cartStyle === 'top_bar_slide'
         ? 'fixed inset-0 z-50 flex flex-col justify-start bg-black/60'
-        : cartStyle === 'centered_modal' || cartStyle === 'floating_pill_drawer'
+        : cartStyle === 'centered_modal' || cartStyle === 'floating_pill_drawer' || cartStyle === 'floating_card_modal'
           ? 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm'
           : cartStyle === 'fullscreen_overlay'
             ? 'fixed inset-0 z-50 flex bg-white'
-            : cartStyle === 'left_drawer'
+            : cartStyle === 'left_drawer' || cartStyle === 'wide_left_drawer'
               ? 'fixed inset-0 z-50 flex justify-start bg-black/60'
               : cartStyle === 'floating_popover'
                 ? 'fixed inset-0 z-50 flex items-end justify-end bg-black/25 p-4 sm:p-6'
                 : 'fixed inset-0 z-50 flex justify-end bg-black/60'
 
-  const panelBase = isDarkCart
-    ? 'bg-slate-950 text-white border border-white/10'
-    : cartStyle === 'receipt_drawer'
-      ? 'bg-[#FFFDF8] text-stone-900 border-s-2 border-dashed border-stone-400'
-      : cartStyle === 'glass_drawer'
-        ? 'bg-white/85 backdrop-blur-xl text-slate-900 border-s border-white/50'
-        : cartStyle === 'emerald_drawer'
-          ? 'bg-[#FFFDF8] text-slate-900 border-t-4 border-t-emerald-700'
-          : 'bg-white text-slate-900'
+  const panelBase = cartStyle === 'navy_corporate_drawer'
+    ? 'bg-[#0F1E3A] text-white border-s border-amber-400/30'
+    : isDarkCart
+      ? 'bg-slate-950 text-white border border-white/10'
+      : cartStyle === 'receipt_drawer'
+        ? 'bg-[#FFFDF8] text-stone-900 border-s-2 border-dashed border-stone-400'
+        : cartStyle === 'glass_drawer'
+          ? 'bg-white/85 backdrop-blur-xl text-slate-900 border-s border-white/50'
+          : cartStyle === 'emerald_drawer'
+            ? 'bg-[#FFFDF8] text-slate-900 border-t-4 border-t-emerald-700'
+            : cartStyle === 'warm_drawer'
+              ? 'bg-[#FFF8F0] text-stone-900 border-s border-amber-200'
+              : cartStyle === 'soft_sage_drawer'
+                ? 'bg-[#F5F9F6] text-slate-900 border-s-4 border-emerald-600/60'
+                : cartStyle === 'gold_ornate_drawer'
+                  ? 'bg-[#FFFDF8] text-stone-900 border-s-2 border-amber-400 ring-1 ring-amber-300/40'
+                  : cartStyle === 'minimal_line_drawer'
+                    ? 'bg-white text-slate-950 border-s border-slate-900 shadow-none'
+                    : cartStyle === 'high_contrast_drawer'
+                      ? 'bg-white text-black border-s-4 border-black'
+                      : 'bg-white text-slate-900'
 
   const panelCls =
     cartStyle === 'fullscreen_overlay'
       ? 'mx-auto h-[100dvh] w-full max-w-3xl overflow-y-auto p-6 sm:p-10 bg-white text-slate-900'
-      : cartStyle === 'split_drawer'
+      : cartStyle === 'split_drawer' || cartStyle === 'wide_left_drawer'
         ? `h-[100dvh] w-full max-w-2xl overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl ${panelBase}`
         : cartStyle === 'compact_bar'
           ? `w-full max-h-[65dvh] overflow-y-auto border-t p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl ${panelBase}`
@@ -228,8 +270,8 @@ export function DonationCart({ cartStyle = 'drawer' }: { cartStyle?: CartStyle }
             ? `mx-auto max-h-[88dvh] w-full max-w-2xl overflow-y-auto rounded-t-3xl p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl ${panelBase}`
             : cartStyle === 'top_bar_slide'
               ? `mx-auto max-h-[85dvh] w-full max-w-3xl overflow-y-auto rounded-b-3xl p-6 shadow-2xl ${panelBase}`
-              : cartStyle === 'centered_modal' || cartStyle === 'floating_pill_drawer'
-                ? `max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-3xl p-6 shadow-2xl ${panelBase}`
+              : cartStyle === 'centered_modal' || cartStyle === 'floating_pill_drawer' || cartStyle === 'floating_card_modal'
+                ? `max-h-[88dvh] w-full max-w-lg overflow-y-auto rounded-[2rem] p-6 shadow-2xl ${panelBase}`
                 : cartStyle === 'floating_popover'
                   ? `max-h-[82dvh] w-full max-w-md overflow-y-auto rounded-3xl border border-gray-200 p-6 shadow-2xl ${panelBase}`
                   : `h-[100dvh] w-full max-w-md overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl ${panelBase}`
@@ -283,17 +325,33 @@ export function DonationCart({ cartStyle = 'drawer' }: { cartStyle?: CartStyle }
       )}
       {open && (
         <div className={overlayCls} role="dialog" aria-modal="true" aria-label="Bağış sepeti" onClick={() => setOpen(false)}>
-          {cartStyle !== 'centered_modal' && cartStyle !== 'floating_pill_drawer' && cartStyle !== 'top_bar_slide' && cartStyle !== 'bottom_sheet' && cartStyle !== 'compact_bar' && cartStyle !== 'left_drawer' && cartStyle !== 'fullscreen_overlay' && (
+          {cartStyle !== 'centered_modal' && cartStyle !== 'floating_pill_drawer' && cartStyle !== 'floating_card_modal' && cartStyle !== 'top_bar_slide' && cartStyle !== 'bottom_sheet' && cartStyle !== 'compact_bar' && cartStyle !== 'left_drawer' && cartStyle !== 'wide_left_drawer' && cartStyle !== 'fullscreen_overlay' && (
             <button type="button" className="flex-1" aria-label="Sepeti kapat" onClick={() => setOpen(false)} />
           )}
           <aside dir={locale === 'ar' ? 'rtl' : 'ltr'} className={panelCls} onClick={(e) => e.stopPropagation()}>
-            <header className={`mb-5 flex items-center justify-between border-b pb-4 ${isDarkCart ? 'border-white/15' : ''}`}>
-              <h2 className={`text-xl font-black ${isDarkCart ? 'text-white' : 'text-slate-900'}`}>Bağış Sepetim</h2>
+            <header className={`mb-5 flex items-center justify-between ${cartStyle === 'gradient_drawer' ? '-mx-6 -mt-6 mb-5 bg-gradient-to-r from-primary-700 to-primary-500 px-6 py-4 text-white' : `border-b pb-4 ${isDarkCart ? 'border-white/15' : ''}`}`}>
+              <h2 className={`text-xl font-black ${cartStyle === 'gradient_drawer' || isDarkCart ? 'text-white' : 'text-slate-900'}`}>Bağış Sepetim</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Kapat" className="rounded-full p-2">✕</button>
             </header>
+            {cartStyle === 'summary_top_drawer' && cart.length > 0 && step === 'cart' && (
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-primary-50 p-3.5">
+                <div>
+                  <div className="text-[11px] font-semibold text-primary-800">Toplam Bağış</div>
+                  <div className="text-lg font-black text-primary-900">{total.toLocaleString('tr-TR')} {currencySymbol}</div>
+                </div>
+                <button type="button" onClick={() => setStep('donor')} className="rounded-xl bg-primary-600 px-4 py-2 text-xs font-black text-white hover:bg-primary-700">
+                  Hızlı Öde →
+                </button>
+              </div>
+            )}
             {cartStyle === 'social_proof_drawer' && (
               <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800">
                 ✓ 256-bit SSL Güvenli Ödeme · Anında PDF Makbuz
+              </div>
+            )}
+            {cartStyle === 'impact_badge_drawer' && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/80 px-3.5 py-2.5 text-xs font-semibold text-amber-900">
+                🤲 Her bağışınız ihtiyaç sahiplerine doğrudan ve şeffaf biçimde ulaştırılır.
               </div>
             )}
             {error && <div role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -334,9 +392,11 @@ export function DonationCart({ cartStyle = 'drawer' }: { cartStyle?: CartStyle }
                 ))}
                 {!!cart.length && (
                   <>
-                    {cartStyle === 'drawer_upsell' && cart[0] && (
+                    {(cartStyle === 'drawer_upsell' || cartStyle === 'quick_amount_drawer') && cart[0] && (
                       <div className="rounded-2xl border border-primary-100 bg-primary-50/60 p-3.5">
-                        <p className="text-xs font-bold text-primary-900">Bir küçük iyilik daha ekleyin</p>
+                        <p className="text-xs font-bold text-primary-900">
+                          {cartStyle === 'quick_amount_drawer' ? 'Hızlı tutar ekle' : 'Bir küçük iyilik daha ekleyin'}
+                        </p>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {[100, 250, 500].map((amt) => (
                             <button

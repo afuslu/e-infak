@@ -41,7 +41,7 @@ import { buildLinkGroups } from './link-presets'
 import { type DemoOptions, type Library, type LibraryDemo, LibraryPanel, type SavedBlock } from './LibraryPanel'
 import { MenuPanel } from './MenuPanel'
 import { PageSettingsModal } from './PageSettingsModal'
-import { type ThemeLivePatch, ThemePanel } from './ThemePanel'
+import { type ThemeLivePatch, type ThemeSubTab, ThemePanel } from './ThemePanel'
 
 interface PageSummary { id: string; kind: 'home' | 'page' | 'header' | 'footer'; slug: string | null; title: string; is_published: boolean; uses_blocks: boolean; has_draft: boolean; published_at: string | null; draft_updated_at: string | null }
 interface Revision { id: string; created_at: string; created_by: string | null; blocks: number }
@@ -162,6 +162,7 @@ export function SiteBuilderEditor() {
   const [previewing, setPreviewing] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const frame = useRef<HTMLIFrameElement>(null)
+  const checkoutFrame = useRef<HTMLIFrameElement>(null)
   const [area, setArea] = useState({ w: 0, h: 0 })
   const observer = useRef<ResizeObserver | null>(null)
   const canvasArea = useCallback((el: HTMLDivElement | null) => {
@@ -171,6 +172,15 @@ export function SiteBuilderEditor() {
     observer.current.observe(el)
   }, [])
   const frameReady = useRef(false)
+  const [themeSubTab, setThemeSubTab] = useState<ThemeSubTab>('design')
+  const [checkoutPreview, setCheckoutPreview] = useState(false)
+  const [cartDrawerPreview, setCartDrawerPreview] = useState(false)
+  const checkoutPreviewSrc = useMemo(() => {
+    if (!checkoutPreview) return ''
+    const d = data?.site?.design
+    return `/bagis/sepetim?preview=1&stil=${encodeURIComponent(d?.checkout_style || 'split_classic')}&addon=${d?.checkout_micro_addon ? '1' : '0'}&faq=${d?.checkout_show_faq ? '1' : '0'}`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutPreview])
   const stateRef = useRef(state)
   stateRef.current = state
 
@@ -501,6 +511,16 @@ export function SiteBuilderEditor() {
 
   const applyThemePreview = useCallback((patch: ThemeLivePatch) => {
     setData((prev) => (prev ? { ...prev, site: { ...prev.site, ...patch } } : prev))
+    if (patch.design) {
+      checkoutFrame.current?.contentWindow?.postMessage({
+        source: 'einfak-builder',
+        type: 'checkout-preview-patch',
+        cart_style: patch.design.cart_style || 'drawer',
+        checkout_style: patch.design.checkout_style || 'split_classic',
+        checkout_micro_addon: Boolean(patch.design.checkout_micro_addon),
+        checkout_show_faq: Boolean(patch.design.checkout_show_faq),
+      }, window.location.origin)
+    }
   }, [])
   const applyMenuPreview = useCallback((menu: PublicMenu) => {
     setData((prev) => (prev ? { ...prev, menu } : prev))
@@ -788,7 +808,19 @@ export function SiteBuilderEditor() {
   }, [sendRender, blockAction, onKey, move]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // --- Page actions ----------------------------------------------------------------
+  const openCheckoutPreview = () => {
+    setCheckoutPreview(true)
+    setLeftOpen(true)
+    setLeftTab('theme')
+    setThemeSubTab('checkout')
+  }
+
   const switchPage = async (id: string) => {
+    if (id === '__checkout__') {
+      openCheckoutPreview()
+      return
+    }
+    setCheckoutPreview(false)
     if (id === pageId) return
     if (state.dirty && !(await save())) return
     setPageId(id)
@@ -1223,7 +1255,7 @@ export function SiteBuilderEditor() {
         <span className="mx-0.5 h-5 w-px bg-gray-200" />
         <select
           aria-label="Düzenlenen sayfa"
-          value={pageId}
+          value={checkoutPreview ? '__checkout__' : pageId}
           onChange={(e) => switchPage(e.target.value)}
           className="max-w-[180px] truncate rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-[13px] font-bold text-gray-900 outline-none transition hover:bg-white focus:border-blue-500"
         >
@@ -1231,6 +1263,7 @@ export function SiteBuilderEditor() {
             {pages.filter((p) => p.kind !== 'page').map((p) => (
               <option key={p.id} value={p.id}>{KIND_ICON[p.kind]} {p.title}</option>
             ))}
+            <option value="__checkout__">💳 Sepet &amp; Ödeme</option>
           </optgroup>
           {pages.some((p) => p.kind === 'page') && (
             <optgroup label="Özel Sayfalar">
@@ -1338,7 +1371,12 @@ export function SiteBuilderEditor() {
                   type="button"
                   onClick={() => {
                     if (leftTab === key && leftOpen) setLeftOpen(false)
-                    else { setLeftTab(key); setLeftOpen(true) }
+                    else {
+                      setLeftTab(key)
+                      setLeftOpen(true)
+                      if (key === 'add' || key === 'layers') setCheckoutPreview(false)
+                      if (key === 'theme' && themeSubTab === 'checkout') setCheckoutPreview(true)
+                    }
                   }}
                   title={label}
                   className={`relative flex w-[54px] flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10px] font-semibold leading-tight transition ${
@@ -1365,7 +1403,27 @@ export function SiteBuilderEditor() {
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               <div className={leftTab === 'theme' ? 'block' : 'hidden'}>
-                <ThemePanel onLivePreview={applyThemePreview} onDirtyChange={setThemeDirty} saveRef={themeSaveRef} />
+                <ThemePanel
+                  onLivePreview={applyThemePreview}
+                  onDirtyChange={setThemeDirty}
+                  saveRef={themeSaveRef}
+                  subTab={themeSubTab}
+                  onSubTabChange={(tab) => {
+                    setThemeSubTab(tab)
+                    setCheckoutPreview(tab === 'checkout')
+                    if (tab !== 'checkout') setCartDrawerPreview(false)
+                  }}
+                  cartPreviewOpen={cartDrawerPreview}
+                  onToggleCartPreview={(open) => {
+                    setCartDrawerPreview(open)
+                    checkoutFrame.current?.contentWindow?.postMessage({
+                      source: 'einfak-builder',
+                      type: 'checkout-preview-patch',
+                      cart_style: data?.site?.design?.cart_style || 'drawer',
+                      open_cart_drawer: open,
+                    }, window.location.origin)
+                  }}
+                />
               </div>
             {leftTab === 'pages' && (
               <div className="space-y-3">
@@ -1474,6 +1532,15 @@ export function SiteBuilderEditor() {
                             <div className="space-y-1">
                               <div className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-400">Genel Düzen</div>
                               {systemPages.map(renderPageBtn)}
+                              <button
+                                type="button"
+                                onClick={openCheckoutPreview}
+                                className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[12px] font-semibold transition ${checkoutPreview ? 'bg-blue-50 text-blue-800' : 'text-gray-700 hover:bg-gray-50'}`}
+                              >
+                                <span>💳</span>
+                                <span className="min-w-0 flex-1 truncate">Sepet &amp; Ödeme</span>
+                                <span className="text-[10px] font-normal text-gray-400">/bagis/sepetim</span>
+                              </button>
                             </div>
                           )}
                           {customPages.length > 0 && (
@@ -1697,6 +1764,21 @@ export function SiteBuilderEditor() {
                   className={`rounded px-2 py-1 text-[11px] font-semibold ${device === d ? 'bg-gray-900 text-white' : 'text-gray-600'}`}>{DEVICE_LABEL[d]}</button>
               ))}
             </div>
+            {checkoutPreview && (
+              <div className="flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/90 px-3 py-1 text-[11px] font-semibold text-blue-900 shadow-sm">
+                <span>💳 Sepet &amp; Ödeme Önizlemesi (/bagis/sepetim)</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckoutPreview(false)
+                    setThemeSubTab('design')
+                  }}
+                  className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-blue-700 shadow-xs hover:bg-blue-100"
+                >
+                  Sayfa düzenlemeye dön
+                </button>
+              </div>
+            )}
             {(device !== 'desktop' || scale < 1) && (
               <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
                 {targetW}px{scale < 1 ? ` · %${Math.round(scale * 100)}` : ''}
@@ -1714,8 +1796,29 @@ export function SiteBuilderEditor() {
                 maxWidth: zoom === 'fit' ? '100%' : undefined,
               }}>
               {/* The canvas posts "ready" whenever it (re)loads; messages sent while it loads are simply dropped. */}
-              <iframe ref={frame} src="/site-yapici-cerceve" title="Sayfa önizlemesi" className="h-full w-full border-0"
+              <iframe ref={frame} src="/site-yapici-cerceve" title="Sayfa önizlemesi" className={checkoutPreview ? 'hidden' : 'h-full w-full border-0'}
                 style={scale !== 1 ? { width: targetW, height: area.h > 0 ? area.h / scale : '100%', transform: `scale(${scale})`, transformOrigin: '0 0' } : undefined} />
+              {checkoutPreview && checkoutPreviewSrc && (
+                <iframe
+                  ref={checkoutFrame}
+                  src={checkoutPreviewSrc}
+                  title="Sepet ve ödeme önizlemesi"
+                  className="h-full w-full border-0"
+                  style={scale !== 1 ? { width: targetW, height: area.h > 0 ? area.h / scale : '100%', transform: `scale(${scale})`, transformOrigin: '0 0' } : undefined}
+                  onLoad={() => {
+                    const d = data?.site?.design
+                    if (!d) return
+                    checkoutFrame.current?.contentWindow?.postMessage({
+                      source: 'einfak-builder',
+                      type: 'checkout-preview-patch',
+                      cart_style: d.cart_style || 'drawer',
+                      checkout_style: d.checkout_style || 'split_classic',
+                      checkout_micro_addon: Boolean(d.checkout_micro_addon),
+                      checkout_show_faq: Boolean(d.checkout_show_faq),
+                    }, window.location.origin)
+                  }}
+                />
+              )}
             </div>
           </div>
 

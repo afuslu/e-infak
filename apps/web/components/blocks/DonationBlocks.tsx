@@ -142,7 +142,7 @@ export function CurrencySwitcher({
         {list.map((c) => <option key={c} value={c} className="text-gray-900">{textLabel(c)}</option>)}
       </select>
     )
-  } else if (variant === 'dropdown') {
+  } else if (variant === 'dropdown' || variant === 'glass_dropdown') {
     control = (
       <div ref={ref} className="relative inline-block text-start">
         <button
@@ -150,7 +150,7 @@ export function CurrencySwitcher({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-haspopup="listbox"
-          className={`inline-flex items-center gap-1.5 rounded-full border border-current/20 bg-transparent font-semibold transition-colors ${sm ? 'px-3 py-1 text-xs' : 'px-4 py-1.5 text-sm'} ${light ? 'text-white hover:bg-white/10' : 'hover:bg-black/5'}`}
+          className={`inline-flex items-center gap-1.5 rounded-full border font-semibold transition-colors ${sm ? 'px-3 py-1 text-xs' : 'px-4 py-1.5 text-sm'} ${variant === 'glass_dropdown' ? 'border-white/50 bg-white/70 text-gray-900 shadow-sm backdrop-blur-md hover:bg-white/90' : light ? 'border-current/20 bg-transparent text-white hover:bg-white/10' : 'border-current/20 bg-transparent hover:bg-black/5'}`}
         >
           <span>{textLabel(currency)}</span>
           <span aria-hidden className={`text-[10px] opacity-60 transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
@@ -326,13 +326,17 @@ export function CartButton({
   const textSizeCls = size === 'sm' ? 'text-xs' : size === 'lg' ? 'text-base' : 'text-sm'
   const padCls = size === 'sm' ? 'px-3 py-1.5' : size === 'lg' ? 'px-5 py-2.5' : 'px-3.5 py-2'
 
-  const lookCls = look === 'pill'
+  const lookCls = (look === 'pill' || look === 'outlined_pill' || look === 'floating_badge_pill' || look === 'compact_drawer_trigger')
     ? `rounded-full border border-current/20 hover:bg-current/10 ${padCls}`
     : look === 'boxed'
       ? `rounded-lg border border-current/20 bg-current/[0.04] hover:bg-current/10 ${padCls}`
       : look === 'solid'
         ? `rounded-full bg-primary-600 text-white shadow-sm hover:bg-primary-700 ${padCls}`
-        : 'hover:opacity-80'
+        : look === 'glass_pill'
+          ? `rounded-full border border-white/50 bg-white/75 text-gray-900 shadow-sm backdrop-blur-md hover:bg-white ${padCls}`
+          : look === 'dark_gold'
+            ? `rounded-full border border-amber-400/35 bg-slate-950 text-amber-300 shadow-sm hover:bg-slate-900 ${padCls}`
+            : 'hover:opacity-80'
 
   return (
     <Link
@@ -2632,7 +2636,7 @@ const TAB_ICON: Record<string, string> = {
   menu: 'M4 6h16M4 12h16M4 18h16',
 }
 
-export function MobileTabBar({ items, editing }: { items: { label?: string; url?: string; icon?: string; highlight?: boolean }[]; editing?: boolean }) {
+export function MobileTabBar({ items, editing, look = 'standard' }: { items: { label?: string; url?: string; icon?: string; highlight?: boolean }[]; editing?: boolean; look?: string }) {
   const [count, setCount] = useState(0)
   useEffect(() => {
     const update = () => setCount(cartCount())
@@ -2641,16 +2645,42 @@ export function MobileTabBar({ items, editing }: { items: { label?: string; url?
     window.addEventListener('donation-cart-changed', update)
     return () => { window.removeEventListener('donation-cart-changed', update); document.documentElement.classList.remove('has-tabbar') }
   }, [editing])
+  const barCls = look === 'floating_dock'
+    ? 'mx-3 mb-3 rounded-2xl border border-white/15 bg-primary-900/95 text-white shadow-2xl backdrop-blur-md'
+    : look === 'dark_gold_dock'
+      ? 'mx-3 mb-3 rounded-2xl border border-amber-400/35 bg-slate-950/95 text-amber-200 shadow-2xl backdrop-blur-md'
+      : look === 'glass_bar'
+        ? 'border-t border-white/40 bg-white/80 text-gray-900 shadow-lg backdrop-blur-md'
+        : look === 'dark_emerald'
+          ? 'border-t border-amber-400/25 bg-emerald-950 text-white shadow-xl'
+          : look === 'minimal_icons'
+            ? 'border-t border-gray-200 bg-white text-gray-700'
+            : look === 'navy_gold_bar'
+              ? 'border-t border-amber-400/30 bg-indigo-950 text-amber-200 shadow-xl'
+              : look === 'ruby_urgent_bar'
+                ? 'border-t border-rose-400/30 bg-rose-950 text-white shadow-xl'
+                : look === 'gradient_brand_bar'
+                  ? 'bg-gradient-to-r from-primary-700 to-accent-600 text-white shadow-xl'
+                  : look === 'soft_sky_bar'
+                    ? 'border-t border-sky-200 bg-sky-50 text-sky-950 shadow-md'
+                    : look === 'bold_border_bar'
+                      ? 'border-t-2 border-gray-900 bg-white text-gray-900'
+                      : 'bg-primary-800 text-white shadow-[0_-6px_20px_-8px_rgba(0,0,0,.35)]'
+  const visible = items.filter((i) => i.label && i.url)
+  const mid = Math.floor(visible.length / 2)
   const bar = (
-    <nav aria-label="Kısayollar" className={`${editing ? 'relative' : 'fixed inset-x-0 bottom-0 z-40 md:hidden'} grid bg-primary-800 pb-[env(safe-area-inset-bottom)] text-white shadow-[0_-6px_20px_-8px_rgba(0,0,0,.35)]`}
-      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
-      {items.filter((i) => i.label && i.url).map((item, i) => (
-        <Link key={i} href={item.url!} className={`relative m-1.5 flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[11px] font-medium ${item.highlight ? 'bg-white text-gray-900' : ''}`}>
-          <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={TAB_ICON[item.icon || 'home'] || TAB_ICON.home} /></svg>
-          {item.label}
-          {item.icon === 'cart' && count > 0 && <span className="absolute end-3 top-0.5 min-w-[16px] rounded-full bg-accent-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{count}</span>}
-        </Link>
-      ))}
+    <nav aria-label="Kısayollar" className={`${editing ? 'relative' : 'fixed inset-x-0 bottom-0 z-40 md:hidden'} grid pb-[env(safe-area-inset-bottom)] ${barCls}`}
+      style={{ gridTemplateColumns: `repeat(${Math.max(1, visible.length)}, minmax(0, 1fr))` }}>
+      {visible.map((item, i) => {
+        const isCenterFab = look === 'center_donate_fab' && i === mid
+        return (
+          <Link key={i} href={item.url!} className={`relative m-1.5 flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium ${isCenterFab ? '-mt-4 bg-accent-500 py-2.5 font-extrabold text-gray-950 shadow-lg ring-4 ring-primary-800' : item.highlight ? 'bg-white text-gray-900' : look === 'pill_highlight' && i === 0 ? 'bg-white/15' : ''}`}>
+            <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={TAB_ICON[item.icon || 'home'] || TAB_ICON.home} /></svg>
+            {item.label}
+            {item.icon === 'cart' && count > 0 && <span className="absolute end-3 top-0.5 min-w-[16px] rounded-full bg-accent-500 px-1 text-center text-[10px] font-bold leading-4 text-white">{count}</span>}
+          </Link>
+        )
+      })}
     </nav>
   )
   return editing ? bar : <><div className="h-16 md:hidden" aria-hidden />{bar}</>

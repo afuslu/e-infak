@@ -1470,6 +1470,7 @@ export function FidyahCalculator({
   buttonLabel = 'Hesaplanan Tutarı Bağışla',
   buttonUrl = '/bagis',
   dark = false,
+  look = 'card_widget',
 }: {
   unitAmount?: number
   defaultPeople?: number
@@ -1477,32 +1478,125 @@ export function FidyahCalculator({
   buttonLabel?: string
   buttonUrl?: string
   dark?: boolean
+  look?: string
 }) {
   const [people, setPeople] = useState(Math.max(1, defaultPeople))
   const [days, setDays] = useState(Math.max(1, defaultDays))
   const total = people * days * Math.max(10, unitAmount)
   const sep = buttonUrl.includes('?') ? '&' : '?'
+  const isEmerald = look === 'emerald_ramadan' || look === 'pastel_mint_ramadan'
+  const isGlass = look === 'glass_calculator'
+  const isWarm = look === 'warm_amber_card'
+  const isInline = look === 'minimal_inline'
+  const isPills = look === 'pill_preset_widget'
+  const isBordered = look === 'bordered_classic' || look === 'bold_border_ramadan'
+  const isTwoTone = look === 'two_tone_split'
+  const isNavy = look === 'navy_gold_ramadan' || look === 'plum_gold_ramadan' || look === 'sapphire_ramadan'
+  const isRuby = look === 'ruby_urgent_ramadan'
+  const isGradient = look === 'gradient_brand_ramadan'
+  const isSky = look === 'soft_sky_ramadan'
+  const isDark = dark || look === 'emerald_ramadan' || isNavy || isRuby || isGradient
+
+  const shellCls = look === 'emerald_ramadan'
+    ? 'border border-amber-400/30 bg-emerald-950 text-white shadow-xl'
+    : isNavy
+      ? 'border border-amber-400/30 bg-slate-950 text-white shadow-xl'
+      : isRuby
+        ? 'border border-rose-400/30 bg-rose-950 text-white shadow-xl'
+        : isGradient
+          ? 'bg-gradient-to-br from-primary-700 to-accent-600 text-white shadow-xl'
+          : isDark
+            ? 'border border-white/15 bg-white/10 text-white backdrop-blur-md'
+            : isGlass
+              ? 'border border-white/70 bg-white/75 text-gray-900 shadow-xl backdrop-blur-md'
+              : isSky
+                ? 'border border-sky-200 bg-sky-50/80 text-gray-900 shadow-sm'
+                : look === 'pastel_mint_ramadan'
+                  ? 'border border-emerald-200 bg-emerald-50/80 text-gray-900 shadow-sm'
+                  : isWarm
+                    ? 'border border-amber-200 bg-amber-50/80 text-gray-900 shadow-sm'
+                    : isBordered
+                      ? 'border-2 border-gray-900 bg-white text-gray-900 shadow-[4px_4px_0px_0px_rgba(17,24,39,1)]'
+                      : 'border border-gray-200 bg-white text-gray-900 shadow-sm'
+
+  const inputCls = isDark
+    ? 'border-white/20 bg-white/10 text-white'
+    : isWarm
+      ? 'border-amber-200 bg-white text-gray-900'
+      : 'border-gray-300 bg-gray-50 text-gray-900'
+
+  const summaryCls = isEmerald
+    ? 'bg-emerald-900/70 border border-amber-400/20'
+    : isDark
+      ? 'bg-black/30'
+      : isWarm
+        ? 'bg-amber-100/80'
+        : isTwoTone
+          ? 'bg-slate-900 text-white'
+          : 'bg-primary-50'
+
+  const btnCls = isEmerald
+    ? 'bg-amber-400 text-slate-950 hover:bg-amber-300'
+    : isDark
+      ? 'bg-accent-500 text-white hover:bg-accent-600'
+      : isWarm
+        ? 'bg-amber-600 text-white hover:bg-amber-700'
+        : 'bg-primary-600 text-white hover:bg-primary-700'
+
+  if (isInline) {
+    return (
+      <div className={`flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4 sm:px-6 ${shellCls}`}>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-xs font-bold text-gray-600">
+            <span>Kişi</span>
+            <input type="number" min={1} max={100} value={people} onChange={(e) => setPeople(Math.max(1, Number(e.target.value) || 1))} className="w-16 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm font-bold text-gray-900" />
+          </label>
+          <span className="text-gray-300">×</span>
+          <label className="flex items-center gap-2 text-xs font-bold text-gray-600">
+            <span>Gün</span>
+            <input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 1))} className="w-16 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm font-bold text-gray-900" />
+          </label>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="font-heading text-2xl font-black text-primary-700">{total.toLocaleString('tr-TR')} ₺</div>
+          <Link href={`${buttonUrl}${sep}tutar=${total}`} className={`rounded-xl px-5 py-2.5 text-xs font-extrabold shadow transition ${btnCls}`}>
+            {buttonLabel} →
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className={`rounded-3xl p-6 shadow-sm ${dark ? 'border border-white/15 bg-white/10 text-white backdrop-blur-md' : 'border border-gray-200 bg-white text-gray-900'}`}>
+    <div className={`rounded-3xl p-6 ${shellCls}`}>
+      {isPills && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {[{ l: '1 Kişi · 1 Gün', p: 1, d: 1 }, { l: '2 Kişi · 1 Gün', p: 2, d: 1 }, { l: '1 Kişi · 30 Gün', p: 1, d: 30 }, { l: '4 Kişi · 1 Gün', p: 4, d: 1 }].map((pr) => (
+            <button key={pr.l} type="button" onClick={() => { setPeople(pr.p); setDays(pr.d) }}
+              className={`rounded-full border px-3 py-1 text-xs font-bold transition ${people === pr.p && days === pr.d ? 'border-primary-600 bg-primary-600 text-white' : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-primary-300'}`}>
+              {pr.l}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block text-sm font-semibold">
-          <span className={dark ? 'text-white/80' : 'text-gray-600'}>Kişi Sayısı</span>
+          <span className={isDark ? 'text-white/80' : 'text-gray-600'}>Kişi Sayısı</span>
           <input type="number" min={1} max={100} value={people} onChange={(e) => setPeople(Math.max(1, Number(e.target.value) || 1))}
-            className={`mt-1.5 w-full rounded-xl border px-3.5 py-2.5 font-bold outline-none ${dark ? 'border-white/20 bg-white/10 text-white' : 'border-gray-300 bg-gray-50 text-gray-900'}`} />
+            className={`mt-1.5 w-full rounded-xl border px-3.5 py-2.5 font-bold outline-none ${inputCls}`} />
         </label>
         <label className="block text-sm font-semibold">
-          <span className={dark ? 'text-white/80' : 'text-gray-600'}>Gün Sayısı</span>
+          <span className={isDark ? 'text-white/80' : 'text-gray-600'}>Gün Sayısı</span>
           <input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Math.max(1, Number(e.target.value) || 1))}
-            className={`mt-1.5 w-full rounded-xl border px-3.5 py-2.5 font-bold outline-none ${dark ? 'border-white/20 bg-white/10 text-white' : 'border-gray-300 bg-gray-50 text-gray-900'}`} />
+            className={`mt-1.5 w-full rounded-xl border px-3.5 py-2.5 font-bold outline-none ${inputCls}`} />
         </label>
       </div>
-      <div className={`mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4 ${dark ? 'bg-black/30' : 'bg-primary-50'}`}>
+      <div className={`mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4 ${summaryCls}`}>
         <div>
-          <div className={`text-xs font-semibold ${dark ? 'text-white/70' : 'text-primary-700'}`}>Toplam Tutar ({unitAmount} ₺ / gün)</div>
-          <div className={`font-heading text-3xl font-black ${dark ? 'text-accent-300' : 'text-primary-800'}`}>{total.toLocaleString('tr-TR')} ₺</div>
+          <div className={`text-xs font-semibold ${isDark || isTwoTone ? 'text-white/70' : 'text-primary-700'}`}>Toplam Tutar ({unitAmount} ₺ / gün)</div>
+          <div className={`font-heading text-3xl font-black ${isEmerald ? 'text-amber-300' : isDark || isTwoTone ? 'text-accent-300' : 'text-primary-800'}`}>{total.toLocaleString('tr-TR')} ₺</div>
         </div>
-        <Link href={`${buttonUrl}${sep}tutar=${total}`} className={`rounded-xl px-6 py-3 text-sm font-extrabold shadow transition ${dark ? 'bg-accent-500 text-white hover:bg-accent-600' : 'bg-primary-600 text-white hover:bg-primary-700'}`}>
+        <Link href={`${buttonUrl}${sep}tutar=${total}`} className={`rounded-xl px-6 py-3 text-sm font-extrabold shadow transition ${btnCls}`}>
           {buttonLabel} →
         </Link>
       </div>

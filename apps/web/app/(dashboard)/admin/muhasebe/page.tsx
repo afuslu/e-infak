@@ -71,6 +71,10 @@ const GelenHavalelerTab = dynamic(
   () => import('@/components/admin/muhasebe/GelenHavalelerTab').then((m) => m.GelenHavalelerTab),
   { ssr: false, loading: () => <div className="p-8 text-center text-sm text-slate-500">Gelen havaleler yükleniyor...</div> },
 );
+const SanalPosHareketleri = dynamic(
+  () => import('@/components/admin/muhasebe/SanalPosHareketleri').then((m) => m.SanalPosHareketleri),
+  { ssr: false, loading: () => <div className="p-8 text-center text-sm text-slate-500">Sanal POS tahsilatları yükleniyor...</div> },
+);
 const BankaEntegrasyonPanel = dynamic(
   () => import('@/components/admin/muhasebe/BankaEntegrasyonPanel').then((m) => m.BankaEntegrasyonPanel),
   { ssr: false, loading: () => <div className="p-6 text-center text-sm text-slate-500">Banka entegrasyonları yükleniyor...</div> },
@@ -81,7 +85,8 @@ const BASE = '/admin-features/acc';
 export type TabKey =
   | 'gelir-gider'
   | 'kasa-banka'
-  | 'gelen-havaleler';
+  | 'gelen-havaleler'
+  | 'sanal-pos';
 
 const LEGACY_TAB_MAP: Record<string, TabKey> = {
   summary: 'gelir-gider',
@@ -90,6 +95,7 @@ const LEGACY_TAB_MAP: Record<string, TabKey> = {
   'gelir-gider': 'gelir-gider',
   'kasa-banka': 'kasa-banka',
   'gelen-havaleler': 'gelen-havaleler',
+  'sanal-pos': 'sanal-pos',
 };
 
 const AYLAR = [
@@ -1267,6 +1273,7 @@ export default function OnMuhasebePage() {
     { id: 'gelir-gider', label: 'Gelir/Gider', icon: TrendingUp },
     { id: 'kasa-banka', label: 'Kasa & Banka', icon: Wallet },
     { id: 'gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownLeft, badge: unmatchedTransferCount },
+    { id: 'sanal-pos', label: 'Sanal POS Tahsilatları', icon: CreditCard },
   ];
 
   const renderTabNavigation = () => (
@@ -3156,6 +3163,12 @@ export default function OnMuhasebePage() {
               onDataChanged={loadData}
               onUnmatchedCountChange={setUnmatchedTransferCount}
             />
+          )}
+          {activeTab === 'sanal-pos' && (
+            <div className="flex flex-col gap-4">
+              {renderTabNavigation()}
+              <SanalPosHareketleri />
+            </div>
           )}
         </div>
       </div>

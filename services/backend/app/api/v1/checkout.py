@@ -255,6 +255,10 @@ async def _finalize_paid_order(
             payload={"order_id": str(order.id), "total_cents": order.total_cents, "currency": order.currency},
         )
     )
+    from app.services import staff_notify
+
+    staff_notify.queue(db, order.organization_id, "push.payment.paid", "payment_order", order.id,
+                       {"order_id": str(order.id)})
     from app.services.recurring import open_from_order
 
     await open_from_order(db, order, attempt)
@@ -601,6 +605,7 @@ async def _settle(db: AsyncSession, provider_key: str, data: dict) -> tuple[Paym
     if result.approved and result_matches_order(order, result):
         await _finalize_paid_order(db, order, attempt)
         return order, True
+    previous_status = order.status
     if result.approved:
         order.status = PaymentOrderStatus.REVIEW
         order.failure_message = "Ödeme onaylandı ancak tutar/para birimi siparişle eşleşmiyor; manuel inceleme gerekli"
@@ -609,6 +614,11 @@ async def _settle(db: AsyncSession, provider_key: str, data: dict) -> tuple[Paym
         order.status = PaymentOrderStatus.FAILED
         order.failure_code = (result.code or "")[:64] or None
         order.failure_message = result.message or "Ödeme banka tarafından onaylanmadı"
+    if order.status != previous_status:
+        from app.services import staff_notify
+
+        staff_notify.queue(db, order.organization_id, "push.payment.failed", "payment_attempt", attempt.id,
+                           {"order_id": str(order.id), "attempt_id": str(attempt.id)})
     await db.commit()
     return order, False
 
@@ -782,6 +792,10 @@ async def refund_payment(
             payload={"order_id": str(order.id), "amount_cents": cents},
         )
     )
+    from app.services import staff_notify
+
+    staff_notify.queue(db, order.organization_id, "push.payment.refunded", "payment_refund", refund.id,
+                       {"order_id": str(order.id), "refund_id": str(refund.id), "amount_cents": cents})
     db.add(AuditLog(organization_id=order.organization_id, user_id=current_user.id, action="odeme_iade",
                     details={"order_id": str(order.id), "amount_cents": cents,
                              "donations": [str(d.id) for d in donations]}))

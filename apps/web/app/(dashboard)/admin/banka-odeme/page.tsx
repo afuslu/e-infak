@@ -20,15 +20,15 @@ const GelenHavalelerTab = dynamic(
   { ssr: false },
 )
 
-type TabKey = 'online-bagis' | 'banka-hesaplari' | 'banka-hareketleri'
-const TAB_KEYS: TabKey[] = ['online-bagis', 'banka-hesaplari', 'banka-hareketleri']
+type TabKey = 'banka-hareketleri' | 'online-bagis' | 'banka-hesaplari'
+const TAB_KEYS: TabKey[] = ['banka-hareketleri', 'online-bagis', 'banka-hesaplari']
 
 function BankaOdemeContent() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const raw = searchParams.get('sekme') as TabKey | null
-  const tab: TabKey = raw && TAB_KEYS.includes(raw) ? raw : 'online-bagis'
+  const tab: TabKey = raw && TAB_KEYS.includes(raw) ? raw : 'banka-hareketleri'
   const [unmatched, setUnmatched] = useState<number | undefined>(undefined)
   const [showGuide, setShowGuide] = useState<boolean>(true)
 
@@ -59,9 +59,9 @@ function BankaOdemeContent() {
   const tabs = (
     <Tabs
       tabs={[
+        { key: 'banka-hareketleri' as const, label: 'Banka Hareketleri', icon: ArrowDownLeft, count: unmatched },
         { key: 'online-bagis' as const, label: 'Online Bağış (Sanal POS)', icon: CreditCard },
         { key: 'banka-hesaplari' as const, label: 'Banka Hesapları & Web Servis', icon: Landmark },
-        { key: 'banka-hareketleri' as const, label: 'Banka Hareketleri', icon: ArrowDownLeft, count: unmatched },
       ]}
       value={tab}
       onChange={setTab}

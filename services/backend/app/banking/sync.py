@@ -103,6 +103,13 @@ async def sync_account(db: AsyncSession, account: BankAccount, *, until: Optiona
         new.append(transaction)
     await db.flush()
     stats = await process_transactions(db, new, account=account)
+    waiting = [t for t in new if t.amount_cents > 0
+               and t.status in (ReconciliationStatus.UNMATCHED, ReconciliationStatus.AMBIGUOUS)]
+    if waiting:
+        from app.services import staff_notify
+
+        staff_notify.queue(db, account.organization_id, "push.transfer.waiting", "bank_transaction", waiting[0].id,
+                           {"transaction_ids": [str(t.id) for t in waiting]})
     account.last_synced_at, account.last_error = until, None
     await db.commit()
     return {"fetched": len(movements), "new": len(new), **stats}

@@ -21,6 +21,10 @@ export interface CartSummaryItem {
 const SYM: Record<'TRY' | 'EUR' | 'USD', string> = { TRY: '₺', EUR: '€', USD: '$' }
 const CART_KEY = 'einfak_cart'
 const notifyCart = () => window.dispatchEvent(new Event('donation-cart-changed'))
+const PREVIEW_SAMPLE_CART: CartSummaryItem[] = [
+  { campaignId: 'preview-1', campaignTitle: 'Kurban Bağışı (Örnek)', amount: 5000, quantity: 1, currency: 'TRY' },
+  { campaignId: 'preview-2', campaignTitle: 'Su Kuyusu Hissesi (Örnek)', amount: 1250, quantity: 1, currency: 'TRY' },
+]
 
 /**
  * /bagis/sepetim: Full-page world-class checkout supporting 6 configurable styles
@@ -38,8 +42,13 @@ export function CartPageClient({
   showFaq?: boolean
 }) {
   const [cart, setCart] = useState<CartSummaryItem[] | null>(null)
+  const [isPreview, setIsPreview] = useState(false)
   const [styleOverride, setStyleOverride] = useState<CheckoutStyle | null>(null)
+  const [microAddonOverride, setMicroAddonOverride] = useState<boolean | null>(null)
+  const [showFaqOverride, setShowFaqOverride] = useState<boolean | null>(null)
   const activeStyle = styleOverride || checkoutStyle
+  const activeMicroAddon = microAddonOverride ?? microAddon
+  const activeShowFaq = showFaqOverride ?? showFaq
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [accordionOpen, setAccordionOpen] = useState<1 | 2 | 3>(2)
   const [firstName, setFirstName] = useState('')
@@ -78,29 +87,59 @@ export function CartPageClient({
   }, [enabledCurrencies, currency])
 
   useEffect(() => {
-    const qStyle = new URLSearchParams(window.location.search).get('stil') as CheckoutStyle | null
+    const params = new URLSearchParams(window.location.search)
+    const preview = params.get('preview') === '1'
+    if (preview) setIsPreview(true)
+    const qStyle = params.get('stil') as CheckoutStyle | null
     if (qStyle) {
       setStyleOverride(qStyle)
       if (qStyle === 'transfer_first') setPaymentMethod('bank_transfer')
     }
+    const qAddon = params.get('addon')
+    if (qAddon === '1' || qAddon === '0') setMicroAddonOverride(qAddon === '1')
+    const qFaq = params.get('faq')
+    if (qFaq === '1' || qFaq === '0') setShowFaqOverride(qFaq === '1')
+
     const read = () => {
       try {
         const parsed = JSON.parse(localStorage.getItem(CART_KEY) || '[]')
         const list: CartSummaryItem[] = Array.isArray(parsed) ? parsed : []
+        if (preview && list.length === 0) {
+          setCart(PREVIEW_SAMPLE_CART)
+          return
+        }
         setCart(list)
         const itemCurr = list.find((it) => it.currency)?.currency
         if (itemCurr) setCurrency(itemCurr)
       } catch {
-        setCart([])
+        setCart(preview ? PREVIEW_SAMPLE_CART : [])
       }
     }
     read()
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      const msg = event.data
+      if (msg?.source !== 'einfak-builder' || msg?.type !== 'checkout-preview-patch') return
+      if (msg.checkout_style) {
+        setStyleOverride(msg.checkout_style as CheckoutStyle)
+        if (msg.checkout_style === 'transfer_first') setPaymentMethod('bank_transfer')
+      }
+      if (typeof msg.checkout_micro_addon === 'boolean') setMicroAddonOverride(msg.checkout_micro_addon)
+      if (typeof msg.checkout_show_faq === 'boolean') setShowFaqOverride(msg.checkout_show_faq)
+    }
+
     window.addEventListener('donation-cart-changed', read)
-    return () => window.removeEventListener('donation-cart-changed', read)
+    window.addEventListener('message', onMessage)
+    return () => {
+      window.removeEventListener('donation-cart-changed', read)
+      window.removeEventListener('message', onMessage)
+    }
   }, [])
 
   const persist = (next: CartSummaryItem[]) => {
     setCart(next)
+    if (isPreview) return
     localStorage.setItem(CART_KEY, JSON.stringify(next))
     notifyCart()
   }
@@ -113,21 +152,25 @@ export function CartPageClient({
   const items = cart || []
   const total = items.reduce((s, it) => s + (Number(it.amount) || 0) * (Number(it.quantity) || 1), 0)
   const sym = SYM[currency] || '₺'
-  const isDark = activeStyle === 'dark_luxury'
-  const isEmerald = activeStyle === 'emerald_charity'
+  const isDark = activeStyle === 'dark_luxury' || activeStyle === 'ramadan_special' || activeStyle === 'midnight_emerald' || activeStyle === 'royal_navy_gold'
+  const isEmerald = activeStyle === 'emerald_charity' || activeStyle === 'soft_sage_charity'
   const isPaper = activeStyle === 'minimal_paper'
   const isCompactMobile = activeStyle === 'compact_mobile'
   const isGlass = activeStyle === 'glass_gradient'
-  const isWarm = activeStyle === 'warm_pastel'
+  const isWarm = activeStyle === 'warm_pastel' || activeStyle === 'terracotta_warm'
   const isCorporate = activeStyle === 'corporate_checkout'
   const isOrnate = activeStyle === 'islamic_ornate'
   const isHighContrast = activeStyle === 'high_contrast'
-  const isMinBordered = activeStyle === 'minimal_bordered'
+  const isMinBordered = activeStyle === 'minimal_bordered' || activeStyle === 'split_bordered_classic'
   const isElevated = activeStyle === 'card_elevated_split'
   const isPillModern = activeStyle === 'pill_rounded_modern'
 
   const submit = async () => {
     if (!items.length) return
+    if (isPreview) {
+      setError('Önizleme modunda gerçek ödeme işlemi başlatılmaz.')
+      return
+    }
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
       setError('Lütfen ad, soyad, e-posta ve telefon bilgilerini doldurun.')
       return
@@ -345,7 +388,7 @@ export function CartPageClient({
           {total.toLocaleString('tr-TR')} {sym}
         </span>
       </div>
-      {microAddon && items[0] && (
+      {activeMicroAddon && items[0] && (
         <div className={`mt-4 rounded-2xl border p-3.5 ${isDark ? 'border-white/15 bg-white/5' : 'border-primary-100 bg-primary-50/60'}`}>
           <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-primary-900'}`}>Küçük bir iyilik ekleyin</p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -879,6 +922,283 @@ export function CartPageClient({
               <div className="lg:sticky lg:top-24">{orderSummary}</div>
             </div>
           </div>
+        ) : activeStyle === 'two_column_compact' ? (
+          <div className="grid items-start gap-4 lg:grid-cols-[1.35fr_1fr]">
+            <div className={`${cardCls} space-y-4 !p-4`}>
+              <div>
+                <h2 className="mb-2 font-heading text-base font-bold text-gray-900">1. Bağışçı Bilgileri</h2>
+                {donorFields}
+              </div>
+              <div className="border-t border-gray-100 pt-3">
+                <h2 className="mb-2 font-heading text-base font-bold text-gray-900">2. Ödeme Yöntemi</h2>
+                {paymentOptions}
+              </div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+            <div className="lg:sticky lg:top-24">{orderSummary}</div>
+          </div>
+        ) : activeStyle === 'ramadan_special' ? (
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-amber-400/40 bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 p-6 text-white shadow-xl">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <span className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-amber-300">🌙 Ramazan &amp; İnfak Özel</span>
+                  <h2 className="mt-1 font-heading text-2xl font-black text-white">Paylaştıkça Bereketlenen İyilik</h2>
+                </div>
+                <span className="rounded-full border border-amber-400/50 bg-amber-400/15 px-3.5 py-1.5 text-xs font-bold text-amber-200">
+                  Toplam: {total.toLocaleString('tr-TR')} {sym}
+                </span>
+              </div>
+            </div>
+            <div className="grid items-start gap-8 lg:grid-cols-[1.25fr_1fr]">
+              <div className={`${cardCls} space-y-6`}>
+                <div>
+                  <h2 className="mb-3 font-heading text-lg font-bold text-white">1. Bağışçı Bilgileri</h2>
+                  {donorFields}
+                </div>
+                <div className="border-t border-white/15 pt-5">
+                  <h2 className="mb-3 font-heading text-lg font-bold text-white">2. Ödeme Yöntemi</h2>
+                  {paymentOptions}
+                </div>
+                <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                  {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+                </button>
+              </div>
+              <div className="lg:sticky lg:top-24">{orderSummary}</div>
+            </div>
+          </div>
+        ) : activeStyle === 'donor_wall_split' ? (
+          <div className="grid items-start gap-8 lg:grid-cols-[1.2fr_1fr]">
+            <div className={`${cardCls} space-y-6`}>
+              <div>
+                <h2 className="mb-3 font-heading text-lg font-bold text-gray-900">1. Bağışçı Bilgileri</h2>
+                {donorFields}
+              </div>
+              <div className="border-t border-gray-100 pt-5">
+                <h2 className="mb-3 font-heading text-lg font-bold text-gray-900">2. Ödeme Yöntemi</h2>
+                {paymentOptions}
+              </div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+            <div className="space-y-4 lg:sticky lg:top-24">
+              {orderSummary}
+              <div className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-5 text-xs text-emerald-950">
+                <div className="mb-2 font-heading text-sm font-bold">Şeffaflık &amp; Güven Taahhüdü</div>
+                <ul className="space-y-1.5 text-emerald-900/90">
+                  <li>✓ Bağışınızın %100&apos;ü ilgili kampanya hesabına aktarılır</li>
+                  <li>✓ Onay anında doğrulama kodlu PDF makbuz üretilir</li>
+                  <li>✓ Tüm işlemler 256-bit SSL &amp; 3D Secure ile korunur</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        ) : activeStyle === 'mobile_app_sheet' ? (
+          <div className="mx-auto max-w-md space-y-4 pb-24">
+            {orderSummary}
+            <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm space-y-5">
+              <h2 className="font-heading text-base font-bold text-gray-900">Bağışçı Bilgileri</h2>
+              {donorFields}
+              <div className="border-t border-gray-100 pt-4">
+                <h2 className="mb-3 font-heading text-base font-bold text-gray-900">Ödeme Yöntemi</h2>
+                {paymentOptions}
+              </div>
+            </div>
+            <div className="sticky bottom-3 z-20 rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-xl backdrop-blur-md">
+              <div className="mb-2 flex items-center justify-between text-xs font-bold text-gray-600">
+                <span>Ödenecek Tutar</span>
+                <span className="text-base font-black text-primary-700">{total.toLocaleString('tr-TR')} {sym}</span>
+              </div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : 'Bağışı Tamamla →'}
+              </button>
+            </div>
+          </div>
+        ) : activeStyle === 'quick_preset_checkout' ? (
+          <div className="grid items-start gap-8 lg:grid-cols-[1.2fr_1fr]">
+            <div className={`${cardCls} space-y-6`}>
+              {donorFields}
+              <div className="border-t border-gray-100 pt-5">{paymentOptions}</div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+            <div className="space-y-4 lg:sticky lg:top-24">
+              {items[0] && (
+                <div className="rounded-3xl border border-primary-200 bg-primary-50/70 p-4">
+                  <div className="text-xs font-bold text-primary-900">Tek tıkla ekstra iyilik ekleyin</div>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {[100, 250, 500, 1000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => persist([...items, { campaignId: items[0].campaignId, campaignTitle: `${items[0].campaignTitle} (+${amt} ${sym})`, amount: amt, quantity: 1, currency }])}
+                        className="rounded-xl border border-primary-300 bg-white px-3 py-1.5 text-xs font-extrabold text-primary-800 hover:bg-primary-100"
+                      >
+                        + {amt} {sym}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {orderSummary}
+            </div>
+          </div>
+        ) : activeStyle === 'split_sticky_dark' ? (
+          <div className="grid items-start gap-8 lg:grid-cols-[1.25fr_1fr]">
+            <div className={`${cardCls} space-y-6`}>
+              <div>
+                <h2 className="mb-3 font-heading text-lg font-bold text-gray-900">1. Bağışçı Bilgileri</h2>
+                {donorFields}
+              </div>
+              <div className="border-t border-gray-100 pt-5">
+                <h2 className="mb-3 font-heading text-lg font-bold text-gray-900">2. Ödeme Yöntemi</h2>
+                {paymentOptions}
+              </div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+            <div className="rounded-3xl bg-slate-900 p-6 text-white shadow-2xl lg:sticky lg:top-24">
+              <div className="mb-4 text-xs font-extrabold uppercase tracking-wider text-amber-400">Bağış Özeti</div>
+              <div className="space-y-2.5 border-b border-white/15 pb-4 text-sm">
+                {items.map((it, idx) => (
+                  <div key={idx} className="flex justify-between gap-2">
+                    <span className="text-white/85">{it.campaignTitle} {it.quantity && it.quantity > 1 ? `×${it.quantity}` : ''}</span>
+                    <b className="text-white">{((Number(it.amount) || 0) * (Number(it.quantity) || 1)).toLocaleString('tr-TR')} {sym}</b>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-sm text-white/75">Toplam</span>
+                <span className="text-2xl font-black text-amber-400">{total.toLocaleString('tr-TR')} {sym}</span>
+              </div>
+              <p className="mt-4 text-[11px] text-white/60">256-bit SSL güvenli ödeme ve anında dijital makbuz.</p>
+            </div>
+          </div>
+        ) : activeStyle === 'certificate_preview' ? (
+          <div className="grid items-start gap-8 lg:grid-cols-[1.2fr_1fr]">
+            <div className={`${cardCls} space-y-6`}>
+              {donorFields}
+              <div className="border-t border-gray-100 pt-5">{paymentOptions}</div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+            <div className="space-y-4 lg:sticky lg:top-24">
+              <div className="rounded-3xl border-2 border-amber-300 bg-gradient-to-br from-[#FFFDF8] to-amber-50/60 p-6 text-center shadow-sm">
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-amber-700">Teşekkür Sertifikası Önizleme</div>
+                <div className="mt-2 font-heading text-lg font-black text-gray-900">
+                  {(firstName || lastName) ? `${firstName} ${lastName}`.trim() : 'Sayın Bağışçımız'}
+                </div>
+                <p className="mt-1.5 text-xs text-gray-600">
+                  {siteName || 'Kurumumuz'} aracılığıyla gerçekleştirdiğiniz{' '}
+                  <b className="text-primary-800">{total.toLocaleString('tr-TR')} {sym}</b> tutarındaki iyilik katkınız için teşekkür ederiz.
+                </p>
+              </div>
+              {orderSummary}
+            </div>
+          </div>
+        ) : activeStyle === 'nordic_clean' ? (
+          <div className="mx-auto max-w-5xl grid items-start gap-10 lg:grid-cols-[1.2fr_1fr]">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-7 space-y-6">
+              <h2 className="font-heading text-lg font-semibold text-slate-900">Bağışçı Bilgileri</h2>
+              {donorFields}
+              <div className="border-t border-slate-200 pt-5">
+                <h2 className="mb-3 font-heading text-lg font-semibold text-slate-900">Ödeme Yöntemi</h2>
+                {paymentOptions}
+              </div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+            <div className="lg:sticky lg:top-24">{orderSummary}</div>
+          </div>
+        ) : activeStyle === 'midnight_emerald' || activeStyle === 'royal_navy_gold' ? (
+          <div className={`rounded-[2rem] p-6 sm:p-8 shadow-2xl ${activeStyle === 'royal_navy_gold' ? 'bg-gradient-to-br from-[#0B1736] via-[#10204A] to-[#0B1736]' : 'bg-gradient-to-br from-emerald-950 via-slate-950 to-emerald-950'}`}>
+            <div className="grid items-start gap-8 lg:grid-cols-[1.25fr_1fr]">
+              <div className={`${cardCls} space-y-6`}>
+                <h2 className="font-heading text-lg font-bold text-amber-300">
+                  {activeStyle === 'royal_navy_gold' ? 'Kurumsal Bağış & Ödeme' : 'Gece Zümrütü Ödeme Merkezi'}
+                </h2>
+                {donorFields}
+                <div className="border-t border-white/15 pt-5">{paymentOptions}</div>
+                <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                  {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+                </button>
+              </div>
+              <div className="lg:sticky lg:top-24">{orderSummary}</div>
+            </div>
+          </div>
+        ) : activeStyle === 'wide_three_column' ? (
+          <div className="grid items-start gap-5 lg:grid-cols-[1fr_1.15fr_1fr]">
+            <div>{orderSummary}</div>
+            <div className={`${cardCls} space-y-5`}>
+              <h2 className="font-heading text-base font-bold text-gray-900">Bağışçı Bilgileri</h2>
+              {donorFields}
+            </div>
+            <div className={`${cardCls} space-y-5 lg:sticky lg:top-24`}>
+              <h2 className="font-heading text-base font-bold text-gray-900">Ödeme Yöntemi</h2>
+              {paymentOptions}
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+          </div>
+        ) : activeStyle === 'top_summary_strip' ? (
+          <div className="mx-auto max-w-2xl space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-200 bg-primary-50/70 px-5 py-4">
+              <div>
+                <div className="text-xs font-bold text-primary-900">{items.length} Kalem Bağış Sepeti</div>
+                <div className="text-[11px] text-primary-700 truncate max-w-xs">{items.map((i) => i.campaignTitle).join(', ')}</div>
+              </div>
+              <div className="text-xl font-black text-primary-800">{total.toLocaleString('tr-TR')} {sym}</div>
+            </div>
+            <div className={`${cardCls} space-y-6`}>
+              {donorFields}
+              <div className="border-t border-gray-100 pt-5">{paymentOptions}</div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+          </div>
+        ) : activeStyle === 'impact_counter_checkout' || activeStyle === 'dua_blessing_header' ? (
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-5 py-4 text-center">
+              <p className="font-heading text-sm font-bold text-emerald-950">
+                {activeStyle === 'dua_blessing_header'
+                  ? '🤲 “Veren el, alan elden üstündür.” — Hayrınız kabul, bereketiniz daim olsun.'
+                  : `🌍 Bu katkınızla ${items.length} farklı iyilik halkasına doğrudan destek oluyorsunuz.`}
+              </p>
+            </div>
+            <div className="grid items-start gap-8 lg:grid-cols-[1.25fr_1fr]">
+              <div className={`${cardCls} space-y-6`}>
+                {donorFields}
+                <div className="border-t border-gray-100 pt-5">{paymentOptions}</div>
+                <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                  {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+                </button>
+              </div>
+              <div className="lg:sticky lg:top-24">{orderSummary}</div>
+            </div>
+          </div>
+        ) : activeStyle === 'minimal_single_focus' ? (
+          <div className="mx-auto max-w-xl space-y-6">
+            <div className={`${cardCls} space-y-6`}>
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <span className="text-sm font-bold text-gray-900">Hızlı Bağış ({items.length} kalem)</span>
+                <span className="text-lg font-black text-primary-700">{total.toLocaleString('tr-TR')} {sym}</span>
+              </div>
+              {donorFields}
+              <div className="border-t border-gray-100 pt-5">{paymentOptions}</div>
+              <button type="button" disabled={checkout.isPending} onClick={submit} className={primaryBtnCls}>
+                {checkout.isPending ? 'Hazırlanıyor…' : `${total.toLocaleString('tr-TR')} ${sym} Bağışı Tamamla`}
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="grid items-start gap-8 lg:grid-cols-[1.25fr_1fr]">
             <div className={`${cardCls} space-y-6`}>
@@ -897,7 +1217,7 @@ export function CartPageClient({
             <div className="lg:sticky lg:top-24">{orderSummary}</div>
           </div>
         )}
-        {showFaq && (
+        {activeShowFaq && (
           <div className="mx-auto mt-10 max-w-3xl rounded-3xl border border-gray-200/80 bg-white p-6 shadow-sm">
             <h3 className="font-heading text-base font-bold text-gray-900">Sık Sorulan Sorular</h3>
             <div className="mt-3 divide-y divide-gray-100 text-xs text-gray-600">

@@ -7,13 +7,16 @@ import { af } from '@/lib/api';
 import { allowed, can } from '@/lib/access';
 import { dateTime, money } from '@/lib/format';
 import { STATUS } from '@/api/types';
+import { useInflow } from '@/api/inflow';
+import { InflowCard } from '@/components/InflowCard';
 import { Badge, Btn, Card, Chips, ListItem, Notice, QueryView, Screen, SectionTitle, Stat, ui } from '@/components/ui';
 import { colors, font, radius, space } from '@/theme';
 
 type Stats = {
   sees_all: boolean;
   currency: string;
-  kpis: {
+  // Makbuzların tümünü görme yetkisi olmayan personelde null döner.
+  kpis: null | {
     today_cents: number; yesterday_cents: number; month_cents: number; last_month_to_date_cents: number;
     donor_count: number; new_donors_this_month: number; active_campaigns: number;
   };
@@ -51,23 +54,30 @@ export default function Dashboard() {
     queryFn: () => af<{ counts?: Record<string, number> }>('/sms/messages', { query: { page_size: 1 } }),
   });
   const failedSms = (sms.data?.counts?.failed || 0) + (sms.data?.counts?.queued || 0);
+  const inflow = useInflow('today', allowed(access, undefined, 'receipts'));
 
   return (
-    <Screen onRefresh={() => query.refetch()} refreshing={query.isRefetching}>
+    <Screen onRefresh={() => { query.refetch(); inflow.refetch(); }} refreshing={query.isRefetching}>
       <Text style={ui.title}>Merhaba, {me?.first_name}</Text>
+      {inflow.data ? (
+        <InflowCard data={inflow.data} onPress={() => router.push('/para-girisleri')}
+          onTransfers={allowed(access, undefined, 'bank') ? () => router.push('/havaleler') : undefined} />
+      ) : null}
       <QueryView query={query}>
         {(data) => {
           const k = data.kpis;
           const peak = Math.max(1, ...data.monthly_donations.map((m) => m.total_cents));
           return (
             <>
-              {!data.sees_all ? <Notice text="Yalnızca kendi kestiğiniz makbuzların özetini görüyorsunuz." /> : null}
-              <View style={ui.wrapGap}>
-                <Stat label="Bugün" value={money(k.today_cents, data.currency)} sub={change(k.today_cents, k.yesterday_cents)} />
-                <Stat label="Bu ay" value={money(k.month_cents, data.currency)} sub={change(k.month_cents, k.last_month_to_date_cents)} />
-                <Stat label="Bağışçı" value={String(k.donor_count)} sub={`Bu ay ${k.new_donors_this_month} yeni`} />
-                <Stat label="Aktif kampanya" value={String(k.active_campaigns)} />
-              </View>
+              {!data.sees_all ? <Notice text="Kurumun bağış tutarlarını görme yetkiniz yok; yalnızca size açık bilgiler gösteriliyor." /> : null}
+              {k ? (
+                <View style={ui.wrapGap}>
+                  <Stat label="Bugün" value={money(k.today_cents, data.currency)} sub={change(k.today_cents, k.yesterday_cents)} />
+                  <Stat label="Bu ay" value={money(k.month_cents, data.currency)} sub={change(k.month_cents, k.last_month_to_date_cents)} />
+                  <Stat label="Bağışçı" value={String(k.donor_count)} sub={`Bu ay ${k.new_donors_this_month} yeni`} />
+                  <Stat label="Aktif kampanya" value={String(k.active_campaigns)} />
+                </View>
+              ) : null}
 
               {(data.pending_donations_count > 0 || failedSms > 0) ? (
                 <Card>
@@ -86,6 +96,7 @@ export default function Dashboard() {
                 <Btn title="Elle makbuz kes" onPress={() => router.push('/makbuz-kes')} />
               ) : null}
 
+              {data.monthly_donations.length ? <>
               <SectionTitle>Aylık bağış</SectionTitle>
               <Card>
                 <View style={styles.bars}>
@@ -99,6 +110,9 @@ export default function Dashboard() {
                 </View>
               </Card>
 
+              </> : null}
+
+              {data.sees_all ? <>
               <SectionTitle>Ödeme kanalları</SectionTitle>
               <Chips options={PERIODS} value={period} onChange={setPeriod} />
               <Card>
@@ -109,6 +123,8 @@ export default function Dashboard() {
                   </View>
                 )) : <Text style={ui.muted}>Bu dönemde bağış yok.</Text>}
               </Card>
+
+              </> : null}
 
               {data.campaigns_progress.length ? (
                 <>
@@ -128,6 +144,7 @@ export default function Dashboard() {
                 </>
               ) : null}
 
+              {data.sees_all || data.recent_donations.length ? <>
               <SectionTitle>Son bağışlar</SectionTitle>
               <View style={ui.listCard}>
                 {data.recent_donations.length ? data.recent_donations.map((d, i) => (
@@ -143,6 +160,7 @@ export default function Dashboard() {
                   </View>
                 )) : <Text style={[ui.muted, { padding: space.lg }]}>Henüz bağış yok.</Text>}
               </View>
+              </> : null}
             </>
           );
         }}

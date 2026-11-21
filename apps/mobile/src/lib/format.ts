@@ -127,3 +127,11 @@ export function validTrIban(value: string): boolean {
   }
   return remainder === 1;
 }
+
+/** Son boşaltmadan bu yana geçen gün (backend, bugünkü kaydı öğlen saatiyle yazdığı için negatif olabilir). */
+export function daysAgo(days: number | null | undefined): string {
+  if (days === null || days === undefined) return '';
+  if (days <= 0) return 'bugün';
+  if (days === 1) return 'dün';
+  return `${days} gün önce`;
+}

@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { Href, useRouter } from 'expo-router';
 import {
-  BarChart3, Building2, CalendarCheck, CreditCard, ExternalLink, Megaphone, MessageSquare, PiggyBank, Repeat, Send,
+  Activity, Bell, Landmark, BarChart3, Building2, CalendarCheck, CreditCard, ExternalLink, Megaphone, MessageSquare, PiggyBank, Repeat, Send,
   Tags, UserCog, UserRound, UsersRound,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
@@ -16,6 +16,14 @@ type Item = { title: string; subtitle?: string; href: Href; icon: React.Componen
 
 // apps/web/components/admin/admin-nav.ts ile aynı paket özelliği + modül eşlemesi.
 const GROUPS: { title: string; items: Item[] }[] = [
+  {
+    title: 'Para ve bildirimler',
+    items: [
+      { title: 'Para girişleri', subtitle: 'Canlı: online, havale, POS, nakit, kumbara', href: '/para-girisleri', icon: Activity, modules: 'receipts' },
+      { title: 'Bekleyen havaleler', subtitle: 'Tek dokunuşla bağışçıya bağla', href: '/havaleler', icon: Landmark, feature: 'bank_transactions', modules: 'bank' },
+      { title: 'Bildirimler', href: '/bildirimler', icon: Bell },
+    ],
+  },
   {
     title: 'Saha',
     items: [
