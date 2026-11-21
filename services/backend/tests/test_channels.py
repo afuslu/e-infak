@@ -166,6 +166,19 @@ async def test_call_events_build_one_call_and_cdr_adds_recording(db_session):
     await ns.apply_event(db_session, org.id, {"unique_id": "2", "scenario": "Hangup", "talktime": "0"})
     assert missed.status == "missed" and missed.donor_id is None
 
+    # Outbound click-to-call created with crm-<crm_id> must merge when webhook arrives with real unique_id + crm_id.
+    outbound = CallLog(organization_id=org.id, provider=ns.PROVIDER, unique_id="crm-abc123", direction="out",
+                       customer_phone="05456236712", extension="101")
+    db_session.add(outbound)
+    await db_session.flush()
+    merged = await ns.apply_event(db_session, org.id, {
+        "unique_id": "real-99.1", "crm_id": "abc123", "scenario": "Outbound_call",
+        "customer_num": "05456236712", "internal_num": "101",
+    })
+    assert merged.id == outbound.id and merged.unique_id == "real-99.1"
+    await ns.apply_event(db_session, org.id, {"unique_id": "real-99.1", "scenario": "Answer"})
+    assert outbound.status == "answered"
+
 
 # --- SMS donations -----------------------------------------------------------------------------
 

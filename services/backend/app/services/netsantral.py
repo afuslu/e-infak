@@ -141,6 +141,15 @@ async def apply_event(db: AsyncSession, organization_id: UUID, event: dict):
         CallLog.organization_id == organization_id, CallLog.provider == PROVIDER, CallLog.unique_id == unique_id,
     ))).scalar_one_or_none()
     if call is None:
+        crm_id = str(event.get("crm_id") or "").strip()
+        if crm_id:
+            call = (await db.execute(select(CallLog).where(
+                CallLog.organization_id == organization_id, CallLog.provider == PROVIDER,
+                CallLog.unique_id == f"crm-{crm_id}"[:80],
+            ))).scalar_one_or_none()
+            if call is not None:
+                call.unique_id = unique_id
+    if call is None:
         call = CallLog(organization_id=organization_id, provider=PROVIDER, unique_id=unique_id, started_at=now,
                        direction="out" if scenario == "Outbound_call" or str(event.get("yon")) == "2" else "in")
         db.add(call)
