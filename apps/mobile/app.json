@@ -25,7 +25,8 @@
     },
     "android": {
       "package": "org.einfak.app",
-      "versionCode": 18,
+      "versionCode": 22,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#059669"
