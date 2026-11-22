@@ -1,12 +1,14 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { ShoppingBag } from 'lucide-react'
 import { useCreateCheckout, useOrgSettings, type CheckoutSessionResponse } from '@e-infak/api-client'
 import { errorMessage } from '../../lib/api-error'
 import { trackConversion } from '../../lib/analytics'
 import type { CheckoutStyle } from '../../lib/site-design'
-import { ConsentChecks, useCardFallback, useCheckoutLegal } from '../CheckoutConsent'
+import { ConsentChecks, useCardFallback, useCheckoutLegal, useLoggedInDonor } from '../CheckoutConsent'
 import { PaymentTrustBadges } from './PaymentTrustBadges'
 
 export interface CartSummaryItem {
@@ -42,6 +44,7 @@ export function CartPageClient({
   microAddon?: boolean
   showFaq?: boolean
 }) {
+  const router = useRouter()
   const [cart, setCart] = useState<CartSummaryItem[] | null>(null)
   const [isPreview, setIsPreview] = useState(false)
   const [styleOverride, setStyleOverride] = useState<CheckoutStyle | null>(null)
@@ -66,8 +69,7 @@ export function CartPageClient({
   const [terms, setTerms] = useState(false)
   const [isGift, setIsGift] = useState(false)
   const [onBehalfOf, setOnBehalfOf] = useState('')
-  const [allowEmail, setAllowEmail] = useState(false)
-  const [allowSms, setAllowSms] = useState(false)
+  const [onBehalfOfPhone, setOnBehalfOfPhone] = useState('')
   const [rememberDonor, setRememberDonor] = useState(true)
   const [donorPrefilled, setDonorPrefilled] = useState(false)
   const [error, setError] = useState('')
@@ -75,9 +77,23 @@ export function CartPageClient({
   const [transfer, setTransfer] = useState<CheckoutSessionResponse | null>(null)
 
   const { data: orgSettings } = useOrgSettings()
-  const { legal, cardPayments } = useCheckoutLegal()
+  const { legal, cardPayments, ibanPageUrl } = useCheckoutLegal()
+  const { isLoggedIn, donor: loggedInDonor } = useLoggedInDonor()
   const checkout = useCreateCheckout()
   useCardFallback(cardPayments, paymentMethod, setPaymentMethod)
+
+  useEffect(() => {
+    if (loggedInDonor) {
+      setFirstName(loggedInDonor.firstName)
+      setLastName(loggedInDonor.lastName)
+      setEmail(loggedInDonor.email)
+      setPhone(loggedInDonor.phone)
+    }
+  }, [loggedInDonor])
+
+  const goToIbanPage = () => {
+    router.push(ibanPageUrl)
+  }
 
   const enabledCurrencies = useMemo(() => {
     return (orgSettings?.enabled_payment_currencies?.length
@@ -189,16 +205,16 @@ export function CartPageClient({
       setError('Önizleme modunda gerçek ödeme işlemi başlatılmaz.')
       return
     }
-    if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
+    const effFirstName = (isLoggedIn && loggedInDonor ? loggedInDonor.firstName : firstName).trim()
+    const effLastName = (isLoggedIn && loggedInDonor ? loggedInDonor.lastName : lastName).trim()
+    const effEmail = (isLoggedIn && loggedInDonor ? loggedInDonor.email : email).trim()
+    const effPhone = (isLoggedIn && loggedInDonor ? loggedInDonor.phone : phone).trim()
+    if (!isLoggedIn && (!effFirstName || !effLastName || !effPhone)) {
       setError('Lütfen ad, soyad ve telefon bilgilerini doldurun.')
       return
     }
     if (!kvkk) {
       setError('KVKK aydınlatma metni onayı zorunludur.')
-      return
-    }
-    if (paymentMethod === 'credit_card' && !terms) {
-      setError('Ön bilgilendirme formu ve mesafeli bağış sözleşmesi onayı zorunludur.')
       return
     }
     if (isGift && !onBehalfOf.trim()) {
@@ -207,16 +223,16 @@ export function CartPageClient({
     }
     setError('')
     try {
-      if (rememberDonor) {
+      if (!isLoggedIn && rememberDonor) {
         try {
           localStorage.setItem(DONOR_PROFILE_KEY, JSON.stringify({
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
-            phone: phone.trim(),
-            email: email.trim(),
+            firstName: effFirstName,
+            lastName: effLastName,
+            phone: effPhone,
+            email: effEmail,
           }))
         } catch { /* ignore */ }
-      } else {
+      } else if (!isLoggedIn) {
         try { localStorage.removeItem(DONOR_PROFILE_KEY) } catch { /* ignore */ }
       }
       trackConversion('checkout_started', { item_count: items.length, payment_method: paymentMethod, currency })
@@ -230,21 +246,22 @@ export function CartPageClient({
             : isCorporate && companyName.trim()
               ? `${companyName.trim()}${taxNo.trim() ? ` (VKN: ${taxNo.trim()})` : ''}`
               : undefined,
+          on_behalf_of_phone: isGift && onBehalfOfPhone.trim() ? onBehalfOfPhone.trim() : undefined,
           metadata: it.metadata,
         })),
         donor: {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
+          first_name: effFirstName || 'Değerli',
+          last_name: effLastName || 'Bağışçı',
+          email: effEmail,
+          phone: effPhone || '05000000000',
           is_anonymous: items.some((it) => Boolean(it.metadata?.anonim)),
-          allow_email: allowEmail,
-          allow_sms: allowSms,
+          allow_email: false,
+          allow_sms: false,
         },
         payment_method: paymentMethod,
         currency,
         kvkk_accepted: kvkk,
-        terms_accepted: terms || paymentMethod === 'bank_transfer',
+        terms_accepted: kvkk || terms || paymentMethod === 'bank_transfer',
         locale: 'tr',
         idempotency_key: crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`,
         consent_version: 'v1',
@@ -350,7 +367,9 @@ export function CartPageClient({
     return (
       <section className="mx-auto max-w-xl px-4 py-16 sm:px-6">
         <div className="rounded-3xl border border-gray-200/80 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary-50 text-2xl">🤝</div>
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary-50 text-primary-600">
+            <ShoppingBag className="h-7 w-7" strokeWidth={2} aria-hidden="true" />
+          </div>
           <h1 className="font-heading text-3xl font-bold text-gray-900">Bağış Sepetiniz Boş</h1>
           <p className="mt-2.5 text-sm text-gray-600">İhtiyaç sahiplerine ulaştırmak üzere kampanyalarımızdan dilediğinizi seçebilirsiniz.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
@@ -448,33 +467,37 @@ export function CartPageClient({
 
   const donorFields = (
     <div className="space-y-3">
-      {donorPrefilled && (
-        <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-[11px] text-emerald-800">
-          <span>✓ Önceki bağışınızdan bilgileriniz otomatik dolduruldu.</span>
-          <button
-            type="button"
-            onClick={() => {
-              setFirstName(''); setLastName(''); setPhone(''); setEmail(''); setDonorPrefilled(false)
-              try { localStorage.removeItem(DONOR_PROFILE_KEY) } catch { /* ignore */ }
-            }}
-            className="font-bold underline hover:text-emerald-950"
-          >
-            Temizle
-          </button>
-        </div>
+      {!isLoggedIn && (
+        <>
+          {donorPrefilled && (
+            <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-1.5 text-[11px] text-emerald-800">
+              <span>✓ Önceki bağışınızdan bilgileriniz otomatik dolduruldu.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setFirstName(''); setLastName(''); setPhone(''); setEmail(''); setDonorPrefilled(false)
+                  try { localStorage.removeItem(DONOR_PROFILE_KEY) } catch { /* ignore */ }
+                }}
+                className="font-bold underline hover:text-emerald-950"
+              >
+                Temizle
+              </button>
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <input aria-label="Ad" autoComplete="given-name" placeholder="Ad *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} />
+            <input aria-label="Soyad" autoComplete="family-name" placeholder="Soyad *" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputCls} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <input aria-label="Telefon" type="tel" autoComplete="tel" placeholder="Telefon *" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
+            <input aria-label="E-posta" type="email" autoComplete="email" placeholder="E-posta (isteğe bağlı)" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 text-xs opacity-80">
+            <input type="checkbox" checked={rememberDonor} onChange={(e) => setRememberDonor(e.target.checked)} />
+            <span>Sonraki bağışım için bilgilerimi bu cihazda hatırla</span>
+          </label>
+        </>
       )}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <input aria-label="Ad" autoComplete="given-name" placeholder="Ad *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputCls} />
-        <input aria-label="Soyad" autoComplete="family-name" placeholder="Soyad *" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputCls} />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <input aria-label="Telefon" type="tel" autoComplete="tel" placeholder="Telefon *" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} />
-        <input aria-label="E-posta" type="email" autoComplete="email" placeholder="E-posta (isteğe bağlı)" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} />
-      </div>
-      <label className="flex cursor-pointer items-center gap-2 text-xs opacity-80">
-        <input type="checkbox" checked={rememberDonor} onChange={(e) => setRememberDonor(e.target.checked)} />
-        <span>Sonraki bağışım için bilgilerimi bu cihazda hatırla</span>
-      </label>
       {isCorporate && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input aria-label="Kurum / Şirket Adı" placeholder="Kurum / Şirket Adı" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputCls} />
@@ -486,19 +509,26 @@ export function CartPageClient({
         Başkası adına / Hediye bağış yapıyorum
       </label>
       {isGift && (
-        <input
-          aria-label="Kimin adına"
-          placeholder="Kimin adına? (makbuzda görünür)"
-          maxLength={200}
-          value={onBehalfOf}
-          onChange={(e) => setOnBehalfOf(e.target.value)}
-          className={inputCls}
-        />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <input
+            aria-label="Kimin adına"
+            placeholder="Kimin adına? Ad Soyad * (makbuzda görünür)"
+            maxLength={200}
+            value={onBehalfOf}
+            onChange={(e) => setOnBehalfOf(e.target.value)}
+            className={inputCls}
+          />
+          <input
+            aria-label="Adına bağış yapılanın telefonu"
+            type="tel"
+            placeholder="Bilgilendirme SMS'i gidecek telefon (isteğe bağlı)"
+            maxLength={32}
+            value={onBehalfOfPhone}
+            onChange={(e) => setOnBehalfOfPhone(e.target.value)}
+            className={inputCls}
+          />
+        </div>
       )}
-      <div className={`flex flex-wrap gap-4 text-xs ${isDark ? 'text-white/80' : 'text-gray-600'}`}>
-        <label className="flex items-center gap-1.5"><input type="checkbox" checked={allowEmail} onChange={(e) => setAllowEmail(e.target.checked)} /> E-posta bilgilendirme izni</label>
-        <label className="flex items-center gap-1.5"><input type="checkbox" checked={allowSms} onChange={(e) => setAllowSms(e.target.checked)} /> SMS bilgilendirme izni</label>
-      </div>
     </div>
   )
 
@@ -516,7 +546,7 @@ export function CartPageClient({
               key={m}
               type="button"
               disabled={disabled}
-              onClick={() => setPaymentMethod(m)}
+              onClick={() => (m === 'bank_transfer' ? goToIbanPage() : setPaymentMethod(m))}
               className={`rounded-xl border px-3 py-3 text-xs font-bold transition disabled:opacity-45 ${
                 active
                   ? isDark
@@ -953,7 +983,7 @@ export function CartPageClient({
               </button>
               <button
                 type="button"
-                onClick={() => setPaymentMethod('bank_transfer')}
+                onClick={goToIbanPage}
                 className={`rounded-2xl border p-4 text-left transition ${paymentMethod === 'bank_transfer' ? 'border-primary-600 bg-primary-50 ring-2 ring-primary-500/20' : 'border-gray-200 bg-white'}`}
               >
                 <div className="text-lg font-black text-gray-900">🏦 Havale / EFT</div>

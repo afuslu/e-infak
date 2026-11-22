@@ -105,22 +105,55 @@ def _same_person(donor: Donor, first_name: str | None, last_name: str | None) ->
     return card_first == first or card_first.split(" ")[0] == first.split(" ")[0] != ""
 
 
-async def _get_or_create_donor(org_id: UUID, payload, db: AsyncSession) -> tuple[Donor, dict | None]:
+async def _authenticated_donor(request: Request, org_id: UUID, db: AsyncSession) -> Donor | None:
+    """Return the logged-in portal donor if a valid donor Bearer token is sent on checkout."""
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if not auth_header.lower().startswith("bearer "):
+        return None
+    token = auth_header[7:].strip()
+    if not token:
+        return None
+    from app.core.security import decode_token
+
+    data = decode_token(token)
+    if not data or data.get("type") != "access" or data.get("role") != "donor" or not data.get("sub"):
+        return None
+    try:
+        donor_uuid = UUID(str(data["sub"]))
+    except ValueError:
+        return None
+    return (
+        await db.execute(
+            select(Donor).where(Donor.id == donor_uuid, Donor.organization_id == org_id)
+        )
+    ).scalar_one_or_none()
+
+
+async def _get_or_create_donor(
+    org_id: UUID,
+    payload,
+    db: AsyncSession,
+    authenticated_donor: Donor | None = None,
+) -> tuple[Donor, dict | None]:
     """Find the donor by e-mail or phone *and* name, or create one.
 
-    E-mail or phone alone is not enough: a shared family phone, an association's common e-mail or
-    a staff member filling the form for a caller would otherwise pile different people's donations
-    (and receipts) onto one card. When the contact matches but the name does not, a new card is
-    opened; the duplicate finder (data_tools.find_duplicates) groups it with the old one by phone
-    or e-mail so staff can merge them if they really are the same person.
-
-    A public checkout is unauthenticated, so it must never rewrite an existing donor's contact
-    details: whoever knows a donor's e-mail could otherwise put their own phone on the record and
-    take over the donor portal (OTP goes to that phone). Only empty fields are filled; contact
-    details that differ are returned so they can be kept on the order instead.
+    If the request carries a valid donor portal token (`authenticated_donor`), that donor record
+    is used directly and any missing profile fields are filled from the checkout payload.
     """
     email = str(payload.email).strip().lower() if payload.email else None
     phone = phone_digits(payload.phone) or payload.phone
+    values = payload.model_dump()
+    values["email"] = email
+    values["phone"] = phone
+
+    if authenticated_donor is not None:
+        for consent in ("allow_sms", "allow_email"):
+            setattr(authenticated_donor, consent, bool(values.get(consent) or getattr(authenticated_donor, consent)))
+        for key in ("first_name", "last_name", "email", "phone"):
+            if not getattr(authenticated_donor, key) and values.get(key):
+                setattr(authenticated_donor, key, values[key])
+        return authenticated_donor, None
+
     match_cond = (
         ((func.lower(Donor.email) == email) | phone_matches(Donor.phone, phone))
         if email
@@ -133,9 +166,6 @@ async def _get_or_create_donor(org_id: UUID, payload, db: AsyncSession) -> tuple
         ).order_by(Donor.created_at).limit(50)
     )
     donor = next((d for d in result.scalars() if _same_person(d, payload.first_name, payload.last_name)), None)
-    values = payload.model_dump()
-    values["email"] = email
-    values["phone"] = phone
     if donor:
         # An unticked box on a later donation is not a withdrawal of an earlier permission.
         for consent in ("allow_sms", "allow_email"):
@@ -253,6 +283,9 @@ async def _finalize_paid_order(
         payment_details = dict(attempt.safe_response or {})
         if auto_assigned_staff:
             payment_details["auto_assigned_staff"] = True
+        on_behalf_phone = (item.metadata_json or {}).get("on_behalf_of_phone")
+        if on_behalf_phone:
+            payment_details["on_behalf_of_phone"] = on_behalf_phone
         donation = Donation(
             # Assigned here (not at flush) because the outbox events below reference it.
             id=uuid4(),
@@ -412,7 +445,8 @@ async def create_checkout_session(
                 raise HTTPException(status_code=400, detail=f"{campaign.title}: {key} liste olmalıdır")
         total_cents += item.unit_amount_cents * item.quantity
 
-    donor, payer_contact = await _get_or_create_donor(org_id, payload.donor, db)
+    auth_donor = await _authenticated_donor(request, org_id, db)
+    donor, payer_contact = await _get_or_create_donor(org_id, payload.donor, db, authenticated_donor=auth_donor)
     for consent_type, granted in (
         ("kvkk_notice", payload.kvkk_accepted),
         ("distance_contract", payload.terms_accepted),
@@ -472,6 +506,7 @@ async def create_checkout_session(
                 metadata_json={
                     **item.metadata,
                     **({"on_behalf_of": item.on_behalf_of} if item.on_behalf_of else {}),
+                    **({"on_behalf_of_phone": item.on_behalf_of_phone} if item.on_behalf_of_phone else {}),
                     # Contact details typed at checkout that differ from the stored donor.
                     **({"payer_contact": payer_contact} if payer_contact else {}),
                 },

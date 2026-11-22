@@ -111,6 +111,11 @@ SMS_EVENTS: dict[str, tuple[str, str, str, str]] = {
         "Sayın {ad_soyad}, {tutar} {para_birimi} tutarındaki {bagis_kalemi} bağışınız alınmıştır. "
         "Makbuz No: {makbuz_no}. Allah kabul etsin.\n{kurum}",
     ),
+    "adina_bagis": (
+        "Başkası adına (hediye) bağış yapıldı", "auto", "Adına Bağış / Hediye Bildirimi",
+        "Sayın {kimin_adina}, {ad_soyad} tarafından sizin adınıza {bagis_kalemi} bağışı yapılmıştır. "
+        "Makbuz No: {makbuz_no}. Hayırlara vesile olmasını dileriz.\n{kurum}",
+    ),
     "makbuz": (
         "Makbuz kesildi", "auto", "Makbuz SMS",
         "Değerli bağışçımız, {tutar} {para_birimi} bağışınız kurumumuza ulaşmıştır. Allah kabul etsin.\n{kurum}",

@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { ShoppingBag } from 'lucide-react'
 import { errorMessage } from '../lib/api-error'
 import { useEffect, useMemo, useState } from 'react'
 import { useCreateCheckout, useOrgSettings, type CheckoutSessionResponse } from '@e-infak/api-client'
 import type { CartStyle } from '../lib/site-design'
 import { trackConversion } from '../lib/analytics'
-import { ConsentChecks, useCardFallback, useCheckoutLegal } from './CheckoutConsent'
+import { ConsentChecks, useCardFallback, useCheckoutLegal, useLoggedInDonor } from './CheckoutConsent'
 import { PaymentTrustBadges } from './site/PaymentTrustBadges'
 
 const CURRENCY_SYMBOL: Record<'TRY' | 'EUR' | 'USD', string> = { TRY: '₺', EUR: '€', USD: '$' }
@@ -33,6 +34,7 @@ const PREVIEW_SAMPLE_CART: CartItem[] = [
 
 export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyle?: CartStyle }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [styleOverride, setStyleOverride] = useState<CartStyle | null>(null)
   const [isPreviewMode, setIsPreviewMode] = useState(false)
   const cartStyle = styleOverride || propCartStyle
@@ -59,15 +61,28 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
   const currencySymbol = CURRENCY_SYMBOL[currency]
   const [kvkk, setKvkk] = useState(false)
   const [terms, setTerms] = useState(false)
-  const { legal, cardPayments } = useCheckoutLegal()
+  const { legal, cardPayments, ibanPageUrl } = useCheckoutLegal()
+  const { isLoggedIn, donor: loggedInDonor } = useLoggedInDonor()
   useCardFallback(cardPayments, paymentMethod, setPaymentMethod)
+  useEffect(() => {
+    if (loggedInDonor) {
+      setFirstName(loggedInDonor.firstName)
+      setLastName(loggedInDonor.lastName)
+      setEmail(loggedInDonor.email)
+      setPhone(loggedInDonor.phone)
+    }
+  }, [loggedInDonor])
   const [isGift, setIsGift] = useState(false)
   const [onBehalfOf, setOnBehalfOf] = useState('')
-  const [allowEmail, setAllowEmail] = useState(false)
-  const [allowSms, setAllowSms] = useState(false)
+  const [onBehalfOfPhone, setOnBehalfOfPhone] = useState('')
   const [error, setError] = useState('')
   const [transfer, setTransfer] = useState<CheckoutSessionResponse | null>(null)
   const checkout = useCreateCheckout()
+
+  const goToIbanPage = () => {
+    setOpen(false)
+    router.push(ibanPageUrl)
+  }
 
   const persist = (next: CartItem[]) => {
     setCart(next)
@@ -159,16 +174,16 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
   const total = cart.reduce((sum, item) => sum + item.amount * (item.quantity || 1), 0)
 
   const submit = async () => {
-    if (!firstName || !lastName || !email || !phone) {
+    const effFirstName = (isLoggedIn && loggedInDonor ? loggedInDonor.firstName : firstName).trim()
+    const effLastName = (isLoggedIn && loggedInDonor ? loggedInDonor.lastName : lastName).trim()
+    const effEmail = (isLoggedIn && loggedInDonor ? loggedInDonor.email : email).trim()
+    const effPhone = (isLoggedIn && loggedInDonor ? loggedInDonor.phone : phone).trim()
+    if (!isLoggedIn && (!effFirstName || !effLastName || !effEmail || !effPhone)) {
       setError('Lütfen zorunlu bağışçı bilgilerini doldurun.')
       return
     }
     if (!kvkk) {
       setError('KVKK aydınlatma metni onayı zorunludur.')
-      return
-    }
-    if (paymentMethod === 'credit_card' && !terms) {
-      setError('Ön bilgilendirme formu ve mesafeli bağış sözleşmesi onayı zorunludur.')
       return
     }
     if (isGift && !onBehalfOf.trim()) {
@@ -184,16 +199,17 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
           quantity: item.quantity || 1,
           unit_amount_cents: Math.round(item.amount * 100),
           on_behalf_of: isGift && onBehalfOf.trim() ? onBehalfOf.trim() : undefined,
+          on_behalf_of_phone: isGift && onBehalfOfPhone.trim() ? onBehalfOfPhone.trim() : undefined,
           metadata: item.metadata,
         })),
         donor: {
-          first_name: firstName,
-          last_name: lastName,
-          email,
-          phone,
+          first_name: effFirstName || 'Değerli',
+          last_name: effLastName || 'Bağışçı',
+          email: effEmail,
+          phone: effPhone || '05000000000',
           is_anonymous: false,
-          allow_email: allowEmail,
-          allow_sms: allowSms,
+          allow_email: false,
+          allow_sms: false,
         },
         payment_method: paymentMethod,
         currency,
@@ -201,7 +217,7 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
         idempotency_key: makeKey(),
         consent_version: '2026-07',
         kvkk_accepted: kvkk,
-        terms_accepted: terms,
+        terms_accepted: kvkk || terms,
       })
       if (result.redirect_url) {
         trackConversion('payment_redirected', { payment_method: paymentMethod, currency })
@@ -218,6 +234,8 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
     }
   }
 
+  const isStaffArea = !!pathname && (pathname.startsWith('/admin') || pathname.startsWith('/giris') || pathname.startsWith('/sifre') || pathname.startsWith('/platform'))
+  if (isStaffArea) return null
   if (!cart.length && !open) return null
 
   const isDarkCart = cartStyle === 'dark_drawer' || cartStyle === 'navy_corporate_drawer'
@@ -293,7 +311,7 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
           aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
           className="float-above-tabbar fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-primary-600 px-4 py-3 text-sm font-black text-white shadow-2xl transition hover:bg-primary-700"
         >
-          <span>🤝</span>
+          <ShoppingBag className="h-5 w-5" strokeWidth={2.2} aria-hidden="true" />
           <span>{total.toLocaleString('tr-TR')} {currencySymbol}</span>
           <span className="rounded-full bg-amber-400 px-2 py-0.5 text-xs text-slate-900">{cart.length}</span>
         </button>
@@ -311,15 +329,15 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
           type="button"
           onClick={() => setOpen(true)}
           aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
-          className="fixed right-0 top-1/2 z-40 -translate-y-1/2 rounded-s-2xl bg-primary-600 px-2.5 py-4 text-xs font-black text-white shadow-2xl transition hover:bg-primary-700"
+          className="fixed right-0 top-1/2 z-40 flex -translate-y-1/2 items-center gap-1.5 rounded-s-2xl bg-primary-600 px-2.5 py-4 text-xs font-black text-white shadow-2xl transition hover:bg-primary-700"
           style={{ writingMode: 'vertical-rl' }}
         >
-          🤝 SEPET ({cart.length})
+          <ShoppingBag className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" /> SEPET ({cart.length})
         </button>
       ) : (
         <button type="button" onClick={() => (cartStyle === 'page_redirect' ? router.push('/bagis/sepetim') : setOpen(true))} aria-label={`Bağış sepetini aç, ${cart.length} kalem`}
           className={`float-above-tabbar fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full text-2xl text-white shadow-2xl ${isDarkCart ? 'bg-amber-500 text-slate-950' : 'bg-primary-600'}`}>
-          🤝
+          <ShoppingBag className="h-6 w-6" strokeWidth={2.2} aria-hidden="true" />
           {!!cart.length && <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1 text-xs font-black text-slate-900">{cart.length}</span>}
         </button>
       )}
@@ -438,24 +456,30 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
                     </select>
                   </label>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <input aria-label="Ad" placeholder="Ad *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="rounded-xl border p-3" />
-                  <input aria-label="Soyad" placeholder="Soyad *" value={lastName} onChange={(e) => setLastName(e.target.value)} className="rounded-xl border p-3" />
-                </div>
-                <input aria-label="E-posta" type="email" placeholder="E-posta *" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border p-3" />
-                <input aria-label="Telefon" type="tel" placeholder="Telefon *" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border p-3" />
+                {!isLoggedIn && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input aria-label="Ad" placeholder="Ad *" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="rounded-xl border p-3" />
+                      <input aria-label="Soyad" placeholder="Soyad *" value={lastName} onChange={(e) => setLastName(e.target.value)} className="rounded-xl border p-3" />
+                    </div>
+                    <input aria-label="E-posta" type="email" placeholder="E-posta *" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border p-3" />
+                    <input aria-label="Telefon" type="tel" placeholder="Telefon *" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border p-3" />
+                  </>
+                )}
                 <div className={`grid gap-2 ${cardPayments ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {cardPayments && <button type="button" onClick={() => setPaymentMethod('credit_card')} className={`rounded-xl border p-3 text-xs font-bold ${paymentMethod === 'credit_card' ? 'border-primary-600 bg-primary-50' : ''}`}>Kredi / Banka Kartı</button>}
-                  <button type="button" onClick={() => setPaymentMethod('bank_transfer')} className={`rounded-xl border p-3 text-xs font-bold ${paymentMethod === 'bank_transfer' ? 'border-primary-600 bg-primary-50' : ''}`}>Havale / EFT</button>
+                  <button type="button" onClick={goToIbanPage} className="rounded-xl border p-3 text-xs font-bold hover:border-primary-600 hover:bg-primary-50">Havale / EFT</button>
                 </div>
                 {!cardPayments && <p role="status" className="rounded-lg bg-amber-50 p-2 text-xs font-semibold text-amber-800">Kartla bağış şu an kullanılamıyor; Havale / EFT ile bağış yapabilirsiniz.</p>}
                 <label className="flex gap-2 text-xs font-semibold"><input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} /> Başkası adına bağış yapıyorum</label>
                 {isGift && (
-                  <input aria-label="Kimin adına" placeholder="Kimin adına? (makbuzda yazar)" maxLength={200} value={onBehalfOf}
-                    onChange={(e) => setOnBehalfOf(e.target.value)} className="w-full rounded-xl border p-3" />
+                  <div className="space-y-2">
+                    <input aria-label="Kimin adına" placeholder="Kimin adına? Ad Soyad * (makbuzda yazar)" maxLength={200} value={onBehalfOf}
+                      onChange={(e) => setOnBehalfOf(e.target.value)} className="w-full rounded-xl border p-3" />
+                    <input aria-label="Adına bağış yapılanın telefonu" type="tel" placeholder="Bilgilendirme SMS'i gidecek telefon (isteğe bağlı)" maxLength={32} value={onBehalfOfPhone}
+                      onChange={(e) => setOnBehalfOfPhone(e.target.value)} className="w-full rounded-xl border p-3" />
+                  </div>
                 )}
-                <label className="flex gap-2 text-xs"><input type="checkbox" checked={allowEmail} onChange={(e) => setAllowEmail(e.target.checked)} /> E-posta izni</label>
-                <label className="flex gap-2 text-xs"><input type="checkbox" checked={allowSms} onChange={(e) => setAllowSms(e.target.checked)} /> SMS izni</label>
                 <ConsentChecks legal={legal} kvkk={kvkk} onKvkk={setKvkk} terms={terms} onTerms={setTerms}
                   requireTerms={paymentMethod === 'credit_card'} />
                 {paymentMethod === 'credit_card' && (

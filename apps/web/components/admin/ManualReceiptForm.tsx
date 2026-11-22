@@ -13,8 +13,8 @@ interface CampaignRef { id: string; title: string }
 interface DonorRef { id: string; full_name: string; phone: string | null; email: string | null }
 interface Staff { id: string; first_name: string; last_name: string; is_active: boolean }
 interface AccountRef { id: string; bank: string; label: string }
-interface Line { campaign_id: string; amount: string; currency: string; quantity: string; on_behalf_of: string }
-const emptyLine = (): Line => ({ campaign_id: '', amount: '', currency: 'TRY', quantity: '1', on_behalf_of: '' })
+interface Line { campaign_id: string; amount: string; currency: string; quantity: string; on_behalf_of: string; on_behalf_of_phone: string }
+const emptyLine = (): Line => ({ campaign_id: '', amount: '', currency: 'TRY', quantity: '1', on_behalf_of: '', on_behalf_of_phone: '' })
 const toCents = (value: string) => Math.round(Number(value.replace(/\./g, '').replace(',', '.')) * 100) || 0
 const nowTime = () => new Date().toTimeString().slice(0, 5)
 
@@ -60,7 +60,7 @@ export function ManualReceiptForm({
   const [newDonor, setNewDonor] = useState({ first_name: '', last_name: '', phone: '', email: '' })
   const [form, setForm] = useState({
     payment_method: 'cash', paid_on: today(), paid_time: nowTime(), status: 'paid', issued_by_id: '',
-    bank_reference: '', on_behalf_of: '', note: '', is_anonymous: false, send_receipt: true,
+    bank_reference: '', on_behalf_of: '', on_behalf_of_phone: '', note: '', is_anonymous: false, send_receipt: true,
   })
   // The video's "Makbuz Detay": one row per donation item, "+ Bağış Ekle" adds another.
   const [lines, setLines] = useState<Line[]>([emptyLine()])
@@ -146,6 +146,7 @@ export function ManualReceiptForm({
           lines: lines.map((l) => ({
             campaign_id: l.campaign_id, amount_cents: toCents(l.amount), currency: l.currency,
             quantity: Math.max(1, Number(l.quantity) || 1), on_behalf_of: l.on_behalf_of.trim() || null,
+            on_behalf_of_phone: l.on_behalf_of_phone.trim() || null,
           })),
         }),
         payment_method: form.payment_method.startsWith('acc:') ? 'bank_transfer' : form.payment_method,
@@ -156,6 +157,7 @@ export function ManualReceiptForm({
         issued_by_id: form.issued_by_id || null,
         bank_reference: form.bank_reference || null,
         on_behalf_of: kurban ? form.on_behalf_of || null : null,
+        on_behalf_of_phone: kurban ? form.on_behalf_of_phone || null : null,
         note: form.note || null,
         is_anonymous: form.is_anonymous,
         send_receipt: form.send_receipt,
@@ -220,8 +222,12 @@ export function ManualReceiptForm({
             </>
           )}
           {kurban && (
-            <TextInput label="Kimin adına (isteğe bağlı)" placeholder="ör. Rahmetli babam Ahmet Yılmaz" maxLength={200}
-              value={form.on_behalf_of} onChange={(v) => setForm({ ...form, on_behalf_of: v })} />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <TextInput label="Kimin adına (isteğe bağlı)" placeholder="ör. Rahmetli babam Ahmet Yılmaz" maxLength={200}
+                value={form.on_behalf_of} onChange={(v) => setForm({ ...form, on_behalf_of: v })} />
+              <TextInput label="Adına yapılanın telefonu (isteğe bağlı)" placeholder="Hediye SMS gidecek tel" maxLength={32}
+                value={form.on_behalf_of_phone} onChange={(v) => setForm({ ...form, on_behalf_of_phone: v })} />
+            </div>
           )}
         </div>
       )}
@@ -267,8 +273,10 @@ export function ManualReceiptForm({
                   className="col-span-1 flex items-center justify-center text-gray-400 hover:text-red-600 disabled:opacity-30">
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
-                <input aria-label="Kimin adına" placeholder="Kimin adına (isteğe bağlı)" maxLength={200} className={`${inputClass} col-span-12`} value={line.on_behalf_of}
+                <input aria-label="Kimin adına" placeholder="Kimin adına (isteğe bağlı)" maxLength={200} className={`${inputClass} col-span-12 sm:col-span-7`} value={line.on_behalf_of}
                   onChange={(e) => setLine(index, { on_behalf_of: e.target.value })} />
+                <input aria-label="Adına yapılanın telefonu" type="tel" placeholder="Hediye SMS tel (isteğe bağlı)" maxLength={32} className={`${inputClass} col-span-12 sm:col-span-5`} value={line.on_behalf_of_phone}
+                  onChange={(e) => setLine(index, { on_behalf_of_phone: e.target.value })} />
               </div>
             ))}
             <div className="flex items-center justify-between pt-1 text-xs">

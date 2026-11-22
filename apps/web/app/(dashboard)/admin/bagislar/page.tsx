@@ -45,6 +45,7 @@ interface Row {
   is_anonymous?: boolean
   paid_at: string
   on_behalf_of: string | null
+  on_behalf_of_phone?: string | null
   issued_by_name: string | null
   donor_id: string
   donor_name: string
@@ -752,7 +753,7 @@ export default function AdminDonationsPage() {
                             </>
                           )}
                           {r.donor_phone && r.on_behalf_of ? ' · ' : ''}
-                          {r.on_behalf_of ? <span className="text-emerald-700">Adına: {r.on_behalf_of}</span> : null}
+                          {r.on_behalf_of ? <span className="text-emerald-700">Adına: {r.on_behalf_of}{r.on_behalf_of_phone ? ` (${r.on_behalf_of_phone})` : ''}</span> : null}
                         </div>
                       </Td>
                       <Td className="text-xs text-slate-700">
@@ -991,7 +992,12 @@ export default function AdminDonationsPage() {
               <div className="text-slate-400">Kampanya</div>
               <div className="font-semibold text-slate-800">{detailRow.campaign_title || '—'}</div>
               <KurbanNo row={detailRow} />
-              {detailRow.on_behalf_of && <div className="text-emerald-700 mt-0.5">Adına: {detailRow.on_behalf_of}</div>}
+              {detailRow.on_behalf_of && (
+                <div className="text-emerald-700 mt-0.5">
+                  Adına: {detailRow.on_behalf_of}
+                  {detailRow.on_behalf_of_phone ? ` (${detailRow.on_behalf_of_phone})` : ''}
+                </div>
+              )}
             </div>
             <div className="rounded-lg bg-slate-50 p-3">
               <div className="text-slate-400">Ödeme & Kaynak</div>

@@ -1,12 +1,64 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useOrgSettings, type OrgLegalInfo } from '@e-infak/api-client'
 
 const FALLBACK_LEGAL: Pick<OrgLegalInfo, 'kvkk_url' | 'terms_url' | 'preinfo_url'> = {
   kvkk_url: '/kvkk',
   terms_url: '/bagis-kosullari#mesafeli-bagis-sozlesmesi',
   preinfo_url: '/bagis-kosullari#on-bilgilendirme',
+}
+
+export interface LoggedInDonorProfile {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+}
+
+/** Detects if the visitor is signed into the Donor Portal (`einfak-portal`) and fetches their profile. */
+export function useLoggedInDonor(): { isLoggedIn: boolean; donor: LoggedInDonorProfile | null } {
+  const [donor, setDonor] = useState<LoggedInDonorProfile | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const check = async () => {
+      try {
+        const raw = localStorage.getItem('einfak-portal') || sessionStorage.getItem('einfak-portal')
+        const saved = raw ? JSON.parse(raw) : null
+        if (!saved?.token || (saved.role && saved.role !== 'donor')) {
+          if (!cancelled) setDonor(null)
+          return
+        }
+        const res = await fetch('/api/backend/api/v1/portal/me/profile', {
+          headers: { Authorization: `Bearer ${saved.token}` },
+        })
+        if (!res.ok) {
+          if (!cancelled) setDonor(null)
+          return
+        }
+        const data = await res.json()
+        if (cancelled) return
+        const firstName = String(data?.first_name || '').trim() || 'Değerli'
+        const lastName = String(data?.last_name || '').trim() || 'Bağışçı'
+        const email = String(data?.email || '').trim()
+        const phone = String(data?.phone || '').trim() || '05000000000'
+        setDonor({ firstName, lastName, email, phone })
+      } catch {
+        if (!cancelled) setDonor(null)
+      }
+    }
+    check()
+    window.addEventListener('storage', check)
+    window.addEventListener('portal-session-changed', check)
+    return () => {
+      cancelled = true
+      window.removeEventListener('storage', check)
+      window.removeEventListener('portal-session-changed', check)
+    }
+  }, [])
+
+  return { isLoggedIn: donor !== null, donor }
 }
 
 /** Legal links and whether card payments are possible for the current organisation.
@@ -16,6 +68,7 @@ export function useCheckoutLegal() {
   return {
     legal: data?.legal ?? FALLBACK_LEGAL,
     cardPayments: data?.card_payments !== false,
+    ibanPageUrl: data?.iban_page_url || '/hesap-numaralarimiz',
   }
 }
 
@@ -40,29 +93,28 @@ function DocLink({ href, children }: { href: string; children: React.ReactNode }
 }
 
 export function ConsentChecks({
-  legal, kvkk, onKvkk, terms, onTerms, requireTerms, className = '',
+  legal, kvkk, onKvkk, onTerms, className = '',
 }: {
   legal: Pick<OrgLegalInfo, 'kvkk_url' | 'terms_url' | 'preinfo_url'>
   kvkk: boolean
   onKvkk: (v: boolean) => void
-  terms: boolean
-  onTerms: (v: boolean) => void
-  /** Card payments need the distance contract; bank transfers only the KVKK notice. */
-  requireTerms: boolean
+  terms?: boolean
+  onTerms?: (v: boolean) => void
+  requireTerms?: boolean
   className?: string
 }) {
   return (
     <div className={`space-y-2 ${className}`}>
       <label className="flex gap-2 rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-700">
-        <input type="checkbox" checked={kvkk} onChange={(e) => onKvkk(e.target.checked)} />
+        <input
+          type="checkbox"
+          checked={kvkk}
+          onChange={(e) => {
+            onKvkk(e.target.checked)
+            onTerms?.(e.target.checked)
+          }}
+        />
         <span><DocLink href={legal.kvkk_url}>KVKK Aydınlatma Metni</DocLink>&apos;ni okudum. *</span>
-      </label>
-      <label className="flex gap-2 rounded-xl bg-slate-50 p-3 text-xs font-semibold text-slate-700">
-        <input type="checkbox" checked={terms} onChange={(e) => onTerms(e.target.checked)} />
-        <span>
-          <DocLink href={legal.preinfo_url}>Ön Bilgilendirme Formu</DocLink>&apos;nu ve{' '}
-          <DocLink href={legal.terms_url}>Mesafeli Bağış Sözleşmesi</DocLink>&apos;ni okudum, onaylıyorum.{requireTerms ? ' *' : ''}
-        </span>
       </label>
     </div>
   )

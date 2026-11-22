@@ -1,11 +1,12 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { errorMessage } from '../lib/api-error'
 import { useEffect, useMemo, useState } from 'react'
 import { useCreateCheckout, useOrgSettings, type CheckoutSessionResponse } from '@e-infak/api-client'
 import { trackConversion } from '../lib/analytics'
 import { clientLocale, translator } from '../lib/i18n'
-import { ConsentChecks, useCardFallback, useCheckoutLegal } from './CheckoutConsent'
+import { ConsentChecks, useCardFallback, useCheckoutLegal, useLoggedInDonor } from './CheckoutConsent'
 import { PaymentTrustBadges } from './site/PaymentTrustBadges'
 import { useSiteCurrency } from './blocks/DonationBlocks'
 
@@ -233,6 +234,7 @@ export function QuickDonationForm({
     return activeAmounts.map((v) => ({ raw: v, value: Math.max(1, Math.round(v / rate)) }))
   }, [activeAmounts, currency, rates])
   const currencySymbol = CURRENCY_SYMBOL[currency]
+  const router = useRouter()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -240,13 +242,21 @@ export function QuickDonationForm({
   const [message, setMessage] = useState('')
   const [isGift, setIsGift] = useState(false)
   const [onBehalfOf, setOnBehalfOf] = useState('')
+  const [onBehalfOfPhone, setOnBehalfOfPhone] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
-  const [allowEmail, setAllowEmail] = useState(false)
-  const [allowSms, setAllowSms] = useState(false)
   const [kvkkAccepted, setKvkkAccepted] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
-  const { legal, cardPayments } = useCheckoutLegal()
+  const { legal, cardPayments, ibanPageUrl } = useCheckoutLegal()
+  const { isLoggedIn, donor: loggedInDonor } = useLoggedInDonor()
   useCardFallback(cardPayments, paymentMethod, setPaymentMethod)
+  useEffect(() => {
+    if (loggedInDonor) {
+      setFirstName(loggedInDonor.firstName)
+      setLastName(loggedInDonor.lastName)
+      setEmail(loggedInDonor.email)
+      setPhone(loggedInDonor.phone)
+    }
+  }, [loggedInDonor])
   const [metadata, setMetadata] = useState<Record<string, string>>({})
   const [errorMsg, setErrorMsg] = useState('')
   const [transfer, setTransfer] = useState<CheckoutSessionResponse | null>(null)
@@ -282,16 +292,16 @@ export function QuickDonationForm({
       setErrorMsg(ex.invalidAmount)
       return
     }
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
+    const effFirstName = (isLoggedIn && loggedInDonor ? loggedInDonor.firstName : firstName).trim()
+    const effLastName = (isLoggedIn && loggedInDonor ? loggedInDonor.lastName : lastName).trim()
+    const effEmail = (isLoggedIn && loggedInDonor ? loggedInDonor.email : email).trim()
+    const effPhone = (isLoggedIn && loggedInDonor ? loggedInDonor.phone : phone).trim()
+    if (!isLoggedIn && (!effFirstName || !effLastName || !effEmail || !effPhone)) {
       setErrorMsg(ex.missingDonor)
       return
     }
     if (!kvkkAccepted) {
       setErrorMsg(ex.missingKvkk)
-      return
-    }
-    if (paymentMethod === 'credit_card' && !termsAccepted) {
-      setErrorMsg(ex.missingTerms)
       return
     }
     if (isGift && !onBehalfOf.trim()) {
@@ -314,6 +324,7 @@ export function QuickDonationForm({
           unit_amount_cents: Math.round(Number(amount) * 100),
           donor_message: donorNote || undefined,
           on_behalf_of: isGift && onBehalfOf.trim() ? onBehalfOf.trim() : undefined,
+          on_behalf_of_phone: isGift && onBehalfOfPhone.trim() ? onBehalfOfPhone.trim() : undefined,
           metadata: {
             ...Object.fromEntries(activeSchema.map((field) => [
               field.key,
@@ -326,13 +337,13 @@ export function QuickDonationForm({
           },
         }],
         donor: {
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
+          first_name: effFirstName || 'Değerli',
+          last_name: effLastName || 'Bağışçı',
+          email: effEmail,
+          phone: effPhone || '05000000000',
           is_anonymous: isAnonymous,
-          allow_email: allowEmail,
-          allow_sms: allowSms,
+          allow_email: false,
+          allow_sms: false,
         },
         payment_method: paymentMethod,
         currency,
@@ -340,7 +351,7 @@ export function QuickDonationForm({
         idempotency_key: newIdempotencyKey(),
         consent_version: '2026-07',
         kvkk_accepted: kvkkAccepted,
-        terms_accepted: termsAccepted,
+        terms_accepted: kvkkAccepted || termsAccepted,
       })
       if (result.redirect_url) {
         trackConversion('payment_redirected', { campaign_id: activeCampaignId, payment_method: paymentMethod, currency })
@@ -461,7 +472,7 @@ export function QuickDonationForm({
           )}
           <button
             type="button"
-            onClick={() => setPaymentMethod('bank_transfer')}
+            onClick={() => router.push(ibanPageUrl)}
             className={`rounded-xl border p-3 text-sm font-bold transition ${paymentMethod === 'bank_transfer' ? 'border-primary-600 bg-primary-50 text-primary-950' : 'border-slate-200 bg-white'}`}
           >
             🏦 {t('form.transfer')}
@@ -479,12 +490,16 @@ export function QuickDonationForm({
 
   const donorStepContent = (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <input aria-label={t('form.firstName')} placeholder={`${t('form.firstName')} *`} value={firstName} onChange={(e) => setFirstName(e.target.value)} className="rounded-xl border border-slate-200 bg-white p-3" />
-        <input aria-label={t('form.lastName')} placeholder={`${t('form.lastName')} *`} value={lastName} onChange={(e) => setLastName(e.target.value)} className="rounded-xl border border-slate-200 bg-white p-3" />
-      </div>
-      <input aria-label={t('form.email')} type="email" placeholder={`${t('form.email')} *`} value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-3" />
-      <input aria-label={t('form.phone')} type="tel" placeholder={`${t('form.phone')} *`} value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-3" />
+      {!isLoggedIn && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <input aria-label={t('form.firstName')} placeholder={`${t('form.firstName')} *`} value={firstName} onChange={(e) => setFirstName(e.target.value)} className="rounded-xl border border-slate-200 bg-white p-3" />
+            <input aria-label={t('form.lastName')} placeholder={`${t('form.lastName')} *`} value={lastName} onChange={(e) => setLastName(e.target.value)} className="rounded-xl border border-slate-200 bg-white p-3" />
+          </div>
+          <input aria-label={t('form.email')} type="email" placeholder={`${t('form.email')} *`} value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-3" />
+          <input aria-label={t('form.phone')} type="tel" placeholder={`${t('form.phone')} *`} value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-3" />
+        </>
+      )}
       {activeSchema.map((field) => (
         <label key={field.key} className="block text-xs font-bold text-slate-700">
           {field.label}{field.required ? ' *' : ''}
@@ -523,12 +538,14 @@ export function QuickDonationForm({
         <input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} /> {t('form.gift')}
       </label>
       {isGift && (
-        <input aria-label={t('form.giftName')} placeholder={t('form.giftName')} maxLength={200} value={onBehalfOf}
-          onChange={(e) => setOnBehalfOf(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-3" />
+        <div className="space-y-2">
+          <input aria-label={t('form.giftName')} placeholder={t('form.giftName')} maxLength={200} value={onBehalfOf}
+            onChange={(e) => setOnBehalfOf(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-3" />
+          <input aria-label={t('form.giftPhone')} type="tel" placeholder={t('form.giftPhone')} maxLength={32} value={onBehalfOfPhone}
+            onChange={(e) => setOnBehalfOfPhone(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-white p-3" />
+        </div>
       )}
       <label className="flex gap-2 text-xs text-slate-600"><input type="checkbox" checked={isAnonymous} onChange={(e) => setIsAnonymous(e.target.checked)} /> {ex.hideName}</label>
-      <label className="flex gap-2 text-xs text-slate-600"><input type="checkbox" checked={allowEmail} onChange={(e) => setAllowEmail(e.target.checked)} /> {ex.allowEmail}</label>
-      <label className="flex gap-2 text-xs text-slate-600"><input type="checkbox" checked={allowSms} onChange={(e) => setAllowSms(e.target.checked)} /> {ex.allowSms}</label>
       <ConsentChecks legal={legal} kvkk={kvkkAccepted} onKvkk={setKvkkAccepted}
         terms={termsAccepted} onTerms={setTermsAccepted} requireTerms={paymentMethod === 'credit_card'} />
       {paymentMethod === 'credit_card' && (

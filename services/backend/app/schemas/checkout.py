@@ -28,6 +28,8 @@ class CheckoutItem(BaseModel):
     donor_message: Optional[str] = Field(default=None, max_length=1000)
     # "X adına" bağış: makbuzda ve bağış kaydında görünür
     on_behalf_of: Optional[str] = Field(default=None, max_length=200)
+    # Adına bağış yapılan kişinin telefon numarası (girilirse hediye/jest bilgilendirme SMS'i ona da gider)
+    on_behalf_of_phone: Optional[str] = Field(default=None, max_length=32)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("on_behalf_of", mode="before")
@@ -37,6 +39,14 @@ class CheckoutItem(BaseModel):
             return None
         from app.utils.content import sanitize_public_text
         return (sanitize_public_text(str(value)) or "").replace("\n", " ")[:200] or None
+
+    @field_validator("on_behalf_of_phone", mode="before")
+    @classmethod
+    def clean_on_behalf_phone(cls, value):
+        if value is None or not str(value).strip():
+            return None
+        digits = "".join(ch for ch in str(value) if ch.isdigit() or ch == "+").strip()
+        return digits[:32] or None
 
 
 class CheckoutSessionCreate(BaseModel):

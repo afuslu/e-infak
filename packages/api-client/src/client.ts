@@ -31,6 +31,16 @@ export class ApiClient {
       (config) => {
         if (this.accessToken) {
           config.headers.Authorization = `Bearer ${this.accessToken}`
+        } else if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/admin') && !window.location.pathname.startsWith('/platform')) {
+          try {
+            const raw = localStorage.getItem('einfak-portal') || sessionStorage.getItem('einfak-portal')
+            const saved = raw ? JSON.parse(raw) : null
+            if (saved?.token && (!saved.role || saved.role === 'donor')) {
+              config.headers.Authorization = `Bearer ${saved.token}`
+            }
+          } catch {
+            // ignore storage errors
+          }
         }
         if (typeof document !== 'undefined' && typeof window !== 'undefined') {
           if (!window.location.pathname.startsWith('/admin')) {

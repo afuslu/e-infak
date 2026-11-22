@@ -63,6 +63,11 @@ async def create_kurban_shares(db: AsyncSession, donation: Donation, donor: Dono
     names = _names(metadata.get("kurban_names"))
     kurban_type = normalize_kurban_type(metadata.get("kurban_type"))
     fallback_name = donation.on_behalf_of or donor.full_name
+    on_behalf_phone = (
+        metadata.get("on_behalf_of_phone")
+        or (donation.payment_details or {}).get("on_behalf_of_phone")
+    )
+    share_phone = (on_behalf_phone if donation.on_behalf_of and on_behalf_phone else donor.phone) or ""
     shares = []
     for i in range(count):
         share = KurbanShare(
@@ -71,7 +76,7 @@ async def create_kurban_shares(db: AsyncSession, donation: Donation, donor: Dono
             donation_id=donation.id,
             donor_id=donor.id,
             donor_name=donor.full_name or "Bağışçı",
-            donor_phone=donor.phone or "",
+            donor_phone=share_phone,
             on_behalf_of=names[i] if i < len(names) else fallback_name,
             kurban_type=kurban_type,
         )

@@ -887,6 +887,7 @@ def _donation_row(d: Donation, names: dict) -> dict:
         "source": d.payment_provider,
         "paid_at": d.paid_at or d.created_at,
         "on_behalf_of": d.on_behalf_of,
+        "on_behalf_of_phone": (d.payment_details or {}).get("on_behalf_of_phone"),
         "donor_message": d.donor_message,
         "transaction_id": d.transaction_id,
         "issued_by_id": str(d.issued_by_id) if d.issued_by_id else None,
@@ -1206,12 +1207,21 @@ class ReceiptLine(BaseModel):
     currency: Literal["TRY", "USD", "EUR", "GBP", "SAR", "CHF"] = "TRY"
     quantity: int = Field(default=1, ge=1, le=700)
     on_behalf_of: Optional[str] = Field(default=None, max_length=200)
+    on_behalf_of_phone: Optional[str] = Field(default=None, max_length=32)
     metadata: dict = Field(default_factory=dict)
 
     @field_validator("on_behalf_of", mode="before")
     @classmethod
     def clean(cls, value):
         return sanitize_public_text(value) or None if value else None
+
+    @field_validator("on_behalf_of_phone", mode="before")
+    @classmethod
+    def clean_phone(cls, value):
+        if value is None or not str(value).strip():
+            return None
+        digits = "".join(ch for ch in str(value) if ch.isdigit() or ch == "+").strip()
+        return digits[:32] or None
 
 
 class ManualDonationIn(BaseModel):
@@ -1234,6 +1244,7 @@ class ManualDonationIn(BaseModel):
     issued_by_id: Optional[UUID] = None
     bank_reference: Optional[str] = Field(default=None, max_length=100)
     on_behalf_of: Optional[str] = Field(default=None, max_length=200)
+    on_behalf_of_phone: Optional[str] = Field(default=None, max_length=32)
     note: Optional[str] = Field(default=None, max_length=1000)
     is_anonymous: bool = False
     send_receipt: bool = True
@@ -1251,6 +1262,14 @@ class ManualDonationIn(BaseModel):
     def clean(cls, value):
         return sanitize_public_text(value) or None if value else None
 
+    @field_validator("on_behalf_of_phone", mode="before")
+    @classmethod
+    def clean_phone(cls, value):
+        if value is None or not str(value).strip():
+            return None
+        digits = "".join(ch for ch in str(value) if ch.isdigit() or ch == "+").strip()
+        return digits[:32] or None
+
     @model_validator(mode="after")
     def donor_required(self):
         if not self.donor_id and not self.donor:
@@ -1265,7 +1284,8 @@ class ManualDonationIn(BaseModel):
     def receipt_lines(self) -> list[ReceiptLine]:
         """The items of the receipt; the single-item fields when no lines were sent."""
         return self.lines or [ReceiptLine(campaign_id=self.campaign_id, amount_cents=self.amount_cents, currency=self.currency,
-                                          quantity=self.quantity, on_behalf_of=self.on_behalf_of, metadata=self.metadata)]
+                                          quantity=self.quantity, on_behalf_of=self.on_behalf_of,
+                                          on_behalf_of_phone=self.on_behalf_of_phone, metadata=self.metadata)]
 
 
 @router.post("/donations/manual", status_code=status.HTTP_201_CREATED)
@@ -1366,13 +1386,18 @@ async def create_manual_donation(request: Request, payload: ManualDonationIn, db
 
     donations, effects = [], {}
     for index, line in enumerate(receipt_lines):
+        line_phone = line.on_behalf_of_phone or payload.on_behalf_of_phone
         donation, line_effects = await record_offline_donation(
             db,
             organization_id=org_id, campaign=campaigns[line.campaign_id], donor=donor,
             amount_cents=line.amount_cents, currency=line.currency, method=method, paid_at=paid_at,
             issued_by_id=issuer_id, provider=MANUAL_PROVIDER,
             idempotency_key=idempotency_key + (f":{index}" if index else ""),
-            details={**details, **({"receipt_group": str(donations[0].id), "line": index} if donations else {})},
+            details={
+                **details,
+                **({"on_behalf_of_phone": line_phone} if line_phone else {}),
+                **({"receipt_group": str(donations[0].id), "line": index} if donations else {}),
+            },
             note=payload.note, on_behalf_of=line.on_behalf_of, is_anonymous=payload.is_anonymous,
             transaction_id=payload.bank_reference,
             # one e-mail/SMS for the whole receipt

@@ -451,6 +451,7 @@ export function PortalClient({
         sessionStorage.setItem(SESSION_KEY, data)
         localStorage.removeItem(SESSION_KEY)
       }
+      window.dispatchEvent(new Event('portal-session-changed'))
     } catch { /* ignore */ }
   }, [])
 
@@ -458,6 +459,7 @@ export function PortalClient({
     try {
       sessionStorage.removeItem(SESSION_KEY)
       localStorage.removeItem(SESSION_KEY)
+      window.dispatchEvent(new Event('portal-session-changed'))
     } catch { /* ignore */ }
     setToken(null)
     setRefreshToken(null)

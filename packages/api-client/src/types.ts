@@ -76,6 +76,8 @@ export interface CheckoutItem {
   donor_message?: string
   /** Name of the person the donation is made on behalf of ("X adına"). */
   on_behalf_of?: string
+  /** Phone number of the person the donation is made on behalf of (receives a gift SMS notification). */
+  on_behalf_of_phone?: string
   metadata?: Record<string, unknown>
 }
 
@@ -228,6 +230,8 @@ export interface OrgSettingsInfo {
   legal?: OrgLegalInfo
   /** False when the organisation has no card provider credentials: offer bank transfer only. */
   card_payments?: boolean
+  /** Public page listing the organisation's bank accounts / IBANs. */
+  iban_page_url?: string
 }
 
 /** Legal identity and document links (footer, checkout consent, legal pages). */

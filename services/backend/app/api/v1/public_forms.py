@@ -350,11 +350,23 @@ async def get_public_org_settings(
         enabled_currencies = ["TRY"]
 
     from app.api.v1.site import card_payments_available
+    from app.models.cms import SitePage
     from app.services.site import legal_of
+
+    bank_page_slug = (await db.execute(
+        select(SitePage.slug).where(
+            SitePage.organization_id == organization_id,
+            SitePage.kind == "page",
+            SitePage.is_published.is_(True),
+            SitePage.slug.in_(["hesap-numaralarimiz", "hesap-numaralari", "banka-hesaplari", "iban"]),
+        ).limit(1)
+    )).scalar_one_or_none()
+    iban_page_url = f"/{bank_page_slug}" if bank_page_slug else "/hesap-numaralarimiz"
 
     checkout_info = {
         "legal": legal_of(org, org_settings),
         "card_payments": await card_payments_available(db, org),
+        "iban_page_url": iban_page_url,
     }
     if not org_settings:
         return {"enabled_payment_currencies": enabled_currencies, "languages": ["tr"], **checkout_info}

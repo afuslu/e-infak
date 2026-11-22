@@ -250,15 +250,23 @@ async def _fetch_donation_and_send_receipt(donation_id: str):
             send_email_task(donor.email, subject, html_content, attachment)
 
         # Trigger SMS notification as well
-        if donor.phone:
+        from app.services.sms_service import receipt_event, receipt_key, send_event_sms
+        honoree_phone = (donation.payment_details or {}).get("on_behalf_of_phone")
+        if donor.phone or honoree_phone:
             # Staff-entered receipts and online donations have their own template and on/off switch.
-            from app.services.sms_service import receipt_event, receipt_key, send_event_sms
             try:
-                await send_event_sms(
-                    session, donation.organization_id, receipt_event(donation.payment_provider), donor.phone,
-                    donor=donor, donation=donation, related=("donation", donation.id), source="receipt",
-                    dedupe_key=receipt_key(donation.id),
-                )
+                if donor.phone:
+                    await send_event_sms(
+                        session, donation.organization_id, receipt_event(donation.payment_provider), donor.phone,
+                        donor=donor, donation=donation, related=("donation", donation.id), source="receipt",
+                        dedupe_key=receipt_key(donation.id),
+                    )
+                if honoree_phone and donation.on_behalf_of:
+                    await send_event_sms(
+                        session, donation.organization_id, "adina_bagis", honoree_phone,
+                        donor=donor, donation=donation, related=("donation", donation.id), source="receipt",
+                        dedupe_key=f"adina_bagis:{donation.id}",
+                    )
                 await session.commit()
             except Exception as sms_err:
                 await session.rollback()
