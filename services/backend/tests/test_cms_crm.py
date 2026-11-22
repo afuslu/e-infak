@@ -507,3 +507,54 @@ async def test_team_scope_follows_the_manager_chain(db_session):
     assert set(await field_ops.team_ids(db_session, org.id, lead.id)) == {lead.id, member.id}
     with pytest.raises(HTTPException):  # the admin cannot report to someone under them
         await staff._check_manager(db_session, org.id, admin.id, member.id)
+
+
+async def test_pledge_autocharge_retries_once_per_order_and_gives_up(db_session, monkeypatch):
+    from datetime import date as _date
+    from sqlalchemy import func as _func, select as _select
+    from app.models.payment import PaymentOrder
+    from app.models.sponsorship import Pledge, PledgeInstallment
+    from app.models.subscription import Subscription
+    from app.services import pledge_autocharge
+
+    org, admin, campaign = await _setup(db_session)
+    donor = Donor(organization_id=org.id, first_name="Ali", last_name="Veli", phone="905321112233", email="a@example.com")
+    db_session.add(donor)
+    await db_session.flush()
+    other = Donor(organization_id=org.id, first_name="Başka")
+    db_session.add(other)
+    await db_session.flush()
+    sub = Subscription(organization_id=org.id, donor_id=donor.id, campaign_id=campaign.id, amount_cents=10_000, currency="TRY",
+                       status="active", next_charge_date=datetime.now(timezone.utc), mode="card", provider="iyzico", card_ref="enc")
+    db_session.add(sub)
+    await db_session.flush()
+    pledge = Pledge(organization_id=org.id, kind="sponsorship", donor_id=donor.id, campaign_id=campaign.id, title="Hafız",
+                    installment_amount_cents=50_000, currency="TRY", installment_count=1, start_date=_date.today(),
+                    auto_charge=True, card_subscription_id=sub.id)
+    db_session.add(pledge)
+    await db_session.flush()
+    inst = PledgeInstallment(pledge_id=pledge.id, seq=1, due_date=_date.today(), amount_cents=50_000, status="pending")
+    db_session.add(inst)
+    await db_session.commit()
+
+    assert pledge_autocharge.usable_card(sub, pledge)
+    foreign = Pledge(organization_id=org.id, donor_id=other.id, campaign_id=campaign.id, installment_amount_cents=1,
+                     installment_count=1, start_date=_date.today())
+    assert not pledge_autocharge.usable_card(sub, foreign)  # someone else's card is never usable
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("POS kapalı")
+
+    async def creds(*args, **kwargs):
+        return {}
+
+    monkeypatch.setattr("app.payments.build_provider", broken)
+    monkeypatch.setattr("app.services.tenant_credentials.get_credentials", creds)
+    outcomes = []
+    for _ in range(4):
+        outcomes.append((await pledge_autocharge.charge_installment(db_session, pledge, inst, sub))["status"])
+        await db_session.commit()
+    assert outcomes == ["failed", "failed", "failed", "gave_up"]
+    assert pledge.auto_charge is False and "POS kapalı" in pledge.last_charge_error
+    orders = (await db_session.execute(_select(_func.count(PaymentOrder.id)).where(PaymentOrder.idempotency_key == f"pledge:{inst.id}"))).scalar_one()
+    assert orders == 1 and inst.status == "pending"

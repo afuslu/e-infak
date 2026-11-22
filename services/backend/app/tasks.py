@@ -718,6 +718,13 @@ def send_sms_reminders_task():
     return asyncio.run(_send_sms_reminders())
 
 
+@celery_app.task(name="app.tasks.charge_due_pledge_installments_task", ignore_result=True)
+def charge_due_pledge_installments_task():
+    """Sponsorluk / su kuyusu taksitleri: due installments of auto-charge pledges, from the stored card."""
+    from app.services.pledge_autocharge import run_due
+    return asyncio.run(run_due(AsyncSessionLocal))
+
+
 @celery_app.task(name="app.tasks.process_recurring_donations_task")
 def process_recurring_donations_task():
     """Monthly donations whose day has come: charge saved cards or send the reminder SMS."""
@@ -755,6 +762,10 @@ celery_app.conf.beat_schedule = {
     "recurring-donations-hourly": {
         "task": "app.tasks.process_recurring_donations_task",
         "schedule": 3600.0,  # instructions are due at 10:00 Istanbul time; hourly also retries soon after
+    },
+    "charge-due-pledge-installments": {
+        "task": "app.tasks.charge_due_pledge_installments_task",
+        "schedule": crontab(hour=7, minute=30),  # 10:30 Istanbul; one try per day per installment
     },
     "donor-insights-nightly": {
         "task": "app.tasks.compute_donor_insights_task",

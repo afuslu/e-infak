@@ -78,6 +78,59 @@ interface PledgeRow {
   overdue_cents: number
   next_due_date: string | null
   installments?: Installment[]
+  auto_charge?: boolean
+  card_subscription_id?: string | null
+  last_charge_error?: string | null
+  last_charge_at?: string | null
+}
+
+/** STK PRO "Otomatik Talimat Modülü ile Entegre": due installments are charged from the donor's stored card. */
+function AutoChargePanel({ pledge, onChange }: { pledge: PledgeRow; onChange: (p: PledgeRow) => void }) {
+  const [cards, setCards] = useState<{ id: string; label: string; status: string }[] | null>(null)
+  const [cardId, setCardId] = useState(pledge.card_subscription_id || '')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    adminGet<{ id: string; label: string; status: string }[]>(`/pledges/${pledge.id}/cards`)
+      .then((r) => { setCards(r.data); if (!cardId && r.data[0]) setCardId(r.data[0].id) })
+      .catch(() => setCards([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pledge.id])
+  const toggle = async (enabled: boolean) => {
+    setBusy(true)
+    try {
+      onChange((await adminSend<PledgeRow>('put', `/pledges/${pledge.id}/auto-charge`, { enabled, subscription_id: enabled ? cardId : null })).data)
+      toast.ok(enabled ? 'Otomatik çekim açıldı' : 'Otomatik çekim kapatıldı')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Kaydedilemedi'))
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (pledge.status !== 'active' && !pledge.auto_charge) return null
+  return (
+    <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5 text-xs">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-bold text-slate-700">Kayıtlı karttan otomatik çekim</span>
+        {pledge.auto_charge ? (
+          <>
+            <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-semibold text-emerald-700">Açık</span>
+            <button type="button" disabled={busy} onClick={() => toggle(false)} className="ms-auto font-semibold text-rose-600 hover:underline">Kapat</button>
+          </>
+        ) : cards && cards.length > 0 ? (
+          <>
+            <select className="rounded-md border border-slate-200 bg-white px-2 py-1" value={cardId} onChange={(e) => setCardId(e.target.value)} aria-label="Kart">
+              {cards.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+            </select>
+            <button type="button" disabled={busy || !cardId} onClick={() => toggle(true)} className="ms-auto rounded-md bg-emerald-600 px-2.5 py-1 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">Aç</button>
+          </>
+        ) : (
+          <span className="text-slate-500">{cards ? 'Bağışçının kayıtlı kartı yok (önce kartlı düzenli bağış talimatı gerekir).' : 'Yükleniyor…'}</span>
+        )}
+      </div>
+      <p className="mt-1 text-slate-500">Vadesi gelen taksit her gün 10:30&apos;da bir kez denenir; 3 başarısız denemeden sonra otomatik çekim kapanır.</p>
+      {pledge.last_charge_error && <p className="mt-1 font-semibold text-rose-600">Son hata: {pledge.last_charge_error}</p>}
+    </div>
+  )
 }
 
 interface Summary {
@@ -1100,6 +1153,7 @@ function PledgesTab({ canEdit, refreshTick, presetBeneficiary, onChanged, onClea
               )
             })()}
 
+            <AutoChargePanel pledge={detail} onChange={setDetail} />
             <Table>
               <THead>
                 <Tr>

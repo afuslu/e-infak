@@ -1,6 +1,6 @@
 """Yararlanıcılar (talebe / hoca / yetim) ve taksitli taahhütler (sponsorluk, su kuyusu, genel)."""
 import uuid
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -59,6 +59,11 @@ class Pledge(Base):
     start_date = Column(Date, nullable=False)
     status = Column(String(16), nullable=False, default="active", index=True)  # active | completed | cancelled
     notes = Column(Text)
+    # Charge due installments from the card of one of the donor's card instructions (services/pledge_autocharge)
+    auto_charge = Column(Boolean, nullable=False, default=False, server_default="false")
+    card_subscription_id = Column(UUID(as_uuid=True), ForeignKey("subscriptions.id", ondelete="SET NULL"))
+    last_charge_error = Column(String(500))
+    last_charge_at = Column(DateTime(timezone=True))
     created_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

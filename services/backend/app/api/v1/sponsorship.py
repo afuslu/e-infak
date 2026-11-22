@@ -237,6 +237,8 @@ def _pledge_out(p: Pledge, today: date, include_installments: bool = False) -> d
         "paid_count": len(paid), "paid_cents": sum(i.amount_cents for i in paid),
         "overdue_count": len(overdue), "overdue_cents": sum(i.amount_cents for i in overdue),
         "next_due_date": next_due.due_date if next_due else None, "notes": p.notes,
+        "auto_charge": bool(p.auto_charge), "card_subscription_id": str(p.card_subscription_id) if p.card_subscription_id else None,
+        "last_charge_error": p.last_charge_error, "last_charge_at": p.last_charge_at,
     }
     if include_installments:
         data["installments"] = [
@@ -392,6 +394,54 @@ async def update_pledge_status(request: Request, pledge_id: UUID, payload: Pledg
     if payload.notes is not None:
         p.notes = sanitize_public_text(payload.notes)
     _audit(db, org_id, current_user, "taahhut_durum", {"pledge_id": str(p.id), "status": p.status})
+    await db.commit()
+    return _pledge_out(p, date.today(), include_installments=True)
+
+
+@router.get("/pledges/{pledge_id}/cards")
+async def pledge_cards(request: Request, pledge_id: UUID, db: AsyncSession = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    """The donor's stored cards (from their card instructions) a pledge can be charged from."""
+    from app.models.subscription import Subscription
+
+    org_id = _org_id(request)
+    p = (await db.execute(select(Pledge).where(Pledge.id == pledge_id, Pledge.organization_id == org_id))).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Taahhüt bulunamadı")
+    subs = (await db.execute(select(Subscription).where(
+        Subscription.organization_id == org_id, Subscription.donor_id == p.donor_id, Subscription.mode == "card",
+        Subscription.card_ref.isnot(None), Subscription.status.in_(["active", "paused"]),
+    ).order_by(Subscription.created_at.desc()))).scalars().all()
+    return [{"id": str(s.id), "label": f"{s.card_brand or 'Kart'} •••• {s.card_last_4 or '----'}", "provider": s.provider,
+             "status": s.status} for s in subs]
+
+
+class AutoChargeIn(BaseModel):
+    enabled: bool
+    subscription_id: Optional[UUID] = None
+
+
+@router.put("/pledges/{pledge_id}/auto-charge")
+async def set_auto_charge(request: Request, pledge_id: UUID, payload: AutoChargeIn, db: AsyncSession = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    """Turn on charging due installments from a stored card (STK PRO "Otomatik Talimat Modülü ile Entegre")."""
+    from app.models.subscription import Subscription
+    from app.services.pledge_autocharge import usable_card
+
+    org_id = _org_id(request)
+    p = (await db.execute(_pledge_query(org_id).where(Pledge.id == pledge_id).with_for_update())).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Taahhüt bulunamadı")
+    if payload.enabled:
+        sub = await db.get(Subscription, payload.subscription_id) if payload.subscription_id else None
+        if not usable_card(sub, p):
+            raise HTTPException(status_code=422, detail="Bu bağışçının kayıtlı kartı yok; önce kartlı düzenli bağış talimatı gerekir")
+        if p.status != "active":
+            raise HTTPException(status_code=409, detail="Yalnız devam eden taahhütlerde açılabilir")
+        p.card_subscription_id, p.auto_charge, p.last_charge_error = sub.id, True, None
+    else:
+        p.auto_charge = False
+    _audit(db, org_id, current_user, "taahhut_otomatik_cekim", {"pledge_id": str(p.id), "enabled": p.auto_charge})
     await db.commit()
     return _pledge_out(p, date.today(), include_installments=True)
 
