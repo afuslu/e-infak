@@ -1,6 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { af, api, clearSession, loadSession, login, setSessionLostHandler } from '@/lib/api';
+import {
+  af, api, clearSession, exitOrgSimulation, getAuthMode, getSimulatingOrg, loadSession, login, pf, platformLogin,
+  setSessionLostHandler, startOrgSimulation, type SimOrg,
+} from '@/lib/api';
 import type { AdminAccess } from '@/lib/access';
 import { unregisterPush } from '@/lib/notifications';
 import { clearOfflineData } from '@/lib/offlineQueue';
@@ -19,32 +22,57 @@ export type Me = {
   must_change_password?: boolean;
 };
 
+export type PlatformMe = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  totp_enabled: boolean;
+  must_change_password?: boolean;
+};
+
 export type Site = { slug: string; name: string; logo_url: string | null; url?: string };
 
 type State = {
   status: 'loading' | 'signedOut' | 'signedIn';
+  mode: 'platform' | 'tenant' | null;
   me: Me | null;
+  platformMe: PlatformMe | null;
   access: AdminAccess | null;
   site: Site | null;
+  simulatingOrg: SimOrg | null;
 };
 
 type Auth = State & {
   signIn: (email: string, password: string, tenantHost?: string) => Promise<void>;
+  signInPlatform: (email: string, password: string, totpCode?: string) => Promise<void>;
+  enterOrgSimulation: (orgId: string) => Promise<void>;
+  exitSimulation: () => Promise<void>;
   signOut: () => Promise<void>;
   reload: () => Promise<void>;
 };
 
 const AuthContext = createContext<Auth | null>(null);
-const EMPTY: State = { status: 'signedOut', me: null, access: null, site: null };
+const EMPTY: State = { status: 'signedOut', mode: null, me: null, platformMe: null, access: null, site: null, simulatingOrg: null };
 
-async function fetchProfile(): Promise<Omit<State, 'status'>> {
+async function fetchTenantProfile(): Promise<Omit<State, 'status'>> {
   const me = await api<Me>('/auth/me');
+  const simulatingOrg = getSimulatingOrg();
   // Geçici şifrede yalnızca /auth/me ve şifre değiştirme açık; gerisi şifre değişince yüklenir.
-  if (me.must_change_password) return { me, access: null, site: null };
+  if (me.must_change_password) return { mode: 'tenant', me, platformMe: null, access: null, site: null, simulatingOrg };
   // /access yalnızca yönetim paneline girebilen personelde 200 döner.
   const access = await af<AdminAccess>('/access');
   const site = await api<Site>('/public/site').catch(() => null);
-  return { me, access, site };
+  return { mode: 'tenant', me, platformMe: null, access, site, simulatingOrg };
+}
+
+async function fetchPlatformProfile(): Promise<Omit<State, 'status'>> {
+  const platformMe = await pf<PlatformMe>('/me');
+  return { mode: 'platform', me: null, platformMe, access: null, site: null, simulatingOrg: null };
+}
+
+async function fetchActiveProfile(): Promise<Omit<State, 'status'>> {
+  return getAuthMode() === 'platform' ? fetchPlatformProfile() : fetchTenantProfile();
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -63,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       if (!(await loadSession())) return setState(EMPTY);
       try {
-        setState({ status: 'signedIn', ...(await fetchProfile()) });
+        setState({ status: 'signedIn', ...(await fetchActiveProfile()) });
       } catch {
         // Ağ hatasında oturumu silmeyiz; yalnızca reddedilen oturum api katmanında temizlenir.
         setState(EMPTY);
@@ -75,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(async (email: string, password: string, tenantHost?: string) => {
     await login(email, password, tenantHost);
     try {
-      const profile = await fetchProfile();
+      const profile = await fetchTenantProfile();
       queryClient.clear();
       setState({ status: 'signedIn', ...profile });
     } catch (error: any) {
@@ -83,6 +111,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error?.status === 403) throw new Error('Bu hesabın yönetim paneline erişim yetkisi yok.');
       throw error;
     }
+  }, [queryClient]);
+
+  const signInPlatform = useCallback(async (email: string, password: string, totpCode?: string) => {
+    await platformLogin(email, password, totpCode);
+    try {
+      const profile = await fetchPlatformProfile();
+      queryClient.clear();
+      setState({ status: 'signedIn', ...profile });
+    } catch (error: any) {
+      await clearSession();
+      throw error;
+    }
+  }, [queryClient]);
+
+  const enterOrgSimulation = useCallback(async (orgId: string) => {
+    await startOrgSimulation(orgId);
+    const profile = await fetchTenantProfile();
+    queryClient.clear();
+    setState({ status: 'signedIn', ...profile });
+  }, [queryClient]);
+
+  const exitSimulation = useCallback(async () => {
+    await exitOrgSimulation();
+    const profile = await fetchPlatformProfile();
+    queryClient.clear();
+    setState({ status: 'signedIn', ...profile });
   }, [queryClient]);
 
   const signOut = useCallback(async () => {
@@ -95,11 +149,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [drop]);
 
   const reload = useCallback(async () => {
-    const profile = await fetchProfile();
+    const profile = await fetchActiveProfile();
     setState({ status: 'signedIn', ...profile });
   }, []);
 
-  const value = useMemo(() => ({ ...state, signIn, signOut, reload }), [state, signIn, signOut, reload]);
+  const value = useMemo(
+    () => ({ ...state, signIn, signInPlatform, enterOrgSimulation, exitSimulation, signOut, reload }),
+    [state, signIn, signInPlatform, enterOrgSimulation, exitSimulation, signOut, reload],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

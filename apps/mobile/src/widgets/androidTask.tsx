@@ -1,7 +1,7 @@
 import React from 'react';
 import { Appearance } from 'react-native';
 import type { WidgetTaskHandlerProps } from 'react-native-android-widget';
-import { api, loadSession } from '@/lib/api';
+import { api, getAuthMode, loadSession } from '@/lib/api';
 import { getItem, setItem } from '@/lib/storage';
 import type { Inflow } from '@/api/inflow';
 import {
@@ -51,7 +51,7 @@ export function renderAndroidWidgetByName(name: string, data: WidgetProps, heigh
 }
 
 export async function fetchFreshWidgetProps(fallbackOrg: string): Promise<WidgetProps | null> {
-  if (!(await loadSession())) return null;
+  if (!(await loadSession()) || getAuthMode() !== 'tenant') return null;
   const dark = await isWidgetDark();
   const org = (await getItem(KEY_ORG)) || fallbackOrg || 'e-İnfak';
   try {

@@ -25,7 +25,7 @@ const queryClient = new QueryClient({
 });
 
 function Gate() {
-  const { status, me } = useAuth();
+  const { status, mode, me, platformMe } = useAuth();
   const { colors } = useTheme();
   const [locked, setLocked] = useState(false);
   const away = useRef<number | null>(null);
@@ -75,10 +75,13 @@ function Gate() {
       </View>
     );
   }
-  if (status === 'signedIn' && me?.must_change_password) return <ForcePassword />;
+  if (status === 'signedIn' && (me?.must_change_password || platformMe?.must_change_password)) return <ForcePassword />;
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={status === 'signedIn'}>
+      <Stack.Protected guard={status === 'signedIn' && mode === 'platform'}>
+        <Stack.Screen name="(platform)" />
+      </Stack.Protected>
+      <Stack.Protected guard={status === 'signedIn' && mode === 'tenant'}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>
       <Stack.Protected guard={status !== 'signedIn'}>

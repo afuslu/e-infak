@@ -10,7 +10,7 @@ import { allowed, ROLE_LABELS } from '@/lib/access';
 import { webBase } from '@/lib/api';
 import { initials, openUrl } from '@/lib/format';
 import { listOfflineQueue } from '@/lib/offlineQueue';
-import { Avatar, Badge, Card, ListItem, Screen, SectionTitle, useUi } from '@/components/ui';
+import { Avatar, Badge, Btn, Card, ListItem, Notice, Screen, SectionTitle, useUi } from '@/components/ui';
 import { font, useTheme } from '@/theme';
 
 type Item = { title: string; subtitle?: string; href: Href; icon: React.ComponentType<{ size?: number; color?: string }>; feature?: string; modules?: string | string[] };
@@ -66,7 +66,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
 
 export default function MenuScreen() {
   const router = useRouter();
-  const { access, me, site } = useAuth();
+  const { access, me, site, simulatingOrg, exitSimulation } = useAuth();
   const { colors } = useTheme();
   const ui = useUi();
   const [pendingOffline, setPendingOffline] = useState(0);
@@ -84,6 +84,12 @@ export default function MenuScreen() {
   );
   return (
     <Screen>
+      {simulatingOrg ? (
+        <Card style={{ gap: 8 }}>
+          <Notice text={`Platform simülasyonu aktif: ${simulatingOrg.name}`} tone="info" />
+          <Btn title="Platform Paneline Dön" variant="outline" onPress={exitSimulation} />
+        </Card>
+      ) : null}
       <Card onPress={() => router.push('/ayarlar/hesabim')}>
         <View style={ui.rowGap}>
           <Avatar text={initials(me?.full_name)} />
