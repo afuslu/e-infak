@@ -130,14 +130,11 @@ async def get_current_user(
         if reason:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
         if request.method not in ("GET", "HEAD", "OPTIONS") and not request.url.path.startswith("/api/v1/auth/"):
-            from datetime import datetime, timezone
             from app.models.platform import PlatformBroadcast
-            now_utc = datetime.now(timezone.utc)
             maint = (await db.execute(
                 select(PlatformBroadcast.title).where(
                     PlatformBroadcast.is_active.is_(True),
                     PlatformBroadcast.maintenance_mode.is_(True),
-                    (PlatformBroadcast.expires_at.is_(None) | (PlatformBroadcast.expires_at > now_utc)),
                 ).limit(1)
             )).scalar_one_or_none()
             if maint:
