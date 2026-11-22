@@ -239,7 +239,12 @@ export const NAV_RAIL: NavRail[] = [
   },
   {
     key: 'destek', label: 'Destek', icon: HelpCircle, divider: true, sections: [
-      { items: [{ href: '/admin/destek', label: 'Talep Merkezi', icon: LifeBuoy }] },
+      {
+        items: [
+          { href: '/admin/yenilikler', label: 'Yenilikler', icon: Sparkles },
+          { href: '/admin/destek', label: 'Talep Merkezi', icon: LifeBuoy },
+        ],
+      },
     ],
   },
 ]
