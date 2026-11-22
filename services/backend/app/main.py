@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.middleware.tenant import TenantMiddleware
-from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, bank_sync, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, site_builder, media, poverty, receipt_books, data_tools, membership, accounting, inventory, sms, security, public_api, mobile, reminders, whatsapp, call_center, sms_donations, videos, campaign_tabs, mailing
+from app.api.v1 import campaigns, auth, donations, kurban, orphans, donor_portal, parent_portal, finance, admin_features, public_forms, checkout, reconciliation, bank_sync, staff, reports, cms, crm, sponsorship, field_ops, site, provider_accounts, platform, site_builder, media, poverty, receipt_books, data_tools, membership, accounting, inventory, sms, security, public_api, mobile, reminders, whatsapp, call_center, sms_donations, videos, campaign_tabs, mailing, site_forms
 from app.core.db import AsyncSessionLocal
 from app.core.security import decode_token
 from app.models.audit_log import AuditLog
@@ -110,6 +110,8 @@ app.include_router(data_tools.router, prefix="/api/v1")
 app.include_router(crm.router, prefix="/api/v1")
 app.include_router(campaign_tabs.router, prefix="/api/v1")
 app.include_router(mailing.router, prefix="/api/v1")
+app.include_router(site_forms.admin_router, prefix="/api/v1")
+app.include_router(site_forms.public_router, prefix="/api/v1")
 app.include_router(sms.router, prefix="/api/v1")
 app.include_router(sms.public_router, prefix="/api/v1")
 app.include_router(security.router, prefix="/api/v1")

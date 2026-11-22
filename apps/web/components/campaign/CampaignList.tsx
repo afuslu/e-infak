@@ -8,12 +8,14 @@ interface CampaignListProps {
   limit?: number
   category?: string
   search?: string
+  /** "Kampanya Sekmeler": a tab and the tabs under it. */
+  tabIds?: string[]
 }
 
-export function CampaignList({ featured, limit, category, search }: CampaignListProps) {
+export function CampaignList({ featured, limit, category, search, tabIds }: CampaignListProps) {
   const { data, isLoading, error } = useCampaigns({
     featured,
-    page_size: limit || 50,
+    page_size: limit || (tabIds ? 200 : 50),
     status: 'active',
     category: category || undefined,
   })
@@ -37,9 +39,10 @@ export function CampaignList({ featured, limit, category, search }: CampaignList
   }
 
   const q = (search || '').trim().toLocaleLowerCase('tr')
-  const items = q
-    ? (data?.items || []).filter((c) => `${c.title} ${c.summary || ''}`.toLocaleLowerCase('tr').includes(q))
-    : (data?.items || [])
+  const inTab = (c: unknown) => !tabIds || tabIds.includes(String((c as { tab_id?: string | null }).tab_id || ''))
+  const items = (data?.items || [])
+    .filter(inTab)
+    .filter((c) => !q || `${c.title} ${(c as { display_name?: string | null }).display_name || ''} ${c.summary || ''}`.toLocaleLowerCase('tr').includes(q))
 
   if (!items.length) {
     return (

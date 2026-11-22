@@ -50,7 +50,7 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
 
         <CardContent className="flex flex-1 flex-col p-5">
           <h3 className="mb-2 line-clamp-2 font-heading text-lg font-bold text-gray-900 group-hover:text-primary-700">
-            {campaign.title}
+            {(campaign as { display_name?: string | null }).display_name || campaign.title}
           </h3>
           <p className="mb-4 line-clamp-2 text-sm text-gray-600">
             {campaign.summary}

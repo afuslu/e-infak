@@ -89,6 +89,8 @@ export interface SiteData {
   accent_color: string
   logo_url: string | null
   logo_dark_url: string | null
+  footer_logo_url?: string | null
+  floating_logo_url?: string | null
   favicon_url: string | null
   hero: { badge: string | null; title: string | null; subtitle: string | null; image_url: string | null; cta_label: string | null; cta_url: string | null; slider?: boolean }
   sections: string[]

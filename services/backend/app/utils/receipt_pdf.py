@@ -122,7 +122,9 @@ def _cached_pdf_logo_bytes(path_str: str, mtime_ns: int) -> bytes | None:
 
 def resolve_local_logo(organization: Any) -> ImageReader | None:
     """Kurum logosu yerel medya dizinindeyse ağ isteği yapmadan ImageReader döner."""
-    logo_url = (getattr(organization, "logo_url", None) or "").strip()
+    # STK PRO "PDF Logo" (Görünüm) wins over the site logo; SVG cannot be drawn into a PDF.
+    pdf_logo = ((getattr(organization, "site", None) or {}).get("pdf_logo_url") or "").strip()
+    logo_url = pdf_logo if pdf_logo and not pdf_logo.lower().split("?")[0].endswith(".svg") else (getattr(organization, "logo_url", None) or "").strip()
     if not logo_url:
         return None
     # Yalnızca yerel /api/v1/media/<org_id>/<name> veya /media/... yollarını çöz

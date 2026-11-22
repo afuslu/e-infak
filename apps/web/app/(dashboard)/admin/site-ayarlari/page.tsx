@@ -154,7 +154,12 @@ function isValidHref(raw: string, allowRelative = false): boolean {
 export default function AdminSiteSettingsPage() {
   const [form, setForm] = useState<OrgSettings>(EMPTY)
   const [saved, setSaved] = useState<OrgSettings>(EMPTY)
-  const [tab, setTab] = useState<TabKey>('contact')
+  // ?sekme=seo opens "Diller & SEO" (STK PRO menu: Web Sitesi → Çeviri).
+  const [tab, setTab] = useState<TabKey>(() => {
+    if (typeof window === 'undefined') return 'contact'
+    const s = new URLSearchParams(window.location.search).get('sekme')
+    return (['contact', 'legal', 'seo', 'support'] as const).find((k) => k === s) ?? 'contact'
+  })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const { data: access } = useAdminAccess()

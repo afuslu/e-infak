@@ -8,6 +8,7 @@ import {
 } from '../../lib/public-content'
 import { translator } from '../../lib/i18n'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { FloatingLogo } from './FloatingLogo'
 import { CurrencySwitcher } from '../blocks/DonationBlocks'
 import { siteDesignStyle } from '../../lib/site-design'
 import { BlockStyles, renderBlock } from '../blocks/BlockRenderer'
@@ -35,11 +36,12 @@ function NavLink({ link, className }: { link: MenuLink; className: string }) {
   return <Link href={link.url} className={className}>{link.label}</Link>
 }
 
-export function Brand({ site, inverted = false }: { site: SiteData; inverted?: boolean }) {
+export function Brand({ site, inverted = false, logo }: { site: SiteData; inverted?: boolean; logo?: string | null }) {
+  const src = logo || (inverted && site.logo_dark_url) || site.logo_url
   return (
     <Link href="/" className="flex min-w-0 items-center gap-3">
-      {site.logo_url && (
-        <img src={(inverted && site.logo_dark_url) || site.logo_url} alt="" className="h-11 w-11 flex-shrink-0 rounded-full bg-white object-cover" />
+      {src && (
+        <img src={src} alt="" className={logo ? 'h-11 max-w-[180px] flex-shrink-0 object-contain' : 'h-11 w-11 flex-shrink-0 rounded-full bg-white object-cover'} />
       )}
       <span className="flex min-w-0 flex-col leading-tight">
         <span className={`truncate font-heading text-lg font-bold tracking-wide ${inverted ? 'text-white' : 'text-gray-900'}`}>{site.name}</span>
@@ -99,7 +101,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
 
           <header className="sticky top-0 z-40 border-b border-black/5 bg-white/95 backdrop-blur">
             <div className="mx-auto flex h-[76px] max-w-[var(--site-container)] items-center justify-between gap-4 px-4 sm:px-6">
-              <Brand site={site} />
+              <FloatingLogo src={site.floating_logo_url}><Brand site={site} /></FloatingLogo>
               <div className="flex items-center gap-2 lg:hidden">
                 <Link
                   href="/portal"
@@ -169,7 +171,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
           </div>
           <div className="mx-auto grid max-w-[var(--site-container)] gap-10 px-6 pb-10 pt-14 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1.3fr]">
             <div>
-              <Brand site={site} inverted />
+              <Brand site={site} inverted logo={site.footer_logo_url} />
               {site.footer_text && <p className="mt-5 max-w-sm text-sm leading-relaxed">{site.footer_text}</p>}
               {social.length > 0 && (
                 <div className="mt-5 flex flex-wrap gap-2 text-sm">

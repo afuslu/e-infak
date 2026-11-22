@@ -461,3 +461,31 @@ async def test_stk_dashboard_and_type_reports(db_session):
     assert types["types"] == [{"label": "Kurban", "count": 2, "total_cents": 1_500_00}]
     sources = await reports.source_report(_request(org), None, None, db_session)
     assert sources["sources"] == [{"label": "Cami", "count": 1, "total_cents": 1_500_00}]
+
+
+async def test_site_form_builder_and_public_submit(db_session, monkeypatch):
+    from app.api.v1 import site_forms
+
+    org, admin, _ = await _setup(db_session)
+    made = await site_forms.create_form(site_forms.FormIn(title="Gönüllü Ol", fields=[
+        site_forms.FieldIn(label="Ad Soyad", required=True),
+        site_forms.FieldIn(label="Telefon", type="phone", required=True),
+        site_forms.FieldIn(label="Şehir", type="select", options=["Eskişehir", "Ankara"]),
+        site_forms.FieldIn(label="Ad Soyad", type="checkbox"),
+    ]), _request(org, "POST"), db_session, admin)
+    assert made["slug"] == "gonullu-ol" and [f["key"] for f in made["fields"]] == ["ad_soyad", "telefon", "sehir", "ad_soyad_2"]
+
+    with pytest.raises(HTTPException) as exc:
+        await site_forms.submit_form("gonullu-ol", site_forms.SubmitIn(data={"ad_soyad": "Ali", "telefon": "12"}), _request(org, "POST"), db_session)
+    assert "Telefon" in exc.value.detail
+    with pytest.raises(HTTPException):
+        await site_forms.submit_form("gonullu-ol", site_forms.SubmitIn(data={"ad_soyad": "Ali", "telefon": "05321112233", "sehir": "İzmir"}),
+                                     _request(org, "POST"), db_session)
+    ok = await site_forms.submit_form("gonullu-ol", site_forms.SubmitIn(
+        data={"ad_soyad": "<b>Ali</b>", "telefon": "0532 111 22 33", "sehir": "Ankara"}), _request(org, "POST"), db_session)
+    assert ok["ok"] is True
+    bot = await site_forms.submit_form("gonullu-ol", site_forms.SubmitIn(data={}, website="x"), _request(org, "POST"), db_session)
+    assert bot["ok"] is True
+    listed = await site_forms.submissions(made["id"], _request(org), 1, 50, db_session, admin)
+    assert listed["total"] == 1 and listed["items"][0]["data"]["sehir"] == "Ankara" and "<b>" not in listed["items"][0]["data"]["ad_soyad"]
+    assert (await site_forms.list_forms(_request(org), db_session, admin))[0]["unread"] == 0

@@ -19,6 +19,9 @@ export interface ThemeAppearance {
   primary_color: string
   accent_color: string
   logo_url: string | null
+  footer_logo_url?: string | null
+  floating_logo_url?: string | null
+  pdf_logo_url?: string | null
   logo_dark_url: string | null
   favicon_url: string | null
   hero: Record<string, unknown>
@@ -43,7 +46,7 @@ interface LoadedAppearance extends ThemeAppearance {
 export type ThemeLivePatch = Partial<
   Pick<
     ThemeAppearance,
-    'template' | 'tagline' | 'primary_color' | 'accent_color' | 'logo_url' | 'logo_dark_url' | 'favicon_url' | 'design' | 'footer_text' | 'social_links'
+    'template' | 'tagline' | 'primary_color' | 'accent_color' | 'logo_url' | 'logo_dark_url' | 'favicon_url' | 'design' | 'footer_text' | 'social_links' | 'footer_logo_url' | 'floating_logo_url' | 'pdf_logo_url'
   >
 >
 
@@ -191,6 +194,9 @@ export function ThemePanel({
         logo_url: form.logo_url || null,
         logo_dark_url: form.logo_dark_url || null,
         favicon_url: form.favicon_url || null,
+        footer_logo_url: form.footer_logo_url || null,
+        floating_logo_url: form.floating_logo_url || null,
+        pdf_logo_url: form.pdf_logo_url || null,
         footer_text: form.footer_text || null,
         hero: clean(form.hero || {}),
         cta_band: clean(form.cta_band || {}),
@@ -596,6 +602,9 @@ export function ThemePanel({
           <ImageField label="Logo" preview="square" value={form.logo_url} onChange={(v) => set('logo_url', v)} hint="Kare, en az 256×256 önerilir" />
           <ImageField label="Koyu zemin logosu" preview="square" value={form.logo_dark_url} onChange={(v) => set('logo_dark_url', v)} />
           <ImageField label="Site simgesi (favicon)" preview="square" value={form.favicon_url} onChange={(v) => set('favicon_url', v)} hint="Boşsa logo kullanılır" />
+          <ImageField label="Floating logo (kaydırınca üst bar)" value={form.floating_logo_url || ''} onChange={(v) => set('floating_logo_url', v)} hint="Boşsa ana logo kullanılır" />
+          <ImageField label="Footer logo" value={form.footer_logo_url || ''} onChange={(v) => set('footer_logo_url', v)} hint="Alt bölümdeki koyu zeminde görünür" />
+          <ImageField label="PDF logo (makbuz)" value={form.pdf_logo_url || ''} onChange={(v) => set('pdf_logo_url', v)} hint="PNG veya JPG seçin; SVG PDF'te desteklenmez" />
           <label className="block text-[11px] font-semibold text-gray-600">
             <span className="mb-1 block">Kısa slogan (logonun altında)</span>
             <input className="w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-xs outline-none focus:border-blue-500" maxLength={120} value={form.tagline || ''} onChange={(e) => set('tagline', e.target.value)} />

@@ -361,6 +361,10 @@ class SiteAppearance(BaseModel):
     logo_url: Optional[str] = None
     logo_dark_url: Optional[str] = None
     favicon_url: Optional[str] = None
+    # STK PRO Görünüm: footer, floating (sticky header) and PDF (receipt) logos; kept in org.site
+    footer_logo_url: Optional[str] = None
+    floating_logo_url: Optional[str] = None
+    pdf_logo_url: Optional[str] = None
     hero: Hero = Field(default_factory=Hero)
     design: Design = Field(default_factory=Design)
     home_sections: List[str] = Field(default_factory=list)
@@ -389,7 +393,7 @@ class SiteAppearance(BaseModel):
             raise ValueError("Renk #RRGGBB biçiminde olmalıdır")
         return text.upper()
 
-    @field_validator("logo_url", "logo_dark_url", "favicon_url", mode="before")
+    @field_validator("logo_url", "logo_dark_url", "favicon_url", "footer_logo_url", "floating_logo_url", "pdf_logo_url", mode="before")
     @classmethod
     def images(cls, v):
         return validate_image_url(v)
@@ -449,6 +453,9 @@ def appearance_of(org) -> dict:
         "logo_url": org.logo_url,
         "logo_dark_url": org.logo_dark_url,
         "favicon_url": org.favicon_url,
+        "footer_logo_url": site.get("footer_logo_url"),
+        "floating_logo_url": site.get("floating_logo_url"),
+        "pdf_logo_url": site.get("pdf_logo_url"),
         "hero": {"slider": True, **(site.get("hero") or {})},
         "design": design_of(site),
         "home_sections": _sections(site.get("home_sections"), template),
@@ -482,6 +489,9 @@ def apply_appearance(org, payload: SiteAppearance) -> None:
         "social_links": payload.social_links,
         "show_in_directory": payload.show_in_directory,
         "translations": payload.translations,
+        "footer_logo_url": payload.footer_logo_url,
+        "floating_logo_url": payload.floating_logo_url,
+        "pdf_logo_url": payload.pdf_logo_url,
     }
 
 
@@ -511,6 +521,8 @@ def public_site(org, settings_row, lang: Optional[str]) -> dict:
         "logo_url": data["logo_url"],
         "logo_dark_url": data["logo_dark_url"],
         "favicon_url": data["favicon_url"] or data["logo_url"],
+        "footer_logo_url": data["footer_logo_url"],
+        "floating_logo_url": data["floating_logo_url"],
         "design": data["design"],
         "hero": {
             "badge": flat["hero_badge"], "title": flat["hero_title"], "subtitle": flat["hero_subtitle"],
