@@ -607,3 +607,74 @@ async def public_wells(request: Request, db: AsyncSession = Depends(get_db)):
         data.pop("active_pledges", None)
         result.append(data)
     return result
+
+
+@router.get("/water-wells/report")
+async def water_wells_report(request: Request, db: AsyncSession = Depends(get_db), _: User = Depends(get_current_user)):
+    """Ülke, aşama ve fonlama modeli bazlı su kuyusu özet raporu."""
+    org_id = _org_id(request)
+    wells = (await db.execute(
+        select(WaterWell).where(WaterWell.organization_id == org_id).order_by(WaterWell.created_at.desc())
+    )).scalars().all()
+    by_country: dict[str, dict] = {}
+    by_status: dict[str, int] = {}
+    by_model: dict[str, int] = {}
+    total_target = 0
+    total_collected = 0
+    for w in wells:
+        c = (w.country or "Belirtilmemiş").strip() or "Belirtilmemiş"
+        entry = by_country.setdefault(c, {"country": c, "count": 0, "completed": 0, "target_cents": 0, "collected_cents": 0})
+        entry["count"] += 1
+        if w.status == "completed":
+            entry["completed"] += 1
+        entry["target_cents"] += int(w.target_cents or 0)
+        entry["collected_cents"] += int(w.collected_cents or 0)
+        by_status[w.status] = by_status.get(w.status, 0) + 1
+        model = w.funding_model or "standard"
+        by_model[model] = by_model.get(model, 0) + 1
+        total_target += int(w.target_cents or 0)
+        total_collected += int(w.collected_cents or 0)
+    return {
+        "total": len(wells),
+        "total_target_cents": total_target,
+        "total_collected_cents": total_collected,
+        "by_status": by_status,
+        "by_model": by_model,
+        "by_country": sorted(by_country.values(), key=lambda x: (-x["count"], x["country"])),
+    }
+
+
+@router.get("/beneficiaries/report")
+async def beneficiaries_report(request: Request, db: AsyncSession = Depends(get_db), _: User = Depends(get_current_user)):
+    """Talebe / Hoca / Yetim bazlı eğitim ve sponsorluk raporu."""
+    org_id = _org_id(request)
+    beneficiaries = (await db.execute(
+        select(Beneficiary).where(Beneficiary.organization_id == org_id, Beneficiary.is_active.is_(True))
+    )).scalars().all()
+    sponsored_ids = set((await db.execute(
+        select(Pledge.beneficiary_id).where(
+            Pledge.organization_id == org_id,
+            Pledge.beneficiary_id.is_not(None),
+            Pledge.status == "active",
+        )
+    )).scalars().all())
+    by_kind: dict[str, dict] = {}
+    by_city: dict[str, dict] = {}
+    for b in beneficiaries:
+        is_sponsored = b.id in sponsored_ids
+        k = b.kind or "diger"
+        ke = by_kind.setdefault(k, {"kind": k, "label": BENEFICIARY_KINDS.get(k, k), "total": 0, "sponsored": 0, "waiting": 0, "monthly_need_cents": 0})
+        ke["total"] += 1
+        ke["sponsored" if is_sponsored else "waiting"] += 1
+        ke["monthly_need_cents"] += int(b.monthly_need_cents or 0)
+        city = (b.city or "Belirtilmemiş").strip() or "Belirtilmemiş"
+        ce = by_city.setdefault(city, {"city": city, "total": 0, "sponsored": 0, "waiting": 0})
+        ce["total"] += 1
+        ce["sponsored" if is_sponsored else "waiting"] += 1
+    return {
+        "total": len(beneficiaries),
+        "sponsored": sum(1 for b in beneficiaries if b.id in sponsored_ids),
+        "waiting": sum(1 for b in beneficiaries if b.id not in sponsored_ids),
+        "by_kind": list(by_kind.values()),
+        "by_city": sorted(by_city.values(), key=lambda x: (-x["total"], x["city"])),
+    }

@@ -8,6 +8,7 @@ import {
 } from '../../lib/public-content'
 import { translator } from '../../lib/i18n'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { CurrencySwitcher } from '../blocks/DonationBlocks'
 import { siteDesignStyle } from '../../lib/site-design'
 import { BlockStyles, renderBlock } from '../blocks/BlockRenderer'
 import type { HomeData } from '../sections/HomeSections'
@@ -111,7 +112,10 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
                 <details className="relative">
                   <summary className="cursor-pointer list-none rounded-lg border px-3 py-2 text-sm font-semibold">{t('nav.menu')} ☰</summary>
                   <nav className="absolute end-0 mt-2 flex w-60 flex-col rounded-xl border bg-white p-2 shadow-lg">
-                    <LanguageSwitcher className="m-2" />
+                    <div className="m-2 flex items-center gap-2">
+                      <LanguageSwitcher />
+                      <CurrencySwitcher variant="dropdown" size="sm" />
+                    </div>
                     {headerLinks.map((link) => (
                       <NavLink key={`${link.label}-${link.url}`} link={link} className="rounded-lg px-3 py-2 text-sm font-semibold hover:bg-gray-50" />
                     ))}
@@ -127,6 +131,7 @@ export async function SiteShell({ site, children }: { site: SiteData; children: 
                   <NavLink key={`${link.label}-${link.url}`} link={link} className="text-gray-700 hover:text-primary-600" />
                 ))}
                 <LanguageSwitcher />
+                <CurrencySwitcher variant="dropdown" size="sm" align="right" />
                 <Link
                   href="/portal"
                   className="inline-flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50/60 px-3.5 py-2 text-sm font-bold text-primary-700 transition hover:bg-primary-100"

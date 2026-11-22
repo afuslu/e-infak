@@ -22,6 +22,7 @@ export default function OrgSimulateSwitcher({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [activeIdx, setActiveIdx] = useState(0)
   const [orgs, setOrgs] = useState<PlatformOrg[] | null>(given ?? null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -87,8 +88,19 @@ export default function OrgSimulateSwitcher({
             <input
               autoFocus
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && items[0]) choose(items[0]) }}
+              onChange={(e) => { setQuery(e.target.value); setActiveIdx(0) }}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setActiveIdx((i) => Math.min(i + 1, Math.max(items.length - 1, 0)))
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setActiveIdx((i) => Math.max(i - 1, 0))
+                } else if (e.key === 'Enter' && items[activeIdx]) {
+                  e.preventDefault()
+                  choose(items[activeIdx])
+                }
+              }}
               placeholder="Kurum ara…"
               className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
             />
@@ -100,17 +112,19 @@ export default function OrgSimulateSwitcher({
           <ul role="listbox" className="max-h-80 overflow-y-auto py-1">
             {!orgs && !error && <li className="px-3 py-4 text-center text-xs text-slate-500">Yükleniyor…</li>}
             {orgs && items.length === 0 && <li className="px-3 py-4 text-center text-xs text-slate-500">Sonuç bulunamadı.</li>}
-            {items.map((o) => {
+            {items.map((o, idx) => {
               const current = o.id === currentOrgId
+              const highlighted = idx === activeIdx
               return (
                 <li key={o.id}>
                   <button
                     type="button"
                     role="option"
-                    aria-selected={current}
+                    aria-selected={current || highlighted}
                     disabled={!o.is_active || !!busy || current}
+                    onMouseEnter={() => setActiveIdx(idx)}
                     onClick={() => choose(o)}
-                    className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-start text-sm transition hover:bg-slate-50 disabled:cursor-not-allowed ${current ? 'bg-emerald-50' : ''} ${!o.is_active ? 'opacity-50' : ''}`}
+                    className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-start text-sm transition hover:bg-slate-50 disabled:cursor-not-allowed ${current ? 'bg-emerald-50' : highlighted ? 'bg-slate-100' : ''} ${!o.is_active ? 'opacity-50' : ''}`}
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{o.name}</span>

@@ -16,8 +16,15 @@ export default function SimulationBanner({ operatorEmail }: { operatorEmail?: st
 
   useEffect(() => {
     setSim(getSimulation())
+    const sync = () => setSim(getSimulation())
+    window.addEventListener('einfak:simulation-updated', sync)
+    window.addEventListener('storage', sync)
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.removeEventListener('einfak:simulation-updated', sync)
+      window.removeEventListener('storage', sync)
+      window.clearInterval(timer)
+    }
   }, [])
 
   if (!sim) return null

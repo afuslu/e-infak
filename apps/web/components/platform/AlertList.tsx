@@ -45,7 +45,7 @@ export function AlertList({
               onClick={() => onDismiss(a)}
               title="Uyarıyı gizle"
               aria-label="Uyarıyı gizle"
-              className="rounded-lg p-1 text-slate-500 transition hover:bg-black/5 hover:text-slate-900"
+              className="rounded-lg p-1 text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-900"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>

@@ -9,6 +9,7 @@ import { Label, ghostButton, inputClass, primaryButton } from '../../../../compo
 import { EmptyState, Modal, PageHeader, Pagination, StatCard, TBody, THead, Table, Tabs, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 
 interface Settings {
+  short_code: string; public_note: string
   keywords: Record<string, string>; default_campaign_id: string | null; default_amount: number | null
   create_donors: boolean; send_receipt: boolean; webhook_url: string | null
 }
@@ -235,8 +236,18 @@ function SettingsForm({ campaigns }: { campaigns: Campaign[] }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <Card className="space-y-4 p-6">
-        <h2 className="font-bold text-gray-900">Anahtar kelimeler</h2>
-        <p className="text-sm text-gray-600">Bağışçının SMS’e yazdığı ilk kelime hangi bağış kalemine gideceğini belirler (ör. SU → Su Kuyusu).</p>
+        <h2 className="font-bold text-gray-900">Kısa Numara & Anahtar Kelimeler</h2>
+        <p className="text-sm text-gray-600">Kısa numara girildiğinde web sitesinde SMS ile bağış kartı otomatik olarak yayınlanır. Bağışçının SMS’e yazdığı ilk kelime ilgili bağış kalemine aktarılır (ör. SU → Su Kuyusu).</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Label label="SMS Kısa Numarası (ör. 2868)">
+            <input className={inputClass} placeholder="2868" value={s.short_code || ''}
+              onChange={(e) => setS({ ...s, short_code: e.target.value })} />
+          </Label>
+          <Label label="Web Sitesi Açıklama Notu (opsiyonel)">
+            <input className={inputClass} placeholder="Her SMS 50 TL bağış değerindedir." value={s.public_note || ''}
+              onChange={(e) => setS({ ...s, public_note: e.target.value })} />
+          </Label>
+        </div>
         {rows.map((row, i) => (
           <div key={i} className="flex gap-2">
             <input className={`${inputClass} max-w-[140px] uppercase`} placeholder="KELİME" value={row.word}

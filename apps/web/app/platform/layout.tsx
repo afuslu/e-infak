@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BarChart3, Building2, History, Inbox, KeyRound, LifeBuoy, LogOut, Megaphone, Moon, PlusCircle, Search, Sun, Users, X, type LucideIcon } from 'lucide-react'
 import OrgSimulateSwitcher from '../../components/platform/OrgSimulateSwitcher'
+import { exitSimulation, getSimulation } from '../../lib/simulation'
 import { PlatformMe, PlatformOrg, platformCall, platformError, platformToken, setPlatformToken } from '../../lib/platform-api'
 
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
@@ -25,8 +26,10 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   const [me, setMe] = useState<PlatformMe | null>(null)
   const [error, setError] = useState('')
   const [newDemos, setNewDemos] = useState(0)
+  const [openTickets, setOpenTickets] = useState(0)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteQuery, setPaletteQuery] = useState('')
+  const [paletteIdx, setPaletteIdx] = useState(0)
   const [orgs, setOrgs] = useState<PlatformOrg[]>([])
   const [dark, setDark] = useState(false)
 
@@ -66,9 +69,25 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
     platformCall<{ status: string }[]>('get', '/demo-requests')
       .then((rows) => setNewDemos(rows.filter((r) => r.status === 'new').length))
       .catch(() => undefined)
+    platformCall<{ status: string }[]>('get', '/tickets?status_filter=open')
+      .then((rows) => setOpenTickets(rows.length))
+      .catch(() => undefined)
     platformCall<PlatformOrg[]>('get', '/organizations')
       .then(setOrgs)
       .catch(() => undefined)
+  }, [me])
+
+  useEffect(() => {
+    if (!me || me.must_change_password) return
+    if (pathname === '/platform/talepler') {
+      platformCall<{ status: string }[]>('get', '/demo-requests')
+        .then((rows) => setNewDemos(rows.filter((r) => r.status === 'new').length))
+        .catch(() => undefined)
+    } else if (pathname === '/platform/destek') {
+      platformCall<{ status: string }[]>('get', '/tickets?status_filter=open')
+        .then((rows) => setOpenTickets(rows.length))
+        .catch(() => undefined)
+    }
   }, [me, pathname])
 
   useEffect(() => {
@@ -78,6 +97,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
         e.preventDefault()
         setPaletteOpen((v) => !v)
         setPaletteQuery('')
+        setPaletteIdx(0)
       } else if (e.key === 'Escape') {
         setPaletteOpen(false)
       }
@@ -107,7 +127,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   if (isLogin) return <>{children}</>
   if (!me) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className={`min-h-screen ${dark ? 'admin-dark bg-[#020617] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
         <div className="h-14 border-b border-emerald-800/60 bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900" />
         <div className="mx-auto max-w-6xl px-4 py-8">
           {error ? (
@@ -129,18 +149,19 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   return (
     <div className={`min-h-screen ${dark ? 'admin-dark bg-[#020617] text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
       <header className="sticky top-0 z-30 border-b border-emerald-800/60 bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 text-white backdrop-blur-md">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-2 px-4 py-2.5 sm:px-6">
-          <Link href="/platform" className="flex shrink-0 items-center gap-2 pe-2 font-extrabold tracking-tight text-white whitespace-nowrap">
+        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-2 px-3 py-2.5 sm:px-6">
+          <Link href="/platform" className="flex shrink-0 items-center gap-2 pe-1 font-extrabold tracking-tight text-white whitespace-nowrap">
             <img src="/images/e-infak/mark.png" alt="E-İnfak" className="h-7 w-7 rounded-lg object-cover ring-1 ring-white/20" />
-            <span>E‑İnfak Platform</span>
+            <span className="hidden sm:inline">E‑İnfak Platform</span>
           </Link>
-          <div className="flex shrink-0 items-center gap-1.5 lg:order-3">
+          <div className="flex shrink-0 items-center gap-1.5 xl:order-3">
             {!mustChange && <OrgSimulateSwitcher orgs={orgs.length ? orgs : undefined} label="Simüle et" />}
             {!mustChange && (
               <button
                 type="button"
-                onClick={() => { setPaletteOpen(true); setPaletteQuery('') }}
+                onClick={() => { setPaletteOpen(true); setPaletteQuery(''); setPaletteIdx(0) }}
                 title="Hızlı ara (⌘K)"
+                aria-label="Hızlı ara"
                 className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs text-slate-300 transition hover:bg-white/15 hover:text-white"
               >
                 <Search className="h-3.5 w-3.5" aria-hidden="true" />
@@ -159,6 +180,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
             <Link
               href="/platform/sifre"
               title={`${me.email} — Şifre değiştir`}
+              aria-label="Şifre değiştir"
               className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs text-slate-300 transition hover:bg-white/10 hover:text-white"
             >
               <KeyRound className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
@@ -167,17 +189,17 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
             <button
               type="button"
               className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/15 hover:text-white"
-              onClick={() => { setPlatformToken(null); router.replace('/platform/giris') }}
+              onClick={() => { if (getSimulation()) exitSimulation(false); setPlatformToken(null); setMe(null); router.replace('/platform/giris') }}
             >
               <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Çıkış</span>
+              <span className="hidden sm:inline">Çıkış</span>
             </button>
           </div>
           {!mustChange && (
-            <nav className="hidden min-w-0 flex-1 flex-nowrap items-center gap-0.5 overflow-x-auto text-sm lg:order-2 lg:flex">
+            <nav className="hidden min-w-0 flex-1 flex-nowrap items-center justify-center gap-0.5 overflow-x-auto text-sm xl:order-2 xl:flex">
               {NAV.map((item) => {
                 const active = item.href === '/platform' ? pathname === '/platform' || pathname.startsWith('/platform/kurum/') : pathname === item.href
-                const showBadge = item.href === '/platform/talepler' && newDemos > 0
+                const badgeCount = item.href === '/platform/talepler' ? newDemos : item.href === '/platform/destek' ? openTickets : 0
                 return (
                   <Link
                     key={item.href}
@@ -188,9 +210,9 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
                   >
                     <item.icon className="h-3.5 w-3.5 opacity-85" aria-hidden="true" />
                     <span>{item.label}</span>
-                    {showBadge && (
+                    {badgeCount > 0 && (
                       <span className="rounded-full bg-amber-400 px-1.5 py-0.2 text-[10px] font-extrabold text-slate-950">
-                        {newDemos}
+                        {badgeCount}
                       </span>
                     )}
                   </Link>
@@ -200,10 +222,10 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
           )}
         </div>
         {!mustChange && (
-          <nav className="flex gap-1 overflow-x-auto border-t border-white/10 px-4 py-2 text-xs lg:hidden">
+          <nav className="flex gap-1 overflow-x-auto border-t border-white/10 px-4 py-2 text-xs xl:hidden">
             {NAV.map((item) => {
               const active = item.href === '/platform' ? pathname === '/platform' || pathname.startsWith('/platform/kurum/') : pathname === item.href
-              const showBadge = item.href === '/platform/talepler' && newDemos > 0
+              const badgeCount = item.href === '/platform/talepler' ? newDemos : item.href === '/platform/destek' ? openTickets : 0
               return (
                 <Link
                   key={item.href}
@@ -214,8 +236,8 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
                 >
                   <item.icon className="h-3.5 w-3.5 opacity-85" aria-hidden="true" />
                   <span>{item.label}</span>
-                  {showBadge && (
-                    <span className="rounded-full bg-amber-400 px-1.5 text-[10px] font-extrabold text-slate-950">{newDemos}</span>
+                  {badgeCount > 0 && (
+                    <span className="rounded-full bg-amber-400 px-1.5 text-[10px] font-extrabold text-slate-950">{badgeCount}</span>
                   )}
                 </Link>
               )
@@ -233,34 +255,48 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
       </main>
 
       {paletteOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/60 px-4 pt-24 backdrop-blur-xs" onClick={() => setPaletteOpen(false)}>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Hızlı arama"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/60 px-4 pt-24 backdrop-blur-xs"
+          onClick={() => setPaletteOpen(false)}
+        >
           <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2.5 border-b border-slate-100 px-4 py-3">
               <Search className="h-4 w-4 text-slate-400" aria-hidden="true" />
               <input
                 autoFocus
                 value={paletteQuery}
-                onChange={(e) => setPaletteQuery(e.target.value)}
+                onChange={(e) => { setPaletteQuery(e.target.value); setPaletteIdx(0) }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && paletteItems[0]) {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    setPaletteIdx((i) => Math.min(i + 1, Math.max(paletteItems.length - 1, 0)))
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    setPaletteIdx((i) => Math.max(i - 1, 0))
+                  } else if (e.key === 'Enter' && paletteItems[paletteIdx]) {
+                    e.preventDefault()
                     setPaletteOpen(false)
-                    router.push(paletteItems[0].href)
+                    router.push(paletteItems[paletteIdx].href)
                   }
                 }}
                 placeholder="Kurum veya sayfa ara…"
-                className="w-full text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
               />
               <button type="button" onClick={() => setPaletteOpen(false)} aria-label="Kapat" className="text-slate-400 hover:text-slate-700">
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
             <ul className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
-              {paletteItems.map((it) => (
+              {paletteItems.map((it, idx) => (
                 <li key={it.href}>
                   <Link
                     href={it.href}
+                    onMouseEnter={() => setPaletteIdx(idx)}
                     onClick={() => setPaletteOpen(false)}
-                    className="flex items-center justify-between px-4 py-2.5 text-sm transition hover:bg-slate-50"
+                    className={`flex items-center justify-between px-4 py-2.5 text-sm transition hover:bg-slate-50 ${idx === paletteIdx ? 'bg-slate-100' : ''}`}
                   >
                     <span className="font-semibold text-slate-900">{it.label}</span>
                     <span className="text-xs text-slate-400">{it.sub}</span>

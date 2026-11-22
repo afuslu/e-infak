@@ -18,11 +18,14 @@ const ago = (iso: string | null) => {
 export default function ActiveSessionsPage() {
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(25)
   const [filters, setFilters] = useState<Record<string, string>>({ live: 'true' })
   const load = useCallback(async () => {
     try { setRows((await adminGet<{ items: Row[] }>('/active-sessions', { live_only: filters.live === 'true' })).data.items) } catch (err) { toast.error(apiErrorMessage(err, 'Yüklenemedi')) } finally { setLoading(false) }
   }, [filters.live])
   useEffect(() => { load(); const t = setInterval(load, 30_000); return () => clearInterval(t) }, [load])
+  const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize)
   const end = async (r: Row) => {
     if (!(await confirmDialog({ title: `${r.name} için oturumlar kapatılsın mı?`, text: 'Kayıtlı girişleri sonlanır; tekrar giriş yapması gerekir.', danger: true }))) return
     try { const res = await adminSend<{ ended: number }>('post', `/login-logs/end-sessions?user_id=${r.user_id}`); toast.ok(`${res.data.ended} oturum kapatıldı`); load() } catch (err) { toast.error(apiErrorMessage(err, 'Kapatılamadı')) }
@@ -48,8 +51,9 @@ export default function ActiveSessionsPage() {
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><Radio className="h-5 w-5" /></div>
         <h1 className="text-2xl font-bold text-gray-900">Aktif Oturumlar</h1>
       </div>
-      <ListView storageKey="active-sessions" columns={columns} rows={rows} total={rows.length} loading={loading} rowKey={(r) => r.user_id}
-        page={1} pageSize={100} onPage={() => {}} onPageSize={() => {}} filters={filters} onApplyFilters={setFilters}
+      <ListView storageKey="active-sessions" columns={columns} rows={pagedRows} total={rows.length} loading={loading} rowKey={(r) => r.user_id}
+        page={page} pageSize={pageSize} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1) }}
+        filters={filters} onApplyFilters={(f) => { setFilters(f); setPage(1) }}
         rowActions={(r) => (!r.is_me && r.open_sessions > 0 ? (
           <button type="button" onClick={() => end(r)} className="inline-flex items-center gap-1 text-[13px] font-semibold text-rose-600 hover:underline"><Power className="h-4 w-4" /> Oturumu Kapat</button>
         ) : null)}

@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { af, api, clearSession, loadSession, login, setSessionLostHandler } from '@/lib/api';
 import type { AdminAccess } from '@/lib/access';
 import { unregisterPush } from '@/lib/notifications';
+import { clearOfflineData } from '@/lib/offlineQueue';
 import { updateHomeWidgets } from '@/widgets';
 
 export type Me = {
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const drop = useCallback(() => {
     updateHomeWidgets(null).catch(() => {});
+    clearOfflineData().catch(() => {});
     queryClient.clear();
     setState(EMPTY);
   }, [queryClient]);

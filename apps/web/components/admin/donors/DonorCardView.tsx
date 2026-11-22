@@ -8,11 +8,12 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Building2, FileDown, MessageSquarePlus, PencilLine, PhoneCall, Plus, Smartphone, Trash2, Users } from 'lucide-react'
-import { adminGet, adminSend, apiErrorMessage, downloadFile, formatMoney, hasFeature, useAdminAccess, whatsappUrl } from '../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, downloadFile, formatMoney, hasFeature, useAdminAccess } from '../../../lib/admin-access'
 import { STATUS_CLASS, STATUS_LABEL, type SmsMessage } from '../../../lib/sms'
 import { inputClass } from '../FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../QuickSmsDialog'
+import { QuickWhatsAppDialog } from '../QuickWhatsAppDialog'
 import { DonorReminders } from '../DonorReminders'
 import { Modal, WhatsAppIcon, confirmDialog, toast } from '../ui'
 import { DonorForm } from './DonorForm'
@@ -43,6 +44,7 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
   const [editing, setEditing] = useState(false)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [smsOpen, setSmsOpen] = useState(false)
+  const [waOpen, setWaOpen] = useState(false)
   const [smsLog, setSmsLog] = useState<SmsMessage[]>([])
   const [callLog, setCallLog] = useState<{
     id: string; direction: 'in' | 'out'; status_label: string; talk_seconds: number | null
@@ -104,7 +106,6 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
     }
   }
 
-  const wa = whatsappUrl(card.phone, `Merhaba ${card.full_name}, bağışlarınız ve desteğiniz için teşekkür ederiz.`)
   const avg = card.total_donations > 0 ? Math.round(card.total_donated_cents / card.total_donations) : 0
   const tabBtn = (active: boolean) => `-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-[13.5px] font-semibold ${active ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`
   const th = 'whitespace-nowrap px-3 py-2 text-left text-[12px] font-bold text-gray-500'
@@ -164,11 +165,11 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
               <Smartphone className="h-4 w-4" /> SMS Gönder
             </button>
           )}
-          {wa && (
-            <a href={wa} target="_blank" rel="noreferrer"
+          {card.phone && (
+            <button type="button" onClick={() => setWaOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3.5 py-2 text-[13px] font-semibold text-white hover:brightness-95">
               <WhatsAppIcon className="h-4 w-4" /> WhatsApp
-            </a>
+            </button>
           )}
           {perms.notes && (
             <button type="button" onClick={() => { setLowerTab('notes'); setTimeout(() => noteRef.current?.focus(), 50) }}
@@ -424,6 +425,12 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
           target={{ donorId: card.id, name: card.full_name, phone: card.phone, allowSms: card.allow_sms }}
           onClose={() => setSmsOpen(false)}
           onSent={(r) => { toast.ok(sentNotice(r)); load() }}
+        />
+      )}
+      {waOpen && (
+        <QuickWhatsAppDialog
+          target={{ donorId: card.id, name: card.full_name, phone: card.phone }}
+          onClose={() => setWaOpen(false)}
         />
       )}
     </div>

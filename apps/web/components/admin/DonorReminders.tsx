@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useQueryClient } from '@tanstack/react-query'
 import { BellRing, CheckCircle2 } from 'lucide-react'
 import { adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
-import { type Reminder, formatWhen, nextHour, toLocalInput, tomorrowAt } from '../../lib/reminders'
+import { DUE_REMINDERS_QUERY_KEY, REMINDERS_CHANGED_EVENT, type Reminder, formatWhen, nextHour, toLocalInput, tomorrowAt } from '../../lib/reminders'
 import { inputClass, primaryButton } from './FormKit'
 import { toast } from './ui'
 
@@ -12,6 +13,7 @@ type CardReminder = Reminder & { author: string | null; mine: boolean }
 
 /** "Call again on…" on a donor's card: written into the same Hatırlatıcı list, linked to this donor. */
 export function DonorReminders({ donorId, donorName }: { donorId: string; donorName: string }) {
+  const queryClient = useQueryClient()
   const [items, setItems] = useState<CardReminder[] | null>(null)
   const [content, setContent] = useState('')
   const [when, setWhen] = useState(toLocalInput(tomorrowAt(10)))
@@ -25,6 +27,11 @@ export function DonorReminders({ donorId, donorName }: { donorId: string; donorN
     }
   }, [donorId])
   useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    const onChanged = () => { void load() }
+    window.addEventListener(REMINDERS_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(REMINDERS_CHANGED_EVENT, onChanged)
+  }, [load])
 
   const add = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,6 +44,7 @@ export function DonorReminders({ donorId, donorName }: { donorId: string; donorN
       setContent('')
       setWhen(toLocalInput(nextHour()))
       void load()
+      void queryClient.invalidateQueries({ queryKey: DUE_REMINDERS_QUERY_KEY })
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Kaydedilemedi'))
     } finally {
@@ -49,6 +57,7 @@ export function DonorReminders({ donorId, donorName }: { donorId: string; donorN
       await adminSend('post', `/reminders/${r.id}/complete`)
       toast.ok('Tamamlandı')
       void load()
+      void queryClient.invalidateQueries({ queryKey: DUE_REMINDERS_QUERY_KEY })
     } catch (err) {
       toast.error(apiErrorMessage(err))
     }

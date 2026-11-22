@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { KeyRound, Shield, UserPlus } from 'lucide-react'
 import { PlatformSkeleton, ptCard, ptInput, ptPrimaryBtn, ptSelect } from '../../../components/platform/PlatformUI'
-import { copyText, dateTr, platformCall, platformError } from '../../../lib/platform-api'
+import { copyText, dateTr, PlatformMe, platformCall, platformError } from '../../../lib/platform-api'
 
 interface Operator {
   id: string
@@ -17,9 +17,11 @@ interface Operator {
 }
 
 export default function PlatformOperatorsPage() {
+  const [me, setMe] = useState<PlatformMe | null>(null)
   const [rows, setRows] = useState<Operator[] | null>(null)
   const [form, setForm] = useState({ email: '', full_name: '', role: 'support' as 'admin' | 'support' })
   const [busy, setBusy] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [issued, setIssued] = useState<{ email: string; password: string } | null>(null)
   const [copied, setCopied] = useState(false)
@@ -30,7 +32,12 @@ export default function PlatformOperatorsPage() {
       .catch((err) => setError(platformError(err, 'Operatörler yüklenemedi')))
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+    platformCall<PlatformMe>('get', '/me').then(setMe).catch(() => undefined)
+  }, [load])
+
+  const isAdmin = (me?.role || 'admin') === 'admin'
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,17 +57,36 @@ export default function PlatformOperatorsPage() {
     }
   }
 
+  const updateRole = async (op: Operator, role: 'admin' | 'support') => {
+    setBusyId(op.id)
+    setError('')
+    try {
+      await platformCall('patch', `/operators/${op.id}`, { role })
+      load()
+    } catch (err) {
+      setError(platformError(err, 'Rol güncellenemedi'))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const toggleActive = async (op: Operator) => {
+    if (op.is_active && !window.confirm(`${op.email} pasifleştirilsin mi? Hemen erişimi kesilir.`)) return
+    setBusyId(op.id)
     setError('')
     try {
       await platformCall('patch', `/operators/${op.id}`, { is_active: !op.is_active })
       load()
     } catch (err) {
       setError(platformError(err, 'Durum güncellenemedi'))
+    } finally {
+      setBusyId(null)
     }
   }
 
   const resetPwd = async (op: Operator) => {
+    if (!window.confirm(`${op.email} için yeni geçici şifre üretilsin mi? Eski şifre hemen geçersiz olur.`)) return
+    setBusyId(op.id)
     setError('')
     setIssued(null)
     try {
@@ -70,6 +96,8 @@ export default function PlatformOperatorsPage() {
       load()
     } catch (err) {
       setError(platformError(err, 'Şifre sıfırlanamadı'))
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -96,6 +124,7 @@ export default function PlatformOperatorsPage() {
 
       {error && <p className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm font-semibold text-red-700">{error}</p>}
 
+      {isAdmin && (
       <form onSubmit={create} className={`grid gap-4 sm:grid-cols-4 sm:items-end ${ptCard}`}>
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3 sm:col-span-4">
           <UserPlus className="h-4 w-4 text-emerald-600" aria-hidden="true" />
@@ -120,8 +149,9 @@ export default function PlatformOperatorsPage() {
           {busy ? 'Ekleniyor…' : 'Operatör Ekle'}
         </button>
       </form>
+      )}
 
-      {!rows ? <PlatformSkeleton rows={3} /> : (
+      {!rows && !error ? <PlatformSkeleton rows={3} /> : rows && (
         <div className="overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-xs">
           <table className="w-full min-w-[700px] text-sm">
             <thead className="border-b border-slate-100 bg-slate-50/80 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -134,17 +164,37 @@ export default function PlatformOperatorsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((op) => (
+              {rows.map((op) => {
+                const isSelf = me?.id === op.id
+                const rowBusy = busyId === op.id
+                return (
                 <tr key={op.id} className="hover:bg-slate-50/60">
                   <td className="px-4 py-3">
-                    <div className="font-bold text-slate-900">{op.full_name || op.email}</div>
-                    <div className="text-xs text-slate-500">{op.email}</div>
+                    <div className="flex items-center gap-1.5 font-bold text-slate-900">
+                      <span>{op.full_name || op.email}</span>
+                      {isSelf && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Siz</span>}
+                      {op.must_change_password && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">Geçici şifre</span>}
+                    </div>
+                    <div className="text-xs text-slate-500">{op.email} {op.created_at ? `· ${dateTr(op.created_at)}` : ''}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                      <Shield className="h-3 w-3" aria-hidden="true" />
-                      {op.role === 'admin' ? 'Tam Yönetici' : 'Destek'}
-                    </span>
+                    {isAdmin && !isSelf ? (
+                      <select
+                        aria-label={`${op.email} rolü`}
+                        disabled={rowBusy}
+                        value={op.role}
+                        onChange={(e) => updateRole(op, e.target.value as 'admin' | 'support')}
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 disabled:opacity-50"
+                      >
+                        <option value="support">Destek</option>
+                        <option value="admin">Tam Yönetici</option>
+                      </select>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                        <Shield className="h-3 w-3" aria-hidden="true" />
+                        {op.role === 'admin' ? 'Tam Yönetici' : 'Destek'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">{dateTr(op.last_login_at)}</td>
                   <td className="px-4 py-3">
@@ -153,17 +203,20 @@ export default function PlatformOperatorsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
+                    {isAdmin && (
                     <div className="inline-flex gap-2">
-                      <button type="button" onClick={() => resetPwd(op)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      <button type="button" disabled={rowBusy} onClick={() => resetPwd(op)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
                         <KeyRound className="h-3 w-3" aria-hidden="true" /> Şifre Sıfırla
                       </button>
-                      <button type="button" onClick={() => toggleActive(op)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                      <button type="button" disabled={rowBusy || isSelf} onClick={() => toggleActive(op)} className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
                         {op.is_active ? 'Pasifleştir' : 'Aktifleştir'}
                       </button>
                     </div>
+                    )}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

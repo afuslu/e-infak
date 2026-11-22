@@ -7,6 +7,7 @@ import { trackConversion } from '../lib/analytics'
 import { clientLocale, translator } from '../lib/i18n'
 import { ConsentChecks, useCardFallback, useCheckoutLegal } from './CheckoutConsent'
 import { PaymentTrustBadges } from './site/PaymentTrustBadges'
+import { useSiteCurrency } from './blocks/DonationBlocks'
 
 const CURRENCY_SYMBOL: Record<'TRY' | 'EUR' | 'USD', string> = { TRY: '₺', EUR: '€', USD: '$' }
 
@@ -215,6 +216,7 @@ export function QuickDonationForm({
   const t = translator(locale)
   const ex = EXTRA_I18N[locale]
   const [currency, setCurrency] = useState<'TRY' | 'EUR' | 'USD'>('TRY')
+  const { currency: siteCurrency, rates } = useSiteCurrency()
   const { data: orgSettings } = useOrgSettings()
   const enabledCurrencies = useMemo(() => {
     return (orgSettings?.enabled_payment_currencies?.length
@@ -222,8 +224,14 @@ export function QuickDonationForm({
       : ['TRY']) as Array<'TRY' | 'EUR' | 'USD'>
   }, [orgSettings?.enabled_payment_currencies])
   useEffect(() => {
-    if (!enabledCurrencies.includes(currency)) setCurrency(enabledCurrencies[0])
-  }, [enabledCurrencies, currency])
+    if (enabledCurrencies.includes(siteCurrency)) setCurrency(siteCurrency)
+    else if (!enabledCurrencies.includes(currency)) setCurrency(enabledCurrencies[0])
+  }, [enabledCurrencies, siteCurrency]) // eslint-disable-line react-hooks/exhaustive-deps
+  const displayAmounts = useMemo(() => {
+    const rate = currency === 'TRY' ? 1 : rates[currency]
+    if (!rate || currency === 'TRY') return activeAmounts.map((v) => ({ raw: v, value: v }))
+    return activeAmounts.map((v) => ({ raw: v, value: Math.max(1, Math.round(v / rate)) }))
+  }, [activeAmounts, currency, rates])
   const currencySymbol = CURRENCY_SYMBOL[currency]
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -408,13 +416,13 @@ export function QuickDonationForm({
     <div className="space-y-4">
       {campaignPicker}
       {frequencyTabs}
-      <div className={`grid gap-2.5 ${activeAmounts.length >= 3 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'}`}>
-        {activeAmounts.map((value) => {
+      <div className={`grid gap-2.5 ${displayAmounts.length >= 3 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'}`}>
+        {displayAmounts.map(({ raw, value }) => {
           const selected = Number(amount) === value
-          const tierLabel = amountLabels[value]
+          const tierLabel = amountLabels[raw]
           return (
             <button
-              key={value}
+              key={`${currency}-${raw}`}
               type="button"
               onClick={() => setAmount(String(value))}
               className={`flex flex-col items-center justify-center rounded-xl border-2 px-3 py-2.5 text-center transition ${

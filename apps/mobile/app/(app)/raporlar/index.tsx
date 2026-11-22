@@ -6,8 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 import { af } from '@/lib/api';
 import { hasFeature } from '@/lib/access';
 import { money } from '@/lib/format';
-import { Card, Chips, Notice, QueryView, Row, Screen, SectionTitle, Stat, ui } from '@/components/ui';
-import { colors, font, radius, space } from '@/theme';
+import { Card, Chips, Notice, QueryView, Row, Screen, SectionTitle, Stat, useUi } from '@/components/ui';
+import { font, radius, space, useTheme } from '@/theme';
 
 type Monthly = {
   year: number; currency: string; total_cents: number; previous_year_total_cents: number; change_pct: number | null; count: number;
@@ -23,6 +23,8 @@ const YEARS = [THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2].map((y) => ({ value: Str
 
 export default function Reports() {
   const { access } = useAuth();
+  const { colors, dark } = useTheme();
+  const ui = useUi();
   const advanced = hasFeature(access, 'reports_advanced');
   const [year, setYear] = useState(String(THIS_YEAR));
   const [tab, setTab] = useState('monthly');
@@ -59,7 +61,7 @@ export default function Reports() {
                         <Text style={ui.text}>{x.label}</Text>
                         <Text style={ui.amount}>{money(x.total_cents, m.currency)} <Text style={ui.muted}>({x.count})</Text></Text>
                       </View>
-                      <View style={{ height: 6, borderRadius: radius.sm, backgroundColor: '#E6EBE9' }}>
+                      <View style={{ height: 6, borderRadius: radius.sm, backgroundColor: dark ? '#334155' : '#E6EBE9' }}>
                         <View style={{ height: 6, borderRadius: radius.sm, backgroundColor: colors.primary, width: `${(x.total_cents / peak) * 100}%` }} />
                       </View>
                     </View>

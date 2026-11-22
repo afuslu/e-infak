@@ -1,13 +1,28 @@
+'use client'
+
 import Link from 'next/link'
 import Image from 'next/image'
 import { Card, CardContent, CardFooter } from '@e-infak/ui'
 import type { Campaign } from '@e-infak/api-client'
+import { SYMBOL, type CurrencyCode, useSiteCurrency } from '../blocks/DonationBlocks'
 
 interface CampaignCardProps {
   campaign: Campaign
 }
 
+const CURRENCY_SYMBOL: Record<string, string> = { TRY: '₺', USD: '$', EUR: '€', GBP: '£' }
+
 export function CampaignCard({ campaign }: CampaignCardProps) {
+  const { currency: siteCurrency, convert } = useSiteCurrency()
+  const baseCurrency = ((campaign.currency || 'TRY').toUpperCase()) as CurrencyCode
+  const canConvert = baseCurrency === 'TRY' || baseCurrency === 'USD' || baseCurrency === 'EUR'
+  const convertedCollected = canConvert ? convert(campaign.collected_lira, baseCurrency) : null
+  const convertedTarget = canConvert ? convert(campaign.target_lira, baseCurrency) : null
+  const displayCollected = convertedCollected ?? campaign.collected_lira
+  const displayTarget = convertedTarget ?? campaign.target_lira
+  const displaySym = convertedCollected !== null
+    ? SYMBOL[siteCurrency]
+    : (CURRENCY_SYMBOL[baseCurrency] || baseCurrency)
   const pct = Math.min(Math.round(campaign.progress_percentage || 0), 100)
   return (
     <Link href={`/kampanyalar/${campaign.slug}`} className="group block h-full">
@@ -43,12 +58,12 @@ export function CampaignCard({ campaign }: CampaignCardProps) {
 
           {campaign.show_collected && (
             <div className="mt-auto rounded-xl bg-gray-50 p-3 text-xs">
-              <div className="mb-1.5 flex items-center justify-between font-semibold">
+              <div className="mb-1.5 flex items-center justify-between gap-2 font-semibold">
                 <span className="text-primary-700">
-                  {campaign.collected_lira.toLocaleString('tr-TR')} ₺
+                  {Math.round(displayCollected).toLocaleString('tr-TR')} {displaySym}
                 </span>
                 <span className="text-gray-500">
-                  Hedef: {campaign.target_lira.toLocaleString('tr-TR')} ₺
+                  Hedef: {Math.round(displayTarget).toLocaleString('tr-TR')} {displaySym} · %{pct}
                 </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">

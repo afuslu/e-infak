@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AlarmClock, BellRing, CheckCircle2, Clock, FileUp, Pencil, Phone, Repeat, RotateCcw, Search, Trash2, User } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { AlarmClock, BellOff, BellRing, CheckCircle2, Clock, FileUp, Pencil, Phone, Repeat, RotateCcw, Search, Trash2, User } from 'lucide-react'
 import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
 import { Label, inputClass, primaryButton, ghostButton } from '../../../../components/admin/FormKit'
 import { Modal, PageHeader, confirmDialog, toast } from '../../../../components/admin/ui'
 import {
-  REPEAT_LABEL, type ImportResult, type Reminder, type RepeatKind, chime, formatWhen, inMinutes, nextHour, telHref, toLocalInput, tomorrowAt,
+  DUE_REMINDERS_QUERY_KEY, REMINDERS_CHANGED_EVENT, REPEAT_LABEL, type DesktopNotifyState, type ImportResult, type Reminder, type RepeatKind, desktopNotificationState, formatWhen, inMinutes, nextHour, telHref, toLocalInput, tomorrowAt,
 } from '../../../../lib/reminders'
 
 type Group = { key: string; title: string; tone: string; items: Reminder[] }
@@ -37,6 +38,7 @@ function groupOpen(items: Reminder[]): Group[] {
 }
 
 export default function HatirlaticiPage() {
+  const queryClient = useQueryClient()
   const [tab, setTab] = useState<'acik' | 'tamamlanan'>('acik')
   const [items, setItems] = useState<Reminder[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,9 +50,35 @@ export default function HatirlaticiPage() {
   const [editing, setEditing] = useState<Reminder | null>(null)
   const [snoozing, setSnoozing] = useState<Reminder | null>(null)
   const [importOpen, setImportOpen] = useState(false)
-  const [alerts, setAlerts] = useState<Reminder[]>([])
-  const seen = useRef<Set<string>>(new Set())
+  const [notifyState, setNotifyState] = useState<DesktopNotifyState>('unsupported')
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    setNotifyState(desktopNotificationState())
+  }, [])
+
+  const enableDesktopNotifications = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    const result = await Notification.requestPermission()
+    setNotifyState(result)
+    if (result === 'granted') {
+      toast.ok('Masaüstü bildirimleri açıldı')
+      try {
+        new Notification('E-İnfak Hatırlatıcı', {
+          body: 'Tarayıcı arka plandayken bile hatırlatma vakti gelince burada bildirim göreceksiniz.',
+          icon: '/icon.png',
+        })
+      } catch {
+        /* ignore */
+      }
+    } else if (result === 'denied') {
+      toast.error('Tarayıcı ayarlarından bildirim izni engellendi')
+    }
+  }
+
+  const syncBadge = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: DUE_REMINDERS_QUERY_KEY })
+  }, [queryClient])
 
   const load = useCallback(async () => {
     try {
@@ -68,33 +96,11 @@ export default function HatirlaticiPage() {
     return () => clearTimeout(t)
   }, [load, query])
 
-  // Like Wise Reminder's pop-up: while the page is open, a reminder whose time comes opens a window with a sound.
+  // Refresh the list when a reminder is completed/snoozed from the global pop-up alert.
   useEffect(() => {
-    let stopped = false
-    const check = async () => {
-      try {
-        const { data } = await adminGet<Reminder[]>('/reminders', { kapsam: 'vadesi_gelen', limit: 50 })
-        if (stopped) return
-        const fresh = data.filter((r) => !seen.current.has(`${r.id}:${r.remind_at}`))
-        // Old overdue ones are listed on the page; only those that came due in the last 10 minutes pop up.
-        const recent = fresh.filter((r) => Date.now() - new Date(r.remind_at).getTime() < 10 * 60_000)
-        fresh.forEach((r) => seen.current.add(`${r.id}:${r.remind_at}`))
-        if (recent.length) {
-          setAlerts((prev) => [...prev, ...recent.filter((r) => !prev.some((p) => p.id === r.id))])
-          chime()
-          void load()
-        }
-        document.title = data.length ? `(${data.length}) Hatırlatıcı` : 'Hatırlatıcı'
-      } catch {
-        /* next round */
-      }
-    }
-    void check()
-    const timer = setInterval(check, 30_000)
-    return () => {
-      stopped = true
-      clearInterval(timer)
-    }
+    const onChanged = () => { void load() }
+    window.addEventListener(REMINDERS_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(REMINDERS_CHANGED_EVENT, onChanged)
   }, [load])
 
   const add = async () => {
@@ -112,6 +118,7 @@ export default function HatirlaticiPage() {
       setRepeat('none')
       setWhen(toLocalInput(nextHour()))
       if (tab === 'acik') void load()
+      syncBadge()
       inputRef.current?.focus()
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Kaydedilemedi'))
@@ -130,8 +137,8 @@ export default function HatirlaticiPage() {
         if (action === 'complete' && data.completed_at === null) toast.ok(`Tamamlandı · sonraki: ${formatWhen(data.remind_at)}`)
         else toast.ok(action === 'complete' ? 'Tamamlandı' : 'Yeniden açıldı')
       }
-      setAlerts((prev) => prev.filter((a) => a.id !== r.id))
       void load()
+      syncBadge()
     } catch (err) {
       toast.error(apiErrorMessage(err))
     }
@@ -141,9 +148,9 @@ export default function HatirlaticiPage() {
     try {
       await adminSend('patch', `/reminders/${r.id}`, { remind_at: at.toISOString() })
       toast.ok(`Ertelendi · ${formatWhen(at.toISOString())}`)
-      setAlerts((prev) => prev.filter((a) => a.id !== r.id))
       setSnoozing(null)
       void load()
+      syncBadge()
     } catch (err) {
       toast.error(apiErrorMessage(err))
     }
@@ -206,11 +213,38 @@ export default function HatirlaticiPage() {
     <div className="space-y-5">
       <PageHeader
         title="Hatırlatıcı"
-        description="Kimi, ne zaman arayacağınızı yazın; vakti gelince telefonunuza bildirim gelir. Metinde telefon numarası varsa kayıtlı bağışçıya kendiliğinden bağlanır."
+        description="Kimi, ne zaman arayacağınızı yazın; vakti gelince hem masaüstünüzde hem telefonunuzda bildirim gelir. Metinde telefon numarası varsa kayıtlı bağışçıya kendiliğinden bağlanır."
         actions={
-          <button type="button" onClick={() => setImportOpen(true)} className={`${ghostButton} inline-flex items-center gap-1.5`}>
-            <FileUp className="h-4 w-4" aria-hidden="true" />Wise Reminder&apos;dan aktar
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {notifyState === 'default' && (
+              <button
+                type="button"
+                onClick={enableDesktopNotifications}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+              >
+                <BellRing className="h-4 w-4" aria-hidden="true" />Masaüstü bildirimlerini aç
+              </button>
+            )}
+            {notifyState === 'granted' && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700"
+                title="Tarayıcı arka plandayken de masaüstü bildirimi alacaksınız"
+              >
+                <BellRing className="h-3.5 w-3.5" aria-hidden="true" />Masaüstü bildirimi açık
+              </span>
+            )}
+            {notifyState === 'denied' && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500"
+                title="Tarayıcı adres çubuğundaki kilit simgesinden bildirim iznini açabilirsiniz"
+              >
+                <BellOff className="h-3.5 w-3.5" aria-hidden="true" />Masaüstü bildirimi engelli
+              </span>
+            )}
+            <button type="button" onClick={() => setImportOpen(true)} className={`${ghostButton} inline-flex items-center gap-1.5`}>
+              <FileUp className="h-4 w-4" aria-hidden="true" />Wise Reminder&apos;dan aktar
+            </button>
+          </div>
         }
       />
 
@@ -293,30 +327,9 @@ export default function HatirlaticiPage() {
         </section>
       )}
 
-      {alerts.length > 0 && (
-        <Modal title="Hatırlatma vakti geldi" onClose={() => setAlerts([])} size="md">
-          <ul className="space-y-3">
-            {alerts.map((r) => (
-              <li key={r.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <p className="flex items-start gap-2 text-sm font-semibold text-gray-900">
-                  <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />{r.content}
-                </p>
-                <p className="mt-1 text-xs text-gray-600">{formatWhen(r.remind_at)}{r.donor ? ` · ${r.donor.name}` : ''}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {telHref(r.phone) && <a href={telHref(r.phone)!} className={`${ghostButton} inline-flex items-center gap-1`}><Phone className="h-3.5 w-3.5" aria-hidden="true" />Ara</a>}
-                  <button type="button" onClick={() => act(r, 'complete')} className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700">Tamamla</button>
-                  <button type="button" onClick={() => moveTo(r, inMinutes(10))} className={ghostButton}>10 dk ertele</button>
-                  <button type="button" onClick={() => moveTo(r, inMinutes(60))} className={ghostButton}>1 saat ertele</button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Modal>
-      )}
-
       {snoozing && <SnoozeModal reminder={snoozing} onClose={() => setSnoozing(null)} onPick={(at) => moveTo(snoozing, at)} />}
-      {editing && <EditModal reminder={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load() }} />}
-      {importOpen && <ImportModal onClose={() => setImportOpen(false)} onDone={() => { setImportOpen(false); void load() }} />}
+      {editing && <EditModal reminder={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void load(); syncBadge() }} />}
+      {importOpen && <ImportModal onClose={() => setImportOpen(false)} onDone={() => { setImportOpen(false); void load(); syncBadge() }} />}
     </div>
   )
 }
@@ -339,7 +352,15 @@ function SnoozeModal({ reminder, onClose, onPick }: { reminder: Reminder; onClos
       <Label label="Başka bir zaman">
         <div className="flex gap-2">
           <input type="datetime-local" value={custom} onChange={(e) => setCustom(e.target.value)} className={inputClass} />
-          <button type="button" onClick={() => onPick(new Date(custom))} className={primaryButton}>Ertele</button>
+          <button
+            type="button"
+            onClick={() => {
+              const dt = new Date(custom)
+              if (!custom || Number.isNaN(dt.getTime())) { toast.error('Geçerli bir tarih ve saat seçin'); return }
+              onPick(dt)
+            }}
+            className={primaryButton}
+          >Ertele</button>
         </div>
       </Label>
     </Modal>
@@ -352,9 +373,16 @@ function EditModal({ reminder, onClose, onSaved }: { reminder: Reminder; onClose
   const [repeat, setRepeat] = useState<RepeatKind>(reminder.repeat)
   const [saving, setSaving] = useState(false)
   const save = async () => {
+    const changedTime = toLocalInput(new Date(reminder.remind_at)) !== when
+    if (changedTime) {
+      const parsed = new Date(when)
+      if (!when || Number.isNaN(parsed.getTime())) {
+        toast.error('Geçerli bir tarih ve saat seçin')
+        return
+      }
+    }
     setSaving(true)
     try {
-      const changedTime = toLocalInput(new Date(reminder.remind_at)) !== when
       await adminSend('patch', `/reminders/${reminder.id}`, {
         content: content.trim(), repeat, ...(changedTime ? { remind_at: new Date(when).toISOString() } : {}),
       })

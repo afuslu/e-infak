@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 
 from app.banking import register
-from app.banking.base import BankConnector, BankMovement
+from app.banking.base import BankConnector, BankConnectorError, BankMovement
 
 DEFAULT_TOKEN_URL = "https://idgateway.kuveytturk.com.tr/connect/token"
 DEFAULT_API_BASE = "https://gateway.kuveytturk.com.tr/v2"
@@ -61,41 +61,46 @@ class KuveytTurk(BankConnector):
     secret_fields = ("client_secret",)
 
     async def fetch(self, account, since: datetime, until: datetime) -> list[BankMovement]:
-        creds = dict(getattr(account, "credentials", None) or {})
+        creds = dict(self.credentials or {})
         client_id = str(creds.get("client_id") or "").strip()
         client_secret = str(creds.get("client_secret") or "").strip()
-        suffix = str(creds.get("account_suffix") or "1").strip()
+        suffix = str(getattr(account, "account_no", None) or creds.get("account_suffix") or "1").strip()
         token_url = str(creds.get("token_url") or DEFAULT_TOKEN_URL).strip()
         api_base = str(creds.get("api_base_url") or DEFAULT_API_BASE).strip().rstrip("/")
         if not client_id or not client_secret:
-            raise ValueError("Kuveyt Türk için Client ID ve Client Secret gereklidir")
+            raise BankConnectorError("Kuveyt Türk için Client ID ve Client Secret gereklidir")
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            tok_resp = await client.post(
-                token_url,
-                data={
-                    "grant_type": "client_credentials",
-                    "scope": "accounts",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                },
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-            tok_resp.raise_for_status()
-            access_token = tok_resp.json().get("access_token")
-            if not access_token:
-                raise RuntimeError("Kuveyt Türk OAuth2 access_token alınamadı")
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                tok_resp = await client.post(
+                    token_url,
+                    data={
+                        "grant_type": "client_credentials",
+                        "scope": "accounts",
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                    },
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+                tok_resp.raise_for_status()
+                access_token = tok_resp.json().get("access_token")
+                if not access_token:
+                    raise BankConnectorError("Kuveyt Türk OAuth2 access_token alınamadı")
 
-            tx_resp = await client.get(
-                f"{api_base}/accounts/{suffix}/transactions",
-                params={
-                    "beginDate": since.astimezone(timezone.utc).strftime("%Y-%m-%d"),
-                    "endDate": until.astimezone(timezone.utc).strftime("%Y-%m-%d"),
-                },
-                headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
-            )
-            tx_resp.raise_for_status()
-            payload = tx_resp.json()
+                tx_resp = await client.get(
+                    f"{api_base}/accounts/{suffix}/transactions",
+                    params={
+                        "beginDate": since.astimezone(timezone.utc).strftime("%Y-%m-%d"),
+                        "endDate": until.astimezone(timezone.utc).strftime("%Y-%m-%d"),
+                    },
+                    headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"},
+                )
+                tx_resp.raise_for_status()
+                payload = tx_resp.json()
+        except BankConnectorError:
+            raise
+        except httpx.HTTPError as exc:
+            raise BankConnectorError(f"Kuveyt Türk API bağlantı hatası: {exc}") from exc
 
         raw_items = (
             payload.get("value", {}).get("accountTransactions")

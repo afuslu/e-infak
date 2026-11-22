@@ -89,6 +89,7 @@ function apply(data: SessionResponse) {
   localStorage.setItem(STATE_KEY, JSON.stringify(state))
   try { sessionStorage.setItem('support_session', '1') } catch { /* ignore */ }
   writeOrgSlugCookie(state.slug)
+  try { window.dispatchEvent(new CustomEvent('einfak:simulation-updated', { detail: state })) } catch { /* ignore */ }
   return state
 }
 

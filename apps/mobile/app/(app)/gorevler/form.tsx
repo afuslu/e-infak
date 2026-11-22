@@ -7,7 +7,7 @@ import { af } from '@/lib/api';
 import { recall, remember } from '@/lib/selected';
 import { useStaffOptions } from '@/api/hooks';
 import { PRIORITY, Task } from '@/api/types';
-import { Btn, Card, Chips, Field, Notice, Screen, Select, ui } from '@/components/ui';
+import { Btn, Card, Chips, Field, Notice, Screen, Select, useUi } from '@/components/ui';
 import { DateField } from '@/components/fields';
 import { notify } from '@/components/toast';
 import { space } from '@/theme';
@@ -22,6 +22,7 @@ export default function TaskForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { me } = useAuth();
+  const ui = useUi();
   const staff = useStaffOptions();
   const existing = id ? recall<Task>('task', id) : undefined;
 

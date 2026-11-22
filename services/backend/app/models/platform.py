@@ -20,6 +20,8 @@ class PlatformUser(Base):
     role = Column(String(20), nullable=False, default="admin", server_default="admin")  # admin | support
     is_active = Column(Boolean, nullable=False, default=True)
     must_change_password = Column(Boolean, nullable=False, default=False, server_default="false")
+    totp_secret = Column(String(64))
+    totp_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
     last_login_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

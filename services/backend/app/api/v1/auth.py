@@ -393,6 +393,8 @@ async def setup_2fa(
     db: AsyncSession = Depends(get_db),
 ):
     """Generate a new TOTP secret and otpauth URI for authenticator apps (Google Authenticator, Authy)."""
+    if is_impersonating():
+        raise HTTPException(status_code=403, detail=SIMULATION_FORBIDDEN)
     from app.services.totp import generate_secret, provisioning_uri
 
     secret = generate_secret()
@@ -413,6 +415,8 @@ async def verify_2fa_setup(
     db: AsyncSession = Depends(get_db),
 ):
     """Verify the first 6-digit TOTP code and enable 2FA for this account."""
+    if is_impersonating():
+        raise HTTPException(status_code=403, detail=SIMULATION_FORBIDDEN)
     from app.services.totp import verify_totp
 
     if not current_user.totp_secret:
@@ -432,6 +436,8 @@ async def disable_2fa(
     db: AsyncSession = Depends(get_db),
 ):
     """Disable 2FA after verifying the current TOTP code."""
+    if is_impersonating():
+        raise HTTPException(status_code=403, detail=SIMULATION_FORBIDDEN)
     from app.services.totp import verify_totp
 
     if not current_user.totp_enabled or not current_user.totp_secret:

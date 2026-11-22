@@ -50,11 +50,11 @@ export default function PlatformAuditPage() {
         )}
       </div>
       <div className="flex flex-wrap gap-2.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
-        <select className={control} value={filter.organization_id} onChange={(e) => setFilter({ ...filter, organization_id: e.target.value })}>
+        <select aria-label="Kurum filtresi" className={control} value={filter.organization_id} onChange={(e) => setFilter({ ...filter, organization_id: e.target.value })}>
           <option value="">Tüm kurumlar</option>
           {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
         </select>
-        <select className={control} value={filter.action} onChange={(e) => setFilter({ ...filter, action: e.target.value })}>
+        <select aria-label="İşlem filtresi" className={control} value={filter.action} onChange={(e) => setFilter({ ...filter, action: e.target.value })}>
           <option value="">Tüm işlemler</option>
           {Object.entries(ACTION_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
         </select>

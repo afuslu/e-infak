@@ -97,6 +97,7 @@ def _audit(db: AsyncSession, request: Request, operator: Optional[PlatformUser],
 class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=200)
+    totp_code: Optional[str] = Field(default=None, max_length=12)
 
 
 @router.post("/auth/login", dependencies=[Depends(rate_limit("platform-login", limit=10, window_seconds=600))])
@@ -109,6 +110,14 @@ async def platform_login(payload: LoginIn, request: Request, db: AsyncSession = 
         _audit(db, request, None, "platform_giris_basarisiz", email=str(payload.email))
         await db.commit()
         raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı")
+    if user.totp_enabled and user.totp_secret:
+        if not payload.totp_code or not payload.totp_code.strip():
+            raise HTTPException(status_code=401, detail="totp_required")
+        from app.services.totp import verify_totp
+        if not verify_totp(user.totp_secret, payload.totp_code.strip()):
+            _audit(db, request, user, "platform_giris_basarisiz", email=user.email, reason="invalid_totp")
+            await db.commit()
+            raise HTTPException(status_code=401, detail="2FA doğrulama kodu geçersiz")
     user.last_login_at = datetime.now(timezone.utc)
     _audit(db, request, user, "platform_giris")
     await db.commit()
@@ -119,6 +128,7 @@ async def platform_login(payload: LoginIn, request: Request, db: AsyncSession = 
     return {"access_token": token, "token_type": "bearer", "expires_in": PLATFORM_TOKEN_HOURS * 3600,
             "user": {"email": user.email, "full_name": user.full_name,
                      "role": user.role or "admin",
+                     "totp_enabled": bool(user.totp_enabled),
                      "must_change_password": user.must_change_password}}
 
 
@@ -126,17 +136,66 @@ async def platform_login(payload: LoginIn, request: Request, db: AsyncSession = 
 async def platform_me(operator: PlatformUser = Depends(get_platform_user)):
     return {"id": str(operator.id), "email": operator.email, "full_name": operator.full_name,
             "role": operator.role or "admin",
+            "totp_enabled": bool(operator.totp_enabled),
             "must_change_password": operator.must_change_password}
+
+
+class PlatformTotpCodeIn(BaseModel):
+    code: str = Field(min_length=6, max_length=12)
+
+
+@router.post("/me/2fa/setup")
+async def platform_setup_2fa(db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    from app.services.totp import generate_secret, provisioning_uri
+
+    secret = generate_secret()
+    operator.totp_secret = secret
+    operator.totp_enabled = False
+    await db.commit()
+    uri = provisioning_uri(secret, operator.email, issuer="E-Infak Platform")
+    return {"secret": secret, "otpauth_uri": uri, "qr_svg": _qr_svg(uri), "enabled": False}
+
+
+@router.post("/me/2fa/verify")
+async def platform_verify_2fa(payload: PlatformTotpCodeIn, request: Request,
+                              db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    from app.services.totp import verify_totp
+
+    if not operator.totp_secret:
+        raise HTTPException(status_code=400, detail="Önce 2FA kurulumunu başlatın")
+    if not verify_totp(operator.totp_secret, payload.code.strip()):
+        raise HTTPException(status_code=400, detail="Doğrulama kodu geçersiz")
+    operator.totp_enabled = True
+    _audit(db, request, operator, "platform_2fa_etkinlestirildi")
+    await db.commit()
+    return {"ok": True, "enabled": True}
+
+
+@router.post("/me/2fa/disable")
+async def platform_disable_2fa(payload: PlatformTotpCodeIn, request: Request,
+                               db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    from app.services.totp import verify_totp
+
+    if not operator.totp_enabled or not operator.totp_secret:
+        return {"ok": True, "enabled": False}
+    if not verify_totp(operator.totp_secret, payload.code.strip()):
+        raise HTTPException(status_code=400, detail="Doğrulama kodu geçersiz")
+    operator.totp_enabled = False
+    operator.totp_secret = None
+    _audit(db, request, operator, "platform_2fa_devre_disi")
+    await db.commit()
+    return {"ok": True, "enabled": False}
 
 
 class PasswordIn(BaseModel):
     current_password: str
-    new_password: str = Field(min_length=8, max_length=200)
+    new_password: str = Field(min_length=passwords.MIN_LENGTH, max_length=200)
 
 
 @router.post("/me/password")
 async def change_password(payload: PasswordIn, request: Request, db: AsyncSession = Depends(get_db),
-                          operator: PlatformUser = Depends(get_platform_user)):
+                          operator: PlatformUser = Depends(get_platform_user),
+                          _: None = Depends(rate_limit("platform-password-change", limit=10, window_seconds=900))):
     if not verify_password(payload.current_password, operator.hashed_password):
         raise HTTPException(status_code=400, detail="Mevcut şifre hatalı")
     if payload.new_password == payload.current_password:
@@ -178,10 +237,21 @@ async def _org_or_404(db: AsyncSession, org_id: UUID) -> Organization:
     return org
 
 
-async def _org_out(db: AsyncSession, org: Organization, stats: Optional[dict] = None) -> dict:
-    domain_rows = (await db.execute(
-        select(OrganizationDomain).where(OrganizationDomain.organization_id == org.id).order_by(OrganizationDomain.domain)
-    )).scalars().all()
+async def _org_out(db: AsyncSession, org: Organization, stats: Optional[dict] = None,
+                   domain_rows: Optional[list[OrganizationDomain]] = None) -> dict:
+    if domain_rows is None:
+        domain_rows = (await db.execute(
+            select(OrganizationDomain).where(OrganizationDomain.organization_id == org.id).order_by(OrganizationDomain.domain)
+        )).scalars().all()
+    active_primary = next((d for d in domain_rows if d.status == "active" and d.is_primary), None) or next(
+        (d for d in domain_rows if d.status == "active"), None
+    )
+    if active_primary:
+        url = f"https://{active_primary.domain}"
+    elif org.subdomain:
+        url = f"https://{org.subdomain}.{settings.PLATFORM_BASE_DOMAIN}"
+    else:
+        url = await site_url(db, org)
     return {
         "id": str(org.id),
         "slug": org.slug,
@@ -203,7 +273,7 @@ async def _org_out(db: AsyncSession, org: Organization, stats: Optional[dict] = 
         "is_active": bool(org.is_active),
         "template": org.template,
         "subdomain": org.subdomain,
-        "url": await site_url(db, org),
+        "url": url,
         "payment_provider": (org.settings or {}).get("payment_provider") or "ziraatpay",
         "sms_provider": (org.settings or {}).get("sms_provider") or "netgsm",
         "sms_platform_fallback": (org.settings or {}).get("sms_platform_fallback") is not False,
@@ -217,19 +287,24 @@ async def _org_out(db: AsyncSession, org: Organization, stats: Optional[dict] = 
 async def list_organizations(db: AsyncSession = Depends(get_db), _: PlatformUser = Depends(get_platform_user)):
     orgs = (await db.execute(select(Organization).order_by(Organization.created_at.desc()))).scalars().all()
     users = dict((await db.execute(
-        select(User.organization_id, func.count(User.id)).where(User.is_active.is_(True)).group_by(User.organization_id)
+        select(User.organization_id, func.count(User.id))
+        .where(User.is_active.is_(True), User.role != UserRole.PLATFORM_ADMIN)
+        .group_by(User.organization_id)
     )).all())
     donations = {row[0]: row for row in (await db.execute(
         select(Donation.organization_id, func.count(Donation.id), func.max(Donation.paid_at))
         .where(Donation.status == DonationStatus.CONFIRMED).group_by(Donation.organization_id)
     )).all()}
+    all_domains: dict[UUID, list[OrganizationDomain]] = {}
+    for d in (await db.execute(select(OrganizationDomain).order_by(OrganizationDomain.domain))).scalars():
+        all_domains.setdefault(d.organization_id, []).append(d)
     out = []
     for org in orgs:
         _, count, last = donations.get(org.id, (None, 0, None))
         out.append(await _org_out(db, org, {
             "user_count": users.get(org.id, 0), "donation_count": count,
             "last_donation_at": last.isoformat() if last else None,
-        }))
+        }, domain_rows=all_domains.get(org.id, [])))
     return out
 
 
@@ -238,7 +313,7 @@ class OrganizationCreate(BaseModel):
     legal_name: Optional[str] = Field(default=None, max_length=200)
     subdomain: str = Field(min_length=2, max_length=63)
     email: EmailStr
-    phone: Optional[str] = Field(default=None, max_length=32)
+    phone: Optional[str] = Field(default=None, max_length=20)
     city: Optional[str] = Field(default=None, max_length=100)
     plan: Plan = Plan.ILERI
     template: str = "sade"
@@ -260,6 +335,7 @@ async def create_organization(payload: OrganizationCreate, request: Request, db:
     """New organisation with its site at <subdomain>.<base domain> and a first administrator.
 
     The administrator's temporary password is returned once and never stored in clear."""
+    _require_platform_admin(operator)
     subdomain = payload.subdomain.strip().lower()
     if not valid_subdomain(subdomain) or subdomain in RESERVED_SUBDOMAINS:
         raise HTTPException(status_code=422, detail="Alt alan adı geçersiz veya ayrılmış")
@@ -363,7 +439,7 @@ class OrganizationUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=2, max_length=200)
     legal_name: Optional[str] = Field(default=None, min_length=2, max_length=200)
     email: Optional[EmailStr] = None
-    phone: Optional[str] = Field(default=None, max_length=32)
+    phone: Optional[str] = Field(default=None, max_length=20)
     city: Optional[str] = Field(default=None, max_length=100)
     plan: Optional[Plan] = None
     enabled_addons: Optional[List[Feature]] = None
@@ -378,6 +454,7 @@ class OrganizationUpdate(BaseModel):
 @router.patch("/organizations/{org_id}")
 async def update_organization(org_id: UUID, payload: OrganizationUpdate, request: Request,
                               db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     org = await _org_or_404(db, org_id)
     changes = payload.model_dump(exclude_unset=True, mode="json")
     plan = payload.plan or Plan(org.plan)
@@ -443,6 +520,7 @@ class DomainIn(BaseModel):
 @router.post("/organizations/{org_id}/domains", status_code=201)
 async def add_domain(org_id: UUID, payload: DomainIn, request: Request, db: AsyncSession = Depends(get_db),
                      operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     org = await _org_or_404(db, org_id)
     try:
         row = await domains.add_domain(db, org.id, payload.domain)
@@ -479,6 +557,7 @@ async def activate_domain(org_id: UUID, domain_id: UUID, request: Request, db: A
                           operator: PlatformUser = Depends(get_platform_user)):
     """Operator confirms the domain points here without the TXT record; it then serves
     the organisation's site and becomes eligible for a certificate."""
+    _require_platform_admin(operator)
     row = await _domain_or_404(db, org_id, domain_id)
     await domains.activate(db, row)
     _audit(db, request, operator, "alan_adi_aktif", org_id, domain=row.domain)
@@ -491,6 +570,7 @@ async def activate_domain(org_id: UUID, domain_id: UUID, request: Request, db: A
 @router.delete("/organizations/{org_id}/domains/{domain_id}")
 async def remove_domain(org_id: UUID, domain_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
                         operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     row = await _domain_or_404(db, org_id, domain_id)
     domain = row.domain
     await db.delete(row)
@@ -509,6 +589,7 @@ class CredentialsIn(BaseModel):
 @router.put("/organizations/{org_id}/provider-accounts/{provider}")
 async def save_provider_account(org_id: UUID, provider: str, payload: CredentialsIn, request: Request,
                                 db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     if provider not in PAYMENT_PROVIDERS and provider not in SMS_PROVIDERS:
         raise HTTPException(status_code=404, detail="Bilinmeyen sağlayıcı")
     org = await _org_or_404(db, org_id)
@@ -520,7 +601,7 @@ async def save_provider_account(org_id: UUID, provider: str, payload: Credential
     db.add(AuditLog(organization_id=org.id, user_id=None, action="platform_entegrasyon_hesabi_guncelle",
                     details={"provider": provider, "by": operator.email}))
     await db.commit()
-    configured = (build_provider(provider, stored).configured if provider in PAYMENT_PROVIDERS
+    configured = (build_provider(provider, stored, tenant_slug=org.slug).configured if provider in PAYMENT_PROVIDERS
                   else SMS_PROVIDERS[provider](stored).configured)
     return _describe(provider, stored, configured)
 
@@ -538,16 +619,81 @@ async def list_alerts(org_id: Optional[UUID] = None, db: AsyncSession = Depends(
 ASSIGNABLE_ROLES = [r for r in UserRole if r != UserRole.PLATFORM_ADMIN]
 
 
+def _qr_svg(data: str) -> str:
+    """Render a self-contained SVG QR code using reportlab."""
+    try:
+        from reportlab.graphics import renderSVG
+        from reportlab.graphics.barcode import qr
+        from reportlab.graphics.shapes import Drawing
+
+        widget = qr.QrCodeWidget(data)
+        x0, y0, x1, y1 = widget.getBounds()
+        w, h = max(x1 - x0, 1), max(y1 - y0, 1)
+        size = 180
+        d = Drawing(size, size, transform=[size / w, 0, 0, size / h, -x0 * size / w, -y0 * size / h])
+        d.add(widget)
+        return renderSVG.drawToString(d)
+    except Exception:
+        return ""
+
+
+async def _send_setup_link_email(user: User, setup_url: str, org_name: str, expires_hours: int) -> bool:
+    if not settings.SENDGRID_API_KEY:
+        return False
+    import asyncio
+    from html import escape
+    from app.tasks import send_email_task
+
+    html = (
+        f"<p>Merhaba {escape(user.first_name or user.email)},</p>"
+        f"<p><b>{escape(org_name)}</b> E-İnfak yönetim paneli hesabınız için şifre belirleme bağlantınız hazırdır.</p>"
+        f"<p><a href=\"{escape(setup_url)}\">Şifremi Belirle</a></p>"
+        f"<p>Bu bağlantı {expires_hours} saat geçerlidir ve tek kullanımlıktır.</p>"
+    )
+    try:
+        return bool(await asyncio.to_thread(send_email_task, user.email, f"{org_name} — E-İnfak Şifre Belirleme", html))
+    except Exception:
+        return False
+
+
+async def _build_password_setup(db: AsyncSession, org: Organization, user: User, expires_hours: int = 24) -> dict:
+    token = create_access_token(
+        {"sub": str(user.id), "purpose": "password_reset", "fp": password_fingerprint(user.hashed_password)},
+        expires_delta=timedelta(hours=expires_hours),
+    )
+    base = await site_url(db, org)
+    setup_url = f"{base}/sifre-sifirla?token={token}"
+    return {
+        "setup_url": setup_url,
+        "qr_svg": _qr_svg(setup_url),
+        "expires_hours": expires_hours,
+        "login_url": f"{base}/giris",
+    }
+
+
 class OrgUserCreate(BaseModel):
     email: EmailStr
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(default="", max_length=100)
     role: UserRole = UserRole.EDITOR
+    password_mode: str = Field(default="temp", pattern="^(temp|custom|setup_link)$")
+    custom_password: Optional[str] = Field(default=None, min_length=passwords.MIN_LENGTH, max_length=128)
+    must_change_password: bool = True
+    expires_hours: int = Field(default=24, ge=1, le=168)
+    send_email: bool = True
 
 
 class OrgUserUpdate(BaseModel):
     role: Optional[UserRole] = None
     is_active: Optional[bool] = None
+
+
+class OrgUserPasswordResetIn(BaseModel):
+    mode: str = Field(default="temp", pattern="^(temp|custom|setup_link)$")
+    custom_password: Optional[str] = Field(default=None, min_length=passwords.MIN_LENGTH, max_length=128)
+    must_change_password: bool = True
+    expires_hours: int = Field(default=24, ge=1, le=168)
+    send_email: bool = True
 
 
 def _check_role(role: Optional[UserRole]) -> None:
@@ -565,8 +711,8 @@ async def _org_user(db: AsyncSession, org: Organization, user_id: UUID) -> User:
 @router.post("/organizations/{org_id}/users", status_code=201)
 async def create_org_user(org_id: UUID, payload: OrgUserCreate, request: Request, db: AsyncSession = Depends(get_db),
                           operator: PlatformUser = Depends(get_platform_user)):
-    """Adds a staff account to the organisation within its package's user limit; the temporary
-    password is returned once."""
+    """Adds a staff account to the organisation within its package's user limit.
+    Supports temporary password, custom password, or one-time QR/setup link."""
     from app.api.v1.staff import _ensure_seat_available
     org = await _org_or_404(db, org_id)
     _check_role(payload.role)
@@ -574,19 +720,37 @@ async def create_org_user(org_id: UUID, payload: OrgUserCreate, request: Request
     email = str(payload.email).lower()
     if (await db.execute(select(User.id).where(func.lower(User.email) == email))).first():
         raise HTTPException(status_code=409, detail="Bu e-posta adresiyle kayıtlı bir hesap zaten var")
-    password = passwords.temporary_password()
-    user = User(organization_id=org.id, email=email, hashed_password=get_password_hash(password),
+    if payload.password_mode == "custom":
+        if not payload.custom_password:
+            raise HTTPException(status_code=422, detail="Özel şifre seçildiğinde şifre girilmelidir")
+        raw_password = payload.custom_password
+        must_change = payload.must_change_password
+    else:
+        raw_password = passwords.temporary_password()
+        must_change = True
+    user = User(organization_id=org.id, email=email, hashed_password=get_password_hash(raw_password),
                 first_name=payload.first_name.strip(), last_name=payload.last_name.strip(),
-                role=payload.role, is_active=True, is_verified=True, must_change_password=True)
+                role=payload.role, is_active=True, is_verified=True, must_change_password=must_change)
     db.add(user)
     await db.flush()
-    _audit(db, request, operator, "kullanici_olustur", org.id, email=email, role=payload.role.value)
+    _audit(db, request, operator, "kullanici_olustur", org.id, email=email, role=payload.role.value, mode=payload.password_mode)
     db.add(AuditLog(organization_id=org.id, user_id=user.id, action="platform_personel_olustur",
-                    details={"by": operator.email, "email": email, "role": payload.role.value}))
+                    details={"by": operator.email, "email": email, "role": payload.role.value, "mode": payload.password_mode}))
     await db.commit()
-    login_url = f"{await site_url(db, org)}/giris"
-    email_sent = await passwords.send_credentials_email(user, login_url, password, organization=org.name, welcome=True)
-    return {"email": email, "temporary_password": password, "login_url": login_url, "email_sent": email_sent}
+    setup = await _build_password_setup(db, org, user, payload.expires_hours)
+    email_sent = False
+    if payload.send_email:
+        if payload.password_mode == "setup_link":
+            email_sent = await _send_setup_link_email(user, setup["setup_url"], org.name, payload.expires_hours)
+        else:
+            email_sent = await passwords.send_credentials_email(user, setup["login_url"], raw_password, organization=org.name, welcome=True)
+    return {
+        "email": email,
+        "mode": payload.password_mode,
+        "temporary_password": None if payload.password_mode == "setup_link" else raw_password,
+        "email_sent": email_sent,
+        **setup,
+    }
 
 
 @router.patch("/organizations/{org_id}/users/{user_id}")
@@ -626,24 +790,54 @@ async def update_org_user(org_id: UUID, user_id: UUID, payload: OrgUserUpdate, r
 
 
 @router.post("/organizations/{org_id}/users/{user_id}/reset-password")
-async def reset_user_password(org_id: UUID, user_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
+async def reset_user_password(org_id: UUID, user_id: UUID, request: Request,
+                              body: Optional[OrgUserPasswordResetIn] = None,
+                              db: AsyncSession = Depends(get_db),
                               operator: PlatformUser = Depends(get_platform_user)):
-    """New temporary password for one of the organisation's users, shown once and never stored in
-    clear. The user is signed out everywhere; both audit logs record who did it."""
+    """Reset or issue a password setup link/QR for one of the organisation's users.
+    Supports `temp` (generated), `custom` (manual), and `setup_link` (QR + one-time link)."""
+    body = body or OrgUserPasswordResetIn()
     org = await _org_or_404(db, org_id)
-    user = (await db.execute(select(User).where(User.id == user_id, User.organization_id == org.id))).scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
-    password = passwords.temporary_password()
-    await passwords.set_password(db, user, password)
-    user.must_change_password = True
-    _audit(db, request, operator, "kullanici_sifre_sifirla", org.id, email=user.email)
+    user = await _org_user(db, org, user_id)
+    if user.role == UserRole.PLATFORM_ADMIN:
+        raise HTTPException(status_code=403, detail="Sistem yöneticisi şifresi buradan sıfırlanamaz")
+
+    if body.mode == "setup_link":
+        setup = await _build_password_setup(db, org, user, body.expires_hours)
+        _audit(db, request, operator, "kullanici_sifre_sifirla", org.id, email=user.email, mode="setup_link")
+        db.add(AuditLog(organization_id=org.id, user_id=user.id, action="platform_sifre_sifirla",
+                        details={"by": operator.email, "email": user.email, "mode": "setup_link"}))
+        await db.commit()
+        email_sent = await _send_setup_link_email(user, setup["setup_url"], org.name, body.expires_hours) if body.send_email else False
+        return {"email": user.email, "mode": "setup_link", "temporary_password": None, "email_sent": email_sent, **setup}
+
+    if body.mode == "custom":
+        if not body.custom_password:
+            raise HTTPException(status_code=422, detail="Özel şifre girilmelidir")
+        raw_password = body.custom_password
+        must_change = body.must_change_password
+    else:
+        raw_password = passwords.temporary_password()
+        must_change = True
+
+    await passwords.set_password(db, user, raw_password)
+    user.must_change_password = must_change
+    _audit(db, request, operator, "kullanici_sifre_sifirla", org.id, email=user.email, mode=body.mode)
     db.add(AuditLog(organization_id=org.id, user_id=user.id, action="platform_sifre_sifirla",
-                    details={"by": operator.email, "email": user.email}))
+                    details={"by": operator.email, "email": user.email, "mode": body.mode}))
     await db.commit()
-    login_url = f"{await site_url(db, org)}/giris"
-    email_sent = await passwords.send_credentials_email(user, login_url, password, organization=org.name, welcome=False)
-    return {"email": user.email, "temporary_password": password, "login_url": login_url, "email_sent": email_sent}
+    setup = await _build_password_setup(db, org, user, body.expires_hours)
+    email_sent = (
+        await passwords.send_credentials_email(user, setup["login_url"], raw_password, organization=org.name, welcome=False)
+        if body.send_email else False
+    )
+    return {
+        "email": user.email,
+        "mode": body.mode,
+        "temporary_password": raw_password,
+        "email_sent": email_sent,
+        **setup,
+    }
 
 
 class SupportSessionIn(BaseModel):
@@ -672,14 +866,16 @@ async def support_session(org_id: UUID, request: Request, body: Optional[Support
     if not admin:
         raise HTTPException(status_code=409, detail="Kurumda aktif yönetici yok")
     minutes = SIMULATION_TOKEN_MINUTES if body.inline else SUPPORT_TOKEN_MINUTES
-    token = create_access_token({"sub": str(admin.id), "imp": str(operator.id), "org": str(org.id)},
-                                expires_delta=timedelta(minutes=minutes))
+    token = create_access_token(
+        {"sub": str(admin.id), "role": admin.role.value, "imp": str(operator.id), "org": str(org.id)},
+        expires_delta=timedelta(minutes=minutes),
+    )
     mode = "simulasyon" if body.inline else "yeni_sekme"
+    _audit(db, request, operator, "destek_girisi", org.id, as_user=admin.email, mode=mode, renew=body.renew)
     if not body.renew:
-        _audit(db, request, operator, "destek_girisi", org.id, as_user=admin.email, mode=mode)
         db.add(AuditLog(organization_id=org.id, user_id=admin.id, action="platform_destek_girisi",
                         details={"by": operator.email, "minutes": minutes, "mode": mode}))
-        await db.commit()
+    await db.commit()
     if body.inline:
         return {
             "token": token,
@@ -721,7 +917,10 @@ async def update_demo_request(request_id: UUID, payload: DemoStatusIn, request: 
                old=row.status, new=payload.status)
         row.status = payload.status
     if payload.operator_notes is not None:
-        row.operator_notes = payload.operator_notes.strip() or None
+        new_notes = payload.operator_notes.strip() or None
+        if row.operator_notes != new_notes:
+            row.operator_notes = new_notes
+            _audit(db, request, operator, "demo_talebi_not", organization=row.organization)
     await db.commit()
     return _demo_row(row)
 
@@ -729,6 +928,7 @@ async def update_demo_request(request_id: UUID, payload: DemoStatusIn, request: 
 @router.delete("/demo-requests/{request_id}", status_code=204)
 async def delete_demo_request(request_id: UUID, request: Request,
                               db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     row = await db.get(DemoRequest, request_id)
     if not row:
         raise HTTPException(status_code=404, detail="Talep bulunamadı")
@@ -772,6 +972,7 @@ class SubscriptionIn(BaseModel):
 @router.patch("/organizations/{org_id}/subscription")
 async def update_subscription(org_id: UUID, payload: SubscriptionIn, request: Request,
                               db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     org = await _org_or_404(db, org_id)
     org.subscription_status = payload.subscription_status
     org.billing_cycle = payload.billing_cycle
@@ -820,6 +1021,7 @@ async def list_org_payments(org_id: UUID, db: AsyncSession = Depends(get_db),
 @router.post("/organizations/{org_id}/payments", status_code=201)
 async def create_org_payment(org_id: UUID, payload: PaymentIn, request: Request,
                              db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     org = await _org_or_404(db, org_id)
     payment = PlatformPayment(
         organization_id=org.id,
@@ -839,6 +1041,48 @@ async def create_org_payment(org_id: UUID, payload: PaymentIn, request: Request,
     await db.commit()
     await db.refresh(payment)
     return _payment_out(payment)
+
+
+class PaymentPatchIn(BaseModel):
+    status: Optional[str] = Field(default=None, pattern="^(paid|pending|cancelled)$")
+    notes: Optional[str] = Field(default=None, max_length=300)
+
+
+@router.patch("/organizations/{org_id}/payments/{payment_id}")
+async def update_org_payment(org_id: UUID, payment_id: UUID, payload: PaymentPatchIn, request: Request,
+                             db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
+    await _org_or_404(db, org_id)
+    p = (await db.execute(
+        select(PlatformPayment).where(PlatformPayment.id == payment_id, PlatformPayment.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Tahsilat kaydı bulunamadı")
+    if payload.status is not None:
+        p.status = payload.status
+    if payload.notes is not None:
+        p.notes = payload.notes.strip() or None
+    _audit(db, request, operator, "abonelik_tahsilati_guncellendi", org_id,
+           payment_id=str(p.id), status=p.status)
+    await db.commit()
+    await db.refresh(p)
+    return _payment_out(p)
+
+
+@router.delete("/organizations/{org_id}/payments/{payment_id}", status_code=204)
+async def delete_org_payment(org_id: UUID, payment_id: UUID, request: Request,
+                             db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
+    await _org_or_404(db, org_id)
+    p = (await db.execute(
+        select(PlatformPayment).where(PlatformPayment.id == payment_id, PlatformPayment.organization_id == org_id)
+    )).scalar_one_or_none()
+    if not p:
+        raise HTTPException(status_code=404, detail="Tahsilat kaydı bulunamadı")
+    _audit(db, request, operator, "abonelik_tahsilati_silindi", org_id,
+           payment_id=str(p.id), amount_cents=p.amount_cents, period=p.period_label)
+    await db.delete(p)
+    await db.commit()
 
 
 # --- Platform Operators ---------------------------------------------------------
@@ -881,7 +1125,7 @@ async def create_operator(payload: OperatorCreateIn, request: Request,
     exists = (await db.execute(select(PlatformUser.id).where(func.lower(PlatformUser.email) == email))).scalar_one_or_none()
     if exists:
         raise HTTPException(status_code=409, detail="Bu e-posta ile kayıtlı bir platform operatörü zaten var")
-    temp_password = passwords.generate()
+    temp_password = passwords.temporary_password()
     user = PlatformUser(
         email=email,
         full_name=payload.full_name.strip(),
@@ -911,6 +1155,19 @@ async def update_operator(user_id: UUID, payload: OperatorPatchIn, request: Requ
         raise HTTPException(status_code=404, detail="Operatör bulunamadı")
     if target.id == operator.id and payload.is_active is False:
         raise HTTPException(status_code=400, detail="Kendi hesabınızı pasifleştiremezsiniz")
+    if target.id == operator.id and payload.role is not None and payload.role != "admin":
+        raise HTTPException(status_code=400, detail="Kendi yönetici yetkinizi kaldıramazsınız")
+    losing_admin = (target.role or "admin") == "admin" and target.is_active and (
+        payload.is_active is False or (payload.role is not None and payload.role != "admin")
+    )
+    if losing_admin:
+        other_admins = (await db.execute(select(func.count(PlatformUser.id)).where(
+            PlatformUser.is_active.is_(True),
+            func.coalesce(PlatformUser.role, "admin") == "admin",
+            PlatformUser.id != target.id,
+        ))).scalar_one()
+        if not other_admins:
+            raise HTTPException(status_code=409, detail="Son aktif platform yöneticisi; önce başka bir yönetici atayın")
     if payload.is_active is not None:
         target.is_active = payload.is_active
     if payload.role is not None:
@@ -928,7 +1185,7 @@ async def reset_operator_password(user_id: UUID, request: Request,
     target = await db.get(PlatformUser, user_id)
     if not target:
         raise HTTPException(status_code=404, detail="Operatör bulunamadı")
-    temp_password = passwords.generate()
+    temp_password = passwords.temporary_password()
     target.hashed_password = get_password_hash(temp_password)
     target.must_change_password = True
     _audit(db, request, operator, "operator_sifre_sifirlandi", email=target.email)
@@ -948,7 +1205,7 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
     mrr_cents = sum(
         (o.monthly_fee_cents or 0)
         for o in orgs
-        if o.is_active and (o.subscription_status or "active") in ("active", "trial")
+        if o.is_active and (o.subscription_status or "active") == "active"
     )
     status_counts = {"active": 0, "trial": 0, "past_due": 0, "suspended": 0}
     for o in orgs:
@@ -961,6 +1218,7 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
         select(func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0)).where(
             Donation.status == DonationStatus.CONFIRMED,
             Donation.paid_at >= thirty_days_ago,
+            func.coalesce(Donation.currency, "TRY") == "TRY",
         )
     )).one()
     failed_30d = (await db.execute(
@@ -977,12 +1235,17 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
         )
     )).scalar_one()
 
-    # 6-month donation trend across all tenants
+    # 6-month donation trend across all tenants (TRY)
     six_months_ago = (now - timedelta(days=180)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     month_expr = func.date_trunc("month", Donation.paid_at)
     trend_rows = (await db.execute(
         select(month_expr.label("m"), func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
-        .where(Donation.status == DonationStatus.CONFIRMED, Donation.paid_at.isnot(None), Donation.paid_at >= six_months_ago)
+        .where(
+            Donation.status == DonationStatus.CONFIRMED,
+            Donation.paid_at.isnot(None),
+            Donation.paid_at >= six_months_ago,
+            func.coalesce(Donation.currency, "TRY") == "TRY",
+        )
         .group_by(month_expr)
         .order_by(month_expr)
     )).all()
@@ -992,13 +1255,19 @@ async def platform_metrics(db: AsyncSession = Depends(get_db), _: PlatformUser =
     ]
 
     user_counts = dict((await db.execute(
-        select(User.organization_id, func.count(User.id)).where(User.is_active.is_(True)).group_by(User.organization_id)
+        select(User.organization_id, func.count(User.id))
+        .where(User.is_active.is_(True), User.role != UserRole.PLATFORM_ADMIN)
+        .group_by(User.organization_id)
     )).all())
     org_30d = {
         oid: (int(cnt), int(tot or 0))
         for oid, cnt, tot in (await db.execute(
             select(Donation.organization_id, func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
-            .where(Donation.status == DonationStatus.CONFIRMED, Donation.paid_at >= thirty_days_ago)
+            .where(
+                Donation.status == DonationStatus.CONFIRMED,
+                Donation.paid_at >= thirty_days_ago,
+                func.coalesce(Donation.currency, "TRY") == "TRY",
+            )
             .group_by(Donation.organization_id)
         )).all()
     }
@@ -1112,6 +1381,7 @@ async def list_broadcasts(db: AsyncSession = Depends(get_db), _: PlatformUser = 
 @router.post("/broadcasts", status_code=201)
 async def create_broadcast(payload: BroadcastIn, request: Request,
                            db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     b = PlatformBroadcast(
         created_by_id=operator.id,
         title=payload.title.strip(),
@@ -1134,6 +1404,7 @@ class BroadcastPatchIn(BaseModel):
 @router.patch("/broadcasts/{broadcast_id}")
 async def toggle_broadcast(broadcast_id: UUID, payload: BroadcastPatchIn, request: Request,
                            db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     b = await db.get(PlatformBroadcast, broadcast_id)
     if not b:
         raise HTTPException(status_code=404, detail="Duyuru bulunamadı")
@@ -1147,6 +1418,7 @@ async def toggle_broadcast(broadcast_id: UUID, payload: BroadcastPatchIn, reques
 @router.delete("/broadcasts/{broadcast_id}", status_code=204)
 async def delete_broadcast(broadcast_id: UUID, request: Request,
                            db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    _require_platform_admin(operator)
     b = await db.get(PlatformBroadcast, broadcast_id)
     if not b:
         raise HTTPException(status_code=404, detail="Duyuru bulunamadı")
@@ -1165,6 +1437,8 @@ class AlertDismissIn(BaseModel):
 @router.post("/alerts/dismiss", status_code=201)
 async def dismiss_alert(payload: AlertDismissIn, request: Request,
                         db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    if payload.organization_id is not None:
+        await _org_or_404(db, payload.organization_id)
     existing = (await db.execute(
         select(PlatformAlertDismissal.id).where(
             PlatformAlertDismissal.organization_id == payload.organization_id,
@@ -1184,9 +1458,12 @@ async def dismiss_alert(payload: AlertDismissIn, request: Request,
 
 
 @router.delete("/alerts/dismiss", status_code=200)
-async def restore_alerts(db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+async def restore_alerts(request: Request, db: AsyncSession = Depends(get_db),
+                         operator: PlatformUser = Depends(get_platform_user)):
     from sqlalchemy import delete as sa_delete
+    _require_platform_admin(operator)
     await db.execute(sa_delete(PlatformAlertDismissal))
+    _audit(db, request, operator, "uyarilar_geri_yuklendi")
     await db.commit()
     return {"ok": True}
 
@@ -1213,12 +1490,22 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
     domain_rows = (await db.execute(
         select(OrganizationDomain.domain).where(OrganizationDomain.organization_id == org.id)
     )).scalars().all()
+    hosts_to_forget = []
     if org.subdomain:
-        forget_host(f"{org.subdomain}.{settings.PLATFORM_BASE_DOMAIN}")
+        hosts_to_forget.append(f"{org.subdomain}.{settings.PLATFORM_BASE_DOMAIN}")
     for dom in domain_rows:
-        forget_host(dom)
+        hosts_to_forget.extend([dom, twin(dom)])
+    if hosts_to_forget:
+        await forget_host(*hosts_to_forget)
 
     org_user_ids = select(User.id).where(User.organization_id == org.id)
+    from app.models.donor import Donor
+    org_donor_ids = select(Donor.id).where(Donor.organization_id == org.id)
+    student_table = Base.metadata.tables.get("students")
+    org_student_ids = (
+        select(student_table.c.id).where(student_table.c.organization_id == org.id)
+        if student_table is not None and "organization_id" in student_table.c else None
+    )
 
     # Clear self-references and child tables in reverse dependency order.
     for table in reversed(Base.metadata.sorted_tables):
@@ -1228,15 +1515,24 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
             if "parent_id" in table.c:
                 await db.execute(sa_update(table).where(table.c.organization_id == org.id).values(parent_id=None))
             if table.name == "audit_logs":
-                await db.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only"))
+                has_trig = (await db.execute(text(
+                    "SELECT 1 FROM pg_trigger WHERE tgname = 'audit_logs_append_only' AND NOT tgisinternal"
+                ))).scalar_one_or_none()
+                if has_trig:
+                    await db.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only"))
                 try:
                     await db.execute(sa_delete(table).where(table.c.organization_id == org.id))
                 finally:
-                    await db.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only"))
+                    if has_trig:
+                        await db.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only"))
             else:
                 await db.execute(sa_delete(table).where(table.c.organization_id == org.id))
         elif "user_id" in table.c:
             await db.execute(sa_delete(table).where(table.c.user_id.in_(org_user_ids)))
+        elif "donor_id" in table.c:
+            await db.execute(sa_delete(table).where(table.c.donor_id.in_(org_donor_ids)))
+        elif "student_id" in table.c and org_student_ids is not None:
+            await db.execute(sa_delete(table).where(table.c.student_id.in_(org_student_ids)))
 
     await db.execute(
         sa_update(PlatformAuditLog).where(PlatformAuditLog.organization_id == org.id).values(organization_id=None)
@@ -1251,7 +1547,8 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
 
 @router.post("/organizations/{org_id}/send-renewal-reminder")
 async def send_renewal_reminder(org_id: UUID, request: Request,
-                                db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+                                db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user),
+                                _: None = Depends(rate_limit("platform-renewal-reminder", limit=20, window_seconds=3600))):
     import asyncio
     from html import escape
 
@@ -1271,7 +1568,10 @@ async def send_renewal_reminder(org_id: UUID, request: Request,
         f"<b>Aylık Ücret:</b> {escape(fee_str)}</p>"
         f"<p>Kesintisiz hizmet için ödeme bilgilerinizi platform ekibimizle paylaşabilirsiniz.</p>"
     )
-    ok = await asyncio.to_thread(send_email_task, org.email, f"{org.name} — E-İnfak Abonelik Hatırlatması", html)
+    try:
+        ok = await asyncio.to_thread(send_email_task, org.email, f"{org.name} — E-İnfak Abonelik Hatırlatması", html)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"E-posta gönderilemedi: {exc}") from exc
     if not ok:
         raise HTTPException(status_code=502, detail="E-posta gönderilemedi")
     _audit(db, request, operator, "abonelik_hatirlatmasi", org.id, email=org.email)
@@ -1285,25 +1585,28 @@ class TestSmsIn(BaseModel):
 
 @router.post("/organizations/{org_id}/test-sms")
 async def send_test_sms(org_id: UUID, payload: TestSmsIn, request: Request,
-                        db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+                        db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user),
+                        _: None = Depends(rate_limit("platform-test-sms", limit=15, window_seconds=3600))):
     import asyncio
-    from app.sms import deliver
+    from app.sms import SmsError, deliver
+    from app.services.tenant_credentials import sms_account
 
     org = await _org_or_404(db, org_id)
-    provider = (org.settings or {}).get("sms_provider") or "netgsm"
     try:
-        creds = await get_credentials(db, org.id, provider)
-    except CredentialsUnavailable:
-        creds = {}
-    if not creds and (org.settings or {}).get("sms_platform_fallback") is not False:
-        creds = {"provider": provider}
-    account = {"provider": provider, **creds}
-    result = await asyncio.to_thread(deliver, payload.phone.strip(), f"{org.name} E-Infak test SMS mesajidir.", account)
-    if not result.ok:
-        raise HTTPException(status_code=502, detail=result.error or "Test SMS gönderilemedi")
-    _audit(db, request, operator, "test_sms_gonderildi", org.id, phone=payload.phone.strip(), provider=provider)
+        account = await sms_account(db, org.id)
+    except CredentialsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not account:
+        raise HTTPException(status_code=400, detail="Kurum için SMS sağlayıcı bilgisi veya platform yedeği tanımlı değil")
+    try:
+        result = await asyncio.to_thread(deliver, payload.phone.strip(), f"{org.name} E-Infak test SMS mesajidir.", account)
+    except SmsError as exc:
+        raise HTTPException(status_code=502, detail=str(exc) or "Test SMS gönderilemedi") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Test SMS gönderilemedi: {exc}") from exc
+    _audit(db, request, operator, "test_sms_gonderildi", org.id, phone=payload.phone.strip(), provider=result.provider)
     await db.commit()
-    return {"ok": True, "provider": provider, "reference": result.reference}
+    return {"ok": True, "provider": result.provider, "reference": result.reference}
 
 
 @router.get("/organizations/{org_id}/summary.pdf")
@@ -1314,12 +1617,19 @@ async def organization_summary_pdf(org_id: UUID, db: AsyncSession = Depends(get_
 
     org = await _org_or_404(db, org_id)
     user_count = (await db.execute(
-        select(func.count(User.id)).where(User.organization_id == org.id, User.is_active.is_(True))
+        select(func.count(User.id)).where(
+            User.organization_id == org.id, User.is_active.is_(True), User.role != UserRole.PLATFORM_ADMIN
+        )
     )).scalar_one()
     since_30d = datetime.now(timezone.utc) - timedelta(days=30)
     d30 = (await db.execute(
         select(func.count(Donation.id), func.coalesce(func.sum(Donation.amount_cents), 0))
-        .where(Donation.organization_id == org.id, Donation.status == DonationStatus.CONFIRMED, Donation.paid_at >= since_30d)
+        .where(
+            Donation.organization_id == org.id,
+            Donation.status == DonationStatus.CONFIRMED,
+            Donation.paid_at >= since_30d,
+            func.coalesce(Donation.currency, "TRY") == "TRY",
+        )
     )).one()
     payments = (await db.execute(
         select(PlatformPayment).where(PlatformPayment.organization_id == org.id).order_by(PlatformPayment.paid_at.desc()).limit(20)
@@ -1437,6 +1747,7 @@ async def reply_platform_ticket(ticket_id: UUID, payload: TicketReplyIn, request
         body=payload.body.strip(),
     ))
     t.status = "answered"
+    t.updated_at = datetime.now(timezone.utc)
     _audit(db, request, operator, "destek_talebi_yanitlandi", t.organization_id, subject=t.subject)
     await db.commit()
     return {"ok": True}
@@ -1453,6 +1764,7 @@ async def update_platform_ticket_status(ticket_id: UUID, payload: TicketStatusIn
     if not t:
         raise HTTPException(status_code=404, detail="Talep bulunamadı")
     t.status = payload.status
+    t.updated_at = datetime.now(timezone.utc)
     _audit(db, request, operator, "destek_talebi_durum", t.organization_id, subject=t.subject, status=payload.status)
     await db.commit()
     return {"ok": True, "status": t.status}
@@ -1471,6 +1783,7 @@ async def platform_payment_receipt_pdf(org_id: UUID, payment_id: UUID, db: Async
     if not p:
         raise HTTPException(status_code=404, detail="Tahsilat kaydı bulunamadı")
 
+    status_label = {"paid": "Ödendi", "pending": "Beklemede", "cancelled": "İptal"}.get(p.status or "paid", p.status or "Ödendi")
     pdf_bytes = build_report_pdf(
         title="E-İnfak Platform SaaS Tahsilat Makbuzu",
         subtitle=f"Kurum: {org.name} ({org.legal_name})",
@@ -1482,7 +1795,7 @@ async def platform_payment_receipt_pdf(org_id: UUID, payment_id: UUID, db: Async
             f"{p.amount_cents / 100:,.2f} {p.currency}",
         ]],
         org_name="E-İnfak Platform",
-        summary={"Makbuz No": str(p.id)[:8].upper(), "Durum": "Ödendi"},
+        summary={"Makbuz No": str(p.id)[:8].upper(), "Durum": status_label},
     )
     return Response(
         content=pdf_bytes,

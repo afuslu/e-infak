@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import {
   ArrowLeft,
@@ -117,22 +118,25 @@ export function SiteBuilderEditor() {
   const [data, setData] = useState<HomeData | null>(null)
   const [device, setDevice] = useState<Device>('desktop')
   const [lang, setLang] = useState('tr')
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
   const [leftTab, setLeftTab] = useState<'add' | 'pages' | 'layers' | 'theme'>(() => {
-    if (typeof window === 'undefined') return 'add'
-    const t = new URLSearchParams(window.location.search).get('tab')
-    if (t === 'theme') return 'theme'
-    if (t === 'pages' || t === 'menu') return 'pages'
-    if (t === 'layers') return 'layers'
+    if (tabParam === 'theme') return 'theme'
+    if (tabParam === 'pages' || tabParam === 'menu') return 'pages'
+    if (tabParam === 'layers') return 'layers'
     return 'add'
   })
   const [addSubTab, setAddSubTab] = useState<'blocks' | 'library' | 'media'>('blocks')
   const [mediaAssets, setMediaAssets] = useState<MediaAsset[] | null>(null)
   const [mediaLoading, setMediaLoading] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
-  const [pagesSubTab, setPagesSubTab] = useState<'pages' | 'menu'>(() => {
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'menu') return 'menu'
-    return 'pages'
-  })
+  const [pagesSubTab, setPagesSubTab] = useState<'pages' | 'menu'>(() => (tabParam === 'menu' ? 'menu' : 'pages'))
+  useEffect(() => {
+    if (tabParam === 'theme') setLeftTab('theme')
+    else if (tabParam === 'pages') { setLeftTab('pages'); setPagesSubTab('pages') }
+    else if (tabParam === 'menu') { setLeftTab('pages'); setPagesSubTab('menu') }
+    else if (tabParam === 'layers') setLeftTab('layers')
+  }, [tabParam])
   const [settingsPageId, setSettingsPageId] = useState<string | null>(null)
   const [library, setLibrary] = useState<Library | null>(null)
   const [saved, setSaved] = useState<SavedBlock[]>([])

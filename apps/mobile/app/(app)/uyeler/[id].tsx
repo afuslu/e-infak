@@ -8,15 +8,17 @@ import { af } from '@/lib/api';
 import { can } from '@/lib/access';
 import { call, date, idempotencyKey, isDialable, money } from '@/lib/format';
 import { Member, MemberDue, PAYMENT_OPTIONS } from '@/api/types';
-import { Badge, Btn, Card, Chips, Field, QueryView, Row, Screen, SectionTitle, Sheet, SwitchRow, ui } from '@/components/ui';
+import { Badge, Btn, Card, Chips, Field, QueryView, Row, Screen, SectionTitle, Sheet, SwitchRow, useUi } from '@/components/ui';
 import { notify, notifyError } from '@/components/toast';
-import { colors, space } from '@/theme';
+import { space, useTheme } from '@/theme';
 
 export default function MemberDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const query = useQuery({ queryKey: ['member', id], queryFn: () => af<Member & { dues: MemberDue[] }>(`/members/${id}`) });
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [payOpen, setPayOpen] = useState(false);

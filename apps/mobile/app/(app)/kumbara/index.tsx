@@ -8,8 +8,8 @@ import { date, daysAgo, money } from '@/lib/format';
 import { useDebounced } from '@/lib/paged';
 import { remember } from '@/lib/selected';
 import { MoneyBox } from '@/api/types';
-import { Badge, Btn, Chips, Empty, ListItem, QueryView, Screen, SearchBar, ui } from '@/components/ui';
-import { colors } from '@/theme';
+import { Badge, Btn, Chips, Empty, ListItem, QueryView, Screen, SearchBar, useUi } from '@/components/ui';
+import { useTheme } from '@/theme';
 
 const FILTERS = [
   { value: 'all', label: 'Tümü' },
@@ -19,6 +19,8 @@ const FILTERS = [
 
 export default function MoneyBoxes() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const ui = useUi();
   const [term, setTerm] = useState('');
   const [filter, setFilter] = useState('all');
   const q = useDebounced(term);

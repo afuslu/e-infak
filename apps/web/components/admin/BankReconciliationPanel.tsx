@@ -85,7 +85,7 @@ const STATUS_META: Record<string, [string, string]> = {
 const EXPENSE_CATEGORIES = ['Kira', 'Personel', 'Fatura', 'Yardim', 'Banka Masrafi', 'Diger']
 
 /** Bank reconciliation tools shown as a tab of Gelen Havaleler (statement upload lives in that page). */
-export function BankReconciliationPanel() {
+export function BankReconciliationPanel({ onBackToTransfers }: { onBackToTransfers?: () => void } = {}) {
   const [transactions, setTransactions] = useState<BankTransaction[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
   const [imports, setImports] = useState<ImportHistory[]>([])
@@ -261,7 +261,7 @@ export function BankReconciliationPanel() {
     <div className="space-y-6">
       <p className="text-xs text-gray-500">Online havale siparişlerini (HVL- referanslı) banka hareketleriyle eşleştirin, giden ödemeleri gidere çevirin ve yüklenen ekstreleri yönetin. Ekstre yükleme bu sayfanın Havaleler sekmesindedir.</p>
       <div className="flex flex-wrap gap-2">
-            <Link href="/admin/banka-hesaplari" className={ghostButton}>Banka Hesapları</Link>
+            <Link href="/admin/banka-odeme?sekme=banka-hesaplari" className={ghostButton}>Banka Hesapları</Link>
             <button type="button" onClick={() => setShowImports((v) => !v)} className={ghostButton}>
               Ekstre Geçmişi ({imports.length})
             </button>
@@ -541,9 +541,15 @@ export function BankReconciliationPanel() {
                               <button type="button" onClick={() => openResolveModal(t)} className={ghostButton}>
                                 Sipariş Eşleştir
                               </button>
-                              <Link href="/admin/gelen-havaleler" className={ghostButton}>
-                                Bağışa Dönüştür
-                              </Link>
+                              {onBackToTransfers ? (
+                                <button type="button" onClick={onBackToTransfers} className={ghostButton}>
+                                  Bağışa Dönüştür
+                                </button>
+                              ) : (
+                                <Link href="/admin/muhasebe?sekme=gelen-havaleler" className={ghostButton}>
+                                  Bağışa Dönüştür
+                                </Link>
+                              )}
                               <button type="button" onClick={() => ignoreTx(t)} className={ghostButton}>
                                 Yok Say
                               </button>
@@ -599,7 +605,11 @@ export function BankReconciliationPanel() {
             ) : candidates.length === 0 ? (
               <p className="rounded-lg bg-gray-50 p-4 text-center text-xs text-gray-500">
                 Bu tutarda bekleyen havale siparişi bulunamadı. Bağış olarak kaydetmek için{' '}
-                <Link href="/admin/gelen-havaleler" className="font-bold text-primary-700 underline">Gelen Havaleler</Link> sayfasını kullanabilirsiniz.
+                {onBackToTransfers ? (
+                  <button type="button" onClick={() => { setResolveTx(null); onBackToTransfers() }} className="font-bold text-primary-700 underline">Gelen Havaleler</button>
+                ) : (
+                  <Link href="/admin/muhasebe?sekme=gelen-havaleler" className="font-bold text-primary-700 underline">Gelen Havaleler</Link>
+                )} sekmesini kullanabilirsiniz.
               </p>
             ) : (
               <div className="max-h-72 space-y-2 overflow-y-auto">

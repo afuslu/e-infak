@@ -11,7 +11,7 @@ import { Btn, Loading } from '@/components/ui';
 import { ForcePassword } from '@/components/ForcePassword';
 import { authenticate, biometricEnabled } from '@/lib/biometric';
 import { setupNotificationHandler } from '@/lib/notifications';
-import { colors, font, space, ThemeProvider, useTheme } from '@/theme';
+import { font, space, ThemeProvider, useTheme } from '@/theme';
 
 setupNotificationHandler();
 
@@ -114,7 +114,7 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.xl, backgroundColor: colors.bg },
-  lockTitle: { fontSize: font.xl, fontWeight: '700', color: colors.text },
-  lockText: { fontSize: font.md, color: colors.muted, textAlign: 'center', marginBottom: space.sm },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.xl },
+  lockTitle: { fontSize: font.xl, fontWeight: '700' },
+  lockText: { fontSize: font.md, textAlign: 'center', marginBottom: space.sm },
 });

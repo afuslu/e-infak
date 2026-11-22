@@ -8,9 +8,9 @@ import { dateTime } from '@/lib/format';
 import { usePaged } from '@/lib/paged';
 import { openNotificationTarget } from '@/lib/notificationRoute';
 import { StaffNotification } from '@/api/inflow';
-import { Btn, Chips, Empty, ErrorView, Loading, ui } from '@/components/ui';
+import { Btn, Chips, Empty, ErrorView, Loading, useUi } from '@/components/ui';
 import { notifyError } from '@/components/toast';
-import { colors, font, radius, space } from '@/theme';
+import { font, radius, space, useTheme } from '@/theme';
 
 const FILTERS = [
   { value: 'all', label: 'Tümü' },
@@ -24,6 +24,7 @@ const KINDS: Record<string, string | undefined> = {
 };
 
 function Icon({ n }: { n: StaffNotification }) {
+  const { colors } = useTheme();
   const size = 20;
   if (n.kind === 'payment_failed') return <AlertTriangle size={size} color={colors.danger} />;
   if (n.kind === 'refund') return <Undo2 size={size} color={colors.danger} />;
@@ -37,6 +38,8 @@ function Icon({ n }: { n: StaffNotification }) {
 export default function Inbox() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { colors, dark } = useTheme();
+  const ui = useUi();
   const [filter, setFilter] = useState('all');
   const list = usePaged<StaffNotification>(['notifications', filter], '/mobile/notifications', { kind: KINDS[filter] }, 30);
   const unread: number = list.first?.unread ?? 0;
@@ -90,14 +93,18 @@ export default function Inbox() {
         contentContainerStyle={{ paddingBottom: space.xl }}
         renderItem={({ item }) => (
           <Pressable onPress={() => open(item)} accessibilityRole="button"
-            style={({ pressed }) => [styles.row, !item.read && { backgroundColor: '#F2FBF7' }, pressed && { opacity: 0.7 }]}>
-            <View style={styles.icon}><Icon n={item} /></View>
+            style={({ pressed }) => [
+              styles.row,
+              { backgroundColor: item.read ? colors.card : (dark ? 'rgba(16, 185, 129, 0.12)' : '#F2FBF7') },
+              pressed && { opacity: 0.7 },
+            ]}>
+            <View style={[styles.icon, { backgroundColor: dark ? '#334155' : '#F1F5F3' }]}><Icon n={item} /></View>
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={[styles.title, !item.read && { fontWeight: '800' }]}>{item.title}</Text>
-              <Text style={styles.body}>{item.body}</Text>
-              <Text style={styles.time}>{dateTime(item.created_at)}</Text>
+              <Text style={[styles.title, { color: colors.text }, !item.read && { fontWeight: '800' }]}>{item.title}</Text>
+              <Text style={[styles.body, { color: colors.muted }]}>{item.body}</Text>
+              <Text style={[styles.time, { color: colors.faint }]}>{dateTime(item.created_at)}</Text>
             </View>
-            {!item.read ? <View style={styles.dot} /> : null}
+            {!item.read ? <View style={[styles.dot, { backgroundColor: colors.primary }]} /> : null}
           </Pressable>
         )}
       />
@@ -106,10 +113,10 @@ export default function Inbox() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, backgroundColor: colors.card },
-  icon: { width: 38, height: 38, borderRadius: radius.pill, backgroundColor: '#F1F5F3', alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: font.md, fontWeight: '600', color: colors.text },
-  body: { fontSize: font.sm, color: colors.muted, lineHeight: 19 },
-  time: { fontSize: font.xs, color: colors.faint },
-  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary, marginTop: 6 },
+  row: { flexDirection: 'row', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md },
+  icon: { width: 38, height: 38, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: font.md, fontWeight: '600' },
+  body: { fontSize: font.sm, lineHeight: 19 },
+  time: { fontSize: font.xs },
+  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 6 },
 });

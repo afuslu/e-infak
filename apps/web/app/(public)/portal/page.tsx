@@ -9,5 +9,11 @@ export const metadata: Metadata = {
 
 export default async function PortalPage() {
   const site = await getSite()
-  return <PortalClient siteName={site?.name || 'E-İnfak'} />
+  return (
+    <PortalClient
+      siteName={site?.name || 'E-İnfak'}
+      siteLogo={site?.logo_dark_url || site?.logo_url || null}
+      siteTagline={site?.tagline || null}
+    />
+  )
 }

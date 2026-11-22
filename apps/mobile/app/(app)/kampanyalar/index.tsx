@@ -5,13 +5,15 @@ import { Plus } from 'lucide-react-native';
 import { money } from '@/lib/format';
 import { useDebounced, usePaged } from '@/lib/paged';
 import { Campaign, CAMPAIGN_STATUS } from '@/api/types';
-import { Badge, Chips, Empty, ErrorView, Fab, ListItem, Loading, SearchBar, ui } from '@/components/ui';
-import { colors, space } from '@/theme';
+import { Badge, Chips, Empty, ErrorView, Fab, ListItem, Loading, SearchBar, useUi } from '@/components/ui';
+import { space, useTheme } from '@/theme';
 
 const FILTERS = [{ value: 'all', label: 'Tümü' }, ...Object.entries(CAMPAIGN_STATUS).map(([value, s]) => ({ value, label: s.label }))];
 
 export default function Campaigns() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const ui = useUi();
   const [term, setTerm] = useState('');
   const [status, setStatus] = useState('all');
   const q = useDebounced(term);

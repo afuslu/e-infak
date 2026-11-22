@@ -2,7 +2,7 @@ from contextvars import ContextVar
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from typing import Optional
 import enum
@@ -108,16 +108,49 @@ async def get_current_user(
                 detail="User does not belong to this organization",
             )
 
-    from app.services.ip_rules import denial
-    reason = await denial(db, user, request.client.host if request.client else None)
-    if reason:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
+    imp_val = payload.get("imp")
+    if imp_val:
+        from app.models.platform import PlatformUser
+        imp_op = None
+        try:
+            imp_op = await db.get(PlatformUser, UUID(str(imp_val)))
+        except ValueError:
+            imp_op = (await db.execute(
+                select(PlatformUser).where(func.lower(PlatformUser.email) == str(imp_val).strip().lower())
+            )).scalar_one_or_none()
+        if not imp_op or not imp_op.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Platform destek oturumu artık geçerli değil",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    else:
+        from app.services.ip_rules import denial
+        reason = await denial(db, user, request.client.host if request.client else None)
+        if reason:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=reason)
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not request.url.path.startswith("/api/v1/auth/"):
+            from datetime import datetime, timezone
+            from app.models.platform import PlatformBroadcast
+            now_utc = datetime.now(timezone.utc)
+            maint = (await db.execute(
+                select(PlatformBroadcast.title).where(
+                    PlatformBroadcast.is_active.is_(True),
+                    PlatformBroadcast.maintenance_mode.is_(True),
+                    (PlatformBroadcast.expires_at.is_(None) | (PlatformBroadcast.expires_at > now_utc)),
+                ).limit(1)
+            )).scalar_one_or_none()
+            if maint:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Sistem bakım modunda ({maint}); yazma işlemleri geçici olarak durduruldu",
+                )
     # Platform support sessions ("imp") act for the organisation and are never held up by it.
-    if (user.must_change_password and not payload.get("imp")
+    if (user.must_change_password and not imp_val
             and not request.url.path.endswith(PASSWORD_CHANGE_PATHS)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_CHANGE_REQUIRED)
     _viewer.set(user)
-    current_impersonator.set(str(payload["imp"]) if payload.get("imp") else None)
+    current_impersonator.set(str(imp_val) if imp_val else None)
     return user
 
 

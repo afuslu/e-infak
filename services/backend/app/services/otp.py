@@ -59,9 +59,14 @@ def normalized(phone: str) -> str:
     return key
 
 
-def issue(scope: str, tenant: str, phone: str, client_ip: str) -> str:
-    """Create a code for (scope, tenant, phone) after enforcing every sending limit."""
-    key = normalized(phone)
+def normalized_email(email: str) -> str:
+    cleaned = (email or "").strip().lower()
+    if not cleaned or "@" not in cleaned or "." not in cleaned.split("@")[-1] or len(cleaned) > 254:
+        raise HTTPException(status_code=400, detail="Geçerli bir e-posta adresi girin.")
+    return cleaned
+
+
+def _issue_for_key(scope: str, tenant: str, key: str, client_ip: str) -> str:
     base = f"otp:{scope}:{tenant}:{key}"
     client = _redis()
     if _hit(client, f"otp-ip:{scope}:{tenant}:{client_ip}", 3600) > PER_IP_PER_HOUR:
@@ -69,7 +74,7 @@ def issue(scope: str, tenant: str, phone: str, client_ip: str) -> str:
     if _hit(client, f"otp-tenant:{scope}:{tenant}", 3600) > PER_TENANT_PER_HOUR:
         raise HTTPException(status_code=429, detail="Şu an çok fazla kod isteniyor, lütfen biraz sonra deneyin.")
     if _hit(client, f"otp-day:{base}", 86400) > PER_PHONE_PER_DAY:
-        raise HTTPException(status_code=429, detail="Bu numara için bugün çok fazla kod istendi.")
+        raise HTTPException(status_code=429, detail="Bu hesap için bugün çok fazla kod istendi.")
     if _hit(client, f"otp-cooldown:{base}", COOLDOWN) > 1:
         raise HTTPException(status_code=429, detail="Yeni kod istemeden önce 60 saniye bekleyin.")
     code = f"{secrets.randbelow(900000) + 100000}"
@@ -87,9 +92,7 @@ def issue(scope: str, tenant: str, phone: str, client_ip: str) -> str:
     return code
 
 
-def verify(scope: str, tenant: str, phone: str, code: str) -> str:
-    """Check a code; returns the normalized phone key on success, raises otherwise."""
-    key = normalized(phone)
+def _verify_for_key(scope: str, tenant: str, key: str, code: str) -> str:
     code = (code or "").strip()
     if not code:
         raise HTTPException(status_code=400, detail="Doğrulama kodu gereklidir.")
@@ -117,4 +120,26 @@ def verify(scope: str, tenant: str, phone: str, code: str) -> str:
             pass
     with _lock:
         _codes.pop(base, None)
+    return key
+
+
+def issue(scope: str, tenant: str, phone: str, client_ip: str) -> str:
+    """Create a code for (scope, tenant, phone) after enforcing every sending limit."""
+    return _issue_for_key(scope, tenant, normalized(phone), client_ip)
+
+
+def verify(scope: str, tenant: str, phone: str, code: str) -> str:
+    """Check a code; returns the normalized phone key on success, raises otherwise."""
+    return _verify_for_key(scope, tenant, normalized(phone), code)
+
+
+def issue_email(scope: str, tenant: str, email: str, client_ip: str) -> str:
+    """Create a code for (scope, tenant, email) after enforcing every sending limit."""
+    return _issue_for_key(scope, tenant, f"email:{normalized_email(email)}", client_ip)
+
+
+def verify_email(scope: str, tenant: str, email: str, code: str) -> str:
+    """Check an email OTP; returns the normalized email address on success."""
+    key = normalized_email(email)
+    _verify_for_key(scope, tenant, f"email:{key}", code)
     return key

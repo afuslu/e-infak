@@ -8,7 +8,7 @@ import {
   AlertTriangle, ArrowDownToLine, Bell, CheckCircle2, ChevronDown, ExternalLink, KeyRound, LogOut,
   PackageCheck, Search, Sparkles, SunMoon, X,
 } from 'lucide-react'
-import { adminGet, hasFeature, useAdminAccess, v1Get } from '../../lib/admin-access'
+import { adminGet, hasFeature, hasModule, useAdminAccess, v1Get } from '../../lib/admin-access'
 import { type NavGroup, searchKey } from './admin-nav'
 
 /* -------------------------------------------------------------------------- */
@@ -181,8 +181,8 @@ export function AdminNotificationsBell() {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const canTransfers = hasFeature(access, 'bank_transactions')
-  const canSms = hasFeature(access, 'sms')
+  const canTransfers = !!access && hasFeature(access, 'bank_transactions') && (hasModule(access, 'bank') || hasModule(access, 'finance'))
+  const canSms = !!access && hasFeature(access, 'sms') && hasModule(access, 'sms')
 
   const { data: transferData } = useQuery({
     queryKey: ['admin-bell-transfers'],

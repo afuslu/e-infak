@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { af } from '@/lib/api';
-import { Btn, Field, Notice, Select, Sheet, ui } from './ui';
+import { Btn, Field, Notice, Select, Sheet, useUi } from './ui';
 import { notify } from './toast';
 
 export type SmsTemplate = { id: string; name: string; body: string; event_label?: string | null; is_active: boolean };
@@ -12,6 +12,7 @@ export function SmsSheet({ visible, onClose, donorId, donationId, phone }: {
   visible: boolean; onClose: () => void; donorId?: string | null; donationId?: string | null; phone?: string | null;
 }) {
   const queryClient = useQueryClient();
+  const ui = useUi();
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);

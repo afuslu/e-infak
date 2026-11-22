@@ -44,14 +44,14 @@ const SUB_LABELS: Record<string, [string, string]> = {
 
 export default function PlatformMetricsPage() {
   const [data, setData] = useState<MetricsData | null>(null)
-  const [health, setHealth] = useState<{ db_ok: boolean; db_ms: number; db_size_mb?: number; redis_ok: boolean; sms_failed_24h: number } | null>(null)
+  const [health, setHealth] = useState<{ db_ok: boolean; db_ms: number; db_size_mb?: number; redis_ok: boolean; sms_failed_24h: number; checked_at?: string } | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     platformCall<MetricsData>('get', '/metrics')
       .then(setData)
       .catch((err) => setError(platformError(err, 'Metrikler yüklenemedi')))
-    platformCall<{ db_ok: boolean; db_ms: number; db_size_mb?: number; redis_ok: boolean; sms_failed_24h: number }>('get', '/health')
+    platformCall<{ db_ok: boolean; db_ms: number; db_size_mb?: number; redis_ok: boolean; sms_failed_24h: number; checked_at?: string }>('get', '/health')
       .then(setHealth)
       .catch(() => undefined)
   }, [])
@@ -81,6 +81,7 @@ export default function PlatformMetricsPage() {
           <span className={`rounded-full px-2.5 py-0.5 font-bold ${health.sms_failed_24h > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'}`}>
             24s Hatalı SMS: {health.sms_failed_24h}
           </span>
+          {health.checked_at && <span className="text-slate-400">Kontrol: {dateTr(health.checked_at)}</span>}
           {data?.plan_counts && (
             <span className="ms-auto font-semibold text-slate-500">
               Paketler: Başlangıç {data.plan_counts.baslangic || 0} · Orta {data.plan_counts.orta || 0} · İleri {data.plan_counts.ileri || 0}
@@ -117,7 +118,7 @@ export default function PlatformMetricsPage() {
               </div>
               <div className="mt-2 text-2xl font-extrabold text-slate-900">{data.total_orgs} Kurum</div>
               <p className="mt-1 text-xs text-slate-500">
-                {data.status_counts.active || 0} aktif · {data.status_counts.trial || 0} deneme · {data.status_counts.past_due || 0} gecikmiş
+                {data.status_counts.active || 0} aktif · {data.status_counts.trial || 0} deneme · {data.status_counts.past_due || 0} gecikmiş · {data.status_counts.suspended || 0} askıda
               </p>
             </div>
             <div className={ptCard}>

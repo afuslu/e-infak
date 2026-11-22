@@ -8,9 +8,9 @@ import { can } from '@/lib/access';
 import { dateTime } from '@/lib/format';
 import { useDebounced, usePaged } from '@/lib/paged';
 import { SMS_STATUS } from '@/api/types';
-import { Badge, Btn, Card, Chips, Empty, ErrorView, Loading, SearchBar, Sheet, ui } from '@/components/ui';
+import { Badge, Btn, Card, Chips, Empty, ErrorView, Loading, SearchBar, Sheet, useUi } from '@/components/ui';
 import { notify, notifyError } from '@/components/toast';
-import { colors, space } from '@/theme';
+import { space, useTheme } from '@/theme';
 
 type Message = {
   id: string; phone: string; donor_name: string | null; body: string; status: string; source: string; template_name: string | null;
@@ -26,6 +26,8 @@ const FILTERS = [{ value: 'all', label: 'Tümü' }, ...Object.entries(SMS_STATUS
 export default function SmsLog() {
   const queryClient = useQueryClient();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const [view, setView] = useState('messages');
   const [status, setStatus] = useState('all');
   const [term, setTerm] = useState('');

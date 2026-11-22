@@ -222,6 +222,7 @@ export default function PlatformOrganizationsPage() {
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <select
               value={statusFilter}
+              aria-label="Durum filtresi"
               onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'suspended')}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-600"
             >
@@ -231,6 +232,7 @@ export default function PlatformOrganizationsPage() {
             </select>
             <select
               value={planFilter}
+              aria-label="Paket filtresi"
               onChange={(e) => setPlanFilter(e.target.value)}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-600"
             >
@@ -349,7 +351,7 @@ export default function PlatformOrganizationsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <a href={o.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline">
-                          {o.url.replace('https://', '')}
+                          {o.url.replace(/^https?:\/\//, '')}
                           <ExternalLink className="h-3 w-3" aria-hidden="true" />
                         </a>
                         {o.domains.some((d) => d.status === 'pending') && <div className="text-xs font-medium text-amber-700">Bekleyen alan adı</div>}
@@ -360,7 +362,7 @@ export default function PlatformOrganizationsPage() {
                       <td className="px-4 py-3 font-semibold text-slate-900">{o.donation_count}</td>
                       <td className="px-4 py-3 text-xs text-slate-500">{dateTr(o.last_donation_at)}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">
-                        <div>{o.subscription_status === 'trial' ? 'Deneme' : o.subscription_status === 'past_due' ? 'Gecikmiş' : 'Aktif'}</div>
+                        <div>{!o.is_active || o.subscription_status === 'suspended' ? 'Askıda' : o.subscription_status === 'trial' ? 'Deneme' : o.subscription_status === 'past_due' ? 'Gecikmiş' : 'Aktif'}</div>
                         {o.subscription_ends_at && <div className="text-[11px] text-slate-400">{dateTr(o.subscription_ends_at)}</div>}
                       </td>
                       <td className="px-4 py-3">

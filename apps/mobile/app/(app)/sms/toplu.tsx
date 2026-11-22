@@ -7,9 +7,9 @@ import { af } from '@/lib/api';
 import { can } from '@/lib/access';
 import { dateTime } from '@/lib/format';
 import { SmsTemplate } from '@/components/SmsSheet';
-import { Btn, Card, Field, Notice, Row, Screen, SectionTitle, Select, SwitchRow, ui } from '@/components/ui';
+import { Btn, Card, Field, Notice, Row, Screen, SectionTitle, Select, SwitchRow, useUi } from '@/components/ui';
 import { confirm, notify } from '@/components/toast';
-import { colors, font, space } from '@/theme';
+import { font, space, useTheme } from '@/theme';
 
 type Options = {
   kinds: { key: string; label: string }[]; tags: string[]; cities: string[];
@@ -27,6 +27,8 @@ export default function BulkSms() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const options = useQuery({ queryKey: ['sms-audience-options'], queryFn: () => af<Options>('/sms/audience-options') });
   const templates = useQuery({ queryKey: ['sms-templates'], queryFn: () => af<SmsTemplate[]>('/sms/templates') });
   const account = useQuery({ queryKey: ['sms-account'], queryFn: () => af<{ provider: string; balance: number | null; sender: string | null; own_account: boolean }>('/sms/account') });

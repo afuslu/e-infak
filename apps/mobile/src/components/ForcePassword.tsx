@@ -4,13 +4,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { getItem } from '@/lib/storage';
-import { Btn, Field, Notice, Screen, ui } from './ui';
+import { Btn, Field, Notice, Screen, useUi } from './ui';
 import { notify } from './toast';
 import { space } from '@/theme';
 
 /** Kurum yöneticisinin verdiği geçici şifreyle girilince gösterilir. */
 export function ForcePassword() {
   const { me, reload, signOut } = useAuth();
+  const ui = useUi();
   const insets = useSafeAreaInsets();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');

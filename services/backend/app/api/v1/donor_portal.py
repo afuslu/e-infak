@@ -5,6 +5,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -32,11 +33,18 @@ security = HTTPBearer()
 
 # Pydantic schemas for requests/responses
 class OTPRequest(BaseModel):
-    phone: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+
 
 class OTPVerifyRequest(BaseModel):
-    phone: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
     code: str
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 class SubscriptionCreate(BaseModel):
     campaign_id: Optional[str] = None
@@ -90,6 +98,38 @@ async def get_current_donor(
         
     return donor
 
+async def _donor_ids_for(db: AsyncSession, donor: Donor) -> list[UUID]:
+    """Return all Donor IDs belonging to the same person in this organisation.
+
+    Old imports or manual entries can leave duplicate donor rows sharing the same 10-digit
+    phone number; unifying them here guarantees no receipt, kurban share, or well is hidden.
+    """
+    from app.utils.phone import phone_key
+
+    ids: set[UUID] = {donor.id}
+    if donor.phone and len(phone_key(donor.phone)) == 10:
+        rows = (
+            await db.execute(
+                select(Donor.id).where(
+                    Donor.organization_id == donor.organization_id,
+                    phone_matches(Donor.phone, donor.phone),
+                )
+            )
+        ).scalars().all()
+        ids.update(rows)
+    elif donor.email and donor.email.strip():
+        rows = (
+            await db.execute(
+                select(Donor.id).where(
+                    Donor.organization_id == donor.organization_id,
+                    func.lower(Donor.email) == donor.email.strip().lower(),
+                )
+            )
+        ).scalars().all()
+        ids.update(rows)
+    return list(ids)
+
+
 @router.post("/send-otp")
 async def send_portal_otp(
     request: Request,
@@ -98,12 +138,40 @@ async def send_portal_otp(
 ):
     tenant = str(request.state.organization_id)
     client_ip = request.client.host if request.client else "unknown"
-    code = otp.issue("donor", tenant, payload.phone, client_ip)
     org_name = getattr(getattr(request.state, "organization", None), "name", "") or "E-Infak"
-    org_name = org_name.translate(str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU"))
-    sms_message = f"{org_name} bagisci giris kodunuz: {code}. Bu kod 3 dakika gecerlidir."
+
+    if payload.email and payload.email.strip():
+        from app.tasks import send_email_task
+
+        email = otp.normalized_email(payload.email)
+        code = otp.issue_email("donor", tenant, email, client_ip)
+        subject = f"{org_name} — Bağışçı Paneli Giriş Kodunuz"
+        html = (
+            f"<div style='font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px'>"
+            f"<h2 style='color:#047857;margin:0 0 12px'>{org_name}</h2>"
+            f"<p style='color:#334155'>Bağışçı paneline giriş doğrulama kodunuz:</p>"
+            f"<div style='font-size:32px;font-weight:800;letter-spacing:8px;color:#0f172a;padding:16px;background:#f8fafc;border-radius:12px;text-align:center'>{code}</div>"
+            f"<p style='color:#64748b;font-size:12px;margin-top:16px'>Bu kod 3 dakika geçerlidir. Giriş isteğini siz yapmadıysanız bu e-postayı dikkate almayın.</p>"
+            f"</div>"
+        )
+        try:
+            send_email_task(email, subject, html)
+        except Exception as exc:
+            logger.warning("Portal email OTP failed: %s", exc)
+            raise HTTPException(
+                status_code=503,
+                detail="E-posta gönderimi şu an kullanılamıyor. Lütfen SMS ile giriş yapın.",
+            ) from None
+        return {"status": "success", "channel": "email", "message": "Doğrulama kodu e-posta adresinize gönderildi."}
+
+    if not payload.phone or not payload.phone.strip():
+        raise HTTPException(status_code=400, detail="Telefon numarası veya e-posta adresi girin.")
+
+    code = otp.issue("donor", tenant, payload.phone, client_ip)
+    ascii_org = org_name.translate(str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU"))
+    sms_message = f"{ascii_org} bagisci giris kodunuz: {code}. Bu kod 3 dakika gecerlidir."
     await send_sms(payload.phone.strip(), sms_message, tenant, log_text=sms_message.replace(code, "******"))
-    return {"status": "success", "message": "OTP kodu başarıyla gönderildi."}
+    return {"status": "success", "channel": "sms", "message": "OTP kodu başarıyla gönderildi."}
 
 
 @router.post("/verify-otp")
@@ -114,30 +182,60 @@ async def verify_portal_otp(
     _: None = Depends(rate_limit("donor-otp-verify", limit=10, window_seconds=300)),
 ):
     organization_id = str(request.state.organization_id)
-    key = otp.verify("donor", organization_id, payload.phone, payload.code)
-    # Several records can share a phone (imports, old duplicates): the oldest one is the donor.
-    donor = (await db.execute(
-        select(Donor).where(phone_matches(Donor.phone, key), Donor.organization_id == UUID(organization_id))
-        .order_by(Donor.created_at)
-    )).scalars().first()
-    if not donor:
-        donor = Donor(
-            organization_id=UUID(organization_id),
-            first_name="Değerli",
-            last_name="Bağışçı",
-            phone="0" + key,
-            donor_type="individual",
-            allow_email=False,
-            allow_sms=False,
-        )
-        db.add(donor)
-        await db.commit()
-        await db.refresh(donor)
+    org_uuid = UUID(organization_id)
+
+    if payload.email and payload.email.strip():
+        email_key = otp.verify_email("donor", organization_id, payload.email, payload.code)
+        donor = (
+            await db.execute(
+                select(Donor)
+                .where(func.lower(Donor.email) == email_key, Donor.organization_id == org_uuid)
+                .order_by(Donor.created_at)
+            )
+        ).scalars().first()
+        if not donor:
+            donor = Donor(
+                organization_id=org_uuid,
+                first_name="Değerli",
+                last_name="Bağışçı",
+                email=email_key,
+                donor_type="individual",
+                allow_email=True,
+                allow_sms=False,
+            )
+            db.add(donor)
+            await db.commit()
+            await db.refresh(donor)
+    else:
+        if not payload.phone or not payload.phone.strip():
+            raise HTTPException(status_code=400, detail="Telefon numarası veya e-posta adresi gereklidir.")
+        key = otp.verify("donor", organization_id, payload.phone, payload.code)
+        # Several records can share a phone (imports, old duplicates): the oldest one is the primary donor.
+        donor = (
+            await db.execute(
+                select(Donor)
+                .where(phone_matches(Donor.phone, key), Donor.organization_id == org_uuid)
+                .order_by(Donor.created_at)
+            )
+        ).scalars().first()
+        if not donor:
+            donor = Donor(
+                organization_id=org_uuid,
+                first_name="Değerli",
+                last_name="Bağışçı",
+                phone="0" + key,
+                donor_type="individual",
+                allow_email=False,
+                allow_sms=False,
+            )
+            db.add(donor)
+            await db.commit()
+            await db.refresh(donor)
 
     # Generate access/refresh tokens specifically for donor
     access_token = create_access_token({"sub": str(donor.id), "role": "donor"})
     refresh_token = create_refresh_token({"sub": str(donor.id), "role": "donor"})
-    
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -146,24 +244,67 @@ async def verify_portal_otp(
             "id": donor.id,
             "first_name": donor.first_name,
             "last_name": donor.last_name,
-            "phone": donor.phone
-        }
+            "phone": donor.phone,
+            "email": donor.email,
+        },
+    }
+
+
+@router.post("/refresh")
+async def refresh_portal_token(
+    request: Request,
+    payload: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("donor-token-refresh", limit=30, window_seconds=300)),
+):
+    """Issue a fresh donor access token from a valid donor refresh token."""
+    data = decode_token(payload.refresh_token)
+    if not data or data.get("type") != "refresh" or data.get("role") != "donor" or not data.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Oturum yenilenemedi.")
+    try:
+        donor_uuid = UUID(str(data["sub"]))
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Geçersiz oturum.")
+    donor = (
+        await db.execute(
+            select(Donor).where(
+                Donor.id == donor_uuid,
+                Donor.organization_id == UUID(request.state.organization_id),
+            )
+        )
+    ).scalar_one_or_none()
+    if not donor:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bağışçı bulunamadı.")
+    return {
+        "access_token": create_access_token({"sub": str(donor.id), "role": "donor"}),
+        "refresh_token": create_refresh_token({"sub": str(donor.id), "role": "donor"}),
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "donor": {
+            "id": donor.id,
+            "first_name": donor.first_name,
+            "last_name": donor.last_name,
+            "phone": donor.phone,
+            "email": donor.email,
+        },
     }
 
 
 @router.get("/me/donations")
 async def get_my_donations(
     current_donor: Donor = Depends(get_current_donor),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
+    donor_ids = await _donor_ids_for(db, current_donor)
     result = await db.execute(
-        select(Donation)
-        .where(Donation.donor_id == current_donor.id)
+        select(Donation, Campaign.slug, Campaign.title)
+        .outerjoin(Campaign, Campaign.id == Donation.campaign_id)
+        .where(
+            Donation.organization_id == current_donor.organization_id,
+            Donation.donor_id.in_(donor_ids),
+        )
         .order_by(Donation.created_at.desc())
     )
-    donations = result.scalars().all()
-    
-    # Return formatted details
+
     return [
         {
             "id": d.id,
@@ -174,10 +315,12 @@ async def get_my_donations(
             "status": d.status,
             "payment_method": d.payment_method,
             "donor_message": d.donor_message,
+            "campaign_slug": campaign_slug,
+            "campaign_title": campaign_title,
             "created_at": d.created_at,
-            "water_well_images": []
+            "water_well_images": [],
         }
-        for d in donations
+        for d, campaign_slug, campaign_title in result.all()
     ]
 
 
@@ -186,10 +329,11 @@ async def get_my_payment_orders(
     current_donor: Donor = Depends(get_current_donor),
     db: AsyncSession = Depends(get_db),
 ):
+    donor_ids = await _donor_ids_for(db, current_donor)
     result = await db.execute(
         select(PaymentOrder)
         .where(
-            PaymentOrder.donor_id == current_donor.id,
+            PaymentOrder.donor_id.in_(donor_ids),
             PaymentOrder.organization_id == current_donor.organization_id,
         )
         .order_by(PaymentOrder.created_at.desc())
@@ -215,23 +359,28 @@ async def get_my_projects(
     db: AsyncSession = Depends(get_db),
 ):
     org_id = current_donor.organization_id
+    donor_ids = await _donor_ids_for(db, current_donor)
     wells = (await db.execute(select(WaterWell).where(
         WaterWell.organization_id == org_id,
-        WaterWell.donor_id == current_donor.id,
+        WaterWell.donor_id.in_(donor_ids),
     ))).scalars().all()
-    orphan_rows = (await db.execute(
-        select(OrphanSponsorship, Orphan)
-        .join(Orphan, Orphan.id == OrphanSponsorship.orphan_id)
-        .where(
-            OrphanSponsorship.organization_id == org_id,
-            OrphanSponsorship.donor_phone == current_donor.phone,
-        )
-    )).all()
+    orphan_rows = (
+        (await db.execute(
+            select(OrphanSponsorship, Orphan)
+            .join(Orphan, Orphan.id == OrphanSponsorship.orphan_id)
+            .where(
+                OrphanSponsorship.organization_id == org_id,
+                phone_matches(OrphanSponsorship.donor_phone, current_donor.phone),
+            )
+        )).all()
+        if current_donor.phone
+        else []
+    )
     student_rows = (await db.execute(
         select(StudentSponsorship, Student)
         .join(Student, Student.id == StudentSponsorship.student_id)
         .where(
-            StudentSponsorship.donor_id == current_donor.id,
+            StudentSponsorship.donor_id.in_(donor_ids),
             Student.organization_id == org_id,
         )
     )).all()
@@ -256,8 +405,9 @@ async def get_my_videos(current_donor: Donor = Depends(get_current_donor), db: A
     from app.models.channels import DonationVideo
     from app.services.videos import watch_path
 
-    donation_ids = select(Donation.id).where(Donation.donor_id == current_donor.id)
-    campaign_ids = select(Donation.campaign_id).where(Donation.donor_id == current_donor.id)
+    donor_ids = await _donor_ids_for(db, current_donor)
+    donation_ids = select(Donation.id).where(Donation.donor_id.in_(donor_ids))
+    campaign_ids = select(Donation.campaign_id).where(Donation.donor_id.in_(donor_ids))
     videos = (await db.execute(select(DonationVideo).where(
         DonationVideo.organization_id == current_donor.organization_id, DonationVideo.status == "ready",
         DonationVideo.kurban_animal_id.is_(None),
@@ -274,13 +424,14 @@ async def get_my_kurban_shares(
 ):
     from app.models.kurban import KURBAN_TYPES, KurbanCampaign
 
+    donor_ids = await _donor_ids_for(db, current_donor)
     rows = (await db.execute(
         select(KurbanShare, KurbanAnimal, KurbanCampaign)
         .outerjoin(KurbanAnimal, KurbanAnimal.id == KurbanShare.animal_id)
         .outerjoin(KurbanCampaign, KurbanCampaign.id == KurbanShare.campaign_id)
         .where(
             KurbanShare.organization_id == current_donor.organization_id,
-            KurbanShare.donor_id == current_donor.id,
+            KurbanShare.donor_id.in_(donor_ids),
         )
         .order_by(KurbanShare.created_at.desc())
     )).all()
@@ -389,11 +540,12 @@ async def get_my_subscriptions(
     current_donor: Donor = Depends(get_current_donor),
     db: AsyncSession = Depends(get_db)
 ):
+    donor_ids = await _donor_ids_for(db, current_donor)
     result = await db.execute(
         select(Subscription, Campaign.title)
         .outerjoin(Campaign, Subscription.campaign_id == Campaign.id)
         .where(
-            Subscription.donor_id == current_donor.id,
+            Subscription.donor_id.in_(donor_ids),
             Subscription.organization_id == current_donor.organization_id,
         )
         .order_by(Subscription.created_at.desc())
@@ -651,10 +803,11 @@ async def get_my_pledges(
     from app.models.campaign import Campaign
     from app.models.sponsorship import PLEDGE_KINDS, Pledge
 
+    donor_ids = await _donor_ids_for(db, current_donor)
     pledges = (await db.execute(
         select(Pledge)
         .options(selectinload(Pledge.installments), selectinload(Pledge.beneficiary), selectinload(Pledge.campaign))
-        .where(Pledge.organization_id == current_donor.organization_id, Pledge.donor_id == current_donor.id,
+        .where(Pledge.organization_id == current_donor.organization_id, Pledge.donor_id.in_(donor_ids),
                Pledge.status != "cancelled")
         .order_by(Pledge.created_at.desc())
     )).scalars().all()
@@ -698,24 +851,26 @@ async def get_my_water_wells(
     from sqlalchemy import func, or_
     from app.models.sponsorship import Pledge, WellShare
 
+    donor_ids = await _donor_ids_for(db, current_donor)
     shares = dict((await db.execute(
         select(WellShare.water_well_id, func.sum(WellShare.share_count))
-        .where(WellShare.donor_id == current_donor.id).group_by(WellShare.water_well_id)
+        .where(WellShare.donor_id.in_(donor_ids)).group_by(WellShare.water_well_id)
     )).all())
     pledged = set((await db.execute(
-        select(Pledge.water_well_id).where(Pledge.donor_id == current_donor.id, Pledge.water_well_id.is_not(None))
+        select(Pledge.water_well_id).where(Pledge.donor_id.in_(donor_ids), Pledge.water_well_id.is_not(None))
     )).scalars().all())
     wells = (await db.execute(
         select(WaterWell).where(
             WaterWell.organization_id == current_donor.organization_id,
-            or_(WaterWell.donor_id == current_donor.id, WaterWell.id.in_(set(shares) | pledged)),
+            or_(WaterWell.donor_id.in_(donor_ids), WaterWell.id.in_(set(shares) | pledged)),
         )
     )).scalars().all()
+    donor_id_set = set(donor_ids)
     return [
         {
             "id": str(w.id), "name": w.name, "location_name": w.location_name, "country": w.country, "status": w.status,
             "funding_model": w.funding_model, "target_cents": w.target_cents, "collected_cents": w.collected_cents,
-            "my_shares": int(shares.get(w.id, 0)), "is_owner": w.donor_id == current_donor.id,
+            "my_shares": int(shares.get(w.id, 0)), "is_owner": w.donor_id in donor_id_set,
             "has_pledge": w.id in pledged, "gallery_urls": w.gallery_urls or [],
             "latitude": w.latitude, "longitude": w.longitude,
         }
@@ -857,8 +1012,9 @@ async def my_member_dues(current_donor: Donor = Depends(get_current_donor), db: 
     from app.api.v1.membership import _due_out
     from app.models.membership import MEMBER_STATUSES, MEMBER_TYPES, Member, MemberDue
 
+    donor_ids = await _donor_ids_for(db, current_donor)
     members = (await db.execute(select(Member).where(
-        Member.organization_id == current_donor.organization_id, Member.donor_id == current_donor.id))).scalars().all()
+        Member.organization_id == current_donor.organization_id, Member.donor_id.in_(donor_ids)))).scalars().all()
     result = []
     for m in members:
         dues = (await db.execute(select(MemberDue).where(MemberDue.member_id == m.id)
@@ -1004,13 +1160,14 @@ async def portal_impact_report_pdf(
     from app.utils.report_pdf import build_report_pdf
 
     org = await db.get(Organization, current_donor.organization_id)
+    donor_ids = await _donor_ids_for(db, current_donor)
     rows_db = (
         await db.execute(
             select(Donation.paid_at, Campaign.title, Donation.amount_cents, Donation.currency)
             .outerjoin(Campaign, Campaign.id == Donation.campaign_id)
             .where(
                 Donation.organization_id == current_donor.organization_id,
-                Donation.donor_id == current_donor.id,
+                Donation.donor_id.in_(donor_ids),
                 Donation.status == DonationStatus.CONFIRMED,
             )
             .order_by(Donation.paid_at.desc())
@@ -1050,6 +1207,8 @@ async def portal_impact_report_pdf(
 @router.get("/donations/{donation_id}/certificate.pdf")
 async def portal_donation_certificate_pdf(
     donation_id: UUID,
+    honoree: Optional[str] = None,
+    dedication: Optional[str] = None,
     current_donor: Donor = Depends(get_current_donor),
     db: AsyncSession = Depends(get_db),
 ):
@@ -1060,12 +1219,13 @@ async def portal_donation_certificate_pdf(
     from app.models.campaign import Campaign
     from app.models.organization import Organization
 
+    donor_ids = await _donor_ids_for(db, current_donor)
     donation = (
         await db.execute(
             select(Donation).where(
                 Donation.id == donation_id,
                 Donation.organization_id == current_donor.organization_id,
-                Donation.donor_id == current_donor.id,
+                Donation.donor_id.in_(donor_ids),
                 Donation.status == DonationStatus.CONFIRMED,
             )
         )
@@ -1077,7 +1237,12 @@ async def portal_donation_certificate_pdf(
     camp = await db.get(Campaign, donation.campaign_id) if donation.campaign_id else None
     org_name = (org.name if org else "E-İnfak")[:60]
     donor_name = f"{current_donor.first_name or ''} {current_donor.last_name or ''}".strip() or current_donor.email or "Değerli Bağışçımız"
-    behalf = (getattr(donation, "on_behalf_of", None) or "").strip()
+    behalf = (honoree or getattr(donation, "on_behalf_of", None) or "").strip()
+    dedication_suffix = {
+        "adina": "adına",
+        "ruhuna": "ruhuna ithafen",
+        "hediye": "adına hediye bağış olarak",
+    }.get((dedication or "").strip().lower(), "adına / hatırasına")
     date_str = donation.paid_at.strftime("%d.%m.%Y") if donation.paid_at else donation.created_at.strftime("%d.%m.%Y")
     amount_str = f"{donation.amount_cents / 100:,.2f} {donation.currency}"
 
@@ -1112,7 +1277,7 @@ async def portal_donation_certificate_pdf(
     if behalf:
         c.setFillColorRGB(0.02, 0.37, 0.27)
         c.setFont("Helvetica-Bold", 15)
-        c.drawCentredString(w / 2, h - 106 * mm, f"{behalf[:55]} adına / hatırasına")
+        c.drawCentredString(w / 2, h - 106 * mm, f"{behalf[:55]} {dedication_suffix}")
 
     c.setFillColorRGB(0.25, 0.3, 0.38)
     c.setFont("Helvetica", 13)
@@ -1137,6 +1302,9 @@ async def portal_donation_certificate_pdf(
 class DonorProfileUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    company_name: Optional[str] = None
+    tc_no: Optional[str] = None
+    tax_number: Optional[str] = None
     email: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
@@ -1150,6 +1318,9 @@ def _serialize_donor_profile(donor: Donor) -> dict:
         "id": str(donor.id),
         "first_name": donor.first_name or "",
         "last_name": donor.last_name or "",
+        "company_name": donor.company_name or "",
+        "tc_no": donor.tc_no or "",
+        "tax_number": donor.tax_number or "",
         "email": donor.email or "",
         "phone": donor.phone or "",
         "address": donor.address or "",
@@ -1183,6 +1354,14 @@ async def update_my_profile(
         current_donor.first_name = cleaned[:100]
     if payload.last_name is not None:
         current_donor.last_name = payload.last_name.strip()[:100] or None
+    if payload.company_name is not None:
+        current_donor.company_name = payload.company_name.strip()[:200] or None
+    if payload.tc_no is not None:
+        digits = "".join(ch for ch in payload.tc_no if ch.isdigit())
+        current_donor.tc_no = digits[:11] or None
+    if payload.tax_number is not None:
+        digits = "".join(ch for ch in payload.tax_number if ch.isdigit())
+        current_donor.tax_number = digits[:20] or None
     if payload.email is not None:
         current_donor.email = payload.email.strip()[:255] or None
     if payload.address is not None:
@@ -1201,6 +1380,90 @@ async def update_my_profile(
     return _serialize_donor_profile(current_donor)
 
 
+class DonorRequestCreate(BaseModel):
+    category: str = "diger"
+    message: str
+
+
+REQUEST_CATEGORIES = {
+    "makbuz": "Makbuz Düzeltme",
+    "kurban": "Kurban Hisse / İsim",
+    "kuyu": "Su Kuyusu Tabelası",
+    "diger": "Genel Talep",
+}
+
+
+@router.get("/me/requests")
+async def get_my_requests(
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    """List support / correction requests submitted by this donor."""
+    from app.models.contact_message import ContactMessage
+
+    contact_key = current_donor.phone or current_donor.email or ""
+    if not contact_key:
+        return []
+    cond = (
+        phone_matches(ContactMessage.phone, current_donor.phone)
+        if current_donor.phone
+        else ContactMessage.phone == contact_key[:20]
+    )
+    rows = (
+        await db.execute(
+            select(ContactMessage)
+            .where(ContactMessage.organization_id == current_donor.organization_id, cond)
+            .order_by(ContactMessage.created_at.desc())
+            .limit(30)
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "message": r.message,
+            "is_read": bool(r.is_read),
+            "status": "reviewed" if r.is_read else "open",
+            "created_at": r.created_at,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/me/requests")
+async def create_my_request(
+    payload: DonorRequestCreate,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("donor-support-req", limit=10, window_seconds=3600)),
+):
+    """Submit a donor support/correction request directly into the organisation's inbox."""
+    from app.models.contact_message import ContactMessage
+
+    body = (payload.message or "").strip()
+    if len(body) < 5:
+        raise HTTPException(status_code=400, detail="Lütfen talebinizi en az 5 karakter olarak yazın.")
+    cat_label = REQUEST_CATEGORIES.get((payload.category or "diger").strip().lower(), "Genel Talep")
+    full_name = f"{current_donor.first_name or ''} {current_donor.last_name or ''}".strip() or "Bağışçı"
+    contact_phone = (current_donor.phone or current_donor.email or "portal")[:20]
+    msg = ContactMessage(
+        organization_id=current_donor.organization_id,
+        name=full_name[:200],
+        phone=contact_phone,
+        message=f"[Bağışçı Paneli · {cat_label}] {body[:1800]}",
+        is_read=False,
+    )
+    db.add(msg)
+    await db.commit()
+    await db.refresh(msg)
+    return {
+        "id": str(msg.id),
+        "message": msg.message,
+        "is_read": False,
+        "status": "open",
+        "created_at": msg.created_at,
+    }
+
+
 @router.get("/me/cards")
 async def get_my_saved_cards(
     current_donor: Donor = Depends(get_current_donor),
@@ -1209,11 +1472,12 @@ async def get_my_saved_cards(
     """List masked cards linked to the donor's recurring card instructions."""
     from app.models.campaign import Campaign
 
+    donor_ids = await _donor_ids_for(db, current_donor)
     result = await db.execute(
         select(Subscription, Campaign.title)
         .outerjoin(Campaign, Subscription.campaign_id == Campaign.id)
         .where(
-            Subscription.donor_id == current_donor.id,
+            Subscription.donor_id.in_(donor_ids),
             Subscription.organization_id == current_donor.organization_id,
             Subscription.status != "cancelled",
             Subscription.card_last_4.isnot(None),
@@ -1237,6 +1501,73 @@ async def get_my_saved_cards(
     return cards
 
 
+@router.post("/me/cards/{subscription_id}")
+async def update_my_saved_card(
+    subscription_id: str,
+    payload: SaveCardPayload,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("portal-card-save", limit=5, window_seconds=900)),
+):
+    """Attach or replace the saved card on one of the donor's recurring instructions."""
+    from app.payments import PaymentProviderError
+    from app.payments.providers.vakifkatilim import CardData, card_brand
+    from app.services.recurring import _encrypt
+    from app.services.tenant_credentials import decrypt
+
+    try:
+        sub_uuid = UUID(subscription_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Geçersiz talimat kaydı.")
+
+    donor_ids = await _donor_ids_for(db, current_donor)
+    sub = (
+        await db.execute(
+            select(Subscription).where(
+                Subscription.id == sub_uuid,
+                Subscription.donor_id.in_(donor_ids),
+                Subscription.organization_id == current_donor.organization_id,
+                Subscription.status != "cancelled",
+            )
+        )
+    ).scalar_one_or_none()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Aktif talimat bulunamadı.")
+
+    provider = await _card_saver(db, sub)
+    if provider is None:
+        raise HTTPException(status_code=400, detail="Kurumun ödeme altyapısı kart saklamayı desteklemiyor.")
+
+    card = CardData(payload.card_number, payload.expire_month, payload.expire_year, payload.cvv, payload.holder_name)
+    error = card.valid()
+    if error:
+        raise HTTPException(status_code=400, detail=error)
+    try:
+        card_ref = await provider.save_card(card)
+    except PaymentProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    finally:
+        last4, brand = card.last4, card_brand(card.number)
+        del card
+    stored = _encrypt(card_ref)
+    if not stored:
+        raise HTTPException(status_code=503, detail="Kart bilgisi şu an saklanamıyor; lütfen daha sonra deneyin.")
+
+    previous = sub.card_ref if sub.provider == provider.key else None
+    sub.mode, sub.provider, sub.card_ref = "card", provider.key, stored
+    sub.card_last_4, sub.card_brand = last4, brand
+    sub.failed_attempts, sub.last_error = 0, None
+    if sub.status == "paused":
+        sub.status = "active"
+    await db.commit()
+    if previous:
+        try:
+            await provider.delete_card(decrypt(previous))
+        except Exception:  # noqa: BLE001
+            pass
+    return {**_serialize_portal_sub(sub), "message": "Kartınız güncellendi; bağışınız otomatik tahsil edilecek."}
+
+
 @router.delete("/me/cards/{subscription_id}")
 async def remove_my_saved_card(
     subscription_id: str,
@@ -1249,10 +1580,11 @@ async def remove_my_saved_card(
     except ValueError:
         raise HTTPException(status_code=400, detail="Geçersiz kart kaydı.")
 
+    donor_ids = await _donor_ids_for(db, current_donor)
     result = await db.execute(
         select(Subscription).where(
             Subscription.id == sub_uuid,
-            Subscription.donor_id == current_donor.id,
+            Subscription.donor_id.in_(donor_ids),
             Subscription.organization_id == current_donor.organization_id,
         )
     )

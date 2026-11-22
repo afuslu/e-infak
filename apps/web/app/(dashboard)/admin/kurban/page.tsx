@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button, Card, Input } from '@e-infak/ui'
 import {
   Beef,
@@ -125,6 +126,12 @@ const emptyCampaign = {
 }
 
 export default function KurbanAdminPage() {
+  return <Suspense fallback={null}><KurbanAdminInner /></Suspense>
+}
+
+function KurbanAdminInner() {
+  const searchParams = useSearchParams()
+  const sekmeParam = searchParams.get('sekme')
   const { data: access } = useAdminAccess()
   const canWrite = can(access, 'kurban.manage')
   const canIssue = can(access, 'receipts.create')
@@ -142,19 +149,19 @@ export default function KurbanAdminPage() {
   const [sharesTotal, setSharesTotal] = useState(0)
   const [sharePage, setSharePage] = useState(1)
   // STK PRO menu: "Otomatik Hisse Dağıtma" opens the unassigned shares (?sekme=atanmamis).
-  const [tab, setTab] = useState<Tab>(() => {
-    if (typeof window === 'undefined') return 'animals'
-    const s = new URLSearchParams(window.location.search).get('sekme')
-    return s === 'atanmamis' || s === 'hisseler' ? 'shares' : s === 'giris' ? 'entry' : 'animals'
-  })
+  const [tab, setTab] = useState<Tab>(() =>
+    sekmeParam === 'atanmamis' || sekmeParam === 'hisseler' ? 'shares' : sekmeParam === 'giris' ? 'entry' : 'animals')
   const [animalFilter, setAnimalFilter] = useState<'' | 'waiting' | 'slaughtered'>('')
   const [animalPartialOnly, setAnimalPartialOnly] = useState(false)
   const [animalVideoStatus, setAnimalVideoStatus] = useState<'' | VideoStatus>('')
   const [animalView, setAnimalView] = useState<'cards' | 'table'>('cards')
   const [videoModal, setVideoModal] = useState<{ ids: string[]; status: VideoStatus; videoUrl: string } | null>(null)
   const [search, setSearch] = useState('')
-  const [shareFilter, setShareFilter] = useState<'' | 'true' | 'false'>(() =>
-    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('sekme') === 'atanmamis' ? 'false' : '')
+  const [shareFilter, setShareFilter] = useState<'' | 'true' | 'false'>(() => (sekmeParam === 'atanmamis' ? 'false' : ''))
+  useEffect(() => {
+    setTab(sekmeParam === 'atanmamis' || sekmeParam === 'hisseler' ? 'shares' : sekmeParam === 'giris' ? 'entry' : 'animals')
+    setShareFilter(sekmeParam === 'atanmamis' ? 'false' : '')
+  }, [sekmeParam])
   const [shareKurbanType, setShareKurbanType] = useState('')
   const [shareStatus, setShareStatus] = useState<'' | 'waiting' | 'slaughtered'>('')
   const [shareNotifiedOnly, setShareNotifiedOnly] = useState(false)

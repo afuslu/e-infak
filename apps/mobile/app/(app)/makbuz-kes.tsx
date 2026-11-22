@@ -9,11 +9,11 @@ import { can } from '@/lib/access';
 import { idempotencyKey, money, toCents, todayIso } from '@/lib/format';
 import { useDebounced } from '@/lib/paged';
 import { CURRENCY_OPTIONS, Donor, PAYMENT_OPTIONS } from '@/api/types';
-import { Btn, Card, Chips, Field, ListItem, Notice, Screen, SearchBar, SectionTitle, Select, SwitchRow, ui } from '@/components/ui';
+import { Btn, Card, Chips, Field, ListItem, Notice, Screen, SearchBar, SectionTitle, Select, SwitchRow, useUi } from '@/components/ui';
 import { DateField } from '@/components/fields';
 import { notify } from '@/components/toast';
 import { useCampaignOptions } from '@/api/hooks';
-import { colors, space } from '@/theme';
+import { space, useTheme } from '@/theme';
 
 type Line = { key: number; campaign_id: string | null; amount: string; on_behalf_of: string };
 type Book = { id: string; name?: string; label?: string; series?: string; next_no?: number; is_active?: boolean; status?: string };
@@ -24,6 +24,8 @@ export default function ManualReceipt() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const key = useRef(idempotencyKey('makbuz'));
   const campaigns = useCampaignOptions();
 

@@ -9,9 +9,9 @@ import { dateTime, money } from '@/lib/format';
 import { useDebounced } from '@/lib/paged';
 import { useCampaignOptions } from '@/api/hooks';
 import { Donor } from '@/api/types';
-import { Badge, Btn, Card, Empty, Field, ListItem, Notice, QueryView, Screen, SearchBar, Select, Sheet, SwitchRow, ui } from '@/components/ui';
+import { Badge, Btn, Card, Empty, Field, ListItem, Notice, QueryView, Screen, SearchBar, Select, Sheet, SwitchRow, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
-import { colors, space } from '@/theme';
+import { space, useTheme } from '@/theme';
 
 type Suggestion = {
   donor?: { id: string; name: string; phone?: string; reason?: string; confidence?: number } | null;
@@ -26,6 +26,8 @@ type Transfer = {
 export default function Transfers() {
   const queryClient = useQueryClient();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const campaigns = useCampaignOptions();
   const query = useQuery({
     queryKey: ['incoming-transfers'],

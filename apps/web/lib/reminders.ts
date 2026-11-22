@@ -1,4 +1,43 @@
-/** Hatırlatıcı helpers shared by the Hatırlatıcı page and the donor card. */
+/** Hatırlatıcı helpers shared by the Hatırlatıcı page, donor card, and global shell alerts. */
+
+export const DUE_REMINDERS_QUERY_KEY = ['admin-due-reminders'] as const
+export const REMINDERS_CHANGED_EVENT = 'einfak:reminders-changed'
+
+export function notifyRemindersChanged() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(REMINDERS_CHANGED_EVENT))
+  }
+}
+
+export type DesktopNotifyState = 'granted' | 'denied' | 'default' | 'unsupported'
+
+export function desktopNotificationState(): DesktopNotifyState {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported'
+  return Notification.permission
+}
+
+/** Shows an OS-level desktop notification (Windows/macOS) when permission is granted. */
+export function showDesktopNotification(reminder: Reminder, onFocus?: () => void) {
+  if (desktopNotificationState() !== 'granted') return
+  try {
+    const title = reminder.donor
+      ? `Hatırlatma · ${reminder.donor.name}`
+      : `Hatırlatma · ${formatWhen(reminder.remind_at)}`
+    const n = new Notification(title, {
+      body: reminder.content,
+      icon: '/icon.png',
+      tag: `reminder-${reminder.id}-${reminder.remind_at}`,
+      requireInteraction: true,
+    })
+    n.onclick = () => {
+      window.focus()
+      onFocus?.()
+      n.close()
+    }
+  } catch {
+    /* ignore unsupported notification options */
+  }
+}
 
 export type RepeatKind = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
 

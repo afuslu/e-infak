@@ -164,6 +164,8 @@ async def pay_installments(db: AsyncSession, donation: Donation, metadata: dict)
 
 
 async def fund_water_well(db: AsyncSession, donation: Donation, donor: Donor) -> Optional[WaterWell]:
+    from app.services import fx
+
     well = (await db.execute(
         select(WaterWell).where(
             WaterWell.organization_id == donation.organization_id,
@@ -172,15 +174,16 @@ async def fund_water_well(db: AsyncSession, donation: Donation, donor: Donor) ->
     )).scalar_one_or_none()
     if not well:
         return None
-    if donation.currency == "TRY":
-        well.collected_cents = (well.collected_cents or 0) + donation.amount_cents
-    if well.funding_model == "hisseli" and well.share_price_cents and donation.currency == "TRY":
-        count = donation.amount_cents // well.share_price_cents
-        if count > 0:
-            db.add(WellShare(
-                organization_id=donation.organization_id, water_well_id=well.id, donor_id=donor.id,
-                donation_id=donation.id, share_count=count, on_behalf_of=donation.on_behalf_of,
-            ))
+    try_cents, _ = await fx.convert(db, donation.amount_cents, donation.currency or "TRY", "TRY")
+    if try_cents and try_cents > 0:
+        well.collected_cents = (well.collected_cents or 0) + try_cents
+        if well.funding_model == "hisseli" and well.share_price_cents:
+            count = try_cents // well.share_price_cents
+            if count > 0:
+                db.add(WellShare(
+                    organization_id=donation.organization_id, water_well_id=well.id, donor_id=donor.id,
+                    donation_id=donation.id, share_count=count, on_behalf_of=donation.on_behalf_of,
+                ))
     if well.status in {"planned", "funding"} and well.target_cents and well.collected_cents >= well.target_cents:
         well.status = "drilling"
     return well

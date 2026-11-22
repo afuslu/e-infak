@@ -22,7 +22,7 @@ interface Message {
   status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed'; error: string | null; created_at: string | null
   batch_id: string | null
 }
-interface Options { kinds: { key: string; label: string }[]; tags: string[]; cities: string[]; campaigns: { id: string; title: string }[]; kurban_years: number[] }
+interface Options { kinds: { key: string; label: string }[]; lists?: { id: string; name: string; count: number }[]; tags: string[]; cities: string[]; campaigns: { id: string; title: string }[]; kurban_years: number[] }
 interface Stats { counts: Record<string, number>; total: number }
 
 type Tab = 'send' | 'bulk' | 'log' | 'account'
@@ -171,6 +171,7 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
   const [tag, setTag] = useState('')
   const [city, setCity] = useState('')
   const [campaignId, setCampaignId] = useState('')
+  const [listId, setListId] = useState('')
   const [year, setYear] = useState('')
   const [numbers, setNumbers] = useState('')
   const [withoutConsent, setWithoutConsent] = useState(false)
@@ -187,17 +188,17 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
   }, [])
   const audience = useMemo(() => ({
     kind, months: Number(months) || 6, tag: tag || null, city: city || null, campaign_id: campaignId || null,
-    year: Number(year) || null, numbers: kind === 'numbers' ? numbers : null, include_without_consent: withoutConsent,
-  }), [kind, months, tag, city, campaignId, year, numbers, withoutConsent])
+    list_id: listId || null, year: Number(year) || null, numbers: kind === 'numbers' ? numbers : null, include_without_consent: withoutConsent,
+  }), [kind, months, tag, city, campaignId, listId, year, numbers, withoutConsent])
   useEffect(() => {
     setPreview(null)
-    if (!name || (kind === 'numbers' && !numbers.trim())) return
+    if (!name || (kind === 'numbers' && !numbers.trim()) || (kind === 'list' && !listId)) return
     const t = setTimeout(() => {
       adminSend<{ recipients: number; audience: string; stats: Record<string, number> }>('post', '/whatsapp/bulk', { kind: 'template', template_name: name, params, audience, dry_run: true })
         .then((r) => setPreview(r.data)).catch(() => {})
     }, 400)
     return () => clearTimeout(t)
-  }, [audience, name, params, kind, numbers])
+  }, [audience, name, params, kind, numbers, listId])
 
   const send = async () => {
     if (!preview || !(await confirmDialog({ title: `${preview.recipients.toLocaleString('tr-TR')} kişiye WhatsApp gönderilsin mi?`, text: `${preview.audience} · şablon: ${name}`, confirmLabel: 'Gönder' }))) return
@@ -226,6 +227,7 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
         {kind === 'tag' && <Label label="Etiket"><select className={inputClass} value={tag} onChange={(e) => setTag(e.target.value)}><option value="">Seçin</option>{options?.tags.map((t) => <option key={t}>{t}</option>)}</select></Label>}
         {kind === 'city' && <Label label="Şehir"><select className={inputClass} value={city} onChange={(e) => setCity(e.target.value)}><option value="">Seçin</option>{options?.cities.map((c) => <option key={c}>{c}</option>)}</select></Label>}
         {kind === 'campaign' && <Label label="Bağış kalemi"><select className={inputClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Seçin</option>{options?.campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}</select></Label>}
+        {kind === 'list' && <Label label="Kayıtlı liste"><select className={inputClass} value={listId} onChange={(e) => setListId(e.target.value)}><option value="">Seçin</option>{(options?.lists || []).map((l) => <option key={l.id} value={l.id}>{l.name} ({l.count})</option>)}</select></Label>}
         {kind === 'kurban' && <Label label="Yıl"><select className={inputClass} value={year} onChange={(e) => setYear(e.target.value)}>{options?.kurban_years.map((y) => <option key={y}>{y}</option>)}</select></Label>}
         {kind === 'numbers' && <Label label="Numaralar" hint="Her satıra bir numara"><textarea className={`${inputClass} min-h-[120px]`} value={numbers} onChange={(e) => setNumbers(e.target.value)} /></Label>}
         <label className="flex items-center gap-2 text-sm text-gray-700">

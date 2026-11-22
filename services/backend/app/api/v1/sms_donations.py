@@ -25,6 +25,7 @@ from app.services.tenant_credentials import CredentialsUnavailable, get_credenti
 router = APIRouter(prefix="/admin-features/sms-donations", tags=["sms-donations"],
                    dependencies=[Depends(require_feature(Feature.SMS_DONATION))])
 hooks_router = APIRouter(prefix="/hooks", tags=["hooks"])
+public_router = APIRouter(prefix="/public", tags=["public"])
 reader = require_module("receipts", "bank", "reports", write=False)
 writer = require_module("receipts", "bank")
 settings_manager = require_module("settings")
@@ -64,6 +65,8 @@ async def get_settings(request: Request, db: AsyncSession = Depends(get_db), _: 
 
 
 class SettingsIn(BaseModel):
+    short_code: str = Field(default="", max_length=20)
+    public_note: str = Field(default="", max_length=300)
     keywords: dict[str, UUID] = Field(default_factory=dict, max_length=200)
     default_campaign_id: Optional[UUID] = None
     default_amount: Optional[float] = Field(default=None, ge=0, le=100_000)
@@ -87,6 +90,8 @@ async def save_settings(payload: SettingsIn, request: Request, db: AsyncSession 
         if word:
             keywords[word] = str(cid)
     org.settings = {**(org.settings or {}), "sms_donation": {
+        "short_code": payload.short_code.strip(),
+        "public_note": payload.public_note.strip(),
         "keywords": keywords,
         "default_campaign_id": str(payload.default_campaign_id) if payload.default_campaign_id else None,
         "default_amount": payload.default_amount, "create_donors": payload.create_donors,
@@ -264,3 +269,46 @@ async def sms_donation_hook(token: str, request: Request, db: AsyncSession = Dep
             results.append({"ok": False, "error": str(exc)})
     await db.commit()
     return {"ok": all(r["ok"] for r in results), "results": results}
+
+
+# --- public website integration ----------------------------------------------------------------
+
+@public_router.get("/sms-donations")
+async def public_sms_donations(request: Request, db: AsyncSession = Depends(get_db)):
+    """Short code and keyword->campaign instructions for the public website."""
+    org = await _org(request, db)
+    if not org or not org.is_active:
+        return {"enabled": False, "short_code": "", "default_amount": None, "public_note": "", "items": []}
+    cfg = svc.settings_of(org)
+    short_code = cfg.get("short_code") or ""
+    kw_map = cfg.get("keywords") or {}
+    if not short_code and not kw_map:
+        return {"enabled": False, "short_code": "", "default_amount": None, "public_note": "", "items": []}
+    campaign_ids = []
+    for raw_cid in kw_map.values():
+        try:
+            campaign_ids.append(UUID(str(raw_cid)))
+        except ValueError:
+            continue
+    campaigns: dict[str, Campaign] = {}
+    if campaign_ids:
+        rows = (await db.execute(select(Campaign).where(
+            Campaign.organization_id == org.id, Campaign.id.in_(campaign_ids),
+        ))).scalars().all()
+        campaigns = {str(c.id): c for c in rows}
+    items = []
+    for word, cid in sorted(kw_map.items()):
+        c = campaigns.get(str(cid))
+        items.append({
+            "keyword": word,
+            "campaign_id": str(cid),
+            "campaign_title": c.title if c else None,
+            "campaign_slug": c.slug if c else None,
+        })
+    return {
+        "enabled": bool(short_code),
+        "short_code": short_code,
+        "default_amount": cfg.get("default_amount"),
+        "public_note": cfg.get("public_note") or "",
+        "items": items,
+    }

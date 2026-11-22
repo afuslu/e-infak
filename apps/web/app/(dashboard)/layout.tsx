@@ -8,6 +8,7 @@ import Link from 'next/link'
 import { ChevronsLeft, ChevronsRight, ExternalLink, GraduationCap, Lock, type LucideIcon, Monitor, Moon, Rows3, Search, Sun, X } from 'lucide-react'
 import { UiHost } from '../../components/admin/ui'
 import { IncomingCallPopup } from '../../components/admin/IncomingCallPopup'
+import { GlobalReminderAlerts, useDueReminders } from '../../components/admin/GlobalReminderAlerts'
 import { groupOf, NAV_RAIL, navItemFor, type NavItem, type NavRail, railOf, searchKey } from '../../components/admin/admin-nav'
 import { AdminCommandPalette, AdminNotificationsBell, AdminProfileMenu } from '../../components/admin/AdminShellWidgets'
 import SimulationBanner from '../../components/admin/SimulationBanner'
@@ -110,6 +111,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     retry: false,
     enabled: !!user,
   })
+  // Temporary password (new account or reset by someone else): only /admin/sifre is open.
+  // Platform support sessions are exempt, as on the server.
+  const [support, setSupport] = useState(false)
+  useEffect(() => {
+    try { setSupport(sessionStorage.getItem('support_session') === '1' || !!getSimulation()) } catch { /* ignore */ }
+  }, [])
+  const mustChangePassword = !!user?.must_change_password && !support
+  const { data: dueReminders = [] } = useDueReminders(!!user && !mustChangePassword)
   const siteBrand = siteBrandRes?.data
   const logout = useLogout()
   const theme = useAdminTheme()
@@ -164,10 +173,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try { localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0') } catch { /* ignore */ }
   }
 
-  // Update browser tab title to match the active admin page.
+  // Update browser tab title to match the active admin page (and due reminder count).
   useEffect(() => {
-    document.title = currentItem ? `${currentItem.label} · E-İnfak` : 'Yönetim Paneli · E-İnfak'
-  }, [currentItem])
+    const base = currentItem ? `${currentItem.label} · E-İnfak` : 'Yönetim Paneli · E-İnfak'
+    document.title = dueReminders.length > 0 ? `(${dueReminders.length}) ${base}` : base
+  }, [currentItem, dueReminders.length])
 
   // Phone: the menu closes once a page is chosen.
   useEffect(() => {
@@ -198,13 +208,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, isLoading, router])
 
-  // Temporary password (new account or reset by someone else): only /admin/sifre is open.
-  // Platform support sessions are exempt, as on the server.
-  const [support, setSupport] = useState(false)
-  useEffect(() => {
-    try { setSupport(sessionStorage.getItem('support_session') === '1' || !!getSimulation()) } catch { /* ignore */ }
-  }, [])
-  const mustChangePassword = !!user?.must_change_password && !support
   useEffect(() => {
     if (mustChangePassword && pathname !== '/admin/sifre') router.replace('/admin/sifre')
   }, [mustChangePassword, pathname, router])
@@ -393,6 +396,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {rails.map((rail) => {
               const active = currentRail?.key === rail.key
               const shown = shownRail?.key === rail.key && !collapsed
+              const badge = rail.key === 'hatirlatici' ? dueReminders.length : 0
               return (
                 <div key={rail.key} className="flex w-full flex-col items-center">
                   {rail.divider && <div className={`mx-auto mb-1 w-9 border-t ${line}`} aria-hidden="true" />}
@@ -401,9 +405,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     onClick={() => onRailClick(rail)}
                     aria-current={active ? 'page' : undefined}
                     aria-expanded={rail.sections.flatMap((s) => s.items).length > 1 ? shown : undefined}
-                    className={`flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10.5px] font-semibold leading-tight transition-colors ${railTone(active || shown)}`}
+                    className={`relative flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2 text-[10.5px] font-semibold leading-tight transition-colors ${railTone(active || shown)}`}
                   >
                     <rail.icon className="h-5 w-5" strokeWidth={1.9} aria-hidden="true" />
+                    {badge > 0 && (
+                      <span
+                        className="absolute end-1.5 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white shadow-sm"
+                        aria-label={`${badge} bekleyen hatırlatma`}
+                      >
+                        {badge > 99 ? '99+' : badge}
+                      </span>
+                    )}
                     <span className="w-full truncate text-center">{rail.label}</span>
                   </button>
                 </div>
@@ -629,6 +641,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       />
       <UiHost />
       <IncomingCallPopup />
+      <GlobalReminderAlerts dueReminders={dueReminders} />
     </div>
   )
 }

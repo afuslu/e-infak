@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
-import { Href, useRouter } from 'expo-router';
+import { Href, useFocusEffect, useRouter } from 'expo-router';
 import {
   Activity, BarChart3, Beef, Bell, Building2, CalendarCheck, CloudOff, CreditCard, Droplets, ExternalLink,
   HandHeart, Landmark, Megaphone, MessageSquare, PiggyBank, Repeat, Search, Send, Tags, UserCog, UserRound, UsersRound,
@@ -9,7 +9,8 @@ import { useAuth } from '@/context/AuthContext';
 import { allowed, ROLE_LABELS } from '@/lib/access';
 import { webBase } from '@/lib/api';
 import { initials, openUrl } from '@/lib/format';
-import { Avatar, Card, ListItem, Screen, SectionTitle, ui } from '@/components/ui';
+import { listOfflineQueue } from '@/lib/offlineQueue';
+import { Avatar, Badge, Card, ListItem, Screen, SectionTitle, useUi } from '@/components/ui';
 import { font, useTheme } from '@/theme';
 
 type Item = { title: string; subtitle?: string; href: Href; icon: React.ComponentType<{ size?: number; color?: string }>; feature?: string; modules?: string | string[] };
@@ -33,7 +34,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { title: 'Kurban takibi', subtitle: 'Hisse ve kesim durumu', href: '/kurban' as Href, icon: Beef, feature: 'kurban' },
       { title: 'Yoksul / Aile takip', subtitle: 'İhtiyaç sahibi aile kayıtları', href: '/yoksul-takip' as Href, icon: HandHeart, feature: 'poverty_tracking' },
       { title: 'Su kuyuları', subtitle: 'Kuyu aşamaları ve durumları', href: '/su-kuyusu' as Href, icon: Droplets, feature: 'water_well' },
-      { title: 'Çevrimdışı saha kuyruğu', subtitle: 'İnternetsiz makbuz kaydet ve senkronize et', href: '/cevrimdisi' as Href, icon: CloudOff },
+      { title: 'Çevrimdışı saha kuyruğu', subtitle: 'İnternetsiz makbuz kaydet ve senkronize et', href: '/cevrimdisi' as Href, icon: CloudOff, modules: 'receipts' },
     ],
   },
   {
@@ -67,8 +68,20 @@ export default function MenuScreen() {
   const router = useRouter();
   const { access, me, site } = useAuth();
   const { colors } = useTheme();
-  const listCardStyle = [ui.listCard, { backgroundColor: colors.card, borderColor: colors.line }];
-  const sepStyle = [ui.separator, { backgroundColor: colors.line }];
+  const ui = useUi();
+  const [pendingOffline, setPendingOffline] = useState(0);
+  const listCardStyle = ui.listCard;
+  const sepStyle = ui.separator;
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      listOfflineQueue()
+        .then((items) => { if (alive) setPendingOffline(items.length); })
+        .catch(() => {});
+      return () => { alive = false; };
+    }, [])
+  );
   return (
     <Screen>
       <Card onPress={() => router.push('/ayarlar/hesabim')}>
@@ -91,7 +104,14 @@ export default function MenuScreen() {
               {items.map((item, index) => (
                 <View key={item.title}>
                   {index ? <View style={sepStyle} /> : null}
-                  <ListItem title={item.title} subtitle={item.subtitle} chevron left={<item.icon size={22} color={colors.primary} />} onPress={() => router.push(item.href)} />
+                  <ListItem
+                    title={item.title}
+                    subtitle={item.subtitle}
+                    chevron
+                    left={<item.icon size={22} color={colors.primary} />}
+                    right={item.href === ('/cevrimdisi' as Href) && pendingOffline > 0 ? <Badge label={`${pendingOffline} bekliyor`} tone="warn" /> : undefined}
+                    onPress={() => router.push(item.href)}
+                  />
                 </View>
               ))}
             </View>

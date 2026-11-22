@@ -7,9 +7,9 @@ import { af } from '@/lib/api';
 import { date } from '@/lib/format';
 import { remember } from '@/lib/selected';
 import { PRIORITY, Task, TASK_STATUS } from '@/api/types';
-import { Badge, Chips, Empty, Fab, ListItem, QueryView, Screen, ui } from '@/components/ui';
+import { Badge, Chips, Empty, Fab, ListItem, QueryView, Screen, useUi } from '@/components/ui';
 import { notify, notifyError } from '@/components/toast';
-import { colors } from '@/theme';
+import { useTheme } from '@/theme';
 
 const SCOPES = [
   { value: 'mine', label: 'Bana atanan' },
@@ -24,6 +24,8 @@ const STATUSES = [
 export default function Tasks() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { colors } = useTheme();
+  const ui = useUi();
   const [scope, setScope] = useState('mine');
   const [status, setStatus] = useState('open');
   const query = useQuery({

@@ -347,7 +347,7 @@ export default function AdminSubscriptionsPage() {
     if (donorOptions.length === 0 || campaignOptions.length === 0) {
       try {
         const [donorsRes, campRes] = await Promise.all([
-          v1Get<{ items?: DonorOption[] }>('/donors', { page_size: 200 }),
+          adminGet<{ items?: DonorOption[] }>('/donors', { page_size: 200 }),
           v1Get<{ items?: CampaignOption[] }>('/campaigns', { page_size: 200 }),
         ])
         setDonorOptions(donorsRes.data?.items || [])

@@ -3,6 +3,7 @@ import { File, Paths } from 'expo-file-system';
 import { api, af } from '@/lib/api';
 
 const KEY_OFFLINE_QUEUE = 'einfak_offline_queue_v1';
+export const KEY_CACHED_CAMPAIGNS = 'einfak_offline_campaigns_v1';
 
 export type OfflineItem = {
   id: string;
@@ -63,32 +64,48 @@ export async function removeOfflineItem(id: string): Promise<void> {
   await writeOfflineJson(KEY_OFFLINE_QUEUE, list.filter((i) => i.id !== id));
 }
 
+/** Oturum kapanınca bekleyen kuyruk ve önbellekteki kampanyaları temizler. */
+export async function clearOfflineData(): Promise<void> {
+  try {
+    await writeOfflineJson(KEY_OFFLINE_QUEUE, []);
+    await writeOfflineJson(KEY_CACHED_CAMPAIGNS, []);
+  } catch {
+    // Sessizce geçilir.
+  }
+}
+
 let activeSync: Promise<{ synced: number; failed: number }> | null = null;
 
 export async function syncOfflineQueue(): Promise<{ synced: number; failed: number }> {
   if (activeSync) return activeSync;
   activeSync = (async () => {
-    const list = await listOfflineQueue();
-    if (!list.length) return { synced: 0, failed: 0 };
+    const snapshot = await listOfflineQueue();
+    if (!snapshot.length) return { synced: 0, failed: 0 };
 
-    let synced = 0;
-    const remaining: OfflineItem[] = [];
+    const syncedIds = new Set<string>();
+    const errors = new Map<string, string>();
 
-    for (const item of list) {
+    for (const item of snapshot) {
       try {
         if (item.useAf) {
           await af(item.endpoint, { method: 'POST', body: item.body });
         } else {
           await api(item.endpoint, { method: 'POST', body: item.body });
         }
-        synced += 1;
+        syncedIds.add(item.id);
       } catch (e: any) {
-        remaining.push({ ...item, last_error: e?.message || 'Bağlantı hatası' });
+        errors.set(item.id, e?.message || 'Bağlantı hatası');
       }
     }
 
+    // Senkronizasyon sürerken eklenen yeni kayıtları kaybetmemek için güncel listeyi yeniden oku.
+    const latest = await listOfflineQueue();
+    const remaining = latest
+      .filter((item) => !syncedIds.has(item.id))
+      .map((item) => (errors.has(item.id) ? { ...item, last_error: errors.get(item.id) } : item));
+
     await writeOfflineJson(KEY_OFFLINE_QUEUE, remaining);
-    return { synced, failed: remaining.length };
+    return { synced: syncedIds.size, failed: errors.size };
   })();
   try {
     return await activeSync;

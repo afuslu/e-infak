@@ -31,7 +31,11 @@ function Notifications() {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
-  const [tab, setTab] = useState<'merkez' | 'kurallar'>(params.get('sekme') === 'kurallar' ? 'kurallar' : 'merkez')
+  const sekme = params.get('sekme')
+  const [tab, setTab] = useState<'merkez' | 'kurallar'>(sekme === 'kurallar' ? 'kurallar' : 'merkez')
+  useEffect(() => {
+    setTab(sekme === 'kurallar' ? 'kurallar' : 'merkez')
+  }, [sekme])
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">

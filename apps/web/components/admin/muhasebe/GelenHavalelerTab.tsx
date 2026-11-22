@@ -306,14 +306,14 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
     try {
       const form = new FormData();
       form.append('file', file);
-      if (accountFilter) form.append('bank_account_id', accountFilter);
-      const res = await api.post('/admin/reconciliation/import', form, {
+      const res = await api.post('/admin/bank-statements/import', form, {
+        params: accountFilter ? { bank_account_id: accountFilter } : undefined,
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const d = res.data;
       flash(
         'ok',
-        `${d.imported} hareket yüklendi (${d.auto_donated || 0} otomatik bağışa dönüştü, ${d.skipped_duplicates || 0} mükerrer atlandı).`,
+        `${d.imported_count ?? 0} hareket yüklendi (${d.auto_approved || 0} otomatik bağışa dönüştü, ${d.skipped_count || 0} mükerrer atlandı).`,
       );
       load();
       onDataChanged?.();
@@ -772,7 +772,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
         <SanalPosHareketleri />
       ) : viewMode === 'mutabakat' ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
-          <BankReconciliationPanel />
+          <BankReconciliationPanel onBackToTransfers={() => setViewMode('havaleler')} />
         </div>
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -1243,7 +1243,7 @@ function ApproveDialog({
     }
     const t = setTimeout(() => {
       api
-        .get('/donors', { params: { search: donorSearch.trim(), page_size: 10 } })
+        .get('/admin-features/donors', { params: { q: donorSearch.trim(), page_size: 10 } })
         .then((res) => {
           const list = res.data.items || res.data || [];
           setDonorResults(

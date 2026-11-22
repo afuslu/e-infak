@@ -10,6 +10,8 @@ export default function PlatformLoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
+  const [needTotp, setNeedTotp] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [capsLock, setCapsLock] = useState(false)
   const [error, setError] = useState('')
@@ -20,11 +22,21 @@ export default function PlatformLoginPage() {
     setBusy(true)
     setError('')
     try {
-      const res = await platformCall<{ access_token: string }>('post', '/auth/login', { email, password })
+      const res = await platformCall<{ access_token: string }>('post', '/auth/login', {
+        email,
+        password,
+        ...(needTotp && totpCode.trim() ? { totp_code: totpCode.trim() } : {}),
+      })
       setPlatformToken(res.access_token)
       router.replace('/platform')
     } catch (err) {
-      setError(errorMessage(err, 'Giriş yapılamadı'))
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      if (detail === 'totp_required') {
+        setNeedTotp(true)
+        setError('')
+      } else {
+        setError(errorMessage(err, 'Giriş yapılamadı'))
+      }
     } finally {
       setBusy(false)
     }
@@ -122,6 +134,28 @@ export default function PlatformLoginPage() {
               </button>
             </div>
           </div>
+
+          {needTotp && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 space-y-2">
+              <label htmlFor="platform-totp" className="block text-xs font-bold uppercase tracking-wider text-emerald-900">
+                2FA Doğrulama Kodu (6 haneli)
+              </label>
+              <input
+                id="platform-totp"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                required
+                maxLength={12}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)}
+                placeholder="123456"
+                className="w-full rounded-xl border border-emerald-300 bg-white px-3.5 py-2.5 text-center font-mono text-base font-bold tracking-[0.25em] text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15"
+              />
+              <p className="text-[11px] text-emerald-800">Google Authenticator veya Authy uygulamasındaki 6 haneli kodu girin.</p>
+            </div>
+          )}
 
           {error && (
             <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-700">

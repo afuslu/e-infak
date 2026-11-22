@@ -164,7 +164,7 @@ export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdat
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Tutar (TL) *
-              <input required type="number" min="1" step="0.01" className={ptInput} value={pay.amount_lira} onChange={(e) => setPay({ ...pay, amount_lira: e.target.value })} placeholder="2500" />
+              <input required type="number" min="0.01" step="0.01" className={ptInput} value={pay.amount_lira} onChange={(e) => setPay({ ...pay, amount_lira: e.target.value })} placeholder="2500" />
             </label>
             <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Dönem Açıklaması *
@@ -181,6 +181,10 @@ export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdat
             <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Süreyi Uzat (Gün)
               <input type="number" min="0" max="366" className={ptInput} value={pay.extend_days} onChange={(e) => setPay({ ...pay, extend_days: e.target.value })} />
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 sm:col-span-2">
+              Not (isteğe bağlı)
+              <input maxLength={300} className={ptInput} value={pay.notes} onChange={(e) => setPay({ ...pay, notes: e.target.value })} placeholder="Dekont no veya açıklama…" />
             </label>
           </div>
           <button type="submit" disabled={busy} className={ptPrimaryBtn}>
@@ -199,8 +203,8 @@ export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdat
               onClick={() =>
                 downloadCsv(
                   `${org.slug}-tahsilatlar.csv`,
-                  ['Tarih', 'Dönem', 'Yöntem', 'Tutar (TL)'],
-                  payments.map((p) => [p.paid_at, p.period_label, p.payment_method, (p.amount_cents / 100).toFixed(2)]),
+                  ['Tarih', 'Dönem', 'Yöntem', 'Durum', 'Tutar (TL)', 'Not'],
+                  payments.map((p) => [p.paid_at, p.period_label, p.payment_method, p.status, (p.amount_cents / 100).toFixed(2), p.notes || '']),
                 )
               }
               className={`${ptSecondaryBtn} py-1.5 text-xs`}
@@ -217,36 +221,72 @@ export function SubscriptionCard({ org, onUpdated }: { org: PlatformOrg; onUpdat
                 <th className="px-4 py-2.5">Dönem</th>
                 <th className="px-4 py-2.5">Yöntem</th>
                 <th className="px-4 py-2.5">Tutar</th>
-                <th className="px-4 py-2.5 text-right">Makbuz</th>
+                <th className="px-4 py-2.5">Not</th>
+                <th className="px-4 py-2.5 text-right">İşlem</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {payments.map((p) => (
                 <tr key={p.id}>
                   <td className="px-4 py-2.5 text-xs text-slate-500">{dateTr(p.paid_at)}</td>
-                  <td className="px-4 py-2.5 font-semibold text-slate-900">{p.period_label}</td>
+                  <td className="px-4 py-2.5 font-semibold text-slate-900">
+                    {p.period_label}
+                    {p.status && p.status !== 'paid' && (
+                      <span className="ms-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                        {p.status === 'pending' ? 'Beklemede' : 'İptal'}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 text-xs uppercase text-slate-600">{p.payment_method}</td>
                   <td className="px-4 py-2.5 font-bold text-emerald-700">{tl(p.amount_cents)}</td>
+                  <td className="max-w-[180px] truncate px-4 py-2.5 text-xs text-slate-500" title={p.notes || undefined}>{p.notes || '—'}</td>
                   <td className="px-4 py-2.5 text-right">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const res = await fetch(`${window.location.origin}/api/v1/platform/organizations/${org.id}/payments/${p.id}/receipt.pdf`, {
-                          headers: platformToken() ? { Authorization: `Bearer ${platformToken()}` } : {},
-                        })
-                        if (!res.ok) return setMsg({ ok: false, text: 'Makbuz indirilemedi' })
-                        const blob = await res.blob()
-                        const url = URL.createObjectURL(blob)
-                        const a = document.createElement('a')
-                        a.href = url
-                        a.download = `saas-makbuz-${p.id.slice(0, 8)}.pdf`
-                        a.click()
-                        URL.revokeObjectURL(url)
-                      }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      <Download className="h-3 w-3" aria-hidden="true" /> PDF
-                    </button>
+                    <div className="inline-flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${window.location.origin}/api/v1/platform/organizations/${org.id}/payments/${p.id}/receipt.pdf`, {
+                              headers: platformToken() ? { Authorization: `Bearer ${platformToken()}` } : {},
+                            })
+                            if (!res.ok) return setMsg({ ok: false, text: 'Makbuz indirilemedi' })
+                            const blob = await res.blob()
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `saas-makbuz-${p.id.slice(0, 8)}.pdf`
+                            a.click()
+                            window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+                          } catch {
+                            setMsg({ ok: false, text: 'Makbuz indirilemedi; ağ hatası' })
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        <Download className="h-3 w-3" aria-hidden="true" /> PDF
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={async () => {
+                          if (!window.confirm(`${p.period_label} tahsilat kaydı silinsin mi?`)) return
+                          setBusy(true)
+                          setMsg(null)
+                          try {
+                            await platformCall('delete', `/organizations/${org.id}/payments/${p.id}`)
+                            setPayments((prev) => prev.filter((x) => x.id !== p.id))
+                            setMsg({ ok: true, text: 'Tahsilat kaydı silindi' })
+                          } catch (err) {
+                            setMsg({ ok: false, text: platformError(err, 'Tahsilat silinemedi') })
+                          } finally {
+                            setBusy(false)
+                          }
+                        }}
+                        className="inline-flex items-center rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Sil
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

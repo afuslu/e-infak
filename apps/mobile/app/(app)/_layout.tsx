@@ -1,11 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { registerPush } from '@/lib/notifications';
 import { useLastNotificationData } from '@/lib/lastNotification';
 import { openNotificationTarget } from '@/lib/notificationRoute';
+import { syncOfflineQueue } from '@/lib/offlineQueue';
 import { getItem, setItem } from '@/lib/storage';
 import { useAuth } from '@/context/AuthContext';
 import { allowed } from '@/lib/access';
@@ -63,10 +64,34 @@ function useWidgetSync() {
   }, [inflow.data, site?.name, dark]);
 }
 
+/** Uygulama açılışında ve arka plandan dönünce çevrimdışı kuyruğu otomatik senkronize eder. */
+function useOfflineAutoSync() {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const run = () => {
+      syncOfflineQueue()
+        .then((res) => {
+          if (res.synced > 0) {
+            queryClient.invalidateQueries({ queryKey: ['donations'] });
+            queryClient.invalidateQueries({ queryKey: ['stats'] });
+            queryClient.invalidateQueries({ queryKey: ['inflow'] });
+          }
+        })
+        .catch(() => {});
+    };
+    run();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') run();
+    });
+    return () => sub.remove();
+  }, [queryClient]);
+}
+
 export default function AppLayout() {
   const { colors } = useTheme();
   usePushWiring();
   useWidgetSync();
+  useOfflineAutoSync();
   return (
     <Stack
       screenOptions={{

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { HandCoins, HeartHandshake, PiggyBank, Users } from 'lucide-react-native';
 import { af, api } from '@/lib/api';
 import { dateTime, money } from '@/lib/format';
+import { useDebounced } from '@/lib/paged';
 import { remember } from '@/lib/selected';
 import type { Donation } from '@/api/types';
 import { Card, Empty, ListItem, Loading, Screen, SearchBar, SectionTitle } from '@/components/ui';
@@ -18,7 +19,7 @@ export default function GlobalSearchScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const [term, setTerm] = useState('');
-  const q = term.trim();
+  const q = useDebounced(term).trim();
 
   const query = useQuery({
     queryKey: ['global-search', q],

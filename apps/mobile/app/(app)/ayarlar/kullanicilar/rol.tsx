@@ -6,15 +6,17 @@ import { CheckSquare, Square } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { af } from '@/lib/api';
 import { useStaffRoles } from '@/api/staff';
-import { Btn, Card, Field, Loading, Notice, Screen, ui } from '@/components/ui';
+import { Btn, Card, Field, Loading, Notice, Screen, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
-import { colors, font, space } from '@/theme';
+import { font, space, useTheme } from '@/theme';
 
 export default function RoleForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const roles = useStaffRoles();
   const existing = id ? roles.data?.find((r) => r.id === id) : undefined;
   const catalog = access?.capability_catalog || [];

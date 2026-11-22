@@ -9,8 +9,8 @@ import { can } from '@/lib/access';
 import { money } from '@/lib/format';
 import { useDebounced } from '@/lib/paged';
 import { Member } from '@/api/types';
-import { Badge, Chips, Empty, Fab, ListItem, QueryView, Screen, SearchBar, Stat, ui } from '@/components/ui';
-import { colors } from '@/theme';
+import { Badge, Chips, Empty, Fab, ListItem, QueryView, Screen, SearchBar, Stat, useUi } from '@/components/ui';
+import { useTheme } from '@/theme';
 
 type Summary = { members: Record<string, number>; open_cents: number; overdue_cents: number; overdue_members: number; collected_cents: number; year: number };
 
@@ -23,6 +23,8 @@ const FILTERS = [
 export default function Members() {
   const router = useRouter();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const [term, setTerm] = useState('');
   const [filter, setFilter] = useState('active');
   const q = useDebounced(term);

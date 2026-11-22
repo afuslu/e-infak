@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { dateTime, toCents } from '@/lib/format';
 import {
   enqueueOffline,
+  KEY_CACHED_CAMPAIGNS,
   listOfflineQueue,
   readOfflineJson,
   removeOfflineItem,
@@ -17,7 +18,6 @@ import { Badge, Btn, Card, Empty, Field, ListItem, Notice, Screen, SectionTitle,
 import { confirm, notify } from '@/components/toast';
 import { space, useTheme } from '@/theme';
 
-const KEY_CACHED_CAMPAIGNS = 'einfak_offline_campaigns_v1';
 type CampOption = { id: string; title: string };
 
 export default function OfflineQueueScreen() {

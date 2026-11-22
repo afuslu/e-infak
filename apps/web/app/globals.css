@@ -164,10 +164,10 @@
   :where(.admin-dark) .from-emerald-50 { --tw-gradient-from: rgba(16, 185, 129, .14); }
   :where(.admin-dark) .to-emerald-50 { --tw-gradient-to: rgba(16, 185, 129, .14); }
   :where(.admin-dark) .to-rose-50 { --tw-gradient-to: rgba(244, 63, 94, .14); }
-  :where(.admin-dark) :is(.bg-gray-900, .bg-slate-900, .bg-gray-800, .bg-slate-800, .bg-gray-950, .bg-slate-950) { background-color: #020617; }
-  :where(.admin-dark) :is(.hover\:bg-gray-900, .hover\:bg-slate-900, .hover\:bg-slate-800):hover { background-color: #0F172A; }
+  :where(.admin-dark) :is(.bg-gray-900, .bg-slate-900, .bg-gray-800, .bg-slate-800, .bg-gray-950, .bg-slate-950) { background-color: #1E293B; border-color: #334155; }
+  :where(.admin-dark) :is(.hover\:bg-gray-900, .hover\:bg-slate-900, .hover\:bg-slate-800):hover { background-color: #334155; }
   :where(.admin-dark) .text-primary-600, :where(.admin-dark) .text-primary-700, :where(.admin-dark) .text-primary-800 { color: #34D399; }
-  :where(.admin-dark) input:not([type=checkbox]):not([type=radio]):not([type=color]), :where(.admin-dark) select, :where(.admin-dark) textarea {
+  :where(.admin-dark) input:not([type=checkbox]):not([type=radio]):not([type=color]):not(.bg-transparent), :where(.admin-dark) select, :where(.admin-dark) textarea {
     background-color: #0F172A; color: #F1F5F9;
   }
   :where(.admin-dark) input::placeholder, :where(.admin-dark) textarea::placeholder { color: #64748B; }
@@ -184,11 +184,11 @@
   :where(.admin-dark) .bg-emerald-100,:where(.admin-dark) [class*="bg-emerald-100/"]:not([class*=":bg-emerald-100/"]){background-color:rgba(16,185,129,.2)}
   :where(.admin-dark) .bg-emerald-200{background-color:rgba(16,185,129,.28)}
   :where(.admin-dark) .border-emerald-100,:where(.admin-dark) .border-emerald-200,:where(.admin-dark) .border-emerald-300{border-color:rgba(16,185,129,.35)}
-  :where(.admin-dark) .text-emerald-600,:where(.admin-dark) .text-emerald-700,:where(.admin-dark) .text-emerald-800,:where(.admin-dark) .text-emerald-900{color:#6EE7B7}
+  :where(.admin-dark) .text-emerald-600,:where(.admin-dark) .text-emerald-700,:where(.admin-dark) .text-emerald-800,:where(.admin-dark) .text-emerald-900,:where(.admin-dark) .text-emerald-950{color:#6EE7B7}
   :where(.admin-dark) .bg-amber-50,:where(.admin-dark) [class*="bg-amber-50/"]:not([class*=":bg-amber-50/"]){background-color:rgba(245,158,11,.12)}
   :where(.admin-dark) .bg-amber-100,:where(.admin-dark) [class*="bg-amber-100/"]:not([class*=":bg-amber-100/"]){background-color:rgba(245,158,11,.2)}
   :where(.admin-dark) .border-amber-100,:where(.admin-dark) .border-amber-200,:where(.admin-dark) .border-amber-300{border-color:rgba(245,158,11,.35)}
-  :where(.admin-dark) .text-amber-600,:where(.admin-dark) .text-amber-700,:where(.admin-dark) .text-amber-800,:where(.admin-dark) .text-amber-900{color:#FCD34D}
+  :where(.admin-dark) .text-amber-600,:where(.admin-dark) .text-amber-700,:where(.admin-dark) .text-amber-800,:where(.admin-dark) .text-amber-900,:where(.admin-dark) .text-amber-950{color:#FCD34D}
   :where(.admin-dark) .bg-yellow-50,:where(.admin-dark) [class*="bg-yellow-50/"]:not([class*=":bg-yellow-50/"]){background-color:rgba(234,179,8,.12)}
   :where(.admin-dark) .bg-yellow-100,:where(.admin-dark) [class*="bg-yellow-100/"]:not([class*=":bg-yellow-100/"]){background-color:rgba(234,179,8,.2)}
   :where(.admin-dark) .border-yellow-100,:where(.admin-dark) .border-yellow-200,:where(.admin-dark) .border-yellow-300{border-color:rgba(234,179,8,.35)}

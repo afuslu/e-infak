@@ -10,7 +10,7 @@ import { openPdf } from '@/lib/files';
 import { call, dateTime, isDialable, money, whatsapp } from '@/lib/format';
 import { recall } from '@/lib/selected';
 import { Donation, STATUS } from '@/api/types';
-import { Badge, Btn, Card, Field, Notice, QueryView, Row, Screen, Sheet, ui } from '@/components/ui';
+import { Badge, Btn, Card, Field, Notice, QueryView, Row, Screen, Sheet, useUi } from '@/components/ui';
 import { SmsSheet } from '@/components/SmsSheet';
 import { confirm, notify, notifyError } from '@/components/toast';
 import { font, space, useTheme } from '@/theme';
@@ -23,6 +23,7 @@ export default function DonationDetail() {
   const queryClient = useQueryClient();
   const { access, site } = useAuth();
   const { colors } = useTheme();
+  const ui = useUi();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);

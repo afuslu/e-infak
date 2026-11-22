@@ -41,7 +41,9 @@ function SystemSettings() {
   const pathname = usePathname()
   const params = useSearchParams()
   const raw = params.get('sekme') as Tab | null
-  const [tab, setTab] = useState<Tab>(raw && TABS.some((t) => t.key === raw) ? raw : 'genel')
+  const resolved: Tab = raw && TABS.some((t) => t.key === raw) ? raw : 'genel'
+  const [tab, setTab] = useState<Tab>(resolved)
+  useEffect(() => { setTab(resolved) }, [resolved])
   const change = (next: Tab) => { setTab(next); router.replace(`${pathname}?sekme=${next}`, { scroll: false }) }
   return (
     <div className="space-y-5">

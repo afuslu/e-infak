@@ -25,6 +25,7 @@ export default function PlatformBroadcastsPage() {
   const [rows, setRows] = useState<Broadcast[] | null>(null)
   const [form, setForm] = useState({ title: '', message: '', level: 'info' as Broadcast['level'], maintenance_mode: false })
   const [busy, setBusy] = useState(false)
+  const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   const load = useCallback(() => {
@@ -51,11 +52,30 @@ export default function PlatformBroadcastsPage() {
   }
 
   const toggle = async (b: Broadcast) => {
-    await platformCall('patch', `/broadcasts/${b.id}`, { is_active: !b.is_active }).then(load).catch((err) => setError(platformError(err, 'Güncellenemedi')))
+    setBusyId(b.id)
+    setError('')
+    try {
+      await platformCall('patch', `/broadcasts/${b.id}`, { is_active: !b.is_active })
+      load()
+    } catch (err) {
+      setError(platformError(err, 'Güncellenemedi'))
+    } finally {
+      setBusyId(null)
+    }
   }
 
   const remove = async (b: Broadcast) => {
-    await platformCall('delete', `/broadcasts/${b.id}`).then(load).catch((err) => setError(platformError(err, 'Silinemedi')))
+    if (!window.confirm(`"${b.title}" duyurusu kalıcı olarak silinsin mi?`)) return
+    setBusyId(b.id)
+    setError('')
+    try {
+      await platformCall('delete', `/broadcasts/${b.id}`)
+      load()
+    } catch (err) {
+      setError(platformError(err, 'Silinemedi'))
+    } finally {
+      setBusyId(null)
+    }
   }
 
   return (
@@ -108,10 +128,11 @@ export default function PlatformBroadcastsPage() {
         </div>
       </form>
 
-      {!rows ? <PlatformSkeleton rows={3} /> : (
+      {!rows && !error ? <PlatformSkeleton rows={3} /> : rows && (
         <div className="space-y-3">
           {rows.map((b) => {
             const [lbl, cls] = LEVELS[b.level] || LEVELS.info
+            const rowBusy = busyId === b.id
             return (
               <div key={b.id} className={`flex flex-wrap items-start justify-between gap-4 ${ptCard}`}>
                 <div className="space-y-1">
@@ -124,10 +145,10 @@ export default function PlatformBroadcastsPage() {
                   <p className="text-sm text-slate-600">{b.message}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => toggle(b)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                  <button type="button" disabled={rowBusy} onClick={() => toggle(b)} className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40">
                     {b.is_active ? 'Yayından Kaldır' : 'Tekrar Yayınla'}
                   </button>
-                  <button type="button" onClick={() => remove(b)} aria-label="Sil" className="rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50">
+                  <button type="button" disabled={rowBusy} onClick={() => remove(b)} aria-label="Sil" className="rounded-xl border border-red-200 p-2 text-red-600 hover:bg-red-50 disabled:opacity-40">
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>

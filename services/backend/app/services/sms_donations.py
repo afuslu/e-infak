@@ -46,6 +46,8 @@ class SmsDonationError(ValueError):
 def settings_of(org) -> dict:
     raw = ((getattr(org, "settings", None) or {}).get("sms_donation") or {})
     return {
+        "short_code": str(raw.get("short_code") or "").strip(),
+        "public_note": str(raw.get("public_note") or "").strip(),
         "keywords": {str(k).strip().upper(): str(v) for k, v in (raw.get("keywords") or {}).items() if k and v},
         "default_campaign_id": raw.get("default_campaign_id") or None,
         "default_amount": raw.get("default_amount"),

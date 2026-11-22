@@ -7,13 +7,15 @@ import { af } from '@/lib/api';
 import { money } from '@/lib/format';
 import { remember } from '@/lib/selected';
 import { categoryBody, DonationCategory } from '@/api/types';
-import { Badge, Btn, Empty, ListItem, QueryView, Screen, ui } from '@/components/ui';
+import { Badge, Btn, Empty, ListItem, QueryView, Screen, useUi } from '@/components/ui';
 import { notifyError } from '@/components/toast';
-import { colors, font } from '@/theme';
+import { font, useTheme } from '@/theme';
 
 export default function Categories() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { colors } = useTheme();
+  const ui = useUi();
   const query = useQuery({ queryKey: ['donation-categories'], queryFn: () => af<DonationCategory[]>('/donation-categories') });
   const [moving, setMoving] = useState(false);
 

@@ -35,5 +35,5 @@ export function downloadCsv(filename: string, headers: string[], rows: (string |
   a.href = url
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

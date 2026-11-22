@@ -30,13 +30,15 @@ const slugify = (text: string) => text.toLocaleLowerCase('tr')
   .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)
 
+const INITIAL_FORM = {
+  name: '', legal_name: '', tagline: '', subdomain: '', email: '', phone: '', city: '', plan: 'ileri', template: 'sade',
+  primary_color: '#059669', accent_color: '#D97706',
+  admin_email: '', admin_first_name: '', admin_last_name: '', admin_password: '',
+}
+
 export default function NewOrganizationPage() {
   const [catalog, setCatalog] = useState<Catalog | null>(null)
-  const [form, setForm] = useState({
-    name: '', legal_name: '', tagline: '', subdomain: '', email: '', phone: '', city: '', template: 'sade',
-    primary_color: '#059669', accent_color: '#D97706',
-    admin_email: '', admin_first_name: '', admin_last_name: '', admin_password: '',
-  })
+  const [form, setForm] = useState(INITIAL_FORM)
   const [seedDemo, setSeedDemo] = useState(true)
   const [mustChangePw, setMustChangePw] = useState(false)
   const [showPw, setShowPw] = useState(false)
@@ -55,13 +57,19 @@ export default function NewOrganizationPage() {
   // Opened from a demo request: /platform/yeni?talep=<id>&ad=…&eposta=…&telefon=…&paket=…
   useEffect(() => {
     const q = new URLSearchParams(window.location.search)
-    if (!q.get('talep')) return
-    setDemoId(q.get('talep') || '')
+    const paket = q.get('paket')
+    const validPlan = paket && ['baslangic', 'orta', 'ileri'].includes(paket) ? paket : undefined
+    if (!q.get('talep') && !validPlan) return
+    if (q.get('talep')) setDemoId(q.get('talep') || '')
     const name = q.get('ad') || ''
     setForm((f) => ({
-      ...f, name, subdomain: slugify(name), email: q.get('eposta') || '', phone: q.get('telefon') || '',
-      admin_email: q.get('eposta') || '',
-      admin_first_name: q.get('yonetici_ad') || '', admin_last_name: q.get('yonetici_soyad') || '',
+      ...f,
+      ...(name ? { name, subdomain: slugify(name) } : {}),
+      ...(q.get('eposta') ? { email: q.get('eposta') || '', admin_email: q.get('eposta') || '' } : {}),
+      ...(q.get('telefon') ? { phone: q.get('telefon') || '' } : {}),
+      ...(validPlan ? { plan: validPlan } : {}),
+      ...(q.get('yonetici_ad') ? { admin_first_name: q.get('yonetici_ad') || '' } : {}),
+      ...(q.get('yonetici_soyad') ? { admin_last_name: q.get('yonetici_soyad') || '' } : {}),
     }))
   }, [])
 
@@ -131,7 +139,16 @@ export default function NewOrganizationPage() {
           <Link href={`/platform/kurum/${created.organization.id}`} className={ptPrimaryBtn}>Kurum ayarlarına git</Link>
           <button
             type="button"
-            onClick={() => { setCreated(null); setSubdomainTouched(false); setDemoId(''); window.history.replaceState(null, '', '/platform/yeni') }}
+            onClick={() => {
+              setCreated(null)
+              setForm(INITIAL_FORM)
+              setSeedDemo(true)
+              setMustChangePw(false)
+              setShowPw(false)
+              setSubdomainTouched(false)
+              setDemoId('')
+              window.history.replaceState(null, '', '/platform/yeni')
+            }}
             className={ptSecondaryBtn}
           >
             Başka kurum ekle
@@ -212,7 +229,17 @@ export default function NewOrganizationPage() {
               <Palette className="h-4 w-4 text-emerald-600" aria-hidden="true" />
               <h2 className="text-base font-bold text-slate-900">Görünüm ve renkler</h2>
             </div>
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-500 sm:col-span-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Paket
+              <select className={ptSelect} value={form.plan} onChange={(e) => set('plan', e.target.value)}>
+                {(catalog?.plans || [
+                  { key: 'baslangic', label: 'Başlangıç' },
+                  { key: 'orta', label: 'Orta' },
+                  { key: 'ileri', label: 'İleri' },
+                ]).map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Şablon
               <select className={ptSelect} value={form.template} onChange={(e) => set('template', e.target.value)}>
                 {(catalog?.templates || []).map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
@@ -247,11 +274,13 @@ export default function NewOrganizationPage() {
               <div className="mt-1.5 flex items-center gap-2">
                 <input
                   type="color"
-                  value={form.primary_color}
+                  value={/^#[0-9A-Fa-f]{6}$/.test(form.primary_color) ? form.primary_color : '#059669'}
                   onChange={(e) => set('primary_color', e.target.value.toUpperCase())}
                   className="h-[42px] w-12 shrink-0 cursor-pointer rounded-xl border border-slate-200 bg-white p-1"
                 />
                 <input
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                  title="#RRGGBB biçiminde renk kodu"
                   className={`${ptInput} mt-0 font-mono`}
                   value={form.primary_color}
                   onChange={(e) => set('primary_color', e.target.value)}
@@ -263,11 +292,13 @@ export default function NewOrganizationPage() {
               <div className="mt-1.5 flex items-center gap-2">
                 <input
                   type="color"
-                  value={form.accent_color}
+                  value={/^#[0-9A-Fa-f]{6}$/.test(form.accent_color) ? form.accent_color : '#D97706'}
                   onChange={(e) => set('accent_color', e.target.value.toUpperCase())}
                   className="h-[42px] w-12 shrink-0 cursor-pointer rounded-xl border border-slate-200 bg-white p-1"
                 />
                 <input
+                  pattern="^#[0-9A-Fa-f]{6}$"
+                  title="#RRGGBB biçiminde renk kodu"
                   className={`${ptInput} mt-0 font-mono`}
                   value={form.accent_color}
                   onChange={(e) => set('accent_color', e.target.value)}

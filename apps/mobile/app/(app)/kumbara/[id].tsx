@@ -7,7 +7,7 @@ import { call, date, dateTime, daysAgo, idempotencyKey, isDialable, money, toCen
 import { recall } from '@/lib/selected';
 import { useCampaignOptions } from '@/api/hooks';
 import { MoneyBox } from '@/api/types';
-import { Badge, Btn, Card, Field, ListItem, Notice, QueryView, Row, Screen, SectionTitle, Select, ui } from '@/components/ui';
+import { Badge, Btn, Card, Field, ListItem, Notice, QueryView, Row, Screen, SectionTitle, Select, useUi } from '@/components/ui';
 import { DateField } from '@/components/fields';
 import { notify } from '@/components/toast';
 import { space } from '@/theme';
@@ -18,6 +18,7 @@ export default function MoneyBoxDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const ui = useUi();
   const campaigns = useCampaignOptions();
   const box = useQuery({
     queryKey: ['money-box', id],

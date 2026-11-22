@@ -9,13 +9,14 @@ import { authenticate, biometricAvailable, biometricEnabled, setBiometricEnabled
 import { openUrl } from '@/lib/format';
 import { pushEnabled, registerPush, unregisterPush } from '@/lib/notifications';
 import { getItem } from '@/lib/storage';
-import { Btn, Card, Chips, Field, Notice, Row, Screen, SectionTitle, SwitchRow, ui } from '@/components/ui';
+import { Btn, Card, Chips, Field, Notice, Row, Screen, SectionTitle, SwitchRow, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
 import { space, useTheme, type ThemeMode } from '@/theme';
 
 export default function Account() {
   const { me, site, signOut } = useAuth();
   const { mode, setMode } = useTheme();
+  const ui = useUi();
   const router = useRouter();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');

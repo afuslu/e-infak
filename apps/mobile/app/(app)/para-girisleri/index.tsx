@@ -5,8 +5,8 @@ import { money, dateTime } from '@/lib/format';
 import { remember } from '@/lib/selected';
 import { CHANNEL_COLORS, changeText, Inflow, useInflow } from '@/api/inflow';
 import { ChannelBar, Sparkline } from '@/components/InflowCard';
-import { Badge, Btn, Card, Chips, ListItem, Notice, QueryView, Screen, SectionTitle, Stat, ui } from '@/components/ui';
-import { colors, font, space } from '@/theme';
+import { Badge, Btn, Card, Chips, ListItem, Notice, QueryView, Screen, SectionTitle, Stat, useUi } from '@/components/ui';
+import { font, space, useTheme } from '@/theme';
 
 const PERIODS = [
   { value: 'today', label: 'Bugün' },
@@ -16,6 +16,8 @@ const PERIODS = [
 
 export default function Inflows() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const ui = useUi();
   const [period, setPeriod] = useState<Inflow['period']>('today');
   const query = useInflow(period);
 

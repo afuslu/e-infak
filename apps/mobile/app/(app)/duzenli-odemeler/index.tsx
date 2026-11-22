@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { af } from '@/lib/api';
 import { centsToInput, date, money, toCents } from '@/lib/format';
 import { useDebounced } from '@/lib/paged';
-import { Badge, Btn, Chips, Empty, Field, ListItem, Notice, QueryView, Row, Screen, SearchBar, Sheet, Stat, ui } from '@/components/ui';
+import { Badge, Btn, Chips, Empty, Field, ListItem, Notice, QueryView, Row, Screen, SearchBar, Sheet, Stat, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
 import { space } from '@/theme';
 
@@ -25,6 +25,7 @@ const FILTERS = [{ value: 'all', label: 'Tümü' }, ...Object.entries(STATUS).ma
 export default function Subscriptions() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const ui = useUi();
   const [status, setStatus] = useState('all');
   const [term, setTerm] = useState('');
   const [selected, setSelected] = useState<Sub | null>(null);

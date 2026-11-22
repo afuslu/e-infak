@@ -9,10 +9,10 @@ import { allowed, can } from '@/lib/access';
 import { call, date, dateTime, initials, isDialable, mail, money, whatsapp } from '@/lib/format';
 import { remember } from '@/lib/selected';
 import { activity, DonorCard, SMS_STATUS, STATUS } from '@/api/types';
-import { Avatar, Badge, Btn, Card, Chips, Field, ListItem, QueryView, Row, Screen, ui } from '@/components/ui';
+import { Avatar, Badge, Btn, Card, Chips, Field, ListItem, QueryView, Row, Screen, useUi } from '@/components/ui';
 import { SmsSheet } from '@/components/SmsSheet';
 import { confirm, notify, notifyError } from '@/components/toast';
-import { colors, font, space } from '@/theme';
+import { font, space, useTheme } from '@/theme';
 
 const TABS = [
   { value: 'donations', label: 'Bağışlar' },
@@ -26,6 +26,8 @@ export default function DonorDetail() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const [tab, setTab] = useState('donations');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState<string | null>(null);

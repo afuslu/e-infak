@@ -136,15 +136,19 @@ export default function PlatformDemoRequestsPage() {
                   <td className="max-w-xs whitespace-pre-line px-4 py-3.5 text-xs text-slate-600">
                     <div>{r.message || '—'}</div>
                     <input
+                      key={`${r.id}-${r.operator_notes || ''}`}
                       defaultValue={r.operator_notes || ''}
+                      aria-label={`${r.organization} görüşme notu`}
                       placeholder="Görüşme notu ekle…"
                       onBlur={async (e) => {
-                        const val = e.target.value.trim()
+                        const inputEl = e.currentTarget
+                        const val = inputEl.value.trim()
                         if (val === (r.operator_notes || '')) return
                         try {
                           const updated = await platformCall<DemoRequest>('patch', `/demo-requests/${r.id}`, { operator_notes: val })
                           setRows((list) => (list || []).map((x) => (x.id === r.id ? updated : x)))
                         } catch (err) {
+                          inputEl.value = r.operator_notes || ''
                           setError(platformError(err, 'Not kaydedilemedi'))
                         }
                       }}
@@ -153,6 +157,7 @@ export default function PlatformDemoRequestsPage() {
                   </td>
                   <td className="px-4 py-3.5">
                     <select
+                      aria-label={`${r.organization} talep durumu`}
                       value={r.status}
                       disabled={busyId === r.id}
                       onChange={(e) => setStatus(r, e.target.value as DemoRequest['status'])}

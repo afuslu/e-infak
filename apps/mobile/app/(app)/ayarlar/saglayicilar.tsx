@@ -3,9 +3,9 @@ import { Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { af } from '@/lib/api';
-import { Badge, Btn, Card, Chips, Field, Notice, QueryView, Screen, SectionTitle, Select, Sheet, ui } from '@/components/ui';
+import { Badge, Btn, Card, Chips, Field, Notice, QueryView, Screen, SectionTitle, Select, Sheet, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
-import { colors, font, space } from '@/theme';
+import { font, space, useTheme } from '@/theme';
 
 type ProviderField = { key: string; label: string; secret: boolean; optional: boolean; choices: Record<string, string> | string[] | null };
 type Provider = { key: string; label: string; note: string | null; fields: ProviderField[]; values: Record<string, string | null>; configured: boolean };
@@ -22,6 +22,8 @@ function choiceOptions(choices: ProviderField['choices']) {
 
 export default function Providers() {
   const queryClient = useQueryClient();
+  const { colors } = useTheme();
+  const ui = useUi();
   const query = useQuery({ queryKey: ['provider-accounts'], queryFn: () => af<Accounts>('/provider-accounts') });
   const [kind, setKind] = useState<'payment' | 'sms'>('payment');
   const [editing, setEditing] = useState<Provider | null>(null);

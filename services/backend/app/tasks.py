@@ -846,16 +846,24 @@ def check_platform_subscriptions_task():
                     Organization.subscription_ends_at.isnot(None),
                 )
             )).scalars().all()
+            from app.models.platform import PlatformAuditLog
             expired_count = 0
             reminded_count = 0
             for org in orgs:
                 ends = org.subscription_ends_at
                 if ends.tzinfo is None:
                     ends = ends.replace(tzinfo=timezone.utc)
-                if ends < now and (org.subscription_status or "active") == "active":
+                status_now = org.subscription_status or "active"
+                if ends < now and status_now in ("active", "trial"):
                     org.subscription_status = "past_due"
+                    db.add(PlatformAuditLog(
+                        platform_user_id=None,
+                        organization_id=org.id,
+                        action="abonelik_suresi_doldu",
+                        details={"previous_status": status_now, "ended_at": ends.isoformat()},
+                    ))
                     expired_count += 1
-                elif now <= ends <= soon and (org.subscription_status or "active") == "active":
+                elif now <= ends <= soon and status_now in ("active", "trial"):
                     if settings.SENDGRID_API_KEY and org.email:
                         days_left = max(1, (ends - now).days)
                         html = (

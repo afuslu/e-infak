@@ -6,7 +6,7 @@ import { af } from '@/lib/api';
 import { remember } from '@/lib/selected';
 import { MoneyBox } from '@/api/types';
 import { Btn, Loading, Notice, Screen } from '@/components/ui';
-import { colors, font, space } from '@/theme';
+import { font, space, useTheme } from '@/theme';
 
 /** QR içeriği kumbara kodu (KMB-0001) ya da kodu içeren bir bağlantı olabilir. */
 function extractCode(data: string): string {
@@ -17,6 +17,7 @@ function extractCode(data: string): string {
 
 export default function Scan() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const busy = useRef(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -57,16 +58,16 @@ export default function Scan() {
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       <Stack.Screen options={{ title: 'QR kod okut' }} />
       <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={onScan} />
-      <View style={styles.frame} pointerEvents="none" />
+      <View style={[styles.frame, { borderColor: colors.primaryLine }]} pointerEvents="none" />
       <View style={styles.bottom}>
-        <Text style={styles.text}>{message || 'Kumbaranın üzerindeki QR kodu çerçeveye getirin.'}</Text>
+        <Text style={[styles.text, { color: colors.white }]}>{message || 'Kumbaranın üzerindeki QR kodu çerçeveye getirin.'}</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  frame: { position: 'absolute', top: '25%', left: '15%', width: '70%', aspectRatio: 1, borderWidth: 3, borderColor: colors.primaryLine, borderRadius: 20 },
+  frame: { position: 'absolute', top: '25%', left: '15%', width: '70%', aspectRatio: 1, borderWidth: 3, borderRadius: 20 },
   bottom: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: space.xl, backgroundColor: 'rgba(0,0,0,0.6)' },
-  text: { color: colors.white, fontSize: font.md, textAlign: 'center' },
+  text: { fontSize: font.md, textAlign: 'center' },
 });

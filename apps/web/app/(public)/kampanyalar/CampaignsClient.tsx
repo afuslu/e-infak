@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { CampaignList } from '../../../components/campaign/CampaignList'
+import { SmsDonationBanner } from '../../../components/site/SmsDonationBanner'
 
 const categories = [
   ['Tümü', ''],
@@ -55,6 +56,7 @@ export default function CampaignsClient({ initialCategory = '', initialSearch = 
           ))}
         </div>
         <CampaignList category={category} search={search} />
+        <SmsDonationBanner className="mt-10" />
       </div>
     </main>
   )

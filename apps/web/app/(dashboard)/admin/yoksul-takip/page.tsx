@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import axios from 'axios'
 import { Button, Card, Input } from '@e-infak/ui'
@@ -100,14 +100,21 @@ const emptyMember = {
 type MemberForm = typeof emptyMember & { id?: string }
 
 export default function SocialAidAndKumanyaPage() {
+  return <Suspense fallback={null}><SocialAidAndKumanyaInner /></Suspense>
+}
+
+function SocialAidAndKumanyaInner() {
   const searchParams = useSearchParams()
-  const initialTab = (searchParams?.get('tab') as Tab) || 'households'
+  const tabParam = searchParams?.get('tab') as Tab | null
+  const validTab = (t: Tab | null): Tab =>
+    t && ['households', 'applications', 'packages', 'distributions', 'stats'].includes(t) ? t : 'households'
   const { data: access } = useAdminAccess()
   const canEdit = can(access, 'operations.manage')
 
-  const [tab, setTab] = useState<Tab>(
-    ['households', 'applications', 'packages', 'distributions', 'stats'].includes(initialTab) ? initialTab : 'households',
-  )
+  const [tab, setTab] = useState<Tab>(() => validTab(tabParam))
+  useEffect(() => {
+    setTab(validTab(tabParam))
+  }, [tabParam])
   const [meta, setMeta] = useState<Meta | null>(null)
   const [regions, setRegions] = useState<{ id: string; name: string }[]>([])
   const [campaigns, setCampaigns] = useState<{ id: string; title: string }[]>([])

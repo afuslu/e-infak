@@ -122,10 +122,9 @@ export const NAV_RAIL: NavRail[] = [
         items: [
           { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: Blocks, module: 'site' },
           { href: '/admin/site-ayarlari', label: 'Genel Ayarlar', icon: Settings, module: 'settings' },
-          { href: '/admin/gorunum', label: 'Görünüm', icon: Palette, module: 'site' },
-          { href: '/admin/menu', label: 'Menüler', icon: PanelsTopLeft, module: 'site' },
-          { href: '/admin/sayfalar', label: 'Sayfalar', icon: FileText, module: 'site' },
-          { href: '/admin/banners', label: 'Slider', icon: Film, feature: 'website', module: 'site' },
+          { href: '/admin/site-yapici?tab=theme', label: 'Görünüm', icon: Palette, module: 'site' },
+          { href: '/admin/site-yapici?tab=menu', label: 'Menüler', icon: PanelsTopLeft, module: 'site' },
+          { href: '/admin/site-yapici?tab=pages', label: 'Sayfalar', icon: FileText, module: 'site' },
           { href: '/admin/bagis-kalemleri', label: 'Hızlı Bağış Kalemleri', icon: Tags, module: 'site' },
           { href: '/admin/icerikler', label: 'İçerikler', icon: Newspaper, feature: 'website', module: 'site' },
           { href: '/admin/galeri', label: 'Medya (Foto & Video Galeri)', icon: Film, feature: 'website', module: 'site' },
@@ -155,7 +154,6 @@ export const NAV_RAIL: NavRail[] = [
         title: 'Diğer Kanallar', items: [
           { href: '/admin/whatsapp', label: 'WhatsApp Business', icon: MessagesSquare, feature: 'whatsapp', module: 'sms' },
           { href: '/admin/cagri-merkezi', label: 'Çağrı Merkezi', icon: PhoneCall, feature: 'call_center', module: ['donors', 'sms'] },
-          { href: '/admin/hatirlatici', label: 'Hatırlatıcı', icon: BellRing },
         ],
       },
     ],
@@ -165,8 +163,8 @@ export const NAV_RAIL: NavRail[] = [
       {
         title: 'Operasyon', items: [
           { href: '/admin/online-bagis', label: 'Online Bağış', icon: CreditCard, module: ['receipts', 'bank'] },
-          { href: '/admin/banka-odeme?sekme=banka-hareketleri', label: 'Banka Hareketleri (Gelir)', icon: Landmark, module: ['bank', 'settings'] },
-          { href: '/admin/banka-odeme?sekme=banka-hesaplari', label: 'Banka Hesapları', icon: Wallet, module: ['bank', 'settings'] },
+          { href: '/admin/banka-odeme?sekme=banka-hareketleri', label: 'Banka Hareketleri (Gelir)', icon: Landmark, feature: 'bank_transactions', module: ['bank', 'settings'] },
+          { href: '/admin/banka-odeme?sekme=banka-hesaplari', label: 'Banka Hesapları', icon: Wallet, feature: 'bank_transactions', module: ['bank', 'settings'] },
           { href: '/admin/sms-bagislari', label: 'SMS Bağışları', icon: MessageSquareText, feature: 'sms_donation', module: ['receipts', 'bank'] },
         ],
       },
@@ -217,6 +215,11 @@ export const NAV_RAIL: NavRail[] = [
   {
     key: 'takvim', label: 'Takvim', icon: CalendarDays, divider: true, sections: [
       { items: [{ href: '/admin/gorevler', label: 'Takvim & Görevler', icon: CalendarDays, feature: 'tasks' }] },
+    ],
+  },
+  {
+    key: 'hatirlatici', label: 'Hatırlatıcı', icon: BellRing, sections: [
+      { items: [{ href: '/admin/hatirlatici', label: 'Hatırlatıcı', icon: BellRing }] },
     ],
   },
   {

@@ -2170,6 +2170,8 @@ async def reply_tenant_ticket(
     ).scalar_one_or_none()
     if not ticket:
         raise HTTPException(status_code=404, detail="Destek talebi bulunamadı")
+    if ticket.status == "closed":
+        raise HTTPException(status_code=400, detail="Kapatılmış destek talebine yeni yanıt eklenemez")
     sender_name = f"{current_user.first_name or ''} {current_user.last_name or ''}".strip() or current_user.email
     msg = SupportTicketMessage(
         ticket_id=ticket.id,
@@ -2179,6 +2181,7 @@ async def reply_tenant_ticket(
     )
     db.add(msg)
     ticket.status = "open"
+    ticket.updated_at = datetime.now(timezone.utc)
     await db.commit()
     return {"ok": True}
 

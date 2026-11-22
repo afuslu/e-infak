@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, font, radius, space } from '@/theme';
+import { font, radius, space, useTheme } from '@/theme';
 
 type Toast = { id: number; text: string; tone: 'ok' | 'error' };
 let listener: ((toast: Toast) => void) | null = null;
@@ -30,6 +30,7 @@ export function confirm(title: string, message?: string, okLabel = 'Evet', destr
 }
 
 export function ToastHost() {
+  const { colors, dark } = useTheme();
   const [toast, setToast] = useState<Toast | null>(null);
   const insets = useSafeAreaInsets();
   useEffect(() => {
@@ -44,10 +45,11 @@ export function ToastHost() {
     return () => clearTimeout(timer);
   }, [toast]);
   if (!toast) return null;
+  const bg = toast.tone === 'error' ? (dark ? '#991B1B' : colors.danger) : (dark ? '#065F46' : colors.primaryDeep);
   return (
     <View pointerEvents="none" style={[styles.wrap, { bottom: insets.bottom + 84 }]}>
-      <View style={[styles.box, toast.tone === 'error' && { backgroundColor: colors.danger }]} accessibilityRole="alert">
-        <Text style={styles.text}>{toast.text}</Text>
+      <View style={[styles.box, { backgroundColor: bg }]} accessibilityRole="alert">
+        <Text style={[styles.text, { color: colors.white }]}>{toast.text}</Text>
       </View>
     </View>
   );
@@ -55,6 +57,6 @@ export function ToastHost() {
 
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingHorizontal: space.lg, zIndex: 1000 },
-  box: { backgroundColor: colors.primaryDeep, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, maxWidth: 480 },
-  text: { color: colors.white, fontSize: font.md, fontWeight: '600', textAlign: 'center' },
+  box: { borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, maxWidth: 480 },
+  text: { fontSize: font.md, fontWeight: '600', textAlign: 'center' },
 });

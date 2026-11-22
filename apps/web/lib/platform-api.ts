@@ -16,7 +16,7 @@ export function setPlatformToken(token: string | null) {
 
 export const PASSWORD_CHANGE_REQUIRED = 'password_change_required'
 
-export interface PlatformMe { id?: string; email: string; full_name: string; role?: 'admin' | 'support'; must_change_password: boolean }
+export interface PlatformMe { id?: string; email: string; full_name: string; role?: 'admin' | 'support'; totp_enabled?: boolean; must_change_password: boolean }
 
 function base() {
   return `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/platform`

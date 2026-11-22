@@ -1,15 +1,28 @@
 import type { MetadataRoute } from 'next'
-import { getSite } from '../lib/public-content'
 
-export default async function manifest(): Promise<MetadataRoute.Manifest> {
-  const site = await getSite()
+export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: site ? site.name : 'E-İnfak Bağış Platformu',
-    short_name: site ? site.name.slice(0, 24) : 'E-İnfak',
-    start_url: '/',
+    name: 'E-İnfak Bağışçı Paneli',
+    short_name: 'Bağışçı Paneli',
+    description: 'Bağışlarınızı, makbuzlarınızı, kurban videolarınızı ve su kuyularınızı tek yerden takip edin.',
+    start_url: '/portal',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: site?.primary_color || '#059669',
-    icons: site?.favicon_url ? [{ src: site.favicon_url, sizes: 'any' }] : undefined,
+    background_color: '#047857',
+    theme_color: '#047857',
+    lang: 'tr',
+    icons: [
+      {
+        src: '/images/e-infak/mark.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/images/e-infak/mark.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
   }
 }

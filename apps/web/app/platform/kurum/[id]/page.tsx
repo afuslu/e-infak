@@ -1,14 +1,16 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Download, Printer } from 'lucide-react'
+import { Download, KeyRound, Printer } from 'lucide-react'
 import { AlertList } from '../../../../components/platform/AlertList'
 import { AuditEntry, AuditTable } from '../../../../components/platform/AuditTable'
 import { SubscriptionCard } from '../../../../components/platform/SubscriptionCard'
+import UserPasswordModal, { PasswordResultCard, PasswordSetupResult } from '../../../../components/platform/UserPasswordModal'
 import { startSimulation } from '../../../../lib/simulation'
 import {
-  Catalog, Credentials, PlatformAlert, PlatformDomain, PlatformOrg, copyText, credentialsText, dateTr, platformCall, platformError, platformToken,
+  Catalog, PlatformAlert, PlatformDomain, PlatformMe, PlatformOrg, dateTr, platformCall, platformError, platformToken,
 } from '../../../../lib/platform-api'
 
 interface Field { key: string; label: string; secret: boolean; optional: boolean; choices: Record<string, string> | null }
@@ -18,7 +20,6 @@ interface Detail extends PlatformOrg {
   provider_accounts: Account[]
 }
 type Msg = { type: 'ok' | 'error'; text: string } | null
-type Issued = Credentials
 interface OrgUser { id: string; email: string; name: string; role: string | null; role_label: string | null; is_active: boolean; last_login_at: string | null }
 
 const input = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15'
@@ -29,15 +30,26 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 function AccountForm({ orgId, account, onSaved }: { orgId: string; account: Account; onSaved: (a: Account) => void }) {
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(account.fields.map((f) => [f.key, f.secret ? '' : account.values[f.key] || ''])))
+  const buildValues = useCallback(
+    (acc: Account) => Object.fromEntries(acc.fields.map((f) => [f.key, f.secret ? '' : acc.values[f.key] || ''])),
+    [],
+  )
+  const [values, setValues] = useState<Record<string, string>>(() => buildValues(account))
   const [msg, setMsg] = useState<Msg>(null)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setValues(buildValues(account))
+  }, [account, buildValues])
+
   const save = async () => {
     setSaving(true)
+    setMsg(null)
     try {
       const saved = await platformCall<Account>('put', `/organizations/${orgId}/provider-accounts/${account.key}`, { values })
-      onSaved({ ...saved, kind: account.kind })
+      const updated = { ...saved, kind: account.kind }
+      onSaved(updated)
+      setValues(buildValues(updated))
       setMsg({ type: 'ok', text: 'Kaydedildi' })
     } catch (err) {
       setMsg({ type: 'error', text: errorText(err, 'Kaydedilemedi') })
@@ -80,20 +92,25 @@ export default function PlatformOrganizationPage() {
   const [confirmDelete, setConfirmDelete] = useState('')
   const [tab, setTab] = useState<'genel' | 'kullanicilar' | 'altyapi' | 'abonelik' | 'kayitlar'>('genel')
   const [org, setOrg] = useState<Detail | null>(null)
+  const [me, setMe] = useState<PlatformMe | null>(null)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [plan, setPlan] = useState({ plan: '', enabled_addons: [] as string[], extra_user_seats: 0 })
   const [newDomain, setNewDomain] = useState('')
   const [msg, setMsg] = useState<Msg>(null)
-  const [issued, setIssued] = useState<Issued | null>(null)
+  const [issued, setIssued] = useState<PasswordSetupResult | null>(null)
+  const [passwordModalUser, setPasswordModalUser] = useState<OrgUser | null>(null)
   const [alerts, setAlerts] = useState<PlatformAlert[]>([])
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState<'' | 'ok' | 'fail'>('')
   const [info, setInfo] = useState({ name: '', legal_name: '', email: '', phone: '', city: '' })
   const [notes, setNotes] = useState('')
   const [testPhone, setTestPhone] = useState('')
   const [audit, setAudit] = useState<AuditEntry[] | null>(null)
-  const emptyUser = { first_name: '', last_name: '', email: '', role: 'editor' }
+  const emptyUser = {
+    first_name: '', last_name: '', email: '', role: 'editor',
+    password_mode: 'setup_link' as 'setup_link' | 'temp' | 'custom',
+    custom_password: '', must_change_password: true, send_email: true,
+  }
   const [newUser, setNewUser] = useState(emptyUser)
 
   const load = useCallback(async () => {
@@ -113,6 +130,7 @@ export default function PlatformOrganizationPage() {
     load().catch((err) => setMsg({ type: 'error', text: errorText(err, 'Kurum yüklenemedi') }))
     platformCall<Catalog>('get', '/catalog').then(setCatalog)
       .catch((err) => setMsg({ type: 'error', text: errorText(err, 'Paket ve rol listesi yüklenemedi; sayfayı yenileyin') }))
+    platformCall<PlatformMe>('get', '/me').then(setMe).catch(() => undefined)
   }, [load])
 
   const run = async (action: () => Promise<unknown>, ok: string) => {
@@ -129,9 +147,31 @@ export default function PlatformOrganizationPage() {
       setBusy(false)
     }
   }
-  const issue = (creds: Issued) => { setIssued(creds); setCopied('') }
+  const issue = (creds: PasswordSetupResult) => { setIssued(creds) }
 
-  if (!org) return <p className="text-sm text-slate-500">{msg?.text || 'Yükleniyor…'}</p>
+  if (!org) {
+    return msg?.type === 'error' ? (
+      <div className="max-w-md space-y-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+        <p className="font-semibold">{msg.text}</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => { setMsg(null); load().catch((err) => setMsg({ type: 'error', text: errorText(err, 'Kurum yüklenemedi') })) }}
+            className="rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+          >
+            Tekrar dene
+          </button>
+          <Link href="/platform" className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            Kurumlara dön
+          </Link>
+        </div>
+      </div>
+    ) : (
+      <p className="text-sm text-slate-500">Yükleniyor…</p>
+    )
+  }
+
+  const isAdmin = (me?.role || 'admin') === 'admin'
 
   const addons = catalog?.plans.find((p) => p.key === plan.plan)?.addons || []
   const supportSignIn = async () => {
@@ -193,7 +233,7 @@ export default function PlatformOrganizationPage() {
                 a.href = url
                 a.download = `${org.slug}-ozet.pdf`
                 a.click()
-                URL.revokeObjectURL(url)
+                window.setTimeout(() => URL.revokeObjectURL(url), 1000)
               } catch {
                 setMsg({ type: 'error', text: 'PDF raporu indirilemedi' })
               }
@@ -231,7 +271,7 @@ export default function PlatformOrganizationPage() {
         </fieldset>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 border-b border-slate-200 pb-2">
+      <div role="tablist" aria-label="Kurum sekmeleri" className="flex flex-wrap gap-1.5 border-b border-slate-200 pb-2">
         {([
           ['genel', 'Genel & Paket'],
           ['kullanicilar', `Kullanıcılar (${org.users.length})`],
@@ -242,6 +282,8 @@ export default function PlatformOrganizationPage() {
           <button
             key={key}
             type="button"
+            role="tab"
+            aria-selected={tab === key}
             onClick={() => setTab(key)}
             className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${
               tab === key
@@ -259,8 +301,12 @@ export default function PlatformOrganizationPage() {
           alerts={alerts}
           showOrg={false}
           onDismiss={async (a) => {
-            await platformCall('post', '/alerts/dismiss', { organization_id: a.organization_id, kind: a.kind })
-            setAlerts((prev) => prev.filter((x) => x.kind !== a.kind))
+            try {
+              await platformCall('post', '/alerts/dismiss', { organization_id: a.organization_id, kind: a.kind })
+              setAlerts((prev) => prev.filter((x) => x.kind !== a.kind))
+            } catch (err) {
+              setMsg({ type: 'error', text: errorText(err, 'Uyarı gizlenemedi') })
+            }
           }}
         />
       )}
@@ -296,21 +342,7 @@ export default function PlatformOrganizationPage() {
         {tab === 'kullanicilar' && (
         <div className="lg:col-span-2">
         <Card title="Kullanıcılar">
-          {issued && (
-            <div className="space-y-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
-              <p className="font-semibold text-amber-900">{issued.email} için yeni geçici şifre — yalnız şimdi gösterilir:</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <code className="rounded bg-white px-2 py-1 font-mono text-base select-all">{issued.temporary_password}</code>
-                <button type="button" className="rounded border bg-white px-2 py-1 text-xs font-semibold"
-                  onClick={async () => setCopied((await copyText(credentialsText(issued))) ? 'ok' : 'fail')}>
-                  {copied === 'ok' ? 'Kopyalandı ✓' : copied === 'fail' ? 'Kopyalanamadı' : 'Bilgileri kopyala'}
-                </button>
-                <button type="button" className="rounded border bg-white px-2 py-1 text-xs" onClick={() => setIssued(null)}>Kapat</button>
-              </div>
-              <p className="text-xs text-amber-800">Giriş: <a className="underline" href={issued.login_url} target="_blank" rel="noreferrer">{issued.login_url}</a>. İlk girişte kendi şifresini belirlemesi istenecek.
-                {issued.email_sent ? ' Bilgiler kullanıcıya e-postayla da gönderildi.' : ' E-posta gönderilemedi; bilgileri güvenli bir yoldan iletin.'}</p>
-            </div>
-          )}
+          {issued && <PasswordResultCard result={issued} orgName={org.name} onClose={() => setIssued(null)} />}
           {(() => {
             const active = org.users.filter((u) => u.is_active).length
             const full = active >= org.user_limit
@@ -327,22 +359,37 @@ export default function PlatformOrganizationPage() {
             )
           })()}
           {adding && (
-            <form className="grid gap-2 rounded-xl border bg-slate-50 p-3 sm:grid-cols-2"
+            <form className="grid gap-3 rounded-xl border bg-slate-50 p-4 sm:grid-cols-2"
               onSubmit={(e) => {
                 e.preventDefault()
+                if (newUser.password_mode === 'custom' && newUser.custom_password.length < 10) {
+                  setMsg({ type: 'error', text: 'Özel şifre en az 10 karakter olmalıdır.' })
+                  return
+                }
                 run(async () => {
-                  issue(await platformCall<Issued>('post', `/organizations/${org.id}/users`, newUser))
+                  const payload = {
+                    first_name: newUser.first_name,
+                    last_name: newUser.last_name,
+                    email: newUser.email,
+                    role: newUser.role,
+                    password_mode: newUser.password_mode,
+                    ...(newUser.password_mode === 'custom'
+                      ? { custom_password: newUser.custom_password, must_change_password: newUser.must_change_password }
+                      : {}),
+                    send_email: newUser.send_email,
+                  }
+                  issue(await platformCall<PasswordSetupResult>('post', `/organizations/${org.id}/users`, payload))
                   setAdding(false)
                   setNewUser(emptyUser)
                 }, `${newUser.email} eklendi`)
               }}>
-              <label className="text-xs font-semibold text-slate-600">Ad
+              <label className="text-xs font-semibold text-slate-600">Ad *
                 <input required className={input} value={newUser.first_name} onChange={(e) => setNewUser({ ...newUser, first_name: e.target.value })} />
               </label>
               <label className="text-xs font-semibold text-slate-600">Soyad
                 <input className={input} value={newUser.last_name} onChange={(e) => setNewUser({ ...newUser, last_name: e.target.value })} />
               </label>
-              <label className="text-xs font-semibold text-slate-600">E-posta
+              <label className="text-xs font-semibold text-slate-600">E-posta *
                 <input required type="email" className={input} value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} />
               </label>
               <label className="text-xs font-semibold text-slate-600">Rol
@@ -350,7 +397,48 @@ export default function PlatformOrganizationPage() {
                   {(catalog?.roles || []).map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
                 </select>
               </label>
-              <p className="text-xs text-slate-500 sm:col-span-2">Geçici şifre üretilir ve bir kez gösterilir. Görsel/içerik yükleyecekler için “İçerik Editörü” yeterlidir.</p>
+              <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Şifre belirleme yöntemi
+                <select
+                  className={input}
+                  value={newUser.password_mode}
+                  onChange={(e) => setNewUser({ ...newUser, password_mode: e.target.value as 'setup_link' | 'temp' | 'custom' })}
+                >
+                  <option value="setup_link">QR Kod & Tek Kullanımlık Link (kullanıcı kendi belirler)</option>
+                  <option value="temp">Geçici Şifre (otomatik üretilir)</option>
+                  <option value="custom">Özel Şifre (elle belirle)</option>
+                </select>
+              </label>
+              {newUser.password_mode === 'custom' && (
+                <>
+                  <label className="text-xs font-semibold text-slate-600 sm:col-span-2">Özel Şifre (en az 10 karakter) *
+                    <input
+                      required
+                      minLength={10}
+                      type="text"
+                      className={`${input} font-mono`}
+                      value={newUser.custom_password}
+                      onChange={(e) => setNewUser({ ...newUser, custom_password: e.target.value })}
+                      placeholder="En az 10 karakter"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-slate-700 sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={newUser.must_change_password}
+                      onChange={(e) => setNewUser({ ...newUser, must_change_password: e.target.checked })}
+                    />
+                    İlk girişte şifresini değiştirmesi istensin
+                  </label>
+                </>
+              )}
+              <label className="flex items-center gap-2 text-xs text-slate-700 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  checked={newUser.send_email}
+                  onChange={(e) => setNewUser({ ...newUser, send_email: e.target.checked })}
+                />
+                Kullanıcıya e-posta ile bilgilendirme gönder
+              </label>
               <div className="sm:col-span-2"><button type="submit" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white">Hesabı oluştur</button></div>
             </form>
           )}
@@ -375,13 +463,16 @@ export default function PlatformOrganizationPage() {
                         u.is_active ? `${u.email} pasifleştirildi` : `${u.email} aktifleştirildi`)}>
                     {u.is_active ? 'Aktif' : 'Pasif'}
                   </button>
-                  <button type="button" className="rounded border px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50"
-                    onClick={() => window.confirm(`${u.email} için yeni geçici şifre üretilsin mi? Eski şifre hemen geçersiz olur ve tüm oturumları kapanır.`) &&
-                      run(async () => {
-                        issue(await platformCall<Issued>('post', `/organizations/${org.id}/users/${u.id}/reset-password`))
-                      }, `${u.email} için yeni şifre üretildi`)}>
-                    Şifre sıfırla
-                  </button>
+                  {u.role !== 'platform_admin' && (
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded border px-2 py-1 font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => setPasswordModalUser(u)}
+                    >
+                      <KeyRound className="h-3 w-3" aria-hidden="true" />
+                      Şifre / QR
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
@@ -560,7 +651,7 @@ export default function PlatformOrganizationPage() {
         </div>
         )}
 
-        {tab === 'genel' && (
+        {tab === 'genel' && isAdmin && (
         <section className="space-y-3 rounded-2xl border border-red-200 bg-red-50/60 p-6 lg:col-span-2">
           <h2 className="text-base font-bold text-red-900">Tehlikeli Bölge — Kurumu Kalıcı Sil</h2>
           <p className="text-xs text-red-800">
@@ -597,6 +688,19 @@ export default function PlatformOrganizationPage() {
         </section>
         )}
       </fieldset>
+
+      {passwordModalUser && (
+        <UserPasswordModal
+          orgId={org.id}
+          orgName={org.name}
+          user={passwordModalUser}
+          onClose={() => setPasswordModalUser(null)}
+          onDone={(res) => {
+            issue(res)
+            setMsg({ type: 'ok', text: `${res.email} için erişim bilgileri hazırlandı` })
+          }}
+        />
+      )}
     </div>
   )
 }

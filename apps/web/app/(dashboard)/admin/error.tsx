@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 
@@ -10,12 +11,17 @@ export default function AdminError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    console.error('[admin-error]', error)
+  }, [error])
+
   return (
     <div className="mx-auto mt-16 max-w-lg rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
       <AlertTriangle className="mx-auto mb-3 h-10 w-10 text-amber-500" aria-hidden="true" />
       <h1 className="mb-2 text-xl font-bold text-gray-900">Bu sayfada bir hata oluştu</h1>
       <p className="mb-6 text-sm text-gray-500">
-        {error?.message || 'Beklenmeyen bir sorun nedeniyle sayfa yüklenemedi. Lütfen tekrar deneyin.'}
+        Beklenmeyen bir sorun nedeniyle sayfa yüklenemedi. Lütfen tekrar deneyin.
+        {error?.digest ? <span className="mt-1 block font-mono text-xs text-gray-400">Kod: {error.digest}</span> : null}
       </p>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <button type="button" onClick={reset}

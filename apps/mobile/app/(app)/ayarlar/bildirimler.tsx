@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { centsToInput, toCents } from '@/lib/format';
 import { pushEnabled, registerPush, sendTestPush, unregisterPush } from '@/lib/notifications';
-import { Btn, Card, Field, Notice, QueryView, Screen, SectionTitle, SwitchRow, ui } from '@/components/ui';
+import { Btn, Card, Field, Notice, QueryView, Screen, SectionTitle, SwitchRow, useUi } from '@/components/ui';
 import { notify, notifyError } from '@/components/toast';
 import { space } from '@/theme';
 
@@ -38,6 +38,7 @@ const SUMMARY_ROWS = [
 
 export default function NotificationSettings() {
   const queryClient = useQueryClient();
+  const ui = useUi();
   const query = useQuery({ queryKey: ['notification-settings'], queryFn: () => api<Response>('/mobile/notification-settings') });
   const [min, setMin] = useState('');
   const [largeMin, setLargeMin] = useState('');

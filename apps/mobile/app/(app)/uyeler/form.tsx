@@ -6,7 +6,7 @@ import { af } from '@/lib/api';
 import { centsToInput, toCents } from '@/lib/format';
 import { useDebounced } from '@/lib/paged';
 import { Donor, Member, MEMBER_STATUSES, MEMBER_TYPES } from '@/api/types';
-import { Btn, Card, Chips, Field, ListItem, Loading, Notice, Screen, SearchBar, SectionTitle, Select, ui } from '@/components/ui';
+import { Btn, Card, Chips, Field, ListItem, Loading, Notice, Screen, SearchBar, SectionTitle, Select, useUi } from '@/components/ui';
 import { DateField } from '@/components/fields';
 import { notify } from '@/components/toast';
 import { space } from '@/theme';
@@ -17,6 +17,7 @@ export default function MemberForm() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const ui = useUi();
   const existing = useQuery({ queryKey: ['member', id], enabled: !!id, queryFn: () => af<Member>(`/members/${id}`) });
 
   const [form, setForm] = useState({

@@ -309,10 +309,101 @@ async def test_console_simulation_acts_for_the_organisation(db_session, http):
         UserSession.user_id == admin_id, UserSession.revoked_at.is_(None)))).scalars().all()
     assert live, "simulation logout must not revoke the admin's own sessions"
 
-    # Renewal does not log a new sign-in; the first one is in both logs with its mode.
+    # Renewal does not log a new sign-in to tenant; platform audit still records renew=True.
     renew = await http.post(f"/api/v1/platform/organizations/{org_id}/support-session",
                             json={"inline": True, "renew": True}, headers=auth)
     assert renew.status_code == 200
     org_logs = (await db_session.execute(select(AuditLog).where(
         AuditLog.organization_id == org_id, AuditLog.action == "platform_destek_girisi"))).scalars().all()
     assert len(org_logs) == 1 and org_logs[0].details["mode"] == "simulasyon"
+    # 2FA setup is forbidden during simulation.
+    assert (await http.post("/api/v1/auth/2fa/setup", headers=sim)).status_code == 403
+
+
+async def test_operators_rbac_and_totp_2fa(db_session, http):
+    """Operator CRUD/password reset works, support role cannot perform admin mutations,
+    and TOTP 2FA gates platform login."""
+    import time
+    from app.services.totp import _totp_at
+
+    admin_op, admin_pw = await _operator(db_session)
+    token = (await http.post("/api/v1/platform/auth/login", json={"email": admin_op.email, "password": admin_pw})).json()["access_token"]
+    auth = {"Authorization": f"Bearer {token}"}
+
+    # Create support operator and reset its password (verifies passwords.temporary_password).
+    sup_email = f"sup-{uuid.uuid4().hex[:8]}@e-infak.org"
+    created = await http.post("/api/v1/platform/operators", headers=auth,
+                              json={"email": sup_email, "full_name": "Destek Ekibi", "role": "support"})
+    assert created.status_code == 201, created.text
+    sup_id = created.json()["operator"]["id"]
+    assert len(created.json()["temporary_password"]) >= 10
+
+    reset = await http.post(f"/api/v1/platform/operators/{sup_id}/reset-password", headers=auth)
+    assert reset.status_code == 200, reset.text
+    sup_pw = reset.json()["temporary_password"]
+
+    # Support operator signs in, changes temp password, then is blocked from admin-only endpoints.
+    sup_login = await http.post("/api/v1/platform/auth/login", json={"email": sup_email, "password": sup_pw})
+    assert sup_login.status_code == 200
+    sup_auth = {"Authorization": f"Bearer {sup_login.json()['access_token']}"}
+    changed = await http.post("/api/v1/platform/me/password", headers=sup_auth,
+                              json={"current_password": sup_pw, "new_password": "yeni-destek-sifresi-123"})
+    assert changed.status_code == 200, changed.text
+    sup_auth = {"Authorization": f"Bearer {changed.json()['access_token']}"}
+    assert (await http.post("/api/v1/platform/broadcasts", headers=sup_auth,
+                            json={"title": "Test", "message": "Body", "level": "info"})).status_code == 403
+
+    # Admin cannot demote themselves.
+    assert (await http.patch(f"/api/v1/platform/operators/{admin_op.id}", headers=auth,
+                             json={"role": "support"})).status_code == 400
+
+    # 2FA setup -> verify -> login requires TOTP -> disable.
+    setup = await http.post("/api/v1/platform/me/2fa/setup", headers=auth)
+    assert setup.status_code == 200, setup.text
+    secret = setup.json()["secret"]
+    assert "<svg" in setup.json()["qr_svg"]
+    now_code = lambda: _totp_at(secret, int(time.time() // 30))
+    assert (await http.post("/api/v1/platform/me/2fa/verify", headers=auth, json={"code": now_code()})).status_code == 200
+    no_code = await http.post("/api/v1/platform/auth/login", json={"email": admin_op.email, "password": admin_pw})
+    assert no_code.status_code == 401 and no_code.json()["detail"] == "totp_required"
+    with_code = await http.post("/api/v1/platform/auth/login",
+                                json={"email": admin_op.email, "password": admin_pw, "totp_code": now_code()})
+    assert with_code.status_code == 200
+    assert (await http.post("/api/v1/platform/me/2fa/disable", headers=auth,
+                            json={"code": now_code()})).status_code == 200
+
+
+async def test_org_user_password_setup_modes_and_payments(db_session, http):
+    """Org users support QR/setup_link, temp, and custom password modes; SaaS payments CRUD works."""
+    op, pw = await _operator(db_session)
+    token = (await http.post("/api/v1/platform/auth/login", json={"email": op.email, "password": pw})).json()["access_token"]
+    auth = {"Authorization": f"Bearer {token}"}
+    org, admin = await _small_org(db_session, plan="ileri")
+
+    # QR / setup_link mode on reset-password
+    link_res = await http.post(
+        f"/api/v1/platform/organizations/{org.id}/users/{admin.id}/reset-password",
+        headers=auth,
+        json={"mode": "setup_link", "expires_hours": 24, "send_email": False},
+    )
+    assert link_res.status_code == 200, link_res.text
+    link_body = link_res.json()
+    assert link_body["mode"] == "setup_link" and link_body["temporary_password"] is None
+    assert "/sifre-sifirla?token=" in link_body["setup_url"] and "<svg" in link_body["qr_svg"]
+
+    # SaaS payment create, patch, receipt PDF, delete
+    pay = await http.post(
+        f"/api/v1/platform/organizations/{org.id}/payments",
+        headers=auth,
+        json={"amount_cents": 250000, "period_label": "2026 Kasım", "payment_method": "havale", "notes": "Dekont #42", "extend_days": 30},
+    )
+    assert pay.status_code == 201, pay.text
+    pay_id = pay.json()["id"]
+    assert pay.json()["notes"] == "Dekont #42"
+    patched = await http.patch(f"/api/v1/platform/organizations/{org.id}/payments/{pay_id}",
+                               headers=auth, json={"status": "pending", "notes": "Güncel not"})
+    assert patched.status_code == 200 and patched.json()["status"] == "pending"
+    pdf = await http.get(f"/api/v1/platform/organizations/{org.id}/payments/{pay_id}/receipt.pdf", headers=auth)
+    assert pdf.status_code == 200 and pdf.headers["content-type"] == "application/pdf"
+    deleted = await http.delete(f"/api/v1/platform/organizations/{org.id}/payments/{pay_id}", headers=auth)
+    assert deleted.status_code == 204

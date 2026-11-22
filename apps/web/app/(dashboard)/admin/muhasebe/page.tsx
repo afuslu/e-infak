@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -43,6 +43,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '@/lib/axios';
+import { confirmDialog } from '@/components/admin/ui';
 import {
   AppPageHeader,
   BankaMutabakatDrawer,
@@ -318,6 +319,10 @@ const toCents = (val: string | number) =>
   Math.round((parseFloat(String(val || '0').replace(',', '.')) || 0) * 100);
 
 export default function OnMuhasebePage() {
+  return <Suspense fallback={null}><OnMuhasebeInner /></Suspense>;
+}
+
+function OnMuhasebeInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentYear = String(new Date().getFullYear());
@@ -1057,7 +1062,12 @@ export default function OnMuhasebePage() {
   };
 
   const handleDeleteAccount = async (acc: any) => {
-    if (!window.confirm(`"${acc.name}" hesabını silmek/pasife almak istediğinize emin misiniz?`)) return;
+    if (!(await confirmDialog({
+      title: `"${acc.name}" hesabı silinsin / pasife alınsın mı?`,
+      text: 'Hareketi olan hesaplar silinmez, pasife alınır.',
+      confirmLabel: 'Devam Et',
+      danger: true,
+    }))) return;
     try {
       const res = await api.delete(`${BASE}/accounts/${acc.id}`);
       flash('ok', res.data?.deactivated ? 'Hareketi olan hesap pasife alındı' : 'Hesap silindi');

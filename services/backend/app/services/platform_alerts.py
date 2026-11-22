@@ -1,6 +1,8 @@
 """Platform console alerts: what needs an operator's attention in each organisation.
 
 Each check is cheap (grouped counts), so the whole list is computed on request."""
+import asyncio
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID
@@ -35,8 +37,14 @@ _DATA_FEATURES = [
 NEVER_LOGGED_IN_AFTER = timedelta(days=3)
 
 
-async def _counts(db: AsyncSession, model, *where) -> dict:
+_SSL_CACHE: dict[str, tuple[float, Optional[int]]] = {}
+_SSL_CACHE_TTL_SECONDS = 900.0  # 15 minutes
+
+
+async def _counts(db: AsyncSession, model, *where, org_id: Optional[UUID] = None) -> dict:
     query = select(model.organization_id, func.count()).group_by(model.organization_id)
+    if org_id is not None:
+        query = query.where(model.organization_id == org_id)
     for clause in where:
         query = query.where(clause)
     return dict((await db.execute(query)).all())
@@ -59,6 +67,16 @@ def _ssl_days_left(domain: str) -> Optional[int]:
         return None
 
 
+async def _ssl_days_left_cached(domain: str) -> Optional[int]:
+    now = time.monotonic()
+    cached = _SSL_CACHE.get(domain)
+    if cached and (now - cached[0]) < _SSL_CACHE_TTL_SECONDS:
+        return cached[1]
+    days = await asyncio.to_thread(_ssl_days_left, domain)
+    _SSL_CACHE[domain] = (now, days)
+    return days
+
+
 def _alert(org: Organization, level: str, kind: str, message: str, hint: Optional[str] = None) -> dict:
     return {"organization_id": str(org.id), "organization_name": org.name, "level": level,
             "kind": kind, "message": message, "hint": hint}
@@ -72,26 +90,38 @@ async def collect(db: AsyncSession, org_id: Optional[UUID] = None) -> list[dict]
     if not orgs:
         return []
 
-    seats = await _counts(db, User, User.is_active.is_(True), User.role != UserRole.PLATFORM_ADMIN)
-    admins = await _counts(db, User, User.is_active.is_(True), User.role == UserRole.STK_ADMIN)
+    seats = await _counts(db, User, User.is_active.is_(True), User.role != UserRole.PLATFORM_ADMIN, org_id=org_id)
+    admins = await _counts(db, User, User.is_active.is_(True), User.role == UserRole.STK_ADMIN, org_id=org_id)
     stale_cutoff = datetime.now(timezone.utc) - NEVER_LOGGED_IN_AFTER
     never = await _counts(db, User, User.is_active.is_(True), User.last_login_at.is_(None),
-                          User.created_at < stale_cutoff)
-    bank_errors = await _counts(db, BankAccount, BankAccount.enabled.is_(True), BankAccount.last_error.is_not(None))
-    data = {feature: await _counts(db, model) for feature, model, _ in _DATA_FEATURES}
+                          User.created_at < stale_cutoff, org_id=org_id)
+    bank_errors = await _counts(db, BankAccount, BankAccount.enabled.is_(True), BankAccount.last_error.is_not(None), org_id=org_id)
+    data = {feature: await _counts(db, model, org_id=org_id) for feature, model, _ in _DATA_FEATURES}
     pending = {}
     active_domains = {}
-    for row in (await db.execute(select(OrganizationDomain))).scalars():
-        target = active_domains if row.status == "active" else pending
-        target.setdefault(row.organization_id, []).append(row)
+    dom_query = select(OrganizationDomain)
+    if org_id is not None:
+        dom_query = dom_query.where(OrganizationDomain.organization_id == org_id)
+    for row in (await db.execute(dom_query)).scalars():
+        if row.status == "active":
+            active_domains.setdefault(row.organization_id, []).append(row)
+        elif row.status != "disabled":
+            pending.setdefault(row.organization_id, []).append(row)
 
     now = datetime.now(timezone.utc)
     sms_stuck = await _counts(db, SmsMessage, SmsMessage.status == "queued",
-                              SmsMessage.send_after < now - timedelta(minutes=15))
+                              SmsMessage.send_after < now - timedelta(minutes=15), org_id=org_id)
     sms_recent = await _counts(db, SmsMessage, SmsMessage.created_at > now - timedelta(days=7),
-                               SmsMessage.status.in_(("sent", "delivered", "failed")))
+                               SmsMessage.status.in_(("sent", "delivered", "failed")), org_id=org_id)
     sms_failed = await _counts(db, SmsMessage, SmsMessage.created_at > now - timedelta(days=7),
-                               SmsMessage.status == "failed")
+                               SmsMessage.status == "failed", org_id=org_id)
+
+    all_active_domains = [row.domain for rows in active_domains.values() for row in rows]
+    ssl_results: dict[str, Optional[int]] = {}
+    if all_active_domains:
+        unique_domains = list(dict.fromkeys(all_active_domains))
+        days_list = await asyncio.gather(*(_ssl_days_left_cached(d) for d in unique_domains))
+        ssl_results = dict(zip(unique_domains, days_list))
 
     alerts: list[dict] = []
     for org in orgs:
@@ -165,7 +195,7 @@ async def collect(db: AsyncSession, org_id: Optional[UUID] = None) -> list[dict]
                                      "Kurumla yenileme için iletişime geçin."))
 
         for row in active_domains.get(org.id, []):
-            days = _ssl_days_left(row.domain)
+            days = ssl_results.get(row.domain)
             if days is not None and days <= 14:
                 lvl = DANGER if days <= 0 else WARNING
                 msg = f"{row.domain} SSL sertifikası süresi doldu" if days <= 0 else f"{row.domain} SSL sertifikası {days} gün içinde doluyor"
@@ -177,9 +207,10 @@ async def collect(db: AsyncSession, org_id: Optional[UUID] = None) -> list[dict]
                           "kind": "public_ip_missing", "message": "PLATFORM_PUBLIC_IP tanımlı değil; alan adı doğrulama ve SSL hazırlığı çalışmaz",
                           "hint": "Sunucudaki .env dosyasına ekleyip yeniden dağıtın."})
 
-    dismissed_rows = (await db.execute(
-        select(PlatformAlertDismissal.organization_id, PlatformAlertDismissal.kind)
-    )).all()
+    dismiss_query = select(PlatformAlertDismissal.organization_id, PlatformAlertDismissal.kind)
+    if org_id is not None:
+        dismiss_query = dismiss_query.where(PlatformAlertDismissal.organization_id == org_id)
+    dismissed_rows = (await db.execute(dismiss_query)).all()
     dismissed = {(str(oid) if oid else None, kind) for oid, kind in dismissed_rows}
     if dismissed:
         alerts = [a for a in alerts if (a["organization_id"], a["kind"]) not in dismissed]

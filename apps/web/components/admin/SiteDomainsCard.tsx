@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import axios from 'axios'
 import { Card } from '@e-infak/ui'
-import { apiErrorMessage } from '../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
 import { confirmDialog } from './ui'
 
 interface DnsRecord { type: string; name: string; host: string; value: string }
@@ -12,9 +11,6 @@ interface SiteDomain {
   last_checked_at: string | null; last_check_error: string | null; dns_records: DnsRecord[]
 }
 interface DomainList { subdomain: string | null; url: string; public_ip: string; domains: SiteDomain[] }
-
-const API = '/api/v1/admin-features/site-domains'
-const headers = () => ({ Authorization: `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('access_token') : ''}` })
 
 /** "Alan Adları" card in Site Ayarları: add a custom domain, show its DNS records, verify. */
 export function SiteDomainsCard() {
@@ -25,7 +21,7 @@ export function SiteDomainsCard() {
 
   const load = useCallback(async () => {
     try {
-      setData((await axios.get<DomainList>(API, { headers: headers() })).data)
+      setData((await adminGet<DomainList>('/site-domains')).data)
     } catch (err) {
       setMessage(apiErrorMessage(err, 'Alan adları yüklenemedi.'))
     }
@@ -46,7 +42,7 @@ export function SiteDomainsCard() {
   }
 
   const verify = (d: SiteDomain) => run(d.id, async () => {
-    const res = await axios.post<SiteDomain>(`${API}/${d.id}/verify`, null, { headers: headers() })
+    const res = await adminSend<SiteDomain>('post', `/site-domains/${d.id}/verify`)
     setMessage(res.data.status === 'active'
       ? `${d.domain} doğrulandı. SSL sertifikası birkaç dakika içinde hazır olur.`
       : `${d.domain} henüz doğrulanamadı: ${res.data.last_check_error || 'DNS kayıtları bekleniyor'}`)
@@ -81,7 +77,7 @@ export function SiteDomainsCard() {
               )}
               <button type="button" disabled={busy === d.id}
                 onClick={async () => (await confirmDialog(`${d.domain} kaldırılsın mı? Site bu adreste açılmaz.`)) &&
-                  run(d.id, () => axios.delete(`${API}/${d.id}`, { headers: headers() }), `${d.domain} kaldırıldı`)}
+                  run(d.id, () => adminSend('delete', `/site-domains/${d.id}`), `${d.domain} kaldırıldı`)}
                 className="rounded border px-3 py-1 text-xs">Kaldır</button>
             </span>
           </div>
@@ -116,7 +112,7 @@ export function SiteDomainsCard() {
           className="w-full rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-primary-500" />
         <button type="button" disabled={!newDomain.trim() || busy === 'add'}
           onClick={() => run('add', async () => {
-            await axios.post(API, { domain: newDomain.trim() }, { headers: headers() })
+            await adminSend('post', '/site-domains', { domain: newDomain.trim() })
             setNewDomain('')
           }, 'Alan adı eklendi. Aşağıdaki DNS kayıtlarını girin.')}
           className="whitespace-nowrap rounded-lg bg-gray-900 px-4 text-xs font-bold uppercase text-white disabled:opacity-50">

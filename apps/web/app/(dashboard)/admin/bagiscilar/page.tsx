@@ -5,9 +5,10 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Copy, Download, Eye, ListChecks, Mail, MailPlus, PencilLine, Plus, Send, Smartphone, Trash2, Upload, Users, Zap } from 'lucide-react'
-import { adminGet, adminSend, apiErrorMessage, can, exportXlsx, formatMoney, whatsappUrl } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, can, exportXlsx, formatMoney } from '../../../../lib/admin-access'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
+import { QuickWhatsAppDialog } from '../../../../components/admin/QuickWhatsAppDialog'
 import { Modal, WhatsAppIcon, confirmDialog, toast } from '../../../../components/admin/ui'
 import { EMPTY_SELECTION, type ListColumn, type ListSelection, ListView, RowAction, usePageSize } from '../../../../components/admin/ListView'
 import { DonorForm } from '../../../../components/admin/donors/DonorForm'
@@ -34,7 +35,7 @@ const EXPORT_PREF = 'einfak-export-cols:donors'
 const EMPTY_FILTERS: Record<string, string> = {
   q: '', no: '', donor_type: '', name: '', phone: '', email: '', tc: '', created_start: '', created_end: '',
   min_total: '', max_total: '', membership_type: '', referral_source: '', assigned: '', staff: '', city: '',
-  last_donation_start: '', last_donation_end: '', tag: '', has_donation: '', allow_sms: '',
+  region: '', last_donation_start: '', last_donation_end: '', tag: '', has_donation: '', allow_sms: '',
 }
 
 export default function DonorsPageWrapper() {
@@ -62,6 +63,7 @@ function DonorsPage() {
   const [bulkUpdate, setBulkUpdate] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [smsFor, setSmsFor] = useState<DonorRow | null>(null)
+  const [waFor, setWaFor] = useState<DonorRow | null>(null)
   const [listFor, setListFor] = useState<'sms' | 'mail' | null>(null)
   const [mailOpen, setMailOpen] = useState(false)
 
@@ -163,6 +165,19 @@ function DonorsPage() {
     { key: 'referral', header: 'Referans', filter: { type: 'select', param: 'referral_source', options: options2(options?.referral_source) }, render: (d) => d.referral_source || '—' },
     { key: 'assigned', header: 'Temsilci', filter: { type: 'select', param: 'assigned', options: [{ value: 'me', label: 'Bana atananlar' }, ...staffOptions] }, render: (d) => d.assigned_user_name || '—' },
     { key: 'staff', header: 'Personel', filter: { type: 'select', param: 'staff', options: staffOptions }, render: (d) => <span className="whitespace-nowrap uppercase">{d.staff_user_name || '—'}</span> },
+    {
+      key: 'country', header: 'Ülke / Bölge',
+      filter: { type: 'select', param: 'region', options: [{ value: 'yurtici', label: 'Yurt İçi' }, { value: 'yurtdisi', label: 'Yurt Dışı' }] },
+      render: (d) => {
+        const c = (d.country || '').trim()
+        const isDomestic = !c || ['türkiye', 'turkiye', 'turkey', 'tr'].includes(c.toLowerCase())
+        return (
+          <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${isDomestic ? 'bg-gray-100 text-gray-700' : 'bg-sky-50 text-sky-700'}`}>
+            {c || 'Türkiye'}
+          </span>
+        )
+      },
+    },
     { key: 'city', header: 'İl', hidden: true, filter: { type: 'text', param: 'city' }, render: (d) => d.city || '—' },
     {
       key: 'last', header: 'Son Bağış', sort: 'recent', hidden: true, filter: { type: 'daterange', from: 'last_donation_start', to: 'last_donation_end' },
@@ -222,9 +237,21 @@ function DonorsPage() {
         selection={selection}
         onSelection={setSelection}
         toolbar={
-          <input type="search" value={filters.q} placeholder="Hızlı ara: ad, telefon, no…" aria-label="Bağışçı ara"
-            onChange={(e) => applyFilters({ ...filters, q: e.target.value })}
-            className="h-8 w-56 rounded-lg border border-gray-200 px-3 text-[13px] outline-none focus:border-primary-500" />
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="search" value={filters.q} placeholder="Hızlı ara: ad, telefon, no…" aria-label="Bağışçı ara"
+              onChange={(e) => applyFilters({ ...filters, q: e.target.value })}
+              className="h-8 w-56 rounded-lg border border-gray-200 px-3 text-[13px] outline-none focus:border-primary-500" />
+            <select
+              aria-label="Yurt içi / Yurt dışı filtresi"
+              value={filters.region}
+              onChange={(e) => applyFilters({ ...filters, region: e.target.value })}
+              className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-[13px] text-gray-700 outline-none focus:border-primary-500"
+            >
+              <option value="">Tüm Bölgeler</option>
+              <option value="yurtici">Yurt İçi</option>
+              <option value="yurtdisi">Yurt Dışı</option>
+            </select>
+          </div>
         }
         bulkActions={[
           ...(perms.update ? [{ key: 'update', label: 'Toplu Güncelle', icon: PencilLine, tone: 'info' as const, onClick: () => setBulkUpdate(true) }] : []),
@@ -237,14 +264,12 @@ function DonorsPage() {
             { key: 'maillist', label: 'Mail Listesi Oluştur', icon: MailPlus, tone: 'info' as const, onClick: () => setListFor('mail') },
           ] : []),
         ]}
-        rowActions={(d) => {
-          const wa = whatsappUrl(d.phone, `Merhaba ${d.full_name}, bağışlarınız ve desteğiniz için teşekkür ederiz.`)
-          return (
+        rowActions={(d) => (
             <>
               {perms.update && <RowAction label="Düzenle" icon={PencilLine} href={`/admin/bagiscilar/${d.id}`} />}
               <RowAction label="Bağışçı kartı" icon={Eye} onClick={() => router.push(`/admin/bagiscilar/${d.id}`)} />
               {perms.sms && d.phone && <RowAction label="SMS gönder" icon={Smartphone} tone="sms" onClick={() => setSmsFor(d)} />}
-              {wa && <RowAction label="WhatsApp" icon={WhatsAppIcon} tone="success" href={wa} />}
+              {d.phone && <RowAction label="WhatsApp" icon={WhatsAppIcon} tone="success" onClick={() => setWaFor(d)} />}
               {d.phone && <CallButton donorId={d.id} compact />}
               {perms.remove && d.total_donations === 0 && (
                 <RowAction label="Sil" icon={Trash2} tone="danger" onClick={async () => {
@@ -253,8 +278,7 @@ function DonorsPage() {
                 }} />
               )}
             </>
-          )
-        }}
+          )}
         empty="Bağışçı bulunamadı"
       />
 
@@ -305,6 +329,12 @@ function DonorsPage() {
           target={{ donorId: smsFor.id, name: smsFor.full_name, phone: smsFor.phone, allowSms: smsFor.allow_sms }}
           onClose={() => setSmsFor(null)}
           onSent={(r) => toast.ok(sentNotice(r))}
+        />
+      )}
+      {waFor && (
+        <QuickWhatsAppDialog
+          target={{ donorId: waFor.id, name: waFor.full_name, phone: waFor.phone }}
+          onClose={() => setWaFor(null)}
         />
       )}
     </div>

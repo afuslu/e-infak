@@ -40,6 +40,7 @@ const SUB_STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   active: { label: 'Aktif abonelik', cls: 'text-emerald-700 bg-emerald-50' },
   trial: { label: 'Deneme', cls: 'text-sky-700 bg-sky-50' },
   past_due: { label: 'Ödeme gecikmiş', cls: 'text-red-700 bg-red-50' },
+  suspended: { label: 'Askıda abonelik', cls: 'text-red-700 bg-red-50' },
 }
 
 export function OrgCard({ org, alerts, busy, onSupport, onToggleActive }: OrgCardProps) {
@@ -58,7 +59,8 @@ export function OrgCard({ org, alerts, busy, onSupport, onToggleActive }: OrgCar
   const pendingDomain = org.domains.some((d) => d.status === 'pending')
   const errorDomain = org.domains.find((d) => d.last_check_error)
 
-  const subInfo = SUB_STATUS_LABELS[org.subscription_status || 'active'] || SUB_STATUS_LABELS.active
+  const effectiveSubStatus = !org.is_active ? 'suspended' : (org.subscription_status || 'active')
+  const subInfo = SUB_STATUS_LABELS[effectiveSubStatus] || SUB_STATUS_LABELS.active
   const monthlyFee = org.monthly_fee_cents ? `${(org.monthly_fee_cents / 100).toLocaleString('tr-TR')} ₺/ay` : null
 
   const accentBorder = !org.is_active

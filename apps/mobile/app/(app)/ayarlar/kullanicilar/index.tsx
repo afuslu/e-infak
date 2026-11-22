@@ -9,9 +9,9 @@ import { can, ROLE_LABELS } from '@/lib/access';
 import { dateTime, initials } from '@/lib/format';
 import { useStaff } from '@/api/hooks';
 import { Department, useDepartments, useStaffRoles } from '@/api/staff';
-import { Avatar, Badge, Btn, Card, Chips, Field, ListItem, QueryView, Screen, Sheet, ui } from '@/components/ui';
+import { Avatar, Badge, Btn, Card, Chips, Field, ListItem, QueryView, Screen, Sheet, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
-import { colors, space } from '@/theme';
+import { space, useTheme } from '@/theme';
 
 const TABS = [
   { value: 'users', label: 'Kullanıcılar' },
@@ -23,6 +23,8 @@ export default function StaffScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { access } = useAuth();
+  const { colors } = useTheme();
+  const ui = useUi();
   const manage = can(access, 'users.manage');
   const [tab, setTab] = useState('users');
   const users = useStaff();

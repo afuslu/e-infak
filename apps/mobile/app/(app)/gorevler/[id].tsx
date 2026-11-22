@@ -6,7 +6,7 @@ import { af } from '@/lib/api';
 import { date, dateTime } from '@/lib/format';
 import { recall, remember } from '@/lib/selected';
 import { PRIORITY, Task, TASK_STATUS } from '@/api/types';
-import { Badge, Btn, Card, Chips, Field, Notice, Row, Screen, SectionTitle, ui } from '@/components/ui';
+import { Badge, Btn, Card, Chips, Field, Notice, Row, Screen, SectionTitle, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
 import { space } from '@/theme';
 
@@ -16,6 +16,7 @@ export default function TaskDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const ui = useUi();
   const [task, setTask] = useState<Task | undefined>(recall<Task>('task', id));
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState<string | null>(null);

@@ -28,9 +28,26 @@ const STATUS_BADGE: Record<TicketRow['status'], [string, string]> = {
   closed: ['Kapandı', 'bg-slate-100 text-slate-600'],
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  genel: 'Genel',
+  teknik: 'Teknik',
+  odeme: 'Ödeme / POS',
+  sms: 'SMS',
+  alan_adi: 'Alan Adı',
+  fatura: 'Fatura / Abonelik',
+}
+
+const PRIORITY_LABELS: Record<string, string> = {
+  low: 'Düşük',
+  normal: 'Normal',
+  high: 'Yüksek',
+  urgent: 'Acil',
+}
+
 export default function PlatformSupportTicketsPage() {
   const [rows, setRows] = useState<TicketRow[] | null>(null)
   const [filter, setFilter] = useState<'all' | TicketRow['status']>('all')
+  const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<TicketDetail | null>(null)
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState(false)
@@ -74,6 +91,7 @@ export default function PlatformSupportTicketsPage() {
   const setStatus = async (status: TicketRow['status']) => {
     if (!selected) return
     setBusy(true)
+    setError('')
     try {
       await platformCall('patch', `/tickets/${selected.id}`, { status })
       await openTicket(selected.id)
@@ -84,6 +102,11 @@ export default function PlatformSupportTicketsPage() {
       setBusy(false)
     }
   }
+
+  const filteredRows = (rows || []).filter((t) => {
+    const q = search.trim().toLocaleLowerCase('tr')
+    return !q || `${t.organization_name} ${t.subject} ${t.category}`.toLocaleLowerCase('tr').includes(q)
+  })
 
   return (
     <div className="space-y-6">
@@ -116,10 +139,16 @@ export default function PlatformSupportTicketsPage() {
       {error && <p className="rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm font-semibold text-red-700">{error}</p>}
 
       <div className="grid items-start gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-5">
-          {!rows ? <PlatformSkeleton rows={4} /> : (
+        <div className="space-y-3 lg:col-span-5">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Kurum veya konu ara…"
+            className={`${ptInput} mt-0`}
+          />
+          {!rows && !error ? <PlatformSkeleton rows={4} /> : rows && (
             <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs">
-              {rows.map((t) => {
+              {filteredRows.map((t) => {
                 const [lbl, cls] = STATUS_BADGE[t.status] || STATUS_BADGE.open
                 const active = selected?.id === t.id
                 return (
@@ -134,11 +163,13 @@ export default function PlatformSupportTicketsPage() {
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${cls}`}>{lbl}</span>
                     </div>
                     <div className="mt-1 font-bold text-slate-900">{t.subject}</div>
-                    <div className="mt-1 text-[11px] text-slate-400">{t.category} · {t.priority} · {dateTr(t.updated_at)}</div>
+                    <div className="mt-1 text-[11px] text-slate-400">
+                      {CATEGORY_LABELS[t.category] || t.category} · {PRIORITY_LABELS[t.priority] || t.priority} · {dateTr(t.updated_at)}
+                    </div>
                   </button>
                 )
               })}
-              {rows.length === 0 && <p className="p-8 text-center text-sm text-slate-500">Destek talebi yok.</p>}
+              {filteredRows.length === 0 && <p className="p-8 text-center text-sm text-slate-500">Destek talebi yok.</p>}
             </div>
           )}
         </div>

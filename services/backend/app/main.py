@@ -137,6 +137,7 @@ app.include_router(call_center.router, prefix="/api/v1")
 app.include_router(call_center.hooks_router, prefix="/api/v1")
 app.include_router(sms_donations.router, prefix="/api/v1")
 app.include_router(sms_donations.hooks_router, prefix="/api/v1")
+app.include_router(sms_donations.public_router, prefix="/api/v1")
 app.include_router(videos.router, prefix="/api/v1")
 
 

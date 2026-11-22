@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { centsToInput, money, toCents } from '@/lib/format';
 import { Campaign, CAMPAIGN_STATUS, CURRENCY_OPTIONS } from '@/api/types';
-import { Btn, Card, Chips, Field, Loading, Notice, Screen, SectionTitle, Select, SwitchRow, ui } from '@/components/ui';
+import { Btn, Card, Chips, Field, Loading, Notice, Screen, SectionTitle, Select, SwitchRow, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
 import { space } from '@/theme';
 
@@ -20,6 +20,7 @@ export default function CampaignForm() {
   const { id, slug } = useLocalSearchParams<{ id?: string; slug?: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const ui = useUi();
   const existing = useQuery({ queryKey: ['campaign', slug], enabled: !!slug, queryFn: () => api<Campaign & Record<string, any>>(`/campaigns/${slug}`) });
 
   const [form, setForm] = useState({
