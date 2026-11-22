@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { devOrgSlug, isLocalHost, normalizeHost, resolveHostSlug } from './lib/tenant-host'
 import { redirectTarget } from './lib/site-redirects'
+import { splitLocalePath } from './lib/locale-path'
 
 function createNonce() {
   const bytes = new Uint8Array(16)
@@ -38,16 +39,27 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Website language: ?lang=xx switches and is remembered in a cookie.
-  const requestedLang = (url.searchParams.get('lang') || '').toLowerCase()
+  // Website language in the address: /en/kampanyalar shows /kampanyalar in English; /tr/x goes to /x.
+  const prefixed = orgSlug ? splitLocalePath(url.pathname) : null
+  if (prefixed?.locale === 'tr') {
+    const plain = new URL(prefixed.rest + url.search, url)
+    const response = NextResponse.redirect(plain, 301)
+    response.cookies.set('lang', 'tr', { httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 365 })
+    return response
+  }
+
+  // Website language: the /xx/ prefix, else ?lang=xx, else the remembered cookie.
+  const requestedLang = (prefixed?.locale || url.searchParams.get('lang') || '').toLowerCase()
   const cookieLang = (request.cookies.get('lang')?.value || '').toLowerCase()
+  // Site links are not prefixed, so the remembered language carries over while the visitor clicks around.
   const locale = /^[a-z]{2}$/.test(requestedLang) ? requestedLang : /^[a-z]{2}$/.test(cookieLang) ? cookieLang : 'tr'
 
   // Set organization context in headers for backend requests
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-locale', locale)
   // Root metadata uses it for the canonical address and noindex of private pages.
-  requestHeaders.set('x-pathname', url.pathname)
+  requestHeaders.set('x-pathname', prefixed ? prefixed.rest : url.pathname)
+  if (prefixed) requestHeaders.set('x-locale-prefix', prefixed.locale)
   const allowSameOriginFrame =
     url.pathname === '/site-yapici-cerceve' ||
     (url.pathname === '/bagis/sepetim' && url.searchParams.get('preview') === '1')
@@ -77,11 +89,13 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set('x-nonce', nonce)
   requestHeaders.set('Content-Security-Policy', contentSecurityPolicy)
   
-  const response = NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  })
+  const response = prefixed
+    ? NextResponse.rewrite(new URL(prefixed.rest + url.search, url), { request: { headers: requestHeaders } })
+    : NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
 
   if (locale !== cookieLang) {
     response.cookies.set('lang', locale, { httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 365 })

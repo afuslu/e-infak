@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { localizedPath } from '../../lib/locale-path'
 import { useOrgSettings } from '@e-infak/api-client'
 import { LANGUAGE_NAMES, clientLocale } from '../../lib/i18n'
 
@@ -66,8 +67,10 @@ export function LanguageSwitcher({
   const change = (lang: string) => {
     setOpen(false)
     if (lang === active) return
+    // Each language has its own address (/en/…); the old ?lang= is dropped.
     const url = new URL(window.location.href)
-    url.searchParams.set('lang', lang)
+    url.searchParams.delete('lang')
+    url.pathname = localizedPath(url.pathname, lang)
     window.location.assign(url.toString())
   }
 

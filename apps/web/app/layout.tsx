@@ -9,6 +9,7 @@ import { brandCssVariables } from '@e-infak/theme'
 import { getSite } from '../lib/public-content'
 import { isRtl } from '../lib/i18n'
 import { fontVariables } from '../lib/site-fonts'
+import { localizedPath } from '../lib/locale-path'
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers()
@@ -40,6 +41,12 @@ export async function generateMetadata(): Promise<Metadata> {
       alternates: { canonical },
     }
   }
+  // hreflang: every site language has its own address (/en/…); Turkish is the default (x-default).
+  const prefix = requestHeaders.get('x-locale-prefix')
+  const languages = (site.languages || []).length > 1
+    ? Object.fromEntries([...site.languages.map((l) => [l, localizedPath(pathname, l)]), ['x-default', pathname]])
+    : undefined
+  const localizedCanonical = prefix ? localizedPath(pathname, prefix) : canonical
   // Organisation SEO settings (Site Ayarları) win over the generated defaults.
   const title = site.seo.title || site.name
   const description = site.seo.description || site.hero.subtitle || site.tagline || undefined
@@ -49,10 +56,10 @@ export async function generateMetadata(): Promise<Metadata> {
     description,
     keywords: site.seo.keywords ? site.seo.keywords.split(',').map((k) => k.trim()).filter(Boolean) : undefined,
     icons: site.favicon_url ? { icon: site.favicon_url } : undefined,
-    alternates: { canonical },
+    alternates: { canonical: localizedCanonical, languages },
     robots,
     openGraph: {
-      title, description, type: 'website', url: canonical, siteName: site.name,
+      title, description, type: 'website', url: localizedCanonical, siteName: site.name,
       images: site.hero.image_url ? [site.hero.image_url] : site.logo_url ? [site.logo_url] : undefined,
     },
   }
