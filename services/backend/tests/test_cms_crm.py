@@ -489,3 +489,21 @@ async def test_site_form_builder_and_public_submit(db_session, monkeypatch):
     listed = await site_forms.submissions(made["id"], _request(org), 1, 50, db_session, admin)
     assert listed["total"] == 1 and listed["items"][0]["data"]["sehir"] == "Ankara" and "<b>" not in listed["items"][0]["data"]["ad_soyad"]
     assert (await site_forms.list_forms(_request(org), db_session, admin))[0]["unread"] == 0
+
+
+async def test_team_scope_follows_the_manager_chain(db_session):
+    from app.api.v1 import field_ops, staff
+
+    org, admin, _ = await _setup(db_session)
+    lead = User(organization_id=org.id, email=f"lead-{uuid.uuid4().hex[:6]}@example.com", hashed_password="x", first_name="Ekip", last_name="Lideri",
+                role=UserRole.STK_ADMIN, manager_id=admin.id)
+    db_session.add(lead)
+    await db_session.flush()
+    member = User(organization_id=org.id, email=f"m-{uuid.uuid4().hex[:6]}@example.com", hashed_password="x", first_name="Saha", last_name="Personeli",
+                  role=UserRole.STK_ADMIN, manager_id=lead.id)
+    db_session.add(member)
+    await db_session.commit()
+    assert set(await field_ops.team_ids(db_session, org.id, admin.id)) == {admin.id, lead.id, member.id}
+    assert set(await field_ops.team_ids(db_session, org.id, lead.id)) == {lead.id, member.id}
+    with pytest.raises(HTTPException):  # the admin cannot report to someone under them
+        await staff._check_manager(db_session, org.id, admin.id, member.id)

@@ -93,6 +93,10 @@ async def start_upload(payload: UploadIn, request: Request, db: AsyncSession = D
         ext = vs.extension_for(payload.filename, payload.content_type)
     except vs.VideoError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    from app.models.organization import Organization
+    from app.services.media import ensure_quota
+
+    await ensure_quota(db, await db.get(Organization, org_id), payload.size)  # videos count toward package storage
     video = DonationVideo(organization_id=org_id, original_name=os.path.basename(payload.filename)[:255],
                           file_name="pending", content_type=vs.CONTENT_TYPES[ext], size_bytes=payload.size,
                           title=(payload.title or "").strip() or None, uploaded_by=current_user.id)

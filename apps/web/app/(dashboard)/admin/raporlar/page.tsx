@@ -7,7 +7,7 @@ import { Card } from '@e-infak/ui'
 import { adminGet, apiErrorMessage, downloadFile, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
 import { ExportButtons, PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
-type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors' | 'recurring' | 'channels' | 'sources' | 'types'
+type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors' | 'recurring' | 'channels' | 'sources' | 'types' | 'bank' | 'wells'
 
 const REPORTS: { key: ReportKey; label: string; advanced: boolean }[] = [
   { key: 'monthly', label: 'Aylık Bağış', advanced: false },
@@ -20,6 +20,8 @@ const REPORTS: { key: ReportKey; label: string; advanced: boolean }[] = [
   { key: 'channels', label: 'Bağış Kanalı Dağılımı', advanced: true },
   { key: 'sources', label: 'Bağışçı Kaynağı', advanced: true },
   { key: 'types', label: 'Türlere Göre Bağış', advanced: true },
+  { key: 'bank', label: 'Banka Hareketleri', advanced: true },
+  { key: 'wells', label: 'Su Kuyuları', advanced: false },
 ]
 
 /** STK PRO's 12 report cards ("Aşağıdaki 12 rapordan birini seçin"); detailed ones open the list screens. */
@@ -37,7 +39,7 @@ const CARDS: { title: string; text: string; report?: ReportKey; href?: string }[
   { title: 'Türlere Göre Bağış Raporu', text: 'Bağış türlerine (standart, kurban, su kuyusu, proje…) göre dağılım.', report: 'types' },
   { title: 'Bağışçı Sayısı Raporu', text: 'Tarih aralığında bağışçı sayıları.', report: 'donors' },
 ]
-const RANGE_REPORTS: ReportKey[] = ['daily', 'campaigns', 'staff', 'donors', 'channels', 'sources', 'types']
+const RANGE_REPORTS: ReportKey[] = ['daily', 'campaigns', 'staff', 'donors', 'channels', 'sources', 'types', 'bank']
 
 const ENDPOINTS: Record<ReportKey, string> = {
   monthly: '/reports/monthly',
@@ -50,6 +52,8 @@ const ENDPOINTS: Record<ReportKey, string> = {
   channels: '/reports/channels',
   sources: '/reports/sources',
   types: '/reports/types',
+  bank: '/reports/bank',
+  wells: '/water-wells/report',
 }
 
 // Local calendar date; toISOString() would shift to UTC and land on the previous day in Türkiye.
@@ -692,6 +696,8 @@ export default function ReportsPage() {
           </div>
           <div className="mt-4 flex flex-wrap gap-2 text-[13px]">
             <button type="button" onClick={() => setReport('recurring')} className="rounded-lg border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50">Düzenli Bağışlar</button>
+            <button type="button" onClick={() => setReport('bank')} className="rounded-lg border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50">Banka Hareketleri</button>
+            <button type="button" onClick={() => setReport('wells')} className="rounded-lg border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50">Su Kuyuları</button>
             <Link href="/admin/ai" className="rounded-lg border border-gray-200 px-3 py-1.5 font-semibold text-gray-700 hover:bg-gray-50">AI Öngörüleri</Link>
             {advancedEnabled && (
               <>
@@ -773,6 +779,41 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
         <DonutBreakdown title="Üyelik Tipi (kişi)" isCount items={data.membership_types.map((m: any) => ({ label: m.label, value: m.count }))} currency={currency} />
         <SplitTable title="Kaynağa Göre (bağışçı / toplam bağışları)" rows={data.sources} money={money} countLabel="Bağışçı" />
         <SplitTable title="Üyelik Tipine Göre" rows={data.membership_types} money={money} countLabel="Bağışçı" />
+      </div>
+    )
+  }
+  if (report === 'bank') {
+    return (
+      <div className="grid gap-5 lg:grid-cols-2">
+        <DonutBreakdown title="Eşleşme Durumu" items={data.statuses.map((m: any) => ({ label: m.label, value: m.total_cents, count: m.count }))} currency={currency} />
+        <SplitTable title="Banka Hesabına Göre" rows={data.accounts} money={money} />
+        <Card className="border border-gray-100 p-5 shadow-sm lg:col-span-2">
+          <h3 className="mb-3 font-bold text-gray-900">Aylara Göre</h3>
+          <Table>
+            <THead><Tr><Th>Ay</Th><Th className="text-right">Hareket</Th><Th className="text-right">Tutar</Th><Th className="text-right">Eşleşen</Th><Th className="text-right">Eşleşme Oranı</Th></Tr></THead>
+            <TBody>
+              {data.months.map((m: any) => (
+                <Tr key={m.month}><Td className="font-semibold">{m.month}</Td><Td className="text-right tabular-nums">{m.count}</Td><Td className="text-right tabular-nums">{money(m.total_cents)}</Td><Td className="text-right tabular-nums">{m.matched}</Td><Td className="text-right tabular-nums">%{m.match_rate}</Td></Tr>
+              ))}
+              {!data.months.length && <Tr><Td className="py-6 text-center text-gray-400">Bu aralıkta banka hareketi yok.</Td></Tr>}
+            </TBody>
+          </Table>
+        </Card>
+      </div>
+    )
+  }
+  if (report === 'wells') {
+    const rows = (data.by_country || []).map((c: any) => ({ label: c.country, count: c.count, total_cents: c.collected_cents }))
+    return (
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card className="border border-gray-100 p-5 shadow-sm">
+          <h3 className="mb-2 font-bold text-gray-900">Özet</h3>
+          <p className="text-sm text-gray-600">{data.total} kuyu · Hedef {money(data.total_target_cents)} · Toplanan {money(data.total_collected_cents)}</p>
+          <ul className="mt-3 space-y-1 text-sm text-gray-700">
+            {Object.entries(data.by_status || {}).map(([k, v]) => <li key={k}>{k}: <b>{String(v)}</b></li>)}
+          </ul>
+        </Card>
+        <SplitTable title="Ülkelere Göre (kuyu / toplanan)" rows={rows} money={money} countLabel="Kuyu" />
       </div>
     )
   }

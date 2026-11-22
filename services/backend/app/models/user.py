@@ -35,6 +35,8 @@ class User(Base):
     # Optional organization-defined unit and role. When staff_role_id is set its
     # permission list replaces the built-in matrix of `role`.
     department_id = Column(UUID(as_uuid=True), ForeignKey("departments.id", ondelete="SET NULL"), index=True)
+    # Who this staff member reports to (tasks: "Ekibim" = me and everyone under me)
+    manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
     staff_role_id = Column(UUID(as_uuid=True), ForeignKey("staff_roles.id", ondelete="SET NULL"), index=True)
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)

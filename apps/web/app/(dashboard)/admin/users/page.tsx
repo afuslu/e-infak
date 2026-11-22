@@ -36,6 +36,7 @@ interface StaffUser {
   department_name: string | null
   staff_role_id: string | null
   staff_role_name: string | null
+  manager_id?: string | null
   permissions: string[]
   is_active: boolean
   last_login_at: string | null
@@ -256,6 +257,7 @@ function UsersTab({
     role: 'readonly',
     staff_role_id: '',
     department_id: '',
+    manager_id: '',
   })
 
   const openEdit = (user: StaffUser) => {
@@ -267,6 +269,7 @@ function UsersTab({
       role: user.role,
       staff_role_id: user.staff_role_id || '',
       department_id: user.department_id || '',
+      manager_id: user.manager_id || '',
     })
   }
 
@@ -329,6 +332,7 @@ function UsersTab({
       last_name: editForm.last_name.trim(),
       phone: editForm.phone.trim() || null,
       ...(editForm.department_id ? { department_id: editForm.department_id } : { clear_department: true }),
+      ...(editForm.manager_id ? { manager_id: editForm.manager_id } : { clear_manager: true }),
     }
     if (!isSelf) {
       payload.role = editForm.role
@@ -813,6 +817,16 @@ function UsersTab({
                 </Label>
               </>
             )}
+            <div className="sm:col-span-2">
+              <Label label="Yöneticisi (görev ekibi)" hint="Yönetici, Görevler → Ekibim ile bu kişinin ve altındakilerin görevlerini görür.">
+                <select className={inputClass} value={editForm.manager_id} onChange={(e) => setEditForm({ ...editForm, manager_id: e.target.value })}>
+                  <option value="">—</option>
+                  {users.filter((u) => u.id !== editingUser?.id && u.is_active).map((u) => (
+                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                  ))}
+                </select>
+              </Label>
+            </div>
             <div className="sm:col-span-2">
               <Label label="Birim">
                 <select

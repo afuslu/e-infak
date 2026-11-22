@@ -27,6 +27,7 @@ import {
   Video,
 } from 'lucide-react'
 import { adminGet, apiErrorMessage, downloadFile, formatMoney, useAdminAccess, v1Get, v1Send, whatsappUrl, can } from '../../../../lib/admin-access'
+import { KurbanCountriesModal, useKurbanCountries } from '../../../../components/admin/kurban/KurbanCountries'
 import { type SmsTemplate, updateSmsTemplateBody } from '../../../../lib/sms'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
 import { ManualReceiptForm } from '../../../../components/admin/ManualReceiptForm'
@@ -1765,8 +1766,11 @@ function CampaignForm({
 }) {
   const [form, setForm] = useState(initial)
   const set = <K extends keyof CampaignFormValues>(k: K, v: CampaignFormValues[K]) => setForm((f) => ({ ...f, [k]: v }))
+  const { countries, reload } = useKurbanCountries()
+  const [countriesOpen, setCountriesOpen] = useState(false)
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(form) }} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {countriesOpen && <KurbanCountriesModal onClose={() => setCountriesOpen(false)} onSaved={reload} />}
       <div className="sm:col-span-2">
         <Label label="Kampanya adı">
           <Input required value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="Çad Büyükbaş Kurban 2026" />
@@ -1793,7 +1797,9 @@ function CampaignForm({
         </datalist>
       </Label>
       <Label label="Kesim ülkesi">
-        <Input value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="Çad" />
+        <Input list="kurban-countries" value={form.country} onChange={(e) => set('country', e.target.value)} placeholder="Çad" />
+        <datalist id="kurban-countries">{countries.filter((c) => c.active).map((c) => <option key={c.name} value={c.name} />)}</datalist>
+        <button type="button" onClick={() => setCountriesOpen(true)} className="mt-1 text-[11.5px] font-semibold text-primary-700 hover:underline">Ülkeleri yönet</button>
       </Label>
       <Label label="Sezon (yıl)">
         <Input inputMode="numeric" value={form.season_year} onChange={(e) => set('season_year', e.target.value)} />

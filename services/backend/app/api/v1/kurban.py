@@ -175,6 +175,58 @@ async def kurban_types(_: User = READ):
     return [{"key": k, "label": v} for k, v in KURBAN_TYPES.items()]
 
 
+class CountryIn(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    active: bool = True
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def clean(cls, value):
+        return sanitize_public_text(str(value or "").strip())
+
+
+class CountriesIn(BaseModel):
+    countries: List[CountryIn] = Field(default_factory=list, max_length=100)
+
+
+async def _countries(db: AsyncSession, org_id: UUID) -> list[dict]:
+    from app.models.organization import Organization
+
+    org = await db.get(Organization, org_id)
+    stored = ((org.settings or {}) if org else {}).get("kurban_countries") or []
+    used = dict((await db.execute(
+        select(KurbanCampaign.country, func.count()).where(KurbanCampaign.organization_id == org_id, KurbanCampaign.country.isnot(None))
+        .group_by(KurbanCampaign.country))).all())
+    out = [{"name": c["name"], "active": bool(c.get("active", True)), "campaigns": used.pop(c["name"], 0)} for c in stored if c.get("name")]
+    # Countries already written on campaigns but not in the list yet are offered too.
+    out += [{"name": name, "active": True, "campaigns": n, "unlisted": True} for name, n in sorted(used.items())]
+    return out
+
+
+@router.get("/countries", dependencies=[READ])
+async def list_countries(request: Request, db: AsyncSession = Depends(get_db)):
+    """STK PRO "Kurban Ülkesi Yönetimi": the countries kurban campaigns are slaughtered in."""
+    return await _countries(db, _org_id(request))
+
+
+@router.put("/countries", dependencies=[Depends(require_capability("kurban.manage"))])
+async def save_countries(payload: CountriesIn, request: Request, db: AsyncSession = Depends(get_db)):
+    from app.models.organization import Organization
+
+    org_id = _org_id(request)
+    seen, clean = set(), []
+    for c in payload.countries:
+        key = c.name.casefold()
+        if key in seen:
+            raise HTTPException(status_code=422, detail=f"{c.name} iki kez yazılmış")
+        seen.add(key)
+        clean.append({"name": c.name, "active": c.active})
+    org = await db.get(Organization, org_id)
+    org.settings = {**(org.settings or {}), "kurban_countries": clean}
+    await db.commit()
+    return await _countries(db, org_id)
+
+
 @router.get("/campaigns")
 async def list_campaigns(request: Request, db: AsyncSession = Depends(get_db), _: User = READ):
     org_id = _org_id(request)

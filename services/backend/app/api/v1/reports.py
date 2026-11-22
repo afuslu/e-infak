@@ -852,6 +852,40 @@ async def type_report(request: Request, start: Optional[date] = None, end: Optio
     }
 
 
+@router.get("/bank", dependencies=ADVANCED)
+async def bank_report(request: Request, start: Optional[date] = None, end: Optional[date] = None,
+                      db: AsyncSession = Depends(get_db)):
+    """Banka hareketleri raporu: incoming transfers by status, by account and by month."""
+    from app.models.automation import BankAccount, BankTransaction, ReconciliationStatus
+
+    org_id = _org_id(request)
+    booked = cast(func.timezone(TZ, BankTransaction.booked_at), Date)
+    where = [BankTransaction.organization_id == org_id, BankTransaction.amount_cents > 0]
+    if start:
+        where.append(booked >= start)
+    if end:
+        where.append(booked <= end)
+    status_labels = {ReconciliationStatus.MATCHED: "Eşleştirildi", ReconciliationStatus.UNMATCHED: "Eşleşmedi",
+                     ReconciliationStatus.AMBIGUOUS: "Birden çok aday", ReconciliationStatus.IGNORED: "Yok sayıldı"}
+    by_status = (await db.execute(select(BankTransaction.status, func.count(), func.coalesce(func.sum(BankTransaction.amount_cents), 0))
+                                  .where(*where).group_by(BankTransaction.status))).all()
+    by_account = (await db.execute(
+        select(func.coalesce(BankAccount.label, "Hesap seçilmemiş"), func.count(), func.coalesce(func.sum(BankTransaction.amount_cents), 0))
+        .select_from(BankTransaction).outerjoin(BankAccount, BankAccount.id == BankTransaction.bank_account_id)
+        .where(*where).group_by(func.coalesce(BankAccount.label, "Hesap seçilmemiş")))).all()
+    month = func.to_char(func.timezone(TZ, BankTransaction.booked_at), "YYYY-MM")
+    by_month = (await db.execute(
+        select(month, func.count(), func.coalesce(func.sum(BankTransaction.amount_cents), 0),
+               func.count().filter(BankTransaction.status == ReconciliationStatus.MATCHED))
+        .where(*where).group_by(month).order_by(month))).all()
+    return {
+        "statuses": [{"label": status_labels.get(st, str(st)), "count": int(c), "total_cents": int(t)} for st, c, t in by_status],
+        "accounts": [{"label": l, "count": int(c), "total_cents": int(t)} for l, c, t in sorted(by_account, key=lambda r: r[2], reverse=True)],
+        "months": [{"month": m, "count": int(c), "total_cents": int(t), "matched": int(mc),
+                    "match_rate": round(int(mc) * 100 / int(c), 1) if c else 0} for m, c, t, mc in by_month],
+    }
+
+
 @router.get("/stk-dashboard")
 async def stk_dashboard(request: Request, year: Optional[int] = None, month: Optional[int] = None,
                         db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):

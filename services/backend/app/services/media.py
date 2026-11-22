@@ -163,10 +163,16 @@ def files_size(folder: Path, token: str) -> int:
 # --- Quota -------------------------------------------------------------------------------
 
 async def used_bytes(db: AsyncSession, org_id) -> int:
-    total = (await db.execute(
+    """Package storage in use: the media library plus donation videos (STK PRO "Depolama")."""
+    from app.models.channels import DonationVideo
+
+    media = (await db.execute(
         select(func.coalesce(func.sum(MediaAsset.size_bytes), 0)).where(MediaAsset.organization_id == org_id)
     )).scalar_one()
-    return int(total)
+    videos = (await db.execute(
+        select(func.coalesce(func.sum(DonationVideo.size_bytes), 0)).where(DonationVideo.organization_id == org_id)
+    )).scalar_one()
+    return int(media or 0) + int(videos or 0)
 
 
 async def usage(db: AsyncSession, org) -> dict:
@@ -181,7 +187,7 @@ async def ensure_quota(db: AsyncSession, org, incoming: int) -> None:
     if await used_bytes(db, org.id) + incoming > quota:
         raise HTTPException(status_code=413, detail={
             "code": "media_quota_exceeded",
-            "message": f"Medya depolama kotanız ({quota // (1024 * 1024)} MB) doldu. Kullanılmayan görselleri silin veya paketinizi yükseltin.",
+            "message": f"Depolama kotanız ({quota // (1024 * 1024)} MB) doldu. Kullanılmayan görselleri veya videoları silin ya da paketinizi yükseltin.",
         })
 
 

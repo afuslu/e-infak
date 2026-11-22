@@ -786,10 +786,26 @@ async def delete_task_template(request: Request, template_id: UUID, db: AsyncSes
     await db.commit()
 
 
+async def team_ids(db: AsyncSession, org_id: UUID, user_id: UUID) -> list[UUID]:
+    """The user and every staff member below them in the manager chain."""
+    rows = (await db.execute(select(User.id, User.manager_id).where(User.organization_id == org_id))).all()
+    children: dict = {}
+    for uid, mid in rows:
+        children.setdefault(mid, []).append(uid)
+    out, stack = [], [user_id]
+    while stack:
+        current = stack.pop()
+        if current in out:
+            continue
+        out.append(current)
+        stack.extend(children.get(current, []))
+    return out
+
+
 @router.get("/tasks")
 async def list_tasks(
     request: Request,
-    scope: Literal["mine", "created", "department", "all"] = "mine",
+    scope: Literal["mine", "created", "department", "team", "all"] = "mine",
     status_filter: Annotated[Optional[str], Query(alias="status")] = None,
     priority: Optional[str] = None,
     assigned_to: Optional[UUID] = None,
@@ -809,6 +825,9 @@ async def list_tasks(
         if not current_user.department_id:
             return []
         query = query.where(Task.department_id == current_user.department_id)
+    elif scope == "team":
+        # STK PRO "Personel / Alt Personel": tasks of me and everyone under me (any depth).
+        query = query.where(Task.assigned_to_id.in_(await team_ids(db, org_id, current_user.id)))
     elif not _is_manager(current_user):
         # Non-managers see what concerns them only.
         query = query.where(or_(Task.assigned_to_id == current_user.id, Task.created_by_id == current_user.id,

@@ -95,7 +95,7 @@ const RECURRENCE_LABELS: Record<Task['recurrence'], string> = {
 const MONTHS = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık']
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-type Scope = 'mine' | 'created' | 'department' | 'all'
+type Scope = 'mine' | 'created' | 'department' | 'team' | 'all'
 type ViewMode = 'list' | 'kanban' | 'calendar'
 type CalSubView = 'month' | 'week' | 'agenda'
 
@@ -683,6 +683,7 @@ export default function TasksPage() {
             ['mine', 'Bana atanan'],
             ['created', 'Oluşturduğum'],
             ['department', 'Birimim'],
+            ['team', 'Ekibim'],
             ['all', isManager ? 'Tümü' : 'İlgili olanlar'],
           ] as [Scope, string][]).map(([k, l]) => (
             <button

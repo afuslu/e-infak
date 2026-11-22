@@ -126,6 +126,7 @@ class StaffUserCreate(BaseModel):
     role: UserRole = UserRole.READONLY
     department_id: Optional[UUID] = None
     staff_role_id: Optional[UUID] = None
+    manager_id: Optional[UUID] = None
 
 
 class StaffUserUpdate(BaseModel):
@@ -138,6 +139,8 @@ class StaffUserUpdate(BaseModel):
     clear_department: bool = False
     clear_staff_role: bool = False
     is_active: Optional[bool] = None
+    manager_id: Optional[UUID] = None
+    clear_manager: bool = False
 
 
 class PlanUpdate(BaseModel):
@@ -200,6 +203,21 @@ async def _ensure_seat_available(db: AsyncSession, org: Organization) -> None:
         )
 
 
+async def _check_manager(db: AsyncSession, org_id: UUID, user_id: Optional[UUID], manager_id: UUID) -> None:
+    """The manager must be active staff of this organisation and not someone who reports to the user (no loops)."""
+    manager = (await db.execute(select(User).where(User.id == manager_id, User.organization_id == org_id))).scalar_one_or_none()
+    if not manager:
+        raise HTTPException(status_code=404, detail="Yönetici bulunamadı")
+    if user_id is None:
+        return
+    current, hops = manager, 0
+    while current is not None and hops < 50:
+        if current.id == user_id:
+            raise HTTPException(status_code=422, detail="Bu kişi seçilen yöneticinin üstünde; döngü oluşur")
+        current = await db.get(User, current.manager_id) if current.manager_id else None
+        hops += 1
+
+
 async def _get_department(db: AsyncSession, org_id: UUID, department_id: UUID) -> Department:
     dept = (await db.execute(
         select(Department).where(Department.id == department_id, Department.organization_id == org_id)
@@ -243,6 +261,7 @@ def _user_out(user: User) -> dict:
         "department_name": user.department.name if user.department else None,
         "staff_role_id": str(user.staff_role_id) if user.staff_role_id else None,
         "staff_role_name": user.staff_role.name if user.staff_role else None,
+        "manager_id": str(user.manager_id) if user.manager_id else None,
         "permissions": sorted(p.value for p in effective_permissions(user)),
         "is_active": user.is_active,
         "last_login_at": user.last_login_at,
@@ -408,6 +427,8 @@ async def create_staff_user(
         _ensure_grantable(current_user, _role_permissions(staff_role))
     if payload.department_id:
         await _get_department(db, org_id, payload.department_id)
+    if payload.manager_id:
+        await _check_manager(db, org_id, None, payload.manager_id)
     await _ensure_seat_available(db, org)
 
     email = payload.email.lower()
@@ -425,6 +446,7 @@ async def create_staff_user(
         role=payload.role,
         department_id=payload.department_id,
         staff_role_id=payload.staff_role_id,
+        manager_id=payload.manager_id,
         is_active=True,
     )
     db.add(user)
@@ -491,6 +513,12 @@ async def update_staff_user(
         changes["staff_role_id"] = {"old": str(user.staff_role_id) if user.staff_role_id else None, "new": str(staff_role.id)}
         user.staff_role_id = staff_role.id
         user.staff_role = staff_role
+    if payload.clear_manager:
+        user.manager_id = None
+    elif payload.manager_id is not None and payload.manager_id != user.manager_id:
+        await _check_manager(db, org_id, user.id, payload.manager_id)
+        changes["manager_id"] = {"old": str(user.manager_id) if user.manager_id else None, "new": str(payload.manager_id)}
+        user.manager_id = payload.manager_id
     if payload.clear_department:
         user.department_id = None
         user.department = None
