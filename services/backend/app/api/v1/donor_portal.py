@@ -130,15 +130,59 @@ async def _donor_ids_for(db: AsyncSession, donor: Donor) -> list[UUID]:
     return list(ids)
 
 
+async def _resolve_donor_org(request: Request, db: AsyncSession, phone: Optional[str], email: Optional[str]):
+    """Resolve organization from request.state, or auto-discover from Donor records on platform host."""
+    from app.models.organization import Organization
+
+    org_id = getattr(request.state, "organization_id", None)
+    org_obj = getattr(request.state, "organization", None)
+    if org_id:
+        if not org_obj:
+            org_obj = await db.get(Organization, UUID(str(org_id)))
+        return str(org_id), getattr(org_obj, "name", "") or "E-İnfak"
+
+    if email and email.strip():
+        email_clean = otp.normalized_email(email)
+        row = (
+            await db.execute(
+                select(Organization)
+                .join(Donor, Donor.organization_id == Organization.id)
+                .where(func.lower(Donor.email) == email_clean, Organization.is_active.is_(True))
+                .order_by(Donor.last_donation_at.desc().nullslast(), Donor.created_at.desc())
+                .limit(1)
+            )
+        ).scalars().first()
+    elif phone and phone.strip():
+        key = otp.normalized(phone)
+        row = (
+            await db.execute(
+                select(Organization)
+                .join(Donor, Donor.organization_id == Organization.id)
+                .where(phone_matches(Donor.phone, key), Organization.is_active.is_(True))
+                .order_by(Donor.last_donation_at.desc().nullslast(), Donor.created_at.desc())
+                .limit(1)
+            )
+        ).scalars().first()
+    else:
+        row = None
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Bu iletişim bilgisine ait bağışçı kaydı bulunamadı.",
+        )
+    return str(row.id), row.name or "E-İnfak"
+
+
 @router.post("/send-otp")
 async def send_portal_otp(
     request: Request,
     payload: OTPRequest,
+    db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit("donor-otp-send", limit=5, window_seconds=300)),
 ):
-    tenant = str(request.state.organization_id)
+    tenant, org_name = await _resolve_donor_org(request, db, payload.phone, payload.email)
     client_ip = request.client.host if request.client else "unknown"
-    org_name = getattr(getattr(request.state, "organization", None), "name", "") or "E-Infak"
 
     if payload.email and payload.email.strip():
         from app.tasks import send_email_task
@@ -181,7 +225,7 @@ async def verify_portal_otp(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit("donor-otp-verify", limit=10, window_seconds=300)),
 ):
-    organization_id = str(request.state.organization_id)
+    organization_id, _ = await _resolve_donor_org(request, db, payload.phone, payload.email)
     org_uuid = UUID(organization_id)
 
     if payload.email and payload.email.strip():
@@ -265,14 +309,11 @@ async def refresh_portal_token(
         donor_uuid = UUID(str(data["sub"]))
     except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Geçersiz oturum.")
-    donor = (
-        await db.execute(
-            select(Donor).where(
-                Donor.id == donor_uuid,
-                Donor.organization_id == UUID(request.state.organization_id),
-            )
-        )
-    ).scalar_one_or_none()
+    org_id = getattr(request.state, "organization_id", None)
+    stmt = select(Donor).where(Donor.id == donor_uuid)
+    if org_id:
+        stmt = stmt.where(Donor.organization_id == UUID(str(org_id)))
+    donor = (await db.execute(stmt)).scalar_one_or_none()
     if not donor:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bağışçı bulunamadı.")
     return {

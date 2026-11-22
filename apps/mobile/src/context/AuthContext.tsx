@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  af, api, clearSession, exitOrgSimulation, getAuthMode, getSimulatingOrg, loadSession, login, pf, platformLogin,
-  setSessionLostHandler, startOrgSimulation, type SimOrg,
+  af, api, clearSession, df, exitOrgSimulation, getAuthMode, getSimulatingOrg, loadSession, login, MULTI_ORG_MESSAGE,
+  pf, platformLogin, setSessionLostHandler, startOrgSimulation, verifyDonorOtp, type SimOrg,
 } from '@/lib/api';
 import type { AdminAccess } from '@/lib/access';
 import { unregisterPush } from '@/lib/notifications';
@@ -31,21 +31,43 @@ export type PlatformMe = {
   must_change_password?: boolean;
 };
 
+export type DonorMe = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  company_name: string;
+  tc_no: string;
+  tax_number: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  country: string;
+  allow_email: boolean;
+  allow_sms: boolean;
+  is_anonymous: boolean;
+  total_donations: number;
+  total_donated_cents: number;
+};
+
 export type Site = { slug: string; name: string; logo_url: string | null; url?: string };
 
 type State = {
   status: 'loading' | 'signedOut' | 'signedIn';
-  mode: 'platform' | 'tenant' | null;
+  mode: 'platform' | 'tenant' | 'donor' | null;
   me: Me | null;
   platformMe: PlatformMe | null;
+  donorMe: DonorMe | null;
   access: AdminAccess | null;
   site: Site | null;
   simulatingOrg: SimOrg | null;
 };
 
 type Auth = State & {
-  signIn: (email: string, password: string, tenantHost?: string) => Promise<void>;
+  signIn: (emailOrPhone: string, password: string, tenantHost?: string, totpCode?: string) => Promise<void>;
   signInPlatform: (email: string, password: string, totpCode?: string) => Promise<void>;
+  signInUnified: (identifier: string, password: string, options?: { tenantHost?: string; totpCode?: string; preferPlatform?: boolean }) => Promise<'tenant' | 'platform'>;
+  signInDonor: (contact: string, otpCode: string, tenantHost?: string) => Promise<void>;
   enterOrgSimulation: (orgId: string) => Promise<void>;
   exitSimulation: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -53,26 +75,37 @@ type Auth = State & {
 };
 
 const AuthContext = createContext<Auth | null>(null);
-const EMPTY: State = { status: 'signedOut', mode: null, me: null, platformMe: null, access: null, site: null, simulatingOrg: null };
+const EMPTY: State = { status: 'signedOut', mode: null, me: null, platformMe: null, donorMe: null, access: null, site: null, simulatingOrg: null };
 
 async function fetchTenantProfile(): Promise<Omit<State, 'status'>> {
   const me = await api<Me>('/auth/me');
   const simulatingOrg = getSimulatingOrg();
   // Geçici şifrede yalnızca /auth/me ve şifre değiştirme açık; gerisi şifre değişince yüklenir.
-  if (me.must_change_password) return { mode: 'tenant', me, platformMe: null, access: null, site: null, simulatingOrg };
+  if (me.must_change_password) return { mode: 'tenant', me, platformMe: null, donorMe: null, access: null, site: null, simulatingOrg };
   // /access yalnızca yönetim paneline girebilen personelde 200 döner.
   const access = await af<AdminAccess>('/access');
   const site = await api<Site>('/public/site').catch(() => null);
-  return { mode: 'tenant', me, platformMe: null, access, site, simulatingOrg };
+  return { mode: 'tenant', me, platformMe: null, donorMe: null, access, site, simulatingOrg };
 }
 
 async function fetchPlatformProfile(): Promise<Omit<State, 'status'>> {
   const platformMe = await pf<PlatformMe>('/me');
-  return { mode: 'platform', me: null, platformMe, access: null, site: null, simulatingOrg: null };
+  return { mode: 'platform', me: null, platformMe, donorMe: null, access: null, site: null, simulatingOrg: null };
+}
+
+async function fetchDonorProfile(): Promise<Omit<State, 'status'>> {
+  const [donorMe, site] = await Promise.all([
+    df<DonorMe>('/me/profile'),
+    api<Site>('/public/site').catch(() => null),
+  ]);
+  return { mode: 'donor', me: null, platformMe: null, donorMe, access: null, site, simulatingOrg: null };
 }
 
 async function fetchActiveProfile(): Promise<Omit<State, 'status'>> {
-  return getAuthMode() === 'platform' ? fetchPlatformProfile() : fetchTenantProfile();
+  const mode = getAuthMode();
+  if (mode === 'platform') return fetchPlatformProfile();
+  if (mode === 'donor') return fetchDonorProfile();
+  return fetchTenantProfile();
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -100,8 +133,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => setSessionLostHandler(null);
   }, [drop]);
 
-  const signIn = useCallback(async (email: string, password: string, tenantHost?: string) => {
-    await login(email, password, tenantHost);
+  const signIn = useCallback(async (emailOrPhone: string, password: string, tenantHost?: string, totpCode?: string) => {
+    await login(emailOrPhone, password, tenantHost, totpCode);
     try {
       const profile = await fetchTenantProfile();
       queryClient.clear();
@@ -117,6 +150,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await platformLogin(email, password, totpCode);
     try {
       const profile = await fetchPlatformProfile();
+      queryClient.clear();
+      setState({ status: 'signedIn', ...profile });
+    } catch (error: any) {
+      await clearSession();
+      throw error;
+    }
+  }, [queryClient]);
+
+  const signInUnified = useCallback(async (
+    identifier: string,
+    password: string,
+    options?: { tenantHost?: string; totpCode?: string; preferPlatform?: boolean }
+  ): Promise<'tenant' | 'platform'> => {
+    const tenantHost = options?.tenantHost?.trim() || undefined;
+    const totpCode = options?.totpCode?.trim() || undefined;
+
+    if (options?.preferPlatform && !tenantHost) {
+      await signInPlatform(identifier, password, totpCode);
+      return 'platform';
+    }
+
+    try {
+      await signIn(identifier, password, tenantHost, totpCode);
+      return 'tenant';
+    } catch (tenantErr: any) {
+      const msg: string = tenantErr?.message || '';
+      if (
+        tenantHost ||
+        msg.includes(MULTI_ORG_MESSAGE) ||
+        msg.includes('2FA') ||
+        msg === 'totp_required' ||
+        tenantErr?.status === 403
+      ) {
+        throw tenantErr;
+      }
+      // E-posta ise platform yöneticisi hesabını da dene
+      if (tenantErr?.status === 401 && identifier.includes('@')) {
+        await signInPlatform(identifier, password, totpCode);
+        return 'platform';
+      }
+      throw tenantErr;
+    }
+  }, [signIn, signInPlatform]);
+
+  const signInDonor = useCallback(async (contact: string, otpCode: string, tenantHost?: string) => {
+    await verifyDonorOtp(contact, otpCode, tenantHost);
+    try {
+      const profile = await fetchDonorProfile();
       queryClient.clear();
       setState({ status: 'signedIn', ...profile });
     } catch (error: any) {
@@ -154,8 +235,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ...state, signIn, signInPlatform, enterOrgSimulation, exitSimulation, signOut, reload }),
-    [state, signIn, signInPlatform, enterOrgSimulation, exitSimulation, signOut, reload],
+    () => ({ ...state, signIn, signInPlatform, signInUnified, signInDonor, enterOrgSimulation, exitSimulation, signOut, reload }),
+    [state, signIn, signInPlatform, signInUnified, signInDonor, enterOrgSimulation, exitSimulation, signOut, reload],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

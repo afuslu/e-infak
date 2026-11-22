@@ -14,12 +14,15 @@ from app.services.tenancy import normalize_host, resolve_org_slug
 
 # Paths that are not bound to one organisation.
 BYPASS_PATHS = {"/health", "/docs", "/redoc", "/openapi.json"}
-# Login & password-reset work on the platform host too; the user is then found by e-mail.
+# Login & password-reset work on the platform host too; the user is then found by e-mail or phone.
 ORGLESS_PATHS = {
     "/api/v1/auth/login",
     "/api/v1/auth/refresh",
     "/api/v1/auth/password-reset/request",
     "/api/v1/auth/password-reset/confirm",
+    "/api/v1/portal/send-otp",
+    "/api/v1/portal/verify-otp",
+    "/api/v1/portal/refresh",
 }
 BYPASS_PREFIXES = ("/api/v1/payments/", "/api/v1/hooks/", "/api/v1/internal/", "/api/v1/platform", "/api/v1/media/", "/api/v1/directory")
 
@@ -80,6 +83,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
         from uuid import UUID
 
         from app.core.security import decode_token
+        from app.models.donation import Donor
         from app.models.user import User
 
         auth = request.headers.get("authorization", "")
@@ -90,12 +94,17 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 or not payload.get("sub")):
             return None
         try:
-            user_id = UUID(str(payload["sub"]))
+            subject_id = UUID(str(payload["sub"]))
         except ValueError:
             return None
+        if payload.get("role") == "donor":
+            return (await session.execute(
+                select(Organization.slug).join(Donor, Donor.organization_id == Organization.id)
+                .where(Donor.id == subject_id, Organization.is_active.is_(True))
+            )).scalar_one_or_none()
         return (await session.execute(
             select(Organization.slug).join(User, User.organization_id == Organization.id)
-            .where(User.id == user_id, User.is_active.is_(True))
+            .where(User.id == subject_id, User.is_active.is_(True))
         )).scalar_one_or_none()
 
     @staticmethod

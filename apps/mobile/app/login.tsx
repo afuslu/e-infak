@@ -1,55 +1,103 @@
-import React, { useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Check } from 'lucide-react-native';
+import { ACTIVE_TENANT, isWhiteLabel } from '@/config/tenant';
 import { useAuth } from '@/context/AuthContext';
 import { Btn, Chips, Field, Notice, Screen } from '@/components/ui';
-import { MULTI_ORG_MESSAGE, webBase } from '@/lib/api';
+import { loadRememberedLogin, MULTI_ORG_MESSAGE, saveRememberedLogin, sendDonorOtp, webBase } from '@/lib/api';
+import { notify } from '@/components/toast';
 import { openUrl } from '@/lib/format';
-import { font, space, useTheme } from '@/theme';
+import { font, radius, space, useTheme } from '@/theme';
 
-type LoginMode = 'tenant' | 'platform';
+type EntryTab = 'staff' | 'donor';
 
 export default function Login() {
-  const { signIn, signInPlatform } = useAuth();
+  const router = useRouter();
+  const { signInUnified, signInDonor } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [loginMode, setLoginMode] = useState<LoginMode>('tenant');
-  const [email, setEmail] = useState('');
+  const whiteLabel = isWhiteLabel();
+  const brandName = ACTIVE_TENANT?.name || 'e-İnfak';
+  const [tab, setTab] = useState<EntryTab>(whiteLabel ? 'donor' : 'staff');
+
+  // Şifreli Giriş (Kurum & Platform ortak - E-posta veya Telefondan otomatik tanır)
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [askTotp, setAskTotp] = useState(false);
+  const [totpForPlatform, setTotpForPlatform] = useState(false);
   const [host, setHost] = useState('');
   const [askHost, setAskHost] = useState(false);
+
+  // Bağışçı Girişi (Kurum adı sormadan doğrudan Telefon veya E-posta + OTP)
+  const [donorContact, setDonorContact] = useState('');
+  const [donorOtp, setDonorOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+
+  // Ortak
+  const [rememberMe, setRememberMe] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const switchMode = (next: LoginMode) => {
-    setLoginMode(next);
+  useEffect(() => {
+    loadRememberedLogin().then((saved) => {
+      setRememberMe(saved.remember);
+      if (saved.remember) {
+        if (saved.identifier) setIdentifier(saved.identifier);
+        if (saved.host) {
+          setHost(saved.host);
+          setAskHost(true);
+        }
+        if (saved.donorContact) setDonorContact(saved.donorContact);
+      }
+    });
+  }, []);
+
+  const switchTab = (next: EntryTab) => {
+    setTab(next);
     setError(null);
-    setAskHost(false);
-    setAskTotp(false);
   };
 
-  const submit = async () => {
-    if (!email.trim() || !password) return setError('E-posta ve şifrenizi girin.');
-    if (loginMode === 'tenant' && askHost && !host.trim()) return setError('Kurumunuzun web adresini girin.');
-    if (loginMode === 'platform' && askTotp && !totpCode.trim()) return setError('2FA doğrulama kodunu girin.');
+  const toggleRemember = () => {
+    const next = !rememberMe;
+    setRememberMe(next);
+    if (!next) {
+      saveRememberedLogin({ remember: false }).catch(() => {});
+    }
+  };
+
+  const submitStaff = async () => {
+    if (!identifier.trim() || !password) return setError('E-posta veya telefon numaranızı ve şifrenizi girin.');
+    if (askHost && !host.trim()) return setError('Kurumunuzun web adresini girin.');
+    if (askTotp && !totpCode.trim()) return setError('2FA doğrulama kodunu girin.');
     setBusy(true);
     setError(null);
     try {
-      if (loginMode === 'platform') {
-        await signInPlatform(email, password, askTotp ? totpCode : undefined);
-      } else {
-        await signIn(email, password, askHost ? host : undefined);
-      }
+      await signInUnified(identifier, password, {
+        tenantHost: askHost ? host : undefined,
+        totpCode: askTotp ? totpCode : undefined,
+        preferPlatform: totpForPlatform,
+      });
+      await saveRememberedLogin({
+        remember: rememberMe,
+        identifier: identifier.trim(),
+        host: askHost && host.trim() ? host.trim() : '',
+      });
     } catch (e: any) {
       const message: string = e?.message || 'Giriş yapılamadı.';
-      if (loginMode === 'platform' && message === 'totp_required') {
+      if (message === 'totp_required') {
         setAskTotp(true);
+        setTotpForPlatform(true);
         setError('Hesabınızda 2FA etkin. Doğrulama uygulamanızdaki 6 haneli kodu girin.');
-      } else if (loginMode === 'tenant' && message.includes(MULTI_ORG_MESSAGE)) {
+      } else if (message.includes('2FA doğrulama kodu gereklidir')) {
+        setAskTotp(true);
+        setTotpForPlatform(false);
+        setError('Hesabınızda 2FA etkin. Doğrulama uygulamanızdaki 6 haneli kodu girin.');
+      } else if (message.includes(MULTI_ORG_MESSAGE)) {
         setAskHost(true);
-        setError('Bu e-posta birden fazla kurumda kayıtlı. Kurumunuzun web adresini yazıp tekrar deneyin.');
+        setError('Bu hesap birden fazla kurumda kayıtlı. Kurumunuzun adını veya web adresini yazıp tekrar deneyin.');
       } else {
         setError(message);
       }
@@ -58,54 +106,220 @@ export default function Login() {
     }
   };
 
+  const requestDonorCode = async () => {
+    if (!donorContact.trim()) return setError('Telefon numaranızı veya e-posta adresinizi girin.');
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await sendDonorOtp(donorContact);
+      setOtpSent(true);
+      notify(res.message);
+    } catch (e: any) {
+      setError(e?.message || 'Doğrulama kodu gönderilemedi.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyDonorCode = async () => {
+    if (!donorOtp.trim()) return setError('Gönderilen 6 haneli doğrulama kodunu girin.');
+    setBusy(true);
+    setError(null);
+    try {
+      await signInDonor(donorContact, donorOtp);
+      await saveRememberedLogin({
+        remember: rememberMe,
+        donorContact: donorContact.trim(),
+      });
+    } catch (e: any) {
+      setError(e?.message || 'Doğrulama başarısız.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <Screen style={{ paddingTop: insets.top + space.xl * 2, gap: space.lg }}>
+    <Screen style={{ paddingTop: insets.top + (whiteLabel ? space.md : space.xl * 1.5), gap: space.lg }}>
+      {whiteLabel ? (
+        <Pressable
+          onPress={() => router.back()}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4 }}
+          accessibilityRole="button"
+        >
+          <ArrowLeft size={20} color={colors.text} />
+          <Text style={{ color: colors.text, fontSize: font.md, fontWeight: '600' }}>Vitrine Dön</Text>
+        </Pressable>
+      ) : null}
       <View style={styles.brand}>
-        <Image source={require('../assets/icon.png')} style={styles.logo} accessibilityIgnoresInvertColors />
+        <Image
+          source={ACTIVE_TENANT?.slug === 'hakder' ? require('../assets/tenants/hakder/icon.png') : require('../assets/icon.png')}
+          style={styles.logo}
+          accessibilityIgnoresInvertColors
+        />
         <Text style={[styles.title, { color: colors.text }]}>
-          {loginMode === 'platform' ? 'e-İnfak Platform' : 'e-İnfak Yönetim'}
+          {tab === 'donor' ? `${brandName} Bağışçı Paneli` : `${brandName} Giriş`}
         </Text>
         <Text style={[styles.sub, { color: colors.muted }]}>
-          {loginMode === 'platform'
-            ? 'e-İnfak platform yöneticisi / operatör hesabınızla giriş yapın.'
-            : 'Kurum yetkilisi hesabınızla giriş yapın. Kurumunuz hesabınızdan otomatik belirlenir.'}
+          {tab === 'donor'
+            ? 'Telefon numaranız veya e-posta adresinizle giriş yaparak tüm bağışlarınızı, su kuyularınızı ve kurban hisselerinizi takip edin.'
+            : 'E-posta veya telefon numaranızla giriş yapın. Hesabınız otomatik tanınır.'}
         </Text>
       </View>
+
       <View style={{ alignItems: 'center' }}>
-        <Chips<LoginMode>
-          options={[
-            { value: 'tenant', label: 'Kurum Yöneticisi' },
-            { value: 'platform', label: 'Platform Yöneticisi' },
-          ]}
-          value={loginMode}
-          onChange={switchMode}
+        <Chips<EntryTab>
+          options={
+            whiteLabel
+              ? [
+                  { value: 'donor', label: 'Bağışçı Girişi' },
+                  { value: 'staff', label: 'Yetkili Girişi' },
+                ]
+              : [
+                  { value: 'staff', label: 'Yetkili Girişi' },
+                  { value: 'donor', label: 'Bağışçı Girişi' },
+                ]
+          }
+          value={tab}
+          onChange={switchTab}
         />
       </View>
+
       {error ? <Notice text={error} tone="danger" /> : null}
-      <Field label="E-posta" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false}
-        keyboardType="email-address" autoComplete="email" textContentType="username"
-        placeholder={loginMode === 'platform' ? 'operator@e-infak.org' : 'ad@kurum.org'} />
-      <Field label="Şifre" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password"
-        textContentType="password" onSubmitEditing={submit} returnKeyType="go" />
-      {loginMode === 'platform' && askTotp ? (
-        <Field label="2FA Doğrulama Kodu" value={totpCode} onChangeText={setTotpCode}
-          keyboardType="number-pad" maxLength={12} placeholder="123456" onSubmitEditing={submit} />
-      ) : null}
-      {loginMode === 'tenant' && askHost ? (
-        <Field label="Kurum web adresi" value={host} onChangeText={setHost} autoCapitalize="none" autoCorrect={false}
-          keyboardType="url" placeholder="ornekdernek.org" hint="Kurumunuzun bağış sitesinin adresi." />
-      ) : null}
-      <Btn title="Giriş yap" onPress={submit} loading={busy} />
-      {loginMode === 'tenant' ? (
-        <Btn title="Şifremi unuttum" variant="ghost" onPress={() => openUrl(`${webBase()}/sifremi-unuttum`)} />
-      ) : null}
+
+      {tab === 'staff' ? (
+        <>
+          <Field
+            label="E-posta veya Telefon"
+            value={identifier}
+            onChangeText={(v) => { setIdentifier(v); if (askTotp) setAskTotp(false); }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            autoComplete="username"
+            textContentType="username"
+            placeholder="ad@kurum.org veya 05XX XXX XX XX"
+          />
+          <Field
+            label="Şifre"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoComplete="current-password"
+            textContentType="password"
+            onSubmitEditing={submitStaff}
+            returnKeyType="go"
+          />
+          {askTotp ? (
+            <Field
+              label="2FA Doğrulama Kodu"
+              value={totpCode}
+              onChangeText={setTotpCode}
+              keyboardType="number-pad"
+              maxLength={12}
+              placeholder="123456"
+              onSubmitEditing={submitStaff}
+            />
+          ) : null}
+          {askHost ? (
+            <Field
+              label="Kurum adı veya web adresi"
+              value={host}
+              onChangeText={setHost}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              placeholder="hakder veya hakder.org"
+              hint="Aynı hesap birden fazla kurumda kayıtlı olduğunda kurumunuzu seçmek için kullanılır."
+            />
+          ) : null}
+
+          <Pressable
+            onPress={toggleRemember}
+            style={styles.rememberRow}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: rememberMe }}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: rememberMe ? colors.primary : colors.line,
+                  backgroundColor: rememberMe ? colors.primary : colors.card,
+                },
+              ]}
+            >
+              {rememberMe ? <Check size={14} color={colors.white} /> : null}
+            </View>
+            <Text style={[styles.rememberText, { color: colors.text }]}>Beni hatırla</Text>
+          </Pressable>
+
+          <Btn title="Giriş yap" onPress={submitStaff} loading={busy} />
+          <Btn title="Şifremi unuttum" variant="ghost" onPress={() => openUrl(`${webBase()}/sifremi-unuttum`)} />
+        </>
+      ) : (
+        <>
+          <Field
+            label="Telefon veya E-posta"
+            value={donorContact}
+            onChangeText={(v) => { setDonorContact(v); if (otpSent) setOtpSent(false); }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            placeholder="05XX XXX XX XX veya ad@ornek.com"
+            hint="Bağış yaparken kullandığınız cep telefonu numaranız veya e-posta adresiniz."
+          />
+          {otpSent ? (
+            <Field
+              label="Doğrulama Kodu (6 Haneli)"
+              value={donorOtp}
+              onChangeText={setDonorOtp}
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholder="123456"
+              onSubmitEditing={verifyDonorCode}
+            />
+          ) : null}
+
+          <Pressable
+            onPress={toggleRemember}
+            style={styles.rememberRow}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: rememberMe }}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  borderColor: rememberMe ? colors.primary : colors.line,
+                  backgroundColor: rememberMe ? colors.primary : colors.card,
+                },
+              ]}
+            >
+              {rememberMe ? <Check size={14} color={colors.white} /> : null}
+            </View>
+            <Text style={[styles.rememberText, { color: colors.text }]}>Beni hatırla</Text>
+          </Pressable>
+
+          {!otpSent ? (
+            <Btn title="Doğrulama Kodu Gönder" onPress={requestDonorCode} loading={busy} />
+          ) : (
+            <View style={{ gap: space.sm }}>
+              <Btn title="Doğrula ve Giriş Yap" onPress={verifyDonorCode} loading={busy} />
+              <Btn title="Yeni Kod Gönder" variant="ghost" onPress={requestDonorCode} disabled={busy} />
+            </View>
+          )}
+        </>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  brand: { alignItems: 'center', gap: space.sm, marginBottom: space.md },
+  brand: { alignItems: 'center', gap: space.sm, marginBottom: space.sm },
   logo: { width: 84, height: 84, borderRadius: 20 },
   title: { fontSize: font.xxl, fontWeight: '800' },
   sub: { fontSize: font.md, textAlign: 'center', lineHeight: 21 },
+  rememberRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: 4 },
+  checkbox: { width: 22, height: 22, borderRadius: radius.sm, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  rememberText: { fontSize: font.md, fontWeight: '500' },
 });

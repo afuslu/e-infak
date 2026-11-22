@@ -16,6 +16,23 @@
     },
     "production": {
       "autoIncrement": true
+    },
+    "hakder-preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_TENANT": "hakder",
+        "EXPO_PUBLIC_API_HOST": "hakder.e-infak.org"
+      }
+    },
+    "hakder-production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_TENANT": "hakder",
+        "EXPO_PUBLIC_API_HOST": "hakder.e-infak.org"
+      }
     }
   },
   "submit": {

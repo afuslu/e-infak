@@ -99,8 +99,18 @@ test('format: tutar, tarih, telefon ve IBAN yardımcıları', () => {
   assert.ok(format.idempotencyKey('test').length >= 16);
 });
 
-test('api: cleanHost, queryString ve errorMessage', () => {
+test('api: cleanHost, queryString ve errorMessage', async () => {
   assert.equal(api.cleanHost('  HTTPS://OrnekDernek.org/admin  '), 'ornekdernek.org');
+  assert.equal(api.cleanHost('hakder'), 'hakder.e-infak.org');
+  await api.saveRememberedLogin({ remember: true, identifier: 'hakder@gmail.com', donorContact: '05321112233' });
+  const saved = await api.loadRememberedLogin();
+  assert.equal(saved.remember, true);
+  assert.equal(saved.identifier, 'hakder@gmail.com');
+  assert.equal(saved.donorContact, '05321112233');
+  await api.saveRememberedLogin({ remember: false });
+  const cleared = await api.loadRememberedLogin();
+  assert.equal(cleared.remember, false);
+  assert.equal(cleared.identifier, undefined);
   assert.equal(api.queryString({ q: 'ali veli', page: 2, empty: '', skip: null }), '?q=ali%20veli&page=2');
   assert.equal(api.queryString({}), '');
   assert.deepEqual(

@@ -11,7 +11,9 @@
     "type-check": "tsc --noEmit",
     "test": "node scripts/run-tests.mjs",
     "build:android": "eas build --platform android --profile production",
-    "build:ios": "eas build --platform ios --profile production"
+    "build:ios": "eas build --platform ios --profile production",
+    "build:hakder:apk": "eas build --platform android --profile hakder-preview",
+    "build:hakder:play": "eas build --platform android --profile hakder-production"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.18",

@@ -13,9 +13,10 @@ import { authErrorText } from '../../../components/auth/AuthCard'
 import { adminApiBase } from '../../../lib/admin-access'
 
 const THEME_KEY = 'einfak-admin-tema'
+const REMEMBER_KEY = 'einfak-remember-login'
 
 const loginSchema = z.object({
-  email: z.string().email('Geçerli bir e-posta adresi girin'),
+  email: z.string().min(3, 'Geçerli bir e-posta veya telefon numarası girin'),
   password: z.string().min(6, 'Şifre en az 6 karakter olmalı'),
 })
 
@@ -36,18 +37,34 @@ export default function LoginPage() {
   const [platformHint, setPlatformHint] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [capsLock, setCapsLock] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [brand, setBrand] = useState<SiteBrand | null>(null)
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<LoginForm>({
+    resolver: zodResolver(loginSchema),
+  })
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(THEME_KEY)
       if (saved === 'dark') setTheme('dark')
       else if (saved === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) setTheme('dark')
+      const remembered = localStorage.getItem(REMEMBER_KEY)
+      if (remembered) {
+        const parsed = JSON.parse(remembered)
+        if (parsed?.remember === false) setRememberMe(false)
+        else if (typeof parsed?.email === 'string') setValue('email', parsed.email)
+      }
     } catch {
       // ignore storage errors
     }
-  }, [])
+  }, [setValue])
 
   useEffect(() => {
     let active = true
@@ -90,19 +107,17 @@ export default function LoginPage() {
     router.replace('/admin')
   }, [router])
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-  })
-
   const onSubmit = async (data: LoginForm) => {
     setErrorMsg('')
     setPlatformHint(false)
     try {
       await login.mutateAsync({ ...data, ...(totpCode.trim() ? { totp_code: totpCode.trim() } : {}) })
+      try {
+        if (rememberMe) localStorage.setItem(REMEMBER_KEY, JSON.stringify({ remember: true, email: data.email.trim() }))
+        else localStorage.setItem(REMEMBER_KEY, JSON.stringify({ remember: false }))
+      } catch {
+        // ignore storage errors
+      }
       router.push('/admin')
     } catch (error: any) {
       const msg = authErrorText(error, 'E-posta veya şifre hatalı')
@@ -222,17 +237,17 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               <div>
                 <label htmlFor="email" className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-pt-muted">
-                  E-posta
+                  E-posta veya Telefon
                 </label>
                 <div className="relative">
                   <Mail className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-pt-faint" aria-hidden="true" />
                   <input
                     id="email"
-                    type="email"
-                    autoComplete="email"
+                    type="text"
+                    autoComplete="username"
                     {...register('email')}
                     className="w-full rounded-xl border border-pt-line bg-pt-bg py-2.5 pe-3.5 ps-10 text-sm text-pt-text placeholder:text-pt-faint outline-none transition-colors focus:border-pt-brand focus:ring-2 focus:ring-pt-brand/15"
-                    placeholder="yetkili@kurumunuz.org"
+                    placeholder="yetkili@kurumunuz.org veya 05XX XXX XX XX"
                   />
                 </div>
                 {errors.email && (
@@ -278,7 +293,16 @@ export default function LoginPage() {
                     {errors.password.message}
                   </p>
                 )}
-                <div className="mt-2 text-end">
+                <div className="mt-2.5 flex items-center justify-between">
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-pt-text select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="h-4 w-4 rounded border-pt-line accent-emerald-600"
+                    />
+                    <span>Beni hatırla</span>
+                  </label>
                   <Link href="/sifremi-unuttum" className="text-xs font-semibold text-pt-muted hover:text-pt-brand">
                     Şifremi unuttum
                   </Link>

@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { absoluteApiUrl, apiBlob, authHeader, ensureFreshToken, pfBlob, platformAuthHeader, Query } from './api';
+import { absoluteApiUrl, apiBlob, authHeader, dfBlob, donorAuthHeader, ensureFreshToken, pfBlob, platformAuthHeader, Query } from './api';
 
 /** Kimlik doğrulamalı bir PDF'i indirir; tarayıcıda yeni sekmede açar, cihazda paylaşım sayfasını açar. */
 export async function openPdf(path: string, filename: string, query?: Query): Promise<void> {
@@ -33,6 +33,23 @@ export async function openPlatformPdf(path: string, filename: string, query?: Qu
   const target = new File(Paths.cache, filename);
   if (target.exists) target.delete();
   const file = await File.downloadFileAsync(absoluteApiUrl(`/platform${path}`, query), target, { headers: platformAuthHeader() });
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: filename });
+  }
+}
+
+/** Bağışçı oturumuyla PDF indirir/paylaşır (`/api/v1/portal` altı). */
+export async function openDonorPdf(path: string, filename: string, query?: Query): Promise<void> {
+  if (Platform.OS === 'web') {
+    const blob = await dfBlob(path, query);
+    const url = URL.createObjectURL(blob);
+    globalThis.open?.(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+  const target = new File(Paths.cache, filename);
+  if (target.exists) target.delete();
+  const file = await File.downloadFileAsync(absoluteApiUrl(`/portal${path}`, query), target, { headers: donorAuthHeader() });
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: filename });
   }

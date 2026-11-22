@@ -10,6 +10,7 @@ import { ToastHost } from '@/components/toast';
 import { Btn, Loading } from '@/components/ui';
 import { ForcePassword } from '@/components/ForcePassword';
 import { authenticate, biometricEnabled } from '@/lib/biometric';
+import { isWhiteLabel } from '@/config/tenant';
 import { setupNotificationHandler } from '@/lib/notifications';
 import { font, space, ThemeProvider, useTheme } from '@/theme';
 
@@ -76,6 +77,7 @@ function Gate() {
     );
   }
   if (status === 'signedIn' && (me?.must_change_password || platformMe?.must_change_password)) return <ForcePassword />;
+  const whiteLabel = isWhiteLabel();
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={status === 'signedIn' && mode === 'platform'}>
@@ -84,7 +86,14 @@ function Gate() {
       <Stack.Protected guard={status === 'signedIn' && mode === 'tenant'}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>
-      <Stack.Protected guard={status !== 'signedIn'}>
+      <Stack.Protected guard={status === 'signedIn' && mode === 'donor'}>
+        <Stack.Screen name="(donor)" />
+      </Stack.Protected>
+      <Stack.Protected guard={status !== 'signedIn' && whiteLabel}>
+        <Stack.Screen name="vitrin" />
+        <Stack.Screen name="login" options={{ presentation: 'modal' }} />
+      </Stack.Protected>
+      <Stack.Protected guard={status !== 'signedIn' && !whiteLabel}>
         <Stack.Screen name="login" />
       </Stack.Protected>
     </Stack>

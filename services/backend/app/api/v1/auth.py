@@ -58,9 +58,17 @@ async def login(
     # Safely get organization_id from request state (None for main portal domain)
     organization_id = getattr(request.state, "organization_id", None)
     
-    # Find user (e-mail addresses are case-insensitive)
-    email = credentials.email.strip().lower()
-    query = select(User).where(func.lower(User.email) == email)
+    # Find user by e-mail or phone number
+    identifier = credentials.email.strip()
+    if "@" in identifier:
+        query = select(User).where(func.lower(User.email) == identifier.lower())
+    else:
+        from app.utils.phone import phone_key, phone_matches
+        key = phone_key(identifier)
+        if len(key) == 10:
+            query = select(User).where(phone_matches(User.phone, key))
+        else:
+            query = select(User).where(func.lower(User.email) == identifier.lower())
     if organization_id:
         query = query.where(User.organization_id == organization_id)
     candidates = (await db.execute(query)).scalars().all()
