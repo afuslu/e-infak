@@ -1,8 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  af, api, clearSession, df, exitOrgSimulation, getAuthMode, getSimulatingOrg, loadSession, login, MULTI_ORG_MESSAGE,
-  pf, platformLogin, setSessionLostHandler, startOrgSimulation, verifyDonorOtp, type SimOrg,
+  af, api, clearSession, df, exitOrgSimulation, getAuthMode, getSimulatingOrg, loadSession, login, loginDonorPassword,
+  MULTI_ORG_MESSAGE, pf, platformLogin, setSessionLostHandler, startOrgSimulation, verifyDonorOtp, type SimOrg,
 } from '@/lib/api';
 import type { AdminAccess } from '@/lib/access';
 import { unregisterPush } from '@/lib/notifications';
@@ -46,6 +46,7 @@ export type DonorMe = {
   allow_email: boolean;
   allow_sms: boolean;
   is_anonymous: boolean;
+  has_password?: boolean;
   total_donations: number;
   total_donated_cents: number;
 };
@@ -68,6 +69,7 @@ type Auth = State & {
   signInPlatform: (email: string, password: string, totpCode?: string) => Promise<void>;
   signInUnified: (identifier: string, password: string, options?: { tenantHost?: string; totpCode?: string; preferPlatform?: boolean }) => Promise<'tenant' | 'platform'>;
   signInDonor: (contact: string, otpCode: string, tenantHost?: string) => Promise<void>;
+  signInDonorPassword: (identifier: string, password: string, tenantHost?: string) => Promise<void>;
   enterOrgSimulation: (orgId: string) => Promise<void>;
   exitSimulation: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -206,6 +208,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [queryClient]);
 
+  const signInDonorPassword = useCallback(async (identifier: string, password: string, tenantHost?: string) => {
+    await loginDonorPassword(identifier, password, tenantHost);
+    try {
+      const profile = await fetchDonorProfile();
+      queryClient.clear();
+      setState({ status: 'signedIn', ...profile });
+    } catch (error: any) {
+      await clearSession();
+      throw error;
+    }
+  }, [queryClient]);
+
   const enterOrgSimulation = useCallback(async (orgId: string) => {
     await startOrgSimulation(orgId);
     const profile = await fetchTenantProfile();
@@ -235,8 +249,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ...state, signIn, signInPlatform, signInUnified, signInDonor, enterOrgSimulation, exitSimulation, signOut, reload }),
-    [state, signIn, signInPlatform, signInUnified, signInDonor, enterOrgSimulation, exitSimulation, signOut, reload],
+    () => ({ ...state, signIn, signInPlatform, signInUnified, signInDonor, signInDonorPassword, enterOrgSimulation, exitSimulation, signOut, reload }),
+    [state, signIn, signInPlatform, signInUnified, signInDonor, signInDonorPassword, enterOrgSimulation, exitSimulation, signOut, reload],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

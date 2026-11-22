@@ -15,7 +15,7 @@ type EntryTab = 'staff' | 'donor';
 
 export default function Login() {
   const router = useRouter();
-  const { signInUnified, signInDonor } = useAuth();
+  const { signInUnified, signInDonor, signInDonorPassword } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const whiteLabel = isWhiteLabel();
@@ -31,8 +31,10 @@ export default function Login() {
   const [host, setHost] = useState('');
   const [askHost, setAskHost] = useState(false);
 
-  // Bağışçı Girişi (Kurum adı sormadan doğrudan Telefon veya E-posta + OTP)
+  // Bağışçı Girişi (Şifre ile veya SMS/E-posta Kodu ile)
+  const [donorMethod, setDonorMethod] = useState<'otp' | 'password'>('otp');
   const [donorContact, setDonorContact] = useState('');
+  const [donorPassword, setDonorPassword] = useState('');
   const [donorOtp, setDonorOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
 
@@ -133,6 +135,23 @@ export default function Login() {
       });
     } catch (e: any) {
       setError(e?.message || 'Doğrulama başarısız.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitDonorPassword = async () => {
+    if (!donorContact.trim() || !donorPassword) return setError('Telefon/e-posta ve şifrenizi girin.');
+    setBusy(true);
+    setError(null);
+    try {
+      await signInDonorPassword(donorContact, donorPassword);
+      await saveRememberedLogin({
+        remember: rememberMe,
+        donorContact: donorContact.trim(),
+      });
+    } catch (e: any) {
+      setError(e?.message || 'Giriş yapılamadı.');
     } finally {
       setBusy(false);
     }
@@ -258,6 +277,16 @@ export default function Login() {
         </>
       ) : (
         <>
+          <View style={{ alignItems: 'center' }}>
+            <Chips<'otp' | 'password'>
+              options={[
+                { value: 'otp', label: 'SMS / E-posta Kodu' },
+                { value: 'password', label: 'Şifre ile Giriş' },
+              ]}
+              value={donorMethod}
+              onChange={(m) => { setDonorMethod(m); setError(null); }}
+            />
+          </View>
           <Field
             label="Telefon veya E-posta"
             value={donorContact}
@@ -266,9 +295,24 @@ export default function Login() {
             autoCorrect={false}
             keyboardType="email-address"
             placeholder="05XX XXX XX XX veya ad@ornek.com"
-            hint="Bağış yaparken kullandığınız cep telefonu numaranız veya e-posta adresiniz."
+            hint={
+              donorMethod === 'otp'
+                ? 'İlk kez giriş yapıyorsanız telefon numaranızı girmeniz yeterlidir; hesabınız otomatik oluşturulur.'
+                : 'Ayarlar bölümünden belirlediğiniz şifre ile giriş yapın.'
+            }
           />
-          {otpSent ? (
+          {donorMethod === 'password' ? (
+            <Field
+              label="Şifre"
+              value={donorPassword}
+              onChangeText={setDonorPassword}
+              secureTextEntry
+              autoComplete="current-password"
+              textContentType="password"
+              onSubmitEditing={submitDonorPassword}
+              returnKeyType="go"
+            />
+          ) : otpSent ? (
             <Field
               label="Doğrulama Kodu (6 Haneli)"
               value={donorOtp}
@@ -300,7 +344,9 @@ export default function Login() {
             <Text style={[styles.rememberText, { color: colors.text }]}>Beni hatırla</Text>
           </Pressable>
 
-          {!otpSent ? (
+          {donorMethod === 'password' ? (
+            <Btn title="Giriş Yap" onPress={submitDonorPassword} loading={busy} />
+          ) : !otpSent ? (
             <Btn title="Doğrulama Kodu Gönder" onPress={requestDonorCode} loading={busy} />
           ) : (
             <View style={{ gap: space.sm }}>

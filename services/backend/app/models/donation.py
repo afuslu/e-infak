@@ -27,6 +27,7 @@ class Donor(Base):
     # Contact
     email = Column(String(255), index=True)
     phone = Column(String(20), index=True)
+    hashed_password = Column(String(255), nullable=True)
     
     # Address
     address = Column(Text)

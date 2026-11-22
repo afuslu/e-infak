@@ -12,7 +12,7 @@ from sqlalchemy.future import select
 from app.core.db import get_db
 from app.core.config import settings
 from app.core.rate_limit import rate_limit
-from app.core.security import create_access_token, create_refresh_token, decode_token
+from app.core.security import create_access_token, create_refresh_token, decode_token, get_password_hash, verify_password
 from app.models.campaign import Campaign
 from app.models.donation import Donor, Donation, DonationStatus
 from app.models.kurban import KurbanShare, KurbanAnimal, KurbanStatus
@@ -292,6 +292,79 @@ async def verify_portal_otp(
             "email": donor.email,
         },
     }
+
+
+class DonorPasswordLoginRequest(BaseModel):
+    identifier: str = Field(..., min_length=3, max_length=254)
+    password: str = Field(..., min_length=1, max_length=200)
+
+
+class DonorPasswordSetRequest(BaseModel):
+    current_password: Optional[str] = Field(default=None, max_length=200)
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+
+@router.post("/login")
+async def login_portal_password(
+    request: Request,
+    payload: DonorPasswordLoginRequest,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("donor-password-login", limit=10, window_seconds=300)),
+):
+    """Sign in to the donor portal using phone or e-mail + password."""
+    ident = payload.identifier.strip()
+    is_email = "@" in ident
+    organization_id = getattr(request.state, "organization_id", None)
+
+    if is_email:
+        email_clean = otp.normalized_email(ident)
+        stmt = select(Donor).where(func.lower(Donor.email) == email_clean, Donor.hashed_password.is_not(None))
+    else:
+        key = otp.normalized(ident)
+        stmt = select(Donor).where(phone_matches(Donor.phone, key), Donor.hashed_password.is_not(None))
+
+    if organization_id:
+        stmt = stmt.where(Donor.organization_id == UUID(str(organization_id)))
+    stmt = stmt.order_by(Donor.last_donation_at.desc().nullslast(), Donor.created_at.asc())
+    candidates = (await db.execute(stmt)).scalars().all()
+
+    donor = next((d for d in candidates if d.hashed_password and verify_password(payload.password, d.hashed_password)), None)
+    if not donor:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Telefon/e-posta veya şifre hatalı. Şifreniz yoksa SMS/E-posta koduyla giriş yapabilirsiniz.",
+        )
+
+    access_token = create_access_token({"sub": str(donor.id), "role": "donor"})
+    refresh_token = create_refresh_token({"sub": str(donor.id), "role": "donor"})
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "donor": {
+            "id": donor.id,
+            "first_name": donor.first_name,
+            "last_name": donor.last_name,
+            "phone": donor.phone,
+            "email": donor.email,
+        },
+    }
+
+
+@router.post("/me/password")
+async def set_my_donor_password(
+    payload: DonorPasswordSetRequest,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("donor-password-set", limit=10, window_seconds=600)),
+):
+    """Set or update the donor's optional portal password."""
+    if current_donor.hashed_password and payload.current_password:
+        if not verify_password(payload.current_password, current_donor.hashed_password):
+            raise HTTPException(status_code=400, detail="Mevcut şifre hatalı.")
+    current_donor.hashed_password = get_password_hash(payload.new_password)
+    await db.commit()
+    return {"ok": True, "has_password": True, "message": "Şifreniz başarıyla kaydedildi."}
 
 
 @router.post("/refresh")
@@ -1370,6 +1443,7 @@ def _serialize_donor_profile(donor: Donor) -> dict:
         "allow_email": bool(donor.allow_email),
         "allow_sms": bool(donor.allow_sms),
         "is_anonymous": bool(donor.is_anonymous),
+        "has_password": bool(donor.hashed_password),
         "total_donations": int(donor.total_donations or 0),
         "total_donated_cents": int(donor.total_donated_cents or 0),
     }

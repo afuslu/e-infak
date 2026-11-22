@@ -468,6 +468,39 @@ export async function sendDonorOtp(contact: string, tenantHost?: string): Promis
   };
 }
 
+/** Bağışçı şifreli girişi (/api/v1/portal/login). */
+export async function loginDonorPassword(identifier: string, password: string, tenantHost?: string): Promise<void> {
+  host = tenantHost?.trim() ? cleanHost(tenantHost) : PLATFORM_HOST;
+  let response: Response;
+  try {
+    response = await fetch(`${base()}/portal/login`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: identifier.trim(), password }),
+    });
+  } catch {
+    throw new ApiError(0, 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.');
+  }
+  const body = await parse(response);
+  if (!response.ok) {
+    const { message, code } = errorMessage(body, response.status);
+    throw new ApiError(response.status, message, code, body);
+  }
+  accessToken = null;
+  refreshToken = null;
+  platformToken = null;
+  simulatingOrg = null;
+  await Promise.all([
+    removeItem(KEY_ACCESS),
+    removeItem(KEY_REFRESH),
+    removeItem(KEY_PLATFORM_TOKEN),
+    removeItem(KEY_SIM_ORG),
+  ]);
+  if (host !== PLATFORM_HOST) await setItem(KEY_HOST, host);
+  else await removeItem(KEY_HOST);
+  await saveDonorTokens(body.access_token, body.refresh_token);
+}
+
 /** Bağışçı doğrulama kodu onayı (/api/v1/portal/verify-otp). */
 export async function verifyDonorOtp(contact: string, otpCode: string, tenantHost?: string): Promise<void> {
   host = tenantHost?.trim() ? cleanHost(tenantHost) : PLATFORM_HOST;

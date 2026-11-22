@@ -39,6 +39,9 @@ export default function DonorSettingsScreen() {
   const [reqCategory, setReqCategory] = useState<ReqCategory>('diger');
   const [reqMessage, setReqMessage] = useState('');
 
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+
   useEffect(() => {
     if (donorMe) {
       setFirstName(donorMe.first_name || '');
@@ -81,6 +84,24 @@ export default function DonorSettingsScreen() {
     onError: notifyError,
   });
 
+  const savePassword = useMutation({
+    mutationFn: () => {
+      if (newPassword.length < 6) throw new Error('Şifre en az 6 karakter olmalıdır.');
+      if (newPassword !== newPasswordConfirm) throw new Error('Şifreler eşleşmiyor.');
+      return df('/me/password', {
+        method: 'POST',
+        body: { new_password: newPassword },
+      });
+    },
+    onSuccess: async () => {
+      setNewPassword('');
+      setNewPasswordConfirm('');
+      await reload();
+      notify('Şifreniz kaydedildi. Artık şifreyle de giriş yapabilirsiniz.');
+    },
+    onError: notifyError,
+  });
+
   const sendRequest = useMutation({
     mutationFn: () => {
       if (reqMessage.trim().length < 5) throw new Error('Lütfen talebinizi en az 5 karakter olarak yazın.');
@@ -117,6 +138,23 @@ export default function DonorSettingsScreen() {
         <SwitchRow label="E-posta Bildirimleri" hint="Faaliyet bülteni ve e-makbuz" value={allowEmail} onValueChange={setAllowEmail} />
         <SwitchRow label="İsmim Gizli Kalsın" hint="Hayırsever listelerinde adınız gizlenir" value={isAnonymous} onValueChange={setIsAnonymous} />
         <Btn title="Bilgilerimi Kaydet" loading={saveProfile.isPending} onPress={() => saveProfile.mutate()} />
+      </Card>
+
+      <SectionTitle>{donorMe?.has_password ? 'ŞİFRE DEĞİŞTİR' : 'ŞİFRE BELİRLE (İSTEĞE BAĞLI)'}</SectionTitle>
+      <Card>
+        <Text style={ui.muted}>
+          {donorMe?.has_password
+            ? 'Şifrenizi güncellediğinizde SMS kodu beklemeden telefon/e-posta ve şifrenizle giriş yapabilirsiniz.'
+            : 'Bir şifre belirlerseniz sonraki girişlerinizde SMS kodu beklemeden doğrudan şifrenizle giriş yapabilirsiniz.'}
+        </Text>
+        <Field label="Yeni Şifre (En az 6 karakter)" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
+        <Field label="Yeni Şifre (Tekrar)" value={newPasswordConfirm} onChangeText={setNewPasswordConfirm} secureTextEntry />
+        <Btn
+          title={donorMe?.has_password ? 'Şifremi Güncelle' : 'Şifre Belirle'}
+          variant="outline"
+          loading={savePassword.isPending}
+          onPress={() => savePassword.mutate()}
+        />
       </Card>
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
