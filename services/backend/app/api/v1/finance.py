@@ -244,10 +244,8 @@ async def export_derbis_report(
             headers={"Content-Disposition": "attachment; filename=derbis_bagis_defteri.xlsx"},
         )
 
-    # Generate CSV with UTF-8 BOM so Microsoft Excel parses Turkish characters natively
+    # Generate CSV with single UTF-8 BOM (utf-8-sig) so Microsoft Excel parses Turkish characters natively
     output = io.StringIO()
-    # UTF-8 BOM bytes
-    output.write('\ufeff')
     
     # Headers
     output.write("Sıra No;Makbuz No;Bağışçı Ad Soyadı;T.C. Kimlik / Vergi No;Bağış Tarihi;Bağış Tutarı (TL);Ödeme Yöntemi;Açıklama\n")
@@ -268,7 +266,7 @@ async def export_derbis_report(
     output.close()
     
     return StreamingResponse(
-        io.BytesIO(csv_data.encode('utf-8-sig')), # Ensure correct encoding for excel
-        media_type="text/csv",
+        io.BytesIO(csv_data.encode('utf-8-sig')), # Single UTF-8 BOM for Turkish Excel
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": "attachment; filename=derbis_bagis_defteri.csv"}
     )

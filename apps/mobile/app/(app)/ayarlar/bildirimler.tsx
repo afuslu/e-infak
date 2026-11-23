@@ -120,7 +120,7 @@ export default function NotificationSettings() {
                 title="Deneme bildirimi gönder"
                 variant="outline"
                 small
-                onPress={() => sendTestPush().then(() => notify('Deneme bildirimi gönderildi.')).catch(notifyError)}
+                onPress={() => sendTestPush().then(() => notify('Deneme bildirimi gönderildi.')).catch(notifyError).finally(() => pushEnabled().then(setDevice))}
               />
             ) : null}
           </>

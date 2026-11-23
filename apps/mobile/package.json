@@ -33,6 +33,7 @@
     "expo-router": "~57.0.31",
     "expo-secure-store": "~57.0.4",
     "expo-sharing": "~57.0.26",
+    "expo-splash-screen": "~57.0.11",
     "expo-status-bar": "~57.0.1",
     "expo-widgets": "~57.0.28",
     "lucide-react-native": "^1.73.0",
@@ -43,7 +44,8 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
-    "react-native-web": "~0.21.0"
+    "react-native-web": "~0.21.0",
+    "react-native-webview": "13.16.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",

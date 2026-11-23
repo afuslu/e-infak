@@ -2,10 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies (fonts-dejavu-core: Turkish + ₺ PDF font support)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     postgresql-client \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements

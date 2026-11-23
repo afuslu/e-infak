@@ -28,38 +28,74 @@ FONT_BOLD = "Helvetica-Bold"
 FONT_ITALIC = "Helvetica-Oblique"
 HAS_TRY_GLYPH = False
 
+_TURKISH_REQUIRED_CODEPOINTS = (0x00C7, 0x00E7, 0x011E, 0x011F, 0x0130, 0x0131, 0x00D6, 0x00F6, 0x015E, 0x015F, 0x00DC, 0x00FC)
+
+
+def tr_upper(text: str) -> str:
+    """Türkçe büyük harf: i→İ, ı→I (str.upper 'i'yi 'I' yapar)."""
+    return (text or "").replace("i", "İ").replace("ı", "I").upper()
+
+
+def _supports_turkish(font_obj: TTFont) -> bool:
+    cmap = getattr(getattr(font_obj, "face", None), "charToGlyph", None) or {}
+    return all(cp in cmap for cp in _TURKISH_REQUIRED_CODEPOINTS)
+
 
 def _register_unicode_fonts() -> None:
-    """Türkçe karakterleri (ve mümkünse ₺ simgesini) destekleyen fontu kaydeder."""
+    """Türkçe karakterleri (ÇçĞğİıÖöŞşÜü ve mümkünse ₺ simgesini) eksiksiz destekleyen fontu kaydeder."""
     global FONT, FONT_BOLD, FONT_ITALIC, HAS_TRY_GLYPH
-    if "DejaVu" in pdfmetrics.getRegisteredFontNames():
-        FONT, FONT_BOLD, FONT_ITALIC, HAS_TRY_GLYPH = "DejaVu", "DejaVuBd", "DejaVuIt", True
-        return
-    if "Vera" in pdfmetrics.getRegisteredFontNames():
-        FONT, FONT_BOLD, FONT_ITALIC, HAS_TRY_GLYPH = "Vera", "VeraBd", "VeraIt", False
+
+    if "CorpUnicode" in pdfmetrics.getRegisteredFontNames():
+        FONT, FONT_BOLD, FONT_ITALIC = "CorpUnicode", "CorpUnicodeBd", "CorpUnicodeIt"
         return
 
-    # DejaVu Sans: Türkçe + ₺ (U+20BA) gliflerini eksiksiz destekler.
-    dejavu_dirs = [
-        "/usr/share/fonts/truetype/dejavu",
-        "/usr/share/fonts/dejavu",
-        "/Library/Fonts",
+    bundled_dir = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+    candidates: list[tuple[str, str, str]] = [
+        # 1. Proje içi gömülü font (varsa)
+        (str(bundled_dir / "DejaVuSans.ttf"), str(bundled_dir / "DejaVuSans-Bold.ttf"), str(bundled_dir / "DejaVuSans-Oblique.ttf")),
+        # 2. DejaVu Sans (Linux / Docker: fonts-dejavu-core) — Türkçe + ₺ tam destek
+        ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf"),
+        ("/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/dejavu/DejaVuSans-Oblique.ttf"),
+        ("/Library/Fonts/DejaVuSans.ttf", "/Library/Fonts/DejaVuSans-Bold.ttf", "/Library/Fonts/DejaVuSans-Oblique.ttf"),
+        # 3. Liberation Sans (Linux)
+        ("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf"),
+        ("/usr/share/fonts/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/liberation/LiberationSans-Bold.ttf", "/usr/share/fonts/liberation/LiberationSans-Italic.ttf"),
+        # 4. Noto Sans (Linux)
+        ("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf", "/usr/share/fonts/truetype/noto/NotoSans-Italic.ttf"),
+        # 5. macOS Arial (Supplemental) — Türkçe tam destek
+        ("/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf", "/System/Library/Fonts/Supplemental/Arial Italic.ttf"),
+        ("/Library/Fonts/Arial.ttf", "/Library/Fonts/Arial Bold.ttf", "/Library/Fonts/Arial Italic.ttf"),
+        # 6. FreeSans (Linux)
+        ("/usr/share/fonts/truetype/freefont/FreeSans.ttf", "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf", "/usr/share/fonts/truetype/freefont/FreeSansOblique.ttf"),
     ]
-    for base in dejavu_dirs:
-        reg = os.path.join(base, "DejaVuSans.ttf")
-        bold = os.path.join(base, "DejaVuSans-Bold.ttf")
-        italic = os.path.join(base, "DejaVuSans-Oblique.ttf")
-        if os.path.exists(reg) and os.path.exists(bold):
-            try:
-                pdfmetrics.registerFont(TTFont("DejaVu", reg))
-                pdfmetrics.registerFont(TTFont("DejaVuBd", bold))
-                pdfmetrics.registerFont(TTFont("DejaVuIt", italic if os.path.exists(italic) else reg))
-                FONT, FONT_BOLD, FONT_ITALIC, HAS_TRY_GLYPH = "DejaVu", "DejaVuBd", "DejaVuIt", True
-                return
-            except Exception:
-                pass
 
-    # Fallback: reportlab ile birlikte gelen Bitstream Vera Sans (Türkçe glifler mevcut, ₺ yok).
+    for reg_path, bold_path, italic_path in candidates:
+        if not (os.path.exists(reg_path) and os.path.exists(bold_path)):
+            continue
+        try:
+            reg_font = TTFont("CorpUnicode", reg_path)
+            if not _supports_turkish(reg_font):
+                continue
+            bold_font = TTFont("CorpUnicodeBd", bold_path)
+            italic_font = TTFont("CorpUnicodeIt", italic_path if os.path.exists(italic_path) else reg_path)
+            pdfmetrics.registerFont(reg_font)
+            pdfmetrics.registerFont(bold_font)
+            pdfmetrics.registerFont(italic_font)
+            pdfmetrics.registerFontFamily(
+                "CorpUnicode",
+                normal="CorpUnicode",
+                bold="CorpUnicodeBd",
+                italic="CorpUnicodeIt",
+                boldItalic="CorpUnicodeBd",
+            )
+            cmap = getattr(getattr(reg_font, "face", None), "charToGlyph", None) or {}
+            FONT, FONT_BOLD, FONT_ITALIC = "CorpUnicode", "CorpUnicodeBd", "CorpUnicodeIt"
+            HAS_TRY_GLYPH = 0x20BA in cmap
+            return
+        except Exception:
+            continue
+
+    # Son çare fallback: Bitstream Vera Sans (not: bazı Türkçe glifler eksik olabilir) veya Helvetica
     fonts_dir = os.path.join(os.path.dirname(reportlab.__file__), "fonts")
     try:
         pdfmetrics.registerFont(TTFont("Vera", os.path.join(fonts_dir, "Vera.ttf")))
@@ -120,30 +156,91 @@ def _cached_pdf_logo_bytes(path_str: str, mtime_ns: int) -> bytes | None:
         return None
 
 
-def resolve_local_logo(organization: Any) -> ImageReader | None:
-    """Kurum logosu yerel medya dizinindeyse ağ isteği yapmadan ImageReader döner."""
-    # STK PRO "PDF Logo" (Görünüm) wins over the site logo; SVG cannot be drawn into a PDF.
-    pdf_logo = ((getattr(organization, "site", None) or {}).get("pdf_logo_url") or "").strip()
-    logo_url = pdf_logo if pdf_logo and not pdf_logo.lower().split("?")[0].endswith(".svg") else (getattr(organization, "logo_url", None) or "").strip()
-    if not logo_url:
+def _candidate_logo_urls(organization: Any) -> list[str]:
+    if organization is None:
+        return []
+    site = getattr(organization, "site", None)
+    site_dict = site if isinstance(site, dict) else {}
+    raw = [
+        site_dict.get("pdf_logo_url"),
+        getattr(organization, "logo_url", None),
+        site_dict.get("logo_url"),
+        site_dict.get("footer_logo_url"),
+    ]
+    out: list[str] = []
+    for item in raw:
+        val = (item or "").strip() if isinstance(item, str) else ""
+        if val and not val.lower().split("?")[0].endswith(".svg") and val not in out:
+            out.append(val)
+    return out
+
+
+def _safe_child(base: Path, rel: str) -> Path | None:
+    try:
+        resolved_base = base.resolve()
+        candidate = (resolved_base / rel.lstrip("/")).resolve()
+        if candidate.is_file() and (candidate == resolved_base or resolved_base in candidate.parents):
+            return candidate
+    except OSError:
         return None
-    # Yalnızca yerel /api/v1/media/<org_id>/<name> veya /media/... yollarını çöz
-    path_part = logo_url.split("?")[0]
-    candidate: Path | None = None
+    return None
+
+
+def resolve_logo_path(organization: Any) -> Path | None:
+    """Kurum logosunu yerel medya veya statik public/images dizinlerinden çözer (ağ isteği yapmaz)."""
+    urls = _candidate_logo_urls(organization)
+    if not urls:
+        return None
     try:
         from app.core.config import settings
         media_root = Path(settings.MEDIA_ROOT)
     except Exception:
         media_root = Path("media")
 
-    if "/api/v1/media/" in path_part:
-        rel = path_part.split("/api/v1/media/", 1)[1].lstrip("/")
-        candidate = media_root / rel
-    elif path_part.startswith("/media/"):
-        rel = path_part[len("/media/"):].lstrip("/")
-        candidate = media_root / rel
+    # Proje kökü: services/backend/app/utils/receipt_pdf.py -> 4 üst dizin (monorepo) veya backend kökü
+    here = Path(__file__).resolve()
+    static_roots: list[Path] = []
+    for parent in (here.parents[4] if len(here.parents) > 4 else here.parent, here.parents[2] if len(here.parents) > 2 else here.parent):
+        for sub in ("public", "apps/web/public"):
+            p = parent / sub
+            if p.is_dir() and p not in static_roots:
+                static_roots.append(p)
 
-    if not candidate or not candidate.is_file():
+    for logo_url in urls:
+        path_part = logo_url.split("?")[0].split("#")[0]
+        # Tam URL ise sadece path kısmını al (örn. https://site.org/api/v1/media/...)
+        if "://" in path_part:
+            from urllib.parse import urlparse
+            path_part = urlparse(path_part).path
+
+        found: Path | None = None
+        if "/api/v1/media/" in path_part:
+            rel = path_part.split("/api/v1/media/", 1)[1]
+            found = _safe_child(media_root, rel)
+        elif path_part.startswith("/media/"):
+            rel = path_part[len("/media/"):]
+            found = _safe_child(media_root, rel)
+        elif path_part.startswith("/uploads/"):
+            rel = path_part[len("/uploads/"):]
+            found = _safe_child(media_root, rel)
+        elif path_part.startswith("/images/") or path_part.startswith("images/"):
+            rel = path_part.lstrip("/")
+            for sroot in static_roots:
+                found = _safe_child(sroot, rel)
+                if found:
+                    break
+            if not found:
+                found = _safe_child(media_root, rel)
+
+        if found is not None:
+            return found
+    return None
+
+
+def resolve_local_logo(organization: Any) -> ImageReader | None:
+    """Kurum logosu yerel medya/statik dizindeyse ağ isteği yapmadan ImageReader döner."""
+    candidate = resolve_logo_path(organization)
+    if not candidate:
         return None
 
     try:
@@ -155,6 +252,44 @@ def resolve_local_logo(organization: Any) -> ImageReader | None:
     if not raw:
         return None
     return ImageReader(BytesIO(raw))
+
+
+def _org_initials(name: str) -> str:
+    words = [w for w in (name or "").strip().split() if w and w[0].isalnum()]
+    if not words:
+        return "Eİ"
+    if len(words) == 1:
+        return tr_upper(words[0][:2])
+    return tr_upper(words[0][0] + words[1][0])
+
+
+def draw_org_monogram(
+    pdf: canvas.Canvas,
+    x: float,
+    y: float,
+    size: float,
+    org_name: str,
+    primary: colors.Color,
+    *,
+    circle: bool = False,
+) -> None:
+    """Logo yüklenmemiş kurumlar için şık kurumsal monogram rozeti çizer."""
+    pdf.saveState()
+    bg = _tint(primary, 0.12)
+    pdf.setFillColor(bg)
+    pdf.setStrokeColor(primary)
+    pdf.setLineWidth(1.0)
+    if circle:
+        r = size / 2
+        pdf.circle(x + r, y + r, r, fill=1, stroke=1)
+    else:
+        pdf.roundRect(x, y, size, size, 4, fill=1, stroke=1)
+    initials = _org_initials(org_name)
+    font_size = max(8, size * 0.38)
+    pdf.setFillColor(primary)
+    pdf.setFont(FONT_BOLD, font_size)
+    pdf.drawCentredString(x + size / 2, y + size / 2 - font_size * 0.35, initials)
+    pdf.restoreState()
 
 
 def _safe_hex(value: str | None, default: str = "#065f46") -> colors.Color:
@@ -218,18 +353,19 @@ def build_receipt_pdf(
     pdf.setFillColor(primary)
     pdf.rect(0, height - 9 * mm, width, 9 * mm, fill=1, stroke=0)
 
-    # --- Kurum başlığı + Logo ---
+    # --- Kurum başlığı + Logo (yoksa kurumsal monogram rozeti) ---
+    org_name = (getattr(organization, "name", None) or "").strip() or "Dernek"
     logo = resolve_local_logo(organization)
-    header_x = margin
+    logo_size = 16 * mm
     if logo is not None:
-        logo_size = 16 * mm
         pdf.setStrokeColor(line)
         pdf.setLineWidth(0.6)
         pdf.roundRect(margin, top - logo_size - 1 * mm, logo_size, logo_size, 3, fill=0, stroke=1)
         pdf.drawImage(logo, margin + 1 * mm, top - logo_size, width=logo_size - 2 * mm, height=logo_size - 2 * mm, preserveAspectRatio=True, mask="auto")
-        header_x = margin + logo_size + 4 * mm
+    else:
+        draw_org_monogram(pdf, margin, top - logo_size - 1 * mm, logo_size, org_name, primary)
+    header_x = margin + logo_size + 4 * mm
 
-    org_name = (getattr(organization, "name", None) or "").strip() or "Dernek"
     pdf.setFillColor(ink)
     pdf.setFont(FONT_BOLD, 16)
     pdf.drawString(header_x, top - 6 * mm, org_name[:42])

@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import { api } from './api';
+import { api, ApiError } from './api';
 import { getItem, removeItem, setItem } from './storage';
 
 const KEY_PUSH = 'einfak_push_token';
@@ -82,7 +82,13 @@ export async function registerPush(ask = true): Promise<{ ok: boolean; message: 
   await ensureAndroidChannels();
   await setupInteractiveCategories();
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  let token: string;
+  try {
+    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  } catch (error) {
+    console.warn('Expo push token alınamadı', error);
+    return { ok: false, message: 'Telefon bildirim servisine kaydedilemedi. İnternetinizi ve uygulama sürümünü kontrol edin.' };
+  }
   await api('/mobile/device-token', { method: 'POST', body: { token, platform: Platform.OS } });
   await setItem(KEY_PUSH, token);
   return { ok: true, message: 'Bildirimler açık.' };
@@ -101,4 +107,18 @@ export async function pushEnabled(): Promise<boolean> {
   return !!(await getItem(KEY_PUSH));
 }
 
-export const sendTestPush = () => api('/mobile/test-push', { method: 'POST' });
+/** Sunucuda bu telefonun kaydı yoksa (404) telefonu yeniden kaydedip bir kez daha dener. */
+export async function sendTestPush(): Promise<void> {
+  const send = () => api('/mobile/test-push', { method: 'POST' });
+  try {
+    await send();
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 404) throw error;
+    const result = await registerPush();
+    if (!result.ok) {
+      await removeItem(KEY_PUSH);
+      throw new Error(result.message);
+    }
+    await send();
+  }
+}

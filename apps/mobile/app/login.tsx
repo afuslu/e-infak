@@ -21,6 +21,7 @@ export default function Login() {
   const whiteLabel = isWhiteLabel();
   const brandName = ACTIVE_TENANT?.name || 'e-İnfak';
   const [tab, setTab] = useState<EntryTab>(whiteLabel ? 'donor' : 'staff');
+  const activeTab: EntryTab = whiteLabel ? tab : 'staff';
 
   // Şifreli Giriş (Kurum & Platform ortak - E-posta veya Telefondan otomatik tanır)
   const [identifier, setIdentifier] = useState('');
@@ -176,36 +177,31 @@ export default function Login() {
           accessibilityIgnoresInvertColors
         />
         <Text style={[styles.title, { color: colors.text }]}>
-          {tab === 'donor' ? `${brandName} Bağışçı Paneli` : `${brandName} Giriş`}
+          {activeTab === 'donor' ? `${brandName} Bağışçı Paneli` : `${brandName} Giriş`}
         </Text>
-        <Text style={[styles.sub, { color: colors.muted }]}>
-          {tab === 'donor'
-            ? 'Telefon numaranız veya e-posta adresinizle giriş yaparak tüm bağışlarınızı, su kuyularınızı ve kurban hisselerinizi takip edin.'
-            : 'E-posta veya telefon numaranızla giriş yapın. Hesabınız otomatik tanınır.'}
-        </Text>
+        {activeTab === 'donor' ? (
+          <Text style={[styles.sub, { color: colors.muted }]}>
+            Telefon numaranız veya e-posta adresinizle giriş yaparak tüm bağışlarınızı, su kuyularınızı ve kurban hisselerinizi takip edin.
+          </Text>
+        ) : null}
       </View>
 
-      <View style={{ alignItems: 'center' }}>
-        <Chips<EntryTab>
-          options={
-            whiteLabel
-              ? [
-                  { value: 'donor', label: 'Bağışçı Girişi' },
-                  { value: 'staff', label: 'Yetkili Girişi' },
-                ]
-              : [
-                  { value: 'staff', label: 'Yetkili Girişi' },
-                  { value: 'donor', label: 'Bağışçı Girişi' },
-                ]
-          }
-          value={tab}
-          onChange={switchTab}
-        />
-      </View>
+      {whiteLabel ? (
+        <View style={{ alignItems: 'center' }}>
+          <Chips<EntryTab>
+            options={[
+              { value: 'donor', label: 'Bağışçı Girişi' },
+              { value: 'staff', label: 'Yetkili Girişi' },
+            ]}
+            value={activeTab}
+            onChange={switchTab}
+          />
+        </View>
+      ) : null}
 
       {error ? <Notice text={error} tone="danger" /> : null}
 
-      {tab === 'staff' ? (
+      {activeTab === 'staff' ? (
         <>
           <Field
             label="E-posta veya Telefon"

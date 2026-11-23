@@ -50,28 +50,13 @@ def _cached_logo_png(path_str: str, mtime_ns: int) -> bytes | None:
 
 
 def _resolve_logo_png_bytes(organization: Any) -> BytesIO | None:
-    """Kurum logosunu yerel medya klasöründen okuyup 40x40 PNG bayt akışına dönüştürür."""
+    """Kurum logosunu yerel medya/statik klasörlerden okuyup 42x42 PNG bayt akışına dönüştürür."""
     if organization is None:
         return None
-    logo_url = (getattr(organization, "logo_url", None) or "").strip()
-    if not logo_url:
-        return None
-    path_part = logo_url.split("?")[0]
-    try:
-        from app.core.config import settings
-        media_root = Path(settings.MEDIA_ROOT)
-    except Exception:
-        media_root = Path("media")
+    from app.utils.receipt_pdf import resolve_logo_path
 
-    candidate: Path | None = None
-    if "/api/v1/media/" in path_part:
-        rel = path_part.split("/api/v1/media/", 1)[1].lstrip("/")
-        candidate = media_root / rel
-    elif path_part.startswith("/media/"):
-        rel = path_part[len("/media/"):].lstrip("/")
-        candidate = media_root / rel
-
-    if not candidate or not candidate.is_file():
+    candidate = resolve_logo_path(organization)
+    if not candidate:
         return None
 
     try:

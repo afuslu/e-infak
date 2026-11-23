@@ -38,11 +38,12 @@ def build_kurban_papers(org_name: str, animals: list[dict], organization: Any = 
         pdf.setFillColor(primary)
         pdf.rect(0, height - 7 * mm, width, 7 * mm, fill=1, stroke=0)
 
-        header_x = margin
+        logo_size = 12 * mm
         if logo is not None:
-            logo_size = 12 * mm
             pdf.drawImage(logo, margin, height - margin - logo_size + 2 * mm, width=logo_size, height=logo_size, preserveAspectRatio=True, mask="auto")
-            header_x = margin + logo_size + 3 * mm
+        else:
+            receipt_pdf.draw_org_monogram(pdf, margin, height - margin - logo_size + 2 * mm, logo_size, org_name, primary)
+        header_x = margin + logo_size + 3 * mm
 
         pdf.setFillColor(colors.black)
         pdf.setFont(bold, 18)
@@ -110,6 +111,7 @@ def build_kurban_cards(org_name: str, cards: list[dict], organization: Any = Non
     cards: [{"number", "name", "kurban_type", "animal_label", "country", "year", "share_number", "capacity"}]
     """
     font, bold = receipt_pdf.FONT, receipt_pdf.FONT_BOLD
+    primary = receipt_pdf._safe_hex(getattr(organization, "theme_primary_color", None), "#065f46")
     logo = receipt_pdf.resolve_local_logo(organization) if organization is not None else None
     red = colors.HexColor("#dc2626")
     muted = colors.HexColor("#4b5563")
@@ -123,14 +125,20 @@ def build_kurban_cards(org_name: str, cards: list[dict], organization: Any = Non
     usable = width - 2 * margin
 
     for card in cards or [{"number": "-", "name": "", "kurban_type": "", "animal_label": "", "country": "", "year": ""}]:
+        # Üst kurumsal şerit
+        pdf.setFillColor(primary)
+        pdf.rect(0, height - 6 * mm, width, 6 * mm, fill=1, stroke=0)
+
         if logo is not None:
             logo_h = 24 * mm
             pdf.drawImage(logo, (width - 60 * mm) / 2, height - margin - logo_h, width=60 * mm, height=logo_h,
                           preserveAspectRatio=True, mask="auto")
         else:
-            pdf.setFillColor(muted)
-            pdf.setFont(bold, 20)
-            pdf.drawCentredString(width / 2, height - margin - 12 * mm, tr_upper(org_name)[:60])
+            badge = 14 * mm
+            receipt_pdf.draw_org_monogram(pdf, (width - badge) / 2, height - margin - badge + 2 * mm, badge, org_name, primary, circle=True)
+            pdf.setFillColor(primary)
+            pdf.setFont(bold, 16)
+            pdf.drawCentredString(width / 2, height - margin - badge - 6 * mm, tr_upper(org_name)[:60])
 
         number = f"KURBAN NO: {card.get('number') or '-'}"
         pdf.setFillColor(red)

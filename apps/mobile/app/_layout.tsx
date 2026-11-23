@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Lock } from 'lucide-react-native';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { CartProvider } from '@/context/CartContext';
 import { ToastHost } from '@/components/toast';
 import { Btn, Loading } from '@/components/ui';
 import { ForcePassword } from '@/components/ForcePassword';
@@ -14,6 +16,8 @@ import { isWhiteLabel } from '@/config/tenant';
 import { setupNotificationHandler } from '@/lib/notifications';
 import { font, space, ThemeProvider, useTheme } from '@/theme';
 
+// Açılış görseli, oturum ve kilit durumu belli olana kadar kalır; arada boş ekran görünmez.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 setupNotificationHandler();
 
 const queryClient = new QueryClient({
@@ -29,6 +33,7 @@ function Gate() {
   const { status, mode, me, platformMe } = useAuth();
   const { colors } = useTheme();
   const [locked, setLocked] = useState(false);
+  const [lockChecked, setLockChecked] = useState(false);
   const away = useRef<number | null>(null);
 
   const unlock = useCallback(async () => {
@@ -37,13 +42,19 @@ function Gate() {
 
   // Açılışta ve arka plandan dönüşte (30 sn'den uzun) biyometrik kilit.
   useEffect(() => {
-    if (status !== 'signedIn') return setLocked(false);
+    if (status !== 'signedIn') {
+      setLocked(false);
+      setLockChecked(false);
+      return;
+    }
     let alive = true;
-    biometricEnabled().then((on) => {
-      if (on && alive) {
+    biometricEnabled().catch(() => false).then((on) => {
+      if (!alive) return;
+      if (on) {
         setLocked(true);
         unlock();
       }
+      setLockChecked(true);
     });
     const subscription = AppState.addEventListener('change', async (state) => {
       if (state === 'background') away.current = Date.now();
@@ -59,7 +70,17 @@ function Gate() {
     };
   }, [status, unlock]);
 
-  if (status === 'loading') {
+  const ready = status === 'signedOut' || (status === 'signedIn' && lockChecked);
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
+  // Ağ yavaşsa açılış görseli takılı kalmasın.
+  useEffect(() => {
+    const timer = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), 6000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!ready) {
     return (
       <View style={[styles.center, { backgroundColor: colors.bg }]}>
         <Loading />
@@ -78,6 +99,7 @@ function Gate() {
   }
   if (status === 'signedIn' && (me?.must_change_password || platformMe?.must_change_password)) return <ForcePassword />;
   const whiteLabel = isWhiteLabel();
+  const showVitrin = (status === 'signedIn' && mode === 'donor') || (status !== 'signedIn' && whiteLabel);
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={status === 'signedIn' && mode === 'platform'}>
@@ -86,15 +108,17 @@ function Gate() {
       <Stack.Protected guard={status === 'signedIn' && mode === 'tenant'}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>
+      <Stack.Protected guard={showVitrin}>
+        <Stack.Screen name="(vitrin)" />
+      </Stack.Protected>
       <Stack.Protected guard={status === 'signedIn' && mode === 'donor'}>
         <Stack.Screen name="(donor)" />
       </Stack.Protected>
-      <Stack.Protected guard={status !== 'signedIn' && whiteLabel}>
-        <Stack.Screen name="vitrin" />
-        <Stack.Screen name="login" options={{ presentation: 'modal' }} />
-      </Stack.Protected>
-      <Stack.Protected guard={status !== 'signedIn' && !whiteLabel}>
-        <Stack.Screen name="login" />
+      <Stack.Protected guard={status !== 'signedIn'}>
+        <Stack.Screen
+          name="login"
+          options={whiteLabel ? { presentation: 'modal' } : undefined}
+        />
       </Stack.Protected>
     </Stack>
   );
@@ -117,7 +141,9 @@ export default function RootLayout() {
       <ThemeProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <ThemedRoot />
+            <CartProvider>
+              <ThemedRoot />
+            </CartProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ThemeProvider>

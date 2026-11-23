@@ -647,23 +647,42 @@ IMPORT_TEMPLATES = {
 
 
 @router.get("/import-template/{kind}")
-async def download_import_template(kind: str):
+async def download_import_template(kind: str, request: Request):
     if kind not in IMPORT_TEMPLATES:
         raise HTTPException(status_code=404, detail="Şablon bulunamadı")
     import openpyxl
-    from openpyxl.styles import Font
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from app.utils.excel_export import _clean_hex
+
+    org = getattr(request.state, "organization", None)
+    brand = _clean_hex(getattr(org, "theme_primary_color", None), "065F46")
+    thin = Side(style="thin", color="E5E7EB")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    header_fill = PatternFill(start_color=brand, end_color=brand, fill_type="solid")
+    sample_fill = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
 
     filename, headers, sample_row = IMPORT_TEMPLATES[kind]
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Sablon"
+    ws.title = "Şablon"
     ws.append(headers)
+    ws.row_dimensions[1].height = 24
     for cell in ws[1]:
-        cell.font = Font(bold=True)
+        cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+        cell.border = border
     ws.append(sample_row)
+    ws.row_dimensions[2].height = 20
+    for cell in ws[2]:
+        cell.font = Font(name="Calibri", size=10, color="374151")
+        cell.fill = sample_fill
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+        cell.border = border
+    ws.freeze_panes = "A2"
     for col in ws.columns:
         max_len = max((len(str(c.value or "")) for c in col), default=12)
-        ws.column_dimensions[col[0].column_letter].width = min(max(max_len + 4, 14), 36)
+        ws.column_dimensions[col[0].column_letter].width = min(max(max_len + 5, 15), 38)
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)

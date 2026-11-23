@@ -2195,14 +2195,19 @@ async def campaign_qr_poster_pdf(
 ):
     import io
     from fastapi.responses import Response
+    from reportlab.graphics import renderPDF
     from reportlab.graphics.barcode import qr
     from reportlab.graphics.shapes import Drawing
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas
-    from reportlab.graphics import renderPDF
+    from reportlab.platypus import Paragraph
     from app.api.v1.site import site_url
     from app.models.campaign import Campaign
+    from app.utils import receipt_pdf
 
     org_id = UUID(request.state.organization_id)
     org = await db.get(Organization, org_id)
@@ -2215,36 +2220,111 @@ async def campaign_qr_poster_pdf(
     base_url = await site_url(db, org)
     target_url = f"{base_url}/kampanyalar/{camp.slug}"
 
+    font, bold, italic = receipt_pdf.FONT, receipt_pdf.FONT_BOLD, receipt_pdf.FONT_ITALIC
+    primary = receipt_pdf._safe_hex(getattr(org, "theme_primary_color", None), "#065f46")
+    ink = colors.HexColor("#111827")
+    slate = colors.HexColor("#374151")
+    muted = colors.HexColor("#6b7280")
+    border_col = colors.HexColor("#e5e7eb")
+    org_name = (org.name if org else "E-İnfak")[:60]
+
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
+    c.setTitle(f"QR Bağış Posteri - {camp.title}")
     w, h = A4
 
-    c.setFillColorRGB(0.02, 0.37, 0.27)
-    c.rect(0, h - 42 * mm, w, 42 * mm, fill=1, stroke=0)
-    c.setFillColorRGB(1, 1, 1)
-    c.setFont("Helvetica-Bold", 20)
-    c.drawCentredString(w / 2, h - 22 * mm, (org.name if org else "E-İnfak")[:60])
-    c.setFont("Helvetica", 11)
-    c.drawCentredString(w / 2, h - 32 * mm, "Online Bağış Kampanyası")
+    # Üst kurumsal başlık bandı
+    header_h = 54 * mm
+    c.setFillColor(primary)
+    c.rect(0, h - header_h, w, header_h, fill=1, stroke=0)
 
-    c.setFillColorRGB(0.06, 0.09, 0.16)
-    c.setFont("Helvetica-Bold", 22)
-    c.drawCentredString(w / 2, h - 68 * mm, camp.title[:55])
+    logo = receipt_pdf.resolve_local_logo(org)
+    logo_box = 20 * mm
+    if logo is not None:
+        c.setFillColor(colors.white)
+        c.roundRect((w - logo_box) / 2, h - 25 * mm, logo_box, logo_box, 4, fill=1, stroke=0)
+        c.drawImage(
+            logo,
+            (w - logo_box) / 2 + 1.5 * mm,
+            h - 23.5 * mm,
+            width=logo_box - 3 * mm,
+            height=logo_box - 3 * mm,
+            preserveAspectRatio=True,
+            mask="auto",
+        )
+    else:
+        receipt_pdf.draw_org_monogram(c, (w - logo_box) / 2, h - 25 * mm, logo_box, org_name, primary, circle=True)
+
+    c.setFillColor(colors.white)
+    c.setFont(bold, 17)
+    c.drawCentredString(w / 2, h - 35 * mm, receipt_pdf.tr_upper(org_name))
+    c.setFont(font, 10.5)
+    c.drawCentredString(w / 2, h - 43 * mm, "ONLİNE BAĞIŞ KAMPANYASI")
+
+    # Kampanya başlığı (uzun metinler taşmadan ortalı)
+    title_style = ParagraphStyle(
+        "poster_title",
+        fontName=bold,
+        fontSize=22,
+        leading=28,
+        textColor=ink,
+        alignment=TA_CENTER,
+    )
+    esc_title = (camp.title or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    title_para = Paragraph(esc_title[:120], title_style)
+    _, th = title_para.wrap(w - 36 * mm, 36 * mm)
+    title_para.drawOn(c, 18 * mm, h - header_h - 14 * mm - th)
+
+    # QR kod kartı
+    card_size = 104 * mm
+    card_x = (w - card_size) / 2
+    card_y = h - header_h - 14 * mm - th - 14 * mm - card_size
+    c.setFillColor(receipt_pdf._tint(primary, 0.05))
+    c.setStrokeColor(primary)
+    c.setLineWidth(1.4)
+    c.roundRect(card_x, card_y, card_size, card_size, 8, fill=1, stroke=1)
 
     qr_widget = qr.QrCodeWidget(target_url)
     bounds = qr_widget.getBounds()
     qr_w = bounds[2] - bounds[0]
     qr_h = bounds[3] - bounds[1]
-    size = 90 * mm
+    size = 86 * mm
+    c.setFillColor(colors.white)
+    c.roundRect((w - size - 6 * mm) / 2, card_y + (card_size - size - 6 * mm) / 2, size + 6 * mm, size + 6 * mm, 4, fill=1, stroke=0)
     d = Drawing(size, size, transform=[size / qr_w, 0, 0, size / qr_h, 0, 0])
     d.add(qr_widget)
-    renderPDF.draw(d, c, (w - size) / 2, h - 175 * mm)
+    renderPDF.draw(d, c, (w - size) / 2, card_y + (card_size - size) / 2)
 
-    c.setFillColorRGB(0.28, 0.33, 0.41)
-    c.setFont("Helvetica-Bold", 13)
-    c.drawCentredString(w / 2, h - 192 * mm, "Kameranızla QR kodu okutarak hemen bağış yapabilirsiniz.")
-    c.setFont("Helvetica", 10)
-    c.drawCentredString(w / 2, h - 202 * mm, target_url[:90])
+    # Yönlendirme metni ve URL
+    info_y = card_y - 14 * mm
+    c.setFillColor(primary)
+    c.setFont(bold, 13.5)
+    c.drawCentredString(w / 2, info_y, "Telefon kameranızla QR kodu okutarak hemen bağış yapabilirsiniz.")
+    c.setFillColor(slate)
+    c.setFont(font, 10)
+    c.drawCentredString(w / 2, info_y - 9 * mm, target_url[:95])
+
+    # Alt kurumsal bilgi bandı
+    c.setStrokeColor(border_col)
+    c.setLineWidth(0.7)
+    c.line(20 * mm, 24 * mm, w - 20 * mm, 24 * mm)
+    contact = " · ".join(
+        p for p in (
+            (getattr(org, "legal_name", None) or "").strip() or None,
+            (getattr(org, "phone", None) or "").strip() or None,
+            (getattr(org, "email", None) or "").strip() or None,
+            (f"VKN: {org.tax_number}" if getattr(org, "tax_number", None) else None),
+        ) if p
+    )
+    if contact:
+        c.setFillColor(muted)
+        c.setFont(font, 8.5)
+        c.drawCentredString(w / 2, 16 * mm, contact[:110])
+    c.setFillColor(primary)
+    c.setFont(italic, 8)
+    c.drawCentredString(w / 2, 10 * mm, "Güvenli 3D Secure online bağış altyapısı · E-İnfak")
+    c.setFillColor(primary)
+    c.rect(0, 0, w, 5 * mm, fill=1, stroke=0)
 
     c.showPage()
     c.save()

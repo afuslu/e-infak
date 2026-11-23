@@ -50,6 +50,14 @@
         }
       ],
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/adaptive-icon.png",
+          "imageWidth": 200,
+          "backgroundColor": "#059669"
+        }
+      ],
       "expo-secure-store",
       [
         "expo-camera",

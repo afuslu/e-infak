@@ -1,10 +1,11 @@
 import { Platform } from 'react-native';
+import { ACTIVE_TENANT } from '@/config/tenant';
 import { getItem, removeItem, setItem } from './storage';
 
 // Kurum çözümlemesi: istekler platform adresine gider, backend kurumu Bearer token'daki
 // kullanıcıdan bulur (services/backend/app/middleware/tenant.py). Kullanıcı girişte bir
 // "kurum adresi" verdiyse istekler o adrese gider ve kurum Host üzerinden çözülür.
-const PLATFORM_HOST = process.env.EXPO_PUBLIC_API_HOST || 'e-infak.org';
+const PLATFORM_HOST = process.env.EXPO_PUBLIC_API_HOST || ACTIVE_TENANT?.host || 'e-infak.org';
 const FIXED_URL = process.env.EXPO_PUBLIC_API_URL || '';
 const DEV_PROXY = __DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_DEV_PROXY === '1';
 

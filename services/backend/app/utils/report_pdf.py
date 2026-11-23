@@ -62,11 +62,19 @@ def build_report_pdf(
         canvas_obj.rect(0, page_h - 5 * mm, page_w, 5 * mm, fill=1, stroke=0)
 
         x = margin
+        logo_size = 13 * mm
         if logo is not None:
-            logo_size = 13 * mm
+            canvas_obj.setStrokeColor(border_col)
+            canvas_obj.setLineWidth(0.5)
+            canvas_obj.roundRect(margin, page_h - 21 * mm, logo_size, logo_size, 2.5, fill=0, stroke=1)
             canvas_obj.drawImage(
-                logo, margin, page_h - 21 * mm,
-                width=logo_size, height=logo_size, preserveAspectRatio=True, mask="auto",
+                logo, margin + 0.8 * mm, page_h - 20.2 * mm,
+                width=logo_size - 1.6 * mm, height=logo_size - 1.6 * mm, preserveAspectRatio=True, mask="auto",
+            )
+            x = margin + logo_size + 3.5 * mm
+        else:
+            receipt_pdf.draw_org_monogram(
+                canvas_obj, margin, page_h - 21 * mm, logo_size, org_name or "E-İnfak", primary
             )
             x = margin + logo_size + 3.5 * mm
 
@@ -88,11 +96,18 @@ def build_report_pdf(
         canvas_obj.setLineWidth(0.6)
         canvas_obj.line(margin, page_h - 24 * mm, page_w - margin, page_h - 24 * mm)
 
-        # Alt bilgi + sayfa numarası
+        # Alt bilgi + kurum iletişim + sayfa numarası
         canvas_obj.line(margin, 11 * mm, page_w - margin, 11 * mm)
         canvas_obj.setFillColor(muted)
         canvas_obj.setFont(font, 8)
-        canvas_obj.drawString(margin, 7 * mm, f"{org_name or 'E-İnfak'} · Kurumsal Rapor Çıktısı")
+        footer_parts = [org_name or "E-İnfak"]
+        if organization is not None:
+            if getattr(organization, "tax_number", None):
+                footer_parts.append(f"VKN: {organization.tax_number}")
+            if getattr(organization, "phone", None):
+                footer_parts.append(str(organization.phone).strip())
+        footer_parts.append("Kurumsal Rapor Çıktısı")
+        canvas_obj.drawString(margin, 7 * mm, " · ".join(footer_parts)[:110])
         canvas_obj.drawRightString(page_w - margin, 7 * mm, f"Sayfa {canvas_obj.getPageNumber()}")
         canvas_obj.restoreState()
 

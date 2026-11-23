@@ -1651,6 +1651,7 @@ async def organization_summary_pdf(org_id: UUID, db: AsyncSession = Depends(get_
         headers=["Tarih", "Dönem", "Yöntem", "Tutar"],
         rows=rows,
         org_name="E-İnfak Platform",
+        organization=org,
         summary={
             "Son 30 Gün Bağış": f"{int(d30[0] or 0)} işlem / {int(d30[1] or 0) / 100:,.2f} TL",
             "Aylık SaaS Ücreti": f"{(org.monthly_fee_cents or 0) / 100:,.2f} TL",
@@ -1795,6 +1796,7 @@ async def platform_payment_receipt_pdf(org_id: UUID, payment_id: UUID, db: Async
             f"{p.amount_cents / 100:,.2f} {p.currency}",
         ]],
         org_name="E-İnfak Platform",
+        organization=org,
         summary={"Makbuz No": str(p.id)[:8].upper(), "Durum": status_label},
     )
     return Response(

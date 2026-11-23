@@ -463,21 +463,39 @@ def _fold_header(value) -> str:
 
 
 @router.get("/bulk-template.xlsx")
-async def bulk_template(_: User = WRITE):
+async def bulk_template(request: Request, _: User = WRITE):
     """Toplu giriş şablonu: ilk satır başlıklar (bulk-parse bunları tanır), ikinci satır örnek."""
     from io import BytesIO
 
     from openpyxl import Workbook
-    from openpyxl.styles import Font
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.worksheet.datavalidation import DataValidation
+    from app.utils.excel_export import _clean_hex
+
+    org = getattr(request.state, "organization", None)
+    brand = _clean_hex(getattr(org, "theme_primary_color", None), "065F46")
+    thin = Side(style="thin", color="E5E7EB")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    header_fill = PatternFill(start_color=brand, end_color=brand, fill_type="solid")
+    sample_fill = PatternFill(start_color="F9FAFB", end_color="F9FAFB", fill_type="solid")
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Kurban"
     ws.append(["Bağışçı", "Telefon", "Kimin Adına", "Niyet", "Hisse", "Ödeme", "Ödeme Yöntemi"])
     ws.append(["Ahmet Yılmaz", "05551112233", "Merhum Mehmet Yılmaz; Annesi", "Vacip", 2, "Alındı", "Nakit"])
+    ws.row_dimensions[1].height = 24
     for cell in ws[1]:
-        cell.font = Font(bold=True)
+        cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+        cell.border = border
+    ws.row_dimensions[2].height = 20
+    for cell in ws[2]:
+        cell.font = Font(name="Calibri", size=10, color="374151")
+        cell.fill = sample_fill
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+        cell.border = border
     for column, width in zip("ABCDEFG", (24, 16, 34, 12, 8, 12, 16)):
         ws.column_dimensions[column].width = width
     lists = {"D": ",".join(KURBAN_TYPES.values()), "F": "Alındı,Bekliyor", "G": "Nakit,Havale,Kart"}

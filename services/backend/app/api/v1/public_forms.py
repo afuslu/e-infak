@@ -117,8 +117,24 @@ async def download_public_receipt_certificate(
         raise HTTPException(status_code=404, detail="Sertifika için geçerli makbuz ve doğrulama kodu gereklidir")
 
     org = getattr(request.state, "organization", None)
-    org_name = _html.escape(getattr(org, "name", None) or "e-İnfak")
-    primary = _html.escape(getattr(org, "theme_primary_color", None) or "#047857")
+    from app.utils.receipt_pdf import _org_initials, tr_upper, verification_hash
+
+    raw_org_name = (getattr(org, "name", None) or "E-İnfak").strip()
+    org_name = _html.escape(tr_upper(raw_org_name))
+    legal_name = (getattr(org, "legal_name", None) or "").strip()
+    legal_html = (
+        f"<div class='legal'>{_html.escape(legal_name)}</div>"
+        if legal_name and legal_name.lower() != raw_org_name.lower()
+        else ""
+    )
+    site_cfg = getattr(org, "site", None) or {}
+    logo_src = (site_cfg.get("pdf_logo_url") or getattr(org, "logo_url", None) or site_cfg.get("logo_url") or "").strip()
+    logo_html = (
+        f"<img class='logo' src='{_html.escape(logo_src)}' alt='{org_name}'>"
+        if logo_src
+        else f"<div class='monogram'>{_html.escape(_org_initials(raw_org_name))}</div>"
+    )
+    primary = _html.escape(getattr(org, "theme_primary_color", None) or "#065f46")
     donor_display = "Değerli Bağışçımız"
     if donation.donor and not donation.is_anonymous:
         donor_display = f"{donation.donor.first_name} {donation.donor.last_name or ''}".strip() or donor_display
@@ -126,45 +142,69 @@ async def download_public_receipt_certificate(
     campaign_title = _html.escape(donation.campaign.title if donation.campaign else "İyilik ve Yardım Faaliyetleri")
     dt = donation.paid_at or donation.created_at
     date_str = dt.strftime("%d.%m.%Y") if dt else ""
-    amount_str = f"{donation.amount_cents / 100:,.2f} {donation.currency or 'TRY'}".replace(",", "X").replace(".", ",").replace("X", ".")
+    cur_sym = {"TRY": "₺", "EUR": "€", "USD": "$"}.get(donation.currency or "TRY", donation.currency or "TRY")
+    amount_str = f"{donation.amount_cents / 100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + f" {cur_sym}"
+    vhash = verification_hash(donation.receipt_number, donation.amount_cents)
+    contact_line = " · ".join(
+        p for p in (
+            (getattr(org, "phone", None) or "").strip() or None,
+            (getattr(org, "email", None) or "").strip() or None,
+            (f"VKN: {org.tax_number}" if getattr(org, "tax_number", None) else None),
+        ) if p
+    )
+    contact_html = f"<div class='contact'>{_html.escape(contact_line)}</div>" if contact_line else ""
     honoree_line = (
-        f"<p class='sub'><strong>{_html.escape(donor_display)}</strong> tarafından adınıza gerçekleştirilen</p>"
+        f"<div class='behalf'>{_html.escape(donor_display)} tarafından adınıza gerçekleştirilen</div>"
         if (honoree or "").strip()
         else "<p class='sub'>İhtiyaç sahiplerine umut olmak üzere gerçekleştirdiğiniz</p>"
     )
     page = f"""<!doctype html>
 <html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Teşekkür Sertifikası · {_html.escape(donation.receipt_number)}</title>
+<title>Teşekkür ve Hayır Sertifikası · {_html.escape(donation.receipt_number)}</title>
 <style>
   @page {{ size: A4 landscape; margin: 0; }}
-  body {{ margin:0; font-family: Georgia, 'Times New Roman', serif; background:#f8fafc; color:#0f172a; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; box-sizing:border-box; }}
-  .cert {{ width:100%; max-width:960px; background:#fff; border:12px double {primary}; border-radius:16px; padding:56px 48px; text-align:center; box-shadow:0 20px 50px rgba(15,23,42,.12); position:relative; }}
-  .org {{ font-family: system-ui, sans-serif; font-size:14px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:{primary}; }}
-  h1 {{ font-size:40px; margin:16px 0 8px; color:#0f172a; font-weight:700; }}
-  .line {{ width:96px; height:3px; background:{primary}; margin:18px auto 28px; border-radius:99px; }}
-  .name {{ font-size:32px; font-weight:700; color:{primary}; margin:10px 0 18px; }}
-  .sub {{ font-size:17px; color:#475569; margin:8px 0; }}
-  .camp {{ font-size:22px; font-weight:700; color:#0f172a; margin:14px 0; }}
-  .meta {{ margin-top:36px; display:flex; justify-content:space-between; font-family:system-ui,sans-serif; font-size:13px; color:#64748b; border-top:1px solid #e2e8f0; padding-top:18px; }}
-  .actions {{ margin-top:24px; }}
-  .btn {{ font-family:system-ui,sans-serif; background:{primary}; color:#fff; border:none; padding:10px 22px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }}
-  @media print {{ body {{ background:#fff; padding:0; }} .cert {{ box-shadow:none; }} .actions {{ display:none; }} }}
+  body {{ margin:0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background:#f1f5f9; color:#0f172a; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:24px; box-sizing:border-box; }}
+  .frame {{ width:100%; max-width:980px; background:#fcfbf7; border:6px solid {primary}; padding:10px; box-shadow:0 24px 60px rgba(15,23,42,.14); box-sizing:border-box; }}
+  .cert {{ background:#fff; border:2px solid #b8912e; padding:42px 52px 34px; text-align:center; position:relative; }}
+  .logo {{ max-height:68px; max-width:220px; object-fit:contain; margin:0 auto 12px; display:block; }}
+  .monogram {{ width:58px; height:58px; border-radius:999px; border:2px solid {primary}; background:rgba(6,95,70,.08); color:{primary}; font-size:22px; font-weight:800; display:flex; align-items:center; justify-content:center; margin:0 auto 12px; }}
+  .org {{ font-size:14px; font-weight:800; letter-spacing:2.5px; color:{primary}; }}
+  .legal {{ font-size:12px; color:#64748b; margin-top:4px; }}
+  h1 {{ font-family: Georgia, 'Times New Roman', serif; font-size:34px; margin:16px 0 8px; color:#b8912e; font-weight:700; letter-spacing:1.2px; }}
+  .divider {{ display:flex; align-items:center; justify-content:center; gap:10px; margin:10px auto 22px; }}
+  .divider span {{ width:86px; height:1.5px; background:#b8912e; display:inline-block; }}
+  .divider i {{ width:8px; height:8px; border-radius:999px; background:{primary}; display:inline-block; }}
+  .sayin {{ font-style:italic; font-size:15px; color:#64748b; margin-bottom:4px; }}
+  .name {{ font-size:30px; font-weight:800; color:#0f172a; margin:4px 0 12px; }}
+  .behalf {{ display:inline-block; background:rgba(6,95,70,.08); border:1px solid rgba(6,95,70,.25); color:{primary}; padding:6px 18px; border-radius:999px; font-size:14px; font-weight:700; margin:4px 0 14px; }}
+  .sub {{ font-size:16px; color:#475569; margin:8px auto; max-width:680px; line-height:1.6; }}
+  .camp {{ font-size:21px; font-weight:700; color:{primary}; margin:10px 0; }}
+  .meta {{ margin-top:30px; display:flex; justify-content:space-between; align-items:center; gap:16px; font-size:13px; color:#475569; border-top:1px solid #e2e8f0; padding-top:16px; flex-wrap:wrap; }}
+  .seal {{ border:2px double #b8912e; border-radius:999px; padding:8px 14px; font-size:10px; font-weight:800; letter-spacing:1px; color:{primary}; }}
+  .contact {{ margin-top:12px; font-size:11.5px; color:#94a3b8; }}
+  .actions {{ margin-top:22px; display:flex; justify-content:center; gap:10px; }}
+  .btn {{ background:{primary}; color:#fff; border:none; padding:10px 22px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }}
+  @media print {{ body {{ background:#fff; padding:0; }} .frame {{ box-shadow:none; max-width:none; height:100vh; }} .actions {{ display:none; }} }}
 </style></head><body>
-<div class="cert">
+<div class="frame"><div class="cert">
+  {logo_html}
   <div class="org">{org_name}</div>
-  <h1>TEŞEKKÜR SERTİFİKASI</h1>
-  <div class="line"></div>
+  {legal_html}
+  <h1>TEŞEKKÜR VE HAYIR SERTİFİKASI</h1>
+  <div class="divider"><span></span><i></i><span></span></div>
+  <div class="sayin">Sayın</div>
   <div class="name">{recipient}</div>
   {honoree_line}
   <div class="camp">“{campaign_title}”</div>
-  <p class="sub">bağışınız için en kalbi duygularımızla teşekkür ederiz. İyiliğiniz ihtiyaç sahiplerine emanetle ulaştırılmaktadır.</p>
+  <p class="sub">kapsamında gerçekleştirdiğiniz <strong>{amount_str}</strong> tutarındaki kıymetli bağışınız için en kalbi duygularımızla teşekkür ederiz. İyiliğiniz ihtiyaç sahiplerine emanetle ulaştırılmaktadır.</p>
   <div class="meta">
-    <span>Makbuz No: <strong>{_html.escape(donation.receipt_number)}</strong></span>
-    <span>Tutar: <strong>{amount_str}</strong></span>
     <span>Tarih: <strong>{date_str}</strong></span>
+    <span class="seal">ELEKTRONİK ONAYLI</span>
+    <span>Makbuz No: <strong>#{_html.escape(donation.receipt_number)}</strong> · Kod: <strong>{vhash}</strong></span>
   </div>
+  {contact_html}
   <div class="actions"><button class="btn" onclick="window.print()">Yazdır / PDF Kaydet</button></div>
-</div></body></html>"""
+</div></div></body></html>"""
     return Response(content=page, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-store"})
 
 

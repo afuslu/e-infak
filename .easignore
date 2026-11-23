@@ -13,6 +13,8 @@ v3/
 .pnpm-store/
 .git/
 *.log
+*.aab
+*.apk
 /package.json
 /pnpm-lock.yaml
 /pnpm-workspace.yaml

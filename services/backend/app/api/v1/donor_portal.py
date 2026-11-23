@@ -1326,12 +1326,10 @@ async def portal_donation_certificate_pdf(
     current_donor: Donor = Depends(get_current_donor),
     db: AsyncSession = Depends(get_db),
 ):
-    import io
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas
+    from app.api.v1.site import site_url
     from app.models.campaign import Campaign
     from app.models.organization import Organization
+    from app.utils.certificate_pdf import build_certificate_pdf
 
     donor_ids = await _donor_ids_for(db, current_donor)
     donation = (
@@ -1349,7 +1347,6 @@ async def portal_donation_certificate_pdf(
 
     org = await db.get(Organization, current_donor.organization_id)
     camp = await db.get(Campaign, donation.campaign_id) if donation.campaign_id else None
-    org_name = (org.name if org else "E-İnfak")[:60]
     donor_name = f"{current_donor.first_name or ''} {current_donor.last_name or ''}".strip() or current_donor.email or "Değerli Bağışçımız"
     behalf = (honoree or getattr(donation, "on_behalf_of", None) or "").strip()
     dedication_suffix = {
@@ -1357,57 +1354,22 @@ async def portal_donation_certificate_pdf(
         "ruhuna": "ruhuna ithafen",
         "hediye": "adına hediye bağış olarak",
     }.get((dedication or "").strip().lower(), "adına / hatırasına")
-    date_str = donation.paid_at.strftime("%d.%m.%Y") if donation.paid_at else donation.created_at.strftime("%d.%m.%Y")
-    amount_str = f"{donation.amount_cents / 100:,.2f} {donation.currency}"
+    verify_base = await site_url(db, org) if org else ""
 
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=landscape(A4))
-    w, h = landscape(A4)
-
-    # Outer emerald & gold frame
-    c.setStrokeColorRGB(0.02, 0.37, 0.27)
-    c.setLineWidth(4)
-    c.rect(14 * mm, 14 * mm, w - 28 * mm, h - 28 * mm)
-    c.setStrokeColorRGB(0.75, 0.58, 0.22)
-    c.setLineWidth(1.5)
-    c.rect(18 * mm, 18 * mm, w - 36 * mm, h - 36 * mm)
-
-    c.setFillColorRGB(0.02, 0.37, 0.27)
-    c.setFont("Helvetica-Bold", 16)
-    c.drawCentredString(w / 2, h - 36 * mm, org_name.upper())
-
-    c.setFillColorRGB(0.75, 0.58, 0.22)
-    c.setFont("Helvetica-Bold", 28)
-    c.drawCentredString(w / 2, h - 56 * mm, "TEŞEKKÜR VE HAYIR SERTİFİKASI")
-
-    c.setFillColorRGB(0.25, 0.3, 0.38)
-    c.setFont("Helvetica", 13)
-    c.drawCentredString(w / 2, h - 76 * mm, "Sayın")
-
-    c.setFillColorRGB(0.06, 0.09, 0.16)
-    c.setFont("Helvetica-Bold", 24)
-    c.drawCentredString(w / 2, h - 90 * mm, donor_name[:50])
-
-    if behalf:
-        c.setFillColorRGB(0.02, 0.37, 0.27)
-        c.setFont("Helvetica-Bold", 15)
-        c.drawCentredString(w / 2, h - 106 * mm, f"{behalf[:55]} {dedication_suffix}")
-
-    c.setFillColorRGB(0.25, 0.3, 0.38)
-    c.setFont("Helvetica", 13)
-    camp_label = camp.title if camp else "Genel Hayır Faaliyetleri"
-    c.drawCentredString(w / 2, h - 124 * mm, f"“{camp_label[:60]}” kapsamında yaptığınız {amount_str} tutarındaki")
-    c.drawCentredString(w / 2, h - 134 * mm, "kıymetli bağışınız için içtenlikle teşekkür ederiz.")
-
-    c.setFillColorRGB(0.45, 0.5, 0.58)
-    c.setFont("Helvetica", 10)
-    c.drawString(28 * mm, 26 * mm, f"Tarih: {date_str}")
-    c.drawRightString(w - 28 * mm, 26 * mm, f"Makbuz No: #{donation.receipt_number}")
-
-    c.showPage()
-    c.save()
+    pdf_bytes = build_certificate_pdf(
+        organization=org,
+        donor_name=donor_name,
+        campaign_title=camp.title if camp else "Genel Hayır Faaliyetleri",
+        amount_cents=donation.amount_cents,
+        currency=donation.currency or "TRY",
+        receipt_number=donation.receipt_number,
+        paid_at=donation.paid_at or donation.created_at,
+        behalf=behalf,
+        dedication_suffix=dedication_suffix,
+        verify_base_url=verify_base,
+    )
     return Response(
-        content=buf.getvalue(),
+        content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="sertifika-{donation.receipt_number}.pdf"'},
     )

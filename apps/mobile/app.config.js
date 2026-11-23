@@ -31,7 +31,7 @@ module.exports = () => {
   expo.splash = {
     ...(expo.splash || {}),
     image: profile.splashImage,
-    backgroundColor: profile.primaryColor,
+    backgroundColor: '#FFFFFF',
   };
   expo.ios = {
     ...(expo.ios || {}),
@@ -52,6 +52,10 @@ module.exports = () => {
   expo.plugins = (expo.plugins || []).map((plugin) => {
     if (Array.isArray(plugin) && plugin[0] === 'expo-notifications') {
       return ['expo-notifications', { ...(plugin[1] || {}), color: profile.primaryColor }];
+    }
+    if (Array.isArray(plugin) && plugin[0] === 'expo-splash-screen') {
+      // Logo koyu yeşil; beyaz zeminde okunur.
+      return ['expo-splash-screen', { ...(plugin[1] || {}), image: profile.splashImage, backgroundColor: '#FFFFFF' }];
     }
     if (Array.isArray(plugin) && plugin[0] === 'expo-widgets') {
       return ['expo-widgets', { ...(plugin[1] || {}), groupIdentifier: profile.iosGroupId }];
