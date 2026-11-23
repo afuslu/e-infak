@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    # Mobile app sessions stay signed in; every refresh in the second half extends them again.
+    REMEMBERED_SESSION_DAYS: int = 365
+    REMEMBERED_DONOR_SESSION_DAYS: int = 180
 
     # CORS
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []

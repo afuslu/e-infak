@@ -202,28 +202,35 @@ async function parse(response: Response): Promise<any> {
   }
 }
 
-let refreshing: Promise<boolean> | null = null;
+type Refresh = 'ok' | 'rejected' | 'unreachable';
+let refreshing: Promise<Refresh> | null = null;
 
-/** Eşzamanlı 401'lerde tek yenileme yapılır; refresh token her seferinde döner. */
-function refreshOnce(): Promise<boolean> {
+/** Yalnızca sunucu anahtarı reddederse oturum biter; ağ kesintisi ya da sunucu hatası oturumu silmez. */
+async function exchange(path: string, token: string | null, save: (access: string, refresh: string) => Promise<void>): Promise<Refresh> {
+  if (!token) return 'rejected';
+  try {
+    const response = await fetch(`${base()}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: token, remember: true }),
+    });
+    if (response.status === 401 || response.status === 403) return 'rejected';
+    if (!response.ok) return 'unreachable';
+    const data = await response.json();
+    if (!data?.access_token || !data?.refresh_token) return 'unreachable';
+    await save(data.access_token, data.refresh_token);
+    return 'ok';
+  } catch {
+    return 'unreachable';
+  }
+}
+
+const unreachable = () => new ApiError(0, 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.');
+
+/** Eşzamanlı 401'lerde tek yenileme yapılır. */
+function refreshOnce(): Promise<Refresh> {
   if (!refreshing) {
-    refreshing = (async () => {
-      if (!refreshToken) return false;
-      try {
-        const response = await fetch(`${base()}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-        if (!response.ok) return false;
-        const data = await response.json();
-        if (!data?.access_token || !data?.refresh_token) return false;
-        await saveTokens(data.access_token, data.refresh_token);
-        return true;
-      } catch {
-        return false;
-      }
-    })().finally(() => {
+    refreshing = exchange('/auth/refresh', refreshToken, saveTokens).finally(() => {
       refreshing = null;
     });
   }
@@ -259,7 +266,9 @@ async function send(path: string, options: Options, retry: boolean): Promise<Res
     throw new ApiError(0, 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.');
   }
   if (response.status === 401 && options.auth !== false && retry) {
-    if (await refreshOnce()) return send(path, options, false);
+    const renewed = await refreshOnce();
+    if (renewed === 'ok') return send(path, options, false);
+    if (renewed === 'unreachable') throw unreachable();
     await clearSession();
     onSessionLost?.();
     throw new ApiError(401, 'Oturumunuz sona erdi. Lütfen yeniden giriş yapın.');
@@ -359,6 +368,7 @@ export async function login(emailOrPhone: string, password: string, tenantHost?:
     body: {
       email: emailOrPhone.trim(),
       password,
+      remember: true,
       ...(totpCode?.trim() ? { totp_code: totpCode.trim() } : {}),
     },
   });
@@ -416,27 +426,11 @@ export async function platformLogin(email: string, password: string, totpCode?: 
   ]);
 }
 
-let donorRefreshing: Promise<boolean> | null = null;
+let donorRefreshing: Promise<Refresh> | null = null;
 
-function refreshDonorOnce(): Promise<boolean> {
+function refreshDonorOnce(): Promise<Refresh> {
   if (!donorRefreshing) {
-    donorRefreshing = (async () => {
-      if (!donorRefreshToken) return false;
-      try {
-        const response = await fetch(`${base()}/portal/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: donorRefreshToken }),
-        });
-        if (!response.ok) return false;
-        const data = await response.json();
-        if (!data?.access_token || !data?.refresh_token) return false;
-        await saveDonorTokens(data.access_token, data.refresh_token);
-        return true;
-      } catch {
-        return false;
-      }
-    })().finally(() => {
+    donorRefreshing = exchange('/portal/refresh', donorRefreshToken, saveDonorTokens).finally(() => {
       donorRefreshing = null;
     });
   }
@@ -556,7 +550,9 @@ export async function df<T = any>(path: string, options: Options = {}, retry = t
     throw new ApiError(0, 'Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin.');
   }
   if (response.status === 401 && options.auth !== false && retry) {
-    if (await refreshDonorOnce()) return df<T>(path, options, false);
+    const renewed = await refreshDonorOnce();
+    if (renewed === 'ok') return df<T>(path, options, false);
+    if (renewed === 'unreachable') throw unreachable();
     await clearSession();
     onSessionLost?.();
     throw new ApiError(401, 'Bağışçı oturumunuz sona erdi. Lütfen yeniden giriş yapın.');

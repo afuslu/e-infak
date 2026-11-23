@@ -33,6 +33,12 @@ from app.core.impersonation import SIMULATION_FORBIDDEN, current_impersonator, i
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
+def _issue_refresh(user_id: str, pwd_fp: str, remember: bool) -> tuple[str, datetime]:
+    lifetime = timedelta(days=settings.REMEMBERED_SESSION_DAYS if remember else settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    claims = {"sub": user_id, "pwd": pwd_fp, **({"remember": True} if remember else {})}
+    return create_refresh_token(claims, lifetime), datetime.now(timezone.utc) + lifetime
+
+
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     request: Request,
@@ -119,7 +125,7 @@ async def login(
     # Create tokens
     pwd_fp = password_fingerprint(user.hashed_password)
     access_token = create_access_token({"sub": str(user.id), "pwd": pwd_fp})
-    refresh_token = create_refresh_token({"sub": str(user.id), "pwd": pwd_fp})
+    refresh_token, expires_at = _issue_refresh(str(user.id), pwd_fp, credentials.remember)
     
     # Save session
     session = UserSession(
@@ -128,7 +134,7 @@ async def login(
         access_token=access_token,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        expires_at=expires_at,
     )
     
     db.add(session)
@@ -193,14 +199,18 @@ async def refresh_token(
         )
     pwd_fp = current_pwd_fp
     access_token = create_access_token({"sub": user_id, "pwd": pwd_fp})
-    new_refresh_token = create_refresh_token({"sub": user_id, "pwd": pwd_fp})
+    remembered = bool(payload.get("remember"))
+    half = timedelta(days=settings.REMEMBERED_SESSION_DAYS / 2)
+    if remembered and session.expires_at - datetime.now(timezone.utc) > half:
+        # Keep the token: a refresh answer lost on a bad connection must not sign the phone out.
+        new_refresh_token, expires_at = session.refresh_token, session.expires_at
+    else:
+        new_refresh_token, expires_at = _issue_refresh(str(user_id), pwd_fp, remembered or token_request.remember)
     
     # Update session
     session.access_token = access_token
     session.refresh_token = new_refresh_token
-    session.expires_at = datetime.now(timezone.utc) + timedelta(
-        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-    )
+    session.expires_at = expires_at
     
     await db.commit()
     
@@ -216,7 +226,7 @@ async def logout(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Logout user (revoke all sessions)"""
+    """Logout user: revokes browser sessions; phones signed in with the app stay signed in."""
     # A platform simulation ends in the browser; the admin's own sessions stay intact.
     if is_impersonating():
         return {"message": "Simulation ended"}
@@ -231,6 +241,8 @@ async def logout(
     sessions = result.scalars().all()
     
     for session in sessions:
+        if (decode_token(session.refresh_token) or {}).get("remember"):
+            continue
         session.revoked_at = datetime.now(timezone.utc)
     
     await db.commit()

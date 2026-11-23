@@ -45,6 +45,7 @@ class OTPVerifyRequest(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+    remember: bool = False  # sent by the mobile app
 
 class SubscriptionCreate(BaseModel):
     campaign_id: Optional[str] = None
@@ -391,7 +392,9 @@ async def refresh_portal_token(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bağışçı bulunamadı.")
     return {
         "access_token": create_access_token({"sub": str(donor.id), "role": "donor"}),
-        "refresh_token": create_refresh_token({"sub": str(donor.id), "role": "donor"}),
+        "refresh_token": create_refresh_token(
+            {"sub": str(donor.id), "role": "donor"},
+            timedelta(days=settings.REMEMBERED_DONOR_SESSION_DAYS) if payload.remember else None),
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         "donor": {
             "id": donor.id,

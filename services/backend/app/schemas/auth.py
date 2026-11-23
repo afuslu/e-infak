@@ -17,6 +17,7 @@ class UserLogin(BaseModel):
     email: str = Field(..., min_length=3, max_length=254)
     password: str
     totp_code: Optional[str] = None
+    remember: bool = False  # sent by the mobile app: long-lived session
 
 
 class TokenResponse(BaseModel):
@@ -28,6 +29,7 @@ class TokenResponse(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+    remember: bool = False  # sent by the mobile app
 
 
 class UserResponse(BaseModel):

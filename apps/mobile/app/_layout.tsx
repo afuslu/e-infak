@@ -5,7 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Lock } from 'lucide-react-native';
+import { Lock, WifiOff } from 'lucide-react-native';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { CartProvider } from '@/context/CartContext';
 import { ToastHost } from '@/components/toast';
@@ -30,7 +30,7 @@ const queryClient = new QueryClient({
 });
 
 function Gate() {
-  const { status, mode, me, platformMe } = useAuth();
+  const { status, mode, me, platformMe, reload, signOut } = useAuth();
   const { colors } = useTheme();
   const [locked, setLocked] = useState(false);
   const [lockChecked, setLockChecked] = useState(false);
@@ -70,7 +70,7 @@ function Gate() {
     };
   }, [status, unlock]);
 
-  const ready = status === 'signedOut' || (status === 'signedIn' && lockChecked);
+  const ready = status === 'signedOut' || status === 'offline' || (status === 'signedIn' && lockChecked);
   useEffect(() => {
     if (ready) SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
@@ -80,10 +80,35 @@ function Gate() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Bağlantı gelince kayıtlı oturumla kendiliğinden devam eder.
+  useEffect(() => {
+    if (status !== 'offline') return;
+    const retry = () => reload().catch(() => {});
+    const timer = setInterval(retry, 10_000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') retry();
+    });
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, [status, reload]);
+
   if (!ready) {
     return (
       <View style={[styles.center, { backgroundColor: colors.bg }]}>
         <Loading />
+      </View>
+    );
+  }
+  if (status === 'offline') {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.bg }]}>
+        <WifiOff size={44} color={colors.muted} />
+        <Text style={[styles.lockTitle, { color: colors.text }]}>Bağlantı kurulamadı</Text>
+        <Text style={[styles.lockText, { color: colors.muted }]}>Oturumunuz açık. İnternet gelince kaldığınız yerden devam edilir.</Text>
+        <Btn title="Tekrar dene" onPress={() => reload().catch(() => {})} />
+        <Btn title="Çıkış yap" variant="ghost" onPress={() => signOut()} />
       </View>
     );
   }

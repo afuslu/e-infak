@@ -54,7 +54,8 @@ export type DonorMe = {
 export type Site = { slug: string; name: string; logo_url: string | null; url?: string };
 
 type State = {
-  status: 'loading' | 'signedOut' | 'signedIn';
+  /** offline: kayıtlı oturum var ama sunucuya ulaşılamadı. */
+  status: 'loading' | 'signedOut' | 'signedIn' | 'offline';
   mode: 'platform' | 'tenant' | 'donor' | null;
   me: Me | null;
   platformMe: PlatformMe | null;
@@ -127,9 +128,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!(await loadSession())) return setState(EMPTY);
       try {
         setState({ status: 'signedIn', ...(await fetchActiveProfile()) });
-      } catch {
-        // Ağ hatasında oturumu silmeyiz; yalnızca reddedilen oturum api katmanında temizlenir.
-        setState(EMPTY);
+      } catch (error: any) {
+        // Ağ ve sunucu hatasında oturum durur; reddedilen oturum api katmanında temizlenir.
+        const temporary = !error?.status || error.status >= 500 || error.status === 429;
+        setState(temporary ? { ...EMPTY, status: 'offline' } : EMPTY);
       }
     })();
     return () => setSessionLostHandler(null);
