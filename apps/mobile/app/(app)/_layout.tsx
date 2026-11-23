@@ -34,6 +34,7 @@ function usePushWiring() {
     const received = Notifications.addNotificationReceivedListener(() => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['inflow'] });
+      queryClient.invalidateQueries({ queryKey: ['failed-payments'] });
       queryClient.invalidateQueries({ queryKey: ['stats'] });
       queryClient.invalidateQueries({ queryKey: ['donations'] });
     });

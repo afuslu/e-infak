@@ -8,7 +8,7 @@ import {
   ChevronRight, Clock, HandCoins, Hourglass, Megaphone, Receipt, RefreshCw,
   TrendingUp, UserPlus, Users, type LucideIcon,
 } from 'lucide-react'
-import { adminGet, formatMoney, hasFeature, useAdminAccess, v1Get, hasModule } from '../../../lib/admin-access'
+import { adminGet, can, formatMoney, hasFeature, useAdminAccess, v1Get, hasModule } from '../../../lib/admin-access'
 import { PageHeader, StatCard } from '../../../components/admin/ui'
 import { OnboardingChecklist } from '../../../components/admin/OnboardingChecklist'
 import { StkDashboardCards } from '../../../components/admin/StkDashboardCards'
@@ -150,7 +150,7 @@ export default function AdminDashboardPage() {
   const [error, setError] = useState('')
   const { data: access } = useAdminAccess()
 
-  const [todo, setTodo] = useState<{ transfers?: number; smsFailed?: number; smsWaiting?: number; callToday?: number; callLate?: number }>({})
+  const [todo, setTodo] = useState<{ transfers?: number; smsFailed?: number; smsWaiting?: number; callToday?: number; callLate?: number; failedPayments?: number }>({})
 
   const loadAnalytics = useCallback(async () => {
     setLoading(true)
@@ -201,6 +201,11 @@ export default function AdminDashboardPage() {
         .then((r) => setTodo((t) => ({ ...t, transfers: r.data.total })))
         .catch(() => {})
     }
+    if (can(access, 'receipts.view_all')) {
+      v1Get<{ total: number }>('/mobile/failed-payments', { period: 'today' })
+        .then((r) => setTodo((t) => ({ ...t, failedPayments: r.data.total })))
+        .catch(() => {})
+    }
     if (hasModule(access, 'sms')) {
       adminGet<{ counts: Record<string, number> }>('/sms/messages', { page_size: 1 })
         .then((r) => setTodo((t) => ({
@@ -222,7 +227,7 @@ export default function AdminDashboardPage() {
   const activeBar = selectedBar !== null ? trends[selectedBar] : null
 
   const callCount = (todo.callToday || 0) + (todo.callLate || 0)
-  const hasTodo = callCount > 0 || !!todo.transfers || !!todo.smsFailed || !!todo.smsWaiting || pendingDonations > 0
+  const hasTodo = callCount > 0 || !!todo.transfers || !!todo.smsFailed || !!todo.smsWaiting || !!todo.failedPayments || pendingDonations > 0
   const now = new Date()
   const monthStart = toLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1))
   const todayStr = toLocalDateStr(now)
@@ -320,6 +325,13 @@ export default function AdminDashboardPage() {
             <Link href="/admin/gelen-havaleler" className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 hover:border-amber-300">
               <ArrowDownToLine className="h-5 w-5 shrink-0" aria-hidden="true" />
               <span className="flex-1">{todo.transfers.toLocaleString('tr-TR')} gelen havale eşleştirilmeyi bekliyor</span>
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
+          {!!todo.failedPayments && (
+            <Link href="/admin/basarisiz-odemeler" className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:border-red-300">
+              <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
+              <span className="flex-1">Bugün {todo.failedPayments.toLocaleString('tr-TR')} online ödeme başarısız / incelemede</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           )}

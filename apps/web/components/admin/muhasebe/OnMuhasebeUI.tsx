@@ -150,6 +150,10 @@ const getValueFontSize = (val: React.ReactNode) => {
   return 'text-lg sm:text-xl md:text-2xl';
 };
 
+/** Cards without their own action lead to the list right below their row. */
+export const scrollToNextSection = (event: React.MouseEvent<HTMLElement>) =>
+  event.currentTarget.parentElement?.nextElementSibling?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
 export const GlobalStatCard: React.FC<GlobalStatCardProps> = ({
   id,
   title,
@@ -162,17 +166,12 @@ export const GlobalStatCard: React.FC<GlobalStatCardProps> = ({
   className = '',
 }) => {
   const isClickable = !!onClick;
-  const Tag = isClickable ? 'button' : 'div';
 
   return (
-    <Tag
-      type={isClickable ? 'button' : undefined}
-      onClick={() => isClickable && onClick(id)}
-      className={`group relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-xs transition-all duration-300 sm:p-4 ${
-        isClickable
-          ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-500/20 active:scale-[0.98]'
-          : ''
-      } ${selected ? 'ring-2 ring-slate-900 shadow-md' : ''} ${className}`}
+    <button
+      type="button"
+      onClick={(event) => (onClick ? onClick(id) : scrollToNextSection(event))}
+      className={`group relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-xs transition-all duration-300 sm:p-4 cursor-pointer hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-500/20 active:scale-[0.98] ${selected ? 'ring-2 ring-slate-900 shadow-md' : ''} ${className}`}
     >
       <div
         className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-gradient-to-br opacity-15 blur-2xl transition-opacity group-hover:opacity-25 ${gradient}`}
@@ -183,11 +182,9 @@ export const GlobalStatCard: React.FC<GlobalStatCardProps> = ({
             {title}
           </p>
           <div className="flex items-center gap-1.5">
-            {isClickable ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-700">
-                Detay
+            <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 transition-colors group-hover:bg-emerald-50 group-hover:text-emerald-700">
+              {isClickable ? 'Detay' : 'Liste'}
               </span>
-            ) : null}
             <div
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-xs text-white shadow-inner sm:h-8 sm:w-8 sm:text-sm ${gradient}`}
             >
@@ -209,7 +206,7 @@ export const GlobalStatCard: React.FC<GlobalStatCardProps> = ({
           ) : null}
         </div>
       </div>
-    </Tag>
+    </button>
   );
 };
 

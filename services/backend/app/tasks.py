@@ -292,6 +292,22 @@ def process_subscriptions_task():
     return asyncio.run(_process_subscriptions())
 
 
+def _note_query_result(attempt, result) -> None:
+    """Keep what the bank said about an unapproved order, without closing the attempt (it may still be paid)."""
+    attempt.response_code = (result.code or "")[:16] or attempt.response_code
+    attempt.response_message = (result.message or "")[:500] or attempt.response_message
+
+
+def _hold_for_review(session, order, attempt) -> None:
+    from app.models.payment import PaymentOrderStatus
+    from app.services import staff_notify
+
+    order.status = PaymentOrderStatus.REVIEW
+    order.query_next_at = None
+    staff_notify.queue(session, order.organization_id, "push.payment.failed", "payment_order", order.id,
+                       {"order_id": str(order.id), "attempt_id": str(attempt.id) if attempt else None})
+
+
 async def _reconcile_pending_ziraat_payments():
     """Recover browser callbacks that never reached us by querying the bank."""
     from app.api.v1.checkout import _finalize_paid_order, _load_order, apply_result, attempt_provider, result_matches_order
@@ -327,6 +343,7 @@ async def _reconcile_pending_ziraat_payments():
             if not order or order.status != PaymentOrderStatus.PENDING:
                 continue
             order.query_attempts += 1
+            attempt = None
             try:
                 attempt = next((item for item in sorted(order.attempts, key=lambda a: a.created_at, reverse=True)
                                 if item.session_token), None)
@@ -339,18 +356,22 @@ async def _reconcile_pending_ziraat_payments():
                     await _finalize_paid_order(session, order, attempt, commit=False)
                     paid += 1
                 elif order.query_attempts >= 8:
-                    order.status = PaymentOrderStatus.REVIEW
-                    order.failure_message = "Banka sonucu otomatik doğrulanamadı; manuel inceleme gerekli"
-                    order.query_next_at = None
+                    if result is not None:
+                        _note_query_result(attempt, result)
+                        order.failure_code = (result.code or "")[:64] or None
+                    reason = f" Banka yanıtı: {result.message}" if result is not None and result.message else ""
+                    order.failure_message = f"Bağışçı bankadan dönmedi, banka onayı bulunamadı; elle kontrol gerekli.{reason}"
+                    _hold_for_review(session, order, attempt)
                     reviewed += 1
                 else:
+                    if result is not None:
+                        _note_query_result(attempt, result)
                     delay_minutes = min(2 ** order.query_attempts, 120)
                     order.query_next_at = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
             except Exception as exc:
                 order.failure_message = f"Banka sorgusu geçici olarak başarısız: {str(exc)[:300]}"
                 if order.query_attempts >= 8:
-                    order.status = PaymentOrderStatus.REVIEW
-                    order.query_next_at = None
+                    _hold_for_review(session, order, attempt)
                     reviewed += 1
                 else:
                     delay_minutes = min(2 ** order.query_attempts, 120)

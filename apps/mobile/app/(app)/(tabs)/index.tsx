@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { af } from '@/lib/api';
@@ -65,6 +65,11 @@ export default function Dashboard() {
   const failedSms = (sms.data?.counts?.failed || 0) + (sms.data?.counts?.queued || 0);
   const inflow = useInflow('today', allowed(access, undefined, 'receipts'));
 
+  // Para girişleri ekranı yalnız TRY toplar; dövizde bağış listesine gidilir.
+  const openInflow = (target: string) => currency === 'TRY'
+    ? router.push({ pathname: '/para-girisleri', params: { period: target } } as Href)
+    : router.push('/bagislar');
+
   return (
     <Screen onRefresh={() => { query.refetch(); inflow.refetch(); }} refreshing={query.isRefetching}>
       <Text style={ui.title}>Merhaba, {me?.first_name}</Text>
@@ -78,7 +83,8 @@ export default function Dashboard() {
       <Chips options={CURRENCIES} value={currency} onChange={setCurrency} />
       {inflow.data ? (
         <InflowCard data={inflow.data} onPress={() => router.push('/para-girisleri')}
-          onTransfers={allowed(access, undefined, 'bank') ? () => router.push('/havaleler') : undefined} />
+          onTransfers={allowed(access, undefined, 'bank') ? () => router.push('/havaleler') : undefined}
+          onFailed={() => router.push('/basarisiz-odemeler' as Href)} />
       ) : null}
       <QueryView query={query}>
         {(data) => {
@@ -89,10 +95,10 @@ export default function Dashboard() {
               {!data.sees_all ? <Notice text="Kurumun bağış tutarlarını görme yetkiniz yok; yalnızca size açık bilgiler gösteriliyor." /> : null}
               {k ? (
                 <View style={ui.wrapGap}>
-                  <Stat label="Bugün" value={money(k.today_cents, data.currency)} sub={change(k.today_cents, k.yesterday_cents)} />
-                  <Stat label="Bu ay" value={money(k.month_cents, data.currency)} sub={change(k.month_cents, k.last_month_to_date_cents)} />
-                  <Stat label="Bağışçı" value={String(k.donor_count)} sub={`Bu ay ${k.new_donors_this_month} yeni`} />
-                  <Stat label="Aktif kampanya" value={String(k.active_campaigns)} />
+                  <Stat label="Bugün" value={money(k.today_cents, data.currency)} sub={change(k.today_cents, k.yesterday_cents)} onPress={() => openInflow('today')} />
+                  <Stat label="Bu ay" value={money(k.month_cents, data.currency)} sub={change(k.month_cents, k.last_month_to_date_cents)} onPress={() => openInflow('month')} />
+                  <Stat label="Bağışçı" value={String(k.donor_count)} sub={`Bu ay ${k.new_donors_this_month} yeni`} onPress={() => router.push('/bagiscilar')} />
+                  <Stat label="Aktif kampanya" value={String(k.active_campaigns)} onPress={() => router.push('/kampanyalar')} />
                 </View>
               ) : null}
 
@@ -115,7 +121,7 @@ export default function Dashboard() {
 
               {data.monthly_donations.length ? <>
               <SectionTitle>Aylık bağış</SectionTitle>
-              <Card>
+              <Card onPress={() => router.push('/raporlar')}>
                 <View style={styles.bars}>
                   {data.monthly_donations.map((m) => (
                     <View key={m.month} style={styles.barCol}>
@@ -132,7 +138,7 @@ export default function Dashboard() {
               {data.sees_all ? <>
               <SectionTitle>Ödeme kanalları</SectionTitle>
               <Chips options={PERIODS} value={period} onChange={setPeriod} />
-              <Card>
+              <Card onPress={() => openInflow(period === 'year' ? 'month' : period)}>
                 {data.payment_methods.length ? data.payment_methods.map((p) => (
                   <View key={p.method} style={styles.line}>
                     <Text style={ui.text}>{p.method} <Text style={ui.muted}>({p.count})</Text></Text>
@@ -146,7 +152,7 @@ export default function Dashboard() {
               {data.campaigns_progress.length ? (
                 <>
                   <SectionTitle>Kampanya ilerlemesi</SectionTitle>
-                  <Card style={{ gap: space.md }}>
+                  <Card style={{ gap: space.md }} onPress={() => router.push('/kampanyalar')}>
                     {data.campaigns_progress.slice(0, 6).map((c) => (
                       <View key={c.id} style={{ gap: 6 }}>
                         <View style={styles.line}>

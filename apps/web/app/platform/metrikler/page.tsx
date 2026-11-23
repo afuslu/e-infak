@@ -95,23 +95,23 @@ export default function PlatformMetricsPage() {
       {!data ? (!error && <PlatformSkeleton rows={5} />) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className={ptCard}>
+            <Link href="/platform" className={`${ptCard} block transition hover:shadow-md`}>
               <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
                 <span>Beklenen Aylık MRR</span>
                 <CreditCard className="h-4 w-4 text-emerald-500" aria-hidden="true" />
               </div>
               <div className="mt-2 text-2xl font-extrabold text-slate-900">{tl(data.mrr_cents)}</div>
               <p className="mt-1 text-xs text-slate-500">Bu ay tahsil edilen: {tl(data.saas_collected_month_cents)}</p>
-            </div>
-            <div className={ptCard}>
+            </Link>
+            <Link href="/platform" className={`${ptCard} block transition hover:shadow-md`}>
               <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
                 <span>30 Günlük Bağış Hacmi</span>
                 <HandCoins className="h-4 w-4 text-blue-500" aria-hidden="true" />
               </div>
               <div className="mt-2 text-2xl font-extrabold text-slate-900">{tl(data.donations_30d_cents)}</div>
               <p className="mt-1 text-xs text-slate-500">{data.donations_30d_count.toLocaleString('tr-TR')} başarılı bağış</p>
-            </div>
-            <div className={ptCard}>
+            </Link>
+            <Link href="/platform" className={`${ptCard} block transition hover:shadow-md`}>
               <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
                 <span>Abonelik Dağılımı</span>
                 <Building2 className="h-4 w-4 text-slate-400" aria-hidden="true" />
@@ -120,8 +120,8 @@ export default function PlatformMetricsPage() {
               <p className="mt-1 text-xs text-slate-500">
                 {data.status_counts.active || 0} aktif · {data.status_counts.trial || 0} deneme · {data.status_counts.past_due || 0} gecikmiş · {data.status_counts.suspended || 0} askıda
               </p>
-            </div>
-            <div className={ptCard}>
+            </Link>
+            <Link href="/platform" className={`${ptCard} block transition hover:shadow-md`}>
               <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
                 <span>30 Gün Hatalı Ödeme</span>
                 <AlertCircle className={`h-4 w-4 ${data.failed_donations_30d > 0 ? 'text-amber-500' : 'text-emerald-500'}`} aria-hidden="true" />
@@ -130,7 +130,7 @@ export default function PlatformMetricsPage() {
                 {data.failed_donations_30d}
               </div>
               <p className="mt-1 text-xs text-slate-500">Tüm kiracılar toplamı</p>
-            </div>
+            </Link>
           </div>
 
           <section className={ptCard}>

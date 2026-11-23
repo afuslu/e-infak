@@ -4,6 +4,7 @@
  * STK PRO bağışçı kartı (/admin/bagiscilar/[id]): header actions, the editable "Bağışçı Bilgisi" form on the left,
  * donation tabs (Tümü, Kurban, Sponsorluk, Su Kuyusu) on the right and "Görüşme Notu / İşlem Geçmişi" below.
  */
+import { scrollToNextSection } from '../muhasebe/OnMuhasebeUI'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -233,10 +234,10 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
               ['Ortalama', avg ? formatMoney(avg) : '—'],
               ['Son bağış', card.last_donation_at ? date(card.last_donation_at) : '—'],
             ] as const).map(([k, v]) => (
-              <div key={k} className="rounded-xl border border-slate-200/80 bg-white px-4 py-3">
+              <button type="button" onClick={scrollToNextSection} key={k} className="rounded-xl border border-slate-200/80 bg-white px-4 py-3 text-left transition hover:shadow-md">
                 <div className="text-[11px] font-bold uppercase tracking-wide text-gray-400">{k}</div>
                 <div className="text-lg font-bold tabular-nums text-gray-900">{v}</div>
-              </div>
+              </button>
             ))}
           </div>
 

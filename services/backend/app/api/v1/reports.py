@@ -4,7 +4,7 @@ Tüm raporlar yalnız onaylanmış (CONFIRMED) bağışları sayar; iade edilenl
 hariçtir. Tarihler Türkiye saatine göre gruplanır ve tutarlar seçilen para
 biriminde, kuruş cinsinden döner.
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from typing import Annotated, Optional
 from uuid import UUID
@@ -1084,28 +1084,47 @@ async def derbis_csv_export(
     )
 
 
+def _segment_conditions(key: str):
+    """Same conditions for a segment's count and its donor list."""
+    from app.models.donation import Donor
+
+    now = datetime.now(timezone.utc)
+    return {
+        "dormant_90d": (Donor.total_donations > 0, Donor.last_donation_at < now - timedelta(days=90)),
+        "high_value": (Donor.total_donated_cents >= 1_000_000,),  # 10.000+ TL
+        "repeat_donors": (Donor.total_donations >= 2,),
+        "recent_30d": (Donor.created_at >= now - timedelta(days=30),),
+    }.get(key)
+
+
+@router.get("/donor-segments/{key}", dependencies=ADVANCED)
+async def donor_segment_members(key: str, request: Request, db: AsyncSession = Depends(get_db)):
+    from app.models.donation import Donor
+
+    conditions = _segment_conditions(key)
+    if conditions is None:
+        raise HTTPException(status_code=404, detail="Segment bulunamadı")
+    where = (Donor.organization_id == _org_id(request), *conditions)
+    total = int((await db.execute(select(func.count(Donor.id)).where(*where))).scalar() or 0)
+    donors = (await db.execute(select(Donor).where(*where).order_by(Donor.total_donated_cents.desc().nulls_last(), Donor.id)
+                               .limit(200))).scalars().all()
+    return {"total": total, "items": [{"id": str(d.id), "name": d.full_name, "total_cents": d.total_donated_cents or 0,
+                                       "donation_count": d.total_donations or 0} for d in donors]}
+
+
 @router.get("/donor-segments", dependencies=ADVANCED)
 async def donor_segments(request: Request, db: AsyncSession = Depends(get_db)):
     """Akıllı bağışçı segmentasyonu: pasifleşenler, yüksek tutarlılar, düzenli/tekrarlı ve yeni bağışçılar."""
     from app.models.donation import Donor
 
     org_id = _org_id(request)
-    now = datetime.now(timezone.utc)
-    cutoff_90 = now - timedelta(days=90)
-    cutoff_30 = now - timedelta(days=30)
 
-    dormant = int((await db.execute(select(func.count(Donor.id)).where(
-        Donor.organization_id == org_id, Donor.donation_count > 0, Donor.last_donation_at < cutoff_90
-    ))).scalar() or 0)
-    high_value = int((await db.execute(select(func.count(Donor.id)).where(
-        Donor.organization_id == org_id, Donor.total_donated_cents >= 1_000_000  # 10.000+ TL
-    ))).scalar() or 0)
-    repeat_donors = int((await db.execute(select(func.count(Donor.id)).where(
-        Donor.organization_id == org_id, Donor.donation_count >= 2
-    ))).scalar() or 0)
-    recent_30 = int((await db.execute(select(func.count(Donor.id)).where(
-        Donor.organization_id == org_id, Donor.created_at >= cutoff_30
-    ))).scalar() or 0)
+    async def count(key: str) -> int:
+        return int((await db.execute(select(func.count(Donor.id)).where(
+            Donor.organization_id == org_id, *_segment_conditions(key)))).scalar() or 0)
+
+    dormant, high_value = await count("dormant_90d"), await count("high_value")
+    repeat_donors, recent_30 = await count("repeat_donors"), await count("recent_30d")
 
     return {
         "segments": [

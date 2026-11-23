@@ -138,6 +138,9 @@ export default function OnlineDonationsPage() {
             {lbl}
           </button>
         ))}
+        {can(access, 'receipts.view_all') && (
+          <Link href="/admin/basarisiz-odemeler" className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:border-rose-300">Banka hataları ve nedenleri →</Link>
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 text-[13.5px] text-gray-500">
         <span>{STATUS[filters.status]?.[0] || 'Toplam'} işlem: <b className="tabular-nums text-gray-900">{success.toLocaleString('tr-TR')}</b> · özet her yenilemede güncellenir</span>

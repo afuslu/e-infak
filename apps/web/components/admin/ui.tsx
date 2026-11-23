@@ -43,13 +43,14 @@ export interface StatCardDetail {
   content: () => ReactNode
 }
 
-export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, detail, href, className }: {
+export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, detail, href, onClick, className }: {
   label: string; value: ReactNode; hint?: ReactNode; tone?: keyof typeof TONES; icon?: LucideIcon
-  detail?: StatCardDetail; href?: string; className?: string
+  detail?: StatCardDetail; href?: string; onClick?: () => void; className?: string
 }) {
   const [open, setOpen] = useState(false)
   const contentRef = useRef<HTMLDivElement>(null)
-  const clickable = !!href || !!detail
+  const activate = detail ? () => setOpen(true) : onClick
+  const clickable = !!href || !!activate
 
   const exportModalTable = (fmt: 'xlsx' | 'pdf') => {
     const table = contentRef.current?.querySelector('table')
@@ -91,7 +92,7 @@ export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, det
       <div className="flex items-center justify-between gap-2">
         <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</div>
         <div className="flex items-center gap-1.5">
-          {href ? (
+          {href || (onClick && !detail) ? (
             <span className="inline-flex items-center gap-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 transition group-hover:bg-primary-50 group-hover:text-primary-700">
               Kayıtlar <ChevronRight className="h-3 w-3" aria-hidden="true" />
             </span>
@@ -116,10 +117,10 @@ export function StatCard({ label, value, hint, tone = 'neutral', icon: Icon, det
         </Link>
       ) : (
         <div
-          role={detail ? 'button' : undefined}
-          tabIndex={detail ? 0 : undefined}
-          onClick={detail ? () => setOpen(true) : undefined}
-          onKeyDown={detail ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true) } } : undefined}
+          role={activate ? 'button' : undefined}
+          tabIndex={activate ? 0 : undefined}
+          onClick={activate}
+          onKeyDown={activate ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() } } : undefined}
           className={cardClasses}
         >
           {cardInner}

@@ -1314,6 +1314,10 @@ function SocialAidAndKumanyaInner() {
             />
           )}
           <Stats
+            onSelectDegree={(degree) => {
+              setFilters({ degree, city: '', district: '', neighborhood: '', region_id: '', not_helped_days: '', q: '' })
+              setTab('households')
+            }}
             onSelectHousehold={(id) => {
               openDetail(id)
             }}
@@ -1949,7 +1953,7 @@ function BulkPlan({ meta, regions, packages, canEdit, onPlanned }: {
   )
 }
 
-function Stats({ onSelectHousehold }: { onSelectHousehold: (id: string) => void }) {
+function Stats({ onSelectHousehold, onSelectDegree }: { onSelectHousehold: (id: string) => void; onSelectDegree: (degree: string) => void }) {
   const [level, setLevel] = useState<'city' | 'district' | 'neighborhood'>('neighborhood')
   const [days, setDays] = useState(180)
   const [stats, setStats] = useState<any>(null)
@@ -1966,10 +1970,10 @@ function Stats({ onSelectHousehold }: { onSelectHousehold: (id: string) => void 
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
         {stats.degrees.map((d: any) => (
-          <div key={d.degree} className={`rounded-2xl border p-4 ${DEGREE_STYLE[d.degree as Degree]}`}>
+          <button type="button" key={d.degree} onClick={() => onSelectDegree(d.degree)} className={`rounded-2xl border p-4 text-left transition hover:shadow-md ${DEGREE_STYLE[d.degree as Degree]}`}>
             <p className="text-xs font-bold">{d.label}</p>
             <p className="mt-1 text-2xl font-black tabular-nums">{d.households} Hane</p>
-          </div>
+          </button>
         ))}
       </div>
 

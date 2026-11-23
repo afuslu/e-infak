@@ -65,8 +65,8 @@ export default function Subscriptions() {
           <>
             {!data.recurring_enabled ? <Notice tone="warn" text="Kurumunuzda düzenli bağış talimatı alma kapalı; mevcut talimatlar yönetilebilir." /> : null}
             <View style={ui.wrapGap}>
-              <Stat label="Aktif talimat" value={String(data.summary.counts.active || 0)} />
-              <Stat label="Aylık beklenen" value={Object.entries(data.summary.monthly_totals || {}).map(([c, v]) => money(v, c)).join(' · ') || money(0)} />
+              <Stat label="Aktif talimat" value={String(data.summary.counts.active || 0)} onPress={() => setStatus('active')} />
+              <Stat label="Aylık beklenen" value={Object.entries(data.summary.monthly_totals || {}).map(([c, v]) => money(v, c)).join(' · ') || money(0)} onPress={() => setStatus('active')} />
             </View>
             <SearchBar value={term} onChangeText={setTerm} placeholder="Bağışçı adı ya da telefon" />
             <Chips options={FILTERS} value={status} onChange={setStatus} />

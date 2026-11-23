@@ -4,6 +4,7 @@ import {
   Landmark, LayoutDashboard, LayoutGrid, LifeBuoy, ListChecks, Mail, LogIn, type LucideIcon, MailPlus, Megaphone, MessageSquareText,
   MessagesSquare, Newspaper, PackageCheck, Palette, PanelsTopLeft, PhoneCall, PiggyBank, Plug, Repeat, Send, Settings,
   Shuffle, ShieldCheck, Sparkles, Tags, Users, UsersRound, Video, Wallet,
+  AlertTriangle,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -168,6 +169,7 @@ export const NAV_RAIL: NavRail[] = [
       {
         title: 'Operasyon', items: [
           { href: '/admin/online-bagis', label: 'Online Bağış', icon: CreditCard, module: ['receipts', 'bank'] },
+          { href: '/admin/basarisiz-odemeler', label: 'Başarısız Ödemeler', icon: AlertTriangle, module: ['receipts', 'bank'] },
           { href: '/admin/banka-odeme?sekme=banka-hareketleri', label: 'Banka Hareketleri (Gelir)', icon: Landmark, feature: 'bank_transactions', module: ['bank', 'settings'] },
           { href: '/admin/banka-odeme?sekme=banka-hesaplari', label: 'Banka Hesapları', icon: Wallet, feature: 'bank_transactions', module: ['bank', 'settings'] },
           { href: '/admin/sms-bagislari', label: 'SMS Bağışları', icon: MessageSquareText, feature: 'sms_donation', module: ['receipts', 'bank'] },

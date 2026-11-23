@@ -35,6 +35,8 @@ export function openNotificationTarget(
     case 'donor':
       if (data.donor_id) return router.push({ pathname: '/bagisci/[id]', params: { id: data.donor_id } });
       break;
+    case 'failed_payments':
+      return router.push((data.order_id ? `/basarisiz-odemeler?order_id=${data.order_id}` : '/basarisiz-odemeler') as Href);
     case 'transfers':
       return router.push('/havaleler');
     case 'inflow':

@@ -58,6 +58,8 @@ export default function CallCenterPage() {
   const [tab, setTab] = useState<Tab>('smart')
   const [account, setAccount] = useState<Account | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
+  const [callFilter, setCallFilter] = useState({ direction: '', status: '' })
+  const openCalls = (direction: string, status = '') => { setCallFilter({ direction, status }); setTab('calls') }
   const loadAccount = useCallback(() => {
     adminGet<Account>('/call-center/account').then((r) => {
       setAccount(r.data)
@@ -81,10 +83,10 @@ export default function CallCenterPage() {
       />
       {stats && (
         <div className="grid gap-3 sm:grid-cols-4">
-          <StatCard label="Gelen (30 gün)" value={stats.incoming.toLocaleString('tr-TR')} icon={PhoneIncoming} />
-          <StatCard label="Giden (30 gün)" value={stats.outgoing.toLocaleString('tr-TR')} icon={PhoneOutgoing} />
-          <StatCard label="Cevapsız" value={stats.missed.toLocaleString('tr-TR')} tone={stats.missed ? 'bad' : 'neutral'} icon={PhoneMissed} />
-          <StatCard label="Konuşma süresi" value={`${Math.round(stats.talk_seconds / 60).toLocaleString('tr-TR')} dk`} />
+          <StatCard label="Gelen (30 gün)" value={stats.incoming.toLocaleString('tr-TR')} icon={PhoneIncoming} onClick={() => openCalls('in')} />
+          <StatCard label="Giden (30 gün)" value={stats.outgoing.toLocaleString('tr-TR')} icon={PhoneOutgoing} onClick={() => openCalls('out')} />
+          <StatCard label="Cevapsız" value={stats.missed.toLocaleString('tr-TR')} tone={stats.missed ? 'bad' : 'neutral'} icon={PhoneMissed} onClick={() => openCalls('in', 'missed')} />
+          <StatCard label="Konuşma süresi" value={`${Math.round(stats.talk_seconds / 60).toLocaleString('tr-TR')} dk`} onClick={() => openCalls('', 'ended')} />
         </div>
       )}
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
@@ -94,7 +96,7 @@ export default function CallCenterPage() {
         { key: 'account', label: 'Santral Ayarları', icon: KeyRound },
       ]} />
       {tab === 'smart' && <SmartQueue onRefreshStats={loadStats} />}
-      {tab === 'calls' && <CallList onRefreshStats={loadStats} />}
+      {tab === 'calls' && <CallList key={`${callFilter.direction}-${callFilter.status}`} initial={callFilter} onRefreshStats={loadStats} />}
       {tab === 'extensions' && <Extensions />}
       {tab === 'account' && account && <AccountForm account={account} onSaved={loadAccount} />}
     </div>
@@ -132,9 +134,9 @@ function MyExtension({ account, onSaved }: { account: Account | null; onSaved: (
 
 interface DonorOption { id: string; full_name: string; phone: string | null; city: string | null }
 
-function CallList({ onRefreshStats }: { onRefreshStats: () => void }) {
-  const [direction, setDirection] = useState('')
-  const [status, setStatus] = useState('')
+function CallList({ initial, onRefreshStats }: { initial: { direction: string; status: string }; onRefreshStats: () => void }) {
+  const [direction, setDirection] = useState(initial.direction)
+  const [status, setStatus] = useState(initial.status)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<{ total: number; items: Call[] } | null>(null)

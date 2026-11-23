@@ -551,7 +551,7 @@ export default function BulkSmsPage() {
 
       {kpi.count > 0 && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+          <Link href="/admin/sms-gonderimleri" className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs transition hover:shadow-md">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700">
               <Users className="h-5 w-5" />
             </div>
@@ -561,8 +561,8 @@ export default function BulkSmsPage() {
                 {n(kpi.total)} <span className="text-xs font-semibold text-gray-400">({kpi.count} kampanya)</span>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+          </Link>
+          <Link href="/admin/sms-gonderimleri" className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs transition hover:shadow-md">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
               <CheckCircle2 className="h-5 w-5" />
             </div>
@@ -572,8 +572,8 @@ export default function BulkSmsPage() {
                 %{kpi.deliveryRate} <span className="text-xs font-semibold text-gray-400">({n(kpi.delivered)} iletildi)</span>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+          </Link>
+          <Link href="/admin/sms-gonderimleri" className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs transition hover:shadow-md">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
               <MousePointerClick className="h-5 w-5" />
             </div>
@@ -581,8 +581,8 @@ export default function BulkSmsPage() {
               <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Link Tıklama</div>
               <div className="text-lg font-black tabular-nums text-gray-900">{n(kpi.clicks)}</div>
             </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+          </Link>
+          <Link href="/admin/sms-gonderimleri" className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs transition hover:shadow-md">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
               <TrendingUp className="h-5 w-5" />
             </div>
@@ -592,7 +592,7 @@ export default function BulkSmsPage() {
                 {money(kpi.donationsCents)} <span className="text-xs font-semibold text-gray-400">({n(kpi.donationsCount)} bağış)</span>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
       )}
 

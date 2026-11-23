@@ -97,16 +97,18 @@ export default function PlatformDashboard() {
           return (
             <>
               <View style={ui.rowGap}>
-                <Stat label="Toplam Kurum" value={String(totalOrgs)} sub={`${m.status_counts?.active || 0} aktif · ${m.status_counts?.trial || 0} deneme`} />
-                <Stat label="Aylık MRR" value={money(m.mrr_cents || 0, 'TRY')} sub={m.saas_collected_month_cents ? `Bu ay tahsilat: ${money(m.saas_collected_month_cents, 'TRY')}` : undefined} />
+                <Stat label="Toplam Kurum" value={String(totalOrgs)} sub={`${m.status_counts?.active || 0} aktif · ${m.status_counts?.trial || 0} deneme`} onPress={() => router.push('/(platform)/(tabs)/kurumlar' as Href)} />
+                <Stat label="Aylık MRR" value={money(m.mrr_cents || 0, 'TRY')} sub={m.saas_collected_month_cents ? `Bu ay tahsilat: ${money(m.saas_collected_month_cents, 'TRY')}` : undefined} onPress={() => router.push('/(platform)/(tabs)/kurumlar' as Href)} />
               </View>
               <View style={ui.rowGap}>
                 <Stat
+                  onPress={() => router.push('/(platform)/(tabs)/kurumlar' as Href)}
                   label="Son 30 Gün Bağış"
                   value={money(m.donations_30d_cents ?? m.paid_30d_cents ?? 0, 'TRY')}
                   sub={`${(m.donations_30d_count ?? m.paid_30d_count ?? 0).toLocaleString('tr-TR')} işlem`}
                 />
                 <Stat
+                  onPress={() => router.push('/(platform)/(tabs)/kurumlar' as Href)}
                   label="Başarısız (30g)"
                   value={String(m.failed_donations_30d ?? m.failed_30d_count ?? 0)}
                   sub={`${m.status_counts?.past_due || 0} gecikmiş · ${m.status_counts?.suspended || 0} askıda`}

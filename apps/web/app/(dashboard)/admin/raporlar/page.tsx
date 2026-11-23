@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ArrowDown, ArrowUp, ArrowUpDown, Printer, RefreshCw, Search, TrendingDown, TrendingUp } from 'lucide-react'
 import { Card } from '@e-infak/ui'
 import { adminGet, apiErrorMessage, downloadFile, formatMoney, hasFeature, useAdminAccess } from '../../../../lib/admin-access'
-import { ExportButtons, PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { ExportButtons, Modal, PageHeader, StatCard, type StatCardDetail, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
 
 type ReportKey = 'monthly' | 'daily' | 'yearly' | 'campaigns' | 'staff' | 'donors' | 'recurring' | 'channels' | 'sources' | 'types' | 'bank' | 'wells'
 
@@ -289,8 +289,32 @@ function MultiYearChart({ years, monthLabels, currency }: { years: any[]; monthL
   )
 }
 
-function StatusSummaryCard({ summary, currency }: { summary?: any; currency: string }) {
+function SegmentModal({ segment, onClose }: { segment: { key: string; label: string }; onClose: () => void }) {
+  const [data, setData] = useState<{ total: number; items: { id: string; name: string; total_cents: number; donation_count: number }[] } | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    adminGet<NonNullable<typeof data>>(`/reports/donor-segments/${segment.key}`)
+      .then((r) => setData(r.data)).catch((err) => setError(apiErrorMessage(err, 'Liste yüklenemedi')))
+  }, [segment.key])
+  return (
+    <Modal title={segment.label} description={data ? `${data.total.toLocaleString('tr-TR')} bağışçı` : undefined} onClose={onClose} size="lg">
+      {error && <p className="text-sm text-red-700">{error}</p>}
+      {data && (
+        <div className="max-h-[60vh] overflow-y-auto">
+          <ReportTable header={['Bağışçı', 'Bağış', 'Toplam']} rows={data.items.map((d) => [
+            <Link key={d.id} href={`/admin/bagiscilar/${d.id}`} className="text-primary-700 hover:underline">{d.name}</Link>,
+            d.donation_count, formatMoney(d.total_cents),
+          ])} />
+          {data.total > data.items.length && <p className="mt-2 text-xs text-gray-500">İlk {data.items.length} bağışçı gösteriliyor.</p>}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
+function StatusSummaryCard({ summary, currency, start, end }: { summary?: any; currency: string; start: string; end: string }) {
   if (!summary) return null
+  const listHref = (status: string) => `/admin/bagislar?start=${start}&end=${end}&status=${status}&currency=${encodeURIComponent(currency)}`
   return (
     <Card className="border border-slate-200 bg-slate-50/50 p-4 shadow-sm">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -300,30 +324,31 @@ function StatusSummaryCard({ summary, currency }: { summary?: any; currency: str
         </span>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
-        <div className="rounded-lg border border-emerald-200 bg-white p-2.5">
+        <Link href={listHref('confirmed')} className="rounded-lg border border-emerald-200 bg-white p-2.5 transition hover:shadow-md">
           <div className="text-slate-500">Onaylanan</div>
           <div className="mt-0.5 font-bold text-emerald-700">{formatMoney(summary.confirmed_cents, currency)}</div>
           <div className="text-[11px] text-slate-400">{summary.confirmed_count} işlem</div>
-        </div>
-        <div className="rounded-lg border border-amber-200 bg-white p-2.5">
+        </Link>
+        <Link href={listHref('pending')} className="rounded-lg border border-amber-200 bg-white p-2.5 transition hover:shadow-md">
           <div className="text-slate-500">Bekleyen Havale/İşlem</div>
           <div className="mt-0.5 font-bold text-amber-700">{formatMoney(summary.pending_cents, currency)}</div>
           <div className="text-[11px] text-slate-400">{summary.pending_count} işlem</div>
-        </div>
+        </Link>
         <div className="rounded-lg border border-rose-200 bg-white p-2.5">
           <div className="text-slate-500">İade / İptal</div>
           <div className="mt-0.5 font-bold text-rose-700">
             {formatMoney((summary.refunded_cents || 0) + (summary.cancelled_cents || 0), currency)}
           </div>
           <div className="text-[11px] text-slate-400">
-            {(summary.refunded_count || 0) + (summary.cancelled_count || 0)} işlem
+            <Link href={listHref('refunded')} className="underline">{summary.refunded_count || 0} iade</Link>{' · '}
+            <Link href={listHref('cancelled')} className="underline">{summary.cancelled_count || 0} iptal</Link>
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+        <Link href={listHref('failed')} className="rounded-lg border border-slate-200 bg-white p-2.5 transition hover:shadow-md">
           <div className="text-slate-500">Başarısız Deneme</div>
           <div className="mt-0.5 font-bold text-slate-700">{formatMoney(summary.failed_cents, currency)}</div>
           <div className="text-[11px] text-slate-400">{summary.failed_count} işlem</div>
-        </div>
+        </Link>
       </div>
     </Card>
   )
@@ -454,16 +479,18 @@ function Stat({
   label,
   value,
   detail,
+  href,
   delta,
 }: {
   label: string
   value: string | number
   detail?: StatCardDetail
+  href?: string
   delta?: number | null
 }) {
   return (
     <div className="space-y-1">
-      <StatCard label={label} value={value} detail={detail} />
+      <StatCard label={label} value={value} detail={detail} href={href} />
       {delta !== undefined && delta !== null && (
         <div className="px-1">
           <DeltaBadge pct={delta} />
@@ -493,6 +520,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [segment, setSegment] = useState<{ key: string; label: string } | null>(null)
   const [segments, setSegments] = useState<{ key: string; label: string; count: number; description: string }[]>([])
 
   useEffect(() => {
@@ -712,13 +740,14 @@ export default function ReportsPage() {
               <h3 className="mb-3 text-[14.5px] font-bold text-gray-900">Akıllı Bağışçı Segmentleri</h3>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {segments.map((s) => (
-                  <div key={s.key} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                  <button type="button" key={s.key} onClick={() => setSegment(s)} className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 text-left transition hover:border-primary-300 hover:shadow-md">
                     <div className="text-2xl font-extrabold text-primary-700">{s.count.toLocaleString('tr-TR')}</div>
                     <div className="mt-0.5 text-[13px] font-bold text-gray-900">{s.label}</div>
                     <p className="mt-1 text-[11.5px] text-gray-500">{s.description}</p>
-                  </div>
+                  </button>
                 ))}
               </div>
+              {segment && <SegmentModal segment={segment} onClose={() => setSegment(null)} />}
             </div>
           )}
         </section>
@@ -863,7 +892,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
             }}
           />
         </div>
-        <StatusSummaryCard summary={data.status_summary} currency={currency} />
+        <StatusSummaryCard summary={data.status_summary} currency={currency} start={`${data.year}-01-01`} end={`${data.year}-12-31`} />
         <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
           <Bars allowCumulative currency={currency} items={data.months.map((m: any) => ({ label: m.label.slice(0, 3), value: m.total_cents, sub: `${m.count} bağış` }))} />
           <ExportButton name={`aylik-bagis-${data.year}.csv`} header={['Ay', 'Bağış adedi', 'Bağışçı', 'Toplam']} rows={rows} />
@@ -907,7 +936,7 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
             }}
           />
         </div>
-        <StatusSummaryCard summary={data.status_summary} currency={currency} />
+        <StatusSummaryCard summary={data.status_summary} currency={currency} start={data.start} end={data.end} />
         <Card className="space-y-4 border border-gray-100 p-6 shadow-sm">
           <Bars allowCumulative currency={currency} items={data.days.map((d: any) => ({ label: d.date.slice(8, 10), value: d.total_cents, sub: d.date }))} />
           <ExportButton name={`gunluk-bagis-${data.start}-${data.end}.csv`} header={['Tarih', 'Adet', 'Toplam']} rows={rows} />
@@ -959,9 +988,10 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
           <Stat
             label="Aktif kampanya (bağış alan)"
             value={data.campaigns.length}
+            detail={{ title: 'Bağış alan kampanyalar', content: () => <ReportTable header={header} rows={exportRows} /> }}
           />
         </div>
-        <StatusSummaryCard summary={data.status_summary} currency={currency} />
+        <StatusSummaryCard summary={data.status_summary} currency={currency} start={data.start} end={data.end} />
         <div className="grid gap-4 lg:grid-cols-2">
           <DonutBreakdown
             title="Bağış türlerine göre dağılım"
@@ -1060,24 +1090,24 @@ function ReportBody({ report, data, money, currency }: { report: ReportKey; data
     return (
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="Aylık Yinelenen (MRR)" value={money(data.mrr_cents || 0)} />
-          <Stat label="Yıllık Projeksiyon (ARR)" value={money(data.arr_cents || 0)} />
-          <Stat label="Aktif Düzenli Bağış" value={(data.active_count || 0).toLocaleString('tr-TR')} />
-          <Stat label="Kayıp Oranı (Churn)" value={`%${data.churn_rate_pct ?? 0}`} />
+          <Stat label="Aylık Yinelenen (MRR)" value={money(data.mrr_cents || 0)} detail={{ title: 'Kampanyalara göre aylık yinelenen', content: () => <ReportTable header={campHeader} rows={campRows} /> }} />
+          <Stat label="Yıllık Projeksiyon (ARR)" value={money(data.arr_cents || 0)} detail={{ title: 'Yıllık projeksiyon', description: 'Aylık yinelenen tutarın 12 katı', content: () => <ReportTable header={['Kampanya', 'Aktif Abone', 'Yıllık']} rows={(data.by_campaign || []).map((c: any) => [c.title, c.count, money(c.mrr_cents * 12)])} /> }} />
+          <Stat label="Aktif Düzenli Bağış" value={(data.active_count || 0).toLocaleString('tr-TR')} href="/admin/subscriptions" />
+          <Stat label="Kayıp Oranı (Churn)" value={`%${data.churn_rate_pct ?? 0}`} detail={{ title: 'Abonelik durumları', content: () => <ReportTable header={['Durum', 'Adet']} rows={[['Aktif', data.active_count || 0], ['Riskli', data.at_risk_count || 0], ['Duraklatılan', data.paused_count || 0], ['İptal', data.cancelled_count || 0]]} /> }} />
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Card className="border border-slate-200 p-4 text-xs">
+          <Link href="/admin/subscriptions" className="block"><Card className="border border-slate-200 p-4 text-xs transition hover:shadow-md">
             <div className="text-slate-500">Ortalama Abonelik Tutarı</div>
             <div className="mt-1 text-lg font-bold text-slate-900">{money(data.avg_amount_cents || 0)}</div>
-          </Card>
-          <Card className="border border-amber-200 bg-amber-50/40 p-4 text-xs">
+          </Card></Link>
+          <Link href="/admin/subscriptions" className="block"><Card className="border border-amber-200 bg-amber-50/40 p-4 text-xs transition hover:shadow-md">
             <div className="text-amber-700">Riskli (Tahsilat Hatası Alan)</div>
             <div className="mt-1 text-lg font-bold text-amber-800">{data.at_risk_count || 0} abone</div>
-          </Card>
-          <Card className="border border-slate-200 p-4 text-xs">
+          </Card></Link>
+          <Link href="/admin/subscriptions" className="block"><Card className="border border-slate-200 p-4 text-xs transition hover:shadow-md">
             <div className="text-slate-500">Duraklatılan / İptal Edilen</div>
             <div className="mt-1 text-lg font-bold text-slate-800">{data.paused_count || 0} / {data.cancelled_count || 0}</div>
-          </Card>
+          </Card></Link>
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <DonutBreakdown

@@ -42,9 +42,9 @@ export default function Members() {
       <Screen onRefresh={() => { query.refetch(); summary.refetch(); }} refreshing={query.isRefetching} style={{ paddingBottom: 110 }}>
         {summary.data ? (
           <View style={ui.wrapGap}>
-            <Stat label="Aktif üye" value={String(summary.data.members.active || 0)} />
-            <Stat label="Geciken aidat" value={money(summary.data.overdue_cents)} sub={`${summary.data.overdue_members} üye`} />
-            <Stat label={`${summary.data.year} tahsilat`} value={money(summary.data.collected_cents)} />
+            <Stat label="Aktif üye" value={String(summary.data.members.active || 0)} onPress={() => setFilter('active')} />
+            <Stat label="Geciken aidat" value={money(summary.data.overdue_cents)} sub={`${summary.data.overdue_members} üye`} onPress={() => setFilter('overdue')} />
+            <Stat label={`${summary.data.year} tahsilat`} value={money(summary.data.collected_cents)} onPress={() => setFilter('all')} />
           </View>
         ) : null}
         <SearchBar value={term} onChangeText={setTerm} placeholder="Üye no, ad, telefon" />

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/context/AuthContext';
 import { af } from '@/lib/api';
 import { hasFeature } from '@/lib/access';
 import { money } from '@/lib/format';
-import { Card, Chips, Notice, QueryView, Row, Screen, SectionTitle, Stat, useUi } from '@/components/ui';
+import { Card, Chips, Notice, QueryView, Row, Screen, SectionTitle, Sheet, Stat, useUi } from '@/components/ui';
 import { font, radius, space, useTheme } from '@/theme';
 
 type Monthly = {
@@ -22,12 +22,14 @@ const THIS_YEAR = new Date().getFullYear();
 const YEARS = [THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2].map((y) => ({ value: String(y), label: String(y) }));
 
 export default function Reports() {
+  const router = useRouter();
   const { access } = useAuth();
   const { colors, dark } = useTheme();
   const ui = useUi();
   const advanced = hasFeature(access, 'reports_advanced');
   const [year, setYear] = useState(String(THIS_YEAR));
   const [tab, setTab] = useState('monthly');
+  const [detail, setDetail] = useState(false);
   const range = { start: `${year}-01-01`, end: `${year}-12-31` };
   const monthly = useQuery({ queryKey: ['report-monthly', year], queryFn: () => af<Monthly>('/reports/monthly', { query: { year } }) });
   const campaigns = useQuery({ queryKey: ['report-campaigns', year], enabled: advanced && tab === 'campaigns', queryFn: () => af<CampaignReport>('/reports/campaigns', { query: range }) });
@@ -50,9 +52,14 @@ export default function Reports() {
               <>
                 <View style={ui.wrapGap}>
                   <Stat label={`${m.year} toplam`} value={money(m.total_cents, m.currency)}
-                    sub={m.change_pct != null ? `${m.change_pct >= 0 ? '+' : ''}${Math.round(m.change_pct)}% geçen yıla göre` : undefined} />
-                  <Stat label="Bağış sayısı" value={String(m.count)} sub={`Tahsil oranı %${m.status_summary.collection_rate_pct ?? '—'}`} />
+                    sub={m.change_pct != null ? `${m.change_pct >= 0 ? '+' : ''}${Math.round(m.change_pct)}% geçen yıla göre` : undefined} onPress={() => setDetail(true)} />
+                  <Stat label="Bağış sayısı" value={String(m.count)} sub={`Tahsil oranı %${m.status_summary.collection_rate_pct ?? '—'}`} onPress={() => router.push('/bagislar')} />
                 </View>
+                <Sheet visible={detail} onClose={() => setDetail(false)} title={`${m.year} toplamı`}>
+                  <Row label="Bu yıl" value={money(m.total_cents, m.currency)} />
+                  <Row label={`${m.year - 1}`} value={money(m.previous_year_total_cents, m.currency)} />
+                  {m.months.filter((x) => x.count).map((x) => <Row key={x.month} label={`${x.label} (${x.count} bağış, ${x.donor_count} bağışçı)`} value={money(x.total_cents, m.currency)} />)}
+                </Sheet>
                 <SectionTitle>Aylara göre</SectionTitle>
                 <Card style={{ gap: 8 }}>
                   {m.months.map((x) => (
@@ -93,7 +100,7 @@ export default function Reports() {
               <Card>{r.categories.length ? r.categories.map((c) => <Row key={c.category} label={`${c.label} · %${Math.round(c.share_pct)}`} value={money(c.total_cents)} />) : <Text style={ui.muted}>Veri yok.</Text>}</Card>
               <SectionTitle>Kampanyalar</SectionTitle>
               {r.campaigns.map((c) => (
-                <Card key={c.id}>
+                <Card key={c.id} onPress={() => router.push('/kampanyalar')}>
                   <Text style={[ui.text, { fontWeight: '600' }]}>{c.title}</Text>
                   <Row label={`${c.count} bağış · ${c.donor_count} bağışçı`} value={money(c.total_cents)} />
                 </Card>

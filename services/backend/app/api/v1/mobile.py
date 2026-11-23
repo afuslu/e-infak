@@ -16,7 +16,7 @@ from app.models.device_token import DeviceToken
 from app.models.staff_notification import StaffNotification, StaffNotificationSetting
 from app.models.user import User
 from app.services import staff_notify
-from app.services.push_service import notify_user_push
+from app.services.push_service import forget_tokens, push_messages, user_tokens
 
 router = APIRouter(prefix="/mobile", tags=["mobile"])
 
@@ -79,16 +79,29 @@ async def test_push_notification(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    sent = await notify_user_push(
-        db,
-        current_user.id,
+    tokens = await user_tokens(db, current_user.id)
+    errors: List[str] = []
+    sent, dead = await push_messages(
+        tokens,
         title="e-İnfak Bildirim Testi",
         body="Push bildirim altyapısı başarıyla çalışıyor.",
         data={"type": "test"},
+        errors=errors,
     )
+    await forget_tokens(db, dead)
     await db.commit()
     if sent == 0:
-        raise HTTPException(status_code=404, detail="Kayıtlı mobil cihaz token'ı bulunamadı")
+        if "InvalidCredentials" in errors:
+            raise HTTPException(status_code=409, detail=(
+                "Telefonunuz kayıtlı, ancak bildirim servisi (Firebase/APNs) anahtarı Expo'da tanımlı değil ya da geçersiz. "
+                "Sistem yöneticisine bildirin."))
+        if errors:
+            raise HTTPException(status_code=409, detail=(
+                f"Telefonunuz kayıtlı, ancak bildirim servisi gönderimi kabul etmedi ({errors[0]})."))
+        # The app re-registers this phone and retries once on this answer.
+        raise HTTPException(status_code=404, detail=(
+            "Bu telefonun bildirim kaydı geçersizleşmiş; bildirimleri kapatıp yeniden açın." if dead
+            else "Bu hesaba kayıtlı telefon bulunamadı; bildirimleri kapatıp yeniden açın."))
     return {"sent": sent}
 
 
@@ -228,30 +241,139 @@ async def put_notification_settings(payload: SettingsIn, db: AsyncSession = Depe
 
 # --- Money-in overview (dashboard cards, home-screen widget) ---------------------------------------
 
+Period = Literal["today", "week", "month"]
+
+
+def _period_bounds(period: str, now: datetime) -> tuple[datetime, datetime]:
+    day_start, day_end = staff_notify.day_bounds(now)
+    if period == "today":
+        return day_start, day_end
+    if period == "week":
+        return day_start - timedelta(days=now.weekday()), day_end
+    return staff_notify.day_bounds(now.replace(day=1))[0], day_end
+
+
+def _problem_payments(org_id: UUID, start: datetime):
+    """Conditions of the "failed / under review" count; the list below uses the same ones."""
+    from app.models.payment import PaymentOrder, PaymentOrderStatus
+
+    return (PaymentOrder.organization_id == org_id, PaymentOrder.created_at >= start,
+            PaymentOrder.status.in_([PaymentOrderStatus.FAILED, PaymentOrderStatus.REVIEW]))
+
+
+@router.get("/failed-payments")
+async def failed_payments(
+    request: Request,
+    period: Period = "today",
+    order_id: Optional[UUID] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Card payments the bank declined or whose outcome must be checked by hand, with the reason.
+
+    `order_id` (from a notification) returns that one order whatever its date.
+    """
+    from app.models.payment import PaymentOrder, PaymentOrderItem, PaymentOrderStatus
+
+    org_id = _org(request, current_user)
+    user = await _staff_user(db, current_user)
+    if not has_capability(user, "receipts.view_all"):
+        raise HTTPException(status_code=403, detail="Online ödemeleri görme yetkiniz yok")
+    if order_id:
+        where = (PaymentOrder.organization_id == org_id, PaymentOrder.id == order_id)
+    else:
+        where = _problem_payments(org_id, _period_bounds(period, datetime.now(staff_notify.TZ))[0])
+    total = int((await db.execute(select(func.count()).select_from(PaymentOrder).where(*where))).scalar() or 0)
+    orders = (await db.execute(
+        select(PaymentOrder).options(
+            selectinload(PaymentOrder.donor), selectinload(PaymentOrder.attempts),
+            selectinload(PaymentOrder.items).selectinload(PaymentOrderItem.campaign),
+        ).where(*where).order_by(PaymentOrder.created_at.desc()).limit(100))).scalars().all()
+    # Latest paid order per donor; a smaller/unrelated later payment is shown with its amount, not as a retry.
+    later: dict[UUID, list[PaymentOrder]] = {}
+    if orders:
+        for paid in (await db.execute(select(PaymentOrder).where(
+                PaymentOrder.organization_id == org_id, PaymentOrder.status == PaymentOrderStatus.PAID,
+                PaymentOrder.donor_id.in_({o.donor_id for o in orders}),
+                PaymentOrder.created_at > min(o.created_at for o in orders),
+        ).order_by(PaymentOrder.created_at))).scalars().all():
+            later.setdefault(paid.donor_id, []).append(paid)
+
+    def out(o: PaymentOrder) -> dict:
+        after = [p for p in later.get(o.donor_id, []) if p.created_at > o.created_at]
+        return {
+            "id": str(o.id), "status": o.status.value, "total_cents": o.total_cents, "currency": o.currency,
+            "created_at": o.created_at, "merchant_payment_id": o.merchant_payment_id,
+            "failure_code": o.failure_code, "failure_message": o.failure_message, "query_attempts": o.query_attempts,
+            "retried_paid": any(p.total_cents == o.total_cents and p.currency == o.currency for p in after),
+            "later_payments": [{"total_cents": p.total_cents, "currency": p.currency, "created_at": p.created_at}
+                               for p in after[:5]],
+            "donor": {"id": str(o.donor.id), "name": o.donor.full_name, "phone": o.donor.phone, "email": o.donor.email},
+            "items": [{"campaign_title": i.campaign.title, "quantity": i.quantity,
+                       "total_amount_cents": i.total_amount_cents} for i in o.items],
+            "attempts": [{
+                "id": str(a.id), "provider": a.provider, "response_code": a.response_code,
+                "response_message": a.response_message, "card_brand": a.card_brand, "card_last_4": a.card_last_4,
+                "bank_transaction_id": a.pg_tran_id, "created_at": a.created_at, "completed_at": a.completed_at,
+            } for a in sorted(o.attempts, key=lambda a: a.created_at, reverse=True)],
+        }
+
+    return {"period": period, "total": total, "items": [out(o) for o in orders]}
+
+
+@router.get("/inflow/items")
+async def inflow_items(
+    request: Request,
+    channel: str,
+    period: Period = "today",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The TRY donations behind one channel row of the overview."""
+    from app.models.donation import Donation, DonationStatus
+
+    org_id = _org(request, current_user)
+    user = await _staff_user(db, current_user)
+    start, end = _period_bounds(period, datetime.now(staff_notify.TZ))
+    query = select(Donation).options(selectinload(Donation.donor), selectinload(Donation.campaign)).where(
+        Donation.organization_id == org_id, Donation.status == DonationStatus.CONFIRMED, Donation.currency == "TRY",
+        Donation.paid_at >= start, Donation.paid_at < end).order_by(Donation.paid_at.desc())
+    if not has_capability(user, "receipts.view_all"):
+        query = query.where(Donation.issued_by_id == user.id)
+    # The channel is derived in Python, like the totals, so both always agree.
+    rows = [d for d in (await db.execute(query)).scalars().all() if staff_notify.channel_of(d) == channel]
+    return {"total": len(rows), "total_cents": sum(d.amount_cents for d in rows),
+            "items": [_inflow_item(d) for d in rows[:200]]}
+
+
+def _inflow_item(d) -> dict:
+    channel = staff_notify.channel_of(d)
+    return {
+        "id": str(d.id), "receipt_number": d.receipt_number, "amount_cents": d.amount_cents, "currency": d.currency,
+        "channel": channel, "channel_label": staff_notify.CHANNEL_LABELS.get(channel, channel),
+        "donor_id": str(d.donor_id), "donor_name": d.donor.full_name if d.donor else None, "is_anonymous": d.is_anonymous,
+        "campaign_title": d.campaign.title if d.campaign else None, "paid_at": d.paid_at,
+    }
+
+
 @router.get("/inflow")
 async def inflow_overview(
     request: Request,
-    period: Literal["today", "week", "month"] = "today",
+    period: Period = "today",
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     from app.models.automation import BankTransaction, ReconciliationStatus
     from app.models.donation import Donation, DonationStatus
-    from app.models.payment import PaymentOrder, PaymentOrderStatus
+    from app.models.payment import PaymentOrder
 
     org_id = _org(request, current_user)
     user = await _staff_user(db, current_user)
     sees_all = has_capability(user, "receipts.view_all")
     mine = None if sees_all else user.id
     now = datetime.now(staff_notify.TZ)
-    day_start, day_end = staff_notify.day_bounds(now)
-    if period == "today":
-        start, end = day_start, day_end
-    elif period == "week":
-        start, end = day_start - timedelta(days=now.weekday()), day_end
-    else:
-        start = staff_notify.day_bounds(now.replace(day=1))[0]
-        end = day_end
+    day_start = staff_notify.day_bounds(now)[0]
+    start, end = _period_bounds(period, now)
     length = end - start
     current = await staff_notify.inflow_by_channel(db, org_id, start, end, mine)
     previous = await staff_notify.inflow_by_channel(db, org_id, start - length, start, mine)
@@ -280,13 +402,7 @@ async def inflow_overview(
         recent_q = recent_q.where(Donation.issued_by_id == mine)
     recent = []
     for d in (await db.execute(recent_q)).scalars().all():
-        channel = staff_notify.channel_of(d)
-        recent.append({
-            "id": str(d.id), "receipt_number": d.receipt_number, "amount_cents": d.amount_cents, "currency": d.currency,
-            "channel": channel, "channel_label": staff_notify.CHANNEL_LABELS.get(channel, channel),
-            "donor_id": str(d.donor_id), "donor_name": d.donor.full_name if d.donor else None, "is_anonymous": d.is_anonymous,
-            "campaign_title": d.campaign.title if d.campaign else None, "paid_at": d.paid_at,
-        })
+        recent.append(_inflow_item(d))
 
     waiting = {"count": 0, "total_cents": 0}
     failed = 0
@@ -297,8 +413,7 @@ async def inflow_overview(
         waiting = {"count": int(row[0] or 0), "total_cents": int(row[1] or 0)}
     if sees_all:
         failed = int((await db.execute(select(func.count()).select_from(PaymentOrder).where(
-            PaymentOrder.organization_id == org_id, PaymentOrder.created_at >= day_start,
-            PaymentOrder.status.in_([PaymentOrderStatus.FAILED, PaymentOrderStatus.REVIEW])))).scalar() or 0)
+            *_problem_payments(org_id, day_start)))).scalar() or 0)
     unread = (await db.execute(select(func.count()).select_from(StaffNotification).where(
         StaffNotification.user_id == user.id, StaffNotification.organization_id == org_id,
         StaffNotification.read_at.is_(None)))).scalar() or 0

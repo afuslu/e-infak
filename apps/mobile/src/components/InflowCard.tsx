@@ -6,7 +6,7 @@ import { CHANNEL_COLORS, changeText, Inflow } from '@/api/inflow';
 import { font, radius, space, useTheme } from '@/theme';
 
 /** Kanal kanal dağılımı: tek yatay şerit + açıklamalar. */
-export function ChannelBar({ data, compact }: { data: Inflow; compact?: boolean }) {
+export function ChannelBar({ data, compact, onChannel }: { data: Inflow; compact?: boolean; onChannel?: (key: string) => void }) {
   const { colors, dark } = useTheme();
   const total = data.total_cents || 1;
   if (!data.channels.length) return <Text style={[styles.muted, { color: colors.muted }]}>Bu dönemde giriş yok.</Text>;
@@ -18,12 +18,13 @@ export function ChannelBar({ data, compact }: { data: Inflow; compact?: boolean 
         ))}
       </View>
       {data.channels.slice(0, compact ? 4 : 10).map((c) => (
-        <View key={c.key} style={styles.legend}>
+        <Pressable key={c.key} style={styles.legend} disabled={!onChannel} onPress={() => onChannel?.(c.key)} accessibilityRole={onChannel ? 'button' : undefined}>
           <View style={[styles.dot, { backgroundColor: CHANNEL_COLORS[c.key] || colors.faint }]} />
           <Text style={[styles.legendLabel, { color: colors.text }]} numberOfLines={1}>{c.label}</Text>
           <Text style={[styles.muted, { color: colors.muted }]}>{c.count}</Text>
           <Text style={[styles.legendValue, { color: colors.text }]}>{money(c.total_cents)}</Text>
-        </View>
+          {onChannel ? <ChevronRight size={16} color={colors.faint} /> : null}
+        </Pressable>
       ))}
     </View>
   );
@@ -50,7 +51,7 @@ export function Sparkline({ series, unit }: { series: number[]; unit: 'hour' | '
 }
 
 /** Genel bakıştaki canlı "Bugün gelen para" kartı. */
-export function InflowCard({ data, onPress, onTransfers }: { data: Inflow; onPress: () => void; onTransfers?: () => void }) {
+export function InflowCard({ data, onPress, onTransfers, onFailed }: { data: Inflow; onPress: () => void; onTransfers?: () => void; onFailed?: () => void }) {
   const { colors } = useTheme();
   const change = changeText(data.total_cents, data.previous_total_cents);
   return (
@@ -75,9 +76,10 @@ export function InflowCard({ data, onPress, onTransfers }: { data: Inflow; onPre
         </Pressable>
       ) : null}
       {data.failed_payments_today ? (
-        <View style={[styles.alert, { backgroundColor: colors.dangerSoft }]}>
+        <Pressable onPress={onFailed} disabled={!onFailed} style={[styles.alert, { backgroundColor: colors.dangerSoft }]} accessibilityRole="button" accessibilityLabel="Başarısız ödemeleri aç">
           <Text style={[styles.alertText, { color: colors.danger }]}>Bugün {data.failed_payments_today} online ödeme başarısız / incelemede</Text>
-        </View>
+          <ChevronRight size={16} color={colors.danger} />
+        </Pressable>
       ) : null}
     </View>
   );

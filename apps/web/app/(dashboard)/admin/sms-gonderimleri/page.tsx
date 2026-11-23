@@ -377,7 +377,7 @@ export default function SmsLogPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+        <button type="button" onClick={() => { setStatus('sent'); setPage(1) }} className="text-left transition hover:border-primary-300 hover:shadow-md flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-50 text-green-700">
             <Send className="h-5 w-5" />
           </div>
@@ -386,8 +386,8 @@ export default function SmsLogPage() {
             <div className="text-xl font-black tabular-nums text-green-700">{sentOrDelivered.toLocaleString('tr-TR')}</div>
             {sentOnlyCount > 0 && <div className="text-[10px] text-gray-400">{sentOnlyCount.toLocaleString('tr-TR')} operatörde</div>}
           </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+        </button>
+        <button type="button" onClick={() => { setStatus('queued'); setPage(1) }} className="text-left transition hover:border-primary-300 hover:shadow-md flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
             <Clock className="h-5 w-5" />
           </div>
@@ -397,8 +397,8 @@ export default function SmsLogPage() {
               {((counts?.queued || 0) + (counts?.scheduled || 0)).toLocaleString('tr-TR')}
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+        </button>
+        <button type="button" onClick={() => { setStatus('failed'); setPage(1) }} className="text-left transition hover:border-primary-300 hover:shadow-md flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700">
             <AlertTriangle className="h-5 w-5" />
           </div>
@@ -406,8 +406,8 @@ export default function SmsLogPage() {
             <div className="text-[10px] font-bold uppercase text-gray-500">Başarısız</div>
             <div className="text-xl font-black tabular-nums text-red-700">{(counts?.failed || 0).toLocaleString('tr-TR')}</div>
           </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+        </button>
+        <button type="button" onClick={() => { setStatus('delivered'); setPage(1) }} className="text-left transition hover:border-primary-300 hover:shadow-md flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
             <CheckCircle2 className="h-5 w-5" />
           </div>
@@ -418,8 +418,8 @@ export default function SmsLogPage() {
             </div>
             <div className="text-[10px] text-gray-400">{deliveredCount.toLocaleString('tr-TR')} telefona ulaştı</div>
           </div>
-        </div>
-        <div className="col-span-2 flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs md:col-span-1">
+        </button>
+        <button type="button" onClick={() => { setStatus(''); setPage(1) }} className="text-left transition hover:border-primary-300 hover:shadow-md col-span-2 flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs md:col-span-1">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700">
             <Layers className="h-5 w-5" />
           </div>
@@ -427,7 +427,7 @@ export default function SmsLogPage() {
             <div className="text-[10px] font-bold uppercase text-gray-500">Toplam Parça</div>
             <div className="text-xl font-black tabular-nums text-gray-900">{(data?.parts_sent || 0).toLocaleString('tr-TR')}</div>
           </div>
-        </div>
+        </button>
       </div>
 
       {data?.error_summary && data.error_summary.length > 0 && (

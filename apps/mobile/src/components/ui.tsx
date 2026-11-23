@@ -416,14 +416,17 @@ export function Fab({ label, onPress, icon }: { label: string; onPress: () => vo
   );
 }
 
-export function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+export function Stat({ label, value, sub, onPress }: { label: string; value: string; sub?: string; onPress?: () => void }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.line, flex: 1, minWidth: 150, gap: 4 }]}>
-      <Text style={[styles.statLabel, { color: colors.muted }]}>{label}</Text>
+    <Card onPress={onPress} style={{ flex: 1, minWidth: 150, gap: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={[styles.statLabel, { color: colors.muted, flex: 1 }]}>{label}</Text>
+        {onPress ? <ChevronRight size={16} color={colors.faint} /> : null}
+      </View>
       <Text style={[styles.statValue, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
       {sub ? <Text style={[styles.hint, { color: colors.muted }]}>{sub}</Text> : null}
-    </View>
+    </Card>
   );
 }
 

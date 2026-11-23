@@ -94,9 +94,24 @@ export default function VideosPage() {
       />
       {data && (
         <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard label="Video" value={data.total.toLocaleString('tr-TR')} icon={Film} />
-          <StatCard label="Kullanılan alan" value={mb(data.used_bytes)} />
-          <StatCard label="Toplam izlenme" value={data.items.reduce((s, v) => s + v.views, 0).toLocaleString('tr-TR')} icon={Eye} hint="Bu sayfadaki videolar" />
+          <StatCard label="Video" value={data.total.toLocaleString('tr-TR')} icon={Film} detail={{
+            title: 'Videolar', description: 'Bu sayfadaki videolar',
+            content: () => <Table><THead><Tr><Th>Video</Th><Th className="text-right">Bağlı olduğu</Th></Tr></THead><TBody>
+              {data.items.map((v) => <Tr key={v.id}><Td>{v.title}</Td><Td className="text-right tabular-nums">{v.target?.label || 'Eşleşmedi'}</Td></Tr>)}
+            </TBody></Table>,
+          }} />
+          <StatCard label="Kullanılan alan" value={mb(data.used_bytes)} detail={{
+            title: 'Kullanılan alan', description: 'Bu sayfadaki videolar',
+            content: () => <Table><THead><Tr><Th>Video</Th><Th className="text-right">Boyut</Th></Tr></THead><TBody>
+              {data.items.map((v) => <Tr key={v.id}><Td>{v.title}</Td><Td className="text-right tabular-nums">{mb(v.size_bytes)}</Td></Tr>)}
+            </TBody></Table>,
+          }} />
+          <StatCard label="Toplam izlenme" value={data.items.reduce((s, v) => s + v.views, 0).toLocaleString('tr-TR')} icon={Eye} hint="Bu sayfadaki videolar" detail={{
+            title: 'İzlenmeler', description: 'Bu sayfadaki videolar',
+            content: () => <Table><THead><Tr><Th>Video</Th><Th className="text-right">İzlenme</Th></Tr></THead><TBody>
+              {data.items.map((v) => <Tr key={v.id}><Td>{v.title}</Td><Td className="text-right tabular-nums">{v.views}</Td></Tr>)}
+            </TBody></Table>,
+          }} />
         </div>
       )}
       {uploads.length > 0 && (

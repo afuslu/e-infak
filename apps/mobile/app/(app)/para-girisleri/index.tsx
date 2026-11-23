@@ -1,24 +1,28 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Href, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { money, dateTime } from '@/lib/format';
 import { remember } from '@/lib/selected';
-import { CHANNEL_COLORS, changeText, Inflow, useInflow } from '@/api/inflow';
+import { CHANNEL_COLORS, changeText, Inflow, PERIODS, useChannelItems, useInflow } from '@/api/inflow';
 import { ChannelBar, Sparkline } from '@/components/InflowCard';
-import { Badge, Btn, Card, Chips, ListItem, Notice, QueryView, Screen, SectionTitle, Stat, useUi } from '@/components/ui';
+import { Badge, Card, Chips, ListItem, Notice, QueryView, Row, Screen, SectionTitle, Sheet, Stat, useUi } from '@/components/ui';
 import { font, space, useTheme } from '@/theme';
-
-const PERIODS = [
-  { value: 'today', label: 'Bugün' },
-  { value: 'week', label: 'Bu hafta' },
-  { value: 'month', label: 'Bu ay' },
-];
 
 export default function Inflows() {
   const router = useRouter();
   const { colors } = useTheme();
   const ui = useUi();
-  const [period, setPeriod] = useState<Inflow['period']>('today');
+  const params = useLocalSearchParams<{ period?: string }>();
+  const wanted = PERIODS.some((x) => x.value === params.period) ? (params.period as Inflow['period']) : 'today';
+  const [period, setPeriod] = useState<Inflow['period']>(wanted);
+  useEffect(() => setPeriod(wanted), [wanted]);
+  const [channel, setChannel] = useState<string | null>(null);
+  const [average, setAverage] = useState(false);
+  const channelItems = useChannelItems(period, channel);
+  const openDonation = (id: string, no: string) => {
+    remember('donation', id, undefined);
+    router.push({ pathname: '/bagis/[id]', params: { id, no } });
+  };
   const query = useInflow(period);
 
   return (
@@ -40,18 +44,18 @@ export default function Inflows() {
                 <Text style={[ui.muted, { fontSize: font.xs }]}>{d.series_unit === 'hour' ? 'Saat saat (00–23)' : 'Gün gün'} · 30 saniyede bir yenilenir · son: {dateTime(d.updated_at)}</Text>
               </Card>
               <View style={ui.wrapGap}>
-                <Stat label="İşlem" value={String(d.count)} sub={`Önceki: ${d.previous_count}`} />
-                <Stat label="Ortalama" value={money(avg)} />
+                <Stat label="İşlem" value={String(d.count)} sub={`Önceki: ${d.previous_count}`} onPress={() => router.push('/bagislar')} />
+                <Stat label="Ortalama" value={money(avg)} onPress={() => setAverage(true)} />
               </View>
               {d.other_currencies.length ? (
-                <Card>
+                <Card onPress={() => router.push('/bagislar')}>
                   <Text style={ui.muted}>Döviz girişleri</Text>
                   {d.other_currencies.map((c) => <Text key={c.currency} style={ui.text}>{money(c.total_cents, c.currency)} · {c.count} işlem</Text>)}
                 </Card>
               ) : null}
 
               <SectionTitle>Kanallar</SectionTitle>
-              <Card><ChannelBar data={d} /></Card>
+              <Card><ChannelBar data={d} onChannel={setChannel} /></Card>
 
               {d.waiting_transfers.count || d.failed_payments_today ? <SectionTitle>Dikkat</SectionTitle> : null}
               {d.waiting_transfers.count ? (
@@ -61,10 +65,9 @@ export default function Inflows() {
                 </Card>
               ) : null}
               {d.failed_payments_today ? (
-                <Card>
+                <Card onPress={() => router.push('/basarisiz-odemeler' as Href)}>
                   <Text style={[ui.text, { fontWeight: '700', color: colors.danger }]}>Bugün {d.failed_payments_today} online ödeme başarısız / incelemede</Text>
-                  <Text style={ui.muted}>Ayrıntılar bildirim kutusunda.</Text>
-                  <Btn title="Bildirimleri aç" variant="ghost" small onPress={() => router.push('/bildirimler')} />
+                  <Text style={ui.muted}>Bağışçıyı ve nedenini görmek için dokunun.</Text>
                 </Card>
               ) : null}
 
@@ -79,15 +82,32 @@ export default function Inflows() {
                       subtitle={r.campaign_title}
                       meta={`${dateTime(r.paid_at)} · ${r.channel_label}`}
                       right={<Text style={ui.amount}>{money(r.amount_cents, r.currency)}</Text>}
-                      onPress={() => {
-                        remember('donation', r.id, undefined);
-                        router.push({ pathname: '/bagis/[id]', params: { id: r.id, no: r.receipt_number } });
-                      }}
+                      onPress={() => openDonation(r.id, r.receipt_number)}
                     />
                   </View>
                 )) : <Text style={[ui.muted, { padding: space.lg }]}>Henüz giriş yok.</Text>}
               </View>
               <Badge label="Aktarım (Excel / STK PRO) kayıtları bu sayılara dahil değildir" tone="muted" />
+
+              <Sheet visible={average} onClose={() => setAverage(false)} title="Ortalama bağış">
+                {d.channels.map((c) => <Row key={c.key} label={`${c.label} (${c.count})`} value={money(Math.round(c.total_cents / c.count))} />)}
+                <Row label={`Genel (${d.count})`} value={money(avg)} />
+              </Sheet>
+              <Sheet visible={!!channel} onClose={() => setChannel(null)} title={d.channels.find((c) => c.key === channel)?.label || 'Kanal'}>
+                <QueryView query={channelItems}>
+                  {(x) => (
+                    <>
+                      <Row label={`${x.total} giriş`} value={money(x.total_cents)} />
+                      {x.items.map((r) => (
+                        <ListItem key={r.id} title={r.donor_name || 'İsimsiz'} subtitle={r.campaign_title} meta={dateTime(r.paid_at)}
+                          right={<Text style={ui.amount}>{money(r.amount_cents, r.currency)}</Text>}
+                          onPress={() => { setChannel(null); openDonation(r.id, r.receipt_number); }} />
+                      ))}
+                      {x.total > x.items.length ? <Text style={ui.muted}>En yeni {x.items.length} giriş gösteriliyor.</Text> : null}
+                    </>
+                  )}
+                </QueryView>
+              </Sheet>
             </>
           );
         }}

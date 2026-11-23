@@ -36,6 +36,8 @@ export default function SmsDonationsPage() {
   const [tab, setTab] = useState<Tab>('records')
   const [stats, setStats] = useState<Stats | null>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [recordStatus, setRecordStatus] = useState('')
+  const openRecords = (status: string) => { setRecordStatus(status); setTab('records') }
   const loadStats = () => adminGet<Stats>('/sms-donations/stats', { days: 30 }).then((r) => setStats(r.data)).catch(() => {})
   useEffect(() => {
     loadStats()
@@ -49,9 +51,14 @@ export default function SmsDonationsPage() {
       />
       {stats && (
         <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard label="Son 30 gün bağış" value={stats.count.toLocaleString('tr-TR')} hint={tl(stats.total_cents)} tone="good" />
-          <StatCard label="Eşleşmeyen" value={stats.unmatched.toLocaleString('tr-TR')} tone={stats.unmatched ? 'warn' : 'neutral'} />
-          <StatCard label="En çok kullanılan kelime" value={stats.keywords[0]?.keyword || '—'} hint={stats.keywords[0] ? `${stats.keywords[0].count} SMS · ${tl(stats.keywords[0].total_cents)}` : undefined} />
+          <StatCard label="Son 30 gün bağış" value={stats.count.toLocaleString('tr-TR')} hint={tl(stats.total_cents)} tone="good" onClick={() => openRecords('recorded')} />
+          <StatCard label="Eşleşmeyen" value={stats.unmatched.toLocaleString('tr-TR')} tone={stats.unmatched ? 'warn' : 'neutral'} onClick={() => openRecords('unmatched')} />
+          <StatCard label="En çok kullanılan kelime" value={stats.keywords[0]?.keyword || '—'} hint={stats.keywords[0] ? `${stats.keywords[0].count} SMS · ${tl(stats.keywords[0].total_cents)}` : undefined} detail={{
+            title: 'Anahtar kelimeler', description: 'Son 30 gün',
+            content: () => <Table><THead><Tr><Th>Kelime</Th><Th className="text-right">SMS</Th><Th className="text-right">Tutar</Th></Tr></THead><TBody>
+              {stats.keywords.map((k) => <Tr key={k.keyword}><Td>{k.keyword}</Td><Td className="text-right tabular-nums">{k.count}</Td><Td className="text-right tabular-nums">{tl(k.total_cents)}</Td></Tr>)}
+            </TBody></Table>,
+          }} />
         </div>
       )}
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
@@ -59,15 +66,15 @@ export default function SmsDonationsPage() {
         { key: 'import', label: 'Rapor Yükle', icon: FileUp },
         { key: 'settings', label: 'Anahtar Kelimeler & Bağlantı', icon: KeyRound },
       ]} />
-      {tab === 'records' && <Records campaigns={campaigns} onChange={loadStats} />}
+      {tab === 'records' && <Records key={recordStatus} initialStatus={recordStatus} campaigns={campaigns} onChange={loadStats} />}
       {tab === 'import' && <ImportFile onDone={() => { loadStats(); setTab('records') }} />}
       {tab === 'settings' && <SettingsForm campaigns={campaigns} />}
     </div>
   )
 }
 
-function Records({ campaigns, onChange }: { campaigns: Campaign[]; onChange: () => void }) {
-  const [status, setStatus] = useState('')
+function Records({ initialStatus, campaigns, onChange }: { initialStatus: string; campaigns: Campaign[]; onChange: () => void }) {
+  const [status, setStatus] = useState(initialStatus)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<{ total: number; items: RecordRow[] } | null>(null)

@@ -30,6 +30,45 @@ export function useInflow(period: Inflow['period'], enabled = true) {
   });
 }
 
+export const PERIODS = [
+  { value: 'today', label: 'Bugün' },
+  { value: 'week', label: 'Bu hafta' },
+  { value: 'month', label: 'Bu ay' },
+];
+
+export type FailedPayment = {
+  id: string; status: string; total_cents: number; currency: string; created_at: string; merchant_payment_id: string;
+  failure_code: string | null; failure_message: string | null; query_attempts: number; retried_paid: boolean;
+  later_payments: { total_cents: number; currency: string; created_at: string }[];
+  donor: { id: string; name: string | null; phone: string | null; email: string | null };
+  items: { campaign_title: string; quantity: number; total_amount_cents: number }[];
+  attempts: {
+    id: string; provider: string; response_code: string | null; response_message: string | null; card_brand: string | null;
+    card_last_4: string | null; bank_transaction_id: string | null; created_at: string; completed_at: string | null;
+  }[];
+};
+
+const PROVIDERS: Record<string, string> = {
+  vakifkatilim: 'Vakıf Katılım', ziraatpay: 'Ziraat Katılım', iyzico: 'iyzico', paytr: 'PayTR', nestpay: 'Nestpay',
+};
+export const providerLabel = (key: string) => PROVIDERS[key] || key;
+
+/** `orderId` verilirse (bildirim) tarihine bakılmadan yalnız o sipariş gelir. */
+export function useFailedPayments(period: Inflow['period'], orderId?: string) {
+  return useQuery({
+    queryKey: ['failed-payments', period, orderId ?? null],
+    queryFn: () => api<{ total: number; items: FailedPayment[] }>('/mobile/failed-payments', { query: { period, order_id: orderId } }),
+  });
+}
+
+export function useChannelItems(period: Inflow['period'], channel: string | null) {
+  return useQuery({
+    queryKey: ['inflow', 'items', period, channel],
+    enabled: !!channel,
+    queryFn: () => api<{ total: number; total_cents: number; items: InflowItem[] }>('/mobile/inflow/items', { query: { period, channel: channel! } }),
+  });
+}
+
 export function changeText(now: number, before: number): string | null {
   if (!before) return now ? 'Önceki dönemde giriş yok' : null;
   const pct = Math.round(((now - before) / before) * 100);

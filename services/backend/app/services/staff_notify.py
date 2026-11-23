@@ -392,7 +392,7 @@ async def _payment_failed(db: AsyncSession, organization_id: UUID, payload: dict
         title=f"{'İncelenecek ödeme' if review else 'Başarısız ödeme'} · {money(order.total_cents, order.currency)}",
         body=f"{_donor_name(order.donor)} · {reason[:160]}",
         amount_cents=order.total_cents, currency=order.currency,
-        data={"order_id": str(order.id), "donor_id": str(order.donor_id), "route": "donor"},
+        data={"order_id": str(order.id), "donor_id": str(order.donor_id), "route": "failed_payments"},
     )
 
 

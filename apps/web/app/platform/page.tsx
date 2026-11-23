@@ -169,7 +169,7 @@ export default function PlatformOrganizationsPage() {
           </div>
           <div className="mt-2 text-2xl font-extrabold text-emerald-700">{orgs ? activeOrgs : '—'}</div>
         </button>
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+        <Link href="/platform/metrikler" className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-sm">
           <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
             <span>Toplam Bağış</span>
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -177,8 +177,8 @@ export default function PlatformOrganizationsPage() {
             </span>
           </div>
           <div className="mt-2 text-2xl font-extrabold text-slate-900">{orgs ? totalDonations.toLocaleString('tr-TR') : '—'}</div>
-        </div>
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+        </Link>
+        <a href="#uyarilar" className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-sm">
           <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
             <span>Açık Uyarı</span>
             <span
@@ -192,10 +192,10 @@ export default function PlatformOrganizationsPage() {
           <div className={`mt-2 text-2xl font-extrabold ${openAlerts > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
             {alerts ? openAlerts : '—'}
           </div>
-        </div>
+        </a>
       </div>
 
-      <section className="space-y-3">
+      <section id="uyarilar" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-base font-bold text-slate-900">Uyarılar</h2>
           {alerts && (

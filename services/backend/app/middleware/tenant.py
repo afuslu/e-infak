@@ -65,6 +65,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
             if not org_slug:
                 if path in ORGLESS_PATHS:
                     return await call_next(request)
+                if self._token_expired(request):
+                    # The organisation comes from the token here: 401 makes the app refresh its session.
+                    return JSONResponse({"detail": "Could not validate credentials"}, status_code=401,
+                                        headers={"WWW-Authenticate": "Bearer"})
                 return JSONResponse({"detail": "Organization not found"}, status_code=404)
 
             organization = (await session.execute(
@@ -78,6 +82,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
             request.state.organization = organization
 
         return await call_next(request)
+
+    @staticmethod
+    def _token_expired(request: Request) -> bool:
+        """A bearer token was sent but is no longer valid (expired or unreadable)."""
+        from app.core.security import decode_token
+
+        auth = request.headers.get("authorization", "")
+        return auth.lower().startswith("bearer ") and not decode_token(auth[7:].strip())
 
     @staticmethod
     async def _slug_from_token(session, request: Request):

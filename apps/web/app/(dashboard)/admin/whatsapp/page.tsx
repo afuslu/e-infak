@@ -77,6 +77,8 @@ export default function WhatsAppPage() {
   const [account, setAccount] = useState<Account | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
+  const [logStatus, setLogStatus] = useState('')
+  const openLog = (status: string) => { setLogStatus(status); setTab('log') }
 
   const loadAccount = useCallback(async () => {
     try {
@@ -103,10 +105,16 @@ export default function WhatsAppPage() {
       />
       {stats && (
         <div className="grid gap-3 sm:grid-cols-4">
-          <StatCard label="Son 30 gün" value={stats.total.toLocaleString('tr-TR')} icon={Send} />
-          <StatCard label="İletildi" value={(stats.counts.delivered + stats.counts.read).toLocaleString('tr-TR')} tone="good" icon={CheckCheck} />
-          <StatCard label="Okundu" value={stats.counts.read.toLocaleString('tr-TR')} tone="brand" icon={CheckCheck} />
-          <StatCard label="Başarısız" value={stats.counts.failed.toLocaleString('tr-TR')} tone={stats.counts.failed ? 'bad' : 'neutral'} />
+          <StatCard label="Son 30 gün" value={stats.total.toLocaleString('tr-TR')} icon={Send} onClick={() => openLog('')} />
+          <StatCard label="İletildi" value={(stats.counts.delivered + stats.counts.read).toLocaleString('tr-TR')} tone="good" icon={CheckCheck} detail={{
+            title: 'İletilen mesajlar',
+            content: () => <Table><THead><Tr><Th>Durum</Th><Th className="text-right">Adet</Th></Tr></THead><TBody>
+              <Tr><Td>İletildi, henüz okunmadı</Td><Td className="text-right tabular-nums">{stats.counts.delivered}</Td></Tr>
+              <Tr><Td>Okundu</Td><Td className="text-right tabular-nums">{stats.counts.read}</Td></Tr>
+            </TBody></Table>,
+          }} />
+          <StatCard label="Okundu" value={stats.counts.read.toLocaleString('tr-TR')} tone="brand" icon={CheckCheck} onClick={() => openLog('read')} />
+          <StatCard label="Başarısız" value={stats.counts.failed.toLocaleString('tr-TR')} tone={stats.counts.failed ? 'bad' : 'neutral'} onClick={() => openLog('failed')} />
         </div>
       )}
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
@@ -117,7 +125,7 @@ export default function WhatsAppPage() {
       ]} />
       {tab === 'send' && <SingleSend templates={templates} configured={!!account?.configured} />}
       {tab === 'bulk' && <BulkSend templates={templates} configured={!!account?.configured} onSent={() => setTab('log')} />}
-      {tab === 'log' && <MessageLog />}
+      {tab === 'log' && <MessageLog key={logStatus} initialStatus={logStatus} />}
       {tab === 'account' && account && <AccountForm account={account} onSaved={loadAccount} />}
     </div>
   )
@@ -253,8 +261,8 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
   )
 }
 
-function MessageLog() {
-  const [status, setStatus] = useState('')
+function MessageLog({ initialStatus }: { initialStatus: string }) {
+  const [status, setStatus] = useState(initialStatus)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<{ total: number; items: Message[] } | null>(null)

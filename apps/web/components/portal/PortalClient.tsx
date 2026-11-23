@@ -275,13 +275,13 @@ function Empty({ icon, children, cta }: { icon: string; children: React.ReactNod
   )
 }
 
-function Stat({ label, value, hint, accent }: { label: string; value: string; hint?: string; accent?: boolean }) {
+function Stat({ label, value, hint, accent, onClick }: { label: string; value: string; hint?: string; accent?: boolean; onClick: () => void }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <button type="button" onClick={onClick} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-primary-300 hover:shadow-md sm:p-5">
       <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</div>
       <div className={`mt-1.5 text-2xl font-black tracking-tight ${accent ? 'text-primary-700' : 'text-slate-900'}`}>{value}</div>
       {hint && <div className="mt-0.5 text-xs text-slate-500">{hint}</div>}
-    </div>
+    </button>
   )
 }
 
@@ -2351,10 +2351,10 @@ export function PortalClient({
 
               {activeTab === 'ozet' && (
                 <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-                  <Stat label="Toplam destek" value={totalText} hint={`${confirmed.length} onaylı bağış`} accent />
-                  <Stat label="Kurban & proje" value={String(shares.length)} hint={shares.length ? `${shares.filter((s) => s.status === 'slaughtered').length} kesildi` : undefined} />
-                  <Stat label="Üstlendiklerim" value={String(sponsorshipCount + wellsCount)} />
-                  <Stat label="Talimatlarım" value={String(subscriptions.length)} hint={subscriptions.length ? 'aktif talimat' : undefined} />
+                  <Stat label="Toplam destek" value={totalText} hint={`${confirmed.length} onaylı bağış`} accent onClick={() => selectTab('bagislar')} />
+                  <Stat label="Kurban & proje" value={String(shares.length)} hint={shares.length ? `${shares.filter((s) => s.status === 'slaughtered').length} kesildi` : undefined} onClick={() => selectTab('projelerim')} />
+                  <Stat label="Üstlendiklerim" value={String(sponsorshipCount + wellsCount)} onClick={() => selectTab('ustlendiklerim')} />
+                  <Stat label="Talimatlarım" value={String(subscriptions.length)} hint={subscriptions.length ? 'aktif talimat' : undefined} onClick={() => selectTab('talimatlarim')} />
                 </div>
               )}
 

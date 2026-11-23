@@ -1,5 +1,6 @@
 'use client'
 
+import { scrollToNextSection } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
@@ -675,10 +676,10 @@ export default function ReceiptBooksPage() {
             ['branch', 'Şube (Koçan)'],
             ['manual', 'Elle (Koçansız)'],
           ].map(([kind, label]) => (
-            <div key={kind} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3.5">
+            <button type="button" onClick={scrollToNextSection} key={kind} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 text-left transition hover:shadow-md">
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
               <p className="text-base font-bold text-slate-900 mt-1 tabular-nums">{formatMoney(totalOf(kind), summaryCurrency)}</p>
-            </div>
+            </button>
           ))}
         </div>
 
