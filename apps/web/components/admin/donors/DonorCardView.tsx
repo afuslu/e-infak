@@ -267,7 +267,7 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
                         <td className={`${td} whitespace-nowrap`}>{dateTime(d.paid_at)}</td>
                         <td className={td}>
                           <div className="font-medium text-gray-900">{d.campaign_title || 'Genel Bağış'}</div>
-                          <div className="text-[11px] text-gray-400">{d.payment_method_label}{d.on_behalf_of ? ` · Adına: ${d.on_behalf_of}` : ''}</div>
+                          <div className="text-[11px] text-gray-400">{d.payment_method_label}{d.on_behalf_of ? ` · Adına: ${d.on_behalf_of}` : ''}{d.intent ? ` · Niyet: ${d.intent}` : ''}</div>
                         </td>
                         <td className={`${td} text-right font-bold tabular-nums`}>{formatMoney(d.amount_cents, d.currency)}</td>
                         <td className={`${td} whitespace-nowrap text-gray-600`}>{d.issued_by_name || (d.is_manual ? '—' : 'Web')}</td>
@@ -417,7 +417,12 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
         <Modal title="Yeni Makbuz" description={card.full_name} size="lg" onClose={() => setReceiptOpen(false)}>
           <ManualReceiptForm
             presetDonor={{ id: card.id, full_name: card.full_name, phone: card.phone, email: card.email }}
-            onDone={(r) => { toast.ok(`${r.receipt_number} numaralı makbuz kesildi`); setReceiptOpen(false); load() }}
+            onDone={(r) => {
+              const kurbanNo = [...new Set((r.kurban_shares || []).map((s) => s.animal_number).filter(Boolean))]
+              toast.ok(`${r.receipt_number} numaralı makbuz kesildi${kurbanNo.length ? ` · Kurban No: ${kurbanNo.join(', ')}` : ''}`)
+              setReceiptOpen(false)
+              load()
+            }}
           />
         </Modal>
       )}

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Card } from '@e-infak/ui'
 import {
   AlertCircle, ArrowDownRight, ArrowDownToLine, ArrowUpRight, BellRing, Blocks, CalendarDays,
-  ChevronRight, Clock, HandCoins, Hourglass, Megaphone, Receipt, RefreshCw,
+  ChevronRight, Clock, CreditCard, HandCoins, Hourglass, Megaphone, RefreshCw,
   TrendingUp, UserPlus, Users, type LucideIcon,
 } from 'lucide-react'
 import { adminGet, can, formatMoney, hasFeature, useAdminAccess, v1Get, hasModule } from '../../../lib/admin-access'
@@ -83,11 +83,11 @@ const toLocalDateStr = (d: Date) => {
   return `${y}-${m}-${day}`
 }
 
-const QUICK_LINKS: { href: string; label: string; icon: LucideIcon; feature?: string; module?: string }[] = [
-  { href: '/admin/bagislar', label: 'Bağışlar', icon: HandCoins, module: 'receipts' },
+const QUICK_LINKS: { href: string; label: string; icon: LucideIcon; feature?: string; module?: string | string[] }[] = [
+  { href: '/admin/bagislar', label: 'Tüm Bağışlar', icon: HandCoins, module: 'receipts' },
   { href: '/admin/kampanyalar', label: 'Kampanyalar', icon: Megaphone, module: 'site' },
   { href: '/admin/bagiscilar', label: 'Bağışçılar', icon: Users, feature: 'donor_crm', module: 'donors' },
-  { href: '/admin/bagislar?gorunum=elle', label: 'Elle makbuzlar', icon: Receipt, feature: 'receipts', module: 'receipts' },
+  { href: '/admin/online-bagis', label: 'Online Bağış', icon: CreditCard, module: ['receipts', 'bank'] },
   { href: '/admin/gelen-havaleler', label: 'Gelen Havaleler', icon: ArrowDownToLine, feature: 'bank_transactions', module: 'bank' },
   { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: Blocks, module: 'site' },
 ]

@@ -8,7 +8,7 @@ import { apiErrorMessage, v1Send } from '../../../../lib/admin-access'
 import { confirmDialog, toast } from '../../../../components/admin/ui'
 
 const NAMES: Record<string, string> = {
-  donors: 'Bağışçılar', campaigns: 'Kampanyalar', receipts: 'Makbuzlar', 'online-donations': 'Online Bağış', 'campaign-tabs': 'Kampanya Sekmeler',
+  donors: 'Bağışçılar', campaigns: 'Kampanyalar', receipts: 'Tüm Makbuzlar', 'online-donations': 'Online Bağış', 'campaign-tabs': 'Kampanya Sekmeler',
   'campaign-pages': 'Kampanya Sayfaları', 'sms-lists': 'SMS Listeleri', 'mail-lists': 'Mail Listeleri', 'mail-templates': 'Mail Şablonları',
   'mail-batches': 'Mail Gönderimleri', representatives: 'Temsilciler', exports: 'Dışa Aktarımlar', 'active-sessions': 'Aktif Oturumlar',
 }

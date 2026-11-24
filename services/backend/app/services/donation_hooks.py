@@ -4,6 +4,7 @@ Called once per donation, inside the same transaction that confirms it (online
 checkout finalisation and staff-entered receipts), so a donation and its kurban
 shares / installment payments / well funding are committed together.
 """
+import re
 from datetime import date, datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
@@ -18,16 +19,35 @@ from app.models.membership import Member, MemberDue
 from app.services.ledger import post_donation, remove_source
 from app.models.sponsorship import Pledge, PledgeInstallment, WellShare
 from app.models.water_well import WaterWell
+from app.utils.content import sanitize_public_text
 
 MAX_SHARES_PER_DONATION = 700
 
 
+def _known_kurban_type(value: Any) -> Optional[str]:
+    """"Adak", "adak", "ADAK KURBANI" → "adak"; None when it is not one of KURBAN_TYPES."""
+    def fold(text: str) -> str:
+        return text.translate(str.maketrans("İIıŞşÜü", "iiissuu")).lower()
+
+    text = re.sub(r"\s*kurban[iı]?$", "", fold(" ".join(str(value or "").split())))
+    return next((key for key, label in KURBAN_TYPES.items() if text in {key, fold(label)}), None)
+
+
 def normalize_kurban_type(value: Any) -> str:
-    text = str(value or "").strip().lower()
-    for key, label in KURBAN_TYPES.items():
-        if text in {key, label.lower(), label.lower().replace("ü", "u").replace("ş", "s")}:
-            return key
-    return "vacip"
+    return _known_kurban_type(value) or "vacip"
+
+
+def intent_value(metadata: dict) -> Any:
+    """Chosen intention: kurban forms send "kurban_type", the site's donation cards send "niyet"."""
+    return metadata.get("kurban_type") or metadata.get("niyet")
+
+
+def intent_label(value: Any) -> Optional[str]:
+    """Printable intention; the organisation's own wording is kept when it is not a known type."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    known = _known_kurban_type(value)
+    return KURBAN_TYPES[known] if known else (sanitize_public_text(value) or "")[:60] or None
 
 
 def _names(value: Any) -> list[str]:
@@ -61,7 +81,7 @@ async def create_kurban_shares(db: AsyncSession, donation: Donation, donor: Dono
         donation.payment_details = {**(donation.payment_details or {}), "kurban_note": "Tutar bir hisse bedelinin altında"}
         return []
     names = _names(metadata.get("kurban_names"))
-    kurban_type = normalize_kurban_type(metadata.get("kurban_type"))
+    kurban_type = normalize_kurban_type(intent_value(metadata))
     fallback_name = donation.on_behalf_of or donor.full_name
     on_behalf_phone = (
         metadata.get("on_behalf_of_phone")
@@ -228,6 +248,9 @@ async def pay_member_dues(db: AsyncSession, donation: Donation, metadata: dict) 
 async def on_donation_confirmed(db: AsyncSession, donation: Donation, donor: Donor, *,
                                 quantity: int = 1, metadata: Optional[dict] = None) -> dict:
     metadata = metadata or {}
+    label = intent_label(intent_value(metadata))
+    if label:
+        donation.payment_details = {**(donation.payment_details or {}), "niyet": label}
     shares = await create_kurban_shares(db, donation, donor, quantity, metadata)
     installments = await pay_installments(db, donation, metadata)
     well = await fund_water_well(db, donation, donor)

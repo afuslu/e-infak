@@ -9,12 +9,18 @@ import { QuickSmsDialog } from './QuickSmsDialog'
 import { WhatsAppIcon } from './ui'
 import { smsAmount } from '../../lib/sms'
 
-interface CampaignRef { id: string; title: string }
+interface CheckoutField { key?: string; label?: string; options?: string[] }
+interface CampaignRef { id: string; title: string; checkout_fields_schema?: CheckoutField[] }
+/** The campaign's intention question; "niyet" holds the organisation's own choices, so it wins over "kurban_type". */
+const intentField = (campaign?: CampaignRef) => {
+  const fields = (campaign?.checkout_fields_schema || []).filter((f) => f.options?.length)
+  return fields.find((f) => f.key === 'niyet') || fields.find((f) => f.key === 'kurban_type')
+}
 interface DonorRef { id: string; full_name: string; phone: string | null; email: string | null }
 interface Staff { id: string; first_name: string; last_name: string; is_active: boolean }
 interface AccountRef { id: string; bank: string; label: string }
-interface Line { campaign_id: string; amount: string; currency: string; quantity: string; on_behalf_of: string; on_behalf_of_phone: string }
-const emptyLine = (): Line => ({ campaign_id: '', amount: '', currency: 'TRY', quantity: '1', on_behalf_of: '', on_behalf_of_phone: '' })
+interface Line { campaign_id: string; amount: string; currency: string; quantity: string; on_behalf_of: string; on_behalf_of_phone: string; intent: string }
+const emptyLine = (): Line => ({ campaign_id: '', amount: '', currency: 'TRY', quantity: '1', on_behalf_of: '', on_behalf_of_phone: '', intent: '' })
 const toCents = (value: string) => Math.round(Number(value.replace(/\./g, '').replace(',', '.')) * 100) || 0
 const nowTime = () => new Date().toTimeString().slice(0, 5)
 
@@ -79,7 +85,7 @@ export function ManualReceiptForm({
   const [smsOpen, setSmsOpen] = useState(false)
 
   useEffect(() => {
-    axios.get(`${adminApiBase()}/api/v1/campaigns`, { headers: adminAuthHeaders(), params: { page_size: 100 } })
+    axios.get(`${adminApiBase()}/api/v1/campaigns`, { headers: adminAuthHeaders(), params: { page_size: 500 } })
       .then((res) => setCampaigns(res.data.items || []))
       .catch(() => setCampaigns([]))
     // Koçan modülü pakette yoksa liste boş kalır ve alan gösterilmez.
@@ -113,6 +119,8 @@ export function ManualReceiptForm({
 
   const smsPhone = donor ? donor.phone : newDonor.phone
 
+  const intentOf = (line: Line) => intentField(campaigns.find((c) => c.id === line.campaign_id))
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -122,6 +130,10 @@ export function ManualReceiptForm({
     }
     if (!kurban && lines.some((l) => !l.campaign_id || toCents(l.amount) <= 0)) {
       setError('Her satır için bağış kalemi ve tutar girin')
+      return
+    }
+    if (!kurban && lines.some((l) => intentOf(l) && !l.intent)) {
+      setError('Kurban kalemi için niyet seçin')
       return
     }
     if (!amountCents || amountCents <= 0) {
@@ -147,6 +159,7 @@ export function ManualReceiptForm({
             campaign_id: l.campaign_id, amount_cents: toCents(l.amount), currency: l.currency,
             quantity: Math.max(1, Number(l.quantity) || 1), on_behalf_of: l.on_behalf_of.trim() || null,
             on_behalf_of_phone: l.on_behalf_of_phone.trim() || null,
+            metadata: intentOf(l) && l.intent ? { [intentOf(l)!.key!]: l.intent } : {},
           })),
         }),
         payment_method: form.payment_method.startsWith('acc:') ? 'bank_transfer' : form.payment_method,
@@ -258,7 +271,7 @@ export function ManualReceiptForm({
             {lines.map((line, index) => (
               <div key={index} className="grid grid-cols-12 gap-2">
                 <select required aria-label="Bağış kalemi" className={`${inputClass} col-span-12 sm:col-span-4`} value={line.campaign_id}
-                  onChange={(e) => setLine(index, { campaign_id: e.target.value })}>
+                  onChange={(e) => setLine(index, { campaign_id: e.target.value, intent: '' })}>
                   <option value="">Bağış kalemi seçin</option>
                   {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                 </select>
@@ -273,6 +286,13 @@ export function ManualReceiptForm({
                   className="col-span-1 flex items-center justify-center text-gray-400 hover:text-red-600 disabled:opacity-30">
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
+                {intentOf(line) && (
+                  <select required aria-label="Niyet" className={`${inputClass} col-span-12`} value={line.intent}
+                    onChange={(e) => setLine(index, { intent: e.target.value })}>
+                    <option value="">Niyet seçin</option>
+                    {intentOf(line)!.options!.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                )}
                 <input aria-label="Kimin adına" placeholder="Kimin adına (isteğe bağlı)" maxLength={200} className={`${inputClass} col-span-12 sm:col-span-7`} value={line.on_behalf_of}
                   onChange={(e) => setLine(index, { on_behalf_of: e.target.value })} />
                 <input aria-label="Adına yapılanın telefonu" type="tel" placeholder="Hediye SMS tel (isteğe bağlı)" maxLength={32} className={`${inputClass} col-span-12 sm:col-span-5`} value={line.on_behalf_of_phone}

@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronDown, Copy, Download, Eye, FileText, HandCoins, MessageSquare, Plus, RefreshCw, SlidersHorizontal, Wallet, X } from 'lucide-react'
+import { Check, ChevronDown, Copy, Download, Eye, FileText, HandCoins, MessageSquare, RefreshCw, SlidersHorizontal, Wallet } from 'lucide-react'
 import { Button, Card, Input } from '@e-infak/ui'
 import { adminGet, adminSend, apiErrorMessage, exportPdf, exportXlsx, formatMoney, useAdminAccess, v1Get, whatsappUrl, can } from '../../../../lib/admin-access'
 import { GlobalStatCard, MuhasebeStatModal, type MuhasebeStatModalProps } from '../../../../components/admin/muhasebe/OnMuhasebeUI'
 import { Label, inputClass } from '../../../../components/admin/FormKit'
-import { ManualReceiptForm, downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
+import { downloadReceiptPdf } from '../../../../components/admin/ManualReceiptForm'
 import { QuickSmsDialog, sentNotice } from '../../../../components/admin/QuickSmsDialog'
 import {
   ExcelIcon,
@@ -45,6 +45,7 @@ interface Row {
   is_anonymous?: boolean
   paid_at: string
   on_behalf_of: string | null
+  intent?: string | null
   on_behalf_of_phone?: string | null
   issued_by_name: string | null
   donor_id: string
@@ -85,10 +86,9 @@ const emptyFilters = {
 
 const PAGE_SIZE = 50
 
-// Quick views; "Elle makbuzlar" replaces the former Makbuzlar page (/admin/makbuzlar → ?gorunum=elle).
+// Quick views (?gorunum=<key>). Staff receipts are written from the donor card.
 const QUICK_VIEWS: [string, string, Partial<typeof emptyFilters>][] = [
   ['all', 'Tüm bağışlar', {}],
-  ['elle', 'Elle makbuzlar', { issued_by: 'manual' }],
   ['bekleyen', 'Bekleyen makbuzlar', { issued_by: 'manual', status: 'pending' }],
   ['online', 'Online bağışlar', { issued_by: 'online' }],
 ]
@@ -150,7 +150,6 @@ export default function AdminDonationsPage() {
   const [statModal, setStatModal] = useState<Omit<MuhasebeStatModalProps, 'isOpen' | 'onClose'> | null>(null)
   const [campaigns, setCampaigns] = useState<{ id: string; title: string }[]>([])
   const [staff, setStaff] = useState<{ id: string; first_name: string; last_name: string }[]>([])
-  const [showManual, setShowManual] = useState(false)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
 
@@ -337,7 +336,7 @@ export default function AdminDonationsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Bağışlar"
+        title="Tüm Bağışlar"
         description="Tüm online ve elle kesilen bağışları arayın, filtreleyin, makbuz PDF'i indirin ve tahsilat durumlarını yönetin."
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -367,39 +366,9 @@ export default function AdminDonationsPage() {
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
               Yenile
             </Button>
-            {canIssue && (
-              <Button type="button" size="sm" onClick={() => setShowManual((v) => !v)}>
-                {showManual ? (
-                  <>
-                    <X className="w-3.5 h-3.5 mr-1.5" />
-                    Vazgeç
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-3.5 h-3.5 mr-1.5" />
-                    Elle Makbuz Kes
-                  </>
-                )}
-              </Button>
-            )}
           </div>
         }
       />
-
-      {showManual && (
-        <Modal title="Elle Makbuz Kes" size="lg" onClose={() => setShowManual(false)}>
-          <ManualReceiptForm
-            onDone={(r) => {
-              setShowManual(false)
-              const kurbanNo = [...new Set((r.kurban_shares || []).map((s) => s.animal_number).filter(Boolean))]
-              toast.ok(kurbanNo.length
-                ? `${r.receipt_number} numaralı makbuz kesildi · Kurban No: ${kurbanNo.join(', ')}`
-                : `${r.receipt_number} numaralı makbuz kesildi`)
-              load()
-            }}
-          />
-        </Modal>
-      )}
 
       {result && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -758,6 +727,7 @@ export default function AdminDonationsPage() {
                       </Td>
                       <Td className="text-xs text-slate-700">
                         {r.campaign_title || '—'}
+                        {r.intent ? <div className="text-[11px] font-semibold text-emerald-700">Niyet: {r.intent}</div> : null}
                         <KurbanNo row={r} />
                       </Td>
                       <Td>
@@ -873,7 +843,7 @@ export default function AdminDonationsPage() {
                       <div>
                         <p className="font-bold text-slate-900">{r.donor_name}</p>
                         <p className="font-mono text-[11px] text-slate-400">{r.receipt_number} · {new Date(r.paid_at).toLocaleDateString('tr-TR')}</p>
-                        <p className="text-xs text-slate-600">{r.campaign_title || '—'}</p>
+                        <p className="text-xs text-slate-600">{r.campaign_title || '—'}{r.intent ? ` · Niyet: ${r.intent}` : ''}</p>
                         <KurbanNo row={r} />
                       </div>
                     </div>
@@ -991,6 +961,7 @@ export default function AdminDonationsPage() {
             <div className="rounded-lg bg-slate-50 p-3">
               <div className="text-slate-400">Kampanya</div>
               <div className="font-semibold text-slate-800">{detailRow.campaign_title || '—'}</div>
+              {detailRow.intent && <div className="text-xs font-semibold text-emerald-700">Niyet: {detailRow.intent}</div>}
               <KurbanNo row={detailRow} />
               {detailRow.on_behalf_of && (
                 <div className="text-emerald-700 mt-0.5">

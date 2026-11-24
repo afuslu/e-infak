@@ -10,6 +10,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-24-niyet', date: '2026-11-24', area: 'Panel', title: 'Makbuzda kurban niyeti',
+    summary: 'Kurban niyeti makbuza yazılır; Tüm Makbuzlar ve Tüm Bağışlar adları sadeleşti.',
+    items: [
+      { heading: 'Niyet', path: 'Bağışçı kartı › Yeni Makbuz', points: ['Sitede veya makbuz formunda seçilen niyet (Adak, Akika, Şükür…) PDF makbuzda ve listelerde görünür.', 'Çok kalemli makbuzun e-posta ekinde ve sitedeki PDF\'inde tüm kalemler yer alır.'] },
+      { heading: 'Makbuz kesme', path: 'Operasyon › Tüm Bağışlar', points: ['"Elle makbuzlar" görünümü kaldırıldı; makbuz bağışçı kartından kesilir.'] },
+    ],
+  },
+  {
     id: '2026-11-22-site', date: '2026-11-22', area: 'Web Sitesi', title: 'Form oluşturucu, yönlendirmeler ve yeni logolar',
     summary: 'Siteye kendi formlarınızı ekleyin, eski adresleri yönlendirin, footer / PDF logosu seçin.',
     items: [

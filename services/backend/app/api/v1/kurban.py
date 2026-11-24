@@ -542,7 +542,7 @@ async def bulk_parse(file: UploadFile = File(...), _: User = WRITE):
                 except ValueError:
                     continue
             elif field == "kurban_type":
-                row[field] = normalize_kurban_type(str(value).lower().replace("kurbanı", "").replace("kurban", "").strip())
+                row[field] = normalize_kurban_type(value)
             elif field == "status":
                 folded = _fold_header(value)
                 row[field] = "paid" if folded.startswith(("alindi", "odendi", "evet", "tamam")) else "pending"
@@ -1111,8 +1111,12 @@ async def update_share(request: Request, share_id: UUID, payload: ShareUpdate, d
         raise HTTPException(status_code=409, detail="Kesilmiş hisse değiştirilemez")
     if payload.on_behalf_of is not None:
         share.on_behalf_of = payload.on_behalf_of or None
-    if payload.kurban_type:
+    if payload.kurban_type and normalize_kurban_type(payload.kurban_type) != share.kurban_type:
         share.kurban_type = normalize_kurban_type(payload.kurban_type)
+        donation = await db.get(Donation, share.donation_id) if share.donation_id else None
+        if donation:
+            # The receipt now follows the shares, even when they are set to the default type.
+            donation.payment_details = {**(donation.payment_details or {}), "niyet_edited": True}
     if payload.unassign:
         share.animal_id, share.share_number = None, None
     elif payload.animal_id and payload.animal_id != share.animal_id:

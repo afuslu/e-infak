@@ -48,6 +48,14 @@ class CheckoutItem(BaseModel):
         digits = "".join(ch for ch in str(value) if ch.isdigit() or ch == "+").strip()
         return digits[:32] or None
 
+    @model_validator(mode="after")
+    def behalf_from_card(self):
+        # The site's donation cards put the name in the item's metadata.
+        name = self.metadata.get("ad_soyad_adina")
+        if not self.on_behalf_of and isinstance(name, str):
+            self.on_behalf_of = self.clean_on_behalf(name)
+        return self
+
 
 class CheckoutSessionCreate(BaseModel):
     items: list[CheckoutItem] = Field(min_length=1, max_length=50)

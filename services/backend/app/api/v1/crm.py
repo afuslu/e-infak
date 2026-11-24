@@ -30,6 +30,7 @@ from app.services.donation_hooks import DonationEffectsLocked, on_donation_cance
 from app.services.offline_donation import record_offline_donation
 from app.services.fx import remove_from_campaign, remove_from_donor
 from app.services.receipt_books import take_number
+from app.services.receipt_lines import donation_intents
 
 router = APIRouter(
     prefix="/admin-features",
@@ -473,6 +474,7 @@ async def get_donor_card(request: Request, donor_id: UUID, db: AsyncSession = De
         bucket["count"] += 1
         bucket["totals"][d.currency or "TRY"] = bucket["totals"].get(d.currency or "TRY", 0) + d.amount_cents
 
+    intents = await donation_intents(db, donations)
     card = _donor_summary(donor, names, current_user)
     card.update({
         "address": donor.address,
@@ -486,7 +488,7 @@ async def get_donor_card(request: Request, donor_id: UUID, db: AsyncSession = De
         "phone_code": donor.phone_code,
         "phone2": mask_phone(donor.phone2, current_user) if donor.phone2 else None,
         "phone2_code": donor.phone2_code,
-        "donations": [_donation_row(d, names) for d in donations],
+        "donations": [{**_donation_row(d, names), "intent": intents.get(d.id)} for d in donations],
         "notes": [
             {"id": str(n.id), "content": n.content, "created_at": n.created_at,
              "author": f"{n.author.first_name} {n.author.last_name}" if n.author else None}
@@ -899,6 +901,7 @@ def _donation_row(d: Donation, names: dict) -> dict:
         "source": d.payment_provider,
         "paid_at": d.paid_at or d.created_at,
         "on_behalf_of": d.on_behalf_of,
+        "intent": None,  # filled by list views, see receipt_lines.donation_intents
         "on_behalf_of_phone": (d.payment_details or {}).get("on_behalf_of_phone"),
         "donor_message": d.donor_message,
         "transaction_id": d.transaction_id,
@@ -1008,10 +1011,12 @@ async def search_donations(
 
     # Kurban hissesi olan bağışlarda hayvan numaraları (tek sorgu; kurban dışı bağışta boş).
     numbers = await kurban_numbers(db, [d.id for d in rows])
+    intents = await donation_intents(db, rows)
     items = []
     for d in rows:
         row = _donation_row(d, names)
         row.update({
+            "intent": intents.get(d.id),
             "kurban_numbers": sorted({s["animal_number"] for s in numbers.get(d.id, []) if s["animal_number"]}),
             "kurban_unassigned": sum(1 for s in numbers.get(d.id, []) if not s["animal_number"]),
             "donor_id": str(d.donor_id),

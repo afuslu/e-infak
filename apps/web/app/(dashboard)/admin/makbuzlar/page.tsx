@@ -134,7 +134,7 @@ export default function ReceiptsPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><FileText className="h-5 w-5" /></div>
-        <h1 className="text-2xl font-bold text-gray-900">Makbuzlar</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Tüm Makbuzlar</h1>
         <div className="ms-auto flex flex-wrap items-center gap-2">
           {(can(access, 'bank.totals') || can(access, 'receipts.view_all')) && (
             <button type="button" onClick={showTotals} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-gray-700 hover:bg-gray-50">

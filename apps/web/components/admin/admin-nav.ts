@@ -80,7 +80,7 @@ export const NAV_RAIL: NavRail[] = [
     key: 'operasyon', label: 'Operasyon', icon: LayoutGrid, sections: [
       {
         title: 'Bağış Yönetimi', items: [
-          { href: '/admin/makbuzlar', label: 'Makbuzlar', icon: FileText, module: 'receipts' },
+          { href: '/admin/makbuzlar', label: 'Tüm Makbuzlar', icon: FileText, module: 'receipts' },
           { href: '/admin/bagislar', label: 'Tüm Bağışlar', icon: HandCoins, module: 'receipts' },
           { href: '/admin/subscriptions', label: 'Düzenli Ödemeler', icon: Repeat, feature: 'recurring', module: ['finance', 'donors', 'receipts'] },
           { href: '/admin/makbuz-kocanlari', label: 'Makbuz Koçanları', icon: BookOpen, feature: 'receipts', module: ['receipts', 'finance'] },

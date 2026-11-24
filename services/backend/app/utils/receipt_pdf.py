@@ -331,8 +331,10 @@ def build_receipt_pdf(
     verify_base_url: str,
     on_behalf_of: str | None = None,
     official_receipt_no: str | None = None,
-    lines: list[tuple[str, int, str, str | None]] | None = None,
+    lines: list[tuple[str, int, str, str | None, str | None]] | None = None,
     status_label: str | None = None,
+    intent: str | None = None,
+    verify_amount_cents: int | None = None,
 ) -> bytes:
     """Tek sayfalık kurumsal bağış makbuzu üretir ve PDF bayt dizisi döner."""
     buffer = BytesIO()
@@ -435,6 +437,7 @@ def build_receipt_pdf(
         ("Bağışçı", donor_name or "Anonim Bağışçı"),
         *([("Adına Bağış", on_behalf_of[:80])] if on_behalf_of and not lines else []),
         *([] if lines else [("Kampanya", (getattr(campaign, "title", None) or "-")[:80])]),
+        *([("Niyet", intent[:80])] if intent and not lines else []),
         ("Ödeme Yöntemi", _PAYMENT_LABEL.get(payment_method, payment_method)),
         ("Düzenlenme Tarihi", (paid_at or datetime.now()).strftime("%d.%m.%Y %H:%M")),
     ]
@@ -476,15 +479,19 @@ def build_receipt_pdf(
         pdf.drawString(margin + 96 * mm, y - 4.8 * mm, "ADINA")
         pdf.drawRightString(width - margin - 3 * mm, y - 4.8 * mm, "TUTAR")
         y -= 7 * mm
-        for idx, (title_, cents, cur, behalf) in enumerate(lines[:14]):
+        for idx, (title_, cents, cur, behalf, line_intent) in enumerate(lines[:14]):
             rh = 7 * mm
             if idx % 2 == 1:
                 pdf.setFillColor(zebra)
                 pdf.rect(margin, y - rh, table_w, rh, fill=1, stroke=0)
             pdf.setFillColor(ink)
             pdf.setFont(FONT, 9.5)
-            pdf.drawString(margin + 3 * mm, y - 4.8 * mm, (title_ or "-")[:50])
+            pdf.drawString(margin + 3 * mm, y - (3.5 if line_intent else 4.8) * mm, (title_ or "-")[:50])
             pdf.setFillColor(muted)
+            if line_intent:
+                pdf.setFont(FONT, 7)
+                pdf.drawString(margin + 3 * mm, y - 6.2 * mm, f"Niyet: {line_intent[:50]}")
+                pdf.setFont(FONT, 9.5)
             pdf.drawString(margin + 96 * mm, y - 4.8 * mm, (behalf or "-")[:26])
             pdf.setFillColor(ink)
             pdf.setFont(FONT_BOLD, 9.5)
@@ -513,7 +520,7 @@ def build_receipt_pdf(
     pdf.drawRightString(width - margin - 6 * mm, y - 11.5 * mm, _fmt_amount(amount_cents, currency))
 
     # --- Dijital Doğrulama & QR Kod Kartı ---
-    vhash = verification_hash(receipt_number, amount_cents)
+    vhash = verification_hash(receipt_number, amount_cents if verify_amount_cents is None else verify_amount_cents)
     verify_url = f"{verify_base_url.rstrip('/')}/verify/receipt/{receipt_number}?k={vhash}"
     y -= box_h + 8 * mm
     card_h = 26 * mm

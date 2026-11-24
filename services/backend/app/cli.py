@@ -25,6 +25,10 @@
     python -m app.cli list-orgs
     python -m app.cli backup-org --org hakder --out /data/media/_exports/_gecelik/hakder.zip
         Used by deploy/backup/gecelik-yedek.sh: organisation slugs, and one organisation's full backup ZIP.
+
+    python -m app.cli repair-kurban-intents --org hakder [--apply]
+        Kurban shares saved as "Vacip" although the donor chose another intention on the site.
+        Lists them; only --apply writes. Shares whose type staff changed are left alone.
 """
 import argparse
 import asyncio
@@ -205,6 +209,44 @@ async def backup_org(slug: str, out: str) -> None:
         await write_backup(db, org, Path(out))
 
 
+async def repair_kurban_intents(slug: str, apply: bool, db=None) -> int:
+    """Shares saved as "vacip" although the online order named another intention. Staff edits are kept."""
+    from sqlalchemy import select
+
+    from app.core.db import AsyncSessionLocal
+    from app.models.donation import Donation
+    from app.models.kurban import KURBAN_TYPES, KurbanShare
+    from app.models.organization import Organization
+    from app.models.payment import PaymentOrderItem
+    from app.services.donation_hooks import intent_label, intent_value, normalize_kurban_type
+
+    if db is None:
+        async with AsyncSessionLocal() as session:
+            return await repair_kurban_intents(slug, apply, session)
+    rows = (await db.execute(
+        select(KurbanShare, Donation, PaymentOrderItem.metadata_json)
+        .join(Donation, Donation.id == KurbanShare.donation_id)
+        .join(Organization, Organization.id == KurbanShare.organization_id)
+        .join(PaymentOrderItem, PaymentOrderItem.id == Donation.payment_order_item_id)
+        .where(Organization.slug == slug, KurbanShare.kurban_type == "vacip")
+        .order_by(Donation.paid_at)
+    )).all()
+    found = 0
+    for share, donation, metadata in rows:
+        kind = normalize_kurban_type(intent_value(metadata or {}))
+        if kind == "vacip" or (donation.payment_details or {}).get("niyet_edited"):
+            continue
+        found += 1
+        print(f"{donation.receipt_number}  Vacip -> {KURBAN_TYPES[kind]}  ({share.status.value})")
+        if apply:
+            share.kurban_type = kind
+            donation.payment_details = {**(donation.payment_details or {}), "niyet": intent_label(intent_value(metadata))}
+    if apply:
+        await db.commit()
+    print(f"{found} hisse {'düzeltildi' if apply else 'bulundu (yazılmadı; --apply ile düzeltilir)'}")
+    return found
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -232,6 +274,9 @@ def main() -> None:
     backup = commands.add_parser("backup-org", help="Kurumun tam yedeğini (ZIP) yazar")
     backup.add_argument("--org", required=True, help="Kurum kısa adı (slug)")
     backup.add_argument("--out", required=True, help="Yazılacak ZIP dosyası")
+    intents = commands.add_parser("repair-kurban-intents", help="Sitede seçilen niyeti Vacip kalan hisselere yazar")
+    intents.add_argument("--org", required=True, help="Kurum kısa adı (slug)")
+    intents.add_argument("--apply", action="store_true", help="Yaz (yoksa yalnız listeler)")
     args = parser.parse_args()
     if args.command == "import-legacy-credentials":
         asyncio.run(import_legacy_credentials(args.dry_run))
@@ -247,6 +292,8 @@ def main() -> None:
         asyncio.run(list_orgs())
     elif args.command == "backup-org":
         asyncio.run(backup_org(args.org, args.out))
+    elif args.command == "repair-kurban-intents":
+        asyncio.run(repair_kurban_intents(args.org, args.apply))
 
 
 if __name__ == "__main__":

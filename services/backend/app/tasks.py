@@ -216,6 +216,7 @@ async def _fetch_donation_and_send_receipt(donation_id: str):
         attachment = None
         try:
             import base64
+            from app.services.receipt_lines import receipt_print_data
             from app.utils.receipt_pdf import build_receipt_pdf
 
             verify_base = (
@@ -228,7 +229,7 @@ async def _fetch_donation_and_send_receipt(donation_id: str):
                 campaign=campaign,
                 donor_name=donor.full_name if not donation.is_anonymous else "Anonim Bağışçı",
                 receipt_number=donation.receipt_number,
-                amount_cents=donation.amount_cents,
+                **await receipt_print_data(session, donation),
                 currency=donation.currency or "TRY",
                 payment_method=donation.payment_method.value if hasattr(donation.payment_method, "value") else str(donation.payment_method),
                 paid_at=donation.paid_at or donation.created_at,

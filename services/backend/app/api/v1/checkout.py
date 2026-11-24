@@ -433,6 +433,11 @@ async def create_checkout_session(
             raise HTTPException(status_code=400, detail=f"{campaign.title} için minimum tutar karşılanmıyor")
         if len(json.dumps(item.metadata, ensure_ascii=False)) > 10_000:
             raise HTTPException(status_code=400, detail="Kampanya ek bilgileri çok büyük")
+        # A site card sends "niyet"; a campaign linked to a kurban organisation asks for "kurban_type".
+        asked = {f.get("key") for f in campaign.checkout_fields_schema or []} & {"kurban_type", "niyet"}
+        intent = item.metadata.get("kurban_type") or item.metadata.get("niyet")
+        if intent:
+            item.metadata = {**item.metadata, **{k: intent for k in asked if not item.metadata.get(k)}}
         for field in campaign.checkout_fields_schema or []:
             key = field.get("key")
             value = item.metadata.get(key) if key else None

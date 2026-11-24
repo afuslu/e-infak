@@ -33,7 +33,7 @@ const CARDS: { title: string; text: string; report?: ReportKey; href?: string }[
   { title: 'Bağış Kanalı Dağılımı', text: 'Ödeme şekline ve kanala göre bağış dağılımı; aralık boşsa tüm zamanlar.', report: 'channels' },
   { title: 'Bağışçı Kaynağı', text: 'Bağışçıların referans/kaynak dağılımı; aralık üyelik tarihine uygulanır.', report: 'sources' },
   { title: 'Personel Makbuz Raporu', text: 'Tarih aralığında personel başına makbuz adedi ve tutarı.', report: 'staff' },
-  { title: 'Personel Makbuz Raporu (Detaylı)', text: 'Personel bazında makbuz dökümü (Makbuzlar ekranında Personel sütunundan filtreleyin).', href: '/admin/makbuzlar' },
+  { title: 'Personel Makbuz Raporu (Detaylı)', text: 'Personel bazında makbuz dökümü (Tüm Makbuzlar ekranında Personel sütunundan filtreleyin).', href: '/admin/makbuzlar' },
   { title: 'Kampanya/Bağış Raporu', text: 'Tarih aralığında kampanya bazında bağış toplamları.', report: 'campaigns' },
   { title: 'Kampanya/Bağış Raporu (Detaylı)', text: 'Kampanya bazında bağış dökümü (Tüm Bağışlar ekranında kampanyayı seçin).', href: '/admin/bagislar' },
   { title: 'Türlere Göre Bağış Raporu', text: 'Bağış türlerine (standart, kurban, su kuyusu, proje…) göre dağılım.', report: 'types' },

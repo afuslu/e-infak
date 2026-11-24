@@ -15,7 +15,6 @@ import { font, radius, space, useTheme } from '@/theme';
 
 const VIEWS = [
   { value: 'all', label: 'Tümü' },
-  { value: 'elle', label: 'Elle makbuz' },
   { value: 'bekleyen', label: 'Bekleyen' },
   { value: 'online', label: 'Online' },
 ];
@@ -39,7 +38,7 @@ export default function Donations() {
   const { access } = useAuth();
   const { colors } = useTheme();
   const ui = useUi();
-  const [view, setView] = useState(params.gorunum || 'all');
+  const [view, setView] = useState(VIEWS.some((v) => v.value === params.gorunum) ? params.gorunum! : 'all');
   const [term, setTerm] = useState('');
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [draft, setDraft] = useState<Filters>(NO_FILTERS);
@@ -48,7 +47,7 @@ export default function Donations() {
   const campaigns = useCampaignOptions();
 
   useEffect(() => {
-    if (params.gorunum) setView(params.gorunum);
+    if (VIEWS.some((v) => v.value === params.gorunum)) setView(params.gorunum!);
   }, [params.gorunum]);
 
   // Genel bakıştaki döviz kartlarından gelinir.
@@ -62,7 +61,7 @@ export default function Donations() {
     status: view === 'bekleyen' ? 'pending' : filters.status,
     payment_method: filters.payment_method, currency: filters.currency,
     min_amount_cents: toCents(filters.min), max_amount_cents: toCents(filters.max),
-    issued_by: view === 'elle' || view === 'bekleyen' ? 'manual' : view === 'online' ? 'online' : undefined,
+    issued_by: view === 'bekleyen' ? 'manual' : view === 'online' ? 'online' : undefined,
     sort: filters.sort,
   }), [q, filters, view]);
 

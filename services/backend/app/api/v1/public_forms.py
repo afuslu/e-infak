@@ -217,6 +217,7 @@ async def download_public_receipt_pdf(
     _: None = Depends(rate_limit("receipt-pdf", limit=15)),
 ):
     """Doğrulanmış bağış makbuzunu indirilebilir resmi PDF olarak döner."""
+    from app.services.receipt_lines import receipt_print_data
     from app.utils.receipt_pdf import build_receipt_pdf
 
     result = await db.execute(
@@ -246,7 +247,7 @@ async def download_public_receipt_pdf(
         campaign=donation.campaign,
         donor_name=donor_name,
         receipt_number=donation.receipt_number,
-        amount_cents=donation.amount_cents,
+        **await receipt_print_data(db, donation),
         currency=donation.currency or "TRY",
         payment_method=donation.payment_method.value if hasattr(donation.payment_method, "value") else str(donation.payment_method),
         paid_at=donation.paid_at or donation.created_at,

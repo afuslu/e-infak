@@ -4,7 +4,7 @@ export interface ShortcutAction { key: string; label: string; href: string }
 export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { key: 'new_receipt', label: 'Yeni Makbuz', href: '/admin/makbuzlar?yeni=1' },
   { key: 'home', label: 'Anasayfa', href: '/admin' },
-  { key: 'receipts', label: 'Makbuzlar', href: '/admin/makbuzlar' },
+  { key: 'receipts', label: 'Tüm Makbuzlar', href: '/admin/makbuzlar' },
   { key: 'donations', label: 'Tüm Bağışlar', href: '/admin/bagislar' },
   { key: 'donors', label: 'Bağışçılar', href: '/admin/bagiscilar' },
   { key: 'new_donor', label: 'Yeni Bağışçı', href: '/admin/bagiscilar/yeni' },
