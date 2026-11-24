@@ -38,7 +38,8 @@ kur() {
 kur saatlik-yedek.sh e-infak-saatlik
 kur gecelik-yedek.sh e-infak-yedek
 kur geri-yukleme-testi.sh e-infak-restore-test
-install -m 644 "$KAYNAK"/e-infak-{saatlik,yedek,restore-test}.{service,timer} /etc/systemd/system/
+kur gunluk-ozet.sh e-infak-ozet
+install -m 644 "$KAYNAK"/e-infak-{saatlik,yedek,restore-test,ozet}.{service,timer} /etc/systemd/system/
 systemctl daemon-reload
 [[ -x /usr/local/sbin/e-medrese-yedek-uyari ]] || echo "UYARI: E-Medrese yedeği kurulu değil; hata e-postası gönderilemez."
 

@@ -1,0 +1,10 @@
+[Unit]
+Description=Her sabah 08:00 yedek özeti
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 Europe/Istanbul
+Persistent=true
+Unit=e-infak-ozet.service
+
+[Install]
+WantedBy=timers.target

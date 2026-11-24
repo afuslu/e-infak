@@ -153,6 +153,7 @@ Her gece 03:45'te (E-Medrese'ninki 03:00'te) `e-infak-yedek.timer` çalışır. 
 
 - Ayrıca her saatin 20. dakikasında `e-infak-saatlik.timer` veritabanını `e-infak-yedek/saatlik` klasörüne yükler (48 saat saklanır; medya içermez).
 - Ayın ilk platform yedeği `e-infak-yedek/aylik` klasöründe 365 gün kalır (`AYLIK_GUN`). Süreyi KVKK saklama politikanıza göre ayarlayın.
+- Her sabah 08:00'de `e-infak-ozet.timer` bütün yedeklerin (E-Medrese dahil) durumunu Drive'dan okuyup e-postayla bildirir.
 - Yeni kurumun klasörü ilk gece kendiliğinden oluşur.
 - Dosyalar `/root/.yedek-sifre` ile AES-256 şifrelidir; bu şifreyi parola yöneticinize kaydedin. Aynı şifre hepsini açar, kurumlarla paylaşmayın.
 - Sunucuda (`/var/yedek/e-infak`) 7 gün, Drive'da 30 gün saklanır; silinen kurumların klasörleri de temizlenir. Yedeği o gece alınamayan klasörden bir şey silinmez.
