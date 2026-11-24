@@ -21,6 +21,7 @@ fs.writeFileSync(
       moduleResolution: 'node',
       esModuleInterop: true,
       skipLibCheck: true,
+      resolveJsonModule: true,
       baseUrl: root,
       paths: { '@/*': ['src/*'] },
     },

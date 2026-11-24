@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
+import { ACTIVE_TENANT } from '@/config/tenant';
+import { useAuth } from '@/context/AuthContext';
 import type { SupportedCurrency } from '@/api/public';
 
 export type CartItem = {
@@ -27,13 +29,16 @@ type StoredCart = {
 
 const STORAGE_KEY = 'einfak_donation_cart_v1';
 
-async function readCart(): Promise<StoredCart | null> {
+/** Ortak uygulamada her kurumun sepeti ayrıdır; kuruma özel uygulama eski dosyasını kullanır. */
+const cartKey = (org: string) => (org ? `${STORAGE_KEY}_${org.replace(/[^a-z0-9_-]/gi, '')}` : STORAGE_KEY);
+
+async function readCart(KEY: string): Promise<StoredCart | null> {
   try {
     if (Platform.OS === 'web') {
-      const raw = globalThis.localStorage?.getItem(STORAGE_KEY);
+      const raw = globalThis.localStorage?.getItem(KEY);
       return raw ? JSON.parse(raw) : null;
     }
-    const file = new File(Paths.document, `${STORAGE_KEY}.json`);
+    const file = new File(Paths.document, `${KEY}.json`);
     if (!file.exists) return null;
     const raw = await file.text();
     return raw ? JSON.parse(raw) : null;
@@ -42,14 +47,14 @@ async function readCart(): Promise<StoredCart | null> {
   }
 }
 
-async function writeCart(data: StoredCart): Promise<void> {
+async function writeCart(KEY: string, data: StoredCart): Promise<void> {
   try {
     const serialized = JSON.stringify(data);
     if (Platform.OS === 'web') {
-      globalThis.localStorage?.setItem(STORAGE_KEY, serialized);
+      globalThis.localStorage?.setItem(KEY, serialized);
       return;
     }
-    const file = new File(Paths.document, `${STORAGE_KEY}.json`);
+    const file = new File(Paths.document, `${KEY}.json`);
     file.write(serialized);
   } catch {}
 }
@@ -84,24 +89,28 @@ function makeItemKey(item: AddItemInput): string {
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [currency, setCurrencyState] = useState<SupportedCurrency>('TRY');
-  const [hydrated, setHydrated] = useState(false);
+  const { mode, site } = useAuth();
+  const key = cartKey(ACTIVE_TENANT || mode !== 'donor' ? '' : site?.slug || '');
+  // Hangi kurumun sepeti yüklü; yüklenmemiş sepetin üzerine yazılmaz.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   useEffect(() => {
-    readCart().then((saved) => {
-      if (saved && Array.isArray(saved.items)) {
-        setItems(saved.items);
-        if (saved.currency === 'TRY' || saved.currency === 'USD' || saved.currency === 'EUR') {
-          setCurrencyState(saved.currency);
-        }
-      }
-      setHydrated(true);
+    let alive = true;
+    setLoadedKey(null);
+    readCart(key).then((saved) => {
+      if (!alive) return;
+      setItems(saved && Array.isArray(saved.items) ? saved.items : []);
+      const cur = saved?.currency;
+      setCurrencyState(cur === 'USD' || cur === 'EUR' ? cur : 'TRY');
+      setLoadedKey(key);
     });
-  }, []);
+    return () => { alive = false; };
+  }, [key]);
 
   useEffect(() => {
-    if (!hydrated) return;
-    writeCart({ currency, items });
-  }, [currency, items, hydrated]);
+    if (loadedKey !== key) return;
+    writeCart(key, { currency, items });
+  }, [currency, items, loadedKey, key]);
 
   const setCurrency = useCallback(
     (next: SupportedCurrency, ratesTry?: Record<string, number>) => {

@@ -35,9 +35,9 @@ export default function AboutContactScreen() {
       contentContainerStyle={{ padding: space.lg, paddingBottom: 48, gap: space.md }}
     >
       <View style={[styles.hero, { backgroundColor: primary }]}>
-        <Text style={styles.heroTitle}>{ACTIVE_TENANT?.fullName || site?.name || 'HAKDER'}</Text>
+        <Text style={styles.heroTitle}>{ACTIVE_TENANT?.fullName || site?.name || ''}</Text>
         <Text style={styles.heroSub}>
-          {site?.tagline || ACTIVE_TENANT?.tagline || 'Bir Kapı Aç, Bir Hayat Değiştir'}
+          {site?.tagline || ACTIVE_TENANT?.tagline || ''}
         </Text>
       </View>
 

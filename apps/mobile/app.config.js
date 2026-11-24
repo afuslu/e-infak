@@ -1,45 +1,34 @@
 const fs = require('fs');
 const path = require('path');
 
-const TENANT_PROFILES = {
-  hakder: {
-    name: 'HAKDER',
-    slug: 'e-infak',
-    scheme: 'hakder',
-    icon: './assets/tenants/hakder/icon.png',
-    splashImage: './assets/tenants/hakder/splash.png',
-    adaptiveIcon: './assets/tenants/hakder/adaptive-icon.png',
-    primaryColor: '#00533C',
-    androidPackage: 'org.hakder.mobile',
-    iosBundleId: 'org.hakder.mobile',
-    iosGroupId: 'group.org.hakder.mobile',
-    widgetPrefix: 'HAKDER',
-  },
-};
+// Kuruma özel uygulamalar. Yenisi scripts/add-tenant.mjs ile eklenir.
+const TENANTS = require('./src/config/tenants.json');
 
 module.exports = ({ config }) => {
   const tenantKey = (process.env.EXPO_PUBLIC_TENANT || '').trim().toLowerCase();
-  const profile = TENANT_PROFILES[tenantKey];
+  const profile = TENANTS[tenantKey];
+  if (tenantKey && !profile) throw new Error(`src/config/tenants.json içinde "${tenantKey}" yok`);
 
   if (!profile) {
     return config;
   }
 
+  const assets = `./assets/tenants/${tenantKey}`;
   const expo = JSON.parse(JSON.stringify(config));
   expo.name = profile.name;
   expo.scheme = profile.scheme;
-  expo.icon = profile.icon;
+  expo.icon = `${assets}/icon.png`;
   expo.ios = {
     ...(expo.ios || {}),
-    bundleIdentifier: profile.iosBundleId,
+    bundleIdentifier: profile.bundleIos,
   };
   expo.android = {
     ...(expo.android || {}),
-    package: profile.androidPackage,
+    package: profile.packageAndroid,
     versionCode: 1,
     adaptiveIcon: {
-      foregroundImage: profile.adaptiveIcon,
-      backgroundColor: '#FFFFFF',
+      foregroundImage: `${assets}/adaptive-icon.png`,
+      backgroundColor: profile.adaptiveColor,
     },
   };
   // Google Services JSON sadece e-İnfak paket adına kayıtlı; ayrı Firebase eklenene kadar kaldırılır.
@@ -53,11 +42,10 @@ module.exports = ({ config }) => {
       return ['expo-notifications', { ...(plugin[1] || {}), color: profile.primaryColor }];
     }
     if (Array.isArray(plugin) && plugin[0] === 'expo-splash-screen') {
-      // Logo koyu yeşil; beyaz zeminde okunur.
-      return ['expo-splash-screen', { ...(plugin[1] || {}), image: profile.splashImage, backgroundColor: '#FFFFFF' }];
+      return ['expo-splash-screen', { ...(plugin[1] || {}), image: `${assets}/splash.png`, backgroundColor: profile.splashColor }];
     }
     if (Array.isArray(plugin) && plugin[0] === 'expo-widgets') {
-      return ['expo-widgets', { ...(plugin[1] || {}), groupIdentifier: profile.iosGroupId }];
+      return ['expo-widgets', { ...(plugin[1] || {}), groupIdentifier: `group.${profile.bundleIos}` }];
     }
     if (Array.isArray(plugin) && plugin[0] === 'react-native-android-widget') {
       const cfg = plugin[1] || {};
@@ -67,7 +55,7 @@ module.exports = ({ config }) => {
           ...cfg,
           widgets: (cfg.widgets || []).map((w) => ({
             ...w,
-            label: String(w.label || '').replace(/^e-İnfak/, profile.widgetPrefix),
+            label: String(w.label || '').replace(/^e-İnfak/, profile.name),
           })),
         },
       ];

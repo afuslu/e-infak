@@ -10,42 +10,23 @@ import {
 } from 'react-native';
 import { Href, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
-import {
-  BookOpen,
-  Calculator,
-  ChevronRight,
-  FileCheck2,
-  Heart,
-  Home,
-  Info,
-  Landmark,
-  LayoutGrid,
-  LogIn,
-  Menu,
-  Phone,
-  ShoppingBag,
-  User,
-  X,
-} from 'lucide-react-native';
+import { ChevronRight, LogIn, Menu, Phone, User, X } from 'lucide-react-native';
 import { ACTIVE_TENANT } from '@/config/tenant';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
-import { fetchPublicSite, resolveMediaUrl } from '@/api/public';
+import { resolveMediaUrl } from '@/api/public';
+import { isKnown } from '@/design/actions';
+import { iconOf } from '@/design/icons';
+import { AppAction, onColor } from '@/design/types';
+import { useAction, useBrand, usePreview } from '@/design/useAppDesign';
 import { call, initials } from '@/lib/format';
 import { radius, space } from '@/theme';
 
 export type VitrinTab = 'home' | 'news' | 'donate' | 'cart' | 'account';
 
+/** Vitrin ekranlarının renkleri; kurumun uygulama tasarımından gelir. */
 export function useBrandColors() {
-  const siteQuery = useQuery({
-    queryKey: ['public', 'site', ACTIVE_TENANT?.slug || 'default'],
-    queryFn: fetchPublicSite,
-    staleTime: 5 * 60_000,
-  });
-  const site = siteQuery.data;
-  const primary = ACTIVE_TENANT?.primaryColor || site?.primary_color || '#00533C';
-  const accent = ACTIVE_TENANT?.accentColor || site?.accent_color || '#C8922B';
+  const { primary, accent, site, siteQuery } = useBrand();
   return { primary, accent, site, siteQuery };
 }
 
@@ -59,18 +40,30 @@ export function IddefHeader({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { status, mode, donorMe } = useAuth();
-  const { primary, site } = useBrandColors();
+  const { primary, site, design, name } = useBrand();
+  const open = useAction();
+  const preview = usePreview();
+  const header = design.header;
+  const light = header.style === 'light' && !transparent;
+  const barColor = transparent ? 'transparent' : light ? '#FFFFFF' : primary;
+  const ink = light ? '#0F172A' : onColor(primary);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isDonor = status === 'signedIn' && mode === 'donor';
   const donorInitials = isDonor
     ? initials(`${donorMe?.first_name || ''} ${donorMe?.last_name || ''}`.trim() || donorMe?.company_name)
     : null;
-  const logoUri = resolveMediaUrl(site?.logo_url, site?.url);
+  const logoUri = resolveMediaUrl(header.logo_url || site?.logo_url, site?.url);
+  const brandText = header.title || site?.name || ACTIVE_TENANT?.name || '';
 
   const navigateFromDrawer = (route: string) => {
     setDrawerOpen(false);
+    if (preview) return preview.blocked('Önizlemede bu ekran açılmaz.');
     router.push(route as Href);
+  };
+  const runFromDrawer = (action: AppAction) => {
+    setDrawerOpen(false);
+    open(action);
   };
 
   return (
@@ -79,38 +72,41 @@ export function IddefHeader({
         style={[
           styles.header,
           {
-            backgroundColor: transparent ? 'transparent' : primary,
-            paddingTop: insets.top + 8,
+            backgroundColor: barColor,
+            paddingTop: preview ? 10 : insets.top + 8,
           },
         ]}
       >
-        <Pressable
-          onPress={() => setDrawerOpen(true)}
-          style={styles.iconBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Menüyü aç"
-        >
-          <Menu size={26} color="#FFFFFF" />
-        </Pressable>
+        {header.show_menu === false ? <View style={styles.iconBtn} /> : (
+          <Pressable
+            onPress={() => setDrawerOpen(true)}
+            style={styles.iconBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Menüyü aç"
+          >
+            <Menu size={26} color={ink} />
+          </Pressable>
+        )}
 
         <Pressable
-          onPress={() => router.replace('/(vitrin)' as Href)}
+          onPress={() => open({ type: 'screen', target: 'home' }, true)}
           style={styles.brandCenter}
           accessibilityRole="button"
         >
           {title ? (
-            <Text style={styles.headerTitle} numberOfLines={1}>
+            <Text style={[styles.headerTitle, { color: ink }]} numberOfLines={1}>
               {title}
             </Text>
-          ) : logoUri ? (
+          ) : logoUri && !header.title ? (
             <Image source={{ uri: logoUri }} style={styles.logoImg} resizeMode="contain" />
           ) : (
-            <Text style={styles.brandTitle}>{site?.name || ACTIVE_TENANT?.name || 'HAKDER'}</Text>
+            <Text style={[styles.brandTitle, { color: ink }]} numberOfLines={1}>{brandText}</Text>
           )}
         </Pressable>
 
+        {header.show_profile === false ? <View style={styles.iconBtn} /> : (
         <Pressable
-          onPress={() => router.push((isDonor ? '/(vitrin)/hesabim' : '/login') as Href)}
+          onPress={() => navigateFromDrawer(isDonor ? '/(vitrin)/hesabim' : '/login')}
           style={[styles.profileBtn, { backgroundColor: 'rgba(0,0,0,0.22)' }]}
           accessibilityRole="button"
           accessibilityLabel={isDonor ? 'Hesabım' : 'Giriş Yap'}
@@ -121,6 +117,7 @@ export function IddefHeader({
             <User size={22} color="#E8D8A0" />
           )}
         </Pressable>
+        )}
       </View>
 
       <Modal
@@ -134,10 +131,10 @@ export function IddefHeader({
             <View style={[styles.drawerHead, { backgroundColor: primary }]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.drawerKicker}>
-                  {(ACTIVE_TENANT?.fullName || site?.name || 'HAKDER').toLocaleUpperCase('tr-TR')}
+                  {name.toLocaleUpperCase('tr-TR')}
                 </Text>
                 <Text style={styles.drawerSubtitle} numberOfLines={2}>
-                  {site?.tagline || ACTIVE_TENANT?.tagline || 'Bir Kapı Aç, Bir Hayat Değiştir'}
+                  {site?.tagline || ACTIVE_TENANT?.tagline || ''}
                 </Text>
               </View>
               <Pressable onPress={() => setDrawerOpen(false)} style={styles.drawerCloseBtn} accessibilityRole="button">
@@ -146,46 +143,17 @@ export function IddefHeader({
             </View>
 
             <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.drawerList}>
-              <DrawerRow
-                icon={<Home size={20} color={primary} />}
-                label="Anasayfa"
-                onPress={() => navigateFromDrawer('/(vitrin)')}
-              />
-              <DrawerRow
-                icon={<Heart size={20} color={primary} />}
-                label="Hızlı Bağış Yap"
-                onPress={() => navigateFromDrawer('/(vitrin)/bagis-yap')}
-              />
-              <DrawerRow
-                icon={<ShoppingBag size={20} color={primary} />}
-                label="Bağış Sepetim"
-                onPress={() => navigateFromDrawer('/(vitrin)/sepet')}
-              />
-              <DrawerRow
-                icon={<Calculator size={20} color={primary} />}
-                label="Zekat Hesapla"
-                onPress={() => navigateFromDrawer('/(vitrin)/zekat')}
-              />
-              <DrawerRow
-                icon={<Landmark size={20} color={primary} />}
-                label="IBAN / Hesap Numaraları"
-                onPress={() => navigateFromDrawer('/(vitrin)/iban')}
-              />
-              <DrawerRow
-                icon={<BookOpen size={20} color={primary} />}
-                label="Haberler & Faaliyetler"
-                onPress={() => navigateFromDrawer('/(vitrin)/haberler')}
-              />
-              <DrawerRow
-                icon={<FileCheck2 size={20} color={primary} />}
-                label="Makbuz Doğrula"
-                onPress={() => navigateFromDrawer('/(vitrin)/makbuz-dogrula')}
-              />
-              <DrawerRow
-                icon={<Info size={20} color={primary} />}
-                label="Hakkımızda & İletişim"
-                onPress={() => navigateFromDrawer('/(vitrin)/iletisim')}
-              />
+              {design.drawer.filter((item) => isKnown(item.action)).map((item) => {
+                const Icon = iconOf(item.icon);
+                return (
+                  <DrawerRow
+                    key={item.id}
+                    icon={<Icon size={20} color={primary} />}
+                    label={item.label}
+                    onPress={() => runFromDrawer(item.action)}
+                  />
+                );
+              })}
 
               <View style={styles.drawerDivider} />
 
@@ -241,75 +209,57 @@ function DrawerRow({
   );
 }
 
-export function IddefBottomBar({ active }: { active: VitrinTab }) {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { primary } = useBrandColors();
-  const { totalCount } = useCart();
+const TAB_SCREENS: Record<VitrinTab, string> = {
+  home: 'home', news: 'haberler', donate: 'bagis-yap', cart: 'sepet', account: 'hesabim',
+};
 
-  const go = (tab: VitrinTab, route: string) => {
-    if (tab === active) return;
-    router.replace(route as Href);
-  };
+/** Alt sekmeler. `active` sabit ekranı, `page` tasarlanan sayfayı belirtir. */
+export function IddefBottomBar({ active, page }: { active?: VitrinTab; page?: string }) {
+  const insets = useSafeAreaInsets();
+  const { primary, onPrimary, design } = useBrand();
+  const open = useAction();
+  const { totalCount } = useCart();
+  const style = design.header.tab_style || 'raised';
+  const current = active ? `screen:${TAB_SCREENS[active]}` : page === 'home' ? 'screen:home' : `page:${page}`;
+  const keyOf = (a: AppAction) => (a.type === 'page' && a.target === 'home' ? 'screen:home' : `${a.type}:${a.target}`);
 
   return (
     <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      <Pressable style={styles.tabItem} onPress={() => go('home', '/(vitrin)')}>
-        <Home size={22} color={active === 'home' ? primary : '#64748B'} />
-        <Text style={[styles.tabLabel, active === 'home' && { color: primary, fontWeight: '700' }]}>
-          Anasayfa
-        </Text>
-        {active === 'home' ? <View style={[styles.activeDot, { backgroundColor: primary }]} /> : null}
-      </Pressable>
-
-      <Pressable style={styles.tabItem} onPress={() => go('news', '/(vitrin)/haberler')}>
-        <BookOpen size={22} color={active === 'news' ? primary : '#64748B'} />
-        <Text style={[styles.tabLabel, active === 'news' && { color: primary, fontWeight: '700' }]}>
-          Haberler
-        </Text>
-        {active === 'news' ? <View style={[styles.activeDot, { backgroundColor: primary }]} /> : null}
-      </Pressable>
-
-      <View style={styles.centerTabWrap}>
-        <Pressable
-          onPress={() => go('donate', '/(vitrin)/bagis-yap')}
-          style={({ pressed }) => [
-            styles.donateFab,
-            { backgroundColor: primary },
-            pressed && { transform: [{ scale: 0.96 }] },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="Bağış Yap"
-        >
-          <Heart size={28} color="#FFFFFF" />
-        </Pressable>
-        <Text style={[styles.tabLabel, active === 'donate' && { color: primary, fontWeight: '700' }]}>
-          Bağış Yap
-        </Text>
-      </View>
-
-      <Pressable style={styles.tabItem} onPress={() => go('cart', '/(vitrin)/sepet')}>
-        <View style={styles.bagIconWrap}>
-          <ShoppingBag size={22} color={active === 'cart' ? primary : '#64748B'} />
-          {totalCount > 0 ? (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{totalCount > 99 ? '99+' : totalCount}</Text>
-            </View>
-          ) : null}
-        </View>
-        <Text style={[styles.tabLabel, active === 'cart' && { color: primary, fontWeight: '700' }]}>
-          Bağış Sepeti
-        </Text>
-        {active === 'cart' ? <View style={[styles.activeDot, { backgroundColor: primary }]} /> : null}
-      </Pressable>
-
-      <Pressable style={styles.tabItem} onPress={() => go('account', '/(vitrin)/hesabim')}>
-        <LayoutGrid size={22} color={active === 'account' ? primary : '#64748B'} />
-        <Text style={[styles.tabLabel, active === 'account' && { color: primary, fontWeight: '700' }]}>
-          Hesabım
-        </Text>
-        {active === 'account' ? <View style={[styles.activeDot, { backgroundColor: primary }]} /> : null}
-      </Pressable>
+      {design.tabs.filter((tab) => isKnown(tab.action)).map((tab) => {
+        const Icon = iconOf(tab.icon);
+        const on = keyOf(tab.action) === current;
+        const raised = style === 'raised' && !!tab.highlight;
+        const filled = style === 'pill' && on;
+        const color = filled ? onPrimary : on || (tab.highlight && style !== 'raised') ? primary : '#64748B';
+        const cart = tab.action.type === 'screen' && tab.action.target === 'sepet' && totalCount > 0;
+        return (
+          <Pressable
+            key={tab.id}
+            style={raised ? styles.centerTabWrap : [styles.tabItem, filled && { backgroundColor: primary, borderRadius: 14 }]}
+            onPress={() => { if (!on) open(tab.action, true); }}
+            accessibilityRole="button"
+            accessibilityLabel={tab.label}
+            accessibilityState={{ selected: on }}
+          >
+            {raised ? (
+              <View style={[styles.donateFab, { backgroundColor: primary }]}>
+                <Icon size={28} color={onPrimary} />
+              </View>
+            ) : (
+              <View style={styles.bagIconWrap}>
+                <Icon size={22} color={color} />
+                {cart ? (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{totalCount > 99 ? '99+' : totalCount}</Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
+            <Text numberOfLines={1} style={[styles.tabLabel, { color }, on && { fontWeight: '700' }, raised && on && { color: primary }]}>{tab.label}</Text>
+            {on && !raised && style !== 'pill' ? <View style={[styles.activeDot, { backgroundColor: primary }]} /> : null}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }

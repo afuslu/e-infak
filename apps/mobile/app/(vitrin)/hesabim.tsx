@@ -92,7 +92,7 @@ export default function AccountHubScreen() {
       <ScrollView contentContainerStyle={{ padding: space.lg, paddingBottom: 120, gap: space.md }}>
         <View style={[styles.loginHero, { backgroundColor: primary }]}>
           <Text style={styles.loginKicker}>
-            {(ACTIVE_TENANT?.name || site?.name || 'HAKDER').toLocaleUpperCase('tr-TR')} BAĞIŞÇI PANELİ
+            {(ACTIVE_TENANT?.name || site?.name || '').toLocaleUpperCase('tr-TR')} BAĞIŞÇI PANELİ
           </Text>
           <Text style={styles.loginTitle}>Bağışlarınızı ve Projelerinizi Takip Edin</Text>
           <Text style={styles.loginSub}>

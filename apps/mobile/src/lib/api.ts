@@ -549,13 +549,47 @@ export async function verifyDonorOtp(contact: string, otpCode: string, tenantHos
 }
 
 /** Bağışçı Portalı API (/api/v1/portal/...) istekleri. */
-export async function df<T = any>(path: string, options: Options = {}, retry = true): Promise<T> {
+export const df = <T = any>(path: string, options: Options = {}) => donorCall<T>(`/portal${path}`, options);
+
+/**
+ * Herkese açık vitrin istekleri. Ortak uygulama platform adresine bağlandığı için kurum yalnızca
+ * oturumdaki anahtardan bulunur; bu yüzden oturum varsa anahtar eklenir. Misafir anahtarsız gider.
+ * Açık bir ucun hatası oturumu hiçbir zaman kapatmaz; bunu yalnızca oturum uçları yapar.
+ */
+export async function pub<T = any>(path: string, options: Options = {}, retry = true): Promise<T> {
+  const mode = getAuthMode();
+  const token = mode === 'donor' ? donorAccessToken : mode === 'tenant' ? accessToken : null;
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let response: Response;
+  try {
+    response = await fetch(`${base()}${path}${queryString(options.query)}`, {
+      method: options.method || 'GET',
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
+  } catch {
+    throw unreachable();
+  }
+  if (response.status === 401 && retry && (mode === 'donor' || mode === 'tenant')) {
+    if ((await (mode === 'donor' ? refreshDonorOnce() : refreshOnce())) === 'ok') return pub<T>(path, options, false);
+  }
+  const body = await parse(response);
+  if (!response.ok) {
+    const { message, code } = errorMessage(body, response.status);
+    throw new ApiError(response.status, message, code, body);
+  }
+  return body as T;
+}
+
+async function donorCall<T = any>(path: string, options: Options = {}, retry = true): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.auth !== false && donorAccessToken) headers.Authorization = `Bearer ${donorAccessToken}`;
   let response: Response;
   try {
-    response = await fetch(`${base()}/portal${path}${queryString(options.query)}`, {
+    response = await fetch(`${base()}${path}${queryString(options.query)}`, {
       method: options.method || 'GET',
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -565,7 +599,7 @@ export async function df<T = any>(path: string, options: Options = {}, retry = t
   }
   if (response.status === 401 && options.auth !== false && retry) {
     const renewed = await refreshDonorOnce();
-    if (renewed === 'ok') return df<T>(path, options, false);
+    if (renewed === 'ok') return donorCall<T>(path, options, false);
     if (renewed === 'unreachable') throw unreachable();
     await clearSession();
     onSessionLost?.();

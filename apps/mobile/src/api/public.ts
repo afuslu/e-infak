@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { ACTIVE_TENANT, tenantBaseUrl } from '@/config/tenant';
-import { absoluteApiUrl, api, ApiError, donorAuthHeader, errorMessage, webBase } from '@/lib/api';
+import { absoluteApiUrl, ApiError, donorAuthHeader, errorMessage, pub, webBase } from '@/lib/api';
 
 export type SupportedCurrency = 'TRY' | 'USD' | 'EUR';
 
@@ -60,17 +60,6 @@ export type PublicOrgSettings = {
     phone?: string | null;
     email?: string | null;
   };
-};
-
-export type PublicBanner = {
-  id: string;
-  title?: string | null;
-  subtitle?: string | null;
-  image_url?: string | null;
-  mobile_image_url?: string | null;
-  cta_label?: string | null;
-  cta_url?: string | null;
-  link_url?: string | null;
 };
 
 export type PublicDonationCategory = {
@@ -256,27 +245,21 @@ export function resolveMediaUrl(url?: string | null, siteUrl?: string | null): s
 }
 
 export function fetchPublicSite(): Promise<PublicSite> {
-  return api<PublicSite>('/public/site', { auth: false });
+  return pub<PublicSite>('/public/site');
+}
+
+/** Yayındaki uygulama tasarımı; yoksa null (gömülü tasarım gösterilir). */
+export async function fetchAppDesign(): Promise<unknown> {
+  return (await pub<{ design: unknown }>('/public/app-design'))?.design ?? null;
 }
 
 export function fetchOrgSettings(): Promise<PublicOrgSettings> {
-  return api<PublicOrgSettings>('/public/org-settings', { auth: false });
-}
-
-export async function fetchBanners(): Promise<PublicBanner[]> {
-  try {
-    const res = await api<any>('/admin-features/public-verify/banners/active', { auth: false });
-    if (Array.isArray(res)) return res;
-    if (Array.isArray(res?.items)) return res.items;
-    return [];
-  } catch {
-    return [];
-  }
+  return pub<PublicOrgSettings>('/public/org-settings');
 }
 
 export async function fetchDonationCategories(): Promise<PublicDonationCategory[]> {
   try {
-    const res = await api<any>('/public/donation-categories', { auth: false });
+    const res = await pub<any>('/public/donation-categories');
     return Array.isArray(res) ? res : [];
   } catch {
     return [];
@@ -290,8 +273,7 @@ export async function fetchCampaigns(params?: {
   is_zakat?: boolean;
   page_size?: number;
 }): Promise<PublicCampaign[]> {
-  const res = await api<CampaignListPayload | PublicCampaign[]>('/campaigns', {
-    auth: false,
+  const res = await pub<CampaignListPayload | PublicCampaign[]>('/campaigns', {
     query: {
       status: 'active',
       page_size: params?.page_size ?? 100,
@@ -307,23 +289,22 @@ export async function fetchCampaigns(params?: {
 }
 
 export function fetchCampaignBySlug(slug: string): Promise<PublicCampaign> {
-  return api<PublicCampaign>(`/campaigns/${encodeURIComponent(slug)}`, { auth: false });
+  return pub<PublicCampaign>(`/campaigns/${encodeURIComponent(slug)}`);
 }
 
 export async function fetchContentPosts(kind?: string): Promise<PublicContentPost[]> {
-  const res = await api<PublicContentPost[]>('/public/content-posts', {
-    auth: false,
+  const res = await pub<PublicContentPost[]>('/public/content-posts', {
     query: { kind: kind && kind !== 'all' ? kind : undefined, limit: 60 },
   });
   return Array.isArray(res) ? res : [];
 }
 
 export function fetchContentPost(slug: string): Promise<PublicContentPost> {
-  return api<PublicContentPost>(`/public/content-posts/${encodeURIComponent(slug)}`, { auth: false });
+  return pub<PublicContentPost>(`/public/content-posts/${encodeURIComponent(slug)}`);
 }
 
 export function fetchPublicPage(slug: string): Promise<PublicSitePage> {
-  return api<PublicSitePage>(`/public/pages/${encodeURIComponent(slug)}`, { auth: false });
+  return pub<PublicSitePage>(`/public/pages/${encodeURIComponent(slug)}`);
 }
 
 export type FxRatesResponse = {
@@ -333,20 +314,19 @@ export type FxRatesResponse = {
 };
 
 export function fetchZakatInfo(): Promise<ZakatInfo> {
-  return api<ZakatInfo>('/public/zakat-info', { auth: false });
+  return pub<ZakatInfo>('/public/zakat-info');
 }
 
 export async function fetchFxRates(): Promise<FxRatesResponse> {
   try {
-    return await api<FxRatesResponse>('/public/fx-rates', { auth: false });
+    return await pub<FxRatesResponse>('/public/fx-rates');
   } catch {
     return { base: 'TRY', rates: {} };
   }
 }
 
 export function verifyPublicReceipt(receiptNumber: string, code?: string): Promise<ReceiptVerifyResult> {
-  return api<ReceiptVerifyResult>(`/public/receipts/${encodeURIComponent(receiptNumber.trim())}`, {
-    auth: false,
+  return pub<ReceiptVerifyResult>(`/public/receipts/${encodeURIComponent(receiptNumber.trim())}`, {
     query: code?.trim() ? { k: code.trim() } : undefined,
   });
 }
@@ -388,7 +368,7 @@ export async function createCheckoutSession(payload: CheckoutSessionPayload): Pr
 }
 
 export function fetchCheckoutStatus(checkoutId: string): Promise<CheckoutStatusResponse> {
-  return api<CheckoutStatusResponse>(`/checkout/${encodeURIComponent(checkoutId)}/status`, { auth: false });
+  return pub<CheckoutStatusResponse>(`/checkout/${encodeURIComponent(checkoutId)}/status`);
 }
 
 /** Doğrulanmış bağış makbuzu PDF'ini indirip cihazda açar/paylaşır. */

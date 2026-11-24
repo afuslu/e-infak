@@ -51,7 +51,7 @@ export default function IbanAccountsScreen() {
     });
   }
 
-  const legalName = orgQuery.data?.legal?.legal_name || ACTIVE_TENANT?.fullName || site?.name || 'HAKDER';
+  const legalName = orgQuery.data?.legal?.legal_name || ACTIVE_TENANT?.fullName || site?.name || '';
 
   return (
     <ScrollView

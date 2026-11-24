@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { Href, useFocusEffect, useRouter } from 'expo-router';
 import {
   Activity, BarChart3, Beef, Bell, Building2, CalendarCheck, CloudOff, CreditCard, Droplets, ExternalLink,
-  HandHeart, Landmark, Megaphone, MessageSquare, PiggyBank, Repeat, Search, Send, Tags, UserCog, UserRound, UsersRound,
+  HandHeart, Landmark, Megaphone, MessageSquare, PiggyBank, Repeat, Search, Send, Smartphone, Tags, UserCog, UserRound, UsersRound,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { allowed, ROLE_LABELS } from '@/lib/access';
@@ -42,6 +42,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     items: [
       { title: 'Kampanyalar', href: '/kampanyalar', icon: Megaphone, modules: 'site' },
       { title: 'Bağış kalemleri', subtitle: 'Hızlı bağış kutucukları', href: '/bagis-kalemleri', icon: Tags, modules: 'site' },
+      { title: 'Uygulama önizleme', subtitle: 'Uygulama Yapıcı taslağını telefonda dene', href: '/uygulama-onizleme' as Href, icon: Smartphone, modules: 'site' },
       { title: 'Düzenli ödemeler', href: '/duzenli-odemeler', icon: Repeat, feature: 'recurring', modules: ['finance', 'donors', 'receipts'] },
       { title: 'Üyeler ve aidatlar', href: '/uyeler', icon: UsersRound, feature: 'membership', modules: 'members' },
     ],

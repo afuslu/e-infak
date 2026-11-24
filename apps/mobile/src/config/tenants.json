@@ -1,0 +1,16 @@
+{
+  "hakder": {
+    "slug": "hakder",
+    "name": "HAKDER",
+    "fullName": "Hayıra Açılan Kapı Derneği",
+    "tagline": "Bir Kapı Aç, Bir Hayat Değiştir",
+    "host": "hakder.e-infak.org",
+    "primaryColor": "#00533C",
+    "accentColor": "#C8922B",
+    "packageAndroid": "org.hakder.mobile",
+    "bundleIos": "org.hakder.mobile",
+    "scheme": "hakder",
+    "splashColor": "#FFFFFF",
+    "adaptiveColor": "#FFFFFF"
+  }
+}

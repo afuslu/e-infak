@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { useQueryClient } from '@tanstack/react-query';
 import {
   af, api, clearSession, df, exitOrgSimulation, getAuthMode, getSimulatingOrg, loadSession, login, loginDonorPassword,
-  MULTI_ORG_MESSAGE, pf, platformLogin, setSessionLostHandler, startOrgSimulation, verifyDonorOtp, type SimOrg,
+  MULTI_ORG_MESSAGE, pf, platformLogin, setSessionLostHandler, startOrgSimulation, verifyDonorOtp, type SimOrg, pub,
 } from '@/lib/api';
 import type { AdminAccess } from '@/lib/access';
 import { unregisterPush } from '@/lib/notifications';
@@ -99,7 +99,7 @@ async function fetchPlatformProfile(): Promise<Omit<State, 'status'>> {
 async function fetchDonorProfile(): Promise<Omit<State, 'status'>> {
   const [donorMe, site] = await Promise.all([
     df<DonorMe>('/me/profile'),
-    api<Site>('/public/site').catch(() => null),
+    pub<Site>('/public/site').catch(() => null),
   ]);
   return { mode: 'donor', me: null, platformMe: null, donorMe, access: null, site, simulatingOrg: null };
 }

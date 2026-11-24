@@ -6,6 +6,8 @@
  * paneli ile açılan özel uygulama (org.hakder.mobile).
  */
 
+import tenants from './tenants.json';
+
 export type TenantBrandConfig = {
   slug: string;
   name: string;
@@ -19,20 +21,7 @@ export type TenantBrandConfig = {
   scheme: string;
 };
 
-export const TENANTS: Record<string, TenantBrandConfig> = {
-  hakder: {
-    slug: 'hakder',
-    name: 'HAKDER',
-    fullName: 'Hayıra Açılan Kapı Derneği',
-    tagline: 'Bir Kapı Aç, Bir Hayat Değiştir',
-    host: 'hakder.e-infak.org',
-    primaryColor: '#00533C',
-    accentColor: '#C8922B',
-    packageAndroid: 'org.hakder.mobile',
-    bundleIos: 'org.hakder.mobile',
-    scheme: 'hakder',
-  },
-};
+export const TENANTS: Record<string, TenantBrandConfig> = tenants;
 
 const rawTenant = (process.env.EXPO_PUBLIC_TENANT || '').trim().toLowerCase();
 

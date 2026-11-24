@@ -3,6 +3,8 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Check } from 'lucide-react-native';
+import { useQuery } from '@tanstack/react-query';
+import { fetchPublicSite, resolveMediaUrl } from '@/api/public';
 import { ACTIVE_TENANT, isWhiteLabel } from '@/config/tenant';
 import { useAuth } from '@/context/AuthContext';
 import { Btn, Chips, Field, Notice, Screen } from '@/components/ui';
@@ -13,12 +15,25 @@ import { font, radius, space, useTheme } from '@/theme';
 
 type EntryTab = 'staff' | 'donor';
 
+/** Kuruma özel uygulamada giriş ekranının logosu; ortak uygulamada kurum henüz bilinmez. */
+function useTenantSite() {
+  const { data } = useQuery({
+    queryKey: ['public', 'site', ACTIVE_TENANT?.slug || 'default'],
+    queryFn: fetchPublicSite,
+    enabled: !!ACTIVE_TENANT,
+    staleTime: 5 * 60_000,
+  });
+  return { site: data };
+}
+
 export default function Login() {
   const router = useRouter();
   const { signInUnified, signInDonor, signInDonorPassword } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const whiteLabel = isWhiteLabel();
+  const { site: tenantSite } = useTenantSite();
+  const tenantLogo = resolveMediaUrl(tenantSite?.logo_url, tenantSite?.url);
   const brandName = ACTIVE_TENANT?.name || 'e-İnfak';
   const [tab, setTab] = useState<EntryTab>(whiteLabel ? 'donor' : 'staff');
   const activeTab: EntryTab = whiteLabel ? tab : 'staff';
@@ -172,7 +187,7 @@ export default function Login() {
       ) : null}
       <View style={styles.brand}>
         <Image
-          source={ACTIVE_TENANT?.slug === 'hakder' ? require('../assets/tenants/hakder/icon.png') : require('../assets/icon.png')}
+          source={ACTIVE_TENANT?.slug === 'hakder' ? require('../assets/tenants/hakder/icon.png') : tenantLogo ? { uri: tenantLogo } : require('../assets/icon.png')}
           style={styles.logo}
           accessibilityIgnoresInvertColors
         />

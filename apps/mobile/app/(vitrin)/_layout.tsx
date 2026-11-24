@@ -16,6 +16,7 @@ export default function VitrinLayout() {
       }}
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="sayfa/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="haberler" options={{ headerShown: false }} />
       <Stack.Screen name="bagis-yap" options={{ headerShown: false }} />
       <Stack.Screen name="sepet" options={{ headerShown: false }} />

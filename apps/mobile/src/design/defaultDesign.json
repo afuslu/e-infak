@@ -1,0 +1,204 @@
+{
+  "schema": 1,
+  "theme": {},
+  "header": {},
+  "tabs": [
+    {
+      "id": "tab-home",
+      "label": "Anasayfa",
+      "icon": "home",
+      "action": {
+        "type": "screen",
+        "target": "home"
+      }
+    },
+    {
+      "id": "tab-news",
+      "label": "Haberler",
+      "icon": "book-open",
+      "action": {
+        "type": "screen",
+        "target": "haberler"
+      }
+    },
+    {
+      "id": "tab-donate",
+      "label": "Bağış Yap",
+      "icon": "heart",
+      "action": {
+        "type": "screen",
+        "target": "bagis-yap"
+      },
+      "highlight": true
+    },
+    {
+      "id": "tab-cart",
+      "label": "Bağış Sepeti",
+      "icon": "shopping-bag",
+      "action": {
+        "type": "screen",
+        "target": "sepet"
+      }
+    },
+    {
+      "id": "tab-account",
+      "label": "Hesabım",
+      "icon": "layout-grid",
+      "action": {
+        "type": "screen",
+        "target": "hesabim"
+      }
+    }
+  ],
+  "drawer": [
+    {
+      "id": "menu-0",
+      "label": "Anasayfa",
+      "icon": "home",
+      "action": {
+        "type": "screen",
+        "target": "home"
+      }
+    },
+    {
+      "id": "menu-1",
+      "label": "Hızlı Bağış Yap",
+      "icon": "heart",
+      "action": {
+        "type": "screen",
+        "target": "bagis-yap"
+      }
+    },
+    {
+      "id": "menu-2",
+      "label": "Bağış Sepetim",
+      "icon": "shopping-bag",
+      "action": {
+        "type": "screen",
+        "target": "sepet"
+      }
+    },
+    {
+      "id": "menu-3",
+      "label": "Zekat Hesapla",
+      "icon": "calculator",
+      "action": {
+        "type": "screen",
+        "target": "zekat"
+      }
+    },
+    {
+      "id": "menu-4",
+      "label": "IBAN / Hesap Numaraları",
+      "icon": "landmark",
+      "action": {
+        "type": "screen",
+        "target": "iban"
+      }
+    },
+    {
+      "id": "menu-5",
+      "label": "Haberler & Faaliyetler",
+      "icon": "book-open",
+      "action": {
+        "type": "screen",
+        "target": "haberler"
+      }
+    },
+    {
+      "id": "menu-6",
+      "label": "Makbuz Doğrula",
+      "icon": "file-check",
+      "action": {
+        "type": "screen",
+        "target": "makbuz-dogrula"
+      }
+    },
+    {
+      "id": "menu-7",
+      "label": "Hakkımızda & İletişim",
+      "icon": "info",
+      "action": {
+        "type": "screen",
+        "target": "iletisim"
+      }
+    }
+  ],
+  "pages": [
+    {
+      "id": "home",
+      "title": "Ana sayfa",
+      "blocks": [
+        {
+          "id": "home-hero",
+          "type": "hero",
+          "props": {
+            "primary_label": "Hızlı Bağış Yap",
+            "primary_action": {
+              "type": "screen",
+              "target": "bagis-yap"
+            },
+            "secondary_label": "Zekat Hesapla",
+            "secondary_action": {
+              "type": "screen",
+              "target": "zekat"
+            },
+            "space": "none"
+          }
+        },
+        {
+          "id": "home-banners",
+          "type": "banner_slider",
+          "props": {}
+        },
+        {
+          "id": "home-cats",
+          "type": "quick_categories",
+          "props": {
+            "title": "HIZLI BAĞIŞ KATEGORİLERİ"
+          }
+        },
+        {
+          "id": "home-campaigns",
+          "type": "campaign_list",
+          "props": {
+            "title": "BAĞIŞ KAMPANYALARI"
+          }
+        },
+        {
+          "id": "home-tools",
+          "type": "tool_cards",
+          "props": {
+            "items": [
+              {
+                "icon": "calculator",
+                "title": "Zekat Hesapla",
+                "text": "Güncel TCMB altın & nisap",
+                "color": "accent",
+                "action": {
+                  "type": "screen",
+                  "target": "zekat"
+                }
+              },
+              {
+                "icon": "landmark",
+                "title": "IBAN Bilgileri",
+                "text": "Tek tıkla kopyala",
+                "color": "primary",
+                "action": {
+                  "type": "screen",
+                  "target": "iban"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "home-contact",
+          "type": "contact_card",
+          "props": {}
+        }
+      ]
+    }
+  ]
+}
