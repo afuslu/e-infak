@@ -3,7 +3,12 @@ import { Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { call, dateTime, money, whatsapp } from '@/lib/format';
 import { FailedPayment, Inflow, PERIODS, providerLabel, useFailedPayments } from '@/api/inflow';
-import { Badge, Btn, Chips, Empty, ListItem, Notice, QueryView, Row, Screen, SectionTitle, Sheet, useUi } from '@/components/ui';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api';
+import { can } from '@/lib/access';
+import { notify, notifyError } from '@/components/toast';
+import { Badge, Btn, Chips, Empty, Field, ListItem, Notice, QueryView, Row, Screen, SectionTitle, Sheet, useUi } from '@/components/ui';
 import { space } from '@/theme';
 
 const isReview = (p: FailedPayment) => p.status === 'review';
@@ -31,10 +36,30 @@ export default function FailedPayments() {
     if (params.order_id && single.data?.items[0]) setSelected(single.data.items[0]);
   }, [params.order_id, single.data]);
 
+  const queryClient = useQueryClient();
+  const { access } = useAuth();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const close = () => { setSelected(null); setNote(null); };
+  const act = async (path: 'requery' | 'close', body?: unknown) => {
+    if (!selected) return;
+    setBusy(path);
+    try {
+      const r = await api<{ message: string }>(`/mobile/failed-payments/${selected.id}/${path}`, { method: 'POST', body });
+      await Promise.all(['failed-payments', 'inflow', 'stats', 'donations'].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
+      close();
+      notify(r.message);
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const p = selected;
   const attempt = p?.attempts[0];
   const openDonor = (id: string) => {
-    setSelected(null);
+    close();
     router.push({ pathname: '/bagisci/[id]', params: { id } });
   };
 
@@ -58,7 +83,7 @@ export default function FailedPayments() {
         ) : <Empty title="Sorunlu ödeme yok" text="Bu dönemde başarısız ya da incelemede online ödeme bulunmuyor." />}
       </QueryView>
 
-      <Sheet visible={!!p} onClose={() => setSelected(null)} title={p ? money(p.total_cents, p.currency) : ''}>
+      <Sheet visible={!!p} onClose={close} title={p ? money(p.total_cents, p.currency) : ''}>
         {p ? (
           <>
             {p.retried_paid ? <Notice text="Bağışçı daha sonra aynı tutarı başarıyla ödedi. Tekrar aramanız gerekmeyebilir." /> : null}
@@ -83,6 +108,17 @@ export default function FailedPayments() {
               <Row key={a.id} label={`${dateTime(a.created_at)} · ${providerLabel(a.provider)}`}
                 value={[a.response_code, a.response_message].filter(Boolean).join(' · ') || (a.completed_at ? '—' : 'Bankadan dönüş yok')} />
             ))}
+            {can(access, 'receipts.mark_paid') && (isReview(p) || p.status === 'failed') ? (
+              <Btn title="Bankaya yeniden sor" loading={busy === 'requery'} disabled={!!busy} onPress={() => act('requery')} />
+            ) : null}
+            {can(access, 'receipts.mark_paid') && isReview(p) ? (
+              note === null ? <Btn title="Ödenmedi olarak kapat" variant="danger" disabled={!!busy} onPress={() => setNote('')} /> : (
+                <View style={{ gap: space.sm }}>
+                  <Field label="Kapatma nedeni" value={note} onChangeText={setNote} maxLength={300} />
+                  <Btn title="Kapat" variant="danger" loading={busy === 'close'} disabled={!!busy || note.trim().length < 3} onPress={() => act('close', { note: note.trim() })} />
+                </View>
+              )
+            ) : null}
             {p.donor.phone ? (
               <View style={ui.rowGap}>
                 <Btn title="Ara" style={{ flex: 1 }} onPress={() => call(p.donor.phone!)} />

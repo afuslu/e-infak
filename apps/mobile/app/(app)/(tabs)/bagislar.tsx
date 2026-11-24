@@ -35,7 +35,7 @@ const NO_FILTERS: Filters = { start: null, end: null, campaign_id: null, status:
 
 export default function Donations() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ gorunum?: string }>();
+  const params = useLocalSearchParams<{ gorunum?: string; currency?: string; start?: string; end?: string }>();
   const { access } = useAuth();
   const { colors } = useTheme();
   const ui = useUi();
@@ -50,6 +50,11 @@ export default function Donations() {
   useEffect(() => {
     if (params.gorunum) setView(params.gorunum);
   }, [params.gorunum]);
+
+  // Genel bakıştaki döviz kartlarından gelinir.
+  useEffect(() => {
+    if (params.currency) setFilters({ ...NO_FILTERS, currency: params.currency, start: params.start || null, end: params.end || null, status: 'confirmed' });
+  }, [params.currency, params.start, params.end]);
 
   const query = useMemo(() => ({
     q: q.trim() || undefined,

@@ -154,10 +154,9 @@ async def test_payroll_with_advance_deduction(db_session):
     assert str(advance.payroll_item_id) == item["id"]
 
 
-async def test_accounting_is_ileri_only(db_session):
+async def test_basic_accounting_opens_with_receipts_package(db_session):
     org, _, _ = await _setup(db_session, plan="orta")
-    with pytest.raises(HTTPException) as exc:
-        await require_admin_route_feature(_request(org, path="/api/v1/admin-features/acc/accounts"))
-    assert exc.value.detail["feature"] == "accounting"
+    # Ön muhasebe, makbuz modülü olan paketlerde de açıktır (500689a).
+    await require_admin_route_feature(_request(org, path="/api/v1/admin-features/acc/accounts"))
     # Eski basit gider ekranı her pakette çalışmaya devam eder.
     await require_admin_route_feature(_request(org, path="/api/v1/finance/expenses"))

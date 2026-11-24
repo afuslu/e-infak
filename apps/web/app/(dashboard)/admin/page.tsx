@@ -336,14 +336,14 @@ export default function AdminDashboardPage() {
             </Link>
           )}
           {!!todo.smsFailed && (
-            <Link href="/admin/sms-gonderimleri" className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:border-red-300">
+            <Link href="/admin/sms-gonderimleri?status=failed" className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:border-red-300">
               <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
               <span className="flex-1">{todo.smsFailed.toLocaleString('tr-TR')} SMS gönderilemedi</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           )}
           {!!todo.smsWaiting && (
-            <Link href="/admin/sms-gonderimleri" className="flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800 hover:border-sky-300">
+            <Link href="/admin/sms-gonderimleri?status=queued,scheduled" className="flex items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800 hover:border-sky-300">
               <Clock className="h-5 w-5 shrink-0" aria-hidden="true" />
               <span className="flex-1">{todo.smsWaiting.toLocaleString('tr-TR')} SMS kuyrukta veya planlı</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />

@@ -805,6 +805,7 @@ async def _build_data_export(export_id: str):
             export = await session.get(DataExport, UUID(export_id), populate_existing=True)
             data_export.export_path(export).unlink(missing_ok=True)
             export.status, export.finished_at = "failed", datetime.now(timezone.utc)
+            export.password_enc = None
             export.error = str(exc)[:500] if isinstance(exc, RuntimeError) else "Yedek hazırlanamadı; destekle görüşün"
             print(f"data export {export_id} failed: {exc!r}")
             title, body = "Tam yedek hazırlanamadı", export.error
@@ -839,6 +840,7 @@ async def _clean_data_exports():
         for export in (await session.execute(select(DataExport).where(
                 DataExport.status.in_(("queued", "running")), DataExport.created_at < now - timedelta(hours=6)))).scalars().all():
             export_path(export).unlink(missing_ok=True)
+            export.password_enc = None
             export.status, export.error = "failed", "Yedek yarıda kaldı; yeniden başlatın"
         await session.commit()
 
@@ -848,7 +850,17 @@ def clean_data_exports_task():
     return asyncio.run(_clean_data_exports())
 
 
+@celery_app.task(name="app.tasks.send_closing_reminders_task")
+def send_closing_reminders_task():
+    from app.services.offboarding import send_reminders
+    return asyncio.run(send_reminders(AsyncSessionLocal))
+
+
 celery_app.conf.beat_schedule = {
+    "closing-reminders-daily": {
+        "task": "app.tasks.send_closing_reminders_task",
+        "schedule": crontab(hour=7, minute=0),  # 10:00 Istanbul
+    },
     "clean-data-exports-hourly": {
         "task": "app.tasks.clean_data_exports_task",
         "schedule": 3600.0,

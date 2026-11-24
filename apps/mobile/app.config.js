@@ -1,4 +1,5 @@
-const baseConfig = require('./app.json');
+const fs = require('fs');
+const path = require('path');
 
 const TENANT_PROFILES = {
   hakder: {
@@ -16,23 +17,18 @@ const TENANT_PROFILES = {
   },
 };
 
-module.exports = () => {
+module.exports = ({ config }) => {
   const tenantKey = (process.env.EXPO_PUBLIC_TENANT || '').trim().toLowerCase();
   const profile = TENANT_PROFILES[tenantKey];
 
   if (!profile) {
-    return baseConfig;
+    return config;
   }
 
-  const expo = JSON.parse(JSON.stringify(baseConfig.expo));
+  const expo = JSON.parse(JSON.stringify(config));
   expo.name = profile.name;
   expo.scheme = profile.scheme;
   expo.icon = profile.icon;
-  expo.splash = {
-    ...(expo.splash || {}),
-    image: profile.splashImage,
-    backgroundColor: '#FFFFFF',
-  };
   expo.ios = {
     ...(expo.ios || {}),
     bundleIdentifier: profile.iosBundleId,
@@ -47,7 +43,10 @@ module.exports = () => {
     },
   };
   // Google Services JSON sadece e-İnfak paket adına kayıtlı; ayrı Firebase eklenene kadar kaldırılır.
-  delete expo.android.googleServicesFile;
+  // Firebase'de bu paket kaydedilip dosya eklenince (google-services.<kurum>.json) bildirimler açılır.
+  const firebase = `./google-services.${tenantKey}.json`;
+  if (fs.existsSync(path.join(__dirname, firebase))) expo.android.googleServicesFile = firebase;
+  else delete expo.android.googleServicesFile;
 
   expo.plugins = (expo.plugins || []).map((plugin) => {
     if (Array.isArray(plugin) && plugin[0] === 'expo-notifications') {
@@ -81,5 +80,5 @@ module.exports = () => {
     tenant: tenantKey,
   };
 
-  return { expo };
+  return expo;
 };

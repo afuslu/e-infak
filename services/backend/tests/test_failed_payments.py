@@ -132,3 +132,73 @@ def test_expired_token_on_platform_host_is_401_not_404(token, expired):
     headers = [(b"authorization", f"Bearer {create_access_token({'sub': str(uuid.uuid4())}, delta)}".encode())] if token else []
     request = Request({"type": "http", "method": "GET", "path": "/", "headers": headers, "query_string": b""})
     assert TenantMiddleware._token_expired(request) is expired
+
+
+async def _held(db, monkeypatch, result):
+    from app.api.v1 import checkout
+
+    org, admin, crm, campaign, donor = await _setup(db)
+    order = await _order(db, org, donor, campaign, PaymentOrderStatus.REVIEW)
+    await db.commit()
+
+    class Provider:
+        async def query(self, *_):
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+    async def provider(*_):
+        return Provider()
+
+    monkeypatch.setattr(checkout, "attempt_provider", provider)
+    return org, admin, crm, order
+
+
+@pytest.mark.asyncio
+async def test_requery_records_a_paid_order_once(db_session, monkeypatch):
+    from app.models.donation import Donation
+
+    ok = PaymentResult(approved=True, merchant_payment_id=None, amount_cents=20000, currency="TRY", code="00",
+                       provider_transaction_id="77", safe_response={})
+    org, admin, crm, order = await _held(db_session, monkeypatch, ok)
+    with pytest.raises(HTTPException) as err:
+        await api.requery_payment(order.id, _request(org), db=db_session, current_user=crm)
+    assert err.value.status_code == 403
+    assert (await api.requery_payment(order.id, _request(org), db=db_session, current_user=admin))["status"] == "paid"
+    with pytest.raises(HTTPException) as err:
+        await api.requery_payment(order.id, _request(org), db=db_session, current_user=admin)
+    assert err.value.status_code == 409
+    donations = (await db_session.execute(select(Donation).where(Donation.organization_id == org.id))).scalars().all()
+    assert [d.amount_cents for d in donations] == [20000]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("result,status", [
+    (PaymentResult(approved=False, merchant_payment_id=None, code="NOTFOUND", message="yok"), None),
+    (PaymentResult(approved=True, merchant_payment_id=None, amount_cents=999, currency="TRY", code="00"), 409),
+    (PaymentResult(approved=False, merchant_payment_id=None, code="00", safe_response={"bank": {"ResponseCode": "00"}}), 409),
+    (ConnectionError("bank"), 502),
+])
+async def test_close_only_when_the_bank_has_no_sale(db_session, monkeypatch, result, status):
+    org, admin, _, order = await _held(db_session, monkeypatch, result)
+    payload = api.ClosePaymentIn(note="Bağışçı vazgeçti")
+    if status:
+        with pytest.raises(HTTPException) as err:
+            await api.close_payment(order.id, payload, _request(org), db=db_session, current_user=admin)
+        assert err.value.status_code == status
+        await db_session.refresh(order)
+        assert order.status == PaymentOrderStatus.REVIEW
+    else:
+        await api.close_payment(order.id, payload, _request(org), db=db_session, current_user=admin)
+        assert order.status == PaymentOrderStatus.FAILED and "vazgeçti" in order.failure_message
+        with pytest.raises(HTTPException):
+            await api.close_payment(order.id, payload, _request(org), db=db_session, current_user=admin)
+
+
+def test_salaries_need_the_finance_module():
+    from app.api.deps import can_reach
+    from tests.test_capabilities import _staff
+
+    for part in ("employees", "payroll", "advances"):
+        assert not can_reach(_staff(ticks=["receipts.create", "bank.approve"]), f"/api/v1/admin-features/acc/{part}", write=False)
+        assert can_reach(_staff(ticks=["finance.manage"]), f"/api/v1/admin-features/acc/{part}", write=True)

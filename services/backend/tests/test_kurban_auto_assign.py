@@ -307,7 +307,7 @@ async def test_bulk_template_round_trips_through_parser(db_session):
     from starlette.datastructures import UploadFile
 
     org, admin = await _setup(db_session)
-    template = await kurban.bulk_template(admin)
+    template = await kurban.bulk_template(_request(org), admin)
     parsed = await kurban.bulk_parse(UploadFile(io.BytesIO(template.body), filename="sablon.xlsx"), admin)
     assert parsed["skipped_columns"] == []
     assert parsed["rows"] == [{"donor_name": "Ahmet Yılmaz", "phone": "05551112233",

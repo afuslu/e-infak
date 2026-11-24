@@ -44,7 +44,7 @@ export default function Inflows() {
                 <Text style={[ui.muted, { fontSize: font.xs }]}>{d.series_unit === 'hour' ? 'Saat saat (00–23)' : 'Gün gün'} · 30 saniyede bir yenilenir · son: {dateTime(d.updated_at)}</Text>
               </Card>
               <View style={ui.wrapGap}>
-                <Stat label="İşlem" value={String(d.count)} sub={`Önceki: ${d.previous_count}`} onPress={() => router.push('/bagislar')} />
+                <Stat label="İşlem" value={String(d.count)} sub={`Önceki: ${d.previous_count}`} onPress={() => setChannel('*')} />
                 <Stat label="Ortalama" value={money(avg)} onPress={() => setAverage(true)} />
               </View>
               {d.other_currencies.length ? (
@@ -93,7 +93,7 @@ export default function Inflows() {
                 {d.channels.map((c) => <Row key={c.key} label={`${c.label} (${c.count})`} value={money(Math.round(c.total_cents / c.count))} />)}
                 <Row label={`Genel (${d.count})`} value={money(avg)} />
               </Sheet>
-              <Sheet visible={!!channel} onClose={() => setChannel(null)} title={d.channels.find((c) => c.key === channel)?.label || 'Kanal'}>
+              <Sheet visible={!!channel} onClose={() => setChannel(null)} title={d.channels.find((c) => c.key === channel)?.label || 'Tüm girişler'}>
                 <QueryView query={channelItems}>
                   {(x) => (
                     <>

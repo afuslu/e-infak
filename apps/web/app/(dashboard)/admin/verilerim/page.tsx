@@ -9,7 +9,7 @@ import { Label, ghostButton, inputClass, primaryButton } from '../../../../compo
 import { Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, confirmDialog, toast } from '../../../../components/admin/ui'
 
 interface Backup {
-  id: string; status: 'queued' | 'running' | 'ready' | 'failed' | 'expired'; include_media: boolean; size_bytes: number | null
+  id: string; status: 'queued' | 'running' | 'ready' | 'failed' | 'expired'; include_media: boolean; encrypted: boolean; size_bytes: number | null
   error: string | null; created_at: string; expires_at: string | null; downloaded_at: string | null
 }
 interface Offboarding {
@@ -35,6 +35,7 @@ export default function DataPage() {
   const [data, setData] = useState<Summary | null>(null)
   const [error, setError] = useState('')
   const [media, setMedia] = useState(true)
+  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState('')
   const [leaving, setLeaving] = useState(false)
   const [reason, setReason] = useState('')
@@ -87,11 +88,13 @@ export default function DataPage() {
             </p>
           </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={media} onChange={(e) => setMedia(e.target.checked)} /> Görsel ve videolar dahil</label>
-          <button type="button" className={primaryButton} disabled={!!busy || waiting}
-            onClick={() => run('create', () => adminSend('post', '/data-export/backups', { include_media: media }), 'Yedek hazırlanıyor')}>
+          <input type="password" autoComplete="new-password" className={`${inputClass} max-w-[230px]`} placeholder="ZIP şifresi (isteğe bağlı, en az 10)" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="button" className={primaryButton} disabled={!!busy || waiting || (!!password && password.length < 10)}
+            onClick={() => run('create', async () => { await adminSend('post', '/data-export/backups', { include_media: media, password: password || null }); setPassword('') }, 'Yedek hazırlanıyor')}>
             {waiting ? 'Hazırlanıyor…' : 'Tam yedek hazırla'}
           </button>
         </div>
+        {password && <p className="text-xs text-amber-700">Şifre bizde saklanmaz; unutursanız yedek açılamaz. Şifreli dosya 7-Zip gibi bir programla açılır.</p>}
         {data.exports.length > 0 && (
           <Table>
             <THead><Tr><Th>İstenen</Th><Th>Durum</Th><Th>İçerik</Th><Th>Boyut</Th><Th>Son indirme günü</Th><Th /></Tr></THead>
@@ -101,7 +104,7 @@ export default function DataPage() {
                   <Td className="whitespace-nowrap">{when(e.created_at)}</Td>
                   <Td><span className={`rounded-full px-2 py-0.5 text-xs font-bold ${STATUS[e.status][1]}`}>{STATUS[e.status][0]}</span>
                     {e.error && <div className="mt-1 max-w-xs text-xs text-red-700">{e.error}</div>}</Td>
-                  <Td>{e.include_media ? 'Kayıtlar + dosyalar' : 'Kayıtlar'}</Td>
+                  <Td>{e.include_media ? 'Kayıtlar + dosyalar' : 'Kayıtlar'}{e.encrypted ? ' · şifreli' : ''}</Td>
                   <Td className="tabular-nums">{e.size_bytes ? size(e.size_bytes) : '—'}</Td>
                   <Td className="whitespace-nowrap">{e.expires_at ? when(e.expires_at) : '—'}{e.downloaded_at && <div className="text-xs text-emerald-700">İndirildi: {when(e.downloaded_at)}</div>}</Td>
                   <Td className="text-right">{e.status === 'ready' && (

@@ -5,9 +5,9 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { apiErrorMessage, formatMoney, v1Get, whatsappUrl } from '../../../../lib/admin-access'
+import { apiErrorMessage, can, formatMoney, useAdminAccess, v1Get, v1Send, whatsappUrl } from '../../../../lib/admin-access'
 import { ghostButton, primaryButton } from '../../../../components/admin/FormKit'
-import { EmptyState, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr } from '../../../../components/admin/ui'
+import { EmptyState, Modal, PageHeader, TBody, THead, Table, Td, Th, Tr, toast } from '../../../../components/admin/ui'
 
 interface Payment {
   id: string; status: string; total_cents: number; currency: string; created_at: string; merchant_payment_id: string
@@ -79,12 +79,28 @@ export default function FailedPaymentsPage() {
           {data.total > data.items.length && <p className="mt-3 text-xs text-gray-500">{data.total} kaydın en yeni {data.items.length} tanesi gösteriliyor.</p>}
         </Card>
       )}
-      {selected && <Detail payment={selected} onClose={() => setSelected(null)} />}
+      {selected && <Detail payment={selected} onClose={() => setSelected(null)} onDone={() => { setSelected(null); load() }} />}
     </div>
   )
 }
 
-function Detail({ payment: p, onClose }: { payment: Payment; onClose: () => void }) {
+function Detail({ payment: p, onClose, onDone }: { payment: Payment; onClose: () => void; onDone: () => void }) {
+  const { data: access } = useAdminAccess()
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  const open = p.status === 'review' || p.status === 'failed'
+  const act = async (path: 'requery' | 'close', body?: unknown) => {
+    setBusy(true)
+    try {
+      const r = await v1Send<{ status: string; message: string }>('post', `/mobile/failed-payments/${p.id}/${path}`, body)
+      toast.ok(r.data.message)
+      onDone()
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
   const attempt = p.attempts[0]
   const wa = p.donor.phone ? whatsappUrl(p.donor.phone, '') : null
   const rows: [string, string][] = [
@@ -106,6 +122,8 @@ function Detail({ payment: p, onClose }: { payment: Payment; onClose: () => void
   return (
     <Modal title={formatMoney(p.total_cents, p.currency)} description={badge(p)[0]} onClose={onClose} size="lg"
       footer={<>
+        {open && can(access, 'receipts.mark_paid') && <button type="button" className={ghostButton} disabled={busy} onClick={() => act('requery')}>{busy ? 'Soruluyor…' : 'Bankaya yeniden sor'}</button>}
+        {p.status === 'review' && can(access, 'receipts.mark_paid') && <button type="button" className={ghostButton} disabled={busy} onClick={() => setNote('')}>Ödenmedi olarak kapat</button>}
         {wa && <a className={ghostButton} href={wa} target="_blank" rel="noreferrer">WhatsApp</a>}
         {p.donor.phone && <a className={ghostButton} href={`tel:${p.donor.phone}`}>Ara</a>}
         <Link className={primaryButton} href={`/admin/bagiscilar/${p.donor.id}`}>Bağışçıyı aç</Link>
@@ -114,6 +132,12 @@ function Detail({ payment: p, onClose }: { payment: Payment; onClose: () => void
         {p.retried_paid && <p className="rounded-lg bg-emerald-50 p-3 text-emerald-800">Bağışçı daha sonra aynı tutarı başarıyla ödedi.</p>}
         {p.status === 'review' && <p className="rounded-lg bg-amber-50 p-3 text-amber-800">Sonuç doğrulanamadı; para çekilmiş olabilir. Sipariş numarasıyla banka panelinden kontrol edin, kontrol etmeden tekrar ödeme istemeyin.</p>}
         {p.status === 'failed' && <p className="rounded-lg bg-red-50 p-3 text-red-700">Banka ödemeyi onaylamadı; bağış kaydı oluşmadı.</p>}
+        {note !== null && (
+          <div className="flex gap-2">
+            <input className="w-full rounded-lg border px-3 py-2" maxLength={300} placeholder="Kapatma nedeni" value={note} onChange={(e) => setNote(e.target.value)} />
+            <button type="button" className={primaryButton} disabled={busy || note.trim().length < 3} onClick={() => act('close', { note: note.trim() })}>Kapat</button>
+          </div>
+        )}
         <dl className="divide-y divide-gray-100">
           {rows.map(([label, value], i) => (
             <div key={i} className="flex justify-between gap-4 py-2">

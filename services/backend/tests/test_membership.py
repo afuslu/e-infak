@@ -96,7 +96,7 @@ async def test_members_dues_generation_payment_and_cancel(db_session):
     assert waived["waived"] == 1
 
     # Aidat kalemi sitedeki kampanya listesinde görünmez.
-    listed = await campaigns.list_campaigns(_request(org), 1, 25, None, None, None, None, db_session)
+    listed = await campaigns.list_campaigns(_request(org), page=1, page_size=25, sort=None, db=db_session)
     assert all(c.title != "Üye Aidatı" for c in listed.items)
 
     # Bağışçı paneli üyelik ve aidatları gösterir.

@@ -196,6 +196,7 @@ async def live_calls(request: Request, db: AsyncSession = Depends(get_db), user:
 
 @router.get("/calls")
 async def calls(request: Request, direction: Optional[str] = None, status: Optional[str] = None,
+                days: Optional[int] = Query(default=None, ge=1, le=365),
                 donor_id: Optional[UUID] = None, q: Optional[str] = Query(default=None, max_length=60),
                 page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200),
                 db: AsyncSession = Depends(get_db), _: User = Depends(staff)):
@@ -205,7 +206,9 @@ async def calls(request: Request, direction: Optional[str] = None, status: Optio
     if direction in ("in", "out"):
         query = query.where(CallLog.direction == direction)
     if status:
-        query = query.where(CallLog.status == status)
+        query = query.where(CallLog.status.in_([s for s in status.split(",") if s]))
+    if days:
+        query = query.where(CallLog.started_at >= datetime.now(timezone.utc) - timedelta(days=days))
     if donor_id:
         query = query.where(CallLog.donor_id == donor_id)
     if q:

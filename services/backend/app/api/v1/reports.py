@@ -819,10 +819,10 @@ async def source_report(request: Request, start: Optional[date] = None, end: Opt
     out = {}
     for key, column in (("sources", Donor.referral_source), ("membership_types", Donor.membership_type)):
         rows = (await db.execute(
-            select(func.coalesce(column, "Belirtilmemiş"), func.count(Donor.id), func.coalesce(func.sum(Donor.total_donated_cents), 0))
-            .where(*where).group_by(func.coalesce(column, "Belirtilmemiş")).order_by(func.count(Donor.id).desc())
+            select(column, func.count(Donor.id), func.coalesce(func.sum(Donor.total_donated_cents), 0))
+            .where(*where).group_by(column).order_by(func.count(Donor.id).desc())
         )).all()
-        out[key] = [{"label": l, "count": int(c), "total_cents": int(t)} for l, c, t in rows]
+        out[key] = [{"label": l or "Belirtilmemiş", "count": int(c), "total_cents": int(t)} for l, c, t in rows]
     return out
 
 

@@ -24,8 +24,11 @@ interface Listing {
   error_summary?: { error: string; count: number }[]
 }
 
-const TABS: ['' | SmsStatus, string][] = [
+// 'queued,scheduled' is the "Bekleyen" card.
+type StatusFilter = '' | SmsStatus | 'queued,scheduled'
+const TABS: [StatusFilter, string][] = [
   ['', 'Tümü'],
+  ['queued,scheduled', 'Bekleyen'],
   ['queued', 'Kuyrukta'],
   ['scheduled', 'Zamanlanan'],
   ['sent', 'Gönderilen'],
@@ -40,7 +43,7 @@ const when = (iso: string | null | undefined) =>
 export default function SmsLogPage() {
   const { data: access } = useAdminAccess()
   const canSend = can(access, 'sms.send')
-  const [status, setStatus] = useState<'' | SmsStatus>('')
+  const [status, setStatus] = useState<StatusFilter>('')
   const [batchId, setBatchId] = useState('')
   const [source, setSource] = useState('')
   const [q, setQ] = useState('')
@@ -63,7 +66,7 @@ export default function SmsLogPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const sp = new URLSearchParams(window.location.search)
-    const st = sp.get('status') as SmsStatus | null
+    const st = sp.get('status') as StatusFilter | null
     const bId = sp.get('batch_id')
     if (st && TABS.some(([k]) => k === st)) setStatus(st)
     if (bId) setBatchId(bId)
@@ -387,7 +390,7 @@ export default function SmsLogPage() {
             {sentOnlyCount > 0 && <div className="text-[10px] text-gray-400">{sentOnlyCount.toLocaleString('tr-TR')} operatörde</div>}
           </div>
         </button>
-        <button type="button" onClick={() => { setStatus('queued'); setPage(1) }} className="text-left transition hover:border-primary-300 hover:shadow-md flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
+        <button type="button" onClick={() => { setStatus('queued,scheduled'); setPage(1) }} className="text-left transition hover:border-primary-300 hover:shadow-md flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-xs">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
             <Clock className="h-5 w-5" />
           </div>
@@ -453,7 +456,7 @@ export default function SmsLogPage() {
               status === key ? 'bg-primary-600 text-white' : 'border bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
-            {label} ({key ? counts?.[key] || 0 : all})
+            {label} ({key === 'queued,scheduled' ? (counts?.queued || 0) + (counts?.scheduled || 0) : key ? counts?.[key] || 0 : all})
           </button>
         ))}
         {canSend && failedRetryable.length > 0 && (

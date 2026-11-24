@@ -678,7 +678,13 @@ export default function PlatformOrganizationPage() {
                 setBusy(true)
                 setMsg(null)
                 try {
-                  await platformCall('delete', `/organizations/${org.id}`, { confirm_name: confirmDelete })
+                  const done = await platformCall<{ certificate: unknown }>('delete', `/organizations/${org.id}`, { confirm_name: confirmDelete })
+                  const url = URL.createObjectURL(new Blob([JSON.stringify(done.certificate, null, 2)], { type: 'application/json' }))
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.download = `silme-tutanagi-${org.slug}.json`
+                  link.click()
+                  URL.revokeObjectURL(url)
                   router.replace('/platform')
                 } catch (err) {
                   setMsg({ type: 'error', text: errorText(err, 'Kurum silinemedi') })

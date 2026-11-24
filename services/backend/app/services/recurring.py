@@ -120,6 +120,10 @@ async def _notify(db: AsyncSession, sub: Subscription, event: str) -> bool:
 async def charge(db: AsyncSession, sub: Subscription, now: Optional[datetime] = None) -> dict:
     """Charge one card instruction now; the caller commits."""
     from app.api.v1.checkout import _finalize_paid_order, _load_order, apply_result
+    from app.services.offboarding import is_closed
+
+    if await is_closed(db, sub.organization_id):  # also stops a manual retry
+        return {"status": "closed", "error": "Kurumun hizmeti kapandı; çekim yapılmadı"}
     from app.models.organization import Organization
     from app.models.payment import PaymentAttempt, PaymentOrder, PaymentOrderItem, PaymentOrderStatus
     from app.payments import build_provider
@@ -202,10 +206,13 @@ async def remind(db: AsyncSession, sub: Subscription, now: Optional[datetime] = 
 
 async def run_due(db_factory, now: Optional[datetime] = None, limit: int = 200) -> dict:
     """Process instructions whose day has come; one transaction per instruction."""
+    from app.services.offboarding import closed_organizations
+
     now = now or datetime.now(timezone.utc)
     async with db_factory() as db:
         ids = (await db.execute(select(Subscription.id).where(
             Subscription.status == "active", Subscription.next_charge_date <= now,
+            Subscription.organization_id.not_in(closed_organizations()),
         ).order_by(Subscription.next_charge_date).limit(limit))).scalars().all()
     stats: dict[str, int] = {}
     for sub_id in ids:

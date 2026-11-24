@@ -36,8 +36,8 @@ export default function SmsDonationsPage() {
   const [tab, setTab] = useState<Tab>('records')
   const [stats, setStats] = useState<Stats | null>(null)
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [recordStatus, setRecordStatus] = useState('')
-  const openRecords = (status: string) => { setRecordStatus(status); setTab('records') }
+  const [recordFilter, setRecordFilter] = useState<{ status: string; days?: number }>({ status: '' })
+  const openRecords = (status: string) => { setRecordFilter({ status, days: 30 }); setTab('records') }
   const loadStats = () => adminGet<Stats>('/sms-donations/stats', { days: 30 }).then((r) => setStats(r.data)).catch(() => {})
   useEffect(() => {
     loadStats()
@@ -66,24 +66,25 @@ export default function SmsDonationsPage() {
         { key: 'import', label: 'Rapor Yükle', icon: FileUp },
         { key: 'settings', label: 'Anahtar Kelimeler & Bağlantı', icon: KeyRound },
       ]} />
-      {tab === 'records' && <Records key={recordStatus} initialStatus={recordStatus} campaigns={campaigns} onChange={loadStats} />}
+      {tab === 'records' && <Records key={`${recordFilter.status}-${recordFilter.days}`} initialStatus={recordFilter.status} initialDays={recordFilter.days} campaigns={campaigns} onChange={loadStats} />}
       {tab === 'import' && <ImportFile onDone={() => { loadStats(); setTab('records') }} />}
       {tab === 'settings' && <SettingsForm campaigns={campaigns} />}
     </div>
   )
 }
 
-function Records({ initialStatus, campaigns, onChange }: { initialStatus: string; campaigns: Campaign[]; onChange: () => void }) {
+function Records({ initialStatus, initialDays, campaigns, onChange }: { initialStatus: string; initialDays?: number; campaigns: Campaign[]; onChange: () => void }) {
   const [status, setStatus] = useState(initialStatus)
+  const [days, setDays] = useState(initialDays)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<{ total: number; items: RecordRow[] } | null>(null)
   const [assigning, setAssigning] = useState<RecordRow | null>(null)
   const [campaignId, setCampaignId] = useState('')
   const load = useCallback(() => {
-    adminGet<{ total: number; items: RecordRow[] }>('/sms-donations/records', { status: status || undefined, q: q.trim() || undefined, page, page_size: 50 })
+    adminGet<{ total: number; items: RecordRow[] }>('/sms-donations/records', { days, status: status || undefined, q: q.trim() || undefined, page, page_size: 50 })
       .then((r) => setData(r.data)).catch((err) => toast.error(apiErrorMessage(err)))
-  }, [status, q, page])
+  }, [status, q, page, days])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
   const assign = async () => {
     if (!assigning) return
@@ -106,6 +107,7 @@ function Records({ initialStatus, campaigns, onChange }: { initialStatus: string
   }
   return (
     <Card className="space-y-4 p-4">
+      {days && <p className="text-xs text-gray-500">Son {days} gün gösteriliyor. <button type="button" className="font-bold text-primary-700" onClick={() => { setDays(undefined); setPage(1) }}>Tümünü göster</button></p>}
       <div className="flex flex-wrap items-center gap-2">
         <select className={`${inputClass} max-w-[180px]`} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}>
           <option value="">Tüm durumlar</option>

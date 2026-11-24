@@ -1281,6 +1281,7 @@ async def retry_failed_subscription(
     await write_audit_log(db, org_id, current_user.id, action="duzenli_bagis_simdi", details={"subscription_id": str(sub.id), **outcome})
     await db.commit()
     messages = {"paid": "Kartından çekildi, makbuz oluşturuldu.", "already_paid": "Bu ayın tahsilatı zaten yapılmış.",
+                "closed": "Kurumun hizmeti kapandı; çekim yapılmadı.",
                 "failed": "Çekim başarısız; 2 gün sonra yeniden denenecek.", "paused": "Üç kez başarısız oldu; talimat durduruldu ve bağışçıya SMS gönderildi.",
                 "reminded": "Hatırlatma SMS'i kuyruğa alındı.", "skipped": "Bağışçının telefonu yok veya hatırlatma şablonu kapalı."}
     return {**outcome, "message": messages.get(outcome["status"], outcome["status"])}

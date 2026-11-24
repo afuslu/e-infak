@@ -225,7 +225,8 @@ async def cancel_batch(batch_id: UUID, request: Request, db: AsyncSession = Depe
 # --- log ---------------------------------------------------------------------------------------
 
 @router.get("/messages")
-async def messages(request: Request, status: Optional[str] = None, donor_id: Optional[UUID] = None,
+async def messages(request: Request, status: Optional[str] = None, days: Optional[int] = Query(default=None, ge=1, le=365),
+                   donor_id: Optional[UUID] = None,
                    batch_id: Optional[UUID] = None, q: Optional[str] = Query(default=None, max_length=60),
                    page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200),
                    db: AsyncSession = Depends(get_db), _: User = Depends(reader)):
@@ -233,7 +234,9 @@ async def messages(request: Request, status: Optional[str] = None, donor_id: Opt
     query = select(WhatsAppMessage, Donor).outerjoin(Donor, Donor.id == WhatsAppMessage.donor_id).where(
         WhatsAppMessage.organization_id == org_id)
     if status:
-        query = query.where(WhatsAppMessage.status == status)
+        query = query.where(WhatsAppMessage.status.in_([s for s in status.split(",") if s]))
+    if days:
+        query = query.where(WhatsAppMessage.created_at >= datetime.now(timezone.utc) - timedelta(days=days))
     if donor_id:
         query = query.where(WhatsAppMessage.donor_id == donor_id)
     if batch_id:

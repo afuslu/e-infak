@@ -58,8 +58,8 @@ export default function CallCenterPage() {
   const [tab, setTab] = useState<Tab>('smart')
   const [account, setAccount] = useState<Account | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
-  const [callFilter, setCallFilter] = useState({ direction: '', status: '' })
-  const openCalls = (direction: string, status = '') => { setCallFilter({ direction, status }); setTab('calls') }
+  const [callFilter, setCallFilter] = useState<{ direction: string; status: string; days?: number }>({ direction: '', status: '' })
+  const openCalls = (direction: string, status = '') => { setCallFilter({ direction, status, days: 30 }); setTab('calls') }
   const loadAccount = useCallback(() => {
     adminGet<Account>('/call-center/account').then((r) => {
       setAccount(r.data)
@@ -85,7 +85,7 @@ export default function CallCenterPage() {
         <div className="grid gap-3 sm:grid-cols-4">
           <StatCard label="Gelen (30 gün)" value={stats.incoming.toLocaleString('tr-TR')} icon={PhoneIncoming} onClick={() => openCalls('in')} />
           <StatCard label="Giden (30 gün)" value={stats.outgoing.toLocaleString('tr-TR')} icon={PhoneOutgoing} onClick={() => openCalls('out')} />
-          <StatCard label="Cevapsız" value={stats.missed.toLocaleString('tr-TR')} tone={stats.missed ? 'bad' : 'neutral'} icon={PhoneMissed} onClick={() => openCalls('in', 'missed')} />
+          <StatCard label="Cevapsız" value={stats.missed.toLocaleString('tr-TR')} tone={stats.missed ? 'bad' : 'neutral'} icon={PhoneMissed} onClick={() => openCalls('in', 'missed,busy')} />
           <StatCard label="Konuşma süresi" value={`${Math.round(stats.talk_seconds / 60).toLocaleString('tr-TR')} dk`} onClick={() => openCalls('', 'ended')} />
         </div>
       )}
@@ -96,7 +96,7 @@ export default function CallCenterPage() {
         { key: 'account', label: 'Santral Ayarları', icon: KeyRound },
       ]} />
       {tab === 'smart' && <SmartQueue onRefreshStats={loadStats} />}
-      {tab === 'calls' && <CallList key={`${callFilter.direction}-${callFilter.status}`} initial={callFilter} onRefreshStats={loadStats} />}
+      {tab === 'calls' && <CallList key={`${callFilter.direction}-${callFilter.status}-${callFilter.days}`} initial={callFilter} onRefreshStats={loadStats} />}
       {tab === 'extensions' && <Extensions />}
       {tab === 'account' && account && <AccountForm account={account} onSaved={loadAccount} />}
     </div>
@@ -134,9 +134,10 @@ function MyExtension({ account, onSaved }: { account: Account | null; onSaved: (
 
 interface DonorOption { id: string; full_name: string; phone: string | null; city: string | null }
 
-function CallList({ initial, onRefreshStats }: { initial: { direction: string; status: string }; onRefreshStats: () => void }) {
+function CallList({ initial, onRefreshStats }: { initial: { direction: string; status: string; days?: number }; onRefreshStats: () => void }) {
   const [direction, setDirection] = useState(initial.direction)
   const [status, setStatus] = useState(initial.status)
+  const [days, setDays] = useState(initial.days)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<{ total: number; items: Call[] } | null>(null)
@@ -150,9 +151,9 @@ function CallList({ initial, onRefreshStats }: { initial: { direction: string; s
   const [donorHits, setDonorHits] = useState<DonorOption[]>([])
 
   const load = useCallback(() => {
-    adminGet<{ total: number; items: Call[] }>('/call-center/calls', { direction: direction || undefined, status: status || undefined, q: q.trim() || undefined, page, page_size: 50 })
+    adminGet<{ total: number; items: Call[] }>('/call-center/calls', { days, direction: direction || undefined, status: status || undefined, q: q.trim() || undefined, page, page_size: 50 })
       .then((r) => setData(r.data)).catch((err) => toast.error(apiErrorMessage(err)))
-  }, [direction, status, q, page])
+  }, [direction, status, q, page, days])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
 
   useEffect(() => {
@@ -215,13 +216,14 @@ function CallList({ initial, onRefreshStats }: { initial: { direction: string; s
   }
   return (
     <Card className="space-y-4 p-4">
+      {days && <p className="text-xs text-gray-500">Son {days} gün gösteriliyor. <button type="button" className="font-bold text-primary-700" onClick={() => { setDays(undefined); setPage(1) }}>Tümünü göster</button></p>}
       <div className="flex flex-wrap items-center gap-2">
         <select className={`${inputClass} max-w-[160px]`} value={direction} onChange={(e) => { setDirection(e.target.value); setPage(1) }}>
           <option value="">Gelen + giden</option><option value="in">Gelen</option><option value="out">Giden</option>
         </select>
         <select className={`${inputClass} max-w-[160px]`} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}>
           <option value="">Tüm durumlar</option><option value="ended">Tamamlandı</option><option value="missed">Cevapsız</option>
-          <option value="busy">Meşgul</option><option value="answered">Görüşmede</option><option value="ringing">Çalıyor</option>
+          <option value="missed,busy">Cevapsız + meşgul</option><option value="busy">Meşgul</option><option value="answered">Görüşmede</option><option value="ringing">Çalıyor</option>
         </select>
         <input className={`${inputClass} max-w-xs`} placeholder="Telefon, isim veya dahili" value={q} onChange={(e) => { setQ(e.target.value); setPage(1) }} />
         <button type="button" className={`${ghostButton} flex items-center gap-1`} onClick={() => { load(); onRefreshStats() }}><RefreshCw className="h-3.5 w-3.5" /> Yenile</button>

@@ -243,3 +243,60 @@ async def test_stkpro_notes_import_once_and_come_back_in_the_export(db_session):
     out = await crm.bulk_donors(_request(org), crm.DonorBulkIn(action="export", ids=[donor.id], columns=["full_name", "notes", "call_notes"]),
                                 db=db_session, current_user=admin)
     assert out["rows"][0][1] == "Komşu" and out["rows"][0][2].startswith("12.05.2025 14:30 - Arandı\n")
+
+
+@pytest.mark.asyncio
+async def test_password_protected_backup(db_session, monkeypatch):
+    import pyzipper
+    from app.services import tenant_credentials as tc
+
+    monkeypatch.setattr(tc, "encrypt", lambda p: "ENC:" + json.dumps(p))
+    monkeypatch.setattr(tc, "decrypt", lambda t: json.loads(t[4:]))
+    monkeypatch.setattr("app.tasks.build_data_export_task.apply_async", lambda *a, **k: None)
+    org, admin, *_ = await _filled(db_session)
+    made = await api.create_backup(_request(org), api.BackupIn(include_media=False, password="çok-uzun-şifre"), db=db_session, user=admin)
+    assert made["encrypted"] and "password" not in str(made)
+    export = await db_session.get(DataExport, uuid.UUID(made["id"]))
+    await svc.build(db_session, export)
+    await db_session.commit()
+    assert export.password_enc is None
+    with zipfile.ZipFile(svc.export_path(export)) as z, pytest.raises((RuntimeError, NotImplementedError)):
+        z.read("ozet.json")
+    with pyzipper.AESZipFile(svc.export_path(export)) as z:
+        z.setpassword("çok-uzun-şifre".encode())
+        assert json.loads(z.read("ozet.json"))["kurum"] == org.name
+
+
+@pytest.mark.asyncio
+async def test_closing_date_stops_charges_and_reminds_once(db_session, monkeypatch):
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from app.services import offboarding
+
+    mails, notes = [], []
+    monkeypatch.setattr("app.tasks.send_email_task", lambda to, subject, body: mails.append(subject))
+
+    async def note(db, org_id, title, body, data=None):
+        notes.append(title)
+
+    monkeypatch.setattr("app.services.staff_notify.notify_system_alert", note)
+    org, *_ = await _filled(db_session)
+    today = datetime.now(svc.TZ).date()
+    row = OrganizationOffboarding(organization_id=org.id, status="scheduled", closes_on=today + timedelta(days=25))
+    db_session.add(row)
+    await db_session.commit()
+    factory = async_sessionmaker(db_session.bind, expire_on_commit=False)
+    mine = lambda: [t for t in mails]
+    await offboarding.send_reminders(factory)
+    await offboarding.send_reminders(factory)
+    assert mine().count("Kapanışa 25 gün kaldı") == 1 and "Kapanışa 25 gün kaldı" in notes
+    await offboarding.send_reminders(factory, today=today + timedelta(days=24))
+    assert "Kapanışa 1 gün kaldı" in mine() and not await offboarding.is_closed(db_session, org.id)
+    row.closes_on = today
+    await db_session.commit()
+    assert await offboarding.is_closed(db_session, org.id)
+
+    class Sub:
+        organization_id = org.id
+
+    from app.services import recurring
+    assert (await recurring.charge(db_session, Sub()))["status"] == "closed"

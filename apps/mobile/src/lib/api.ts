@@ -13,6 +13,7 @@ const KEY_ACCESS = 'einfak_access_token';
 const KEY_REFRESH = 'einfak_refresh_token';
 const KEY_HOST = 'einfak_tenant_host';
 const KEY_PLATFORM_TOKEN = 'einfak_platform_token';
+const KEY_PLATFORM_REFRESH = 'einfak_platform_refresh_token';
 const KEY_SIM_ORG = 'einfak_simulating_org';
 const KEY_DONOR_ACCESS = 'einfak_donor_access_token';
 const KEY_DONOR_REFRESH = 'einfak_donor_refresh_token';
@@ -29,6 +30,7 @@ export type RememberedLogin = {
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 let platformToken: string | null = null;
+let platformRefresh: string | null = null;
 let donorAccessToken: string | null = null;
 let donorRefreshToken: string | null = null;
 let simulatingOrg: SimOrg | null = null;
@@ -108,6 +110,7 @@ export async function loadSession(): Promise<boolean> {
   accessToken = await getItem(KEY_ACCESS);
   refreshToken = await getItem(KEY_REFRESH);
   platformToken = await getItem(KEY_PLATFORM_TOKEN);
+  platformRefresh = await getItem(KEY_PLATFORM_REFRESH);
   donorAccessToken = await getItem(KEY_DONOR_ACCESS);
   donorRefreshToken = await getItem(KEY_DONOR_REFRESH);
   const simRaw = await getItem(KEY_SIM_ORG);
@@ -150,6 +153,7 @@ export async function clearSession() {
   accessToken = null;
   refreshToken = null;
   platformToken = null;
+  platformRefresh = null;
   donorAccessToken = null;
   donorRefreshToken = null;
   simulatingOrg = null;
@@ -159,6 +163,7 @@ export async function clearSession() {
     removeItem(KEY_REFRESH),
     removeItem(KEY_HOST),
     removeItem(KEY_PLATFORM_TOKEN),
+    removeItem(KEY_PLATFORM_REFRESH),
     removeItem(KEY_SIM_ORG),
     removeItem(KEY_DONOR_ACCESS),
     removeItem(KEY_DONOR_REFRESH),
@@ -373,11 +378,13 @@ export async function login(emailOrPhone: string, password: string, tenantHost?:
     },
   });
   platformToken = null;
+  platformRefresh = null;
   donorAccessToken = null;
   donorRefreshToken = null;
   simulatingOrg = null;
   await Promise.all([
     removeItem(KEY_PLATFORM_TOKEN),
+    removeItem(KEY_PLATFORM_REFRESH),
     removeItem(KEY_SIM_ORG),
     removeItem(KEY_DONOR_ACCESS),
     removeItem(KEY_DONOR_REFRESH),
@@ -398,6 +405,7 @@ export async function platformLogin(email: string, password: string, totpCode?: 
       body: JSON.stringify({
         email: email.trim(),
         password,
+        remember: true,
         ...(totpCode?.trim() ? { totp_code: totpCode.trim() } : {}),
       }),
     });
@@ -415,6 +423,8 @@ export async function platformLogin(email: string, password: string, totpCode?: 
   donorRefreshToken = null;
   simulatingOrg = null;
   platformToken = body.access_token;
+  platformRefresh = body.refresh_token ?? null;
+  if (platformRefresh) await setItem(KEY_PLATFORM_REFRESH, platformRefresh);
   await Promise.all([
     removeItem(KEY_ACCESS),
     removeItem(KEY_REFRESH),
@@ -484,11 +494,13 @@ export async function loginDonorPassword(identifier: string, password: string, t
   accessToken = null;
   refreshToken = null;
   platformToken = null;
+  platformRefresh = null;
   simulatingOrg = null;
   await Promise.all([
     removeItem(KEY_ACCESS),
     removeItem(KEY_REFRESH),
     removeItem(KEY_PLATFORM_TOKEN),
+    removeItem(KEY_PLATFORM_REFRESH),
     removeItem(KEY_SIM_ORG),
   ]);
   if (host !== PLATFORM_HOST) await setItem(KEY_HOST, host);
@@ -522,11 +534,13 @@ export async function verifyDonorOtp(contact: string, otpCode: string, tenantHos
   accessToken = null;
   refreshToken = null;
   platformToken = null;
+  platformRefresh = null;
   simulatingOrg = null;
   await Promise.all([
     removeItem(KEY_ACCESS),
     removeItem(KEY_REFRESH),
     removeItem(KEY_PLATFORM_TOKEN),
+    removeItem(KEY_PLATFORM_REFRESH),
     removeItem(KEY_SIM_ORG),
   ]);
   if (host !== PLATFORM_HOST) await setItem(KEY_HOST, host);
@@ -565,8 +579,23 @@ export async function df<T = any>(path: string, options: Options = {}, retry = t
   return body as T;
 }
 
+let platformRefreshing: Promise<Refresh> | null = null;
+
+function refreshPlatformOnce(): Promise<Refresh> {
+  if (!platformRefreshing) {
+    platformRefreshing = exchange('/platform/auth/refresh', platformRefresh, async (access, refresh) => {
+      platformToken = access;
+      platformRefresh = refresh;
+      await Promise.all([setItem(KEY_PLATFORM_TOKEN, access), setItem(KEY_PLATFORM_REFRESH, refresh)]);
+    }).finally(() => {
+      platformRefreshing = null;
+    });
+  }
+  return platformRefreshing;
+}
+
 /** Platform API (/api/v1/platform/...) istekleri. */
-export async function pf<T = any>(path: string, options: Options = {}): Promise<T> {
+export async function pf<T = any>(path: string, options: Options = {}, retry = true): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.auth !== false && platformToken) headers.Authorization = `Bearer ${platformToken}`;
@@ -582,6 +611,9 @@ export async function pf<T = any>(path: string, options: Options = {}): Promise<
   }
   const body = await parse(response);
   if (response.status === 401 && options.auth !== false) {
+    const renewed = retry ? await refreshPlatformOnce() : 'rejected';
+    if (renewed === 'ok') return pf<T>(path, options, false);
+    if (renewed === 'unreachable') throw unreachable();
     await clearSession();
     onSessionLost?.();
     throw new ApiError(401, 'Platform oturumunuz sona erdi. Lütfen yeniden giriş yapın.');

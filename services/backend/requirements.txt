@@ -58,3 +58,4 @@ mypy==1.8.0
 
 # Image validation for uploaded logos (also pulled in by reportlab)
 Pillow>=10.3,<14
+pyzipper==0.3.6

@@ -425,7 +425,8 @@ async def list_messages(
         select(SmsMessage.status, func.count(SmsMessage.id)).select_from(SmsMessage)
         .outerjoin(Donor, Donor.id == SmsMessage.donor_id).where(*scope).group_by(SmsMessage.status)
     )).all())
-    where = scope + ([SmsMessage.status == status] if status else [])
+    wanted = [s for s in (status or "").split(",") if s]  # "queued,scheduled" = everything waiting
+    where = scope + ([SmsMessage.status.in_(wanted)] if wanted else [])
     order_cols = {
         "date_desc": (SmsMessage.created_at.desc(), SmsMessage.seq_no.desc()),
         "date_asc": (SmsMessage.created_at.asc(), SmsMessage.seq_no.asc()),
@@ -454,7 +455,7 @@ async def list_messages(
         error_summary = [{"error": err, "count": int(cnt)} for err, cnt in err_rows]
     return {
         "items": [_message_row(m, d.full_name if d else None, t, u, current_user) for m, d, t, u in rows],
-        "total": counts.get(status, 0) if status else sum(counts.values()),
+        "total": sum(counts.get(s, 0) for s in wanted) if wanted else sum(counts.values()),
         "counts": {key: counts.get(key, 0) for key in SMS_STATUSES},
         "parts_sent": (await db.execute(
             select(func.coalesce(func.sum(SmsMessage.parts), 0)).select_from(SmsMessage)
@@ -479,7 +480,8 @@ async def export_messages(
     org_id = _org_id(request)
     scope = _messages_scope(org_id, source=source, q=q, donor_id=donor_id, batch_id=batch_id,
                             date_from=date_from, date_to=date_to)
-    where = scope + ([SmsMessage.status == status] if status else [])
+    wanted = [s for s in (status or "").split(",") if s]  # "queued,scheduled" = everything waiting
+    where = scope + ([SmsMessage.status.in_(wanted)] if wanted else [])
     order_cols = {
         "date_desc": (SmsMessage.created_at.desc(), SmsMessage.seq_no.desc()),
         "date_asc": (SmsMessage.created_at.asc(), SmsMessage.seq_no.asc()),

@@ -157,7 +157,8 @@ async def import_file(request: Request, file: UploadFile = File(...), dry_run: b
 # --- records -----------------------------------------------------------------------------------
 
 @router.get("/records")
-async def records(request: Request, status: Optional[str] = None, q: Optional[str] = Query(default=None, max_length=60),
+async def records(request: Request, status: Optional[str] = None, days: Optional[int] = Query(default=None, ge=1, le=730),
+                  q: Optional[str] = Query(default=None, max_length=60),
                   page: int = Query(default=1, ge=1), page_size: int = Query(default=50, ge=1, le=200),
                   db: AsyncSession = Depends(get_db), _: User = Depends(reader)):
     org_id = _org_id(request)
@@ -167,6 +168,8 @@ async def records(request: Request, status: Optional[str] = None, q: Optional[st
              .where(SmsDonationRecord.organization_id == org_id))
     if status:
         query = query.where(SmsDonationRecord.status == status)
+    if days:
+        query = query.where(SmsDonationRecord.received_at >= datetime.now(timezone.utc) - timedelta(days=days))
     if q:
         like = f"%{q.strip()}%"
         query = query.where(SmsDonationRecord.phone.ilike(like) | SmsDonationRecord.keyword.ilike(like)

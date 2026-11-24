@@ -277,7 +277,7 @@ async def test_incoming_transfer_api_approve_with_new_donor_and_rules(db_session
     banks = await bank_sync.list_banks(request, db=db_session, _=admin)
     assert {b["key"] for b in banks} >= {"vakifkatilim", "ziraatkatilim", "kuveytturk"}
     ready = {b["key"]: b["ready"] for b in banks}
-    assert ready["vakifkatilim"] and not ready["ziraatkatilim"] and not ready["kuveytturk"]
+    assert ready["vakifkatilim"] and ready["kuveytturk"] and not ready["ziraatkatilim"]
 
 
 async def test_stkpro_reuses_site_campaigns_links_kurban_and_applies_aliases(db_session):

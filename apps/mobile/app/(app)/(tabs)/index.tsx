@@ -46,6 +46,11 @@ const CURRENCIES = [
   { value: 'EUR', label: '€ EUR' },
 ];
 
+const today = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export default function Dashboard() {
   const router = useRouter();
   const { access, me } = useAuth();
@@ -68,7 +73,7 @@ export default function Dashboard() {
   // Para girişleri ekranı yalnız TRY toplar; dövizde bağış listesine gidilir.
   const openInflow = (target: string) => currency === 'TRY'
     ? router.push({ pathname: '/para-girisleri', params: { period: target } } as Href)
-    : router.push('/bagislar');
+    : router.push({ pathname: '/bagislar', params: { currency, start: target === 'month' ? `${today().slice(0, 7)}-01` : today(), end: today() } });
 
   return (
     <Screen onRefresh={() => { query.refetch(); inflow.refetch(); }} refreshing={query.isRefetching}>

@@ -102,12 +102,15 @@ def usable_card(sub: Optional[Subscription], pledge: Pledge) -> bool:
 
 async def run_due(db_factory, today: Optional[date] = None, limit: int = 200) -> dict:
     """Once a day: each due, unpaid installment of an auto-charge pledge, one transaction each."""
+    from app.services.offboarding import closed_organizations
+
     today = today or datetime.now(TZ).date()
     async with db_factory() as db:
         ids = (await db.execute(
             select(PledgeInstallment.id).join(Pledge, Pledge.id == PledgeInstallment.pledge_id).where(
                 Pledge.auto_charge.is_(True), Pledge.status == "active", PledgeInstallment.status == "pending",
                 PledgeInstallment.due_date <= today,
+                Pledge.organization_id.not_in(closed_organizations()),
             ).order_by(PledgeInstallment.due_date).limit(limit)
         )).scalars().all()
     stats: dict[str, int] = {}

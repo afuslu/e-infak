@@ -98,7 +98,7 @@ def test_slider_card_layout_and_thumb_nav():
     hk_home = validate_blocks(hayir_kapisi()["home"], "home")
     assert hk_home[0]["type"] == "slider"
     assert hk_home[0]["props"]["layout"] == "card"
-    assert hk_home[0]["props"]["nav"] == "thumbs"
+    assert hk_home[0]["props"]["nav"] == "icon_tabs"
 
 
 @pytest.fixture

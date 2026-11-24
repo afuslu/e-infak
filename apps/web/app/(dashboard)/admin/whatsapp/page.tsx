@@ -77,8 +77,8 @@ export default function WhatsAppPage() {
   const [account, setAccount] = useState<Account | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
-  const [logStatus, setLogStatus] = useState('')
-  const openLog = (status: string) => { setLogStatus(status); setTab('log') }
+  const [log, setLog] = useState<{ status: string; days?: number }>({ status: '' })
+  const openLog = (status: string) => { setLog({ status, days: 30 }); setTab('log') }
 
   const loadAccount = useCallback(async () => {
     try {
@@ -125,7 +125,7 @@ export default function WhatsAppPage() {
       ]} />
       {tab === 'send' && <SingleSend templates={templates} configured={!!account?.configured} />}
       {tab === 'bulk' && <BulkSend templates={templates} configured={!!account?.configured} onSent={() => setTab('log')} />}
-      {tab === 'log' && <MessageLog key={logStatus} initialStatus={logStatus} />}
+      {tab === 'log' && <MessageLog key={`${log.status}-${log.days}`} initialStatus={log.status} initialDays={log.days} />}
       {tab === 'account' && account && <AccountForm account={account} onSaved={loadAccount} />}
     </div>
   )
@@ -261,15 +261,16 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
   )
 }
 
-function MessageLog({ initialStatus }: { initialStatus: string }) {
+function MessageLog({ initialStatus, initialDays }: { initialStatus: string; initialDays?: number }) {
+  const [days, setDays] = useState(initialDays)
   const [status, setStatus] = useState(initialStatus)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
   const [data, setData] = useState<{ total: number; items: Message[] } | null>(null)
   const load = useCallback(() => {
-    adminGet<{ total: number; items: Message[] }>('/whatsapp/messages', { status: status || undefined, q: q.trim() || undefined, page, page_size: 50 })
+    adminGet<{ total: number; items: Message[] }>('/whatsapp/messages', { days, status: status || undefined, q: q.trim() || undefined, page, page_size: 50 })
       .then((r) => setData(r.data)).catch((err) => toast.error(apiErrorMessage(err)))
-  }, [status, q, page])
+  }, [status, q, page, days])
   useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t) }, [load])
   const waiting = data?.items.some((m) => m.status === 'queued')
   useEffect(() => {
@@ -289,6 +290,7 @@ function MessageLog({ initialStatus }: { initialStatus: string }) {
   }
   return (
     <Card className="space-y-4 p-4">
+      {days && <p className="text-xs text-gray-500">Son {days} gün gösteriliyor. <button type="button" className="font-bold text-primary-700" onClick={() => { setDays(undefined); setPage(1) }}>Tümünü göster</button></p>}
       <div className="flex flex-wrap items-center gap-2">
         <select className={`${inputClass} max-w-[180px]`} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}>
           <option value="">Tüm durumlar</option>

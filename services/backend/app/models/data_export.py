@@ -18,6 +18,8 @@ class DataExport(Base):
     status = Column(String(16), nullable=False, default="queued", index=True)  # queued | running | ready | failed | expired
     size_bytes = Column(BigInteger)
     sha256 = Column(String(64))
+    password_enc = Column(Text)  # only while queued; wiped when the ZIP is built
+    encrypted = Column(Boolean, nullable=False, default=False, server_default="false")
     counts = Column(JSONB, nullable=False, default=dict)
     error = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -39,6 +41,7 @@ class OrganizationOffboarding(Base):
     closes_on = Column(Date)
     operator_note = Column(Text)
     checklist = Column(JSONB, nullable=False, default=dict)
+    reminders_sent = Column(JSONB, nullable=False, default=list, server_default="[]")
     backup_confirmed_at = Column(DateTime(timezone=True))
     backup_confirmed_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"))
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

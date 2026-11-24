@@ -75,3 +75,27 @@ async def test_web_logout_keeps_phone_but_deactivation_and_password_change_end_i
     await db_session.flush()
     with pytest.raises(HTTPException):
         await auth.refresh_token(RefreshTokenRequest(refresh_token=again.refresh_token), db=db_session)
+
+
+@pytest.mark.asyncio
+async def test_platform_refresh_ends_with_password_change(db_session):
+    import uuid
+    from app.api.v1 import platform
+    from app.models.platform import PlatformUser
+    from tests.test_staff_notify import _setup as setup
+
+    org, *_ = await setup(db_session)
+    op = PlatformUser(email=f"{uuid.uuid4().hex}@example.com", hashed_password="x", full_name="Op", role="admin")
+    db_session.add(op)
+    await db_session.flush()
+    assert "refresh_token" not in platform._platform_tokens(op, False)
+    token = platform._platform_tokens(op, True)["refresh_token"]
+    body = platform.PlatformRefreshIn(refresh_token=token)
+    assert (await platform.platform_refresh(body, _request(org), db=db_session))["access_token"]
+    with pytest.raises(HTTPException):  # a tenant refresh token is not accepted
+        from app.core.security import create_refresh_token
+        await platform.platform_refresh(platform.PlatformRefreshIn(refresh_token=create_refresh_token({"sub": str(op.id)})), _request(org), db=db_session)
+    op.hashed_password = "y"
+    await db_session.flush()
+    with pytest.raises(HTTPException):
+        await platform.platform_refresh(body, _request(org), db=db_session)

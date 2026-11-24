@@ -65,7 +65,7 @@ def _log(db: AsyncSession, org_id: UUID, user: Optional[User], action: str, **de
 
 def export_out(e: DataExport) -> dict:
     expired = e.status == "ready" and e.expires_at and e.expires_at < datetime.now(timezone.utc)
-    return {"id": str(e.id), "status": "expired" if expired else e.status, "include_media": e.include_media,
+    return {"id": str(e.id), "status": "expired" if expired else e.status, "include_media": e.include_media, "encrypted": e.encrypted,
             "size_bytes": e.size_bytes, "sha256": e.sha256, "counts": e.counts or {}, "error": e.error,
             "created_at": e.created_at, "finished_at": e.finished_at, "expires_at": e.expires_at,
             "downloaded_at": e.downloaded_at}
@@ -126,6 +126,7 @@ async def download_dataset(key: str, request: Request, db: AsyncSession = Depend
 
 class BackupIn(BaseModel):
     include_media: bool = True
+    password: Optional[str] = Field(default=None, min_length=10, max_length=128)
 
 
 @router.post("/backups", status_code=201)
@@ -139,15 +140,24 @@ async def create_backup(request: Request, payload: BackupIn, db: AsyncSession = 
         DataExport.organization_id == org_id, DataExport.status.in_(("queued", "running"))))).first()
     if running:
         raise HTTPException(status_code=409, detail="Hazırlanmakta olan bir yedek var")
-    export = DataExport(organization_id=org_id, requested_by=user.id, include_media=payload.include_media, status="queued")
+    secret = None
+    if payload.password:
+        from app.services.tenant_credentials import CredentialsUnavailable, encrypt
+        try:
+            secret = encrypt({"password": payload.password})
+        except CredentialsUnavailable as exc:
+            raise HTTPException(status_code=503, detail="Sunucuda şifreleme anahtarı tanımlı değil; şifresiz yedek alabilirsiniz") from exc
+    export = DataExport(organization_id=org_id, requested_by=user.id, include_media=payload.include_media, status="queued",
+                        password_enc=secret, encrypted=bool(secret))
     db.add(export)
-    _log(db, org_id, user, "tam_yedek_istendi", include_media=payload.include_media)
+    _log(db, org_id, user, "tam_yedek_istendi", include_media=payload.include_media, encrypted=bool(secret))
     await db.commit()
     await db.refresh(export)
     from app.tasks import build_data_export_task
     try:
         build_data_export_task.apply_async((str(export.id),), retry=False, ignore_result=True)
     except Exception as exc:
+        export.password_enc = None
         export.status, export.error = "failed", "Yedek işçisine ulaşılamadı; biraz sonra yeniden deneyin"
         await db.commit()
         raise HTTPException(status_code=503, detail=export.error) from exc

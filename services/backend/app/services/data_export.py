@@ -288,11 +288,18 @@ Bu dosya kişisel veri içerir; KVKK kapsamında güvenli bir yerde saklayın.
 """
 
 
-def _zip(work: Path, target: Path, media: list[tuple[Path, str]]) -> str:
+def _zip(work: Path, target: Path, media: list[tuple[Path, str]], password: Optional[str] = None) -> str:
     target.parent.mkdir(parents=True, exist_ok=True)
     partial = target.with_suffix(".part")
     try:
-        with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+        if password:
+            import pyzipper
+            opened = pyzipper.AESZipFile(partial, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True,
+                                         encryption=pyzipper.WZ_AES)
+            opened.setpassword(password.encode("utf-8"))
+        else:
+            opened = zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED, allowZip64=True)
+        with opened as archive:
             for f in sorted(work.rglob("*")):
                 if f.is_file():
                     archive.write(f, f.relative_to(work).as_posix())
@@ -315,6 +322,10 @@ async def build(db: AsyncSession, export) -> None:
     from app.models.organization import Organization
 
     org = await db.get(Organization, export.organization_id)
+    password = None
+    if export.encrypted:
+        from app.services.tenant_credentials import decrypt
+        password = decrypt(export.password_enc)["password"]
     root = export_dir(org.id)
     root.mkdir(parents=True, exist_ok=True)
     media = media_files(org.id) if export.include_media else []
@@ -335,14 +346,16 @@ async def build(db: AsyncSession, export) -> None:
             {"kurum": org.name, "tarih": now.isoformat(), "kayitlar": counts, "dosya_sayisi": len(media)},
             ensure_ascii=False, indent=2), encoding="utf-8")
         target = export_path(export)
-        export.sha256 = await asyncio.to_thread(_zip, work, target, media)
+        export.sha256 = await asyncio.to_thread(_zip, work, target, media, password)
     export.size_bytes = target.stat().st_size
     export.counts = {**counts, "dosyalar": len(media)}
     export.finished_at = datetime.now(timezone.utc)
     export.expires_at = export.finished_at + timedelta(days=KEEP_DAYS)
     export.status = "ready"
+    export.password_enc = None
 
 
 def remove_organization_files(org_id: UUID) -> None:
+    """Uploaded files and backups. Database dumps on the server age out by themselves (dagit.sh)."""
     for folder in (org_dir(org_id), video_dir(org_id), export_dir(org_id)):
         shutil.rmtree(folder, ignore_errors=True)

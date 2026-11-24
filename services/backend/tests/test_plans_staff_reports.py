@@ -239,7 +239,7 @@ async def test_reports_aggregate_real_confirmed_donations(db_session):
     assert donors["returning_donors"] == 1
     assert {c["label"] for c in donors["by_country"]} == {"Türkiye", "Almanya"}
 
-    comparison = await reports.yearly_comparison(request, 5, "TRY", db_session)
+    comparison = await reports.yearly_comparison(request, years=5, ytd=False, currency="TRY", db=db_session)
     last_two = comparison["years"][-2:]
     assert last_two[0]["total_cents"] == 10_000
     assert last_two[1]["total_cents"] == 32_000

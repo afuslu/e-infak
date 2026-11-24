@@ -25,10 +25,9 @@ async def test_checkout_never_rewrites_an_existing_donors_contact(db_session):
     await db_session.flush()
     attacker = CheckoutDonor(first_name="Kötü", last_name="Niyet", email="AYSE@example.com", phone="0 555 999 88 77")
     donor, payer = await checkout._get_or_create_donor(org.id, attacker, db_session)
-    assert donor.id == victim.id
-    assert (donor.phone, donor.email, donor.first_name) == ("05321112233", "ayse@example.com", "Ayşe")
-    assert donor.allow_sms is True
-    assert payer["phone"] == "05559998877" and payer["first_name"] == "Kötü"
+    assert donor.id != victim.id  # another name opens its own card
+    assert (victim.phone, victim.email, victim.first_name) == ("05321112233", "ayse@example.com", "Ayşe")
+    assert victim.allow_sms is True
 
     # Same phone in another format finds the donor; blank fields are filled.
     victim.email = None

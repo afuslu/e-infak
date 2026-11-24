@@ -101,5 +101,8 @@ ls -1dt "$DIZIN"/releases/*/ 2>/dev/null | tail -n +"$((SAKLANACAK_SURUM + 1))" 
   docker image rm "einfak-backend:$eski_tag" "einfak-web:$eski_tag" >/dev/null 2>&1 || true
 done
 ls -1t "$DIZIN"/backups/*.dump 2>/dev/null | tail -n +"$((SAKLANACAK_YEDEK + 1))" | xargs -r rm -f
+# KVKK: silinen kurumların verisi eski yedeklerde süresiz kalmasın (en yeni yedek her zaman korunur).
+YEDEK_GUN="${YEDEK_GUN:-30}"
+ls -1t "$DIZIN"/backups/*.dump 2>/dev/null | tail -n +2 | while read -r y; do find "$y" -mtime +"$YEDEK_GUN" -delete; done
 
 log "✅ Yayında: $TAG"

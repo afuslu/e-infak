@@ -321,10 +321,97 @@ async def failed_payments(
     return {"period": period, "total": total, "items": [out(o) for o in orders]}
 
 
+async def _review_order(request: Request, order_id: UUID, db: AsyncSession, current_user: User):
+    """Locked order of this organisation that is still open for a decision, with the attempt to ask the bank about."""
+    from app.api.v1.checkout import _load_order, lock_order
+    from app.models.payment import PaymentOrderStatus
+
+    org_id = _org(request, current_user)
+    user = await _staff_user(db, current_user)
+    if not has_capability(user, "receipts.view_all") or not has_capability(user, "receipts.mark_paid"):
+        raise HTTPException(status_code=403, detail="Online ödeme sonuçlandırma yetkiniz yok")
+    order = await _load_order(db, order_id)
+    if not order or order.organization_id != org_id:
+        raise HTTPException(status_code=404, detail="Ödeme bulunamadı")
+    if await lock_order(db, order) not in (PaymentOrderStatus.REVIEW, PaymentOrderStatus.FAILED):
+        raise HTTPException(status_code=409, detail="Bu ödeme zaten sonuçlanmış")
+    attempt = next((a for a in sorted(order.attempts, key=lambda a: a.created_at, reverse=True) if a.session_token), None)
+    if not attempt:
+        raise HTTPException(status_code=409, detail="Bu ödeme için banka sorgusu yapılamıyor")
+    return order, attempt, user
+
+
+async def _ask_bank(db: AsyncSession, order, attempt):
+    from app.api.v1.checkout import attempt_provider
+
+    try:
+        provider = await attempt_provider(db, order, attempt)
+        return await provider.query(order.merchant_payment_id, order.total_cents, order.currency)
+    except Exception as exc:  # noqa: BLE001 - bank or network error; nothing is changed
+        raise HTTPException(status_code=502, detail="Bankaya ulaşılamadı; biraz sonra yeniden deneyin") from exc
+
+
+def _money_taken(result) -> bool:
+    """The bank knows a sale for this order, even if its amount differs from what we expect."""
+    bank = (result.safe_response or {}).get("bank") or {}
+    return bool(result.approved) or str(bank.get("ResponseCode") or result.code or "") == "00"
+
+
+@router.post("/failed-payments/{order_id}/requery")
+async def requery_payment(order_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    """Ask the bank again. An approved, matching sale becomes a donation; otherwise only the answer is kept."""
+    from app.api.v1.checkout import _finalize_paid_order, apply_result, result_matches_order
+    from app.models.audit_log import AuditLog
+
+    order, attempt, user = await _review_order(request, order_id, db, current_user)
+    result = await _ask_bank(db, order, attempt)
+    if result is None:
+        raise HTTPException(status_code=409, detail="Bu banka sorgulamayı desteklemiyor; banka panelinden kontrol edin")
+    paid = bool(result.approved) and result_matches_order(order, result)
+    db.add(AuditLog(organization_id=order.organization_id, user_id=user.id, action="odeme_yeniden_soruldu",
+                    details={"order_id": str(order.id), "paid": paid, "code": result.code, "message": result.message}))
+    if paid:
+        apply_result(attempt, result)
+        await _finalize_paid_order(db, order, attempt)
+        return {"status": "paid", "message": "Banka ödemeyi onayladı; bağış kaydedildi."}
+    attempt.response_code = (result.code or "")[:16] or attempt.response_code
+    attempt.response_message = (result.message or "")[:500] or attempt.response_message
+    await db.commit()
+    if _money_taken(result):
+        return {"status": order.status.value, "message": "Bankada bu siparişe ait bir satış var ama tutar/para birimi uyuşmuyor. Banka panelinden kontrol edin."}
+    return {"status": order.status.value, "message": f"Bankada onaylı ödeme bulunamadı: {result.message or result.code or 'yanıt yok'}"}
+
+
+class ClosePaymentIn(BaseModel):
+    note: str = Field(min_length=3, max_length=300)
+
+
+@router.post("/failed-payments/{order_id}/close")
+async def close_payment(order_id: UUID, payload: ClosePaymentIn, request: Request, db: AsyncSession = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
+    """Mark a held payment as not paid. The bank is asked first; a sale it knows about can never be closed here."""
+    from app.models.audit_log import AuditLog
+    from app.models.payment import PaymentOrderStatus
+
+    order, attempt, user = await _review_order(request, order_id, db, current_user)
+    if order.status != PaymentOrderStatus.REVIEW:
+        raise HTTPException(status_code=409, detail="Yalnızca incelemedeki ödeme kapatılabilir")
+    result = await _ask_bank(db, order, attempt)
+    if (result is not None and _money_taken(result)) or (attempt.response_code == "00"):
+        raise HTTPException(status_code=409, detail="Bankada bu siparişe ait satış görünüyor; kapatılamaz. Önce banka panelinden kontrol edin.")
+    order.status, order.query_next_at = PaymentOrderStatus.FAILED, None
+    order.failure_message = f"Ödenmedi olarak kapatıldı ({user.first_name} {user.last_name or ''}): {payload.note.strip()}"
+    db.add(AuditLog(organization_id=order.organization_id, user_id=user.id, action="odeme_kapatildi",
+                    details={"order_id": str(order.id), "note": payload.note.strip()}))
+    await db.commit()
+    return {"status": "failed", "message": "Ödeme ödenmedi olarak kapatıldı."}
+
+
 @router.get("/inflow/items")
 async def inflow_items(
     request: Request,
-    channel: str,
+    channel: str = "*",
     period: Period = "today",
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -341,7 +428,8 @@ async def inflow_items(
     if not has_capability(user, "receipts.view_all"):
         query = query.where(Donation.issued_by_id == user.id)
     # The channel is derived in Python, like the totals, so both always agree.
-    rows = [d for d in (await db.execute(query)).scalars().all() if staff_notify.channel_of(d) == channel]
+    rows = [d for d in (await db.execute(query)).scalars().all() 
+            if (staff_notify.channel_of(d) == channel if channel != "*" else staff_notify.channel_of(d) != "import")]
     return {"total": len(rows), "total_cents": sum(d.amount_cents for d in rows),
             "items": [_inflow_item(d) for d in rows[:200]]}
 

@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.db import get_db
 from app.core.plans import FEATURE_LABELS, PLAN_ADDONS, PLAN_LABELS, Feature, Plan, org_user_limit
 from app.core.rate_limit import rate_limit
-from app.core.security import create_access_token, decode_token, get_password_hash, password_fingerprint, verify_password
+from app.core.security import create_access_token, create_refresh_token, decode_token, get_password_hash, password_fingerprint, verify_password
 from app.models.audit_log import AuditLog
 from app.models.campaign import Campaign, CampaignCategory, CampaignStatus
 from app.models.donation import Donation, DonationStatus
@@ -38,6 +38,7 @@ router = APIRouter(prefix="/platform", tags=["platform"])
 _bearer = HTTPBearer(auto_error=False)
 
 PLATFORM_TOKEN_HOURS = 8
+PLATFORM_REMEMBER_DAYS = 30  # mobile app; ends with a password change or when the account is closed
 SUPPORT_TOKEN_MINUTES = 30
 # In-console simulation (same tab, platform host): longer, renewable from the banner.
 SIMULATION_TOKEN_MINUTES = 60
@@ -99,6 +100,35 @@ class LoginIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=200)
     totp_code: Optional[str] = Field(default=None, max_length=12)
+    remember: bool = False
+
+
+def _platform_tokens(user: PlatformUser, remember: bool) -> dict:
+    claims = {"sub": str(user.id), "scope": "platform", "pwd": password_fingerprint(user.hashed_password)}
+    out = {"access_token": create_access_token(claims, expires_delta=timedelta(hours=PLATFORM_TOKEN_HOURS)),
+           "token_type": "bearer", "expires_in": PLATFORM_TOKEN_HOURS * 3600}
+    if remember:
+        out["refresh_token"] = create_refresh_token(claims, timedelta(days=PLATFORM_REMEMBER_DAYS))
+    return out
+
+
+class PlatformRefreshIn(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=2000)
+
+
+@router.post("/auth/refresh", dependencies=[Depends(rate_limit("platform-refresh", limit=30, window_seconds=300))])
+async def platform_refresh(payload: PlatformRefreshIn, request: Request, db: AsyncSession = Depends(get_db)):
+    _check_platform_ip(request)
+    data = decode_token(payload.refresh_token)
+    user = None
+    if data and data.get("type") == "refresh" and data.get("scope") == "platform":
+        try:
+            user = await db.get(PlatformUser, UUID(str(data.get("sub"))))
+        except ValueError:
+            user = None
+    if not user or not user.is_active or data.get("pwd") != password_fingerprint(user.hashed_password):
+        raise HTTPException(status_code=401, detail="Oturum yenilenemedi; yeniden giriş yapın")
+    return _platform_tokens(user, True)
 
 
 @router.post("/auth/login", dependencies=[Depends(rate_limit("platform-login", limit=10, window_seconds=600))])
@@ -122,11 +152,7 @@ async def platform_login(payload: LoginIn, request: Request, db: AsyncSession = 
     user.last_login_at = datetime.now(timezone.utc)
     _audit(db, request, user, "platform_giris")
     await db.commit()
-    token = create_access_token(
-        {"sub": str(user.id), "scope": "platform", "pwd": password_fingerprint(user.hashed_password)},
-        expires_delta=timedelta(hours=PLATFORM_TOKEN_HOURS),
-    )
-    return {"access_token": token, "token_type": "bearer", "expires_in": PLATFORM_TOKEN_HOURS * 3600,
+    return {**_platform_tokens(user, payload.remember),
             "user": {"email": user.email, "full_name": user.full_name,
                      "role": user.role or "admin",
                      "totp_enabled": bool(user.totp_enabled),
@@ -1475,6 +1501,7 @@ class OffboardingScheduleIn(BaseModel):
 
 
 MIN_CLOSING_DAYS = 7
+DUMP_RETENTION_DAYS = 30  # keep in step with YEDEK_GUN in deploy/docker/dagit.sh
 
 
 async def _delete_blocker(db: AsyncSession, org: Organization) -> Optional[str]:
@@ -1591,6 +1618,9 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
     for dom in domain_rows:
         hosts_to_forget.extend([dom, twin(dom)])
 
+    deleted: dict[str, int] = {}
+    file_count = len(data_export.media_files(org.id))
+    closing = await _offboarding_detail(db, org)
     # Children first. Child tables without organization_id are found through their parent's foreign key.
     for table in reversed(Base.metadata.sorted_tables):
         if table.name in ("organizations", "platform_audit_logs", "platform_users", "demo_requests", "fx_rates",
@@ -1604,7 +1634,9 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
         ))).scalars().all() if table.name == "audit_logs" else []
         if triggers:
             await db.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only"))
-        await db.execute(sa_delete(table).where(condition))
+        result = await db.execute(sa_delete(table).where(condition))
+        if result.rowcount:
+            deleted[table.name] = result.rowcount
         if triggers:
             await db.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only"))
 
@@ -1614,12 +1646,21 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
     await db.execute(
         sa_delete(Organization).where(Organization.id == org.id)
     )
-    _audit(db, request, operator, "kurum_silindi", name=org_name, slug=org_slug)
+    deleted_at = datetime.now(timezone.utc)
+    certificate = {
+        "kurum": org_name, "kisa_ad": org_slug, "silen": operator.email, "silinme": deleted_at.isoformat(),
+        "silinen_kayitlar": deleted, "silinen_dosya": file_count,
+        "yedek_onayi": (closing["offboarding"] or {}).get("backup_confirmed_at").isoformat()
+        if (closing["offboarding"] or {}).get("backup_confirmed_at") else None,
+        # Server database dumps taken before this moment are removed once they are this old.
+        "sunucu_yedeklerinden_dusme": (deleted_at + timedelta(days=DUMP_RETENTION_DAYS)).date().isoformat(),
+    }
+    _audit(db, request, operator, "kurum_silindi", name=org_name, slug=org_slug, tutanak=certificate)
     await db.commit()
     await asyncio.to_thread(data_export.remove_organization_files, org_id)
     if hosts_to_forget:
         await forget_host(*hosts_to_forget)
-    return {"ok": True, "deleted_name": org_name}
+    return {"ok": True, "deleted_name": org_name, "certificate": certificate}
 
 
 @router.post("/organizations/{org_id}/send-renewal-reminder")

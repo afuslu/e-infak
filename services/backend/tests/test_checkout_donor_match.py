@@ -76,9 +76,10 @@ async def _make_order(db, org, donor, method="credit_card"):
         organization_id=org.id,
         slug=f"c-{uuid.uuid4().hex[:8]}",
         title="Genel Bağış",
-        category=CampaignCategory.GENERAL,
+        category=CampaignCategory.GENEL,
         status=CampaignStatus.ACTIVE,
-        target_amount_cents=100_000,
+        summary="s",
+        target_cents=100_000,
     )
     db.add(camp)
     await db.flush()
@@ -118,10 +119,10 @@ async def _staff_user(db, org, *, is_active=True):
     u = User(
         organization_id=org.id,
         email=f"u-{uuid.uuid4().hex[:8]}@example.com",
-        password_hash="x",
+        hashed_password="x",
         first_name="Ali",
         last_name="Temsilci",
-        role=UserRole.ORG_STAFF,
+        role=UserRole.CRM,
         is_active=is_active,
     )
     db.add(u)
