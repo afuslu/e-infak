@@ -3,7 +3,7 @@ import {
   FileUp, Film, FolderOpen, Globe2, HandCoins, HandHelping, HeartHandshake, HelpCircle, History, Home, IdCard, KeyRound,
   Landmark, LayoutDashboard, LayoutGrid, LifeBuoy, ListChecks, Mail, LogIn, type LucideIcon, MailPlus, Megaphone, MessageSquareText,
   MessagesSquare, Newspaper, PackageCheck, Palette, PanelsTopLeft, PhoneCall, PiggyBank, Plug, Repeat, Send, Settings,
-  Shuffle, ShieldCheck, Sparkles, Tags, Users, UsersRound, Video, Wallet,
+  Shuffle, ShieldCheck, Smartphone, Sparkles, Tags, Users, UsersRound, Video, Wallet,
   AlertTriangle,
 } from 'lucide-react'
 
@@ -122,6 +122,7 @@ export const NAV_RAIL: NavRail[] = [
       {
         items: [
           { href: '/admin/site-yapici', label: 'Site Yapıcı', icon: Blocks, module: 'site' },
+          { href: '/admin/uygulama-yapici', label: 'Uygulama Yapıcı', icon: Smartphone, module: 'site' },
           { href: '/admin/site-ayarlari', label: 'Genel Ayarlar', icon: Settings, module: 'settings' },
           { href: '/admin/site-yapici?tab=theme', label: 'Görünüm', icon: Palette, module: 'site' },
           { href: '/admin/site-yapici?tab=menu', label: 'Menüler', icon: PanelsTopLeft, module: 'site' },

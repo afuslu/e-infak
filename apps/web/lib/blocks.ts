@@ -21,7 +21,7 @@ export interface Block {
 }
 
 export interface FieldSpec {
-  kind: 'text' | 'textarea' | 'richtext' | 'url' | 'image' | 'color' | 'select' | 'number' | 'bool' | 'campaign' | 'campaigns' | 'datetime' | 'video' | 'list'
+  kind: 'text' | 'textarea' | 'richtext' | 'url' | 'image' | 'color' | 'select' | 'number' | 'bool' | 'campaign' | 'campaigns' | 'datetime' | 'video' | 'list' | 'action' | 'icon'
   label: string
   choices?: Record<string, string>
   default?: any
@@ -38,6 +38,8 @@ export interface FieldSpec {
   max_items?: number
   min_items?: number
   item_label?: string
+  /** `action` fields: allowed action types (default: all). */
+  types?: string[]
 }
 
 export interface BlockSpec {

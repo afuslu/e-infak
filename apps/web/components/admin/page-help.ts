@@ -19,6 +19,7 @@ export const PAGE_HELP: [string, string][] = [
   ['/admin/users', 'Kullanıcılar ve Roller: her rolün hangi modülü görüp değiştirebileceğini kutucuklarla belirleyin.'],
   ['/admin/aktif-oturumlar', 'Son 5 dakikada panelde hareket eden personel "canlı" görünür. Oturumu Kapat kişinin kayıtlı girişlerini sonlandırır.'],
   ['/admin/muhasebe', 'Ön Muhasebe: gelir-gider kayıtları, kasa ve banka hesapları, cari kartlar ve gelen havaleler.'],
+  ['/admin/uygulama-yapici', 'Uygulama Yapıcı: bağışçıların mobil uygulamasını tasarlayın. Telefon önizlemesinde sonucu görün; Yayınla\'ya basana kadar değişiklikler taslak kalır.'],
   ['/admin/site-yapici', 'Site Yapıcı: soldan blok ekleyin, sürükleyerek sıralayın, sağdan içerik ve stil ayarlayın. Yayınla\'ya basana kadar değişiklikler taslak kalır.'],
   ['/admin', 'Anasayfa: günün makbuzları, bekleyen işler ve bağış grafiği. Kartlara tıklayınca ilgili listeye gidersiniz.'],
 ]

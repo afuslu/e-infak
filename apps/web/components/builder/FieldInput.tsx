@@ -5,6 +5,7 @@ import type { Campaign } from '@e-infak/api-client'
 import type { FieldSpec } from '../../lib/blocks'
 import { ImageField } from '../admin/ImageField'
 import type { LinkGroup } from './link-presets'
+import { ActionField, IconField, type AppFieldData } from '../app-builder/AppFields'
 
 /** A stored ISO time (UTC) as the browser's local "YYYY-MM-DDTHH:mm", which is what datetime-local shows and edits. */
 function localDateTime(value: unknown): string {
@@ -19,6 +20,8 @@ const input = 'w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 tex
 export interface FieldContext {
   campaigns: Campaign[]
   linkGroups?: LinkGroup[]
+  /** Mobile app builder: what `action` and `icon` fields may choose. */
+  app?: AppFieldData
   /** Text shown under translatable fields while editing another language. */
   baseValue?: unknown
   /** Base-language items for a translatable list field. */
@@ -449,6 +452,10 @@ export function FieldInput({ spec, value, onChange, ctx }: { spec: FieldSpec; va
       )
     case 'campaigns':
       return <CampaignsField spec={spec} value={value} onChange={onChange} campaigns={ctx.campaigns} />
+    case 'action':
+      return ctx.app ? <ActionField spec={spec} value={value} onChange={onChange} app={ctx.app} /> : null
+    case 'icon':
+      return ctx.app ? <IconField spec={spec} value={value} onChange={onChange} app={ctx.app} /> : null
     case 'list':
       return <ListField spec={spec} value={value} onChange={onChange} ctx={ctx} />
     default:
