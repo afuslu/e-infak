@@ -1,7 +1,8 @@
 """Platform console API (e-infak.org/platform): organisations, plans, domains,
 provider accounts and support sign-in. Only platform operators (PlatformUser,
 tokens with scope="platform") can call it; organisation users never can."""
-from datetime import datetime, timedelta, timezone
+import asyncio
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
 
@@ -1468,6 +1469,99 @@ async def restore_alerts(request: Request, db: AsyncSession = Depends(get_db),
     return {"ok": True}
 
 
+class OffboardingScheduleIn(BaseModel):
+    closes_on: date
+    operator_note: Optional[str] = Field(default=None, max_length=1000)
+
+
+MIN_CLOSING_DAYS = 7
+
+
+async def _delete_blocker(db: AsyncSession, org: Organization) -> Optional[str]:
+    """Why the organisation may not be deleted yet; None when it may. An organisation without data is free to go."""
+    from app.api.v1.data_export import get_offboarding
+    from app.models.donation import Donor
+    from app.services.data_export import TZ
+
+    has_data = (await db.execute(select(Donor.id).where(Donor.organization_id == org.id).limit(1))).first() or (
+        await db.execute(select(Donation.id).where(Donation.organization_id == org.id).limit(1))).first()
+    if not has_data:
+        return None
+    row = await get_offboarding(db, org.id)
+    if not row or row.status != "scheduled" or not row.closes_on:
+        return "Önce ayrılma süreci başlatılıp kapanış tarihi verilmelidir"
+    if row.closes_on > datetime.now(TZ).date():
+        return f"Kapanış tarihi ({row.closes_on:%d.%m.%Y}) gelmeden kurum silinemez"
+    if not row.backup_confirmed_at:
+        return "Kurum tam yedeğini indirip onaylamadan silinemez"
+    return None
+
+
+async def _offboarding_detail(db: AsyncSession, org: Organization) -> dict:
+    from app.api.v1.data_export import export_out, get_offboarding, offboarding_out
+    from app.models.data_export import DataExport
+
+    last = (await db.execute(select(DataExport).where(DataExport.organization_id == org.id)
+                             .order_by(DataExport.created_at.desc()).limit(1))).scalar_one_or_none()
+    backup = {k: v for k, v in export_out(last).items() if k in ("status", "created_at", "size_bytes", "downloaded_at")} if last else None
+    return {"offboarding": offboarding_out(await get_offboarding(db, org.id)), "last_backup": backup,
+            "delete_blocker": await _delete_blocker(db, org)}
+
+
+@router.get("/organizations/{org_id}/offboarding")
+async def get_org_offboarding(org_id: UUID, db: AsyncSession = Depends(get_db),
+                              operator: PlatformUser = Depends(get_platform_user)):
+    return await _offboarding_detail(db, await _org_or_404(db, org_id))
+
+
+@router.put("/organizations/{org_id}/offboarding")
+async def schedule_org_offboarding(org_id: UUID, payload: OffboardingScheduleIn, request: Request,
+                                   db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
+    """Set or move the closing date. Nothing is deleted on that date; it only opens the manual deletion."""
+    from app.api.v1.data_export import get_offboarding
+    from app.models.data_export import OrganizationOffboarding
+    from app.services import staff_notify
+    from app.services.data_export import TZ
+
+    _require_platform_admin(operator)
+    org = await _org_or_404(db, org_id)
+    if payload.closes_on < datetime.now(TZ).date() + timedelta(days=MIN_CLOSING_DAYS):
+        raise HTTPException(status_code=422, detail=f"Kapanış tarihi en az {MIN_CLOSING_DAYS} gün sonrası olmalıdır")
+    row = await get_offboarding(db, org.id)
+    if not row:
+        row = OrganizationOffboarding(organization_id=org.id, checklist={})
+        db.add(row)
+    elif row.status == "cancelled":
+        row.requested_at, row.requested_by, row.reason = datetime.now(timezone.utc), None, None
+        row.checklist, row.backup_confirmed_at, row.backup_confirmed_by = {}, None, None
+    row.status, row.closes_on, row.operator_note = "scheduled", payload.closes_on, payload.operator_note
+    _audit(db, request, operator, "ayrilma_planlandi", org.id, closes_on=payload.closes_on.isoformat())
+    await db.commit()
+    try:
+        await staff_notify.notify_system_alert(
+            db, org.id, f"Kapanış tarihi: {payload.closes_on:%d.%m.%Y}",
+            "Bu tarihten önce Verilerim ve Ayrılma sayfasından tam yedeğinizi indirin.")
+        await db.commit()
+    except Exception:  # noqa: BLE001 - the date is saved; the panel shows the countdown anyway
+        await db.rollback()
+    return await _offboarding_detail(db, await _org_or_404(db, org_id))
+
+
+@router.delete("/organizations/{org_id}/offboarding")
+async def cancel_org_offboarding(org_id: UUID, request: Request, db: AsyncSession = Depends(get_db),
+                                 operator: PlatformUser = Depends(get_platform_user)):
+    from app.api.v1.data_export import get_offboarding
+
+    _require_platform_admin(operator)
+    org = await _org_or_404(db, org_id)
+    row = await get_offboarding(db, org.id)
+    if row and row.status != "cancelled":
+        row.status, row.closes_on = "cancelled", None
+        _audit(db, request, operator, "ayrilma_iptal", org.id)
+        await db.commit()
+    return await _offboarding_detail(db, org)
+
+
 class OrgDeleteIn(BaseModel):
     confirm_name: str = Field(min_length=1, max_length=200)
 
@@ -1476,15 +1570,16 @@ class OrgDeleteIn(BaseModel):
 async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Request,
                               db: AsyncSession = Depends(get_db), operator: PlatformUser = Depends(get_platform_user)):
     from sqlalchemy import delete as sa_delete, text, update as sa_update
-    import app.models  # noqa: F401
-    import app.models.donation_category  # noqa: F401
-    import app.models.organization_settings  # noqa: F401
     from app.core.db import Base
+    from app.services import data_export
 
     _require_platform_admin(operator)
     org = await _org_or_404(db, org_id)
     if payload.confirm_name.strip() != org.name.strip():
         raise HTTPException(status_code=400, detail="Onay için kurum adını birebir aynı yazmalısınız")
+    blocker = await _delete_blocker(db, org)
+    if blocker:
+        raise HTTPException(status_code=409, detail=blocker)
 
     org_name, org_slug = org.name, org.slug
     domain_rows = (await db.execute(
@@ -1495,44 +1590,23 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
         hosts_to_forget.append(f"{org.subdomain}.{settings.PLATFORM_BASE_DOMAIN}")
     for dom in domain_rows:
         hosts_to_forget.extend([dom, twin(dom)])
-    if hosts_to_forget:
-        await forget_host(*hosts_to_forget)
 
-    org_user_ids = select(User.id).where(User.organization_id == org.id)
-    from app.models.donor import Donor
-    org_donor_ids = select(Donor.id).where(Donor.organization_id == org.id)
-    student_table = Base.metadata.tables.get("students")
-    org_student_ids = (
-        select(student_table.c.id).where(student_table.c.organization_id == org.id)
-        if student_table is not None and "organization_id" in student_table.c else None
-    )
-
-    # Clear self-references and child tables in reverse dependency order.
+    # Children first. Child tables without organization_id are found through their parent's foreign key.
     for table in reversed(Base.metadata.sorted_tables):
-        if table.name in ("organizations", "platform_audit_logs", "platform_users", "demo_requests", "fx_rates"):
+        if table.name in ("organizations", "platform_audit_logs", "platform_users", "demo_requests", "fx_rates",
+                          "platform_broadcasts"):
             continue
-        if "organization_id" in table.c:
-            if "parent_id" in table.c:
-                await db.execute(sa_update(table).where(table.c.organization_id == org.id).values(parent_id=None))
-            if table.name == "audit_logs":
-                has_trig = (await db.execute(text(
-                    "SELECT 1 FROM pg_trigger WHERE tgname = 'audit_logs_append_only' AND NOT tgisinternal"
-                ))).scalar_one_or_none()
-                if has_trig:
-                    await db.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only"))
-                try:
-                    await db.execute(sa_delete(table).where(table.c.organization_id == org.id))
-                finally:
-                    if has_trig:
-                        await db.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only"))
-            else:
-                await db.execute(sa_delete(table).where(table.c.organization_id == org.id))
-        elif "user_id" in table.c:
-            await db.execute(sa_delete(table).where(table.c.user_id.in_(org_user_ids)))
-        elif "donor_id" in table.c:
-            await db.execute(sa_delete(table).where(table.c.donor_id.in_(org_donor_ids)))
-        elif "student_id" in table.c and org_student_ids is not None:
-            await db.execute(sa_delete(table).where(table.c.student_id.in_(org_student_ids)))
+        condition = data_export.scope(table, org.id)
+        if condition is None:
+            continue
+        triggers = (await db.execute(text(
+            "SELECT tgname FROM pg_trigger WHERE tgname = 'audit_logs_append_only' AND NOT tgisinternal"
+        ))).scalars().all() if table.name == "audit_logs" else []
+        if triggers:
+            await db.execute(text("ALTER TABLE audit_logs DISABLE TRIGGER audit_logs_append_only"))
+        await db.execute(sa_delete(table).where(condition))
+        if triggers:
+            await db.execute(text("ALTER TABLE audit_logs ENABLE TRIGGER audit_logs_append_only"))
 
     await db.execute(
         sa_update(PlatformAuditLog).where(PlatformAuditLog.organization_id == org.id).values(organization_id=None)
@@ -1542,6 +1616,9 @@ async def delete_organization(org_id: UUID, payload: OrgDeleteIn, request: Reque
     )
     _audit(db, request, operator, "kurum_silindi", name=org_name, slug=org_slug)
     await db.commit()
+    await asyncio.to_thread(data_export.remove_organization_files, org_id)
+    if hosts_to_forget:
+        await forget_host(*hosts_to_forget)
     return {"ok": True, "deleted_name": org_name}
 
 

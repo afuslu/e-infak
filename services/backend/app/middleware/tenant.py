@@ -25,7 +25,7 @@ ORGLESS_PATHS = {
     "/api/v1/portal/login",
     "/api/v1/portal/refresh",
 }
-BYPASS_PREFIXES = ("/api/v1/payments/", "/api/v1/hooks/", "/api/v1/internal/", "/api/v1/platform", "/api/v1/media/", "/api/v1/directory")
+BYPASS_PREFIXES = ("/api/v1/payments/", "/api/v1/hooks/", "/api/v1/internal/", "/api/v1/platform", "/api/v1/media/", "/api/v1/data-export-files/", "/api/v1/directory")
 
 
 class TenantMiddleware(BaseHTTPMiddleware):

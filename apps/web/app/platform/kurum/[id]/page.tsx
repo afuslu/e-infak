@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Download, KeyRound, Printer } from 'lucide-react'
 import { AlertList } from '../../../../components/platform/AlertList'
 import { AuditEntry, AuditTable } from '../../../../components/platform/AuditTable'
+import { OffboardingCard } from '../../../../components/platform/OffboardingCard'
 import { SubscriptionCard } from '../../../../components/platform/SubscriptionCard'
 import UserPasswordModal, { PasswordResultCard, PasswordSetupResult } from '../../../../components/platform/UserPasswordModal'
 import { startSimulation } from '../../../../lib/simulation'
@@ -90,6 +91,7 @@ export default function PlatformOrganizationPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [confirmDelete, setConfirmDelete] = useState('')
+  const [deleteBlocker, setDeleteBlocker] = useState<string | null>('Ayrılma durumu yükleniyor')
   const [tab, setTab] = useState<'genel' | 'kullanicilar' | 'altyapi' | 'abonelik' | 'kayitlar'>('genel')
   const [org, setOrg] = useState<Detail | null>(null)
   const [me, setMe] = useState<PlatformMe | null>(null)
@@ -651,13 +653,16 @@ export default function PlatformOrganizationPage() {
         </div>
         )}
 
+        {tab === 'genel' && isAdmin && <OffboardingCard orgId={org.id} onBlocker={setDeleteBlocker} />}
+
         {tab === 'genel' && isAdmin && (
         <section className="space-y-3 rounded-2xl border border-red-200 bg-red-50/60 p-6 lg:col-span-2">
           <h2 className="text-base font-bold text-red-900">Tehlikeli Bölge — Kurumu Kalıcı Sil</h2>
           <p className="text-xs text-red-800">
-            Bu işlem kurumu, kullanıcılarını, kampanyalarını, bağış ve muhasebe kayıtlarını kalıcı olarak siler ve geri alınamaz.
+            Bu işlem kurumu, kullanıcılarını, kampanyalarını, bağış ve muhasebe kayıtlarını, görsellerini ve yedeklerini kalıcı olarak siler ve geri alınamaz.
             Onaylamak için kurumun adını (<b>{org.name}</b>) aşağıya yazın:
           </p>
+          {deleteBlocker && <p className="text-sm font-bold text-red-800">Silme kapalı: {deleteBlocker}</p>}
           <div className="flex flex-wrap items-center gap-2">
             <input
               className="w-full max-w-xs rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/15"
@@ -667,7 +672,7 @@ export default function PlatformOrganizationPage() {
             />
             <button
               type="button"
-              disabled={busy || confirmDelete.trim() !== org.name.trim()}
+              disabled={busy || !!deleteBlocker || confirmDelete.trim() !== org.name.trim()}
               onClick={async () => {
                 if (busy) return
                 setBusy(true)

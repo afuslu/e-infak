@@ -2,7 +2,8 @@
 
 Exports handled (headers as STK PRO writes them):
     bagiscilar_*.xlsx    No, Ad Soyad, Kod, Cep Telefon, Eposta, T.C. Kimlik, Üyelik Tarihi, Üyelik Tipi, Referans,
-                         Temsilci, Personel [, Mahalle, Cadde/Sokak, İlçe, İl, Sabit Tel. Kod]
+                         Temsilci, Personel [, Mahalle, Cadde/Sokak, İlçe, İl, Ülke, Üyelik Türü, Kurum Adı,
+                         Diğer Cep Telefon, Sabit Tel. Kod, Sabit Telefon, Açıklama, Görüşme Notları]
     tum_bagislar_*.xlsx  Bağış No, Makbuz No, Tür, Kampanya Adı, Kampanya Ülkesi, Adet, Tutar, …, Bağışçı, Kod,
                          Cep Telefon, İlçe, Kimin Adına, Bağış Tarihi, Tipi, Ödeme Şekli, Personel, Durum,
                          Bağışçı No, Eposta, TC/Vergi No, Açıklama (Makbuz)
@@ -17,7 +18,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Iterable, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -27,6 +28,7 @@ from app.banking.matching import learn_sender
 from app.banking.parsers import categories_in, fold, kurban_intent, parse_description
 from app.models.campaign import Campaign, CampaignCategory, CampaignStatus
 from app.models.donation import Donation, Donor, DonorType, PaymentMethod
+from app.models.donor_note import DonorNote
 from app.models.kurban import KurbanAnimalType, KurbanCampaign
 from app.models.user import User
 
@@ -108,6 +110,37 @@ def method_of(value) -> PaymentMethod:
     return PaymentMethod.CASH
 
 
+NOTE_START = re.compile(r"^\s*[\[(]?(\d{1,2}[./]\d{1,2}[./]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)[\])]?\s*[-–:|]*\s*")
+
+
+def split_notes(value) -> list[tuple[Optional[datetime], str]]:
+    """A "Görüşme Notları" cell: lines that open with a date start a new note, anything else continues the current one.
+
+    Text is kept as written. A cell without dates is one undated note.
+    """
+    if value is None:
+        return []
+    text = INVISIBLE.sub(" ", str(value)).replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not text or text == "-":
+        return []
+    notes: list[tuple[Optional[datetime], list[str]]] = []
+    for line in text.split("\n"):
+        match = NOTE_START.match(line)
+        when = None
+        if match:
+            try:
+                when = _when(match.group(1))
+            except ValueError:
+                when = None
+        if when:
+            notes.append((when, [line[match.end():]]))
+        elif notes:
+            notes[-1][1].append(line)
+        else:
+            notes.append((None, [line]))
+    return [(when, body) for when, lines in notes if (body := "\n".join(x.rstrip() for x in lines).strip())]
+
+
 @dataclass
 class CampaignKey:
     title: str
@@ -141,6 +174,8 @@ class ImportReport:
     donors_created: int = 0
     donors_updated: int = 0
     donors_skipped: int = 0
+    notes_created: int = 0
+    notes_skipped: int = 0
     donations_created: int = 0
     donations_skipped: int = 0
     donors_created_from_donations: int = 0
@@ -172,10 +207,14 @@ class StkProImporter:
         self._campaigns: dict[str, Campaign] = {}
         self._staff: dict[str, User] = {}
         self._kurban_linked: set[str] = set()
+        self._notes: dict[UUID, list[DonorNote]] = {}
 
     async def _prepare(self) -> None:
         donors = (await self.db.execute(select(Donor).where(
             Donor.organization_id == self.org_id, Donor.external_ref.isnot(None)))).scalars().all()
+        for note in (await self.db.execute(select(DonorNote).join(Donor, Donor.id == DonorNote.donor_id)
+                                           .where(Donor.organization_id == self.org_id))).scalars():
+            self._notes.setdefault(note.donor_id, []).append(note)
         self._donors = {d.external_ref: d for d in donors}
         campaigns = (await self.db.execute(select(Campaign).where(Campaign.organization_id == self.org_id))).scalars().all()
         for c in campaigns:
@@ -196,7 +235,28 @@ class StkProImporter:
         return {"first_name": first[:100], "last_name": (last or "")[:100] or None,
                 "phone": phone_of(row.get("Kod"), row.get("Cep Telefon")), "email": email,
                 "tc_no": tc if tc and len(tc) == 11 else None, "address": address or None,
-                "city": _text(row.get("İl"), 100)}
+                "city": _text(row.get("İl"), 100), "district": _text(row.get("İlçe"), 100),
+                "neighbourhood": _text(row.get("Mahalle"), 150), "company_name": _text(row.get("Kurum Adı"), 200),
+                "membership_type": _text(row.get("Üyelik Tipi"), 60), "referral_source": _text(row.get("Referans"), 100),
+                "phone2": phone_of(row.get("Diğer Cep Telefon Kod"), row.get("Diğer Cep Telefon")) or phone_of(
+                    row.get("Sabit Tel. Kod"), row.get("Sabit Telefon")),
+                "notes": _text(row.get("Açıklama"))}
+
+    async def _import_notes(self, donor: Donor, cell) -> None:
+        """Adds notes that are not there yet; a note that grew in STK PRO replaces its earlier import."""
+        for when, content in split_notes(cell):
+            known = self._notes.setdefault(donor.id, [])
+            if any(content == n.content or n.content.startswith(content + "\n") for n in known):
+                self.report.notes_skipped += 1
+                continue
+            grown = next((n for n in known if n.author_id is None and content.startswith(n.content + "\n")), None)
+            if grown:
+                grown.content = content
+            else:
+                note = DonorNote(donor_id=donor.id, content=content, created_at=when or datetime.now(TZ))
+                self.db.add(note)
+                known.append(note)
+            self.report.notes_created += 1
 
     async def import_donors(self, rows: Iterable[dict]) -> None:
         await self._prepare()
@@ -208,6 +268,7 @@ class StkProImporter:
             values = self._donor_values(row)
             donor = self._donors.get(ref)
             if donor:
+                await self._import_notes(donor, row.get("Görüşme Notları"))
                 changed = False
                 for key, value in values.items():
                     if value and not getattr(donor, key):
@@ -217,8 +278,10 @@ class StkProImporter:
                 self.report.donors_skipped += not changed
                 continue
             staff = self._staff.get(fold(row.get("Personel"))) or self._staff.get(fold(row.get("Temsilci")))
-            donor = Donor(organization_id=self.org_id, donor_type=DonorType.INDIVIDUAL, external_ref=ref,
-                          country="Türkiye", total_donations=0, total_donated_cents=0, tags=["STK PRO"],
+            corporate = "kurum" in fold(row.get("Üyelik Türü")) and values["company_name"]
+            donor = Donor(id=uuid4(), organization_id=self.org_id, external_ref=ref,
+                          donor_type=DonorType.CORPORATE if corporate else DonorType.INDIVIDUAL,
+                          country=_text(row.get("Ülke"), 100) or "Türkiye", total_donations=0, total_donated_cents=0, tags=["STK PRO"],
                           allow_sms=bool(values["phone"]), assigned_user_id=staff.id if staff else None, **values)
             try:
                 donor.created_at = _when(row.get("Üyelik Tarihi"))
@@ -227,6 +290,7 @@ class StkProImporter:
             self.db.add(donor)
             self._donors[ref] = donor
             self.report.donors_created += 1
+            await self._import_notes(donor, row.get("Görüşme Notları"))
             if self.report.donors_created % 1000 == 0:
                 await self.db.flush()
         await self.db.flush()

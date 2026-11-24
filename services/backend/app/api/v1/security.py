@@ -237,6 +237,9 @@ ACTION_LABELS = {
     "kurban_kesim": "Kurban kesildi", "rol_olustur": "Rol oluşturuldu", "rol_guncelle": "Rol güncellendi", "rol_sil": "Rol silindi",
     "ip_izin_ekle": "IP izni eklendi", "ip_engelle": "IP engellendi", "ip_kural_sil": "IP kuralı silindi",
     "oturumlari_kapat": "Oturumlar kapatıldı", "kurlari_guncelle": "Kurlar güncellendi",
+    "veri_disa_aktar": "Veri türü dışa aktarıldı", "tam_yedek_istendi": "Tam yedek istendi",
+    "tam_yedek_disa_aktarildi": "Tam yedek indirildi", "ayrilma_talebi": "Ayrılma talebi gönderildi",
+    "ayrilma_iptal": "Ayrılma talebi iptal edildi", "yedek_onaylandi": "Yedek alındığı onaylandı",
     "bagisci_disa_aktar": "Bağışçılar dışa aktarıldı", "bagisci_toplu_guncelle": "Bağışçılar toplu güncellendi",
     "bagisci_toplu_sil": "Bağışçılar toplu silindi", "toplu_mail": "Toplu mail başlatıldı", "alici_listesi": "Alıcı listesi",
 }

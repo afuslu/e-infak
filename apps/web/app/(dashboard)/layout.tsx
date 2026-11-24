@@ -1,5 +1,6 @@
 'use client'
 
+import { ClosingNotice } from '../../components/admin/ClosingNotice'
 import { useCurrentUser, useLogout } from '@e-infak/api-client'
 import { useQuery } from '@tanstack/react-query'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -575,6 +576,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Page Content */}
         <main className="flex-1 p-4 sm:p-6 overflow-x-clip min-w-0">
+          {user && !mustChangePassword && <ClosingNotice />}
           {platformNotices && platformNotices.length > 0 && (
             <div className="mb-5 space-y-2">
               {platformNotices.map((n) => (

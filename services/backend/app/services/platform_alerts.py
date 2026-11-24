@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.plans import FEATURE_LABELS, Feature, org_bank_account_limit, org_features, org_user_limit
 from app.models.automation import BankAccount
+from app.models.data_export import OrganizationOffboarding
 from app.models.kurban import KurbanShare
 from app.models.membership import Member
 from app.models.organization import Organization, OrganizationDomain
@@ -123,8 +124,16 @@ async def collect(db: AsyncSession, org_id: Optional[UUID] = None) -> list[dict]
         days_list = await asyncio.gather(*(_ssl_days_left_cached(d) for d in unique_domains))
         ssl_results = dict(zip(unique_domains, days_list))
 
+    offboardings = {r[0]: (r[1], r[2]) for r in (await db.execute(select(
+        OrganizationOffboarding.organization_id, OrganizationOffboarding.status, OrganizationOffboarding.closes_on)
+        .where(OrganizationOffboarding.status != "cancelled"))).all()}
     alerts: list[dict] = []
     for org in orgs:
+        leaving = offboardings.get(org.id)
+        if leaving and leaving[0] == "requested":
+            alerts.append(_alert(org, WARNING, "offboarding", "Kurum ayrılma talebi gönderdi; kapanış tarihi verin"))
+        elif leaving and leaving[1]:
+            alerts.append(_alert(org, INFO, "offboarding", f"Kapanış tarihi: {leaving[1]:%d.%m.%Y}"))
         if sms_stuck.get(org.id):
             alerts.append(_alert(org, DANGER, "sms_stuck", f"{sms_stuck[org.id]} SMS 15 dakikadır kuyrukta bekliyor",
                                  "SMS işçisi (worker / beat) çalışmıyor olabilir."))

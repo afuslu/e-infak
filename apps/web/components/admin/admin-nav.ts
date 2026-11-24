@@ -208,6 +208,7 @@ export const NAV_RAIL: NavRail[] = [
         title: 'Loglar', items: [
           { href: '/admin/islem-kayitlari', label: 'İşlem Geçmişi', icon: History, module: ['settings', 'users'] },
           { href: '/admin/disa-aktarimlar', label: 'Dışa Aktarımlar', icon: Download, module: ['settings', 'users'] },
+          { href: '/admin/verilerim', label: 'Verilerim ve Ayrılma', icon: Download, module: 'settings' },
         ],
       },
       {

@@ -739,6 +739,8 @@ EXPORT_COLUMNS = {
     "tags": ("Etiketler", lambda d, n, u: ", ".join(d.tags or [])),
     "allow_sms": ("SMS İzni", lambda d, n, u: "Evet" if d.allow_sms else "Hayır"),
     "allow_email": ("E-posta İzni", lambda d, n, u: "Evet" if d.allow_email else "Hayır"),
+    "notes": ("Açıklama", lambda d, n, u: d.notes or ""),
+    "call_notes": ("Görüşme Notları", lambda d, n, u: n.get(("notes", d.id), "")),
 }
 DEFAULT_EXPORT = ["no", "donor_type", "full_name", "phone_code", "phone", "email", "tc_no", "created_at", "total",
                   "membership_type", "referral_source", "assigned", "staff"]
@@ -766,6 +768,16 @@ async def bulk_donors(request: Request, payload: DonorBulkIn, db: AsyncSession =
         ensure_capability(current_user, "donors.export", "Bağışçıları dışa aktarma yetkiniz yok")
         keys = [c for c in (payload.columns or DEFAULT_EXPORT) if c in EXPORT_COLUMNS] or DEFAULT_EXPORT
         names = await _staff_names(db, org_id)
+        if "call_notes" in keys:
+            ensure_capability(current_user, "donors.notes_view", "Görüşme notlarını görme yetkiniz yok")
+            names = {**names}
+            for donor_id, created, content in (await db.execute(
+                select(DonorNote.donor_id, DonorNote.created_at, DonorNote.content)
+                .where(DonorNote.donor_id.in_(select(Donor.id).where(*conditions)))
+                .order_by(DonorNote.created_at))).all():
+                line = f"{created.astimezone(TZ):%d.%m.%Y %H:%M} - {content}"
+                key = ("notes", donor_id)
+                names[key] = f"{names[key]}\n{line}" if key in names else line
         donors = (await db.execute(select(Donor).where(*conditions).order_by(Donor.created_at.desc()))).scalars().all()
         _audit(db, org_id, current_user, "bagisci_disa_aktar", {"count": len(donors), "columns": keys})
         await db.commit()

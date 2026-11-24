@@ -8,6 +8,7 @@ export const PAGE_HELP: [string, string][] = [
   ['/admin/kampanyalar/sekmeler', 'Sekmeler, sitedeki bağış sayfasında kampanyaların gruplandığı başlıklardır. "Açılışta Göster" açık olan sekme sayfa açılırken seçili gelir.'],
   ['/admin/kampanyalar/', 'Önce kampanya türünü seçin. Sabit Tutar açıksa bağışçı yalnız TL referans tutarını öder. Web / 1 kapalıysa kampanya listelerde görünmez ama bağlantısı çalışır.'],
   ['/admin/kampanyalar', 'Ref. Tutar ve Öncelik kutularını doğrudan değiştirebilirsiniz; kutudan çıkınca kaydedilir. Durum, Web / 1 ve Web / 2 anahtarları da hemen kaydeder.'],
+  ['/admin/verilerim', 'Tam yedek arka planda hazırlanır, hazır olunca bildirim gelir ve 7 gün indirilebilir. Ayrılma talebi hiçbir veriyi silmez.'],
   ['/admin/online-bagis', 'Sanal POS\'tan gelen kartlı bağışlar 60 saniyede bir kendiliğinden yenilenir. Makbuz otomatik kesilir, eşleştirme gerekmez.'],
   ['/admin/banka-odeme', 'Banka Hareketleri: bankadan gelen havale/EFT\'ler bağışçıyla eşleştirilir. Eşleşmeyenleri seçip bağışçı ve kampanya atayın.'],
   ['/admin/kurban', 'Kurbanlar: hisseler kampanyalara göre hayvanlara yerleşir. Boş hisseleri otomatik dağıt düğmesi atanmamış hisseleri 7\'li gruplara dağıtır.'],

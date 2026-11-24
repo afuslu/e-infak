@@ -783,7 +783,76 @@ def send_due_reminders_task():
     return asyncio.run(_send_due_reminders())
 
 
+async def _build_data_export(export_id: str):
+    from uuid import UUID
+    from sqlalchemy.orm import selectinload
+    from app.models.data_export import DataExport
+    from app.models.user import User
+    from app.services import data_export, staff_notify
+
+    async with AsyncSessionLocal() as session:
+        export = (await session.execute(select(DataExport).where(
+            DataExport.id == UUID(export_id), DataExport.status == "queued").with_for_update(skip_locked=True))).scalar_one_or_none()
+        if not export:
+            return {"skipped": True}
+        export.status = "running"
+        await session.commit()
+        try:
+            await data_export.build(session, export)
+            title, body = "Tam yedek hazır", f"{data_export.KEEP_DAYS} gün boyunca Verilerim ve Ayrılma sayfasından indirebilirsiniz."
+        except Exception as exc:
+            await session.rollback()
+            export = await session.get(DataExport, UUID(export_id), populate_existing=True)
+            data_export.export_path(export).unlink(missing_ok=True)
+            export.status, export.finished_at = "failed", datetime.now(timezone.utc)
+            export.error = str(exc)[:500] if isinstance(exc, RuntimeError) else "Yedek hazırlanamadı; destekle görüşün"
+            print(f"data export {export_id} failed: {exc!r}")
+            title, body = "Tam yedek hazırlanamadı", export.error
+        status = export.status
+        await session.commit()
+        if export.requested_by:
+            user = (await session.execute(select(User).options(selectinload(User.staff_role))
+                                          .where(User.id == export.requested_by))).scalar_one_or_none()
+            if user:
+                await staff_notify.deliver(session, export.organization_id, [user], kind="system_alert", setting="system_alert",
+                                           title=title, body=body, data={"export_id": export_id})
+                await session.commit()
+        return {"status": status}
+
+
+@celery_app.task(name="app.tasks.build_data_export_task")
+def build_data_export_task(export_id: str):
+    return asyncio.run(_build_data_export(export_id))
+
+
+async def _clean_data_exports():
+    """Remove expired backup files and mark interrupted ones as failed."""
+    from app.models.data_export import DataExport
+    from app.services.data_export import export_path
+
+    now = datetime.now(timezone.utc)
+    async with AsyncSessionLocal() as session:
+        for export in (await session.execute(select(DataExport).where(
+                DataExport.status == "ready", DataExport.expires_at < now))).scalars().all():
+            export_path(export).unlink(missing_ok=True)
+            export.status = "expired"
+        for export in (await session.execute(select(DataExport).where(
+                DataExport.status.in_(("queued", "running")), DataExport.created_at < now - timedelta(hours=6)))).scalars().all():
+            export_path(export).unlink(missing_ok=True)
+            export.status, export.error = "failed", "Yedek yarıda kaldı; yeniden başlatın"
+        await session.commit()
+
+
+@celery_app.task(name="app.tasks.clean_data_exports_task")
+def clean_data_exports_task():
+    return asyncio.run(_clean_data_exports())
+
+
 celery_app.conf.beat_schedule = {
+    "clean-data-exports-hourly": {
+        "task": "app.tasks.clean_data_exports_task",
+        "schedule": 3600.0,
+    },
     "send-due-reminders-every-minute": {
         "task": "app.tasks.send_due_reminders_task",
         "schedule": 60.0,

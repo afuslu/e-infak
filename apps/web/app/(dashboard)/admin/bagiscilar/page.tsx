@@ -26,7 +26,7 @@ const EXPORT_COLUMNS: [string, string][] = [
   ['referral_source', 'Referans'], ['assigned', 'Temsilci'], ['staff', 'Personel'], ['rating', 'Değerlendirme'], ['occupation', 'Meslek'],
   ['gender', 'Cinsiyet'], ['blood_group', 'Kan Grubu'], ['birth_date', 'Doğum Tarihi'], ['country', 'Ülke'], ['city', 'İl'],
   ['district', 'İlçe'], ['neighbourhood', 'Mahalle'], ['address', 'Adres'], ['tags', 'Etiketler'], ['allow_sms', 'SMS İzni'],
-  ['allow_email', 'E-posta İzni'],
+  ['allow_email', 'E-posta İzni'], ['notes', 'Açıklama'], ['call_notes', 'Görüşme Notları'],
 ]
 const DEFAULT_EXPORT = ['no', 'donor_type', 'full_name', 'phone_code', 'phone', 'email', 'tc_no', 'created_at', 'total',
   'membership_type', 'referral_source', 'assigned', 'staff']
