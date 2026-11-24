@@ -12,6 +12,7 @@ docker compose version >/dev/null 2>&1 || ol "docker compose yok"
 [[ -w "$DIZIN" ]] || ol "$DIZIN yazılabilir değil"
 
 mkdir -p "$DIZIN"/{releases,backups,runtime,dagitim-gunlukleri}
+chmod 700 "$DIZIN/backups"
 
 # Kod deposu: Mac'ten `git push sunucu main` ile gelir; GitHub da yedek kaynak.
 if [[ ! -d "$DIZIN/kaynak.git" ]]; then

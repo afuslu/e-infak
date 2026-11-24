@@ -151,6 +151,7 @@ Her gece 03:45'te (E-Medrese'ninki 03:00'te) `e-infak-yedek.timer` çalışır. 
 | `e-infak-yedek/` | Bütün platform: veritabanı, medya, `.env`. Sunucu kaybında **geri yükleme buradan** yapılır |
 | `<kurum-kısa-adı>-yedek/` | Yalnızca o kurumun verisi (Excel, JSON, görseller, videolar); ör. `hakder-yedek/` |
 
+- Ayrıca her saatin 20. dakikasında `e-infak-saatlik.timer` veritabanını `e-infak-yedek/saatlik` klasörüne yükler (48 saat saklanır; medya içermez).
 - Yeni kurumun klasörü ilk gece kendiliğinden oluşur.
 - Dosyalar `/root/.yedek-sifre` ile AES-256 şifrelidir; bu şifreyi parola yöneticinize kaydedin. Aynı şifre hepsini açar, kurumlarla paylaşmayın.
 - Sunucuda (`/var/yedek/e-infak`) 7 gün, Drive'da 30 gün saklanır; silinen kurumların klasörleri de temizlenir. Yedeği o gece alınamayan klasörden bir şey silinmez.

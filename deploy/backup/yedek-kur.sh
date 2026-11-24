@@ -21,20 +21,28 @@ if ! rclone listremotes | grep -qx 'drive:'; then
 fi
 rclone lsd drive: >/dev/null || { echo "Google Drive'a ulaşılamadı: sudo -H rclone config reconnect drive:" >&2; exit 3; }
 
-install -m 755 "$KAYNAK/gecelik-yedek.sh" /usr/local/sbin/e-infak-yedek
-install -m 755 "$KAYNAK/geri-yukleme-testi.sh" /usr/local/sbin/e-infak-restore-test
-install -m 644 "$KAYNAK"/e-infak-{yedek,restore-test}.{service,timer} /etc/systemd/system/
+# Yalnızca yeni veya değişen betikler hemen çalıştırılıp sınanır.
+SINANACAK=()
+kur() {
+  if ! cmp -s "$KAYNAK/$1" "/usr/local/sbin/$2" || ! systemctl is-enabled --quiet "$2.timer" 2>/dev/null; then SINANACAK+=("$2"); fi
+  install -m 755 "$KAYNAK/$1" "/usr/local/sbin/$2"
+}
+kur saatlik-yedek.sh e-infak-saatlik
+kur gecelik-yedek.sh e-infak-yedek
+kur geri-yukleme-testi.sh e-infak-restore-test
+install -m 644 "$KAYNAK"/e-infak-{saatlik,yedek,restore-test}.{service,timer} /etc/systemd/system/
 systemctl daemon-reload
 [[ -x /usr/local/sbin/e-medrese-yedek-uyari ]] || echo "UYARI: E-Medrese yedeği kurulu değil; hata e-postası gönderilemez."
 
-for is in e-infak-yedek e-infak-restore-test; do
+for is in "${SINANACAK[@]}"; do
   echo "Çalışıyor: $is"
   baslangic="$(date '+%F %T')"
   sonuc=0
   systemctl start "$is.service" || sonuc=$?
   journalctl -u "$is" --since "$baslangic" --no-pager -o cat
   (( sonuc == 0 )) || { echo "HATA: $is başarısız" >&2; exit 1; }
+  systemctl enable --now "$is.timer"
 done
-systemctl enable --now e-infak-yedek.timer e-infak-restore-test.timer
+systemctl list-timers 'e-infak-*' --no-pager
 rclone lsf drive: --dirs-only
-echo "✅ Gecelik yedekler kuruldu."
+echo "✅ Saatlik ve gecelik yedekler kuruldu."

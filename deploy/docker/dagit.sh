@@ -55,6 +55,10 @@ compose "$TAG" up -d --wait db redis
 
 YEDEK="$DIZIN/backups/einfak_$(date +%Y%m%d_%H%M%S)_once-$TAG.dump"
 log "Yedek alınıyor: $YEDEK"
+# Bağışçı verisi içerir: sunucudaki diğer kullanıcılar okuyamasın
+chmod 700 "$DIZIN/backups"
+find "$DIZIN/backups" -maxdepth 1 -type f -name '*.dump' -exec chmod 600 {} +
+(umask 077; : > "$YEDEK")
 compose "$TAG" exec -T db pg_dump -U einfak -Fc einfak > "$YEDEK" || { rm -f "$YEDEK"; ol "Yedek alınamadı; migration yapılmadı"; }
 
 log "Migration"
@@ -94,8 +98,10 @@ cp "$SURUM/deploy/docker/dagit.sh" "$DIZIN/dagit.sh.yeni" && chmod +x "$DIZIN/da
 # sudo ile çalıştırılan nginx betikleri de güncel sürümden alınır
 for betik in nginx-kur.sh nginx-otomatik-ssl.sh; do cp "$SURUM/deploy/docker/$betik" "$DIZIN/$betik" || true; done
 
-if [[ -f /usr/local/sbin/e-infak-yedek ]] && ! cmp -s "$SURUM/deploy/backup/gecelik-yedek.sh" /usr/local/sbin/e-infak-yedek; then
-  log "NOT: gecelik yedek betiği değişti; güncellemek için: sudo bash $SURUM/deploy/backup/yedek-kur.sh"
+if [[ -f /usr/local/sbin/e-infak-yedek ]] && ! { cmp -s "$SURUM/deploy/backup/gecelik-yedek.sh" /usr/local/sbin/e-infak-yedek \
+  && cmp -s "$SURUM/deploy/backup/saatlik-yedek.sh" /usr/local/sbin/e-infak-saatlik \
+  && cmp -s "$SURUM/deploy/backup/geri-yukleme-testi.sh" /usr/local/sbin/e-infak-restore-test; }; then
+  log "NOT: yedek betikleri değişti; güncellemek için: sudo bash $SURUM/deploy/backup/yedek-kur.sh"
 fi
 
 # Eski sürümler, imajlar ve yedekler

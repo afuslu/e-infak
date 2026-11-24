@@ -1,0 +1,10 @@
+[Unit]
+Description=E-İnfak saatlik veritabanı yedeği
+
+[Timer]
+OnCalendar=*-*-* *:20:00
+Persistent=false
+Unit=e-infak-saatlik.service
+
+[Install]
+WantedBy=timers.target
