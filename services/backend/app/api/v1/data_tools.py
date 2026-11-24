@@ -832,6 +832,6 @@ async def merge_donors(request: Request, payload: MergeIn, db: AsyncSession = De
     target.first_donation_at, target.last_donation_at = stats[2], stats[3]
 
     db.add(AuditLog(organization_id=org_id, user_id=current_user.id, action="bagisci_birlestir",
-                    details={"target_id": str(target.id), "sources": snapshot, "moved": moved}))
+                    details={"donor_id": str(target.id), "target_id": str(target.id), "sources": snapshot, "moved": moved}))
     await db.commit()
     return {"donor": _donor_brief(target), "merged": len(sources), "moved": moved}

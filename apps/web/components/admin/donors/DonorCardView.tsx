@@ -8,8 +8,8 @@ import { scrollToNextSection } from '../muhasebe/OnMuhasebeUI'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Building2, FileDown, MessageSquarePlus, PencilLine, PhoneCall, Plus, Smartphone, Trash2, Users } from 'lucide-react'
-import { adminGet, adminSend, apiErrorMessage, downloadFile, formatMoney, hasFeature, useAdminAccess } from '../../../lib/admin-access'
+import { ArrowLeft, Building2, FileDown, GitMerge, MessageSquarePlus, PencilLine, PhoneCall, Plus, Smartphone, Trash2, Users } from 'lucide-react'
+import { adminGet, adminSend, apiErrorMessage, can, downloadFile, formatMoney, hasFeature, useAdminAccess } from '../../../lib/admin-access'
 import { STATUS_CLASS, STATUS_LABEL, type SmsMessage } from '../../../lib/sms'
 import { inputClass } from '../FormKit'
 import { ManualReceiptForm, downloadReceiptPdf } from '../ManualReceiptForm'
@@ -17,8 +17,9 @@ import { QuickSmsDialog, sentNotice } from '../QuickSmsDialog'
 import { QuickWhatsAppDialog } from '../QuickWhatsAppDialog'
 import { DonorReminders } from '../DonorReminders'
 import { Modal, WhatsAppIcon, confirmDialog, toast } from '../ui'
+import { MergeDonorDialog, MoveReceiptDialog, RemoveReceiptDialog } from './ReceiptActions'
 import { DonorForm } from './DonorForm'
-import { type DonorCard, type DonorOptions, type DonorPerms, KURBAN_TYPE_LABEL, type Staff, formatPhone } from './types'
+import { type DonorCard, type DonorDonation, type DonorOptions, type DonorPerms, KURBAN_TYPE_LABEL, type Staff, formatPhone } from './types'
 
 type DonationTab = 'all' | 'kurban' | 'sponsorship' | 'well'
 type LowerTab = 'notes' | 'history' | 'messages' | 'reminders'
@@ -46,6 +47,9 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [smsOpen, setSmsOpen] = useState(false)
   const [waOpen, setWaOpen] = useState(false)
+  const [removing, setRemoving] = useState<DonorDonation | null>(null)
+  const [moving, setMoving] = useState<DonorDonation | null>(null)
+  const [mergeOpen, setMergeOpen] = useState(false)
   const [smsLog, setSmsLog] = useState<SmsMessage[]>([])
   const [callLog, setCallLog] = useState<{
     id: string; direction: 'in' | 'out'; status_label: string; talk_seconds: number | null
@@ -107,6 +111,7 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
     }
   }
 
+  const canCancel = can(access, 'receipts.cancel')
   const avg = card.total_donations > 0 ? Math.round(card.total_donated_cents / card.total_donations) : 0
   const tabBtn = (active: boolean) => `-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-[13.5px] font-semibold ${active ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-800'}`
   const th = 'whitespace-nowrap px-3 py-2 text-left text-[12px] font-bold text-gray-500'
@@ -184,7 +189,13 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
             className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[13px] font-semibold text-emerald-700 hover:bg-emerald-100">
             <FileDown className="h-4 w-4" /> İyilik Karnesi
           </button>
-          {perms.remove && card.total_donations === 0 && (
+          {can(access, 'donors.merge') && (
+            <button type="button" onClick={() => setMergeOpen(true)} title="Mükerrer kartı asıl kartla birleştir"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-semibold text-gray-700 hover:bg-gray-50">
+              <GitMerge className="h-4 w-4" /> Birleştir
+            </button>
+          )}
+          {perms.remove && card.donations.length === 0 && (
             <button type="button" onClick={remove} title="Bağışı olmayan kaydı sil" aria-label="Bağışçıyı sil"
               className="rounded-lg p-2 text-gray-400 hover:bg-rose-50 hover:text-rose-600">
               <Trash2 className="h-4 w-4" />
@@ -263,11 +274,25 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
                   <tbody className="divide-y divide-gray-100">
                     {card.donations.map((d) => (
                       <tr key={d.id} className={d.status !== 'confirmed' ? 'opacity-50' : ''}>
-                        <td className={`${td} font-semibold text-primary-700`}>#{d.receipt_number}</td>
+                        <td className={`${td} font-semibold text-primary-700`}>#{d.receipt_number}
+                          {d.status === 'cancelled' && <span className="ms-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-600">İptal</span>}
+                        </td>
                         <td className={`${td} whitespace-nowrap`}>{dateTime(d.paid_at)}</td>
                         <td className={td}>
                           <div className="font-medium text-gray-900">{d.campaign_title || 'Genel Bağış'}</div>
                           <div className="text-[11px] text-gray-400">{d.payment_method_label}{d.on_behalf_of ? ` · Adına: ${d.on_behalf_of}` : ''}{d.intent ? ` · Niyet: ${d.intent}` : ''}</div>
+                          {canCancel && (d.movable || d.removable) && <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                            {d.movable && (
+                              <button type="button" onClick={() => setMoving(d)}
+                                className="text-left text-[12px] font-bold text-sky-700 hover:underline">Başka karta taşı</button>
+                            )}
+                            {d.removable && (!d.bank_matched || can(access, 'bank.unmatch')) && (
+                              <button type="button" onClick={() => setRemoving(d)}
+                                className="text-left text-[12px] font-bold text-rose-600 hover:underline">
+                                {d.bank_matched ? 'Makbuz ve Eşleştirme Sil' : 'Makbuzu Sil'}
+                              </button>
+                            )}
+                          </div>}
                         </td>
                         <td className={`${td} text-right font-bold tabular-nums`}>{formatMoney(d.amount_cents, d.currency)}</td>
                         <td className={`${td} whitespace-nowrap text-gray-600`}>{d.issued_by_name || (d.is_manual ? '—' : 'Web')}</td>
@@ -426,6 +451,9 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
           />
         </Modal>
       )}
+      {removing && <RemoveReceiptDialog donation={removing} onClose={() => setRemoving(null)} onDone={load} />}
+      {moving && <MoveReceiptDialog donation={moving} donorId={card.id} onClose={() => setMoving(null)} onDone={load} />}
+      {mergeOpen && <MergeDonorDialog donorId={card.id} donorName={card.full_name} onClose={() => setMergeOpen(false)} />}
       {smsOpen && (
         <QuickSmsDialog
           target={{ donorId: card.id, name: card.full_name, phone: card.phone, allowSms: card.allow_sms }}

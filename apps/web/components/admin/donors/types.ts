@@ -32,6 +32,7 @@ export interface DonorDonation {
   id: string; receipt_number: string; campaign_title: string | null; amount_cents: number; currency: string
   status: string; payment_method_label: string; paid_at: string; on_behalf_of: string | null; is_manual: boolean
   issued_by_name?: string | null; intent?: string | null
+  removable?: boolean; movable?: boolean; bank_matched?: boolean
 }
 
 export interface DonorPledge {

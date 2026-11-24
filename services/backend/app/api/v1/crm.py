@@ -46,6 +46,14 @@ PROFILE_FIELDS = ("membership_type", "blood_group", "gender", "occupation", "rat
 MANUAL_PROVIDER = "manual"
 # Staff-entered sources that may be cancelled (online payments go through refunds)
 OFFLINE_PROVIDERS = {MANUAL_PROVIDER, "money_box", "import"}
+
+
+def is_staff_receipt(donation: Donation) -> bool:
+    """Not paid online: entered by staff, imported (STK PRO / Excel) or made from a bank transfer."""
+    provider = donation.payment_provider or ""
+    return provider in OFFLINE_PROVIDERS or provider == "stkpro" or provider.startswith("bank:")
+
+
 METHOD_LABELS = {
     PaymentMethod.CREDIT_CARD: "Kredi Kartı",
     PaymentMethod.BANK_TRANSFER: "Havale / EFT",
@@ -507,6 +515,10 @@ ACTION_LABELS = {
     "bagisci_not_ekle": "Görüşme notu eklendi",
     "bagisci_birlestir": "Mükerrer kayıt birleştirildi",
     "bagisci_sms": "SMS gönderildi",
+    "makbuz_iptal": "Makbuz iptal edildi",
+    "makbuz_eslesme_sil": "Makbuz ve eşleştirme silindi",
+    "makbuz_tasi": "Makbuz başka karta taşındı",
+    "makbuz_tasindi": "Makbuz bu karta taşındı",
 }
 FIELD_LABELS = {
     "first_name": "Ad", "last_name": "Soyad", "company_name": "Kurum adı", "phone": "Cep telefonu", "phone2": "Telefon",
@@ -898,6 +910,10 @@ def _donation_row(d: Donation, names: dict) -> dict:
         or METHOD_LABELS.get(d.payment_method, d.payment_method.value),
         "receipt_group": (d.payment_details or {}).get("receipt_group"),
         "is_manual": d.payment_provider in OFFLINE_PROVIDERS,
+        # May be cancelled with POST /donations/{id}/remove; staff receipts can also move to another card.
+        "removable": is_staff_receipt(d) and d.status in (DonationStatus.CONFIRMED, DonationStatus.PENDING),
+        "movable": is_staff_receipt(d),
+        "bank_matched": bool((d.payment_details or {}).get("bank_transaction_id")),
         "source": d.payment_provider,
         "paid_at": d.paid_at or d.created_at,
         "on_behalf_of": d.on_behalf_of,
@@ -1494,6 +1510,61 @@ class CancelIn(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
 
+async def _receipt_lines(db: AsyncSession, org_id: UUID, donation: Donation) -> list[Donation]:
+    """Every item of the donation's receipt (itself when the receipt has one item), locked."""
+    group = (donation.payment_details or {}).get("receipt_group")
+    if not group:
+        return [donation]
+    return list((await db.execute(
+        select(Donation).options(selectinload(Donation.campaign), selectinload(Donation.donor)).where(
+            Donation.organization_id == org_id, Donation.payment_details["receipt_group"].astext == group)
+        .order_by(Donation.created_at).with_for_update()
+    )).scalars().all())
+
+
+async def _refresh_donation_dates(db: AsyncSession, donor: Donor) -> None:
+    await db.flush()
+    when = func.coalesce(Donation.paid_at, Donation.created_at)
+    donor.first_donation_at, donor.last_donation_at = (await db.execute(
+        select(func.min(when), func.max(when)).where(
+            Donation.donor_id == donor.id, Donation.status == DonationStatus.CONFIRMED))).one()
+
+
+async def _cancel_receipt(db: AsyncSession, org_id: UUID, donation: Donation, reason: str, user: User) -> None:
+    """Cancel the whole receipt, undoing its side effects; the caller commits."""
+    from sqlalchemy import update
+
+    from app.models.sms_message import SMS_OPEN_STATUSES, SmsMessage
+
+    lines = [line for line in await _receipt_lines(db, org_id, donation)
+             if line.status in (DonationStatus.CONFIRMED, DonationStatus.PENDING)]
+    undone: dict = {}
+    for line in lines:
+        if line.status == DonationStatus.CONFIRMED:
+            try:
+                for key, value in (await on_donation_cancelled(db, line)).items():
+                    undone[key] = undone.get(key, 0) + value if isinstance(value, int) else value
+            except DonationEffectsLocked as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            if line.campaign:
+                remove_from_campaign(line, line.campaign)
+            if line.donor:
+                remove_from_donor(line.donor, line)
+        line.status = DonationStatus.CANCELLED
+        line.payment_details = {**(line.payment_details or {}), "cancel_reason": reason, "cancelled_by": str(user.id)}
+    # An SMS about a cancelled receipt must not go out.
+    await db.execute(update(SmsMessage).where(
+        SmsMessage.organization_id == org_id, SmsMessage.related_type == "donation",
+        SmsMessage.related_id.in_([line.id for line in lines]), SmsMessage.status.in_(SMS_OPEN_STATUSES),
+    ).values(status="cancelled"))
+    if donation.donor:
+        await _refresh_donation_dates(db, donation.donor)
+    _audit(db, org_id, user, "makbuz_iptal", {
+        "donation_id": str(donation.id), "receipt_number": donation.receipt_number, "reason": reason,
+        "donor_id": str(donation.donor_id), "lines": len(lines), **undone,
+    })
+
+
 @router.post("/donations/{donation_id}/cancel")
 async def cancel_manual_donation(request: Request, donation_id: UUID, payload: CancelIn, db: AsyncSession = Depends(get_db),
                                  current_user: User = Depends(get_current_user)):
@@ -1511,33 +1582,134 @@ async def cancel_manual_donation(request: Request, donation_id: UUID, payload: C
         raise HTTPException(status_code=409, detail="Online ödemeler iptal edilemez; iade işlemi kullanılmalıdır")
     if donation.status not in (DonationStatus.CONFIRMED, DonationStatus.PENDING):
         raise HTTPException(status_code=409, detail="Makbuz zaten iptal edilmiş")
-    # A receipt with several items is cancelled as a whole.
-    group = (donation.payment_details or {}).get("receipt_group")
-    lines = [donation]
-    if group:
-        lines = (await db.execute(
-            select(Donation).options(selectinload(Donation.campaign), selectinload(Donation.donor)).where(
-                Donation.organization_id == org_id, Donation.payment_details["receipt_group"].astext == group,
-                Donation.status.in_([DonationStatus.CONFIRMED, DonationStatus.PENDING])).with_for_update()
-        )).scalars().all()
-    undone: dict = {}
+    await _cancel_receipt(db, org_id, donation, sanitize_public_text(payload.reason), current_user)
+    await db.commit()
+    return _donation_row(donation, await _staff_names(db, org_id))
+
+
+async def _staff_receipt(db: AsyncSession, org_id: UUID, donation_id: UUID, user: User) -> Donation:
+    donation = (await db.execute(
+        select(Donation).options(selectinload(Donation.campaign), selectinload(Donation.donor))
+        .where(Donation.id == donation_id, Donation.organization_id == org_id).with_for_update(of=Donation)
+    )).scalar_one_or_none()
+    if not donation:
+        raise HTTPException(status_code=404, detail="Bağış bulunamadı")
+    ensure_receipt_visible(user, donation)
+    return donation
+
+
+async def _matched_transfer(db: AsyncSession, org_id: UUID, donation: Donation):
+    """The bank transfer this receipt was made from, when it is still matched."""
+    from app.models.automation import BankTransaction, ReconciliationStatus
+
+    checks = [BankTransaction.donation_id == donation.id]
+    marker = (donation.payment_details or {}).get("bank_transaction_id")
+    if marker:
+        checks.append(BankTransaction.id == UUID(str(marker)))
+    return (await db.execute(select(BankTransaction).where(
+        BankTransaction.organization_id == org_id, BankTransaction.status == ReconciliationStatus.MATCHED,
+        BankTransaction.donation_id.isnot(None), or_(*checks)).limit(1).with_for_update())).scalars().first()
+
+
+@router.post("/donations/{donation_id}/remove")
+async def remove_receipt(request: Request, donation_id: UUID, payload: CancelIn, db: AsyncSession = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
+    """"Makbuz ve Eşleştirme Sil": makbuz iptal edilir, bağlı banka hareketi yeniden eşleşme bekler."""
+    from app.banking.matching import Matcher, analyse, unmatch
+    from app.models.automation import BankAccount
+
+    org_id = _org_id(request)
+    ensure_capability(current_user, "receipts.cancel", "Makbuz iptal yetkiniz yok")
+    donation = await _staff_receipt(db, org_id, donation_id, current_user)
+    if not is_staff_receipt(donation):
+        raise HTTPException(status_code=409, detail="Online ödemeler silinemez; iade işlemi kullanılmalıdır")
+    if donation.status not in (DonationStatus.CONFIRMED, DonationStatus.PENDING):
+        raise HTTPException(status_code=409, detail="Makbuz zaten iptal edilmiş")
     reason = sanitize_public_text(payload.reason)
+    transfer = await _matched_transfer(db, org_id, donation)
+    if transfer is None:
+        await _cancel_receipt(db, org_id, donation, reason, current_user)
+    else:
+        ensure_capability(current_user, "bank.unmatch", "Banka eşleştirmesini kaldırma yetkiniz yok")
+        try:
+            cancelled = await unmatch(db, transfer, user_id=current_user.id, reason=reason)
+        except (ValueError, DonationEffectsLocked) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        for donor in {d.donor.id: d.donor for d in cancelled if d.donor}.values():
+            await _refresh_donation_dates(db, donor)
+        account = await db.get(BankAccount, transfer.bank_account_id) if transfer.bank_account_id else None
+        await analyse(db, transfer, Matcher(db, org_id), account)
+        _audit(db, org_id, current_user, "makbuz_eslesme_sil", {
+            "donation_id": str(donation.id), "donor_id": str(donation.donor_id), "transfer_id": str(transfer.id),
+            "receipts": [d.receipt_number for d in cancelled], "reason": reason,
+        })
+    await db.commit()
+    return {**_donation_row(donation, await _staff_names(db, org_id)), "transfer_id": str(transfer.id) if transfer else None}
+
+
+class MoveReceiptIn(BaseModel):
+    donor_id: UUID
+
+
+@router.post("/donations/{donation_id}/move")
+async def move_receipt(request: Request, donation_id: UUID, payload: MoveReceiptIn, db: AsyncSession = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    """Yanlış karta kesilmiş makbuzu doğru bağışçıya taşır; numara, tutar ve banka eşleşmesi korunur."""
+    from app.banking.matching import learn_sender
+    from app.models.channels import SmsDonationRecord
+    from app.models.kurban import KurbanShare
+    from app.models.membership import MemberDue
+    from app.models.orphan import OrphanSponsorship
+    from app.models.sponsorship import PledgeInstallment, WellShare
+
+    org_id = _org_id(request)
+    ensure_capability(current_user, "receipts.cancel", "Makbuz taşıma yetkiniz yok")
+    donation = await _staff_receipt(db, org_id, donation_id, current_user)
+    if not is_staff_receipt(donation):
+        raise HTTPException(status_code=409, detail="Online ödeme başka karta taşınamaz; kartları birleştirin")
+    if payload.donor_id == donation.donor_id:
+        raise HTTPException(status_code=422, detail="Makbuz zaten bu bağışçının kartında")
+    locked = {d.id: d for d in (await db.execute(select(Donor).where(
+        Donor.organization_id == org_id, Donor.id.in_([payload.donor_id, donation.donor_id]))
+        .order_by(Donor.id).with_for_update().execution_options(populate_existing=True))).scalars()}
+    target, source = locked.get(payload.donor_id), locked.get(donation.donor_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Bağışçı bulunamadı")
+    _ensure_can_see(current_user, target)
+    lines = [line for line in await _receipt_lines(db, org_id, donation) if line.donor_id == source.id]
+    ids = [line.id for line in lines]
+    for model in (PledgeInstallment, MemberDue, OrphanSponsorship):
+        if (await db.execute(select(model.id).where(model.donation_id.in_(ids)).limit(1))).first():
+            raise HTTPException(status_code=409, detail="Makbuz bir taksit veya aidata bağlı; tek başına taşınamaz, kartları birleştirin")
+
+    old_name = source.full_name
+    shares = (await db.execute(select(KurbanShare).where(KurbanShare.donation_id.in_(ids)))).scalars().all()
+    for share in shares:
+        share.donor_id = target.id
+        share.donor_name = target.full_name or share.donor_name
+        if share.donor_phone == (source.phone or ""):
+            share.donor_phone = target.phone or ""
+        if share.on_behalf_of == old_name:
+            share.on_behalf_of = target.full_name
+    for model in (WellShare, SmsDonationRecord):
+        for row in (await db.execute(select(model).where(model.donation_id.in_(ids)))).scalars():
+            row.donor_id = target.id
     for line in lines:
         if line.status == DonationStatus.CONFIRMED:
-            try:
-                for key, value in (await on_donation_cancelled(db, line)).items():
-                    undone[key] = undone.get(key, 0) + value if isinstance(value, int) else value
-            except DonationEffectsLocked as exc:
-                raise HTTPException(status_code=409, detail=str(exc))
-            if line.campaign:
-                remove_from_campaign(line, line.campaign)
-            if line.donor:
-                remove_from_donor(line.donor, line)
-        line.status = DonationStatus.CANCELLED
-        line.payment_details = {**(line.payment_details or {}), "cancel_reason": reason, "cancelled_by": str(current_user.id)}
-    _audit(db, org_id, current_user, "makbuz_iptal", {
-        "donation_id": str(donation.id), "receipt_number": donation.receipt_number, "reason": payload.reason,
-        "donor_id": str(donation.donor_id), "lines": len(lines), **undone,
-    })
+            # Same TRY amount the donation added to the old card, whatever its currency.
+            added = int((line.payment_details or {}).get("donor_total_cents", line.amount_cents))
+            remove_from_donor(source, line)
+            target.total_donations = (target.total_donations or 0) + 1
+            target.total_donated_cents = (target.total_donated_cents or 0) + added
+        line.donor = target
+    await _refresh_donation_dates(db, source)
+    await _refresh_donation_dates(db, target)
+    transfer = await _matched_transfer(db, org_id, donation)
+    if transfer:
+        await learn_sender(db, org_id, (transfer.suggestion or {}).get("sender"), target.id)
+    details = {"donation_id": str(donation.id), "receipt_number": donation.receipt_number, "lines": len(lines),
+               "from_donor_id": str(source.id), "to_donor_id": str(target.id)}
+    _audit(db, org_id, current_user, "makbuz_tasi", {**details, "donor_id": str(source.id)})
+    _audit(db, org_id, current_user, "makbuz_tasindi", {**details, "donor_id": str(target.id)})
     await db.commit()
     return _donation_row(donation, await _staff_names(db, org_id))

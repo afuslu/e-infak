@@ -1,7 +1,7 @@
 /** "Eğitim Modu": a short how-to shown above a page while the mode is on. */
 export const PAGE_HELP: [string, string][] = [
   ['/admin/bagiscilar/yeni', 'Ad Soyad ve cep telefonu yeterlidir; diğer alanları sonra bağışçı kartından tamamlayabilirsiniz. Aynı telefon ya da e-postayla ikinci kayıt açılmaz.'],
-  ['/admin/bagiscilar/', 'Bağışçı kartı: solda bilgiler (Bağışçıyı Düzenle ile değiştirin), sağda bağış sekmeleri, altta görüşme notları ve işlem geçmişi. Yeni Makbuz Ekle bu kişi adına makbuz keser.'],
+  ['/admin/bagiscilar/', 'Bağışçı kartı: solda bilgiler (Bağışçıyı Düzenle ile değiştirin), sağda bağış sekmeleri, altta görüşme notları ve işlem geçmişi. Yeni Makbuz Ekle bu kişi adına makbuz keser. Makbuz satırından makbuzu silebilir ya da başka karta taşıyabilir, Birleştir ile mükerrer kartı asıl karta katabilirsiniz.'],
   ['/admin/bagiscilar', 'Her sütunun altındaki kutuya yazıp Filtreyi Uygula\'ya basın. Kişileri seçip Toplu İşlemler ile güncelleyin, dışa aktarın, SMS veya mail listesi oluşturun. "Tüm N kaydı seç" filtreye uyan herkesi seçer.'],
   ['/admin/makbuzlar', 'Her satır bir makbuzdur; birden çok kalemli makbuzlar tek satırda toplanır. Toplam Tutar\'ı görmek için göz düğmesine basın. F2 her sayfadan yeni makbuz açar.'],
   ['/admin/bagislar', 'Tüm Bağışlar makbuz kalemlerini tek tek listeler. Makbuz numarasıyla ya da bağışçı adıyla arayabilirsiniz.'],

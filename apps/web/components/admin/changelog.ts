@@ -10,6 +10,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    id: '2026-11-24-makbuz-eslesme', date: '2026-11-24', area: 'Panel', title: 'Makbuz ve eşleştirme silme',
+    summary: 'Yanlış veya mükerrer makbuz silinir, doğru karta taşınır; mükerrer kartlar birleştirilir.',
+    items: [
+      { heading: 'Bağışçı kartı', path: 'Bağışçılar › Bağışçı kartı', points: ['"Makbuz ve Eşleştirme Sil" makbuzu iptal eder; banka hareketi yeniden eşleşme bekler.', '"Başka karta taşı" makbuzu numarası ve tutarıyla doğru bağışçıya geçirir.', '"Birleştir" mükerrer kartın kayıtlarını asıl karta taşır.'] },
+      { heading: 'Banka hareketleri', path: 'Finans › Banka Hareketleri', points: ['Eşleşmemiş harekete "Makbuz Ekle" ile doğru bağışçıyı seçerek makbuz kesin.'] },
+    ],
+  },
+  {
     id: '2026-11-24-niyet', date: '2026-11-24', area: 'Panel', title: 'Makbuzda kurban niyeti',
     summary: 'Kurban niyeti makbuza yazılır; Tüm Makbuzlar ve Tüm Bağışlar adları sadeleşti.',
     items: [

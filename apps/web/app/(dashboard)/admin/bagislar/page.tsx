@@ -42,6 +42,8 @@ interface Row {
   status: string
   payment_method_label: string
   is_manual: boolean
+  removable?: boolean
+  bank_matched?: boolean
   is_anonymous?: boolean
   paid_at: string
   on_behalf_of: string | null
@@ -274,7 +276,7 @@ export default function AdminDonationsPage() {
     }
     setCancelling(true)
     try {
-      await adminSend('post', `/donations/${cancelTarget.id}/cancel`, { reason: cancelReason.trim() })
+      await adminSend('post', `/donations/${cancelTarget.id}/remove`, { reason: cancelReason.trim() })
       toast.ok(`${cancelTarget.receipt_number} numaralı makbuz iptal edildi.`)
       setCancelTarget(null)
       setCancelReason('')
@@ -798,7 +800,7 @@ export default function AdminDonationsPage() {
                               Ödendi
                             </button>
                           )}
-                          {canIssue && r.is_manual && (r.status === 'confirmed' || r.status === 'pending') && (
+                          {canIssue && r.removable && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1006,6 +1008,7 @@ export default function AdminDonationsPage() {
           <form id="cancel-donation-form" onSubmit={handleCancelSubmit} className="space-y-3">
             <p className="text-xs text-slate-600">
               Bu işlem makbuzu iptal durumuna alır ve tutarı kampanya toplamından düşer.
+              {cancelTarget.bank_matched ? ' Bağlı banka hareketi yeniden eşleşme bekler.' : ''}
             </p>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">İptal Nedeni *</label>
