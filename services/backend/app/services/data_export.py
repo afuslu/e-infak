@@ -75,6 +75,8 @@ DATASETS: dict[str, tuple[str, dict[str, str]]] = {
         "mail_batches": "Toplu e-posta", "mail_templates": "E-posta şablonları", "call_logs": "Çağrılar"}),
     "web-sitesi": ("Web sitesi ve formlar", {
         "site_pages": "Sayfalar", "site_page_revisions": "Sayfa geçmişi", "site_menu_items": "Menü",
+        "mobile_apps": "Uygulama tasarımı", "mobile_app_revisions": "Uygulama tasarımı geçmişi",
+        "mobile_app_requests": "Mağaza başvurusu",
         "content_posts": "İçerikler", "gallery_items": "Galeri", "banners": "Duyuru bandı", "site_forms": "Formlar",
         "site_form_submissions": "Form yanıtları", "contact_messages": "İletişim mesajları",
         "volunteer_applications": "Gönüllüler", "organization_settings": "Kurum bilgileri",

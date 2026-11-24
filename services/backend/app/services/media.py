@@ -338,6 +338,7 @@ def _usage_sources():
     from app.models.campaign import Campaign
     from app.models.cms import GalleryItem, SitePage
     from app.models.content_post import ContentPost
+    from app.models.mobile_app import MobileApp, MobileAppRequest
     from app.models.organization_settings import OrganizationSettings
     from app.models.orphan import Orphan
     from app.models.sponsorship import Beneficiary
@@ -346,6 +347,8 @@ def _usage_sources():
         (SitePage, "Sayfa", "title", "/admin/site-yapici", (
             "cover_image_url", "body", "translations", "blocks", "draft_blocks",
         )),
+        (MobileApp, "Mobil uygulama", None, "/admin/uygulama-yapici", ("config", "draft")),
+        (MobileAppRequest, "Mağaza başvurusu", None, "/admin/uygulama-yapici", ("data",)),
         (ContentPost, "Haber & Blog", "title", "/admin/icerikler", ("image_url", "gallery_urls", "body", "translations")),
         (GalleryItem, "Galeri", "title", "/admin/galeri", ("image_url",)),
         (Campaign, "Kampanya", "title", "/admin/kampanyalar", ("cover_image_url", "gallery_urls", "description")),

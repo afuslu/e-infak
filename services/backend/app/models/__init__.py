@@ -53,3 +53,4 @@ from app.models.channels import CallLog, DonationVideo, SmsDonationRecord, Video
 from app.models.data_export import DataExport, OrganizationOffboarding
 from app.models.device_token import DeviceToken
 from app.models.staff_notification import StaffNotification, StaffNotificationSetting
+from app.models.mobile_app import MobileApp, MobileAppRequest, MobileAppRevision

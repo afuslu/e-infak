@@ -157,7 +157,7 @@ ROUTE_RULES: tuple[tuple[str, frozenset | str, frozenset | str], ...] = tuple(
         ("/admin-features/representatives", {"donors", "users", "settings"}, {"users", "settings"}),
         ("/admin-features/mail/", {"sms"}, {"sms"}),
         *((f"/admin-features/{part}", {"site"}, {"site"}) for part in (
-            "banners", "content-posts", "gallery", "media", "menu", "pages", "site-appearance", "site-builder",
+            "banners", "content-posts", "gallery", "media", "menu", "pages", "site-appearance", "site-builder", "app-builder",
             "site-domains")),
         ("/admin-features/departments", {"users"}, {"users"}),
         ("/admin-features/staff-roles", {"users"}, {"users"}),
