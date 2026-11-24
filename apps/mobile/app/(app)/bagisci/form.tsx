@@ -19,7 +19,7 @@ export default function DonorForm() {
 
   const [form, setForm] = useState({
     donor_type: 'individual', first_name: '', last_name: '', company_name: '', tc_no: '', tax_number: '', phone: '', email: '',
-    city: '', country: 'Türkiye', address: '', tags: '', assigned_user_id: null as string | null, allow_sms: false, allow_email: false,
+    city: '', country: 'Türkiye', address: '', tags: '', assigned_user_id: null as string | null, sms_opt_out: false, email_opt_out: false,
   });
   const [loaded, setLoaded] = useState(!id);
   const [busy, setBusy] = useState(false);
@@ -34,7 +34,7 @@ export default function DonorForm() {
       donor_type: d.donor_type, first_name: d.first_name || '', last_name: d.last_name || '', company_name: d.company_name || '',
       tc_no: '', tax_number: d.tax_number || '', phone: d.phone || '', email: d.email || '', city: d.city || '',
       country: d.country || 'Türkiye', address: d.address || '', tags: (d.tags || []).join(', '),
-      assigned_user_id: d.assigned_user_id, allow_sms: d.allow_sms, allow_email: d.allow_email,
+      assigned_user_id: d.assigned_user_id, sms_opt_out: d.sms_opt_out, email_opt_out: d.email_opt_out,
     });
     setLoaded(true);
   }, [existing.data, loaded]);
@@ -58,8 +58,8 @@ export default function DonorForm() {
       address: form.address.trim() || null,
       tax_number: form.tax_number.trim() || null,
       tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
-      allow_sms: form.allow_sms,
-      allow_email: form.allow_email,
+      sms_opt_out: form.sms_opt_out,
+      email_opt_out: form.email_opt_out,
     };
     // T.C. no maskeli geldiği için yalnızca yeniden yazıldıysa gönderilir.
     if (!corporate && form.tc_no) body.tc_no = form.tc_no;
@@ -113,8 +113,8 @@ export default function DonorForm() {
       <Card style={{ gap: space.md }}>
         <Field label="Etiketler" value={form.tags} onChangeText={(tags) => set({ tags })} autoCapitalize="none" hint="Virgülle ayırın: vip, kurban" />
         <Select label="Sorumlu personel" value={form.assigned_user_id} options={staff} onChange={(assigned_user_id) => set({ assigned_user_id })} allowClear searchable placeholder="Atanmamış" />
-        <SwitchRow label="SMS izni" value={form.allow_sms} onValueChange={(allow_sms) => set({ allow_sms })} />
-        <SwitchRow label="E-posta izni" value={form.allow_email} onValueChange={(allow_email) => set({ allow_email })} />
+        <SwitchRow label="SMS gönderilmesin" value={form.sms_opt_out} onValueChange={(sms_opt_out) => set({ sms_opt_out })} />
+        <SwitchRow label="E-posta gönderilmesin" value={form.email_opt_out} onValueChange={(email_opt_out) => set({ email_opt_out })} />
       </Card>
     </Screen>
   );

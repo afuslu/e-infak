@@ -8,6 +8,10 @@ import { Button } from '@e-infak/ui'
 import { ApproxCurrency, CURRENCY_SYMBOL } from '../../../../components/site/ApproxCurrency'
 import { FormattedStory } from '../../../../components/FormattedStory'
 import { translator } from '../../../../lib/i18n'
+import { useSiteCurrency } from '../../../../components/blocks/DonationBlocks'
+import { DonationChoiceFields, useDonationChoice } from '../../../../components/donation-choice'
+import { cartLimits } from '../../../../lib/donation-options'
+import { InstallmentCard } from './InstallmentCard'
 
 export default function CampaignDetailClient({ slug, locale = 'tr', initial }: { slug: string; locale?: string; initial?: Campaign | null }) {
   const t = translator(locale)
@@ -37,6 +41,25 @@ export default function CampaignDetailClient({ slug, locale = 'tr', initial }: {
     }))
     setJustAdded(amountCents)
     setTimeout(() => setJustAdded((cur) => (cur === amountCents ? null : cur)), 2500)
+  }
+
+  const { currency: siteCurrency, convert } = useSiteCurrency()
+  const toSite = (n: number) => convert(n, 'TRY')
+  const own = useDonationChoice(campaign, siteCurrency, toSite, locale)
+  const [ownError, setOwnError] = useState('')
+  const addOwn = () => {
+    if (!campaign || !own.options || !own.result) return
+    const problem = own.validate()
+    setOwnError(problem)
+    if (problem || own.result.unit == null) return
+    window.dispatchEvent(new CustomEvent('add-to-donation-cart', {
+      detail: {
+        campaignId: campaign.id, campaignTitle: `${campaign.title}${own.result.suffix}`, amount: own.result.unit,
+        quantity: own.result.quantity, metadata: own.result.metadata, currency: siteCurrency, ...cartLimits(own.options),
+      },
+    }))
+    setJustAdded(0)
+    setTimeout(() => setJustAdded((cur) => (cur === 0 ? null : cur)), 2500)
   }
 
   if (isLoading) {
@@ -131,6 +154,17 @@ export default function CampaignDetailClient({ slug, locale = 'tr', initial }: {
                 )}
               </div>
 
+              <InstallmentCard campaignId={campaign.id} campaignTitle={campaign.title} />
+              {own.options ? (
+                <div className="mb-3">
+                  <DonationChoiceFields state={own} campaign={campaign} currency={siteCurrency} convert={toSite} locale={locale} />
+                  {ownError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{ownError}</p>}
+                  <button type="button" onClick={addOwn}
+                    className="mt-3 w-full rounded-lg bg-primary-50 px-3.5 py-2.5 text-sm font-bold text-primary-700 transition hover:bg-primary-100">
+                    {justAdded === 0 ? '✓ Eklendi' : '+ Sepete Ekle'}
+                  </button>
+                </div>
+              ) : (<>
               {/* Suggested Amounts */}
               {campaign.suggested_amounts_cents.length > 0 && (
                 <div className="mb-4">
@@ -155,7 +189,7 @@ export default function CampaignDetailClient({ slug, locale = 'tr', initial }: {
               )}
 
               {/* Custom Amount Quick Add */}
-              <form
+              {campaign.allow_custom_amount !== false && <form
                 onSubmit={(e) => {
                   e.preventDefault()
                   const n = Number(customAmount.replace(/\./g, '').replace(',', '.'))
@@ -184,7 +218,8 @@ export default function CampaignDetailClient({ slug, locale = 'tr', initial }: {
                 >
                   + Sepete Ekle
                 </button>
-              </form>
+              </form>}
+              </>)}
 
               <Link href={`/bagis/${campaign.slug}`}>
                 <Button size="lg" className="w-full">

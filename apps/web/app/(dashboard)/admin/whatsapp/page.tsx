@@ -182,7 +182,6 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
   const [listId, setListId] = useState('')
   const [year, setYear] = useState('')
   const [numbers, setNumbers] = useState('')
-  const [withoutConsent, setWithoutConsent] = useState(false)
   const [name, setName] = useState('')
   const [params, setParams] = useState<string[]>([])
   const [preview, setPreview] = useState<{ recipients: number; audience: string; stats: Record<string, number> } | null>(null)
@@ -196,8 +195,8 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
   }, [])
   const audience = useMemo(() => ({
     kind, months: Number(months) || 6, tag: tag || null, city: city || null, campaign_id: campaignId || null,
-    list_id: listId || null, year: Number(year) || null, numbers: kind === 'numbers' ? numbers : null, include_without_consent: withoutConsent,
-  }), [kind, months, tag, city, campaignId, listId, year, numbers, withoutConsent])
+    list_id: listId || null, year: Number(year) || null, numbers: kind === 'numbers' ? numbers : null,
+  }), [kind, months, tag, city, campaignId, listId, year, numbers])
   useEffect(() => {
     setPreview(null)
     if (!name || (kind === 'numbers' && !numbers.trim()) || (kind === 'list' && !listId)) return
@@ -238,10 +237,6 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
         {kind === 'list' && <Label label="Kayıtlı liste"><select className={inputClass} value={listId} onChange={(e) => setListId(e.target.value)}><option value="">Seçin</option>{(options?.lists || []).map((l) => <option key={l.id} value={l.id}>{l.name} ({l.count})</option>)}</select></Label>}
         {kind === 'kurban' && <Label label="Yıl"><select className={inputClass} value={year} onChange={(e) => setYear(e.target.value)}>{options?.kurban_years.map((y) => <option key={y}>{y}</option>)}</select></Label>}
         {kind === 'numbers' && <Label label="Numaralar" hint="Her satıra bir numara"><textarea className={`${inputClass} min-h-[120px]`} value={numbers} onChange={(e) => setNumbers(e.target.value)} /></Label>}
-        <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input type="checkbox" checked={withoutConsent} onChange={(e) => setWithoutConsent(e.target.checked)} />
-          Bilgilendirme mesajı: izin vermemiş bağışçılara da gönder
-        </label>
       </Card>
       <Card className="space-y-4 p-6">
         <h2 className="font-bold text-gray-900">Ne?</h2>
@@ -250,7 +245,7 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
           <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
             <b>{preview.recipients.toLocaleString('tr-TR')}</b> kişiye gidecek
             {preview.stats.no_phone ? ` · ${preview.stats.no_phone} kişinin telefonu yok` : ''}
-            {preview.stats.no_consent ? ` · ${preview.stats.no_consent} kişi izin vermemiş` : ''}
+            {preview.stats.no_consent ? ` · ${preview.stats.no_consent} kişi mesaj istemiyor` : ''}
           </p>
         )}
         <button type="button" className={`${primaryButton} flex items-center gap-2`} disabled={busy || !configured || !preview?.recipients} onClick={send}>

@@ -38,6 +38,20 @@ def next_date(after: datetime, day: int) -> datetime:
     return datetime(year, month, day, 10, 0, tzinfo=TZ).astimezone(timezone.utc)
 
 
+def _months(value) -> Optional[int]:
+    try:
+        return int(value) if value is not None and 1 <= int(value) <= 120 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _count(sub: Subscription) -> None:
+    """One more month done; a limited instruction completes after its last month."""
+    sub.charges_done = (sub.charges_done or 0) + 1
+    if sub.total_charges and sub.charges_done >= sub.total_charges:
+        sub.status = "completed"
+
+
 def _encrypt(card_ref: dict) -> Optional[str]:
     from app.services.tenant_credentials import CredentialsUnavailable, encrypt
 
@@ -61,6 +75,10 @@ async def open_from_order(db: AsyncSession, order, attempt) -> list[Subscription
         ))).first()
         if exists:
             continue
+        # Duration campaigns ("6 ay", paid monthly) end after that many charges; this order was the first.
+        total = _months(meta.get("sure_ay"))
+        if total == 1:
+            continue
         stored = _encrypt(card_ref) if card_ref and order.payment_method == "credit_card" else None
         paid = order.paid_at or datetime.now(timezone.utc)
         day = paid.astimezone(TZ).day
@@ -71,6 +89,7 @@ async def open_from_order(db: AsyncSession, order, attempt) -> list[Subscription
             provider=attempt.provider if stored else None, card_ref=stored,
             card_last_4=attempt.card_last_4 if stored else None, card_brand=attempt.card_brand if stored else None,
             last_charged_at=paid if stored else None, source_order_id=order.id,
+            total_charges=total, charges_done=1 if total else 0,
             manage_token=secrets.token_urlsafe(24),
         )
         db.add(sub)
@@ -92,7 +111,7 @@ def links(org, sub: Subscription) -> dict:
     base = _site_url(org)
     slug = sub.campaign.slug if sub.campaign else ""
     return {
-        "odeme_linki": f"{base}/kampanyalar/{slug}" if slug else base,
+        "odeme_linki": (f"{base}/kampanyalar/{slug}" + (f"?taksit={sub.manage_token}" if sub.total_charges else "")) if slug else base,
         "yonet_linki": f"{base}/duzenli-bagis/{sub.manage_token}",
     }
 
@@ -184,6 +203,7 @@ async def charge(db: AsyncSession, sub: Subscription, now: Optional[datetime] = 
         await _finalize_paid_order(db, loaded, attempt, commit=False)
         sub.failed_attempts, sub.last_error, sub.last_charged_at = 0, None, now
         sub.next_charge_date = next_date(sub.next_charge_date, sub.day_of_month)
+        _count(sub)
         return {"status": "paid", "order_id": str(order.id)}
     order.failure_message = error
     sub.failed_attempts += 1
@@ -201,6 +221,7 @@ async def remind(db: AsyncSession, sub: Subscription, now: Optional[datetime] = 
     sent = await _notify(db, sub, "duzenli_hatirlatma")
     sub.last_reminded_at = now
     sub.next_charge_date = next_date(sub.next_charge_date, sub.day_of_month)
+    _count(sub)
     return {"status": "reminded" if sent else "skipped"}
 
 

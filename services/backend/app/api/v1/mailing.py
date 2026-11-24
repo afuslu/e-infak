@@ -176,6 +176,7 @@ async def list_members(list_id: UUID, request: Request, page: Annotated[int, Que
     return {"total": lst.member_count, "items": [{
         "id": str(d.id), "name": mailing.donor_name(d), "phone": mask_phone(d.phone, user), "email": d.email,
         "allow_sms": bool(d.allow_sms), "allow_email": bool(d.allow_email),
+        "sms_opt_out": d.sms_opt_out, "email_opt_out": d.email_opt_out,
     } for d in rows]}
 
 
@@ -247,7 +248,6 @@ class MailSendIn(BaseModel):
     list_id: Optional[UUID] = None
     target: Optional[DonorTarget] = None
     commercial: bool = True
-    include_without_consent: bool = False
     send_after: Optional[datetime] = None
     preview: bool = False  # count recipients only
 
@@ -255,8 +255,6 @@ class MailSendIn(BaseModel):
     def audience(self):
         if not self.list_id and not self.target:
             raise ValueError("Mail listesi veya bağışçı seçin")
-        if self.commercial and self.include_without_consent:
-            raise ValueError("Tanıtım e-postası yalnız izin verenlere gönderilebilir")
         return self
 
 
@@ -270,12 +268,11 @@ async def send_mail(payload: MailSendIn, request: Request, db: AsyncSession = De
     else:
         donor_ids = await _target_ids(db, org_id, user, payload.target)
         source = f"Bağışçı seçimi ({len(donor_ids)})"
-    recipients, stats = await mailing.build_recipients(db, org_id, donor_ids, commercial=payload.commercial,
-                                                       include_without_consent=payload.include_without_consent)
+    recipients, stats = await mailing.build_recipients(db, org_id, donor_ids, commercial=payload.commercial)
     if payload.preview:
         return {"recipients": len(recipients), **stats}
     if not recipients:
-        raise HTTPException(status_code=422, detail="Gönderilecek geçerli ve izinli e-posta adresi yok")
+        raise HTTPException(status_code=422, detail="Gönderilecek geçerli e-posta adresi yok")
     batch = await mailing.create_batch(db, org_id, source=source, subject=payload.subject.strip(), body=payload.body,
                                        commercial=payload.commercial, recipients=recipients, stats=stats,
                                        created_by=user.id, send_after=payload.send_after)

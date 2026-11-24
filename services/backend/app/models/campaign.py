@@ -117,6 +117,8 @@ class Campaign(Base):
     redirect_target = Column(String(500))
     seo_title = Column(String(200))
     seo_description = Column(String(400))
+    # Donor choices (mode, quantity, durations, packages…); empty = only the older columns apply
+    donation_options = Column(JSONB, nullable=False, default=dict, server_default="{}")
     type_details = Column(JSONB, nullable=False, default=dict, server_default="{}")  # e.g. kurban type, cins, hisse
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -816,6 +816,8 @@ async def merge_donors(request: Request, payload: MergeIn, db: AsyncSession = De
             target.notes = f"{target.notes}\n---\n{source.notes}" if target.notes else source.notes
         target.allow_sms = bool(target.allow_sms or source.allow_sms)
         target.allow_email = bool(target.allow_email or source.allow_email)
+        target.sms_opt_out = bool(target.sms_opt_out or source.sms_opt_out)
+        target.email_opt_out = bool(target.email_opt_out or source.email_opt_out)
 
     moved = {}
     for table, column in _donor_fk_columns():

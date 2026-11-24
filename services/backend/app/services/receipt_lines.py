@@ -50,6 +50,12 @@ async def donation_intents(db: AsyncSession, donations: Iterable[Donation]) -> d
     return intents
 
 
+def _line_title(donation: Donation) -> str:
+    title = donation.campaign.title if donation.campaign else "-"
+    count = (donation.payment_details or {}).get("adet")
+    return f"{title} ({count} adet)" if count else title
+
+
 async def receipt_print_data(db: AsyncSession, donation: Donation) -> dict:
     """amount_cents / lines / intent arguments of build_receipt_pdf: a grouped receipt prints all its items."""
     members = [donation]
@@ -65,7 +71,7 @@ async def receipt_print_data(db: AsyncSession, donation: Donation) -> dict:
     lines: Optional[list[tuple]] = None
     amount_cents = donation.amount_cents
     if len(members) > 1:
-        lines = [(m.campaign.title if m.campaign else "-", m.amount_cents, m.currency or "TRY", m.on_behalf_of,
+        lines = [(_line_title(m), m.amount_cents, m.currency or "TRY", m.on_behalf_of,
                   intents.get(m.id)) for m in members]
         if len({m.currency for m in members}) == 1:
             amount_cents = sum(m.amount_cents for m in members)
@@ -75,4 +81,5 @@ async def receipt_print_data(db: AsyncSession, donation: Donation) -> dict:
         "verify_amount_cents": donation.amount_cents,
         "lines": lines,
         "intent": intents.get(donation.id),
+        "quantity": (donation.payment_details or {}).get("adet"),
     }

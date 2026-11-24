@@ -43,7 +43,7 @@ import {
   whatsappUrl,
 } from '../../../../lib/admin-access'
 
-type SubscriptionStatus = 'active' | 'paused' | 'past_due' | 'cancelled'
+type SubscriptionStatus = 'active' | 'paused' | 'past_due' | 'cancelled' | 'completed'
 
 interface SubscriptionItem {
   id: string
@@ -60,6 +60,8 @@ interface SubscriptionItem {
   mode?: 'card' | 'reminder' | string
   frequency?: string
   day_of_month?: number | null
+  total_charges?: number | null
+  charges_done?: number
   failed_attempts?: number
   last_error?: string | null
   last_charged_at?: string | null
@@ -117,6 +119,7 @@ const STATUS_META: Record<string, { label: string; badgeClass: string }> = {
   active: { label: 'Aktif', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   paused: { label: 'Duraklatıldı', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
   past_due: { label: 'Tahsilat Bekliyor', badgeClass: 'bg-rose-50 text-rose-700 border-rose-200' },
+  completed: { label: 'Süresi Tamamlandı', badgeClass: 'bg-sky-50 text-sky-700 border-sky-200' },
   cancelled: { label: 'İptal Edildi', badgeClass: 'bg-slate-100 text-slate-600 border-slate-200' },
 }
 
@@ -418,7 +421,7 @@ export default function AdminSubscriptionsPage() {
     }
     setBulkBusy(true)
     try {
-      const targets = items.filter((s) => selectedIds.has(s.id) && s.status !== 'cancelled')
+      const targets = items.filter((s) => selectedIds.has(s.id) && s.status !== 'cancelled' && s.status !== 'completed')
       await Promise.all(targets.map((s) => adminSend('patch', `/subscriptions/${s.id}`, { status: nextStatus })))
       toast.ok(`${targets.length} talimat için "${label}" uygulandı.`)
       await load(page, q, statusFilter)
@@ -487,7 +490,7 @@ export default function AdminSubscriptionsPage() {
     {
       key: 'campaign',
       header: 'Kampanya',
-      render: (sub) => <span className="font-medium text-slate-700">{sub.campaign_title}</span>,
+      render: (sub) => <span className="font-medium text-slate-700">{sub.campaign_title}{sub.total_charges ? <span className="block text-[11px] text-slate-500">{sub.charges_done || 0} / {sub.total_charges} ay</span> : null}</span>,
     },
     {
       key: 'card',
@@ -614,7 +617,7 @@ export default function AdminSubscriptionsPage() {
               <Edit3 className="w-3.5 h-3.5" />
               Düzenle
             </button>
-            {sub.status !== 'cancelled' && (
+            {sub.status !== 'cancelled' && sub.status !== 'completed' && (
               <button
                 type="button"
                 disabled={isBusy}
@@ -898,6 +901,7 @@ export default function AdminSubscriptionsPage() {
                   <option value="all">Tüm Durumlar</option>
                   <option value="active">Aktif</option>
                   <option value="paused">Duraklatıldı</option>
+                  <option value="completed">Süresi Tamamlandı</option>
                   <option value="past_due">Tahsilat Bekliyor</option>
                   <option value="cancelled">İptal Edildi</option>
                 </select>

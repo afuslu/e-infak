@@ -257,9 +257,10 @@ async def test_online_donations_cannot_be_cancelled_and_filters_work(db_session)
                                  page_size=50, db=db_session, current_user=admin)
     assert mine["total"] == 1
 
+    donor.sms_opt_out = True
     with pytest.raises(HTTPException) as exc:
         await crm.send_donor_sms(_request(org, "POST"), donor.id, crm.DonorSms(message="Merhaba"), db_session, admin)
-    assert exc.value.status_code == 409  # no SMS consent
+    assert exc.value.status_code == 409  # opted out
 
 
 async def test_cms_routes_are_gated_by_website_feature():

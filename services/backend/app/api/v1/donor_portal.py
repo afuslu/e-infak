@@ -600,6 +600,8 @@ def _serialize_portal_sub(s: Subscription, campaign_title: Optional[str] = None)
         "card_brand": getattr(s, "card_brand", None),
         "card_last4": getattr(s, "card_last_4", None),
         "status": s.status,
+        "total_charges": s.total_charges,
+        "charges_done": s.charges_done,
         "failed_attempts": getattr(s, "failed_attempts", 0) or 0,
         "last_error": getattr(s, "last_error", None),
         "next_charge_date": s.next_charge_date,
@@ -691,6 +693,8 @@ async def update_my_subscription(
     if not sub:
         raise HTTPException(status_code=404, detail="Düzenli bağış talimatı bulunamadı.")
 
+    if sub.status == "completed":
+        raise HTTPException(status_code=400, detail="Bu talimatın süresi tamamlandı.")
     now = datetime.now(timezone.utc)
     if payload.action == "pause":
         sub.status = "paused"
@@ -768,7 +772,7 @@ async def get_recurring_by_token(
         "donor_name": donor_name or "Bağışçı",
         "campaign_slug": campaign_slug,
         # The organisation's card provider can keep a card at the bank (Vakıf Katılım CardSave).
-        "can_save_card": saver is not None and sub.status != "cancelled",
+        "can_save_card": saver is not None and sub.status not in ("cancelled", "completed"),
     }
 
 
@@ -817,7 +821,7 @@ async def save_recurring_card(
     if not manage_token or len(manage_token) < 16:
         raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
     sub = (await db.execute(select(Subscription).where(Subscription.manage_token == manage_token))).scalar_one_or_none()
-    if not sub or sub.status == "cancelled":
+    if not sub or sub.status in ("cancelled", "completed"):
         raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
     provider = await _card_saver(db, sub)
     if provider is None:
@@ -870,6 +874,8 @@ async def act_on_recurring_by_token(
     if not sub:
         raise HTTPException(status_code=404, detail="Talimat bulunamadı.")
 
+    if sub.status == "completed":
+        raise HTTPException(status_code=400, detail="Bu talimatın süresi tamamlandı.")
     now = datetime.now(timezone.utc)
     if payload.action == "pause":
         sub.status = "paused"
@@ -1389,6 +1395,8 @@ class DonorProfileUpdate(BaseModel):
     city: Optional[str] = None
     allow_email: Optional[bool] = None
     allow_sms: Optional[bool] = None
+    sms_opt_out: Optional[bool] = None
+    email_opt_out: Optional[bool] = None
     is_anonymous: Optional[bool] = None
 
 
@@ -1407,6 +1415,8 @@ def _serialize_donor_profile(donor: Donor) -> dict:
         "country": donor.country or "Türkiye",
         "allow_email": bool(donor.allow_email),
         "allow_sms": bool(donor.allow_sms),
+        "sms_opt_out": bool(donor.sms_opt_out),
+        "email_opt_out": bool(donor.email_opt_out),
         "is_anonymous": bool(donor.is_anonymous),
         "has_password": bool(donor.hashed_password),
         "total_donations": int(donor.total_donations or 0),
@@ -1448,10 +1458,19 @@ async def update_my_profile(
         current_donor.address = payload.address.strip()[:1000] or None
     if payload.city is not None:
         current_donor.city = payload.city.strip()[:100] or None
-    if payload.allow_email is not None:
-        current_donor.allow_email = bool(payload.allow_email)
-    if payload.allow_sms is not None:
-        current_donor.allow_sms = bool(payload.allow_sms)
+    for channel in ("sms", "email"):
+        allow, opt_out = getattr(payload, f"allow_{channel}"), getattr(payload, f"{channel}_opt_out")
+        if allow is not None:
+            # Older apps only know allow_*: turning it off is an opt-out, an unchanged "off" is not.
+            if getattr(current_donor, f"allow_{channel}") and not allow:
+                setattr(current_donor, f"{channel}_opt_out", True)
+            elif allow and not getattr(current_donor, f"allow_{channel}"):
+                setattr(current_donor, f"{channel}_opt_out", False)
+            setattr(current_donor, f"allow_{channel}", allow)
+        if opt_out is not None:
+            setattr(current_donor, f"{channel}_opt_out", opt_out)
+            if opt_out:
+                setattr(current_donor, f"allow_{channel}", False)
     if payload.is_anonymous is not None:
         current_donor.is_anonymous = bool(payload.is_anonymous)
 

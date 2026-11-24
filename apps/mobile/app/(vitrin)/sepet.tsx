@@ -115,8 +115,6 @@ export default function DonationCartScreen() {
   const [phone, setPhone] = useState(donorMe?.phone || '');
   const [email, setEmail] = useState(donorMe?.email || '');
   const [isAnonymous, setIsAnonymous] = useState(!!donorMe?.is_anonymous);
-  const [allowSms, setAllowSms] = useState(donorMe?.allow_sms ?? true);
-  const [allowEmail, setAllowEmail] = useState(donorMe?.allow_email ?? false);
   const [kvkkAccepted, setKvkkAccepted] = useState(true);
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
@@ -168,8 +166,8 @@ export default function DonationCartScreen() {
           phone: ph,
           email: em || null,
           is_anonymous: isAnonymous,
-          allow_sms: allowSms,
-          allow_email: allowEmail,
+          allow_sms: false,
+          allow_email: false,
         },
         payment_method: paymentMethod,
         currency,
@@ -392,14 +390,6 @@ export default function DonationCartScreen() {
                   />
                 </View>
 
-                <View style={styles.switchRow}>
-                  <Text style={styles.switchLabel}>SMS ile bağış bilgilendirmesi al</Text>
-                  <Switch
-                    value={allowSms}
-                    onValueChange={setAllowSms}
-                    trackColor={{ false: '#CBD5E1', true: primary }}
-                  />
-                </View>
                 <View style={styles.switchRow}>
                   <Text style={styles.switchLabel}>Bağışçı listesinde ismim gizlensin</Text>
                   <Switch

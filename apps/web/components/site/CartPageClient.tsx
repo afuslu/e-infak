@@ -17,6 +17,10 @@ export interface CartSummaryItem {
   amount: number
   quantity?: number
   metadata?: Record<string, unknown>
+  /** Campaign with donation options: the price is set, and the quantity stays within these. */
+  locked?: boolean
+  minQuantity?: number
+  maxQuantity?: number
   currency?: 'TRY' | 'EUR' | 'USD'
 }
 
@@ -410,6 +414,7 @@ export function CartPageClient({
               <input
                 inputMode="numeric"
                 aria-label="Tutar"
+                readOnly={it.locked}
                 value={it.amount}
                 onChange={(e) => updateItem(idx, { amount: Math.max(1, Number(e.target.value) || 0) })}
                 className={`w-28 rounded-lg border px-2.5 py-1.5 text-xs font-bold ${isDark ? 'border-white/15 bg-white/10 text-white' : 'border-gray-200 bg-white text-gray-900'}`}
@@ -417,11 +422,12 @@ export function CartPageClient({
               <span className={`text-xs font-bold ${isDark ? 'text-white/70' : 'text-gray-500'}`}>{sym} ×</span>
               <input
                 type="number"
-                min={1}
-                max={100}
+                min={it.minQuantity || 1}
+                max={it.maxQuantity || 100}
+                readOnly={it.maxQuantity === 1}
                 aria-label="Adet"
                 value={it.quantity || 1}
-                onChange={(e) => updateItem(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                onChange={(e) => updateItem(idx, { quantity: Math.min(it.maxQuantity || 100, Math.max(it.minQuantity || 1, Number(e.target.value) || 1)) })}
                 className={`w-16 rounded-lg border px-2 py-1.5 text-xs font-bold ${isDark ? 'border-white/15 bg-white/10 text-white' : 'border-gray-200 bg-white text-gray-900'}`}
               />
               <span className={`ms-auto text-sm font-extrabold ${isDark ? 'text-amber-300' : 'text-primary-700'}`}>
@@ -437,7 +443,7 @@ export function CartPageClient({
           {total.toLocaleString('tr-TR')} {sym}
         </span>
       </div>
-      {activeMicroAddon && items[0] && (
+      {activeMicroAddon && items[0] && !items[0].locked && (
         <div className={`mt-4 rounded-2xl border p-3.5 ${isDark ? 'border-white/15 bg-white/5' : 'border-primary-100 bg-primary-50/60'}`}>
           <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-primary-900'}`}>Küçük bir iyilik ekleyin</p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -1106,7 +1112,7 @@ export function CartPageClient({
               </button>
             </div>
             <div className="space-y-4 lg:sticky lg:top-24">
-              {items[0] && (
+              {items[0] && !items[0].locked && (
                 <div className="rounded-3xl border border-primary-200 bg-primary-50/70 p-4">
                   <div className="text-xs font-bold text-primary-900">Tek tıkla ekstra iyilik ekleyin</div>
                   <div className="mt-2.5 flex flex-wrap gap-2">

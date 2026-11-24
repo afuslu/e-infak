@@ -942,7 +942,7 @@ export default function SmsLogPage() {
 
       {quickSmsOpen && (
         <QuickSmsDialog
-          target={{ allowSms: true }}
+          target={{}}
           onClose={() => setQuickSmsOpen(false)}
           onSent={(res) => {
             setMessage({ type: 'ok', text: sentNotice(res) })

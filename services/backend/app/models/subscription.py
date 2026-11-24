@@ -15,7 +15,7 @@ class Subscription(Base):
 
     amount_cents = Column(Integer, nullable=False)
     currency = Column(String(3), default="TRY", nullable=False)
-    status = Column(String(20), default="active", nullable=False, index=True)  # active, paused, cancelled
+    status = Column(String(20), default="active", nullable=False, index=True)  # active, paused, cancelled, completed
     card_token = Column(String(100))  # unused legacy column
     next_charge_date = Column(DateTime(timezone=True), nullable=False)
     # "card": charged automatically with the card the donor saved at the payment provider;
@@ -26,6 +26,9 @@ class Subscription(Base):
     card_ref = Column(Text)  # Fernet-encrypted provider card reference, never the card number
     card_last_4 = Column(String(4))
     card_brand = Column(String(32))
+    # Instructions of duration campaigns end after this many months; None = until stopped.
+    total_charges = Column(Integer)
+    charges_done = Column(Integer, nullable=False, default=0, server_default="0")
     failed_attempts = Column(Integer, nullable=False, default=0, server_default="0")
     last_error = Column(String(500))
     last_charged_at = Column(DateTime(timezone=True))

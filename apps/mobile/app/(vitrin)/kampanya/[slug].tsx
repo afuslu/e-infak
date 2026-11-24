@@ -19,6 +19,7 @@ import { Heart, Minus, Plus, ShoppingBag } from 'lucide-react-native';
 import {
   CATEGORY_LABELS,
   fetchCampaignBySlug,
+  fetchFxRates,
   fetchOrgSettings,
   resolveMediaUrl,
   SupportedCurrency,
@@ -27,6 +28,7 @@ import { useBrandColors } from '@/components/IddefChrome';
 import { useCart } from '@/context/CartContext';
 import { notify } from '@/components/toast';
 import { centsToInput, money, toCents } from '@/lib/format';
+import { initialChoice, isPriced, limits, optionsOf, packageCents, resolve } from '@/lib/donationOptions';
 import { radius, space } from '@/theme';
 
 export default function CampaignDetailScreen() {
@@ -48,6 +50,15 @@ export default function CampaignDetailScreen() {
   });
 
   const campaign = campaignQuery.data;
+  const options = optionsOf(campaign);
+  const optionsKey = options ? JSON.stringify(options) : '';
+  const bounds = limits(options);
+  const fxQuery = useQuery({ queryKey: ['public', 'fx-rates'], queryFn: fetchFxRates, enabled: currency !== 'TRY' });
+  const ratesTry = useMemo(() => {
+    const out: Record<string, number> = {};
+    Object.entries(fxQuery.data?.rates || {}).forEach(([k, v]) => { out[k] = Number(v?.rate_try) || 0; });
+    return out;
+  }, [fxQuery.data]);
   const enabledCurrencies = useMemo<SupportedCurrency[]>(() => {
     const raw = orgQuery.data?.enabled_payment_currencies || ['TRY'];
     const valid = raw.filter((c): c is SupportedCurrency => c === 'TRY' || c === 'USD' || c === 'EUR');
@@ -82,19 +93,37 @@ export default function CampaignDetailScreen() {
     }
   }, [suggestedAmounts]);
 
-  const unitCents = toCents(amountInput) || 0;
+  const [choice, setChoice] = useState(initialChoice(null));
+  const pickChoice = (patch: Partial<typeof choice>) => setChoice((c) => ({ ...c, ...patch }));
+  useEffect(() => {
+    if (!optionsKey) return;
+    const o = JSON.parse(optionsKey);
+    setChoice(initialChoice(o));
+    setQuantity(limits(o).min);
+  }, [optionsKey]);
+
+  const picked = campaign && options ? resolve(campaign, choice, currency, ratesTry, toCents(amountInput) || 0) : null;
+  const unitCents = picked ? picked.unit || 0 : toCents(amountInput) || 0;
   const totalCents = unitCents * quantity;
 
   const validateAndBuild = () => {
     if (!campaign) return null;
     setError(null);
+    if (picked && options?.mode !== 'free' && !picked.unit) {
+      setError('Bu kampanya seçili para birimiyle bağışlanamıyor.');
+      return null;
+    }
+    if (options?.intents?.length && !choice.intent) {
+      setError('Lütfen niyet seçin.');
+      return null;
+    }
     const minCents = campaign.min_donation_cents || 100;
-    if (unitCents < minCents) {
+    if (!bounds.locked && unitCents < minCents) {
       setError(`Minimum bağış tutarı ${money(minCents, currency)} olmalıdır.`);
       return null;
     }
     const schema = campaign.checkout_fields_schema || [];
-    const metadata: Record<string, any> = {};
+    const metadata: Record<string, any> = { ...(picked?.metadata || {}) };
     for (const f of schema) {
       const val = (extraFields[f.key] || '').trim();
       if (f.required && !val) {
@@ -108,7 +137,9 @@ export default function CampaignDetailScreen() {
     return {
       campaign_id: campaign.id,
       campaign_slug: campaign.slug,
-      campaign_title: campaign.title,
+      campaign_title: `${campaign.title}${picked?.suffix || ''}`,
+      locked: bounds.locked,
+      max_quantity: options ? bounds.max : undefined,
       cover_image_url: campaign.cover_image_url,
       unit_amount_cents: unitCents,
       quantity,
@@ -129,6 +160,20 @@ export default function CampaignDetailScreen() {
       notify('Bağış sepetine eklendi.');
     }
   };
+
+  const chipGroup = (label: string, chips: { key: string; label: string; on: boolean; press: () => void }[]) => (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.chipRow}>
+        {chips.map((c) => (
+          <Pressable key={c.key} onPress={c.press} accessibilityRole="button" accessibilityState={{ selected: c.on }}
+            style={[styles.chip, c.on ? { backgroundColor: primary, borderColor: primary } : { backgroundColor: '#FFFFFF', borderColor: '#CBD5E1' }]}>
+            <Text style={[styles.chipText, { color: c.on ? '#FFFFFF' : '#0F172A' }]}>{c.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
 
   if (campaignQuery.isLoading) {
     return (
@@ -224,6 +269,26 @@ export default function CampaignDetailScreen() {
               </View>
             ) : null}
 
+            {options?.mode === 'packages' ? chipGroup('Paket', (options.packages || []).map((p) => {
+              const price = packageCents(p.amount_cents, currency, ratesTry);
+              return { key: p.id, label: `${p.label} · ${price === null ? '—' : money(price, currency)}`, on: choice.packageId === p.id, press: () => pickChoice({ packageId: p.id }) };
+            })) : null}
+            {options?.mode === 'duration' ? chipGroup('Süre', (options.durations || []).map((m) => (
+              { key: String(m), label: `${m} Ay`, on: choice.months === m, press: () => pickChoice({ months: m }) }))) : null}
+            {(options?.mode === 'duration' && options.duration_payment === 'donor_choice' && choice.months > 1) || (options && options.mode !== 'duration' && options.allow_recurring)
+              ? chipGroup('Ödeme', [
+                { key: 'once', label: options?.mode === 'duration' ? 'Peşin' : 'Tek seferlik', on: !choice.monthly, press: () => pickChoice({ monthly: false }) },
+                { key: 'monthly', label: options?.mode === 'duration' ? 'Aylık öde' : 'Her ay düzenli', on: choice.monthly, press: () => pickChoice({ monthly: true }) },
+              ]) : null}
+            {options?.intents?.length ? chipGroup('Niyet *', options.intents.map((i) => (
+              { key: i, label: i, on: choice.intent === i, press: () => pickChoice({ intent: i }) }))) : null}
+            {options && isPriced(options.mode) ? (
+              <Text style={styles.hint}>
+                {unitCents ? `${money(unitCents, currency)}${picked?.monthly ? ` / ay${options.mode === 'duration' ? ` × ${choice.months}` : ''}` : ''}` : 'Bu kampanya seçili para birimiyle bağışlanamıyor.'}
+              </Text>
+            ) : null}
+
+            {!options || options.mode === 'free' ? (
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Bağış Tutarı ({currency})</Text>
               <View style={styles.chipRow}>
@@ -260,12 +325,15 @@ export default function CampaignDetailScreen() {
               ) : null}
             </View>
 
+            ) : null}
+
             {/* Adet / Hisse */}
+            {!options || bounds.max > 1 ? (
             <View style={styles.qtyRow}>
-              <Text style={styles.label}>Adet / Hisse</Text>
+              <Text style={styles.label}>{options?.unit_label || (options?.mode === 'share' ? 'Hisse' : options ? 'Adet' : 'Adet / Hisse')}</Text>
               <View style={styles.stepper}>
                 <Pressable
-                  onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+                  onPress={() => setQuantity((q) => Math.max(bounds.min, q - 1))}
                   style={styles.stepBtn}
                   accessibilityRole="button"
                 >
@@ -273,7 +341,7 @@ export default function CampaignDetailScreen() {
                 </Pressable>
                 <Text style={styles.qtyVal}>{quantity}</Text>
                 <Pressable
-                  onPress={() => setQuantity((q) => Math.min(100, q + 1))}
+                  onPress={() => setQuantity((q) => Math.min(bounds.max, q + 1))}
                   style={styles.stepBtn}
                   accessibilityRole="button"
                 >
@@ -281,6 +349,8 @@ export default function CampaignDetailScreen() {
                 </Pressable>
               </View>
             </View>
+
+            ) : null}
 
             {/* Kampanyaya Özel Dinamik Alanlar (Kurban vekalet, niyet vb.) */}
             {(campaign.checkout_fields_schema || []).map((field) => (

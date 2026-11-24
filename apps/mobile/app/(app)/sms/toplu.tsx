@@ -153,7 +153,7 @@ export default function BulkSms() {
           <Card>
             <Row label="Alıcı" value={`${preview.recipients} kişi`} />
             <Row label="SMS kredisi" value={`${preview.parts_total} (mesaj başına en çok ${preview.max_parts})`} />
-            {preview.stats.no_consent ? <Row label="İzinsiz (atlanır)" value={String(preview.stats.no_consent)} /> : null}
+            {preview.stats.no_consent ? <Row label="İstemeyen / izinsiz (atlanır)" value={String(preview.stats.no_consent)} /> : null}
             {preview.stats.no_phone ? <Row label="Telefonsuz" value={String(preview.stats.no_phone)} /> : null}
             {preview.moved_for_quiet_hours && preview.send_at ? <Row label="Gönderim zamanı" value={dateTime(preview.send_at)} /> : null}
             {preview.sample ? (

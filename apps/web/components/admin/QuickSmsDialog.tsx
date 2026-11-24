@@ -14,7 +14,7 @@ export interface SmsTarget {
   name?: string | null
   phone?: string | null
   /** false: the donor has no SMS permission; only messages about their own donation may be sent */
-  allowSms?: boolean
+  smsOptOut?: boolean
   /** Values of a form that is not saved yet: { tutar: '1.000,00', bagis_kalemi: 'Gazze Yemek' } */
   variables?: Record<string, string>
 }
@@ -108,7 +108,7 @@ export function QuickSmsDialog({
 
   const aboutRecord = Boolean(target.donationId || target.transferId || compose)
   const hasDonor = Boolean(target.donorId || target.donationId)
-  const needsConfirm = target.allowSms === false && !aboutRecord
+  const needsConfirm = target.smsOptOut === true && !aboutRecord
   const { info, text: counter } = segmentSummary(body)
 
   const applyTemplate = async (id: string) => {
@@ -270,7 +270,7 @@ export function QuickSmsDialog({
           <label className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
             <input type="checkbox" className="mt-0.5" checked={informational} onChange={(e) => setInformational(e.target.checked)} />
             <span>
-              <strong>Bu bağışçının SMS izni yok.</strong> Bu ileti yalnızca kendi bağışıyla ilgili bilgilendirmedir;
+              <strong>Bu bağışçı SMS almak istemiyor.</strong> Bu ileti yalnızca kendi bağışıyla ilgili bilgilendirmedir;
               tanıtım veya kampanya duyurusu içermez.
             </span>
           </label>

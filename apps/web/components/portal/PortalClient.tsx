@@ -172,8 +172,8 @@ interface DonorProfile {
   address: string
   city: string
   country: string
-  allow_email: boolean
-  allow_sms: boolean
+  email_opt_out: boolean
+  sms_opt_out: boolean
   is_anonymous: boolean
 }
 
@@ -386,8 +386,8 @@ export function PortalClient({
     email: '',
     city: '',
     address: '',
-    allow_sms: false,
-    allow_email: false,
+    sms_opt_out: false,
+    email_opt_out: false,
     is_anonymous: false,
   })
   const [requests, setRequests] = useState<SupportRequestItem[]>([])
@@ -524,8 +524,8 @@ export function PortalClient({
           email: p.email || '',
           city: p.city || '',
           address: p.address || '',
-          allow_sms: Boolean(p.allow_sms),
-          allow_email: Boolean(p.allow_email),
+          sms_opt_out: Boolean(p.sms_opt_out),
+          email_opt_out: Boolean(p.email_opt_out),
           is_anonymous: Boolean(p.is_anonymous),
         })
         const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ')
@@ -1522,17 +1522,17 @@ export function PortalClient({
           <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
             <input
               type="checkbox"
-              checked={profileForm.allow_sms}
-              onChange={(e) => setProfileForm((prev) => ({ ...prev, allow_sms: e.target.checked }))}
+              checked={!profileForm.sms_opt_out}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, sms_opt_out: !e.target.checked }))}
               className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
             />
-            Kampanya ve bilgilendirme SMS&apos;leri almak istiyorum
+            Bilgilendirme SMS&apos;leri almak istiyorum
           </label>
           <label className="flex cursor-pointer items-center gap-2.5 text-sm text-slate-700">
             <input
               type="checkbox"
-              checked={profileForm.allow_email}
-              onChange={(e) => setProfileForm((prev) => ({ ...prev, allow_email: e.target.checked }))}
+              checked={!profileForm.email_opt_out}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, email_opt_out: !e.target.checked }))}
               className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-600"
             />
             Faaliyet raporu ve e-posta bültenlerini almak istiyorum

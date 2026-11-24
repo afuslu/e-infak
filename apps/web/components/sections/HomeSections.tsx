@@ -735,7 +735,7 @@ export function Hero({ data, variant, o = {}, editing = false }: {
           {campaign && (
             <div className="rounded-3xl bg-white p-6 text-gray-900 shadow-2xl">
               <div className="mb-3 text-xs font-bold uppercase tracking-wider text-primary-600">{campaign.title}</div>
-              <QuickDonationForm campaignId={campaign.id} campaignTitle={campaign.title} />
+              <QuickDonationForm campaignId={campaign.id} campaignTitle={campaign.title} donation={campaign} />
             </div>
           )}
         </div>
@@ -869,7 +869,7 @@ export function QuickDonateBand({ data, o = {} }: { data: HomeData; o?: Override
           <div className="absolute -inset-4 -z-0 rounded-[32px] bg-gradient-to-br from-primary-100 to-accent-100 opacity-70 blur-xl" aria-hidden />
           <div className="relative">
             {campaign
-              ? <QuickDonationForm campaignId={campaign.id} campaignTitle={campaign.title} />
+              ? <QuickDonationForm campaignId={campaign.id} campaignTitle={campaign.title} donation={campaign} />
               : <div className="rounded-3xl border bg-white p-7 text-center text-gray-600 shadow-xl">{t('home.noCampaignForm')}</div>}
           </div>
         </div>

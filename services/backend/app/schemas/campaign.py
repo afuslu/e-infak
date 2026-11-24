@@ -29,6 +29,59 @@ def _clean_reference_amounts(value):
     return out
 
 
+class DonationPackage(BaseModel):
+    id: str = Field(..., min_length=1, max_length=40, pattern=r"^[A-Za-z0-9_-]+$")
+    label: str = Field(..., min_length=1, max_length=80)
+    amount_cents: int = Field(..., ge=100, le=1_000_000_000)
+
+
+class DonationOptions(BaseModel):
+    """What the donor may choose on the site (see services/donation_options.py)."""
+    mode: Literal["free", "fixed", "quantity", "share", "duration", "packages"]
+    min_qty: Optional[int] = Field(None, ge=1, le=100)
+    max_qty: Optional[int] = Field(None, ge=1, le=100)
+    unit_label: Optional[str] = Field(None, max_length=20)
+    durations: List[int] = Field(default_factory=list, max_length=12)
+    duration_payment: Literal["prepaid", "monthly", "donor_choice"] = "prepaid"
+    packages: List[DonationPackage] = Field(default_factory=list, max_length=20)
+    intents: List[str] = Field(default_factory=list, max_length=20)
+    allow_recurring: bool = False
+    allow_on_behalf: bool = False
+    allow_note: bool = False
+
+    @field_validator("durations")
+    @classmethod
+    def clean_durations(cls, value):
+        if any(m < 1 or m > 120 for m in value):
+            raise ValueError("Süre 1 ile 120 ay arasında olmalı")
+        return sorted(set(value))
+
+    @field_validator("intents")
+    @classmethod
+    def clean_intents(cls, value):
+        return list(dict.fromkeys(v.strip()[:60] for v in value if v.strip()))
+
+    @model_validator(mode="after")
+    def check_mode(self):
+        if self.mode == "duration" and not self.durations:
+            raise ValueError("En az bir süre seçeneği girin")
+        if self.mode == "packages":
+            if not self.packages:
+                raise ValueError("En az bir paket girin")
+            if len({p.id for p in self.packages}) != len(self.packages):
+                raise ValueError("Paket kimlikleri farklı olmalı")
+        if (self.min_qty or 1) > (self.max_qty or 100):
+            raise ValueError("En az adet, en çok adetten büyük olamaz")
+        return self
+
+
+def _check_donation_options(value):
+    """{} clears the options; anything else must be a valid DonationOptions."""
+    if not value:
+        return value
+    return DonationOptions.model_validate(value).model_dump(exclude_none=True)
+
+
 class CampaignStkFields(BaseModel):
     """STK PRO campaign form: type tabs, reference amounts, web site settings."""
     campaign_type: Optional[CampaignType] = None
@@ -47,6 +100,12 @@ class CampaignStkFields(BaseModel):
     seo_title: Optional[str] = Field(None, max_length=200)
     seo_description: Optional[str] = Field(None, max_length=400)
     type_details: Optional[Dict[str, Any]] = None
+    donation_options: Optional[Dict[str, Any]] = None
+
+    @field_validator("donation_options", mode="before")
+    @classmethod
+    def check_donation_options(cls, value):
+        return _check_donation_options(value)
 
     @field_validator("reference_amounts", mode="before")
     @classmethod
@@ -164,6 +223,7 @@ class CampaignResponse(CampaignBase):
     show_on_site: bool = True
     redirect_mode: str = "own"
     type_details: Dict[str, Any] = {}
+    donation_options: Dict[str, Any] = {}
     id: UUID
     organization_id: UUID
     slug: str

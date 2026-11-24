@@ -106,7 +106,7 @@ LABELS = {
     "receipt_number": "Makbuz no", "receipt_seq": "Makbuz sırası", "official_receipt_no": "Resmî makbuz no",
     "payment_method": "Ödeme yöntemi", "payment_provider": "Kaynak", "on_behalf_of": "Kimin adına",
     "donor_message": "Bağışçı mesajı", "booked_at": "İşlem tarihi", "sender_name": "Gönderen", "created_at": "Kayıt tarihi",
-    "updated_at": "Güncelleme", "body": "Metin", "tags": "Etiketler", "allow_sms": "SMS izni", "allow_email": "E-posta izni",
+    "updated_at": "Güncelleme", "body": "Metin", "tags": "Etiketler", "allow_sms": "SMS izni", "allow_email": "E-posta izni", "sms_opt_out": "SMS istemiyor", "email_opt_out": "E-posta istemiyor",
     "birth_date": "Doğum tarihi", "failure_message": "Hata nedeni", "user_id": "Kullanıcı no", "author_id": "Yazan no",
     "total_donated_cents": "Toplam bağış", "total_donations": "Bağış sayısı", "action": "İşlem", "details": "Ayrıntı",
 }

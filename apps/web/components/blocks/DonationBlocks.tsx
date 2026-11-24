@@ -11,6 +11,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import axios from 'axios'
 import { Carousel } from '../site/Carousel'
+import { DonationChoiceFields, useDonationChoice } from '../donation-choice'
+import { cartLimits, donationOptions, initialChoice, resolveChoice, type DonationCampaign } from '../../lib/donation-options'
 
 export type CurrencyCode = 'TRY' | 'USD' | 'EUR'
 export const SYMBOL: Record<CurrencyCode, string> = { TRY: '₺', USD: '$', EUR: '€' }
@@ -572,6 +574,8 @@ export function AnnouncementBar({
 // --- Donation cards ----------------------------------------------------------------------
 
 export interface DonationCardView {
+  /** Set when the campaign has its own donation options: they replace the card's amount, quantity, niyet and duration. */
+  source?: DonationCampaign
   key: string
   campaignId: string
   slug: string
@@ -893,7 +897,8 @@ function DonationCard({
   const [error, setError] = useState('')
   const [added, setAdded] = useState(false)
   const perUnit = unit ?? Number(amount.replace(',', '.'))
-  const total = perUnit * (card.durations.length ? months || 1 : 1) * (peopleMultiplier ? people : 1)
+  const own = useDonationChoice(card.source, currency, (n) => convert(n, 'TRY'), locale)
+  const total = own.options ? own.result?.total || 0 : perUnit * (card.durations.length ? months || 1 : 1) * (peopleMultiplier ? people : 1)
   const minimum = convert(card.minAmount, card.currency) ?? card.minAmount
 
   useEffect(() => {
@@ -923,6 +928,21 @@ function DonationCard({
 
   const add = (goToCheckout = false) => {
     if (editing) return
+    if (own.options && own.result) {
+      const problem = own.validate()
+      setError(problem)
+      if (problem || own.result.unit == null) return
+      window.dispatchEvent(new CustomEvent('add-to-donation-cart', {
+        detail: {
+          campaignId: card.campaignId, campaignTitle: `${card.title}${own.result.suffix}`, amount: own.result.unit,
+          quantity: own.result.quantity, metadata: { ...own.result.metadata, ...(card.note ? { not: card.note } : {}), ...(allowAnonymous && anonymous ? { anonim: true } : {}) }, currency, ...cartLimits(own.options),
+        },
+      }))
+      setAdded(true)
+      setTimeout(() => setAdded(false), 2500)
+      if (goToCheckout) router.push('/bagis/sepetim')
+      return
+    }
     if (!perUnit || perUnit <= 0) { setError(l.invalidAmount); return }
     if (perUnit < minimum) { setError(`${l.minAmount} ${fmt(minimum, currency, locale)} ${SYMBOL[currency]}`); return }
     if (card.niyet.length && !niyet) { setError(l.pickNiyet); return }
@@ -954,11 +974,27 @@ function DonationCard({
     if (goToCheckout) router.push('/bagis/sepetim')
   }
 
+  const ownFields = (dark = false) => own.options && card.source ? (
+    <DonationChoiceFields state={own} campaign={card.source} currency={currency} convert={(n) => convert(n, 'TRY')} locale={locale} dark={dark} />
+  ) : null
+
+  const qtyStepper = card.quantity && !own.options ? (
+    <div className="flex shrink-0 items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+      <button type="button" aria-label="Azalt" onClick={() => setQty((q) => Math.max(1, q - 1))}
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-gray-600 transition hover:bg-white hover:text-gray-900 hover:shadow-sm">−</button>
+      <span className="min-w-[2.2rem] px-1 text-center text-xs font-bold text-gray-900" aria-label={card.quantity === 'hisse' ? l.unitShare : l.unitPiece}>
+        {qty}
+      </span>
+      <button type="button" aria-label="Artır" onClick={() => setQty((q) => Math.min(card.maxQuantity, q + 1))}
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-gray-600 transition hover:bg-white hover:text-gray-900 hover:shadow-sm">+</button>
+    </div>
+  ) : null
+
   const sharePct = card.shares && card.shares.total ? Math.min(100, Math.round((card.shares.taken / card.shares.total) * 100)) : 0
   const rawSuggested = card.suggestedAmounts && card.suggestedAmounts.length > 0
     ? card.suggestedAmounts.map((v) => Math.round(convert(v, card.currency) ?? v))
     : [250, 500, 1000]
-  const quickAmounts = unit == null ? rawSuggested.filter((v) => v >= minimum).slice(0, 3) : []
+  const quickAmounts = unit == null && !own.options ? rawSuggested.filter((v) => v >= minimum).slice(0, 3) : []
 
   const hoverCls =
     hoverEffect === 'lift'
@@ -1042,6 +1078,7 @@ function DonationCard({
 
   const controls = (dark = false) => (
     <>
+      {own.options ? ownFields(dark) : (<>
       {allowRecurring && (
         <div className={`grid grid-cols-2 rounded-xl p-1 ${dark ? 'bg-white/10' : 'bg-gray-100'}`}>
           <button
@@ -1163,17 +1200,7 @@ function DonationCard({
             className={`min-w-0 flex-1 rounded-xl bg-transparent px-3.5 py-2.5 text-base font-bold outline-none ${unit != null ? 'text-gray-800' : 'text-gray-900 placeholder:text-sm placeholder:font-normal placeholder:text-gray-400'}`} />
           <span className="rounded-lg bg-gray-100 px-2 py-1 text-xs font-extrabold text-gray-600">{SYMBOL[currency]}</span>
         </div>
-        {card.quantity && (
-          <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
-            <button type="button" aria-label="Azalt" onClick={() => setQty((q) => Math.max(1, q - 1))}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-gray-600 transition hover:bg-white hover:text-gray-900 hover:shadow-sm">−</button>
-            <span className="min-w-[2.2rem] px-1 text-center text-xs font-bold text-gray-900" aria-label={card.quantity === 'hisse' ? l.unitShare : l.unitPiece}>
-              {qty}
-            </span>
-            <button type="button" aria-label="Artır" onClick={() => setQty((q) => Math.min(card.maxQuantity, q + 1))}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold text-gray-600 transition hover:bg-white hover:text-gray-900 hover:shadow-sm">+</button>
-          </div>
-        )}
+        {qtyStepper}
       </div>
       {peopleMultiplier && (
         <div className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs ${dark ? 'border-white/20 bg-white/10 text-white' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>
@@ -1229,6 +1256,7 @@ function DonationCard({
           )}
         </div>
       )}
+      </>)}
       {allowAnonymous && (
         <label className={`flex cursor-pointer items-center gap-2 text-xs font-medium ${dark ? 'text-white/85' : 'text-gray-600'}`}>
           <input
@@ -1405,7 +1433,7 @@ function DonationCard({
           </div>
           {card.impactLabel && <p className="mt-0.5 truncate text-[11px] text-emerald-700">✦ {card.impactLabel}</p>}
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className={own.options ? 'hidden' : 'flex flex-wrap gap-1.5'}>
           {quickAmounts.slice(0, 3).map((val) => (
             <button
               key={val}
@@ -1417,7 +1445,7 @@ function DonationCard({
             </button>
           ))}
         </div>
-        <div className="flex items-center rounded-lg border border-gray-200 bg-white pe-2">
+        {own.options ? <div className="md:col-span-2 md:min-w-[280px]">{ownFields(isDarkTheme)}</div> : <div className="flex items-center rounded-lg border border-gray-200 bg-white pe-2">
           <input
             inputMode="decimal"
             placeholder={l.amountPh}
@@ -1427,14 +1455,17 @@ function DonationCard({
             className="min-w-0 flex-1 bg-transparent px-2.5 py-1.5 text-xs font-bold text-gray-900 outline-none"
           />
           <span className="text-[11px] font-bold text-gray-500">{SYMBOL[currency]}</span>
+        </div>}
+        <div className="flex items-center gap-2">
+          {qtyStepper}
+          <button
+            type="button"
+            onClick={() => add(false)}
+            className={`rounded-lg px-4 py-2 text-xs font-bold text-white transition ${added ? 'bg-emerald-600' : ctaBtnCls}`}
+          >
+            {added ? `✓ ${l.added}` : card.button}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => add(false)}
-          className={`rounded-lg px-4 py-2 text-xs font-bold text-white transition ${added ? 'bg-emerald-600' : ctaBtnCls}`}
-        >
-          {added ? `✓ ${l.added}` : card.button}
-        </button>
         {error && <p className="text-xs font-semibold text-red-600 md:col-span-4">{error}</p>}
       </article>
     )
@@ -1526,7 +1557,7 @@ function DonationCard({
           <Link href={`/kampanyalar/${card.slug}`} className={`transition-colors ${titleCls}`}>{card.title}</Link>
         </h3>
         {countdownText && <span className="mt-1 inline-flex w-fit rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-bold text-rose-700">⏱ {countdownText}</span>}
-        {wizardStep === 1 ? (
+        {wizardStep === 1 && !own.options ? (
           <div className="mt-4 flex flex-1 flex-col gap-3">
             {quickAmounts.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
@@ -1570,7 +1601,7 @@ function DonationCard({
         ) : (
           <div className="mt-4 flex flex-1 flex-col gap-3">
             {controls(isDarkTheme)}
-            <button type="button" onClick={() => setWizardStep(1)} className="text-xs font-semibold text-gray-500 hover:text-gray-800">
+            <button type="button" hidden={Boolean(own.options)} onClick={() => setWizardStep(1)} className="text-xs font-semibold text-gray-500 hover:text-gray-800">
               ← {l.back}
             </button>
             {cardExtras(isDarkTheme)}
@@ -1711,7 +1742,7 @@ function DonationCard({
               {fmt(val, currency, locale)} {SYMBOL[currency]}
             </button>
           ))}
-          <div className="flex w-28 items-center rounded-xl border border-gray-200 bg-white pe-2">
+          {own.options ? <div className="min-w-[220px]">{ownFields(isDarkTheme)}</div> : <div className="flex w-28 items-center rounded-xl border border-gray-200 bg-white pe-2">
             <input
               inputMode="decimal"
               aria-label="Tutar"
@@ -1722,7 +1753,8 @@ function DonationCard({
               className="min-w-0 flex-1 bg-transparent px-2.5 py-2 text-sm font-bold text-gray-900 outline-none placeholder:text-xs placeholder:font-normal"
             />
             <span className="text-xs font-bold text-gray-500">{SYMBOL[currency]}</span>
-          </div>
+          </div>}
+          {qtyStepper}
           <button
             type="button"
             onClick={() => add(false)}
@@ -2085,6 +2117,16 @@ export function DonationCards({
     for (const id of bundleIds) {
       const c = shown.find((x) => x.campaignId === id)
       if (!c) continue
+      const opts = donationOptions(c.source)
+      if (opts && c.source) {
+        // Bundles skip the card's choices, so a campaign that asks for one is added from its own card.
+        const picked = resolveChoice(c.source, opts, { ...initialChoice(opts), amount: String((c.source.min_donation_cents || 100) / 100) }, currency, (n) => convert(n, 'TRY'), l.month)
+        if (picked.unit == null || opts.intents?.length) continue
+        window.dispatchEvent(new CustomEvent('add-to-donation-cart', {
+          detail: { campaignId: c.campaignId, campaignTitle: `${c.title}${picked.suffix}`, amount: picked.unit, quantity: picked.quantity, metadata: picked.metadata, currency, ...cartLimits(opts) },
+        }))
+        continue
+      }
       const unitAmt = c.unit != null ? (convert(c.unit, c.currency) ?? c.unit) : null
       const fallbackAmt = c.suggestedAmounts?.[0] ? (convert(c.suggestedAmounts[0], c.currency) ?? c.suggestedAmounts[0]) : (convert(c.minAmount, c.currency) ?? c.minAmount)
       const amt = unitAmt ?? fallbackAmt

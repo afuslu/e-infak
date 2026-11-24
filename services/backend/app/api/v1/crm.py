@@ -2,7 +2,7 @@
 
 - Bağışçı arama, tek ekranda bağışçı kartı (bağışlar, notlar, özet)
 - Bağışçıya personel / temsilci atama
-- Bağışçıya tekli SMS (yalnız SMS izni olan bağışçılara; İYS gereği)
+- Bağışçıya tekli SMS (SMS istemeyenlere gönderilmez)
 - Elle makbuz kesme (nakit / havale) ve elle kesilen makbuzu iptal
 - Gelişmiş bağış filtreleme
 """
@@ -139,6 +139,8 @@ def _donor_summary(donor: Donor, staff_names: dict, viewer: Optional[User] = Non
         "assigned_user_name": staff_names.get(donor.assigned_user_id),
         "allow_sms": bool(donor.allow_sms),
         "allow_email": bool(donor.allow_email),
+        "sms_opt_out": bool(donor.sms_opt_out),
+        "email_opt_out": bool(donor.email_opt_out),
         "tags": donor.tags or [],
         "created_at": donor.created_at,
         "external_ref": donor.external_ref,
@@ -171,6 +173,8 @@ class DonorFilter(BaseModel):
     has_donation: Optional[bool] = None
     allow_sms: Optional[bool] = None
     allow_email: Optional[bool] = None
+    sms_opt_out: Optional[bool] = None
+    email_opt_out: Optional[bool] = None
     min_total_cents: Optional[int] = Field(default=None, ge=0)
     max_total_cents: Optional[int] = Field(default=None, ge=0)
     last_donation_start: Optional[date] = None
@@ -197,6 +201,8 @@ def donor_filter_query(
     has_donation: Optional[bool] = None,
     allow_sms: Optional[bool] = None,
     allow_email: Optional[bool] = None,
+    sms_opt_out: Optional[bool] = None,
+    email_opt_out: Optional[bool] = None,
     min_total_cents: Annotated[Optional[int], Query(ge=0)] = None,
     max_total_cents: Annotated[Optional[int], Query(ge=0)] = None,
     last_donation_start: Optional[date] = None,
@@ -284,6 +290,10 @@ def _donor_conditions(org_id: UUID, current_user: User, f: DonorFilter) -> list:
         conditions.append(Donor.allow_sms.is_(f.allow_sms))
     if f.allow_email is not None:
         conditions.append(Donor.allow_email.is_(f.allow_email))
+    if f.sms_opt_out is not None:
+        conditions.append(Donor.sms_opt_out.is_(f.sms_opt_out))
+    if f.email_opt_out is not None:
+        conditions.append(Donor.email_opt_out.is_(f.email_opt_out))
     if f.min_total_cents is not None:
         conditions.append(func.coalesce(Donor.total_donated_cents, 0) >= f.min_total_cents)
     if f.max_total_cents is not None:
@@ -348,6 +358,8 @@ class DonorIn(BaseModel):
     tags: List[str] = Field(default_factory=list, max_length=20)
     allow_sms: bool = False
     allow_email: bool = False
+    sms_opt_out: bool = False
+    email_opt_out: bool = False
     assigned_user_id: Optional[UUID] = None
     # STK PRO donor form
     membership_type: Optional[str] = Field(default=None, max_length=60)
@@ -524,7 +536,7 @@ FIELD_LABELS = {
     "first_name": "Ad", "last_name": "Soyad", "company_name": "Kurum adı", "phone": "Cep telefonu", "phone2": "Telefon",
     "email": "E-posta", "address": "Adres", "city": "İl", "district": "İlçe", "neighbourhood": "Mahalle",
     "country": "Ülke", "tax_number": "Vergi no", "tc_no": "T.C. kimlik", "tags": "Etiketler", "allow_sms": "SMS izni",
-    "allow_email": "E-posta izni", "donor_type": "Üyelik türü", "assigned_user_id": "Temsilci",
+    "allow_email": "E-posta izni", "sms_opt_out": "SMS istemiyor", "email_opt_out": "E-posta istemiyor", "donor_type": "Üyelik türü", "assigned_user_id": "Temsilci",
     "staff_user_id": "Personel", "membership_type": "Üyelik tipi", "referral_source": "Referans", "rating": "Değerlendirme",
     "occupation": "Meslek", "gender": "Cinsiyet", "blood_group": "Kan grubu", "birth_date": "Doğum tarihi",
     "phone_code": "Cep kodu", "phone2_code": "Telefon kodu",
@@ -641,7 +653,7 @@ async def update_donor(request: Request, donor_id: UUID, payload: DonorUpdate, d
     if "staff_user_id" in payload.model_fields_set and payload.staff_user_id and payload.staff_user_id != donor.staff_user_id:
         await _ensure_staff(db, org_id, payload.staff_user_id)
     for key in ("first_name", "last_name", "company_name", "phone", "address", "city", "country", "tax_number", "tags",
-                "allow_sms", "allow_email", *PROFILE_FIELDS):
+                "allow_sms", "allow_email", "sms_opt_out", "email_opt_out", *PROFILE_FIELDS):
         if key not in payload.model_fields_set or (key == "phone" and not phone_given):
             continue  # not sent (or sent back masked): keep the stored value
         if key == "phone2" and payload.phone2 == MASKED_PHONE:
@@ -708,6 +720,8 @@ class DonorBulkUpdate(BaseModel):
     staff_user_id: Optional[UUID] = None
     allow_sms: Optional[bool] = None
     allow_email: Optional[bool] = None
+    sms_opt_out: Optional[bool] = None
+    email_opt_out: Optional[bool] = None
     add_tag: Optional[str] = Field(default=None, max_length=40)
     remove_tag: Optional[str] = Field(default=None, max_length=40)
 
@@ -753,6 +767,8 @@ EXPORT_COLUMNS = {
     "tags": ("Etiketler", lambda d, n, u: ", ".join(d.tags or [])),
     "allow_sms": ("SMS İzni", lambda d, n, u: "Evet" if d.allow_sms else "Hayır"),
     "allow_email": ("E-posta İzni", lambda d, n, u: "Evet" if d.allow_email else "Hayır"),
+    "sms_opt_out": ("SMS İstemiyor", lambda d, n, u: "Evet" if d.sms_opt_out else "Hayır"),
+    "email_opt_out": ("E-posta İstemiyor", lambda d, n, u: "Evet" if d.email_opt_out else "Hayır"),
     "notes": ("Açıklama", lambda d, n, u: d.notes or ""),
     "call_notes": ("Görüşme Notları", lambda d, n, u: n.get(("notes", d.id), "")),
 }
@@ -801,9 +817,9 @@ async def bulk_donors(request: Request, payload: DonorBulkIn, db: AsyncSession =
         }
 
     if payload.action == "phones":
-        # "SMS Listesi Oluştur" / quick SMS: numbers of donors who allow SMS.
+        # "SMS Listesi Oluştur" / quick SMS: numbers of donors who have not opted out.
         rows = (await db.execute(
-            select(Donor.id, Donor.phone).where(*conditions, Donor.phone.isnot(None), Donor.allow_sms.is_(True))
+            select(Donor.id, Donor.phone).where(*conditions, Donor.phone.isnot(None), Donor.sms_opt_out.is_(False))
         )).all()
         return {"total": count, "with_phone": len(rows), "donor_ids": [str(r[0]) for r in rows]}
 
@@ -830,7 +846,7 @@ async def bulk_donors(request: Request, payload: DonorBulkIn, db: AsyncSession =
     if not upd or not upd.model_fields_set:
         raise HTTPException(status_code=422, detail="Güncellenecek alan seçin")
     values = {}
-    for key in ("membership_type", "referral_source", "rating", "city", "allow_sms", "allow_email"):
+    for key in ("membership_type", "referral_source", "rating", "city", "allow_sms", "allow_email", "sms_opt_out", "email_opt_out"):
         if key in upd.model_fields_set:
             value = getattr(upd, key)
             values[key] = value.strip() or None if isinstance(value, str) else value
@@ -874,11 +890,11 @@ async def send_donor_sms(request: Request, donor_id: UUID, payload: DonorSms, db
     _ensure_can_see(current_user, donor)
     if not donor.phone:
         raise HTTPException(status_code=409, detail="Bağışçının kayıtlı telefonu yok")
-    if not donor.allow_sms:
-        raise HTTPException(
-            status_code=409,
-            detail="Bağışçının SMS izni yok. İzinsiz ticari ileti gönderilemez (İYS).",
-        )
+    from app.services.sms_audience import opted_out_phones
+    from app.utils.phone import phone_key
+
+    if phone_key(donor.phone) in await opted_out_phones(db, org_id):
+        raise HTTPException(status_code=409, detail="Bu kişi SMS almak istemiyor.")
     from app.services.sms_service import enqueue_sms
     from app.sms import SmsError
     try:
@@ -916,6 +932,7 @@ def _donation_row(d: Donation, names: dict) -> dict:
         "bank_matched": bool((d.payment_details or {}).get("bank_transaction_id")),
         "source": d.payment_provider,
         "paid_at": d.paid_at or d.created_at,
+        "quantity": (d.payment_details or {}).get("adet") or 1,
         "on_behalf_of": d.on_behalf_of,
         "intent": None,  # filled by list views, see receipt_lines.donation_intents
         "on_behalf_of_phone": (d.payment_details or {}).get("on_behalf_of_phone"),

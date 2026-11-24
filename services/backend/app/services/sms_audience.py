@@ -15,6 +15,7 @@ from app.models.kurban import KurbanCampaign, KurbanShare
 from app.models.membership import Member, MemberDue
 from app.models.sms_message import SmsMessage
 from app.sms import normalize_tr_phone
+from app.utils.phone import phone_key, phone_key_sql
 
 AUDIENCE_KINDS = {
     "all_donors": "Tüm bağışçılar",
@@ -42,8 +43,6 @@ class Audience(BaseModel):
     year: Optional[int] = Field(default=None, ge=2000, le=2100)
     numbers: Optional[str] = Field(default=None, max_length=400_000)
     list_id: Optional[UUID] = None  # "SMS Listeleri": a saved recipient list
-    # Informational messages only: also reach donors who have not given SMS permission.
-    include_without_consent: bool = False
     # Optional combined segment refinements (ignored for raw pasted numbers).
     filter_city: Optional[str] = Field(default=None, max_length=100)
     filter_tag: Optional[str] = Field(default=None, max_length=60)
@@ -120,10 +119,16 @@ def _apply_refinements(query, org_id: UUID, audience: Audience, now: datetime):
     return query
 
 
+async def opted_out_phones(db: AsyncSession, org_id: UUID) -> set[str]:
+    """Phone keys of people who want no SMS; one opted-out record covers every record with that number."""
+    return set((await db.execute(select(phone_key_sql(Donor.phone)).where(
+        Donor.organization_id == org_id, Donor.sms_opt_out.is_(True), Donor.phone.is_not(None)))).scalars())
+
+
 async def resolve(db: AsyncSession, org_id: UUID, audience: Audience, *, commercial: bool = False,
                   ) -> tuple[list[Recipient], dict]:
     """Recipients (one per phone number) and how many people were left out, and why."""
-    need_consent = commercial or not audience.include_without_consent
+    opted_out = await opted_out_phones(db, org_id)
     stats = {"matched": 0, "no_phone": 0, "no_consent": 0, "invalid": 0, "duplicate": 0}
     seen: set[str] = set()
     recipients: list[Recipient] = []
@@ -136,7 +141,7 @@ async def resolve(db: AsyncSession, org_id: UUID, audience: Audience, *, commerc
         number = _valid(phone)
         if not number:
             stats["invalid"] += 1
-        elif need_consent and not consent:
+        elif phone_key(number) in opted_out or (commercial and not consent):
             stats["no_consent"] += 1
         elif number in seen:
             stats["duplicate"] += 1

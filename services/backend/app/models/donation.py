@@ -66,6 +66,9 @@ class Donor(Base):
     # Preferences
     allow_email = Column(Boolean, default=False)
     allow_sms = Column(Boolean, default=False)
+    # allow_*: explicit permission for commercial messages. *_opt_out: wants no announcements at all.
+    sms_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
+    email_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
     is_anonymous = Column(Boolean, default=False)
     
     # Staff member (representative) responsible for this donor

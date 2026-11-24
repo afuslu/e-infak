@@ -189,6 +189,7 @@ async def compute_org_insights(db: AsyncSession, org_id: UUID, mask_fn=None) -> 
                     "donor_name": d.full_name,
                     "donor_phone": phone_out,
                     "allow_sms": bool(d.allow_sms),
+                    "sms_opt_out": bool(d.sms_opt_out),
                     "last_donation_date": last_dt.date().isoformat(),
                     "days_since_last": days_since,
                     "avg_interval_days": avg_interval_days,

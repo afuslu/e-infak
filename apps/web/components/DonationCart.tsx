@@ -19,6 +19,10 @@ export interface CartItem {
   amount: number
   quantity?: number
   metadata?: Record<string, unknown>
+  /** Campaign with donation options: the price is set, and the quantity stays within these. */
+  locked?: boolean
+  minQuantity?: number
+  maxQuantity?: number
   /** Currency the amount was entered in (builder donation cards follow the site currency). */
   currency?: 'TRY' | 'EUR' | 'USD'
 }
@@ -116,7 +120,7 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
           && JSON.stringify(entry.metadata || {}) === JSON.stringify(item.metadata || {})
         const found = current.find(same)
         const next = found
-          ? current.map((entry) => entry === found ? { ...entry, quantity: (entry.quantity || 1) + (item.quantity || 1) } : entry)
+          ? current.map((entry) => entry === found ? { ...entry, quantity: Math.min(item.maxQuantity || 100, (entry.quantity || 1) + (item.quantity || 1)), locked: item.locked, minQuantity: item.minQuantity, maxQuantity: item.maxQuantity } : entry)
           : [...current, { ...item, quantity: item.quantity || 1 }]
         localStorage.setItem('einfak_cart', JSON.stringify(next))
         setTimeout(notifyCart, 0)
@@ -384,24 +388,24 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
                     </div>
                     {cartStyle === 'qty_stepper_drawer' ? (
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5">
+                        <div className={item.locked ? 'hidden' : 'flex items-center gap-1.5'}>
                           <button type="button" onClick={() => update(index, { amount: item.amount + 100 })} className="rounded-lg border bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-primary-50">+100</button>
                           <button type="button" onClick={() => update(index, { amount: item.amount + 500 })} className="rounded-lg border bg-white px-2.5 py-1 text-xs font-bold text-slate-700 hover:bg-primary-50">+500</button>
                         </div>
                         <div className="flex items-center rounded-xl border bg-white p-1">
-                          <button type="button" onClick={() => update(index, { quantity: Math.max(1, (item.quantity || 1) - 1) })} className="h-7 w-7 rounded-lg font-bold text-slate-700 hover:bg-slate-100">−</button>
+                          <button type="button" onClick={() => update(index, { quantity: Math.max(item.minQuantity || 1, (item.quantity || 1) - 1) })} className="h-7 w-7 rounded-lg font-bold text-slate-700 hover:bg-slate-100">−</button>
                           <span className="min-w-[2rem] text-center text-xs font-black text-slate-900">{item.quantity || 1}</span>
-                          <button type="button" onClick={() => update(index, { quantity: Math.min(100, (item.quantity || 1) + 1) })} className="h-7 w-7 rounded-lg font-bold text-slate-700 hover:bg-slate-100">+</button>
+                          <button type="button" onClick={() => update(index, { quantity: Math.min(item.maxQuantity || 100, (item.quantity || 1) + 1) })} className="h-7 w-7 rounded-lg font-bold text-slate-700 hover:bg-slate-100">+</button>
                         </div>
                       </div>
                     ) : (
                       <div className="mt-3 grid grid-cols-2 gap-3">
                         <label className="text-xs font-bold text-slate-500">Tutar
-                          <input inputMode="numeric" value={item.amount} onChange={(e) => update(index, { amount: Math.max(1, Number(e.target.value)) })}
+                          <input inputMode="numeric" readOnly={item.locked} value={item.amount} onChange={(e) => update(index, { amount: Math.max(1, Number(e.target.value)) })}
                             className="mt-1 w-full rounded-lg border bg-white p-2 text-slate-900" />
                         </label>
                         <label className="text-xs font-bold text-slate-500">Adet
-                          <input type="number" min={1} max={100} value={item.quantity || 1} onChange={(e) => update(index, { quantity: Math.max(1, Number(e.target.value)) })}
+                          <input type="number" min={item.minQuantity || 1} max={item.maxQuantity || 100} readOnly={item.maxQuantity === 1} value={item.quantity || 1} onChange={(e) => update(index, { quantity: Math.min(item.maxQuantity || 100, Math.max(item.minQuantity || 1, Number(e.target.value))) })}
                             className="mt-1 w-full rounded-lg border bg-white p-2 text-slate-900" />
                         </label>
                       </div>
@@ -410,7 +414,7 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
                 ))}
                 {!!cart.length && (
                   <>
-                    {(cartStyle === 'drawer_upsell' || cartStyle === 'quick_amount_drawer') && cart[0] && (
+                    {(cartStyle === 'drawer_upsell' || cartStyle === 'quick_amount_drawer') && cart[0] && !cart[0].locked && (
                       <div className="rounded-2xl border border-primary-100 bg-primary-50/60 p-3.5">
                         <p className="text-xs font-bold text-primary-900">
                           {cartStyle === 'quick_amount_drawer' ? 'Hızlı tutar ekle' : 'Bir küçük iyilik daha ekleyin'}

@@ -166,7 +166,7 @@ async def test_duplicates_and_merge_move_everything(db_session):
     org, admin, campaign = await _setup(db_session)
     a = Donor(organization_id=org.id, first_name="Mehmet", last_name="Öz", phone="05551234567", tags=["kurban"], notes="ilk kayıt")
     b = Donor(organization_id=org.id, first_name="Mehmet", last_name="Oz", phone="05551234567", email="m@example.com", city="Konya")
-    c = Donor(organization_id=org.id, first_name="M.", email="M@example.com", tags=["zekat"], allow_sms=True)
+    c = Donor(organization_id=org.id, first_name="M.", email="M@example.com", tags=["zekat"], allow_sms=True, sms_opt_out=True)
     lone = Donor(organization_id=org.id, first_name="Tek", phone="05000000000")
     db_session.add_all([a, b, c, lone])
     await db_session.flush()
@@ -186,7 +186,7 @@ async def test_duplicates_and_merge_move_everything(db_session):
     assert merged["moved"]["donations"] == 2 and merged["moved"]["donor_notes"] == 1
     await db_session.refresh(a)
     assert (a.total_donations, a.total_donated_cents) == (3, 15_000)
-    assert a.email == "m@example.com" and a.city == "Konya" and a.allow_sms and a.tags == ["kurban", "zekat"]
+    assert a.email == "m@example.com" and a.city == "Konya" and a.allow_sms and a.sms_opt_out and a.tags == ["kurban", "zekat"]
     assert (await db_session.execute(select(Donor.id).where(Donor.id.in_([b.id, c.id])))).all() == []
     assert (await data_tools.find_duplicates(_request(org), False, db_session, admin))["group_count"] == 0
 

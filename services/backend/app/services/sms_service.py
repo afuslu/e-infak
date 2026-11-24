@@ -25,6 +25,7 @@ from app.core.config import settings
 from app.models.sms_message import SMS_OPEN_STATUSES, SmsMessage
 from app.models.sms_template import SmsTemplate
 from app.sms import PROVIDERS, SmsError, SmsUnreachable, deliver, deliver_bulk, normalize_tr_phone
+from app.utils.phone import phone_key
 
 _ORIGINAL_DELIVER = deliver
 
@@ -506,6 +507,14 @@ async def process_in(session: AsyncSession, message_id) -> str:
             message.error = "Alıcı SMS iznini iptal etti"
             await session.commit()
             return "cancelled"
+    if message.commercial or message.batch_id:
+        from app.services.sms_audience import opted_out_phones
+
+        if phone_key(message.phone) in await opted_out_phones(session, message.organization_id):
+            message.status = "cancelled"
+            message.error = "Alıcı SMS almak istemiyor"
+            await session.commit()
+            return "cancelled"
     await send_message(session, message)
     await session.commit()
     return message.status
@@ -684,6 +693,19 @@ async def _send_bulk_chunk(session: AsyncSession, messages: list[SmsMessage]) ->
             if not messages:
                 await session.commit()
                 return
+
+    # Opted out after the batch was made (scheduled or throttled sends).
+    from app.services.sms_audience import opted_out_phones
+
+    refused = await opted_out_phones(session, org_id)
+    for m in messages:
+        if phone_key(m.phone) in refused:
+            m.status = "cancelled"
+            m.error = "Alıcı SMS almak istemiyor"
+    messages = [m for m in messages if m.status != "cancelled"]
+    if not messages:
+        await session.commit()
+        return
 
     account = await sms_account(session, org_id)
     provider = PROVIDERS.get(account.get("provider") or "")

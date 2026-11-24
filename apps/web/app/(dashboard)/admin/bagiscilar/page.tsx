@@ -25,8 +25,8 @@ const EXPORT_COLUMNS: [string, string][] = [
   ['total', 'Toplam Bağış'], ['total_donations', 'Bağış Sayısı'], ['last_donation_at', 'Son Bağış'], ['membership_type', 'Üyelik Tipi'],
   ['referral_source', 'Referans'], ['assigned', 'Temsilci'], ['staff', 'Personel'], ['rating', 'Değerlendirme'], ['occupation', 'Meslek'],
   ['gender', 'Cinsiyet'], ['blood_group', 'Kan Grubu'], ['birth_date', 'Doğum Tarihi'], ['country', 'Ülke'], ['city', 'İl'],
-  ['district', 'İlçe'], ['neighbourhood', 'Mahalle'], ['address', 'Adres'], ['tags', 'Etiketler'], ['allow_sms', 'SMS İzni'],
-  ['allow_email', 'E-posta İzni'], ['notes', 'Açıklama'], ['call_notes', 'Görüşme Notları'],
+  ['district', 'İlçe'], ['neighbourhood', 'Mahalle'], ['address', 'Adres'], ['tags', 'Etiketler'], ['sms_opt_out', 'SMS İstemiyor'],
+  ['email_opt_out', 'E-posta İstemiyor'], ['notes', 'Açıklama'], ['call_notes', 'Görüşme Notları'],
 ]
 const DEFAULT_EXPORT = ['no', 'donor_type', 'full_name', 'phone_code', 'phone', 'email', 'tc_no', 'created_at', 'total',
   'membership_type', 'referral_source', 'assigned', 'staff']
@@ -35,7 +35,7 @@ const EXPORT_PREF = 'einfak-export-cols:donors'
 const EMPTY_FILTERS: Record<string, string> = {
   q: '', no: '', donor_type: '', name: '', phone: '', email: '', tc: '', created_start: '', created_end: '',
   min_total: '', max_total: '', membership_type: '', referral_source: '', assigned: '', staff: '', city: '',
-  region: '', last_donation_start: '', last_donation_end: '', tag: '', has_donation: '', allow_sms: '',
+  region: '', last_donation_start: '', last_donation_end: '', tag: '', has_donation: '', sms_opt_out: '',
 }
 
 export default function DonorsPageWrapper() {
@@ -184,7 +184,7 @@ function DonorsPage() {
       render: (d) => (d.last_donation_at ? new Date(d.last_donation_at).toLocaleDateString('tr-TR') : '—'),
     },
     { key: 'count', header: 'Bağış Sayısı', hidden: true, align: 'right', filter: { type: 'select', param: 'has_donation', options: [{ value: 'true', label: 'Bağışı olan' }, { value: 'false', label: 'Bağışsız' }] }, render: (d) => d.total_donations },
-    { key: 'sms', header: 'SMS İzni', hidden: true, filter: { type: 'select', param: 'allow_sms', options: [{ value: 'true', label: 'Var' }, { value: 'false', label: 'Yok' }] }, render: (d) => (d.allow_sms ? 'Var' : 'Yok') },
+    { key: 'sms', header: 'SMS İstemiyor', hidden: true, filter: { type: 'select', param: 'sms_opt_out', options: [{ value: 'true', label: 'Evet' }, { value: 'false', label: 'Hayır' }] }, render: (d) => (d.sms_opt_out ? 'Evet' : 'Hayır') },
     {
       key: 'tags', header: 'Etiketler', hidden: true, filter: { type: 'text', param: 'tag' },
       render: (d) => <div className="flex flex-wrap gap-1">{d.tags.map((t) => <span key={t} className="rounded bg-primary-50 px-1.5 py-0.5 text-[11px] font-semibold text-primary-700">{t}</span>)}</div>,
@@ -326,7 +326,7 @@ function DonorsPage() {
       )}
       {smsFor && (
         <QuickSmsDialog
-          target={{ donorId: smsFor.id, name: smsFor.full_name, phone: smsFor.phone, allowSms: smsFor.allow_sms }}
+          target={{ donorId: smsFor.id, name: smsFor.full_name, phone: smsFor.phone, smsOptOut: smsFor.sms_opt_out }}
           onClose={() => setSmsFor(null)}
           onSent={(r) => toast.ok(sentNotice(r))}
         />
@@ -352,7 +352,7 @@ function BulkUpdateModal({ count, staff, options, onClose, onSubmit }: {
     const update: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(values)) {
       if (v === '') continue
-      if (k === 'allow_sms' || k === 'allow_email') update[k] = v === 'true'
+      if (k === 'sms_opt_out' || k === 'email_opt_out') update[k] = v === 'true'
       else if (k === 'assigned_user_id' || k === 'staff_user_id') update[k] = v === 'none' ? null : v
       else update[k] = v === '__clear__' ? '' : v
     }
@@ -378,7 +378,7 @@ function BulkUpdateModal({ count, staff, options, onClose, onSubmit }: {
   const yesNo = (k: string, label: string) => (
     <Label label={label}>
       <select className={inputClass} value={values[k] || ''} onChange={(e) => set(k, e.target.value)}>
-        <option value="">Değiştirme</option><option value="true">Var</option><option value="false">Yok</option>
+        <option value="">Değiştirme</option><option value="true">Evet</option><option value="false">Hayır</option>
       </select>
     </Label>
   )
@@ -392,8 +392,8 @@ function BulkUpdateModal({ count, staff, options, onClose, onSubmit }: {
         {text('city', 'İl')}
         {staffSel('assigned_user_id', 'Temsilci')}
         {staffSel('staff_user_id', 'Personel')}
-        {yesNo('allow_sms', 'SMS İzni')}
-        {yesNo('allow_email', 'E-posta İzni')}
+        {yesNo('sms_opt_out', 'SMS istemiyor')}
+        {yesNo('email_opt_out', 'E-posta istemiyor')}
         {text('add_tag', 'Etiket ekle')}
         {text('remove_tag', 'Etiket kaldır')}
       </div>

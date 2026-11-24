@@ -18,14 +18,13 @@ export function MailComposer({ target, label, onClose, onSent }: { target: MailT
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [commercial, setCommercial] = useState(true)
-  const [withoutConsent, setWithoutConsent] = useState(false)
   const [later, setLater] = useState('')
   const [preview, setPreview] = useState<Preview | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => { adminGet<Template[]>('/mail/templates').then((r) => setTemplates(r.data.filter((t) => t.is_active))).catch(() => {}) }, [])
   const payload = (extra: Record<string, unknown> = {}) => ({
-    ...target, subject: subject || '-', body: body || '-', commercial, include_without_consent: !commercial && withoutConsent,
+    ...target, subject: subject || '-', body: body || '-', commercial,
     send_after: later ? new Date(later).toISOString() : null, ...extra,
   })
   useEffect(() => {
@@ -34,7 +33,7 @@ export function MailComposer({ target, label, onClose, onSent }: { target: MailT
     }, 400)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [commercial, withoutConsent, JSON.stringify(target)])
+  }, [commercial, JSON.stringify(target)])
 
   const send = async () => {
     if (!subject.trim() || !body.trim()) { toast.error('Konu ve metin yazın'); return }
@@ -73,16 +72,13 @@ export function MailComposer({ target, label, onClose, onSent }: { target: MailT
         </Label>
         <div className="flex flex-wrap gap-5 text-[13.5px]">
           <label className="flex items-center gap-2"><input type="radio" checked={commercial} onChange={() => setCommercial(true)} /> Tanıtım / kampanya (yalnız e-posta izni olanlar)</label>
-          <label className="flex items-center gap-2"><input type="radio" checked={!commercial} onChange={() => setCommercial(false)} /> Bilgilendirme</label>
+          <label className="flex items-center gap-2"><input type="radio" checked={!commercial} onChange={() => setCommercial(false)} /> Bilgilendirme (istemeyenler dışında herkes)</label>
         </div>
-        {!commercial && (
-          <label className="flex items-center gap-2 text-[13.5px]"><input type="checkbox" checked={withoutConsent} onChange={(e) => setWithoutConsent(e.target.checked)} /> İzni olmayanlara da gönder (yalnız bilgilendirme: makbuz, duyuru)</label>
-        )}
         <Label label="İleri tarihte gönder (isteğe bağlı)"><input type="datetime-local" className={inputClass} value={later} onChange={(e) => setLater(e.target.value)} /></Label>
         {preview && (
           <p className="rounded-lg bg-gray-50 px-3 py-2 text-[13px] text-gray-600">
             <b className="text-gray-900">{preview.recipients}</b> alıcı{skipped > 0 && ` · gönderilmeyecek: ${[
-              preview.no_email && `${preview.no_email} e-postasız`, preview.no_consent && `${preview.no_consent} izinsiz`,
+              preview.no_email && `${preview.no_email} e-postasız`, preview.no_consent && `${preview.no_consent} istemeyen veya izinsiz`,
               preview.invalid && `${preview.invalid} geçersiz`, preview.duplicate && `${preview.duplicate} tekrar`,
             ].filter(Boolean).join(', ')}`}
           </p>

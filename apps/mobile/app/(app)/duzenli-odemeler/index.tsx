@@ -18,7 +18,7 @@ type SubList = { items: Sub[]; total: number; recurring_enabled: boolean; summar
 
 const STATUS: Record<string, { label: string; tone: 'ok' | 'warn' | 'danger' | 'muted' }> = {
   active: { label: 'Aktif', tone: 'ok' }, paused: { label: 'Duraklatıldı', tone: 'warn' },
-  past_due: { label: 'Ödeme alınamadı', tone: 'danger' }, cancelled: { label: 'İptal', tone: 'muted' },
+  past_due: { label: 'Ödeme alınamadı', tone: 'danger' }, cancelled: { label: 'İptal', tone: 'muted' }, completed: { label: 'Süresi tamamlandı', tone: 'muted' },
 };
 const FILTERS = [{ value: 'all', label: 'Tümü' }, ...Object.entries(STATUS).map(([value, s]) => ({ value, label: s.label }))];
 

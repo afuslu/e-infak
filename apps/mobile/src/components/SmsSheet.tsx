@@ -17,7 +17,7 @@ export function SmsSheet({ visible, onClose, donorId, donationId, phone }: {
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [allow, setAllow] = useState<boolean | null>(null);
+  const [optOut, setOptOut] = useState<boolean | null>(null);
 
   const templates = useQuery({
     queryKey: ['sms-templates'],
@@ -30,7 +30,7 @@ export function SmsSheet({ visible, onClose, donorId, donationId, phone }: {
       setTemplateId(null);
       setBody('');
       setError(null);
-      setAllow(null);
+      setOptOut(null);
     }
   }, [visible]);
 
@@ -39,11 +39,11 @@ export function SmsSheet({ visible, onClose, donorId, donationId, phone }: {
     setError(null);
     if (!id) return;
     try {
-      const preview = await af<{ body: string; allow_sms: boolean | null }>('/sms/preview', {
+      const preview = await af<{ body: string; sms_opt_out: boolean | null }>('/sms/preview', {
         query: { template_id: id, donor_id: donorId, donation_id: donationId },
       });
       setBody(preview.body);
-      setAllow(preview.allow_sms);
+      setOptOut(preview.sms_opt_out);
     } catch (e: any) {
       setError(e.message);
     }
@@ -72,7 +72,7 @@ export function SmsSheet({ visible, onClose, donorId, donationId, phone }: {
     <Sheet visible={visible} onClose={onClose} title="SMS gönder" footer={<Btn title="Gönder" onPress={send} loading={busy} />}>
       {phone ? <Text style={ui.muted}>Alıcı: {phone}</Text> : null}
       {error ? <Notice text={error} tone="danger" /> : null}
-      {allow === false && !donationId ? <Notice tone="warn" text="Bağışçının SMS izni yok; tanıtım içerikli ileti gönderilemez." /> : null}
+      {optOut && !donationId ? <Notice tone="warn" text="Bu bağışçı SMS almak istemiyor." /> : null}
       <Select label="Şablon" value={templateId} onChange={pick} searchable allowClear placeholder="Şablonsuz (serbest metin)"
         options={(templates.data || []).filter((t) => t.is_active).map((t) => ({ value: t.id, label: t.name, hint: t.event_label || undefined }))} />
       <Field label="Mesaj" value={body} onChangeText={setBody} multiline maxLength={1500} hint={`${body.length} karakter`} />

@@ -31,8 +31,8 @@ export default function DonorSettingsScreen() {
   const [city, setCity] = useState(donorMe?.city || '');
   const [address, setAddress] = useState(donorMe?.address || '');
   const [tcNo, setTcNo] = useState(donorMe?.tc_no || '');
-  const [allowSms, setAllowSms] = useState(!!donorMe?.allow_sms);
-  const [allowEmail, setAllowEmail] = useState(!!donorMe?.allow_email);
+  const [allowSms, setAllowSms] = useState(!donorMe?.sms_opt_out);
+  const [allowEmail, setAllowEmail] = useState(!donorMe?.email_opt_out);
   const [isAnonymous, setIsAnonymous] = useState(!!donorMe?.is_anonymous);
 
   const [reqOpen, setReqOpen] = useState(false);
@@ -50,8 +50,8 @@ export default function DonorSettingsScreen() {
       setCity(donorMe.city || '');
       setAddress(donorMe.address || '');
       setTcNo(donorMe.tc_no || '');
-      setAllowSms(!!donorMe.allow_sms);
-      setAllowEmail(!!donorMe.allow_email);
+      setAllowSms(!donorMe.sms_opt_out);
+      setAllowEmail(!donorMe.email_opt_out);
       setIsAnonymous(!!donorMe.is_anonymous);
     }
   }, [donorMe]);
@@ -72,8 +72,8 @@ export default function DonorSettingsScreen() {
           city: city.trim(),
           address: address.trim(),
           tc_no: tcNo.trim(),
-          allow_sms: allowSms,
-          allow_email: allowEmail,
+          sms_opt_out: !allowSms,
+          email_opt_out: !allowEmail,
           is_anonymous: isAnonymous,
         },
       }),
@@ -134,8 +134,8 @@ export default function DonorSettingsScreen() {
 
       <SectionTitle>İLETİŞİM TERCİHLERİM</SectionTitle>
       <Card>
-        <SwitchRow label="SMS Bildirimleri" hint="Kurban kesim bilgisi ve makbuz SMS'leri" value={allowSms} onValueChange={setAllowSms} />
-        <SwitchRow label="E-posta Bildirimleri" hint="Faaliyet bülteni ve e-makbuz" value={allowEmail} onValueChange={setAllowEmail} />
+        <SwitchRow label="SMS Bildirimleri" hint="Duyuru ve bilgilendirme SMS'leri" value={allowSms} onValueChange={setAllowSms} />
+        <SwitchRow label="E-posta Bildirimleri" hint="Faaliyet bülteni ve duyurular" value={allowEmail} onValueChange={setAllowEmail} />
         <SwitchRow label="İsmim Gizli Kalsın" hint="Hayırsever listelerinde adınız gizlenir" value={isAnonymous} onValueChange={setIsAnonymous} />
         <Btn title="Bilgilerimi Kaydet" loading={saveProfile.isPending} onPress={() => saveProfile.mutate()} />
       </Card>

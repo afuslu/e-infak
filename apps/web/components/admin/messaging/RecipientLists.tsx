@@ -71,7 +71,7 @@ export function RecipientListsPage({ channel }: { channel: 'sms' | 'mail' }) {
 
 function MembersModal({ list, onClose }: { list: RecipientList; onClose: () => void }) {
   const [page, setPage] = useState(1)
-  const [data, setData] = useState<{ total: number; items: { id: string; name: string; phone: string | null; email: string | null; allow_sms: boolean; allow_email: boolean }[] }>({ total: 0, items: [] })
+  const [data, setData] = useState<{ total: number; items: { id: string; name: string; phone: string | null; email: string | null; sms_opt_out: boolean; email_opt_out: boolean }[] }>({ total: 0, items: [] })
   const load = useCallback(() => {
     adminGet<typeof data>(`/recipient-lists/${list.id}/members`, { page, page_size: 25 }).then((r) => setData(r.data)).catch(() => {})
   }, [list.id, page])
@@ -87,7 +87,7 @@ function MembersModal({ list, onClose }: { list: RecipientList; onClose: () => v
           <li key={m.id} className="flex items-center gap-3 py-2">
             <a href={`/admin/bagiscilar/${m.id}`} className="font-semibold text-gray-900 hover:text-primary-700">{m.name}</a>
             <span className="text-gray-500">{list.channel === 'sms' ? formatPhone(m.phone) : m.email}</span>
-            {!(list.channel === 'sms' ? m.allow_sms : m.allow_email) && <span className="rounded bg-amber-50 px-1.5 text-[11px] font-semibold text-amber-700">izinsiz</span>}
+            {(list.channel === 'sms' ? m.sms_opt_out : m.email_opt_out) && <span className="rounded bg-amber-50 px-1.5 text-[11px] font-semibold text-amber-700">istemiyor</span>}
             <button type="button" onClick={() => remove(m.id)} className="ms-auto text-[12px] font-semibold text-rose-600 hover:underline">Listeden çıkar</button>
           </li>
         ))}

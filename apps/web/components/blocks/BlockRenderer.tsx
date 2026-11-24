@@ -12,6 +12,7 @@ import { BlockText } from './BlockText'
 import { MobileMenu, NavAnchor, type NavItemView, type NavLinkView, Reveal, SiteSearchBox, Slider, StickyShrink, type SlideView } from './BlockClient'
 import { LanguageSwitcher } from '../site/LanguageSwitcher'
 import { CountUp } from '../site/Carousel'
+import { donationOptions, unitPrice } from '../../lib/donation-options'
 import { AnnouncementBar, CartButton, ContactFormBlock, CurrencySwitcher, DonationCards, MobileTabBar, type DonationCardView } from './DonationBlocks'
 import { defaultFooterLinks, defaultHeaderLinks } from '../../lib/default-links'
 import { extraContent } from './ExtraBlocks'
@@ -108,6 +109,12 @@ function donationCards(o: Record<string, any>, data: HomeData, label: string): D
     const s = settings.get(c.id) || {}
     const fixed = !c.allow_custom_amount && c.suggested_amounts_cents?.length ? c.suggested_amounts_cents[0] / 100 : null
     const unit = s.unit_amount ? Number(s.unit_amount) : fixed
+    const durations = list(s.durations).map(Number).filter((n) => n > 0)
+    // A locked amount with no quantity choice would leave the donor nothing to change: offer adet.
+    const autoQuantity = !s.quantity && unit != null && !durations.length
+    const quantity = s.quantity === 'none' ? '' : s.quantity || (autoQuantity ? 'adet' : '')
+    // 21 is the editor's default, so it is not a limit anyone chose.
+    const maxQuantity = autoQuantity && (!s.max_quantity || Number(s.max_quantity) === 21) ? 100 : s.max_quantity || 21
     const total = Number(s.shares_total) || 0
     const taken = s.shares_taken != null ? Number(s.shares_taken) : unit ? Math.floor((c.collected_lira || 0) / unit) : 0
     const suggestedAmounts = (c.suggested_amounts_cents || []).map((v) => Math.round(v / 100)).filter((v) => v > 0)
@@ -115,11 +122,13 @@ function donationCards(o: Record<string, any>, data: HomeData, label: string): D
       c.show_collected !== false && c.target_lira > 0
         ? { collected: c.collected_lira || 0, target: c.target_lira, pct: Math.min(100, Math.round(c.progress_percentage || 0)) }
         : null
+    const own = donationOptions(c)
     return {
+      source: own ? c : undefined,
       key: `${c.id}`, campaignId: c.id, slug: c.slug, title: c.title, summary: c.summary, category: c.category,
       image: c.cover_image_url, currency: (c.currency || 'TRY') as DonationCardView['currency'],
-      unit, minAmount: (c.min_donation_cents || 100) / 100, quantity: s.quantity || '', maxQuantity: s.max_quantity || 21,
-      niyet: list(s.niyet), durations: list(s.durations).map(Number).filter((n) => n > 0),
+      unit: own ? unitPrice(c, c.currency || 'TRY', () => null) : unit, minAmount: (c.min_donation_cents || 100) / 100, quantity, maxQuantity,
+      niyet: list(s.niyet), durations,
       shares: total ? { taken: Math.min(taken, total), total } : null, progress, suggestedAmounts,
       badge: s.badge || '', note: s.note, impactLabel: s.impact_label || '', tierLabels: list(s.tier_labels),
       region: s.region || '', icon: s.icon || '', isPopular: Boolean(s.is_popular), features: list(s.features),
@@ -503,6 +512,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
         progress: camp.progress_percentage || 0,
         suggestedAmounts: (camp.suggested_amounts_cents || []).map((cents) => Math.round(cents / 100)).filter((n) => n > 0),
         checkoutFieldsSchema: (camp as any).checkout_fields_schema || [],
+        donation: camp,
       }))
       const wrapCls = rawLook === 'emerald_gold_quick'
         ? 'bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 py-12 text-white'
@@ -550,6 +560,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                   progress: c.progress_percentage || 0,
                 }}
                 checkoutFieldsSchema={(c as any).checkout_fields_schema || []}
+                donation={c}
               />
             ) : (
               <p className="rounded-2xl border bg-white p-6 text-center text-gray-500">{t('home.noCampaignForm')}</p>

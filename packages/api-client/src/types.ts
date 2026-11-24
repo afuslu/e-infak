@@ -17,6 +17,22 @@ export interface Campaign {
   video_url?: string
   suggested_amounts_cents: number[]
   allow_custom_amount: boolean
+  fixed_amount?: boolean
+  reference_amounts?: Record<string, number>
+  /** Donor choices; empty or missing for campaigns set up before they existed. */
+  donation_options?: {
+    mode?: 'free' | 'fixed' | 'quantity' | 'share' | 'duration' | 'packages'
+    min_qty?: number
+    max_qty?: number
+    unit_label?: string
+    durations?: number[]
+    duration_payment?: 'prepaid' | 'monthly' | 'donor_choice'
+    packages?: Array<{ id: string; label: string; amount_cents: number }>
+    intents?: string[]
+    allow_recurring?: boolean
+    allow_on_behalf?: boolean
+    allow_note?: boolean
+  }
   min_donation_cents: number
   is_featured: boolean
   show_collected: boolean
@@ -57,6 +73,8 @@ export interface Donor {
   tax_number?: string
   allow_email?: boolean
   allow_sms?: boolean
+  sms_opt_out?: boolean
+  email_opt_out?: boolean
   is_anonymous?: boolean
 }
 

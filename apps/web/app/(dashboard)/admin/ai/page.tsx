@@ -12,7 +12,7 @@ interface ChurnDonor {
   donor_id: string
   donor_name: string
   donor_phone?: string | null
-  allow_sms?: boolean
+  sms_opt_out?: boolean
   last_donation_date: string
   days_since_last: number
   donation_count: number
@@ -30,7 +30,7 @@ interface UpgradeCandidate {
   donor_id: string
   donor_name: string
   donor_phone?: string | null
-  allow_sms?: boolean
+  sms_opt_out?: boolean
   rfm_score: string
   segment_label: string
   donation_count: number
@@ -91,7 +91,7 @@ export default function AdminAiPage() {
     donor_id: string
     donor_name: string
     donor_phone?: string | null
-    allow_sms?: boolean
+    sms_opt_out?: boolean
   } | null>(null)
 
   const loadAiInsights = useCallback(async () => {
@@ -543,7 +543,7 @@ export default function AdminAiPage() {
             donorId: smsTarget.donor_id,
             name: smsTarget.donor_name,
             phone: smsTarget.donor_phone,
-            allowSms: smsTarget.allow_sms,
+            smsOptOut: smsTarget.sms_opt_out,
           }}
           onClose={() => setSmsTarget(null)}
           onSent={(res) => {

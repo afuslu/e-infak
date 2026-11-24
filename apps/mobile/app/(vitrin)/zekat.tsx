@@ -18,6 +18,7 @@ import { useBrandColors } from '@/components/IddefChrome';
 import { useCart } from '@/context/CartContext';
 import { notify } from '@/components/toast';
 import { money } from '@/lib/format';
+import { needsChoice } from '@/lib/donationOptions';
 import { radius, space } from '@/theme';
 
 function num(v: string): number {
@@ -73,7 +74,8 @@ export default function ZakatCalculatorScreen() {
       notify('Sepete eklemek için hesaplanan zekat tutarı en az 1 TL olmalıdır.');
       return;
     }
-    const all = campaignsQuery.data ?? [];
+    // The calculated amount only fits a campaign where the donor sets the amount.
+    const all = (campaignsQuery.data ?? []).filter((c) => !needsChoice(c));
     const zakatCamp =
       all.find((c) => c.is_zakat) ||
       all.find((c) => (c.category || '').toLowerCase() === 'zekat') ||

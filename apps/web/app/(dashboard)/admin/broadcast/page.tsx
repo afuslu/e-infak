@@ -129,7 +129,6 @@ export default function BulkSmsPage() {
   const [excludeRecentSmsDays, setExcludeRecentSmsDays] = useState('')
   const [showMoreFilters, setShowMoreFilters] = useState(false)
   const [commercial, setCommercial] = useState(false)
-  const [withoutConsent, setWithoutConsent] = useState(false)
   const [name, setName] = useState('')
   const [templateId, setTemplateId] = useState('')
   const [body, setBody] = useState('')
@@ -237,7 +236,6 @@ export default function BulkSmsPage() {
       year: Number(year) || null,
       numbers: kind === 'numbers' ? numbers : null,
       list_id: kind === 'list' ? listId || null : null,
-      include_without_consent: withoutConsent && !commercial,
       filter_city: kind !== 'numbers' && kind !== 'city' ? filterCity || null : null,
       filter_tag: kind !== 'numbers' && kind !== 'tag' ? filterTag || null : null,
       filter_donor_type: kind !== 'numbers' && filterDonorType ? filterDonorType : null,
@@ -282,7 +280,6 @@ export default function BulkSmsPage() {
     minTotalLira,
     excludeRecentSmsDays,
     commercial,
-    withoutConsent,
     body,
     later,
     sendAt,
@@ -809,7 +806,7 @@ export default function BulkSmsPage() {
             <div className="grid gap-2 sm:grid-cols-2">
               {(
                 [
-                  [false, 'Bilgilendirme', 'Duyuru, hatırlatma, teşekkür. İYS kontrolü yapılmaz.'],
+                  [false, 'Bilgilendirme', 'Duyuru, hatırlatma, teşekkür. SMS istemeyenler dışında herkese gider.'],
                   [true, 'Ticari / tanıtım', 'Kampanya ve bağış çağrısı. Yalnızca izinlilere, İYS kontrolüyle gider.'],
                 ] as [boolean, string, string][]
               ).map(([value, title, hint]) => (
@@ -826,15 +823,6 @@ export default function BulkSmsPage() {
                 </label>
               ))}
             </div>
-            {!commercial && kind !== 'numbers' && (
-              <label className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                <input type="checkbox" className="mt-0.5" checked={withoutConsent} onChange={(e) => setWithoutConsent(e.target.checked)} />
-                <span>
-                  <strong>SMS izni olmayanlara da gönder.</strong> Yalnızca bilgilendirme içerikli iletilerde kullanın; tanıtım veya bağış çağrısı içeren ileti
-                  izinsiz kişiye gönderilemez.
-                </span>
-              </label>
-            )}
           </section>
 
           <section className="space-y-3 border-t pt-5">
@@ -1079,7 +1067,7 @@ export default function BulkSmsPage() {
                       {' '}
                       Dışarıda kalan {n(skipped)}:{' '}
                       {[
-                        preview.stats.no_consent && `${n(preview.stats.no_consent)} izinsiz`,
+                        preview.stats.no_consent && `${n(preview.stats.no_consent)} istemeyen veya izinsiz`,
                         preview.stats.no_phone && `${n(preview.stats.no_phone)} telefonsuz`,
                         preview.stats.invalid && `${n(preview.stats.invalid)} hatalı numara`,
                         preview.stats.duplicate && `${n(preview.stats.duplicate)} tekrar eden`,

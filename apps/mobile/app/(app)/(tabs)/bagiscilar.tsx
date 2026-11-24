@@ -20,9 +20,9 @@ const YES_NO = [{ value: 'true', label: 'Evet' }, { value: 'false', label: 'Hay�
 
 type Filters = {
   assigned: string | null; region: string | null; donor_type: string | null; has_donation: string | null;
-  allow_sms: string | null; tag: string; min: string;
+  sms_opt_out: string | null; tag: string; min: string;
 };
-const NONE: Filters = { assigned: null, region: null, donor_type: null, has_donation: null, allow_sms: null, tag: '', min: '' };
+const NONE: Filters = { assigned: null, region: null, donor_type: null, has_donation: null, sms_opt_out: null, tag: '', min: '' };
 
 export default function Donors() {
   const router = useRouter();
@@ -40,7 +40,7 @@ export default function Donors() {
   const query = useMemo(() => ({
     q: q.trim() || undefined, sort,
     assigned: filters.assigned, region: filters.region, donor_type: filters.donor_type,
-    has_donation: filters.has_donation, allow_sms: filters.allow_sms,
+    has_donation: filters.has_donation, sms_opt_out: filters.sms_opt_out,
     tag: filters.tag.trim() || undefined, min_total_cents: toCents(filters.min),
   }), [q, sort, filters]);
   const list = usePaged<Donor>(['donors'], '/admin-features/donors', query, 30);
@@ -111,8 +111,8 @@ export default function Donors() {
           onChange={(donor_type) => setDraft({ ...draft, donor_type })} />
         <Select label="Bağışı var mı?" value={draft.has_donation} allowClear placeholder="Tümü" options={YES_NO}
           onChange={(has_donation) => setDraft({ ...draft, has_donation })} />
-        <Select label="SMS izni" value={draft.allow_sms} allowClear placeholder="Tümü" options={YES_NO}
-          onChange={(allow_sms) => setDraft({ ...draft, allow_sms })} />
+        <Select label="SMS istemiyor" value={draft.sms_opt_out} allowClear placeholder="Tümü" options={YES_NO}
+          onChange={(sms_opt_out) => setDraft({ ...draft, sms_opt_out })} />
         <Field label="Etiket" value={draft.tag} onChangeText={(tag) => setDraft({ ...draft, tag })} autoCapitalize="none" />
         <Field label="En az toplam bağış" value={draft.min} onChangeText={(min) => setDraft({ ...draft, min })} keyboardType="decimal-pad" />
         <Text style={{ fontSize: font.xs, color: colors.muted }}>Sıralama listenin üstünden değiştirilir.</Text>

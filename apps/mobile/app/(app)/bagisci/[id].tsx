@@ -182,8 +182,8 @@ export default function DonorDetail() {
                     <Row label="Adres" value={d.address || '—'} />
                     {d.donor_type === 'corporate' ? <Row label="Vergi no" value={d.tax_number || '—'} /> : <Row label="T.C. no" value={d.tc_no_masked || '—'} />}
                     <Row label="Sorumlu" value={d.assigned_user_name || 'Atanmamış'} />
-                    <Row label="SMS izni" value={d.allow_sms ? 'Var' : 'Yok'} />
-                    <Row label="E-posta izni" value={d.allow_email ? 'Var' : 'Yok'} />
+                    {d.sms_opt_out ? <Row label="SMS" value="İstemiyor" /> : null}
+                    {d.email_opt_out ? <Row label="E-posta iletileri" value="İstemiyor" /> : null}
                   </Card>
                   {can(access, 'donors.update') ? (
                     <Btn title="Bilgileri düzenle" variant="outline" onPress={() => router.push({ pathname: '/bagisci/form', params: { id: d.id } })} />

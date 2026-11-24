@@ -189,8 +189,8 @@ async def test_text_written_on_the_receipt_replaces_the_automatic_sms(db_session
 
 # --- API -----------------------------------------------------------------------------
 
-async def test_quick_send_needs_consent_or_informational_and_can_be_scheduled(db_session, sms_kicks):
-    org, admin, _campaign, donor = await _setup(db_session)
+async def test_quick_send_respects_opt_out_and_can_be_scheduled(db_session, sms_kicks):
+    org, admin, _campaign, donor = await _setup(db_session, sms_opt_out=True)
     with pytest.raises(HTTPException) as exc:
         await sms_api.send_sms(_request(org), sms_api.SendIn(donor_id=donor.id, body="Kampanyamız başladı"),
                                db_session, admin)
@@ -281,6 +281,7 @@ async def test_bulk_sms_resolves_audience_personalises_and_can_be_cancelled(db_s
     org, admin, campaign, donor = await _setup(db_session, allow_sms=True, tags=["vip"])
     db_session.add_all([
         Donor(organization_id=org.id, first_name="İzinsiz", last_name="Kişi", phone="05321110001", tags=["vip"]),
+        Donor(organization_id=org.id, first_name="Reddeden", phone="05321110009", allow_sms=True, sms_opt_out=True, tags=["vip"]),
         Donor(organization_id=org.id, first_name="Aynı", last_name="Numara", phone="905456236712", allow_sms=True, tags=["vip"]),
         Donor(organization_id=org.id, first_name="Telefonsuz", allow_sms=True, tags=["vip"]),
         Donor(organization_id=org.id, first_name="Bozuk", phone="123", allow_sms=True, tags=["vip"]),
@@ -291,14 +292,12 @@ async def test_bulk_sms_resolves_audience_personalises_and_can_be_cancelled(db_s
     body = "Sayın {ad_soyad}, hayırlı kandiller. {kurum}"
     plan = sms_api.BatchIn(body=body, audience=Audience(kind="tag", tag="vip"), quiet_hours=False)
     preview = await sms_api.preview_batch(_request(org), plan, db_session)
-    assert preview["recipients"] == 1 and preview["stats"] == {
-        "matched": 5, "no_phone": 1, "no_consent": 1, "invalid": 1, "duplicate": 1}
+    assert preview["recipients"] == 2 and preview["stats"] == {
+        "matched": 6, "no_phone": 1, "no_consent": 1, "invalid": 1, "duplicate": 1}
     assert preview["sample"]["body"] == "Sayın Seçkin Bozkurt, hayırlı kandiller. Hayır Derneği"
 
-    # informational: donors without permission can be included; promotion never
-    wide = sms_api.BatchIn(body=body, audience=Audience(kind="tag", tag="vip", include_without_consent=True), quiet_hours=False)
-    assert (await sms_api.preview_batch(_request(org), wide, db_session))["recipients"] == 2
-    promo = wide.model_copy(update={"commercial": True})
+    # promotion still needs explicit permission
+    promo = plan.model_copy(update={"commercial": True})
     assert (await sms_api.preview_batch(_request(org), promo, db_session))["recipients"] == 1
 
     created = await sms_api.send_batch(_request(org), promo, db_session, admin)
@@ -310,7 +309,7 @@ async def test_bulk_sms_resolves_audience_personalises_and_can_be_cancelled(db_s
 
     # a pasted list, scheduled, then cancelled
     listed = await sms_api.send_batch(_request(org), sms_api.BatchIn(
-        body="Duyuru", audience=Audience(kind="numbers", numbers="0532 111 00 02\n5321110003, 5321110003;12"),
+        body="Duyuru", audience=Audience(kind="numbers", numbers="0532 111 00 02\n5321110003, 5321110003;12\n905321110009"),
         send_at=dt.now(timezone.utc) + timedelta(days=1), quiet_hours=False), db_session, admin)
     assert listed["total"] == 2 and listed["state"] == "scheduled"
     stored = await db_session.get(SmsBatch, uuid.UUID(listed["id"]))
@@ -570,7 +569,7 @@ async def test_recipient_lists_feed_sms_audience_and_mail(db_session, monkeypatc
     assert again["member_count"] == 3 and again["added"] == 1
 
     recipients, stats = await resolve(db_session, org.id, Audience(kind="list", list_id=made["id"]))
-    assert sorted(r.phone for r in recipients) == ["905321112233", "905551110000"] and stats["no_consent"] == 1
+    assert len(recipients) == 3 and stats["no_consent"] == 0
 
     preview = await mailing_api.send_mail(mailing_api.MailSendIn(
         subject="Merhaba {ad}", body="Selam", target=mailing_api.DonorTarget(ids=[a.id, b.id, c.id]), preview=True),
@@ -596,3 +595,46 @@ async def test_recipient_lists_feed_sms_audience_and_mail(db_session, monkeypatc
     assert await mailing.run_batch(same_session, created["batch_id"]) == {"skipped": True}  # claimed once only
     html_body = mailing.to_html("Selam\n\n<b>Hakder</b>", org_name="Hakder", commercial=True)
     assert "&lt;b&gt;Hakder&lt;/b&gt;" in html_body and "izin verdiğiniz" in html_body
+
+
+async def test_opt_out_link_covers_every_phone_format_and_stops_queued_bulk(db_session, provider, sms_kicks):
+    from app.services.sms_audience import Audience, resolve
+    from app.services.sms_service import opt_out_token
+
+    sent, _behaviour = provider
+    org, admin, _campaign, donor = await _setup(db_session, tags=["vip"])  # permission never asked
+    db_session.add(Donor(organization_id=org.id, first_name="Kopya", phone="0 545 623 67 12", tags=["vip"]))
+    await db_session.flush()
+    created = await sms_api.send_batch(_request(org), sms_api.BatchIn(
+        body="Duyuru", audience=Audience(kind="tag", tag="vip"), quiet_hours=False), db_session, admin)
+    message = (await db_session.execute(select_messages(created["id"]))).scalars().one()
+
+    token = opt_out_token(org.id, message.phone)
+    assert (await sms_api.get_opt_out_info(token, db_session))["opted_out"] is False
+    await sms_api.confirm_opt_out(token, db_session)
+    assert (await sms_api.get_opt_out_info(token, db_session))["opted_out"] is True
+    before = len(sent)
+    assert await process_in(db_session, message.id) == "cancelled" and len(sent) == before
+    for commercial in (False, True):
+        recipients, stats = await resolve(db_session, org.id, Audience(kind="tag", tag="vip"), commercial=commercial)
+        assert recipients == [] and stats["no_consent"] == 2
+    await db_session.refresh(donor)
+    with pytest.raises(HTTPException) as exc:
+        await sms_api.send_sms(_request(org), sms_api.SendIn(donor_id=donor.id, body="Merhaba"), db_session, admin)
+    assert exc.value.status_code == 409
+
+
+async def test_portal_profile_opt_out_is_explicit(db_session):
+    from app.api.v1 import donor_portal as portal
+
+    _org, _admin, _campaign, donor = await _setup(db_session)
+    update = portal.DonorProfileUpdate
+    out = await portal.update_my_profile(update(city="Konya", allow_sms=False), donor, db_session)
+    assert out["sms_opt_out"] is False  # an old app saving an unchanged "off" is not an opt-out
+    out = await portal.update_my_profile(update(sms_opt_out=True), donor, db_session)
+    assert out["sms_opt_out"] is True
+    out = await portal.update_my_profile(update(sms_opt_out=False), donor, db_session)
+    assert out["sms_opt_out"] is False and out["allow_sms"] is False
+    await portal.update_my_profile(update(allow_sms=True), donor, db_session)
+    out = await portal.update_my_profile(update(allow_sms=False), donor, db_session)
+    assert out["sms_opt_out"] is True

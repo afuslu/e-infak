@@ -15,6 +15,7 @@ export function SingleCampaignDonation({ slug }: { slug: string }) {
         campaignId={campaign.id}
         campaignTitle={campaign.title}
         suggestedAmounts={campaign.suggested_amounts_cents.map((value) => value / 100)}
+        donation={campaign}
         checkoutFieldsSchema={campaign.checkout_fields_schema}
       />
     </main>

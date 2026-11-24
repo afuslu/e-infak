@@ -14,8 +14,8 @@ export interface DonorRow {
   last_donation_at: string | null
   assigned_user_id: string | null
   assigned_user_name: string | null
-  allow_sms: boolean
-  allow_email: boolean
+  sms_opt_out: boolean
+  email_opt_out: boolean
   tags: string[]
   created_at: string
   external_ref: string | null

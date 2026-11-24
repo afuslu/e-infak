@@ -159,7 +159,7 @@ export default function ManageRecurringPage() {
                         : 'bg-slate-200 text-slate-700'
                   }`}
                 >
-                  {info.status === 'active' ? 'Aktif' : info.status === 'paused' ? 'Duraklatıldı' : 'İptal Edildi'}
+                  {info.status === 'active' ? 'Aktif' : info.status === 'paused' ? 'Duraklatıldı' : info.status === 'completed' ? 'Süresi Tamamlandı' : 'İptal Edildi'}
                 </span>
               </div>
             </div>
@@ -184,7 +184,7 @@ export default function ManageRecurringPage() {
                   Devam Ettir
                 </Button>
               )}
-              {info.status !== 'cancelled' && (
+              {info.status !== 'cancelled' && info.status !== 'completed' && (
                 <Button
                   type="button"
                   variant="outline"

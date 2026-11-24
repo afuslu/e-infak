@@ -43,8 +43,8 @@ export type DonorMe = {
   address: string;
   city: string;
   country: string;
-  allow_email: boolean;
-  allow_sms: boolean;
+  email_opt_out: boolean;
+  sms_opt_out: boolean;
   is_anonymous: boolean;
   has_password?: boolean;
   total_donations: number;

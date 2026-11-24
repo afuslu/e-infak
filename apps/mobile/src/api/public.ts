@@ -1,3 +1,4 @@
+import type { DonationOptions } from '@/lib/donationOptions';
 import { Platform } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -108,6 +109,7 @@ export type PublicCampaign = {
   suggested_amounts_cents?: number[];
   reference_amounts?: Record<string, number>;
   fixed_amount?: boolean;
+  donation_options?: DonationOptions | null;
   allow_custom_amount?: boolean;
   min_donation_cents?: number;
   target_cents?: number;

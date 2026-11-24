@@ -1,6 +1,7 @@
 'use client'
 
 /** Kampanyalar in STK PRO's layout: per-column filters and inline Ref. Tutar, Öncelik, Durum, Web/1 and Web/2. */
+import { DONATION_MODE_LABEL } from '../../../../lib/donation-options'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -139,7 +140,7 @@ export default function CampaignsPage() {
           }} />
       ),
     },
-    { key: 'fixed', header: 'Sabit Tutar', align: 'center', render: (c) => <Mark on={c.fixed_amount} /> },
+    { key: 'mode', header: 'Bağış Şekli', render: (c) => DONATION_MODE_LABEL[c.donation_options?.mode || ''] || (c.fixed_amount ? 'Sabit tutar (eski)' : '—') },
     { key: 'zakat', header: 'Zekat', align: 'center', filter: { type: 'select', param: 'is_zakat', options: yesNo }, render: (c) => <Mark on={c.is_zakat} /> },
     {
       key: 'order', header: 'Öncelik', sort: 'display_order',

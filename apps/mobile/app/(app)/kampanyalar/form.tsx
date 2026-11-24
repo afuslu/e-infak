@@ -7,6 +7,7 @@ import { centsToInput, money, toCents } from '@/lib/format';
 import { Campaign, CAMPAIGN_STATUS, CURRENCY_OPTIONS } from '@/api/types';
 import { Btn, Card, Chips, Field, Loading, Notice, Screen, SectionTitle, Select, SwitchRow, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
+import { DonationMode, DonationOptions, isPriced, MODE_OPTIONS } from '@/lib/donationOptions';
 import { space } from '@/theme';
 
 const CATEGORIES = [
@@ -25,6 +26,7 @@ export default function CampaignForm() {
 
   const [form, setForm] = useState({
     title: '', summary: '', story: '', category: 'genel', status: 'draft', currency: 'TRY', target: '', min: '10',
+    mode: '' as DonationMode | '', price: '', durations: '1, 6, 12', duration_payment: 'prepaid', min_qty: '', max_qty: '',
     amounts: '', allow_custom_amount: true, is_featured: false, show_collected: true, show_donor_list: true, cover_image_url: '',
   });
   const [loaded, setLoaded] = useState(!id);
@@ -39,6 +41,9 @@ export default function CampaignForm() {
       title: c.title, summary: c.summary || '', story: c.story || '', category: c.category || 'genel', status: c.status,
       currency: c.currency, target: centsToInput(c.target_cents), min: centsToInput(c.min_donation_cents),
       amounts: (c.suggested_amounts_cents || []).map((a: number) => centsToInput(a)).join(', '),
+      mode: c.donation_options?.mode || '', price: c.reference_amounts?.TRY ? centsToInput(c.reference_amounts.TRY) : '',
+      durations: (c.donation_options?.durations || [1, 6, 12]).join(', '), duration_payment: c.donation_options?.duration_payment || 'prepaid',
+      min_qty: c.donation_options?.min_qty ? String(c.donation_options.min_qty) : '', max_qty: c.donation_options?.max_qty ? String(c.donation_options.max_qty) : '',
       allow_custom_amount: c.allow_custom_amount, is_featured: c.is_featured, show_collected: c.show_collected ?? true,
       show_donor_list: c.show_donor_list ?? true, cover_image_url: c.cover_image_url || '',
     });
@@ -57,10 +62,24 @@ export default function CampaignForm() {
     if (!min || min < 100) return setError('En az bağış tutarı 1 veya üzeri olmalı.');
     const amounts = form.amounts.split(/[,;\s]+/).filter(Boolean).map(toCents);
     if (amounts.some((a) => !a)) return setError('Önerilen tutarları virgülle ayırarak yazın: 100, 250, 500');
+    const old: DonationOptions = existing.data?.donation_options || {};
+    const price = form.price.trim() ? toCents(form.price) : 0;
+    if (form.mode && isPriced(form.mode) && !price) return setError(form.mode === 'duration' ? 'Aylık TL tutarını yazın.' : 'Birim TL tutarını yazın.');
+    const durations = form.durations.split(/[,;\s]+/).filter(Boolean).map(Number);
+    if (form.mode === 'duration' && (!durations.length || durations.some((d) => !Number.isInteger(d) || d < 1 || d > 120))) return setError('Süreleri ay olarak yazın: 1, 6, 12');
+    if (form.mode === 'packages' && !old.packages?.length) return setError('Paketleri web panelinden ekleyin.');
+    const counted = form.mode === 'quantity' || form.mode === 'share';
+    const donation_options = form.mode ? {
+      ...old, mode: form.mode, durations: form.mode === 'duration' ? durations : [], duration_payment: form.duration_payment,
+      min_qty: counted ? Number(form.min_qty) || 1 : null, max_qty: counted ? Number(form.max_qty) || 100 : null,
+      packages: form.mode === 'packages' ? old.packages : [],
+    } : {};
     const body = {
+      donation_options,
+      ...(form.mode && isPriced(form.mode) ? { reference_amounts: { ...(existing.data?.reference_amounts || {}), TRY: price } } : {}),
       title: form.title.trim(), summary: form.summary.trim(), story: form.story.trim() || null, category: form.category,
       status: form.status, currency: form.currency, target_cents: target, min_donation_cents: min,
-      suggested_amounts_cents: amounts as number[], allow_custom_amount: form.allow_custom_amount, is_featured: form.is_featured,
+      suggested_amounts_cents: amounts as number[], allow_custom_amount: form.mode ? form.mode === 'free' : form.allow_custom_amount, is_featured: form.is_featured,
       show_collected: form.show_collected, show_donor_list: form.show_donor_list, cover_image_url: form.cover_image_url.trim() || null,
     };
     setBusy('save');
@@ -123,8 +142,29 @@ export default function CampaignForm() {
         </View>
         <Field label="Önerilen tutarlar" value={form.amounts} onChangeText={(amounts) => set({ amounts })} placeholder="100, 250, 500" keyboardType="numbers-and-punctuation" />
       </Card>
+      <SectionTitle>Bağış şekli</SectionTitle>
+      <Chips options={MODE_OPTIONS} value={form.mode || null} onChange={(mode) => set({ mode })} wrap />
+      {form.mode && form.mode !== 'free' ? (
+        <Card style={{ gap: space.md }}>
+          {isPriced(form.mode) ? <Field label={form.mode === 'duration' ? 'Aylık tutar (TL)' : 'Birim tutar (TL)'} value={form.price} onChangeText={(price) => set({ price })} keyboardType="decimal-pad" /> : null}
+          {form.mode === 'duration' ? (
+            <>
+              <Field label="Süre seçenekleri (ay)" value={form.durations} onChangeText={(durations) => set({ durations })} placeholder="1, 6, 12" keyboardType="numbers-and-punctuation" />
+              <Select label="Ödeme şekli" value={form.duration_payment} onChange={(v) => set({ duration_payment: v || 'prepaid' })}
+                options={[{ value: 'prepaid', label: 'Peşin' }, { value: 'monthly', label: 'Aylık' }, { value: 'donor_choice', label: 'Bağışçı seçsin' }]} />
+            </>
+          ) : null}
+          {form.mode === 'quantity' || form.mode === 'share' ? (
+            <View style={ui.rowGap}>
+              <View style={{ flex: 1 }}><Field label="En az" value={form.min_qty} onChangeText={(min_qty) => set({ min_qty })} placeholder="1" keyboardType="number-pad" /></View>
+              <View style={{ flex: 1 }}><Field label="En çok" value={form.max_qty} onChangeText={(max_qty) => set({ max_qty })} placeholder="100" keyboardType="number-pad" /></View>
+            </View>
+          ) : null}
+          {form.mode === 'packages' ? <Notice text="Paketlerin adı ve tutarı web panelinden düzenlenir." tone="info" /> : null}
+        </Card>
+      ) : null}
       <Card>
-        <SwitchRow label="Serbest tutar girilebilir" value={form.allow_custom_amount} onValueChange={(allow_custom_amount) => set({ allow_custom_amount })} />
+        {form.mode ? null : <SwitchRow label="Serbest tutar girilebilir" value={form.allow_custom_amount} onValueChange={(allow_custom_amount) => set({ allow_custom_amount })} />}
         <SwitchRow label="Öne çıkan" value={form.is_featured} onValueChange={(is_featured) => set({ is_featured })} />
         <SwitchRow label="Toplanan tutarı göster" value={form.show_collected} onValueChange={(show_collected) => set({ show_collected })} />
         <SwitchRow label="Bağışçı listesini göster" value={form.show_donor_list} onValueChange={(show_donor_list) => set({ show_donor_list })} />

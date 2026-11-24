@@ -987,6 +987,8 @@ def _serialize_subscription(sub: Subscription) -> Dict[str, Any]:
         "has_card_token": bool(sub.card_ref),
         "card_brand": sub.card_brand,
         "card_last4": sub.card_last_4,
+        "total_charges": sub.total_charges,
+        "charges_done": sub.charges_done,
         "failed_attempts": sub.failed_attempts,
         "last_error": sub.last_error,
         "last_charged_at": sub.last_charged_at,
@@ -1028,7 +1030,7 @@ async def list_subscriptions(
         )
     ).all()
 
-    counts: Dict[str, int] = {"active": 0, "paused": 0, "cancelled": 0, "past_due": 0, "total": 0}
+    counts: Dict[str, int] = {"active": 0, "paused": 0, "cancelled": 0, "past_due": 0, "completed": 0, "total": 0}
     monthly_totals: Dict[str, int] = {}
     for st, curr, cnt, total_cents in summary_rows:
         cnt_int = int(cnt or 0)
@@ -1039,7 +1041,7 @@ async def list_subscriptions(
             monthly_totals[c] = monthly_totals.get(c, 0) + int(total_cents or 0)
 
     base_filters = [Subscription.organization_id == org_id]
-    if status_filter and status_filter in {"active", "paused", "cancelled", "past_due"}:
+    if status_filter and status_filter in {"active", "paused", "cancelled", "past_due", "completed"}:
         base_filters.append(Subscription.status == status_filter)
     if currency and currency.strip():
         base_filters.append(func.upper(Subscription.currency) == currency.strip().upper())
@@ -1218,6 +1220,8 @@ async def update_subscription(
         # A card is charged without the donor present: only the donor may change what is charged.
         raise HTTPException(status_code=400, detail="Kartlı talimatın tutarını yalnız bağışçı değiştirebilir")
     if payload.status is not None:
+        if sub.status == "completed":
+            raise HTTPException(status_code=400, detail="Süresi tamamlanmış talimat değiştirilemez")
         if payload.status == "active" and sub.status == "cancelled":
             raise HTTPException(status_code=400, detail="İptal edilmiş talimat yeniden açılamaz")
         if payload.status == "active":
@@ -1252,7 +1256,7 @@ async def retry_failed_subscription(
     ).scalar_one_or_none()
     if not sub:
         raise HTTPException(status_code=404, detail="Düzenli bağış talimatı bulunamadı.")
-    if sub.status == "cancelled":
+    if sub.status in ("cancelled", "completed"):
         raise HTTPException(status_code=400, detail="İptal edilmiş talimatta işlem yapılamaz.")
     from app.services import recurring
 

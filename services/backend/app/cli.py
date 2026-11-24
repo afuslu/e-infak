@@ -247,6 +247,21 @@ async def repair_kurban_intents(slug: str, apply: bool, db=None) -> int:
     return found
 
 
+async def copy_donation_options(slug: str, apply: bool) -> None:
+    from sqlalchemy import select
+
+    from app.core.db import AsyncSessionLocal
+    from app.models.organization import Organization
+    from app.services.donation_options import copy_from_blocks
+
+    async with AsyncSessionLocal() as db:
+        org_id = (await db.execute(select(Organization.id).where(Organization.slug == slug))).scalar_one()
+        report = await copy_from_blocks(db, org_id, apply)
+    print("\n".join(report) or "Kopyalanacak ayar yok")
+    if not apply:
+        print("Yazılmadı; --apply ile yazılır")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -277,6 +292,9 @@ def main() -> None:
     intents = commands.add_parser("repair-kurban-intents", help="Sitede seçilen niyeti Vacip kalan hisselere yazar")
     intents.add_argument("--org", required=True, help="Kurum kısa adı (slug)")
     intents.add_argument("--apply", action="store_true", help="Yaz (yoksa yalnız listeler)")
+    options = commands.add_parser("copy-donation-options", help="Bağış kartı bloklarındaki süre/adet/niyet ayarını kampanyalara kopyalar")
+    options.add_argument("--org", required=True, help="Kurum kısa adı (slug)")
+    options.add_argument("--apply", action="store_true", help="Yaz (yoksa yalnız listeler)")
     args = parser.parse_args()
     if args.command == "import-legacy-credentials":
         asyncio.run(import_legacy_credentials(args.dry_run))
@@ -294,6 +312,8 @@ def main() -> None:
         asyncio.run(backup_org(args.org, args.out))
     elif args.command == "repair-kurban-intents":
         asyncio.run(repair_kurban_intents(args.org, args.apply))
+    elif args.command == "copy-donation-options":
+        asyncio.run(copy_donation_options(args.org, args.apply))
 
 
 if __name__ == "__main__":

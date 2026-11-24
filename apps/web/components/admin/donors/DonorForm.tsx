@@ -81,8 +81,8 @@ export function DonorForm({ donor, staff, options, onSaved, onCancel, compact }:
     address: donor?.address || '',
     tax_number: donor?.tax_number || '',
     tags: (donor?.tags || []).join(', '),
-    allow_sms: donor?.allow_sms ?? true,
-    allow_email: donor?.allow_email ?? false,
+    sms_opt_out: donor?.sms_opt_out ?? false,
+    email_opt_out: donor?.email_opt_out ?? false,
   }), [donor])
   const [form, setForm] = useState(initial)
   useEffect(() => { setForm(initial) }, [initial])
@@ -104,8 +104,8 @@ export function DonorForm({ donor, staff, options, onSaved, onCancel, compact }:
       membership_type: form.membership_type || null,
       phone_code: form.phone_code,
       phone: withCode(form.phone, form.phone_code),
-      allow_sms: form.allow_sms,
-      allow_email: form.allow_email,
+      sms_opt_out: form.sms_opt_out,
+      email_opt_out: form.email_opt_out,
     }
     if (!compact) {
       Object.assign(body, {
@@ -242,10 +242,10 @@ export function DonorForm({ donor, staff, options, onSaved, onCancel, compact }:
         )}
         <div className="flex flex-wrap items-center gap-5 md:col-span-2">
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <input type="checkbox" checked={form.allow_sms} onChange={(e) => set('allow_sms', e.target.checked)} /> SMS izni
+            <input type="checkbox" checked={form.sms_opt_out} onChange={(e) => set('sms_opt_out', e.target.checked)} /> SMS gönderilmesin
           </label>
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-            <input type="checkbox" checked={form.allow_email} onChange={(e) => set('allow_email', e.target.checked)} /> E-posta izni
+            <input type="checkbox" checked={form.email_opt_out} onChange={(e) => set('email_opt_out', e.target.checked)} /> E-posta gönderilmesin
           </label>
         </div>
       </div>

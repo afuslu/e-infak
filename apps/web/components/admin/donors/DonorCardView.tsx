@@ -220,11 +220,15 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
                     <dd className="min-w-0 break-words font-semibold text-gray-900">{v}</dd>
                   </div>
                 ))}
-                <dt className="font-medium text-gray-500">İzinler</dt>
-                <dd className="flex flex-wrap gap-1.5 text-[11px] font-bold">
-                  <span className={`rounded border px-1.5 py-0.5 ${card.allow_sms ? 'border-emerald-200 text-emerald-700' : 'text-gray-400'}`}>SMS {card.allow_sms ? 'var' : 'yok'}</span>
-                  <span className={`rounded border px-1.5 py-0.5 ${card.allow_email ? 'border-emerald-200 text-emerald-700' : 'text-gray-400'}`}>E-posta {card.allow_email ? 'var' : 'yok'}</span>
-                </dd>
+                {(card.sms_opt_out || card.email_opt_out) && (
+                  <>
+                    <dt className="font-medium text-gray-500">İletişim</dt>
+                    <dd className="flex flex-wrap gap-1.5 text-[11px] font-bold text-amber-800">
+                      {card.sms_opt_out && <span className="rounded border border-amber-200 px-1.5 py-0.5">SMS istemiyor</span>}
+                      {card.email_opt_out && <span className="rounded border border-amber-200 px-1.5 py-0.5">E-posta istemiyor</span>}
+                    </dd>
+                  </>
+                )}
                 {card.tags.length > 0 && (
                   <>
                     <dt className="font-medium text-gray-500">Etiketler</dt>
@@ -456,7 +460,7 @@ export function DonorCardView({ donorId, staff, options, perms, canIssue }: {
       {mergeOpen && <MergeDonorDialog donorId={card.id} donorName={card.full_name} onClose={() => setMergeOpen(false)} />}
       {smsOpen && (
         <QuickSmsDialog
-          target={{ donorId: card.id, name: card.full_name, phone: card.phone, allowSms: card.allow_sms }}
+          target={{ donorId: card.id, name: card.full_name, phone: card.phone, smsOptOut: card.sms_opt_out }}
           onClose={() => setSmsOpen(false)}
           onSent={(r) => { toast.ok(sentNotice(r)); load() }}
         />

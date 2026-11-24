@@ -15,6 +15,9 @@ export type CartItem = {
   on_behalf_of_phone?: string;
   donor_message?: string;
   metadata?: Record<string, any>;
+  /** Price set by the campaign: not converted when the currency changes, the donor chooses again. */
+  locked?: boolean;
+  max_quantity?: number;
 };
 
 type StoredCart = {
@@ -113,7 +116,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (fromRate && toRate && items.length > 0) {
         const factor = fromRate / toRate;
         setItems((prev) =>
-          prev.map((item) => {
+          prev.filter((item) => !item.locked).map((item) => {
             const converted = Math.max(100, Math.round((item.unit_amount_cents * factor) / 100) * 100);
             return { ...item, unit_amount_cents: converted };
           }),
@@ -130,7 +133,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const idx = prev.findIndex((x) => x.key === key);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...next[idx], quantity: Math.min(100, next[idx].quantity + Math.max(1, input.quantity)) };
+        next[idx] = { ...next[idx], quantity: Math.min(input.max_quantity || 100, next[idx].quantity + Math.max(1, input.quantity)) };
         return next;
       }
       return [...prev, { ...input, key, quantity: Math.max(1, Math.min(100, input.quantity)) }];
@@ -140,7 +143,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const updateQuantity = useCallback((key: string, delta: number) => {
     setItems((prev) =>
       prev
-        .map((item) => (item.key === key ? { ...item, quantity: Math.min(100, item.quantity + delta) } : item))
+        .map((item) => (item.key === key ? { ...item, quantity: Math.min(item.max_quantity || 100, item.quantity + delta) } : item))
         .filter((item) => item.quantity > 0),
     );
   }, []);

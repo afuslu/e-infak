@@ -12,6 +12,8 @@ import { TranslationEditor, type Translations } from '../TranslationEditor'
 import { FormattedStory } from '../../FormattedStory'
 import { Label, inputClass } from '../FormKit'
 import { toast } from '../ui'
+import { CheckoutFieldsEditor, DonationSettings, cleanCheckoutFields, donationFormError, donationFormFrom, donationOptionsFrom, type CheckoutField } from './DonationSettings'
+import { PRICED_MODES, type DonationOptions } from '../../../lib/donation-options'
 
 export const CAMPAIGN_TYPES = [
   ['standard', 'Standart', HandCoins],
@@ -45,7 +47,7 @@ export interface CampaignData {
   fixed_amount: boolean; quantity_multiplier?: number | null; declaration_item?: string | null; groups: string[]
   is_zakat: boolean; show_on_site: boolean; tab_id?: string | null; redirect_mode: string; redirect_target?: string | null
   seo_title?: string | null; seo_description?: string | null; type_details: Record<string, unknown>
-  progress_percentage?: number
+  progress_percentage?: number; donation_options?: Partial<DonationOptions>; checkout_fields_schema?: CheckoutField[]
 }
 
 const money = (cents?: number | null) => (cents ? String(cents / 100).replace('.', ',') : '')
@@ -69,6 +71,9 @@ function formFrom(c?: CampaignData) {
     kurban_kind: String(c?.type_details?.kurban_kind || ''),
     share_count: String(c?.type_details?.share_count || '7'),
     refs: Object.fromEntries(REF_CURRENCIES.map(([k]) => [k, money(c?.reference_amounts?.[k])])) as Record<string, string>,
+    // New campaigns start with a mode; older ones keep working without one until staff picks it.
+    donation: donationFormFrom(c ? c.donation_options : { mode: 'free' }),
+    fields: c?.checkout_fields_schema || [],
     fixed_amount: c?.fixed_amount ?? false,
     quantity_multiplier: c?.quantity_multiplier ? String(c.quantity_multiplier) : '',
     variants: (c?.suggested_amounts_cents || []).map((v) => String(v / 100)).join(', '),
@@ -146,7 +151,9 @@ export function CampaignEditor({ campaign, onSaved, onCancel }: {
     e.preventDefault()
     setError('')
     const reference_amounts = Object.fromEntries(Object.entries(form.refs).map(([k, v]) => [k, cents(v)]).filter(([, v]) => v))
-    if (form.fixed_amount && !reference_amounts.TRY) { setError('Sabit tutar için TL referans tutarını girin'); return }
+    const donationError = donationFormError(form.donation, reference_amounts.TRY || 0)
+    if (donationError) { setError(donationError); return }
+    if (!form.donation.mode && form.fixed_amount && !reference_amounts.TRY) { setError('Sabit tutar için TL referans tutarını girin'); return }
     if (isKurban && (!form.kurban_type || !form.kurban_kind)) { setError('Kurban türü ve cinsini seçin'); return }
     const body: Record<string, unknown> = {
       campaign_type: form.campaign_type,
@@ -160,13 +167,15 @@ export function CampaignEditor({ campaign, onSaved, onCancel }: {
       is_zakat: form.is_zakat,
       type_details: isKurban ? { kurban_type: form.kurban_type, kurban_kind: form.kurban_kind, share_count: Number(form.share_count) || 1 } : {},
       reference_amounts,
-      fixed_amount: form.fixed_amount,
+      donation_options: donationOptionsFrom(form.donation),
+      checkout_fields_schema: cleanCheckoutFields(form.fields),
+      fixed_amount: form.donation.mode ? PRICED_MODES.includes(form.donation.mode) : form.fixed_amount,
       quantity_multiplier: Number(form.quantity_multiplier) || null,
       suggested_amounts_cents: form.variants.split(',').map((v) => cents(v)).filter(Boolean),
       target_cents: cents(form.target),
       currency: form.currency,
       min_donation_cents: Math.max(100, cents(form.min_donation) || 1000),
-      allow_custom_amount: form.fixed_amount ? false : form.allow_custom_amount,
+      allow_custom_amount: form.donation.mode ? form.donation.mode === 'free' : form.fixed_amount ? false : form.allow_custom_amount,
       display_name: form.display_name || null,
       tab_id: form.tab_id || null,
       groups: form.groups.split(',').map((g) => g.trim()).filter(Boolean),
@@ -321,7 +330,7 @@ export function CampaignEditor({ campaign, onSaved, onCancel }: {
       <Section title="Referans Tutarlar" hint="İsteğe bağlı referans bağış tutarları (para birimi başına).">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {REF_CURRENCIES.map(([k, label, sym]) => (
-            <Label key={k} label={k === 'TRY' && form.fixed_amount ? `${label} *` : label}>
+            <Label key={k} label={k === 'TRY' && form.donation.mode === 'duration' ? 'Aylık Tutar (TL) *' : k === 'TRY' && (form.donation.mode ? PRICED_MODES.includes(form.donation.mode) : form.fixed_amount) ? `${label} *` : label}>
               <div className="flex overflow-hidden rounded-lg border border-gray-300 focus-within:border-primary-600">
                 <input className="min-w-0 flex-1 p-2.5 text-sm outline-none" inputMode="decimal" value={form.refs[k] || ''}
                   onChange={(e) => set('refs', { ...form.refs, [k]: e.target.value })} />
@@ -330,14 +339,26 @@ export function CampaignEditor({ campaign, onSaved, onCancel }: {
             </Label>
           ))}
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <div className="md:col-span-2">{check('fixed_amount', 'Sabit Tutar', 'Bağışçı bu tutardan başka rakam giremez.')}</div>
-          <Label label="Adet Çarpanı" hint="Makbuz/raporlarda gerçek adet = adet × çarpan (örn. 1 alım = N hisse).">
+      </Section>
+
+      <Section title="Bağış Ayarları" hint="Bağışçının sitede nasıl bağış yapacağını seçin; kampanyanın göründüğü her yerde geçerlidir.">
+        <DonationSettings form={form.donation} onChange={(d) => set('donation', d)} minCents={Math.max(100, cents(form.min_donation) || 1000)}
+          refs={Object.fromEntries(Object.entries(form.refs).map(([k, v]) => [k, cents(v)]).filter(([, v]) => v))}
+          suggestedCents={form.variants.split(',').map((v) => cents(v)).filter(Boolean)} />
+        <div className="mt-5 grid gap-4 border-t border-gray-100 pt-5 md:grid-cols-2">
+          {!form.donation.mode && check('fixed_amount', 'Sabit Tutar', 'Bağışçı bu tutardan başka rakam giremez.')}
+          {!form.donation.mode && !form.fixed_amount && check('allow_custom_amount', 'Serbest tutar', 'Bağışçı kendi tutarını yazabilir.')}
+          {(!form.donation.mode || form.donation.mode === 'free') && (
+            <>
+              <Label label="Hazır tutarlar" hint="Bağış formunda öneri olarak çıkar (virgülle ayırın).">
+                <input className={inputClass} placeholder="100, 250, 500" value={form.variants} onChange={(e) => set('variants', e.target.value)} />
+              </Label>
+              <Label label="En Az Bağış"><input className={inputClass} inputMode="decimal" value={form.min_donation} onChange={(e) => set('min_donation', e.target.value)} /></Label>
+            </>
+          )}
+          <Label label="Adet Çarpanı" hint="Makbuz ve raporda gerçek adet = adet × çarpan (ör. 1 alım = 7 adet).">
             <input className={inputClass} inputMode="numeric" placeholder="Çarpan varsa girebilirsiniz" value={form.quantity_multiplier}
               onChange={(e) => set('quantity_multiplier', e.target.value.replace(/\D/g, ''))} />
-          </Label>
-          <Label label="Özel Varyant" hint="Web bağış formunda hazır tutar seçenekleri (virgülle ayırın).">
-            <input className={inputClass} placeholder="10, 20, 30 gibi" value={form.variants} onChange={(e) => set('variants', e.target.value)} />
           </Label>
           <div className="grid grid-cols-[1fr_110px] gap-2">
             <Label label="Hedef Tutar"><input className={inputClass} inputMode="decimal" value={form.target} onChange={(e) => set('target', e.target.value)} /></Label>
@@ -347,9 +368,11 @@ export function CampaignEditor({ campaign, onSaved, onCancel }: {
               </select>
             </Label>
           </div>
-          <Label label="En Az Bağış"><input className={inputClass} inputMode="decimal" value={form.min_donation} onChange={(e) => set('min_donation', e.target.value)} /></Label>
-          {!form.fixed_amount && check('allow_custom_amount', 'Serbest tutar', 'Bağışçı kendi tutarını yazabilir.')}
         </div>
+      </Section>
+
+      <Section title="Ek Form Alanları" hint="Bağış yaparken sorulacak ek bilgiler. Zorunlu alanlar doldurulmadan bağış tamamlanmaz.">
+        <CheckoutFieldsEditor fields={form.fields} onChange={(f) => set('fields', f)} />
       </Section>
 
       <Section title="Web Site Ayarları">

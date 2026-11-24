@@ -27,7 +27,7 @@ from app.models.sms_batch import SmsBatch
 from app.models.sms_message import SMS_OPEN_STATUSES, SMS_SOURCES, SMS_STATUSES, SmsMessage
 from app.models.sms_template import SmsTemplate
 from app.models.user import User
-from app.services.sms_audience import Audience, audience_label, audience_options, resolve
+from app.services.sms_audience import Audience, audience_label, audience_options, opted_out_phones, resolve
 from app.services.sms_service import (
     AUTO_MODES, MAX_PARTS, SMS_EVENTS, SMS_VARIABLES, _kick_batch, after_quiet_hours, build_context, cancel_batch,
     clean_sms_text, collect_reports, create_batch, enqueue_sms, opt_out_token, provider_balance, render_bulk,
@@ -35,6 +35,7 @@ from app.services.sms_service import (
     unknown_variables, verify_opt_out_token,
 )
 from app.sms import SmsError
+from app.utils.phone import phone_key, phone_matches
 
 router = APIRouter(
     prefix="/admin-features/sms",
@@ -290,6 +291,7 @@ async def preview_sms(
         "body": rendered, "segments": segment_info(rendered),
         "phone": (mask_phone(donor.phone, current_user) if current_user else donor.phone) if donor else None,
         "allow_sms": bool(donor.allow_sms) if donor else None,
+        "sms_opt_out": donor.sms_opt_out if donor else None,
     }
 
 
@@ -305,11 +307,10 @@ async def send_sms(request: Request, payload: SendIn, db: AsyncSession = Depends
         raise HTTPException(status_code=409, detail="Gönderilecek telefon numarası yok")
     # A message about the donor's own receipt or transfer is information, not promotion.
     informational = payload.informational or bool(donation or transfer)
-    if not (donor and donor.allow_sms) and not informational:
+    if not informational and phone_key(phone) in await opted_out_phones(db, org_id):
         raise HTTPException(
             status_code=409,
-            detail="Bağışçının SMS izni yok. Yalnızca kendi bağışıyla ilgili bilgilendirme gönderilebilir; "
-                   "tanıtım içerikli ileti gönderilemez (İYS).",
+            detail="Bu kişi SMS almak istemiyor. Yalnızca kendi bağışıyla ilgili bilgilendirme gönderilebilir.",
         )
     related = None
     if payload.related_type and payload.related_id:
@@ -336,7 +337,7 @@ async def send_sms(request: Request, payload: SendIn, db: AsyncSession = Depends
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     _audit(db, org_id, current_user, "sms_gonder", {
         "sms_no": message.seq_no, "donor_id": str(donor.id) if donor else None, "parts": message.parts,
-        "scheduled": message.status == "scheduled", "without_consent": not (donor and donor.allow_sms),
+        "scheduled": message.status == "scheduled", "opted_out": bool(donor and donor.sms_opt_out),
     })
     await db.commit()
     return {"id": str(message.id), "seq_no": message.seq_no, "status": message.status,
@@ -817,7 +818,7 @@ async def send_batch(request: Request, payload: BatchIn, db: AsyncSession = Depe
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     _audit(db, org_id, current_user, "toplu_sms_gonder", {
         "batch_id": str(batch.id), "audience": label, "recipients": batch.total, "commercial": payload.commercial,
-        "without_consent": bool(payload.audience.include_without_consent and not payload.commercial), **stats,
+        **stats,
     })
     await db.commit()
     waiting = "scheduled" if send_at else "queued"
@@ -1025,13 +1026,13 @@ async def get_opt_out_info(token: str, db: AsyncSession = Depends(get_db)):
     org = await db.get(Organization, org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Kurum bulunamadı")
-    q = select(Donor.allow_sms).where(Donor.organization_id == org_id)
-    q = q.where(Donor.id == donor_id) if donor_id else q.where(Donor.phone == phone)
-    allow = (await db.execute(q)).scalars().first()
+    q = select(Donor.sms_opt_out).where(Donor.organization_id == org_id)
+    q = q.where(Donor.id == donor_id) if donor_id else q.where(phone_matches(Donor.phone, phone))
+    flags = (await db.execute(q)).scalars().all()
     return {
         "org_name": org.name,
         "phone_masked": masked(phone),
-        "opted_out": allow is False,
+        "opted_out": any(flags),
     }
 
 
@@ -1046,10 +1047,11 @@ async def confirm_opt_out(token: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Kurum bulunamadı")
     where = [Donor.organization_id == org_id]
     if donor_id:
-        where.append(or_(Donor.id == donor_id, Donor.phone == phone))
+        where.append(or_(Donor.id == donor_id, phone_matches(Donor.phone, phone)))
     else:
-        where.append(Donor.phone == phone)
-    await db.execute(update(Donor).where(*where).values(allow_sms=False))
+        where.append(phone_matches(Donor.phone, phone))
+    await db.execute(update(Donor).where(*where).values(allow_sms=False, sms_opt_out=True)
+                     .execution_options(synchronize_session=False))
     await db.commit()
     return {"ok": True, "org_name": org.name}
 

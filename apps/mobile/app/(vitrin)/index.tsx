@@ -34,6 +34,7 @@ import { IddefBottomBar, IddefHeader, useBrandColors } from '@/components/IddefC
 import { useCart } from '@/context/CartContext';
 import { notify } from '@/components/toast';
 import { call, money } from '@/lib/format';
+import { needsChoice } from '@/lib/donationOptions';
 import { radius, space } from '@/theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -78,6 +79,7 @@ export default function VitrinHomeScreen() {
   }, [campaigns, selectedCat]);
 
   const quickAdd = (c: PublicCampaign) => {
+    if (needsChoice(c)) return openCampaign(c.slug);
     const defaultCents =
       c.suggested_amounts_cents?.[0] ||
       c.reference_amounts?.TRY ||

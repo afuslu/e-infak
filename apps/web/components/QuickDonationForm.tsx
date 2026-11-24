@@ -9,6 +9,8 @@ import { clientLocale, translator } from '../lib/i18n'
 import { ConsentChecks, useCardFallback, useCheckoutLegal, useLoggedInDonor } from './CheckoutConsent'
 import { PaymentTrustBadges } from './site/PaymentTrustBadges'
 import { useSiteCurrency } from './blocks/DonationBlocks'
+import { DonationChoiceFields, useDonationChoice } from './donation-choice'
+import type { DonationCampaign } from '../lib/donation-options'
 
 const CURRENCY_SYMBOL: Record<'TRY' | 'EUR' | 'USD', string> = { TRY: '₺', EUR: '€', USD: '$' }
 
@@ -23,12 +25,15 @@ export interface QuickDonationCampaignOption {
   target?: string
   progress?: number
   suggestedAmounts?: number[]
+  donation?: DonationCampaign
   checkoutFieldsSchema?: QuickDonationFormProps['checkoutFieldsSchema']
 }
 
 interface QuickDonationFormProps {
   campaignId: string
   campaignTitle: string
+  /** The campaign itself: its donation options replace the amount buttons. */
+  donation?: DonationCampaign
   suggestedAmounts?: number[]
   themeSlug?: string
   initialAmount?: number
@@ -183,6 +188,7 @@ export function QuickDonationForm({
   buttonLabel,
   campaignInfo,
   checkoutFieldsSchema = [],
+  donation,
 }: QuickDonationFormProps) {
   const [selectedCampaignId, setSelectedCampaignId] = useState(campaignId)
   useEffect(() => { setSelectedCampaignId(campaignId) }, [campaignId])
@@ -234,6 +240,13 @@ export function QuickDonationForm({
     return activeAmounts.map((v) => ({ raw: v, value: Math.max(1, Math.round(v / rate)) }))
   }, [activeAmounts, currency, rates])
   const currencySymbol = CURRENCY_SYMBOL[currency]
+  const activeDonation = selectedCampaign?.donation || donation
+  const convertTry = (n: number) => (currency === 'TRY' ? n : rates[currency] ? Math.round((n / rates[currency]!) * 100) / 100 : null)
+  const own = useDonationChoice(activeDonation, currency, convertTry, locale)
+  useEffect(() => {
+    if (initialAmount && own.options?.mode === 'free') own.set({ amount: String(initialAmount) })
+  }, [initialAmount, own.options?.mode]) // eslint-disable-line react-hooks/exhaustive-deps
+  const ownTotal = own.options ? own.result?.unit ?? null : null
   const router = useRouter()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -275,6 +288,12 @@ export function QuickDonationForm({
   }
 
   const goToDetails = () => {
+    if (own.options) {
+      const problem = own.validate()
+      setErrorMsg(problem)
+      if (!problem) setStep(2)
+      return
+    }
     if (!Number(amount) || Number(amount) <= 0) {
       setErrorMsg(ex.invalidAmount)
       return
@@ -288,8 +307,9 @@ export function QuickDonationForm({
       setErrorMsg(ex.editorPreview)
       return
     }
-    if (!Number(amount) || Number(amount) <= 0) {
-      setErrorMsg(ex.invalidAmount)
+    const problem = own.options ? own.validate() : !Number(amount) || Number(amount) <= 0 ? ex.invalidAmount : ''
+    if (problem) {
+      setErrorMsg(problem)
       return
     }
     const effFirstName = (isLoggedIn && loggedInDonor ? loggedInDonor.firstName : firstName).trim()
@@ -320,8 +340,8 @@ export function QuickDonationForm({
       const result = await checkout.mutateAsync({
         items: [{
           campaign_id: activeCampaignId,
-          quantity: 1,
-          unit_amount_cents: Math.round(Number(amount) * 100),
+          quantity: own.result?.quantity ?? 1,
+          unit_amount_cents: Math.round((own.options ? ownTotal || 0 : Number(amount)) * 100),
           donor_message: donorNote || undefined,
           on_behalf_of: isGift && onBehalfOf.trim() ? onBehalfOf.trim() : undefined,
           on_behalf_of_phone: isGift && onBehalfOfPhone.trim() ? onBehalfOfPhone.trim() : undefined,
@@ -333,7 +353,7 @@ export function QuickDonationForm({
                 : metadata[field.key],
             ])),
             // Monthly: the backend opens a recurring instruction once this payment is confirmed.
-            ...(frequency === 'monthly' ? { periyot: 'aylik' } : {}),
+            ...(own.options ? own.result?.metadata : frequency === 'monthly' ? { periyot: 'aylik' } : {}),
           },
         }],
         donor: {
@@ -401,7 +421,7 @@ export function QuickDonationForm({
     </div>
   )
 
-  const frequencyTabs = showFrequency && (
+  const frequencyTabs = showFrequency && !own.options && (
     <div>
       <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100 p-1">
         <button
@@ -427,6 +447,9 @@ export function QuickDonationForm({
     <div className="space-y-4">
       {campaignPicker}
       {frequencyTabs}
+      {own.options && activeDonation ? (
+        <DonationChoiceFields state={own} campaign={activeDonation} currency={currency} convert={convertTry} locale={locale} hidePersonal />
+      ) : (<>
       <div className={`grid gap-2.5 ${displayAmounts.length >= 3 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'}`}>
         {displayAmounts.map(({ raw, value }) => {
           const selected = Number(amount) === value
@@ -458,6 +481,7 @@ export function QuickDonationForm({
           <span className="absolute end-4 top-3 text-slate-500">{currencySymbol}</span>
         </span>
       </label>
+      </>)}
       <fieldset>
         <legend className="mb-2 text-xs font-black uppercase tracking-wider text-slate-500">{t('form.paymentMethod')}</legend>
         <div className={`grid gap-3 ${cardPayments ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -640,6 +664,9 @@ export function QuickDonationForm({
               <div className="truncate font-heading text-base font-bold text-slate-900">{activeCampaignTitle}</div>
             )}
           </div>
+          {own.options && activeDonation ? (
+            <div className="min-w-[240px] flex-1"><DonationChoiceFields state={own} campaign={activeDonation} currency={currency} convert={convertTry} locale={locale} hidePersonal /></div>
+          ) : (<>
           <div className="flex flex-wrap gap-2">
             {activeAmounts.slice(0, 4).map((value) => (
               <button
@@ -664,6 +691,7 @@ export function QuickDonationForm({
             />
             <span className="absolute end-3 top-2.5 text-sm text-slate-500">{currencySymbol}</span>
           </div>
+          </>)}
           <button type="button" onClick={goToDetails} className="rounded-xl bg-accent-500 px-6 py-2.5 text-sm font-extrabold text-white shadow-sm transition hover:bg-accent-600">
             {ctaText}
           </button>

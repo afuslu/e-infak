@@ -17,6 +17,7 @@ import { IddefBottomBar, IddefHeader, useBrandColors } from '@/components/IddefC
 import { useCart } from '@/context/CartContext';
 import { notify } from '@/components/toast';
 import { money, toCents } from '@/lib/format';
+import { needsChoice } from '@/lib/donationOptions';
 import { radius, space } from '@/theme';
 
 export default function QuickDonateScreen() {
@@ -64,6 +65,10 @@ export default function QuickDonateScreen() {
   };
 
   const addQuick = (c: PublicCampaign, goCart: boolean) => {
+    if (needsChoice(c)) {
+      router.push(`/(vitrin)/kampanya/${encodeURIComponent(c.slug)}` as Href);
+      return;
+    }
     const cents = getCentsFor(c);
     const min = c.min_donation_cents || 100;
     if (cents < min) {
@@ -167,7 +172,7 @@ export default function QuickDonateScreen() {
                     ) : null}
                   </Pressable>
 
-                  <View style={styles.presetRow}>
+                  {needsChoice(c) ? null : <View style={styles.presetRow}>
                     {presets.map((amt) => {
                       const active = currentCents === amt;
                       return (
@@ -202,7 +207,7 @@ export default function QuickDonateScreen() {
                         style={styles.inlineInput}
                       />
                     ) : null}
-                  </View>
+                  </View>}
 
                   <View style={styles.actions}>
                     <Pressable
@@ -210,7 +215,7 @@ export default function QuickDonateScreen() {
                       style={[styles.outlineBtn, { borderColor: primary }]}
                     >
                       <ShoppingBag size={16} color={primary} />
-                      <Text style={[styles.outlineBtnText, { color: primary }]}>Sepete Ekle</Text>
+                      <Text style={[styles.outlineBtnText, { color: primary }]}>{needsChoice(c) ? 'Seçenekler' : 'Sepete Ekle'}</Text>
                     </Pressable>
                     <Pressable
                       onPress={() => addQuick(c, true)}

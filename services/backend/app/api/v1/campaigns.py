@@ -21,11 +21,13 @@ def _localized(campaign: Campaign, lang: Optional[str]) -> CampaignResponse:
         response = response.model_copy(update={f: overlay[f] for f in CAMPAIGN_I18N if overlay.get(f)})
     return response
 
+from app.services.donation_options import apply_to_campaign, needs_unit_price
+
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
 # Columns that are NOT NULL: a null in the payload means "leave as is / use the default".
 NOT_NULL_STK = ("campaign_type", "reference_amounts", "fixed_amount", "groups", "is_zakat", "show_on_site",
-                "redirect_mode", "type_details")
+                "redirect_mode", "type_details", "donation_options")
 
 
 def _without_null_defaults(data: dict) -> dict:
@@ -35,6 +37,9 @@ def _without_null_defaults(data: dict) -> dict:
 def _apply_fixed_amount(campaign: Campaign) -> None:
     """"Sabit Tutar": the site's donation form offers only the TL reference amount (it already treats
     allow_custom_amount=False + one suggested amount as a fixed price)."""
+    if campaign.donation_options:
+        apply_to_campaign(campaign)
+        return
     if campaign.fixed_amount and (campaign.reference_amounts or {}).get("TRY"):
         campaign.allow_custom_amount = False
         campaign.suggested_amounts_cents = [int(campaign.reference_amounts["TRY"])]
@@ -231,8 +236,8 @@ async def create_campaign(
         raise HTTPException(status_code=400, detail="Campaign slug already exists")
     
     data = _without_null_defaults(campaign_in.model_dump(exclude={"slug"}))
-    if data.get("fixed_amount") and not (data.get("reference_amounts") or {}).get("TRY"):
-        raise HTTPException(status_code=422, detail="Sabit tutar için TL referans tutarını girin")
+    if (data.get("fixed_amount") or needs_unit_price(data.get("donation_options"))) and not (data.get("reference_amounts") or {}).get("TRY"):
+        raise HTTPException(status_code=422, detail="Bu bağış şekli için TL tutarını girin")
     await _check_tab(db, organization_id, data.get("tab_id"))
     campaign = Campaign(
         organization_id=organization_id,
@@ -277,8 +282,11 @@ async def update_campaign(
         await _check_tab(db, organization_id, payload["tab_id"])
     fixed = payload.get("fixed_amount", campaign.fixed_amount)
     refs = payload.get("reference_amounts", campaign.reference_amounts) or {}
+    options = payload.get("donation_options", campaign.donation_options)
+    if options:
+        fixed = needs_unit_price(options)
     if fixed and not refs.get("TRY"):
-        raise HTTPException(status_code=422, detail="Sabit tutar için TL referans tutarını girin")
+        raise HTTPException(status_code=422, detail="Bu bağış şekli için TL tutarını girin")
     if "slug" in payload and payload["slug"] is not None:
         new_slug = slugify(payload["slug"])
         if not new_slug:

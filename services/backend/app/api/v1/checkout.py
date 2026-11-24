@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import Permission, require_module, require_permission
 from app.services.donation_hooks import on_donation_cancelled, on_donation_confirmed
+from app.services import donation_options
 from app.services.fx import add_to_campaign, add_to_donor, remove_from_campaign, remove_from_donor
 from app.payments import PROVIDERS, build_provider, provider_for, provider_key_for
 from app.payments.base import CheckoutContext, CheckoutLine, PaymentProviderError, PaymentResult
@@ -336,6 +337,7 @@ async def _finalize_paid_order(
             )
         )
         await db.flush()
+        donation_options.record_quantity(donation, item.campaign, item.quantity)
         await add_to_campaign(db, donation, item.campaign)
         await add_to_donor(db, order.donor, donation)
         await on_donation_confirmed(
@@ -431,6 +433,7 @@ async def create_checkout_session(
         campaign = campaigns[item.campaign_id]
         if item.unit_amount_cents < campaign.min_donation_cents:
             raise HTTPException(status_code=400, detail=f"{campaign.title} için minimum tutar karşılanmıyor")
+        await donation_options.check_item(db, campaign, item, payload.currency)
         if len(json.dumps(item.metadata, ensure_ascii=False)) > 10_000:
             raise HTTPException(status_code=400, detail="Kampanya ek bilgileri çok büyük")
         # A site card sends "niyet"; a campaign linked to a kurban organisation asks for "kurban_type".

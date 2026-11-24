@@ -43,10 +43,10 @@ def to_html(body: str, *, org_name: str, commercial: bool) -> str:
     )
 
 
-async def build_recipients(db: AsyncSession, org_id: UUID, donor_ids: Iterable[UUID], *, commercial: bool,
-                           include_without_consent: bool) -> tuple[list[tuple[Donor, str]], dict]:
-    """Unique valid addresses; commercial mail (and informational unless forced) needs e-mail consent."""
-    need_consent = commercial or not include_without_consent
+async def build_recipients(db: AsyncSession, org_id: UUID, donor_ids: Iterable[UUID], *, commercial: bool) -> tuple[list[tuple[Donor, str]], dict]:
+    """Unique valid addresses; opted-out people are left out and commercial mail needs e-mail consent."""
+    opted_out = set((await db.execute(select(func.lower(func.trim(Donor.email))).where(
+        Donor.organization_id == org_id, Donor.email_opt_out.is_(True), Donor.email.is_not(None)))).scalars())
     stats = {"matched": 0, "no_email": 0, "no_consent": 0, "invalid": 0, "duplicate": 0}
     ids = list(donor_ids)
     seen: set[str] = set()
@@ -61,7 +61,7 @@ async def build_recipients(db: AsyncSession, org_id: UUID, donor_ids: Iterable[U
                 stats["no_email"] += 1
             elif not EMAIL_RE.match(email):
                 stats["invalid"] += 1
-            elif need_consent and not d.allow_email:
+            elif email in opted_out or (commercial and not d.allow_email):
                 stats["no_consent"] += 1
             elif email in seen:
                 stats["duplicate"] += 1
