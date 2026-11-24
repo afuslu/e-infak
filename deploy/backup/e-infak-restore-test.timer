@@ -1,0 +1,10 @@
+[Unit]
+Description=E-İnfak üç aylık geri yükleme testi
+
+[Timer]
+OnCalendar=*-01,04,07,10-03 06:00:00 Europe/Istanbul
+Persistent=true
+Unit=e-infak-restore-test.service
+
+[Install]
+WantedBy=timers.target

@@ -94,6 +94,10 @@ cp "$SURUM/deploy/docker/dagit.sh" "$DIZIN/dagit.sh.yeni" && chmod +x "$DIZIN/da
 # sudo ile çalıştırılan nginx betikleri de güncel sürümden alınır
 for betik in nginx-kur.sh nginx-otomatik-ssl.sh; do cp "$SURUM/deploy/docker/$betik" "$DIZIN/$betik" || true; done
 
+if [[ -f /usr/local/sbin/e-infak-yedek ]] && ! cmp -s "$SURUM/deploy/backup/gecelik-yedek.sh" /usr/local/sbin/e-infak-yedek; then
+  log "NOT: gecelik yedek betiği değişti; güncellemek için: sudo bash $SURUM/deploy/backup/yedek-kur.sh"
+fi
+
 # Eski sürümler, imajlar ve yedekler
 ls -1dt "$DIZIN"/releases/*/ 2>/dev/null | tail -n +"$((SAKLANACAK_SURUM + 1))" | while read -r eski; do
   eski_tag="$(basename "$eski")"

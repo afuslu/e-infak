@@ -21,6 +21,10 @@
     python -m app.cli seed-sms-templates --org hakder --preset hakder
         Loads a ready SMS template set (app/services/sms_presets.py) into the organisation.
         Templates are matched by event or name, so running it again only refreshes the texts.
+
+    python -m app.cli list-orgs
+    python -m app.cli backup-org --org hakder --out /data/media/_exports/_gecelik/hakder.zip
+        Used by deploy/backup/gecelik-yedek.sh: organisation slugs, and one organisation's full backup ZIP.
 """
 import argparse
 import asyncio
@@ -178,6 +182,29 @@ async def seed_sms_templates(org_slug: str, preset: str) -> None:
     print(f"{org.name}: {result['created']} şablon eklendi, {result['updated']} şablon güncellendi.")
 
 
+async def list_orgs() -> None:
+    from app.core.db import AsyncSessionLocal
+    from app.models.organization import Organization
+
+    async with AsyncSessionLocal() as db:
+        for slug in (await db.execute(select(Organization.slug).order_by(Organization.slug))).scalars():
+            print(f"KURUM {slug}")
+
+
+async def backup_org(slug: str, out: str) -> None:
+    from pathlib import Path
+    from app.core.db import AsyncSessionLocal
+    from app.services.data_export import write_backup, tables
+    from app.models.organization import Organization
+
+    tables()  # registers every model
+    async with AsyncSessionLocal() as db:
+        org = (await db.execute(select(Organization).where(Organization.slug == slug))).scalar_one_or_none()
+        if org is None:
+            raise SystemExit(f"Kurum bulunamadı: {slug}")
+        await write_backup(db, org, Path(out))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -201,6 +228,10 @@ def main() -> None:
     sms = commands.add_parser("seed-sms-templates", help="Kuruma hazır SMS şablon setini yükler")
     sms.add_argument("--org", required=True, help="Kurum kısa adı (slug)")
     sms.add_argument("--preset", required=True, choices=["hakder"])
+    commands.add_parser("list-orgs", help="Kurum kısa adlarını listeler")
+    backup = commands.add_parser("backup-org", help="Kurumun tam yedeğini (ZIP) yazar")
+    backup.add_argument("--org", required=True, help="Kurum kısa adı (slug)")
+    backup.add_argument("--out", required=True, help="Yazılacak ZIP dosyası")
     args = parser.parse_args()
     if args.command == "import-legacy-credentials":
         asyncio.run(import_legacy_credentials(args.dry_run))
@@ -212,6 +243,10 @@ def main() -> None:
         asyncio.run(import_stkpro(args))
     elif args.command == "seed-sms-templates":
         asyncio.run(seed_sms_templates(args.org, args.preset))
+    elif args.command == "list-orgs":
+        asyncio.run(list_orgs())
+    elif args.command == "backup-org":
+        asyncio.run(backup_org(args.org, args.out))
 
 
 if __name__ == "__main__":

@@ -317,18 +317,12 @@ def _zip(work: Path, target: Path, media: list[tuple[Path, str]], password: Opti
         partial.unlink(missing_ok=True)
 
 
-async def build(db: AsyncSession, export) -> None:
-    """Fill in a queued export. The caller commits."""
-    from app.models.organization import Organization
-
-    org = await db.get(Organization, export.organization_id)
-    password = None
-    if export.encrypted:
-        from app.services.tenant_credentials import decrypt
-        password = decrypt(export.password_enc)["password"]
-    root = export_dir(org.id)
+async def write_backup(db: AsyncSession, org, target: Path, include_media: bool = True,
+                       password: Optional[str] = None) -> tuple[str, dict[str, int]]:
+    """Write everything the organisation owns into one ZIP; returns its SHA-256 and the record counts."""
+    root = target.parent
     root.mkdir(parents=True, exist_ok=True)
-    media = media_files(org.id) if export.include_media else []
+    media = media_files(org.id) if include_media else []
     needed = sum(f.stat().st_size for f, _ in media) + DISK_RESERVE
     if shutil.disk_usage(root).free < needed:
         raise RuntimeError("Sunucuda yedek için yeterli boş alan yok; görselleri dahil etmeden deneyin veya destekle görüşün")
@@ -345,10 +339,22 @@ async def build(db: AsyncSession, export) -> None:
         (work / "ozet.json").write_text(json.dumps(
             {"kurum": org.name, "tarih": now.isoformat(), "kayitlar": counts, "dosya_sayisi": len(media)},
             ensure_ascii=False, indent=2), encoding="utf-8")
-        target = export_path(export)
-        export.sha256 = await asyncio.to_thread(_zip, work, target, media, password)
+        digest = await asyncio.to_thread(_zip, work, target, media, password)
+    return digest, {**counts, "dosyalar": len(media)}
+
+
+async def build(db: AsyncSession, export) -> None:
+    """Fill in a queued export. The caller commits."""
+    from app.models.organization import Organization
+
+    org = await db.get(Organization, export.organization_id)
+    password = None
+    if export.encrypted:
+        from app.services.tenant_credentials import decrypt
+        password = decrypt(export.password_enc)["password"]
+    target = export_path(export)
+    export.sha256, export.counts = await write_backup(db, org, target, export.include_media, password)
     export.size_bytes = target.stat().st_size
-    export.counts = {**counts, "dosyalar": len(media)}
     export.finished_at = datetime.now(timezone.utc)
     export.expires_at = export.finished_at + timedelta(days=KEEP_DAYS)
     export.status = "ready"

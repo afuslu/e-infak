@@ -1,0 +1,15 @@
+[Unit]
+Description=E-İnfak platform ve kurum yedekleri (Google Drive)
+Wants=network-online.target docker.service
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=root
+Environment=HOME=/root
+ExecStart=/usr/local/sbin/e-infak-yedek
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+TimeoutStartSec=4h

@@ -92,6 +92,20 @@ async def test_backup_holds_own_data_without_secrets(db_session, media_root):
 
 
 @pytest.mark.asyncio
+async def test_nightly_backup_writes_one_organisation(db_session, media_root):
+    org, *_ = await _filled(db_session)
+    other, *_ = await _filled(db_session)
+    target = media_root / "_exports" / "_gecelik" / "kurum.zip"
+    _, counts = await svc.write_backup(db_session, org, target)
+    assert counts["donors"] == 1
+    with zipfile.ZipFile(target) as z:
+        assert z.testzip() is None
+        assert json.loads(z.read("ozet.json"))["kurum"] == org.name
+        everything = b"".join(z.read(n) for n in z.namelist() if n.startswith("json/")).decode()
+    assert str(org.id) in everything and str(other.id) not in everything
+
+
+@pytest.mark.asyncio
 async def test_access_link_and_download_rules(db_session, monkeypatch):
     org, admin, crm_user, *_ = await _filled(db_session)
     other, other_admin, *_ = await _filled(db_session)

@@ -1,0 +1,10 @@
+[Unit]
+Description=E-İnfak platform ve kurum yedekleri (Google Drive)
+
+[Timer]
+OnCalendar=*-*-* 03:45:00 Europe/Istanbul
+Persistent=true
+Unit=e-infak-yedek.service
+
+[Install]
+WantedBy=timers.target

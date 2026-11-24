@@ -141,6 +141,34 @@ Kurumların panele girdiği ödeme/SMS şifreleri `CREDENTIALS_ENCRYPTION_KEY` i
 ssh afuslu@31.97.159.228 grep CREDENTIALS_ENCRYPTION_KEY /opt/e_infak/.env
 ```
 
+## Gecelik Google Drive yedeği
+
+Her gece 03:45'te (E-Medrese'ninki 03:00'te) `e-infak-yedek.timer` çalışır. Her kurumun Drive'da kendi klasörü vardır:
+
+| Drive klasörü | İçerik |
+|---|---|
+| `e-medrese-yedek/` | E-Medrese (kendi betiği yükler) |
+| `e-infak-yedek/` | Bütün platform: veritabanı, medya, `.env`. Sunucu kaybında **geri yükleme buradan** yapılır |
+| `<kurum-kısa-adı>-yedek/` | Yalnızca o kurumun verisi (Excel, JSON, görseller, videolar); ör. `hakder-yedek/` |
+
+- Yeni kurumun klasörü ilk gece kendiliğinden oluşur.
+- Dosyalar `/root/.yedek-sifre` ile AES-256 şifrelidir; bu şifreyi parola yöneticinize kaydedin. Aynı şifre hepsini açar, kurumlarla paylaşmayın.
+- Sunucuda (`/var/yedek/e-infak`) 7 gün, Drive'da 30 gün saklanır; silinen kurumların klasörleri de temizlenir. Yedeği o gece alınamayan klasörden bir şey silinmez.
+- Kurum yedekleri dışa aktarımdır; tek kurumu sisteme otomatik geri yüklemez.
+- Üç ayda bir `e-infak-restore-test.timer` son platform yedeğini Drive'dan indirip geçici bir veritabanına yükler.
+
+Kurulum (önce `sudo -H rclone config` ile `drive` adlı bağlantıyı yapın):
+
+```bash
+ssh -t afuslu@31.97.159.228 "sudo bash /opt/e_infak/releases/\$(cat /opt/e_infak/runtime/aktif-surum)/deploy/backup/yedek-kur.sh"
+```
+
+İndirilmiş bir yedeği açmak:
+
+```bash
+gpg --output yedek.zip --decrypt e-infak_hakder_TARIH.zip.gpg
+```
+
 ## Sorun olursa
 
 ```bash
