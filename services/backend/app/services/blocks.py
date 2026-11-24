@@ -1981,6 +1981,7 @@ SITE_BLOCKS: dict[str, dict] = {
             }, default="centered_minimal"),
             "text": F("text", "Metin", max=200, translatable=True, placeholder="Boşsa: © yıl Kurum adı"),
             "show_powered": F("bool", "\"E-İnfak altyapısıyla\" yazısı", default=True),
+            "show_cookie_link": F("bool", "\"Çerez tercihleri\" bağlantısı", default=True),
         },
     },
 }

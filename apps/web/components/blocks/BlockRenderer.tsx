@@ -2825,7 +2825,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                     <span className="rounded-full border border-current/20 px-2.5 py-0.5 text-[10px] font-bold">✓ Resmi Bağış</span>
                   </>
                 )}
-                <ConsentLink className="hover:underline" />
+                {o.show_cookie_link !== false && <ConsentLink className="hover:underline" />}
               </div>
             </div>
           </div>
@@ -2849,7 +2849,7 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
       return (
         <div className={container}>
           <div className={`text-center text-xs ${cWrapCls}`} style={cLook === 'centered_minimal' || cLook === 'dark_bordered' ? { borderColor: 'color-mix(in srgb, currentColor 15%, transparent)' } : undefined}>
-            {text}{o.show_powered !== false && ' · E-İnfak altyapısıyla'} · <ConsentLink className="hover:underline" />
+            {text}{o.show_powered !== false && ' · E-İnfak altyapısıyla'}{o.show_cookie_link !== false && <> · <ConsentLink className="hover:underline" /></>}
           </div>
         </div>
       )

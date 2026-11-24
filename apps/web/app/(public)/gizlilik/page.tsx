@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { ConsentLink } from '../../../components/site/ConsentLink'
 import { Identity, LegalShell, loadLegal } from '../../../components/legal/LegalPage'
 
 export const metadata: Metadata = { title: 'Gizlilik ve Çerez Politikası', alternates: { canonical: '/gizlilik' } }
@@ -33,7 +34,7 @@ export default async function PrivacyPage() {
         <li>Ziyaret istatistikleri (kurum etkinleştirdiyse).</li>
       </ul>
       <p>
-        Tercihinizi sayfanın altındaki <strong>Çerez tercihleri</strong> bağlantısından istediğiniz zaman değiştirebilirsiniz.
+        Tercihinizi <ConsentLink className="font-bold underline" /> bağlantısından istediğiniz zaman değiştirebilirsiniz.
       </p>
     </LegalShell>
   )
