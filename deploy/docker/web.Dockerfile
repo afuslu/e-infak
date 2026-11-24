@@ -6,7 +6,9 @@ RUN npm install -g pnpm@8.15.0
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
-RUN cd apps/web && NODE_OPTIONS=--max-old-space-size=2048 node_modules/.bin/next build
+# The build cache is dropped; the server (user node) writes its fetch and image cache there.
+RUN cd apps/web && NODE_OPTIONS=--max-old-space-size=2048 node_modules/.bin/next build \
+  && rm -rf .next/cache && mkdir .next/cache && chown node:node .next/cache
 
 ENV NODE_ENV=production
 WORKDIR /app/apps/web
