@@ -152,6 +152,7 @@ Her gece 03:45'te (E-Medrese'ninki 03:00'te) `e-infak-yedek.timer` çalışır. 
 | `<kurum-kısa-adı>-yedek/` | Yalnızca o kurumun verisi (Excel, JSON, görseller, videolar); ör. `hakder-yedek/` |
 
 - Ayrıca her saatin 20. dakikasında `e-infak-saatlik.timer` veritabanını `e-infak-yedek/saatlik` klasörüne yükler (48 saat saklanır; medya içermez).
+- Ayın ilk platform yedeği `e-infak-yedek/aylik` klasöründe 365 gün kalır (`AYLIK_GUN`). Süreyi KVKK saklama politikanıza göre ayarlayın.
 - Yeni kurumun klasörü ilk gece kendiliğinden oluşur.
 - Dosyalar `/root/.yedek-sifre` ile AES-256 şifrelidir; bu şifreyi parola yöneticinize kaydedin. Aynı şifre hepsini açar, kurumlarla paylaşmayın.
 - Sunucuda (`/var/yedek/e-infak`) 7 gün, Drive'da 30 gün saklanır; silinen kurumların klasörleri de temizlenir. Yedeği o gece alınamayan klasörden bir şey silinmez.
@@ -163,6 +164,22 @@ Kurulum (önce `sudo -H rclone config` ile `drive` adlı bağlantıyı yapın):
 ```bash
 ssh -t afuslu@31.97.159.228 "sudo bash /opt/e_infak/releases/\$(cat /opt/e_infak/runtime/aktif-surum)/deploy/backup/yedek-kur.sh"
 ```
+
+### Kilitli ikinci kopya ve dış alarm (isteğe bağlı)
+
+Ayarlar `/etc/e-infak-yedek.conf` dosyasındadır; boşsa bu özellikler çalışmaz.
+
+**Kilitli depo:** platform ve saatlik yedeklerle E-Medrese'nin gecelik paketi yüklenir.
+
+1. S3 uyumlu bir serviste (ör. Backblaze B2, AWS S3) Object Lock açık, gizli bir depo oluşturun. Varsayılan kilit: 30 gün, *compliance* (kimse kısaltamaz).
+2. Yaşam döngüsü kuralı: dosyalar 31 gün sonra, bütün eski sürümleriyle silinsin. Kural yoksa yedekler süresiz birikir.
+3. Yalnızca bu depoya **yazma** yetkili bir anahtar üretin; silme, kilit değiştirme ve depo yönetimi yetkisi vermeyin. Ana hesabın şifresi sunucuda bulunmasın.
+4. `sudo -H rclone config` → ad `kilitli`, tür `s3`, sağlayıcının adresi ve anahtar.
+5. Ayar dosyasında `KILITLI_REMOTE="kilitli:depo-adı"`.
+
+**Dış alarm:** ör. healthchecks.io'da iki kontrol açın: gecelik (24 saat, 3 saat tolerans), saatlik (1 saat, 1 saat tolerans). Adreslerini `SINYAL_GECELIK` ve `SINYAL_SAATLIK` alanlarına yazın.
+
+Denemek: `sudo systemctl start e-infak-saatlik` ve `sudo systemctl start e-infak-yedek`. Yazma anahtarı okuyamadığı için yüklenen dosyayı servisin kendi panelinden kontrol edin.
 
 İndirilmiş bir yedeği açmak:
 

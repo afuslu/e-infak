@@ -21,6 +21,14 @@ if ! rclone listremotes | grep -qx 'drive:'; then
 fi
 rclone lsd drive: >/dev/null || { echo "Google Drive'a ulaşılamadı: sudo -H rclone config reconnect drive:" >&2; exit 3; }
 
+if [[ ! -e /etc/e-infak-yedek.conf ]]; then
+  install -m 600 "$KAYNAK/e-infak-yedek.conf.ornek" /etc/e-infak-yedek.conf
+fi
+chown root:root /etc/e-infak-yedek.conf
+chmod 600 /etc/e-infak-yedek.conf
+# Ortak parça değiştiyse eski betikler bozulmasın diye önce kurulur
+install -m 644 "$KAYNAK/ortak.sh" /usr/local/lib/e-infak-yedek-ortak.sh
+
 # Yalnızca yeni veya değişen betikler hemen çalıştırılıp sınanır.
 SINANACAK=()
 kur() {

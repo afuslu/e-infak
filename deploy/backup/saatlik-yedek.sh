@@ -3,6 +3,8 @@
 # Medya ve kurum klasörleri gecelik yedektedir.
 set -Eeuo pipefail
 umask 077
+# shellcheck source=deploy/backup/ortak.sh
+source "${ORTAK:-/usr/local/lib/e-infak-yedek-ortak.sh}" || exit 1
 
 YEDEK_DIZIN="${YEDEK_DIZIN:-/var/yedek/e-infak}/saatlik"
 PAROLA_DOSYASI="${PAROLA_DOSYASI:-/root/.yedek-sifre}"
@@ -65,9 +67,12 @@ mv "$CALISMA/$AD" "$YEDEK_DIZIN/$AD"
 NEDEN="Google Drive'a yüklenemedi (sunucudaki kopya alındı)"
 rclone copyto "$YEDEK_DIZIN/$AD" "$HEDEF/$AD" --retries 3 --low-level-retries 10 </dev/null
 rclone check "$YEDEK_DIZIN" "$HEDEF" --one-way --include "/$AD" </dev/null
+NEDEN="Kilitli kopya yüklenemedi (Drive kopyası alındı)"
+kilitli_kopya "$YEDEK_DIZIN/$AD" e-infak-saatlik
 # Eskiler ancak yeni yedek Drive'da doğrulandıktan sonra silinir.
 NEDEN="Yedek alındı, eskiler silinemedi"
 rclone delete "$HEDEF" --min-age "${SAKLA_SAAT}h" --include '/e-infak_saatlik_*.gpg' \
   --drive-use-trash=false </dev/null
 find "$YEDEK_DIZIN" -maxdepth 1 -type f -name 'e-infak_saatlik_*.gpg' -mmin +"$((SAKLA_SAAT * 60))" -delete
+sinyal "$SINYAL_SAATLIK"
 echo "✅ Saatlik yedek Drive'da: $AD"

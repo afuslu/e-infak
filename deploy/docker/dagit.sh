@@ -100,6 +100,7 @@ for betik in nginx-kur.sh nginx-otomatik-ssl.sh; do cp "$SURUM/deploy/docker/$be
 
 if [[ -f /usr/local/sbin/e-infak-yedek ]] && ! { cmp -s "$SURUM/deploy/backup/gecelik-yedek.sh" /usr/local/sbin/e-infak-yedek \
   && cmp -s "$SURUM/deploy/backup/saatlik-yedek.sh" /usr/local/sbin/e-infak-saatlik \
+  && cmp -s "$SURUM/deploy/backup/ortak.sh" /usr/local/lib/e-infak-yedek-ortak.sh \
   && cmp -s "$SURUM/deploy/backup/geri-yukleme-testi.sh" /usr/local/sbin/e-infak-restore-test; }; then
   log "NOT: yedek betikleri değişti; güncellemek için: sudo bash $SURUM/deploy/backup/yedek-kur.sh"
 fi

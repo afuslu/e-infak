@@ -4,6 +4,8 @@
 # Bir kurumun hatası diğerlerini durdurmaz; sonunda çıkış kodu 1 olur ve e-posta gider.
 set -uo pipefail
 umask 077
+# shellcheck source=deploy/backup/ortak.sh
+source "${ORTAK:-/usr/local/lib/e-infak-yedek-ortak.sh}" || exit 1
 
 DIZIN="${DIZIN:-/opt/e_infak}"
 YEDEK_DIZIN="${YEDEK_DIZIN:-/var/yedek/e-infak}"
@@ -12,6 +14,7 @@ REMOTE="${RCLONE_REMOTE:-drive:}"
 UYARI_KOMUTU="${UYARI_KOMUTU:-/usr/local/sbin/e-medrese-yedek-uyari}"
 YEREL_GUN="${YEREL_GUN:-7}"
 DRIVE_GUN="${DRIVE_GUN:-30}"
+EMEDRESE_DIZIN="${EMEDRESE_DIZIN:-/var/yedek/e-medrese}"
 DB=einfak-db-1
 BACKEND=einfak-backend-1
 
@@ -96,6 +99,28 @@ sistem_yedegi() {
   yukle "$CALISMA/sistem.tar.gz" "e-infak_sistem_$ZAMAN.tar.gz.gpg" e-infak-yedek || return 1
 }
 
+# Ayın ilk başarılı platform yedeği (ayın 1'i kaçsa bile) AYLIK_GUN saklanır.
+aylik_yedek() {
+  local ad="e-infak_sistem_$ZAMAN.tar.gz.gpg" hedef="${REMOTE}e-infak-yedek/aylik" var
+  rclone mkdir "$hedef" </dev/null || return 1
+  var="$(rclone lsf "$hedef" --files-only --include "/e-infak_sistem_${ZAMAN:0:6}*.gpg" </dev/null)" || return 1
+  if [[ -z "$var" ]]; then
+    log "Aylık yedek"
+    rclone copyto "$YEDEK_DIZIN/$ad" "$hedef/$ad" --retries 3 </dev/null || return 1
+    rclone check "$YEDEK_DIZIN" "$hedef" --one-way --include "/$ad" </dev/null || return 1
+  fi
+  rclone delete "$hedef" --min-age "${AYLIK_GUN}d" --include '/e-infak_sistem_*.gpg' \
+    --drive-use-trash=false </dev/null || return 1
+}
+
+# E-Medrese'nin kendi gecelik paketi de kilitli depoya kopyalanır (yalnızca okunur).
+emedrese_kopyasi() {
+  local son
+  son="$(find "$EMEDRESE_DIZIN" -maxdepth 1 -type f -name 'e-medrese_gece_*.tar.gz.gpg' -mmin -1560 | sort | tail -n 1)"
+  [[ -n "$son" ]] || return 1
+  kilitli_kopya "$son" e-medrese
+}
+
 kurum_yedegi() {
   local slug="$1" klasor="$2" zip="$CALISMA/$1.zip"
   local kap="/data/media/_exports/_gecelik/$slug.zip"
@@ -108,7 +133,16 @@ kurum_yedegi() {
 }
 
 BASARISIZ=" "
-if sistem_yedegi; then drive_temizle e-infak-yedek; else hata "Platform yedeği alınamadı"; fi
+if sistem_yedegi; then
+  drive_temizle e-infak-yedek
+  aylik_yedek || hata "Aylık yedek alınamadı"
+  kilitli_kopya "$YEDEK_DIZIN/e-infak_sistem_$ZAMAN.tar.gz.gpg" e-infak || hata "Kilitli kopya yüklenemedi"
+else
+  hata "Platform yedeği alınamadı"
+fi
+if [[ -n "$KILITLI_REMOTE" && -d "$EMEDRESE_DIZIN" ]]; then
+  emedrese_kopyasi || hata "E-Medrese'nin kilitli kopyası yüklenemedi veya 26 saatten yeni yedeği yok"
+fi
 calisma_bosalt
 
 if KURUMLAR="$(docker exec "$BACKEND" python -m app.cli list-orgs </dev/null | sed -n 's/^KURUM //p')" && [[ -n "$KURUMLAR" ]]; then
@@ -135,4 +169,7 @@ else
 fi
 
 find "$YEDEK_DIZIN" -maxdepth 1 -type f -name 'e-infak_*.gpg' -mtime +"$YEREL_GUN" -delete
-(( ${#HATALAR[@]} )) || log "✅ Bütün yedekler Drive'da"
+if (( ${#HATALAR[@]} == 0 )); then
+  sinyal "$SINYAL_GECELIK"
+  log "✅ Bütün yedekler Drive'da${KILITLI_REMOTE:+ ve kilitli depoda}"
+fi

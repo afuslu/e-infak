@@ -1,0 +1,8 @@
+# E-İnfak yedek ayarları (root, 600). Boş bırakılan özellik çalışmaz. Rehber: docs/SUNUCU_KURULUM.md
+# Kilitli ikinci kopya, ör. kilitli:depo-adi (rclone bağlantısı: sudo -H rclone config)
+KILITLI_REMOTE=""
+# Dış alarm adresleri (yedek başarılı olunca çağrılır)
+SINYAL_GECELIK=""
+SINYAL_SAATLIK=""
+# Aylık platform yedeğinin Drive'da saklanma süresi (gün)
+AYLIK_GUN=365
