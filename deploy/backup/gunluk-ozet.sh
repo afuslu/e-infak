@@ -44,14 +44,19 @@ else
   sorun "Kurum listesi okunamadı; kurum yedekleri denetlenemedi"
 fi
 
-if [[ -n "$(rclone lsf "${REMOTE}e-infak-yedek/saatlik" --files-only --max-age 2h --include '/e-infak_saatlik_*.gpg' </dev/null 2>/dev/null)" ]]; then
-  ADET="$(rclone lsf "${REMOTE}e-infak-yedek/saatlik" --files-only --max-age 24h --include '/e-infak_saatlik_*.gpg' </dev/null 2>/dev/null | wc -l | tr -d ' ')"
+# saatlik <ad> <proje>
+saatlik() {
+  local klasor="${REMOTE}$2-yedek/saatlik" kalip="/$2_saatlik_*.gpg" adet eski
+  if [[ -z "$(rclone lsf "$klasor" --files-only --max-age 2h --include "$kalip" </dev/null 2>/dev/null)" ]]; then
+    sorun "$1 saatlik: son 2 saatte yedek yok"; return
+  fi
+  adet="$(rclone lsf "$klasor" --files-only --max-age 24h --include "$kalip" </dev/null 2>/dev/null | wc -l | tr -d ' ')"
   # Kurulumun ilk gününde eksik sayılmasın: yalnızca 25 saatten eski yedek varsa tam gün beklenir.
-  ESKI="$(rclone lsf "${REMOTE}e-infak-yedek/saatlik" --files-only --min-age 25h --include '/e-infak_saatlik_*.gpg' </dev/null 2>/dev/null)"
-  if [[ -n "$ESKI" ]] && (( ADET < 22 )); then sorun "Saatlik yedek: son 24 saatte yalnızca $ADET"; else ekle "✅ Saatlik yedek: son 24 saatte $ADET"; fi
-else
-  sorun "Saatlik yedek: son 2 saatte yedek yok"
-fi
+  eski="$(rclone lsf "$klasor" --files-only --min-age 25h --include "$kalip" </dev/null 2>/dev/null)"
+  if [[ -n "$eski" ]] && (( adet < 20 )); then sorun "$1 saatlik: son 24 saatte yalnızca $adet"; else ekle "✅ $1 saatlik: son 24 saatte $adet"; fi
+}
+saatlik "E-Medrese" e-medrese
+saatlik "E-İnfak" e-infak
 
 DOLU="$(df -P "$DISK" | awk 'NR==2 { sub("%", "", $5); print $5 }')"
 if [[ "$DOLU" =~ ^[0-9]+$ ]] && (( DOLU < 85 )); then ekle "✅ Sunucu diski: %$DOLU dolu"; else sorun "Sunucu diski: %${DOLU:-?} dolu"; fi

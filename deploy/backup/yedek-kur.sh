@@ -35,7 +35,12 @@ kur() {
   if ! cmp -s "$KAYNAK/$1" "/usr/local/sbin/$2" || ! systemctl is-enabled --quiet "$2.timer" 2>/dev/null; then SINANACAK+=("$2"); fi
   install -m 755 "$KAYNAK/$1" "/usr/local/sbin/$2"
 }
+grep -q '^SINYAL_EMEDRESE_SAATLIK=' /etc/e-infak-yedek.conf || echo 'SINYAL_EMEDRESE_SAATLIK=""' >>/etc/e-infak-yedek.conf
 kur saatlik-yedek.sh e-infak-saatlik
+if docker inspect emedrese-db-1 >/dev/null 2>&1; then
+  kur saatlik-yedek.sh e-medrese-saatlik
+  install -m 644 "$KAYNAK"/e-medrese-saatlik.{service,timer} /etc/systemd/system/
+fi
 kur gecelik-yedek.sh e-infak-yedek
 kur geri-yukleme-testi.sh e-infak-restore-test
 kur gunluk-ozet.sh e-infak-ozet
@@ -52,6 +57,6 @@ for is in "${SINANACAK[@]}"; do
   (( sonuc == 0 )) || { echo "HATA: $is başarısız" >&2; exit 1; }
   systemctl enable --now "$is.timer"
 done
-systemctl list-timers 'e-infak-*' --no-pager
+systemctl list-timers 'e-infak-*' 'e-medrese-*' --no-pager
 rclone lsf drive: --dirs-only
 echo "✅ Saatlik ve gecelik yedekler kuruldu."

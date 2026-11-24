@@ -4,5 +4,6 @@ KILITLI_REMOTE=""
 # Dış alarm adresleri (yedek başarılı olunca çağrılır)
 SINYAL_GECELIK=""
 SINYAL_SAATLIK=""
+SINYAL_EMEDRESE_SAATLIK=""
 # Aylık platform yedeğinin Drive'da saklanma süresi (gün)
 AYLIK_GUN=365

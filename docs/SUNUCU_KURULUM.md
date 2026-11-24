@@ -151,7 +151,7 @@ Her gece 03:45'te (E-Medrese'ninki 03:00'te) `e-infak-yedek.timer` çalışır. 
 | `e-infak-yedek/` | Bütün platform: veritabanı, medya, `.env`. Sunucu kaybında **geri yükleme buradan** yapılır |
 | `<kurum-kısa-adı>-yedek/` | Yalnızca o kurumun verisi (Excel, JSON, görseller, videolar); ör. `hakder-yedek/` |
 
-- Ayrıca her saatin 20. dakikasında `e-infak-saatlik.timer` veritabanını `e-infak-yedek/saatlik` klasörüne yükler (48 saat saklanır; medya içermez).
+- Ayrıca her saatin 20. dakikasında `e-infak-saatlik.timer` veritabanını `e-infak-yedek/saatlik` klasörüne yükler (48 saat saklanır; medya içermez). E-Medrese'ninki 40. dakikada `e-medrese-saatlik.timer` ile `e-medrese-yedek/saatlik` klasörüne gider; kilitli depoya yüklenmez.
 - Ayın ilk platform yedeği `e-infak-yedek/aylik` klasöründe 365 gün kalır (`AYLIK_GUN`). Süreyi KVKK saklama politikanıza göre ayarlayın.
 - Her sabah 08:00'de `e-infak-ozet.timer` bütün yedeklerin (E-Medrese dahil) durumunu Drive'dan okuyup e-postayla bildirir.
 - Yeni kurumun klasörü ilk gece kendiliğinden oluşur.
