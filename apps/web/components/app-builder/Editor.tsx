@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, History, Plus, Redo2, Trash2, Undo2 } from 'lucide-react'
 import { adminApiBase, adminGet, adminSend, apiErrorMessage } from '../../lib/admin-access'
@@ -213,7 +214,7 @@ export function AppBuilderEditor() {
   return (
     <div className="fixed inset-0 z-[60] flex flex-col bg-gray-100 text-gray-900">
       <div className="flex flex-wrap items-center gap-2 border-b bg-white px-4 py-2">
-        <a href="/admin" className={btn} aria-label="Panele dön"><ArrowLeft size={14} /></a>
+        <Link href="/admin" onClick={() => { flush() }} className={btn} aria-label="Panele dön"><ArrowLeft size={14} /></Link>
         <h1 className="text-sm font-extrabold">Uygulama Yapıcı</h1>
         <div className="flex rounded-md border p-0.5 text-[12px] font-semibold">
           {(['design', 'store'] as const).map((v) => <button key={v} type="button" onClick={() => setView(v)} className={`rounded px-2.5 py-1 ${view === v ? 'bg-slate-900 text-white' : ''}`}>{v === 'design' ? 'Tasarım' : 'Mağazaya gönder'}</button>)}
