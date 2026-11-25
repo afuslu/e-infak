@@ -175,7 +175,7 @@ class SettingsIn(BaseModel):
 def _settings_out(user: User, values: dict) -> dict:
     # Only the switches this person can actually receive are shown in the app.
     sees_all = has_capability(user, "receipts.view_all")
-    can_donors = has_capability(user, "donors.view") or sees_all
+    can_donors = has_capability(user, "donors.update") or has_capability(user, "donors.view_all")
     available = {
         "online": sees_all or can_donors,
         "transfer": True,

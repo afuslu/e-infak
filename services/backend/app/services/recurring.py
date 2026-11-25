@@ -214,8 +214,8 @@ async def charge(db: AsyncSession, sub: Subscription, now: Optional[datetime] = 
         db,
         sub.organization_id,
         "push.recurring.failed",
-        "subscription",
-        sub.id,
+        "payment_attempt",
+        attempt.id,  # one event per attempt: the outbox allows one per aggregate
         {
             "subscription_id": str(sub.id),
             "donor_id": str(sub.donor_id) if sub.donor_id else None,

@@ -860,7 +860,7 @@ async def update_videos(request: Request, payload: VideoUpdate, db: AsyncSession
     org_id = _org_id(request)
     animals = (await db.execute(select(KurbanAnimal).where(
         KurbanAnimal.organization_id == org_id, KurbanAnimal.id.in_(payload.animal_ids)).with_for_update())).scalars().all()
-    newly_ready = [a for a in animals if payload.video_status == VideoStatus.READY and a.video_status != VideoStatus.READY]
+    newly_ready = [a for a in animals if payload.video_status == "sent" and a.video_status != "sent"]
     for animal in animals:
         animal.video_status = payload.video_status
         if payload.video_url:

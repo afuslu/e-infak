@@ -98,8 +98,8 @@ async def charge_installment(db: AsyncSession, pledge: Pledge, installment: Pled
         db,
         pledge.organization_id,
         "push.recurring.failed",
-        "pledge_installment",
-        installment.id,
+        "payment_attempt",
+        attempt.id,  # one event per attempt: the outbox allows one per aggregate
         {
             "subscription_id": str(sub.id) if sub else str(pledge.id),
             "donor_id": str(pledge.donor_id) if pledge.donor_id else None,
