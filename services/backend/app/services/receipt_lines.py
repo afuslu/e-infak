@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.models.donation import Donation
 from app.models.kurban import KURBAN_TYPES, KurbanShare
 from app.models.payment import PaymentOrderItem
-from app.services.donation_hooks import intent_label, intent_value
+from app.services.donation_hooks import campaign_kurban_types, intent_label, intent_value
 
 
 async def donation_intents(db: AsyncSession, donations: Iterable[Donation]) -> dict[UUID, str]:
@@ -33,6 +33,8 @@ async def donation_intents(db: AsyncSession, donations: Iterable[Donation]) -> d
         select(PaymentOrderItem.id, PaymentOrderItem.metadata_json).where(PaymentOrderItem.id.in_(item_ids))
     )).tuples().all()) if item_ids else {}
 
+    campaign_types = await campaign_kurban_types(db, [d.campaign_id for d in donations if d.campaign_id])
+
     intents: dict[UUID, str] = {}
     for d in donations:
         details = d.payment_details or {}
@@ -44,6 +46,7 @@ async def donation_intents(db: AsyncSession, donations: Iterable[Donation]) -> d
             details.get("niyet")
             or intent_label(intent_value(items.get(d.payment_order_item_id) or {}))
             or intent_label(intent_value((details.get("on_confirm") or {}).get("metadata") or {}))
+            or KURBAN_TYPES.get(campaign_types.get(d.campaign_id, ""))
         )
         if label:
             intents[d.id] = label

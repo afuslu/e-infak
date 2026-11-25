@@ -10,5 +10,5 @@
     "outDir": ".test-out",
     "rootDir": "lib"
   },
-  "include": ["lib/kurban-bulk.ts", "lib/kurban-bulk.test.ts"]
+  "include": ["lib/kurban-bulk.ts", "lib/kurban-bulk.test.ts", "lib/campaign-intents.ts", "lib/campaign-intents.test.ts"]
 }

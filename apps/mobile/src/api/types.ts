@@ -73,6 +73,10 @@ export type Campaign = {
   suggested_amounts_cents: number[];
   min_donation_cents: number | null;
   allow_custom_amount: boolean;
+  campaign_type?: string;
+  donation_options?: import('@/lib/donationOptions').DonationOptions | null;
+  checkout_fields_schema?: { key?: string; options?: string[] }[] | null;
+  type_details?: Record<string, unknown> | null;
 };
 
 export type StaffUser = {

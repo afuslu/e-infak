@@ -18,6 +18,14 @@ export const RELEASES: Release[] = [
     ],
   },
   {
+    id: '2026-11-25-niyet', date: '2026-11-25', area: 'Panel', title: 'Kampanya niyeti makbuza otomatik gelir',
+    summary: 'Kampanyada seçilen kurban türü ve niyet seçenekleri makbuz kesme ekranlarına kendiliğinden gelir.',
+    items: [
+      { heading: 'Makbuz kesme', path: 'Bağışçı kartı › Yeni Makbuz', points: ['Kampanyanın "Niyet seçenekleri" listesi çıkar; liste yoksa kurban kampanyasında standart niyetler gelir.', 'Kampanyada "Kurban Türü" seçiliyse niyet hazır gelir ve makbuza basılır.'] },
+      { heading: 'Havale eşleştirme', path: 'Finans › Banka Hareketleri', points: ['Niyet artık kendiliğinden "Vacip" olmaz; kampanyanın niyeti veya havale açıklamasındaki niyet gelir.'] },
+    ],
+  },
+  {
     id: '2026-11-24-niyet', date: '2026-11-24', area: 'Panel', title: 'Makbuzda kurban niyeti',
     summary: 'Kurban niyeti makbuza yazılır; Tüm Makbuzlar ve Tüm Bağışlar adları sadeleşti.',
     items: [
