@@ -163,10 +163,21 @@ async def import_stkpro(args) -> None:
             User.organization_id == org.id, func.lower(User.email) == args.user.lower()))).scalar_one_or_none()
         if not user:
             raise SystemExit(f"Kullanıcı bulunamadı: {args.user}")
-        report = await run(db, org.id, actor=user, donor_files=args.donors or [], donation_files=args.donations or [],
-                           commit=args.commit, create_campaigns=not args.no_create_campaigns,
-                           campaign_status=CampaignStatus(args.campaign_status),
-                           aliases=dict(a.split("=", 1) for a in args.alias or []))
+        aliases = dict(a.split("=", 1) for a in args.alias or [])
+        if args.previous_donations:
+            from app.services.stkpro_final import run_final
+
+            report = await run_final(
+                db, org.id, actor=user, donor_files=args.donors or [], donation_files=args.donations or [],
+                previous_donors=args.previous_donors or [], previous_donations=args.previous_donations,
+                kurban_files=args.kurban or [], bank_files=args.bank or [], online_files=args.online or [],
+                receipt_files=args.receipts or [], commit=args.commit, create_campaigns=not args.no_create_campaigns,
+                campaign_status=CampaignStatus(args.campaign_status), aliases=aliases,
+                staff_aliases=dict(a.split("=", 1) for a in args.staff or []))
+        else:
+            report = await run(db, org.id, actor=user, donor_files=args.donors or [], donation_files=args.donations or [],
+                               commit=args.commit, create_campaigns=not args.no_create_campaigns,
+                               campaign_status=CampaignStatus(args.campaign_status), aliases=aliases)
     print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
     if not args.commit:
         print("\nDeneme çalışmasıydı, hiçbir şey yazılmadı. Yazmak için --commit ekleyin.")
@@ -276,6 +287,14 @@ def main() -> None:
     stk.add_argument("--user", required=True, help="Aktarımı yapan yönetici e-postası")
     stk.add_argument("--donors", nargs="*", help="bagiscilar_*.xlsx dosyaları")
     stk.add_argument("--donations", nargs="*", help="tum_bagislar_*.xlsx dosyası")
+    stk.add_argument("--previous-donors", nargs="*", help="Daha önce aktarılan bagiscilar_*.xlsx dosyaları")
+    stk.add_argument("--previous-donations", nargs="*",
+                     help="Daha önce aktarılan tum_bagislar_*.xlsx; verilirse son aktarım (app/services/stkpro_final.py) çalışır")
+    stk.add_argument("--kurban", nargs="*", help="kurbanlar_*.xlsx")
+    stk.add_argument("--bank", nargs="*", help="banka_hareketleri_*.xlsx")
+    stk.add_argument("--online", nargs="*", help="online_bagis_*.xlsx")
+    stk.add_argument("--receipts", nargs="*", help="makbuzlar_*.xlsx (kontrol için)")
+    stk.add_argument("--staff", action="append", metavar="STK_ADI=E-POSTA", help="STK PRO personelini kullanıcıya bağlar")
     stk.add_argument("--commit", action="store_true", help="Yaz (yoksa deneme çalışması)")
     stk.add_argument("--no-create-campaigns", action="store_true", help="Eksik kampanyaları açma, hata ver")
     stk.add_argument("--campaign-status", default="active", choices=["active", "draft", "paused"],

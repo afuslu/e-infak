@@ -36,12 +36,14 @@ async def record_offline_donation(
     metadata: Optional[dict] = None,
     pending: bool = False,
     receipt_seq: Optional[int] = None,
+    announce: bool = True,
 ) -> tuple[Donation, dict]:
     """Create a confirmed donation with its side effects; the caller commits.
 
     `pending`: payment not received yet (staff wrote a "Beklemede" receipt). The donation is
     stored without touching totals, kurban shares or notifications; confirm_offline_donation()
     applies them when the money arrives.
+    `announce=False`: historical record (data migration); no receipt, webhook or staff push is queued.
     """
     from app.api.v1.checkout import _receipt_number
     from app.services.receipt_seq import next_receipt_seq
@@ -75,7 +77,7 @@ async def record_offline_donation(
             "quantity": quantity, "metadata": metadata or {}, "send_receipt": send_receipt}}
         return donation, {}
     return donation, await _apply_confirmation(db, donation, campaign, donor, quantity=quantity,
-                                               metadata=metadata or {}, send_receipt=send_receipt)
+                                               metadata=metadata or {}, send_receipt=send_receipt, announce=announce)
 
 
 async def confirm_offline_donation(db: AsyncSession, donation: Donation, campaign: Campaign, donor: Donor,
@@ -93,7 +95,7 @@ async def confirm_offline_donation(db: AsyncSession, donation: Donation, campaig
 
 
 async def _apply_confirmation(db: AsyncSession, donation: Donation, campaign: Campaign, donor: Donor, *,
-                              quantity: int, metadata: dict, send_receipt: bool) -> dict:
+                              quantity: int, metadata: dict, send_receipt: bool, announce: bool = True) -> dict:
     organization_id, amount_cents, paid_at = donation.organization_id, donation.amount_cents, donation.paid_at
     record_quantity(donation, campaign, quantity)
     await add_to_campaign(db, donation, campaign)
@@ -101,6 +103,8 @@ async def _apply_confirmation(db: AsyncSession, donation: Donation, campaign: Ca
     await add_to_donor(db, donor, donation)
     donor.first_donation_at = min(filter(None, [donor.first_donation_at, paid_at]))
     donor.last_donation_at = max(filter(None, [donor.last_donation_at, paid_at]))
+    if not announce:
+        return effects
 
     if send_receipt:
         db.add(OutboxEvent(
