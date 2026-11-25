@@ -39,6 +39,8 @@ class BankConnector(ABC):
     ready: ClassVar[bool] = False  # False: only Excel/CSV statements can be used for now
     # The bank asks not to be queried more often than this (None: the beat interval decides).
     min_interval: ClassVar[Optional[timedelta]] = None
+    # How often the background job queries the bank (a longer min_interval wins); "Şimdi Çek" does not wait for it.
+    poll_interval: ClassVar[timedelta] = timedelta(minutes=10)
     # What BankAccount.account_no means for this bank (label shown in the account form).
     account_no_label: ClassVar[Optional[str]] = None
 

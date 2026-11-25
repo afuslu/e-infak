@@ -252,7 +252,8 @@ function Dropdown({ item, locale, itemCls = 'py-2 transition-opacity hover:opaci
         </button>
       )}
       <div className={`invisible absolute top-full z-50 pt-2 opacity-0 transition duration-150 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 ${item.mega ? 'inset-x-0 mx-auto w-[min(92vw,880px)]' : 'start-0 min-w-56'}`}>
-        <div className="rounded-xl border border-black/5 bg-white p-3 text-start text-[14px] font-normal text-gray-800 shadow-xl">
+        {/* Not bg-white / text-gray-*: dark block presets restyle those inside the block and made the panel see-through */}
+        <div className="rounded-xl border border-[#e5e7eb] bg-[#fff] p-3 text-start text-[14px] font-normal text-[#1f2937] shadow-xl">
           {item.mega ? (
             <div className="grid gap-5 p-2" style={{ gridTemplateColumns: `repeat(${Math.min(groupLinks(children).length, 4)}, minmax(0, 1fr))` }}>
               {groupLinks(children).map(([group, links]) => (

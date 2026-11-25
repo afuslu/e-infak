@@ -113,6 +113,22 @@ def method_of(value) -> PaymentMethod:
 NOTE_START = re.compile(r"^\s*[\[(]?(\d{1,2}[./]\d{1,2}[./]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)[\])]?\s*[-–:|]*\s*")
 
 
+NOTE_AUTHOR = re.compile(r"^·\s*([^:\n]{1,60}):[^\S\n]*")  # "22.06.2026 16:32 · EMİN ÇIRAK: aradı", "-" = no author
+
+
+def split_note_entries(value) -> list[tuple[Optional[datetime], Optional[str], str]]:
+    """(time, author, text) of each note in a "Görüşme Notları" cell."""
+    entries = []
+    for when, body in split_notes(value):
+        match = NOTE_AUTHOR.match(body)
+        author = None
+        if match:
+            author, body = _text(match.group(1)), body[match.end():].strip()
+        if body:
+            entries.append((when, author, body))
+    return entries
+
+
 def split_notes(value) -> list[tuple[Optional[datetime], str]]:
     """A "Görüşme Notları" cell: lines that open with a date start a new note, anything else continues the current one.
 
@@ -196,7 +212,11 @@ class ImportReport:
 class StkProImporter:
     def __init__(self, db: AsyncSession, organization_id: UUID, *, actor: User, create_campaigns: bool = True,
                  campaign_status: CampaignStatus = CampaignStatus.ACTIVE, season_year: Optional[int] = None,
-                 aliases: Optional[dict[str, str]] = None):
+                 aliases: Optional[dict[str, str]] = None, staff_aliases: Optional[dict[str, str]] = None,
+                 announce: bool = True):
+        self.announce = announce
+        # Name in STK PRO -> e-mail of the user here
+        self.staff_aliases = {fold(k): v.strip().lower() for k, v in (staff_aliases or {}).items()}
         self.db, self.org_id, self.actor = db, organization_id, actor
         self.create_campaigns, self.campaign_status = create_campaigns, campaign_status
         self.season_year = season_year or date.today().year
@@ -212,6 +232,7 @@ class StkProImporter:
     async def _prepare(self) -> None:
         donors = (await self.db.execute(select(Donor).where(
             Donor.organization_id == self.org_id, Donor.external_ref.isnot(None)))).scalars().all()
+        self._notes = {}
         for note in (await self.db.execute(select(DonorNote).join(Donor, Donor.id == DonorNote.donor_id)
                                            .where(Donor.organization_id == self.org_id))).scalars():
             self._notes.setdefault(note.donor_id, []).append(note)
@@ -221,6 +242,11 @@ class StkProImporter:
             self._campaigns.setdefault(fold(c.title), c)
         users = (await self.db.execute(select(User).where(User.organization_id == self.org_id))).scalars().all()
         self._staff = {fold(f"{u.first_name} {u.last_name}"): u for u in users}
+        by_email = {(u.email or "").lower(): u for u in users}
+        for name, email in self.staff_aliases.items():
+            if email not in by_email:
+                raise ValueError(f"Personel bulunamadı: {email}")
+            self._staff[name] = by_email[email]
 
     # --- donors -------------------------------------------------------------------------------
 
@@ -242,18 +268,31 @@ class StkProImporter:
                     row.get("Sabit Tel. Kod"), row.get("Sabit Telefon")),
                 "notes": _text(row.get("Açıklama"))}
 
+    async def _skip_donor(self, ref: str, row: dict, values: dict, donor: Optional[Donor]) -> bool:
+        return False  # see stkpro_final
+
+    def _extra_details(self, row: dict) -> dict:
+        return {}  # see stkpro_final
+
     async def _import_notes(self, donor: Donor, cell) -> None:
         """Adds notes that are not there yet; a note that grew in STK PRO replaces its earlier import."""
-        for when, content in split_notes(cell):
+        for when, author, content in split_note_entries(cell):
+            staff = self._staff.get(fold(author)) if author else None
+            if author and not staff:
+                content = f"{author}: {content}"
             known = self._notes.setdefault(donor.id, [])
-            if any(content == n.content or n.content.startswith(content + "\n") for n in known):
+            # "meşgul" is written again and again: the same text at another time is another note.
+            same_time = [n for n in known if when is None or n.created_at == when]
+            if any(content == n.content or n.content.startswith(content + "\n") for n in same_time):
                 self.report.notes_skipped += 1
                 continue
-            grown = next((n for n in known if n.author_id is None and content.startswith(n.content + "\n")), None)
+            grown = next((n for n in same_time if content.startswith(n.content + "\n")
+                          and (when is not None or n.author_id is None)), None)
             if grown:
                 grown.content = content
             else:
-                note = DonorNote(donor_id=donor.id, content=content, created_at=when or datetime.now(TZ))
+                note = DonorNote(donor_id=donor.id, content=content, created_at=when or datetime.now(TZ),
+                                 author_id=staff.id if staff else None)
                 self.db.add(note)
                 known.append(note)
             self.report.notes_created += 1
@@ -267,10 +306,13 @@ class StkProImporter:
                 continue
             values = self._donor_values(row)
             donor = self._donors.get(ref)
+            if await self._skip_donor(ref, row, values, donor):
+                continue
             if donor:
                 await self._import_notes(donor, row.get("Görüşme Notları"))
                 changed = False
-                for key, value in values.items():
+                staff = self._staff.get(fold(row.get("Personel")))
+                for key, value in {**values, "staff_user_id": staff.id if staff else None}.items():
                     if value and not getattr(donor, key):
                         setattr(donor, key, value)
                         changed = True
@@ -282,7 +324,8 @@ class StkProImporter:
             donor = Donor(id=uuid4(), organization_id=self.org_id, external_ref=ref,
                           donor_type=DonorType.CORPORATE if corporate else DonorType.INDIVIDUAL,
                           country=_text(row.get("Ülke"), 100) or "Türkiye", total_donations=0, total_donated_cents=0, tags=["STK PRO"],
-                          allow_sms=bool(values["phone"]), assigned_user_id=staff.id if staff else None, **values)
+                          allow_sms=bool(values["phone"]), assigned_user_id=staff.id if staff else None,
+                          staff_user_id=staff.id if staff else None, **values)
             try:
                 donor.created_at = _when(row.get("Üyelik Tarihi"))
             except ValueError:
@@ -423,11 +466,11 @@ class StkProImporter:
             donation, effects = await record_offline_donation(
                 self.db, organization_id=self.org_id, campaign=campaign, donor=donor, amount_cents=amount,
                 currency=currency, method=method, paid_at=paid_at, issued_by_id=(staff or self.actor).id,
-                provider="stkpro", idempotency_key=key, send_receipt=False, quantity=quantity,
+                provider="stkpro", idempotency_key=key, send_receipt=False, announce=self.announce, quantity=quantity,
                 note=note, on_behalf_of=_text(row.get("Kimin Adına"), 200),
                 details={"stkpro_bagis_no": number, "stkpro_makbuz_no": receipt_no, "payment_channel": method_label,
                          "stkpro_campaign": _text(row.get("Kampanya Adı")), "stkpro_type": _text(row.get("Tipi")),
-                         "staff": _text(row.get("Personel")), "country": _text(row.get("Kampanya Ülkesi"))},
+                         "staff": _text(row.get("Personel")), "country": _text(row.get("Kampanya Ülkesi")), **self._extra_details(row)},
                 metadata={"kurban_type": ckey.kurban_type} if ckey.kurban_type else {},
                 # STK PRO "Makbuz No" is kept as ours, so numbering continues after the import.
                 receipt_seq=int(receipt_no) if receipt_no and receipt_no.isdigit() and len(receipt_no) <= 9 else None,

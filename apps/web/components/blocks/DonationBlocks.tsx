@@ -160,7 +160,7 @@ export function CurrencySwitcher({
         {open && (
           <ul
             role="listbox"
-            className={`absolute top-full z-50 mt-1.5 min-w-[150px] rounded-xl border border-black/10 bg-white p-1.5 text-gray-900 shadow-xl ${align === 'right' ? 'end-0' : 'start-0'}`}
+            className={`absolute top-full z-50 mt-1.5 min-w-[150px] rounded-xl border border-black/10 bg-[#fff] p-1.5 text-[#111827] shadow-xl ${align === 'right' ? 'end-0' : 'start-0'}`}
           >
             {list.map((c) => {
               const active = c === currency

@@ -158,7 +158,7 @@ export function LanguageSwitcher({
         {open && (
           <ul
             role="listbox"
-            className={`absolute top-full z-50 mt-1.5 min-w-[140px] rounded-xl border border-black/10 bg-white p-1.5 text-gray-800 shadow-xl ${
+            className={`absolute top-full z-50 mt-1.5 min-w-[140px] rounded-xl border border-black/10 bg-[#fff] p-1.5 text-[#1f2937] shadow-xl ${
               align === 'right' ? 'end-0' : 'start-0'
             }`}
           >

@@ -1,7 +1,7 @@
 """Pulling bank movements and running them through the matcher."""
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -129,13 +129,32 @@ async def sync_account(db: AsyncSession, account: BankAccount, *, until: Optiona
     return {"fetched": len(movements), "new": len(new), **stats}
 
 
-async def sync_all(db: AsyncSession) -> list[dict]:
+def due(account: BankAccount, now: Optional[datetime] = None) -> bool:
+    """Is it time for the background job to query this account again?"""
+    now = now or datetime.now(timezone.utc)
+    if too_soon(account, now):
+        return False  # the bank asks for a minimum gap between queries (Vakıf Katılım: 15 minutes)
+    if not account.last_synced_at:
+        return True
+    # the job ticks every minute: a tick a few seconds early must not cost another minute
+    return now >= account.last_synced_at + CONNECTORS[account.bank_key].poll_interval - timedelta(seconds=10)
+
+
+async def sync_all(db: AsyncSession, *, paused: Optional[Callable] = None, pause: Optional[Callable] = None) -> list[dict]:
+    """Query the accounts that are due. ``pause(account_id)`` is told about failures and ``paused(account_id)`` asked
+    before a query, so a bank that answers with errors (wrong password, blocked IP) is not asked every minute."""
     accounts = (await db.execute(select(BankAccount).where(BankAccount.enabled.is_(True)))).scalars().all()
     results = []
     for account in accounts:
         if not CONNECTORS.get(account.bank_key) or not CONNECTORS[account.bank_key].ready:
             continue  # bank web service not connected yet: statements come as uploads
-        if too_soon(account):
-            continue  # the bank asks for a minimum gap between queries (Vakıf Katılım: 15 minutes)
-        results.append({"account_id": str(account.id), **await sync_account(db, account)})
+        if not due(account):
+            continue
+        account_id = str(account.id)
+        if paused and await paused(account_id):
+            continue
+        result = await sync_account(db, account)
+        if pause and result.get("error"):
+            await pause(account_id)
+        results.append({"account_id": account_id, **result})
     return results

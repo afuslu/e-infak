@@ -754,15 +754,38 @@ def warm_all_certificates_task():
     return asyncio.run(_warm_all_certificates())
 
 
+BANK_ERROR_PAUSE_SECONDS = 15 * 60
+
+
 async def _sync_bank_accounts():
+    import redis.asyncio as aioredis
+
     from app.banking.sync import sync_all
-    async with AsyncSessionLocal() as session:
-        return await sync_all(session)
+
+    client = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+
+    async def paused(account_id: str) -> bool:
+        return bool(await client.exists(f"bank-sync:pause:{account_id}"))
+
+    async def pause(account_id: str) -> None:
+        await client.set(f"bank-sync:pause:{account_id}", "1", ex=BANK_ERROR_PAUSE_SECONDS)
+
+    try:
+        # one run at a time: a slow bank must not let the next tick query the same accounts again
+        if not await client.set("bank-sync:running", "1", nx=True, ex=900):
+            return []
+        try:
+            async with AsyncSessionLocal() as session:
+                return await sync_all(session, paused=paused, pause=pause)
+        finally:
+            await client.delete("bank-sync:running")
+    finally:
+        await client.aclose()
 
 
 @celery_app.task(name="app.tasks.sync_bank_accounts_task")
 def sync_bank_accounts_task():
-    """Every 10 minutes: pull new movements of connected bank accounts and match them to donors."""
+    """Every minute: pull new movements of the bank accounts that are due (per-bank interval) and match them to donors."""
     return asyncio.run(_sync_bank_accounts())
 
 
@@ -938,7 +961,8 @@ celery_app.conf.beat_schedule = {
     },
     "sync-bank-accounts": {
         "task": "app.tasks.sync_bank_accounts_task",
-        "schedule": 600.0,
+        "schedule": 60.0,
+        "options": {"expires": 50},  # a tick that waited in the queue is replaced by the next one
     },
     "verify-pending-domains": {
         "task": "app.tasks.verify_pending_domains_task",
