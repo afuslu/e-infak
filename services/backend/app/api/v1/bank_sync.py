@@ -363,7 +363,7 @@ class ApproveLine(BaseModel):
     campaign_id: UUID
     amount_cents: int = Field(gt=0)
     on_behalf_of: Optional[str] = Field(default=None, max_length=200)
-    kurban_type: Optional[str] = Field(default=None, max_length=20)
+    kurban_type: Optional[str] = Field(default=None, max_length=60)
     # Kurban kalemi: hisse başına hissedar adı (her hisse ayrı kâğıda/karta yazılır)
     kurban_names: list[str] = Field(default_factory=list, max_length=700)
 
@@ -375,7 +375,7 @@ class ApproveIn(BaseModel):
     # One transfer shared between several campaigns; the amounts must add up to the transfer.
     lines: Optional[list[ApproveLine]] = Field(default=None, max_length=20)
     on_behalf_of: Optional[str] = Field(default=None, max_length=200)
-    kurban_type: Optional[str] = Field(default=None, max_length=20)
+    kurban_type: Optional[str] = Field(default=None, max_length=60)
     note: Optional[str] = Field(default=None, max_length=1000)
     receipt_book_id: Optional[UUID] = None
     send_receipt: bool = True

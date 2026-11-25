@@ -3,12 +3,16 @@ import { useQuery } from '@tanstack/react-query';
 import { af, api } from '@/lib/api';
 import type { Campaign, StaffUser } from './types';
 
-export function useCampaignOptions() {
-  const query = useQuery({
+export function useCampaigns() {
+  return useQuery({
     queryKey: ['campaign-options'],
-    queryFn: () => api<{ items: Campaign[] }>('/campaigns', { query: { page_size: 100 } }),
+    queryFn: () => api<{ items: Campaign[] }>('/campaigns', { query: { page_size: 500 } }),
     staleTime: 5 * 60_000,
   });
+}
+
+export function useCampaignOptions() {
+  const query = useCampaigns();
   return useMemo(() => (query.data?.items || []).map((c) => ({ value: c.id, label: c.title })), [query.data]);
 }
 

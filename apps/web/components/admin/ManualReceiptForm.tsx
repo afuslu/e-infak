@@ -8,14 +8,9 @@ import { Label, TextArea, TextInput, ghostButton, inputClass, primaryButton } fr
 import { QuickSmsDialog } from './QuickSmsDialog'
 import { WhatsAppIcon } from './ui'
 import { smsAmount } from '../../lib/sms'
+import { campaignIntents, type IntentCampaign } from '../../lib/campaign-intents'
 
-interface CheckoutField { key?: string; label?: string; options?: string[] }
-interface CampaignRef { id: string; title: string; checkout_fields_schema?: CheckoutField[] }
-/** The campaign's intention question; "niyet" holds the organisation's own choices, so it wins over "kurban_type". */
-const intentField = (campaign?: CampaignRef) => {
-  const fields = (campaign?.checkout_fields_schema || []).filter((f) => f.options?.length)
-  return fields.find((f) => f.key === 'niyet') || fields.find((f) => f.key === 'kurban_type')
-}
+interface CampaignRef extends IntentCampaign { id: string; title: string }
 interface DonorRef { id: string; full_name: string; phone: string | null; email: string | null }
 interface Staff { id: string; first_name: string; last_name: string; is_active: boolean }
 interface AccountRef { id: string; bank: string; label: string }
@@ -119,7 +114,8 @@ export function ManualReceiptForm({
 
   const smsPhone = donor ? donor.phone : newDonor.phone
 
-  const intentOf = (line: Line) => intentField(campaigns.find((c) => c.id === line.campaign_id))
+  const intentsFor = (campaignId: string) => campaignIntents(campaigns.find((c) => c.id === campaignId))
+  const intentOf = (line: Line) => intentsFor(line.campaign_id)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -132,7 +128,7 @@ export function ManualReceiptForm({
       setError('Her satır için bağış kalemi ve tutar girin')
       return
     }
-    if (!kurban && lines.some((l) => intentOf(l) && !l.intent)) {
+    if (!kurban && lines.some((l) => intentOf(l)?.required && !l.intent)) {
       setError('Kurban kalemi için niyet seçin')
       return
     }
@@ -159,7 +155,7 @@ export function ManualReceiptForm({
             campaign_id: l.campaign_id, amount_cents: toCents(l.amount), currency: l.currency,
             quantity: Math.max(1, Number(l.quantity) || 1), on_behalf_of: l.on_behalf_of.trim() || null,
             on_behalf_of_phone: l.on_behalf_of_phone.trim() || null,
-            metadata: intentOf(l) && l.intent ? { [intentOf(l)!.key!]: l.intent } : {},
+            metadata: intentOf(l) && l.intent ? { niyet: l.intent } : {},
           })),
         }),
         payment_method: form.payment_method.startsWith('acc:') ? 'bank_transfer' : form.payment_method,
@@ -271,7 +267,7 @@ export function ManualReceiptForm({
             {lines.map((line, index) => (
               <div key={index} className="grid grid-cols-12 gap-2">
                 <select required aria-label="Bağış kalemi" className={`${inputClass} col-span-12 sm:col-span-4`} value={line.campaign_id}
-                  onChange={(e) => setLine(index, { campaign_id: e.target.value, intent: '' })}>
+                  onChange={(e) => setLine(index, { campaign_id: e.target.value, intent: intentsFor(e.target.value)?.initial || '' })}>
                   <option value="">Bağış kalemi seçin</option>
                   {campaigns.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                 </select>
@@ -287,10 +283,10 @@ export function ManualReceiptForm({
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
                 {intentOf(line) && (
-                  <select required aria-label="Niyet" className={`${inputClass} col-span-12`} value={line.intent}
+                  <select required={intentOf(line)!.required} aria-label="Niyet" className={`${inputClass} col-span-12`} value={line.intent}
                     onChange={(e) => setLine(index, { intent: e.target.value })}>
-                    <option value="">Niyet seçin</option>
-                    {intentOf(line)!.options!.map((o) => <option key={o} value={o}>{o}</option>)}
+                    <option value="">{intentOf(line)!.required ? 'Niyet seçin' : 'Niyet (isteğe bağlı)'}</option>
+                    {intentOf(line)!.options.map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 )}
                 <input aria-label="Kimin adına" placeholder="Kimin adına (isteğe bağlı)" maxLength={200} className={`${inputClass} col-span-12 sm:col-span-7`} value={line.on_behalf_of}

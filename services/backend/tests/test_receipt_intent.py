@@ -122,3 +122,19 @@ async def test_repair_lists_first_and_writes_only_with_apply(db_session):
     assert await repair_kurban_intents(org.slug, False, db_session) == 1 and share.kurban_type == "vacip"
     assert await repair_kurban_intents(org.slug, True, db_session) == 1 and share.kurban_type == "adak"
     assert await repair_kurban_intents(org.slug, True, db_session) == 0
+
+
+async def test_campaign_type_is_the_default_intention(db_session):
+    org, admin = await _setup(db_session)
+    campaign_id = await _kurban(db_session, org, admin)
+    before = await _manual_kurban(db_session, org, admin, campaign_id, {}, first_name="Eski")
+    campaign = await db_session.get(Campaign, campaign_id)
+    campaign.type_details = {"kurban_type": "akika"}
+    await db_session.commit()
+    plain = await _manual_kurban(db_session, org, admin, campaign_id, {}, first_name="Veli")
+    chosen = await _manual_kurban(db_session, org, admin, campaign_id, {"niyet": "Adak"}, first_name="Can")
+    pending = await _manual_kurban(db_session, org, admin, campaign_id, {}, first_name="Ece", status="pending")
+    kinds = dict((await db_session.execute(select(KurbanShare.donation_id, KurbanShare.kurban_type))).tuples().all())
+    assert kinds[plain.id] == "akika" and kinds[chosen.id] == "adak"
+    assert await donation_intents(db_session, [before, plain, chosen, pending]) == {
+        before.id: "Akika", plain.id: "Akika", chosen.id: "Adak", pending.id: "Akika"}

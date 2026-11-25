@@ -6,13 +6,14 @@ shares / installment payments / well funding are committed together.
 """
 import re
 from datetime import date, datetime, timezone
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.campaign import Campaign
 from app.models.donation import Donation, Donor
 from app.models.kurban import KURBAN_TYPES, KurbanCampaign, KurbanShare
 from app.models.membership import Member, MemberDue
@@ -48,6 +49,14 @@ def intent_label(value: Any) -> Optional[str]:
         return None
     known = _known_kurban_type(value)
     return KURBAN_TYPES[known] if known else (sanitize_public_text(value) or "")[:60] or None
+
+
+async def campaign_kurban_types(db: AsyncSession, campaign_ids: Iterable[UUID]) -> dict[UUID, str]:
+    """Kurban type set on the campaign itself; campaigns without one are left out."""
+    rows = (await db.execute(
+        select(Campaign.id, Campaign.type_details["kurban_type"].astext).where(Campaign.id.in_(set(campaign_ids)))
+    )).all()
+    return {campaign_id: kind for campaign_id, kind in rows if kind in KURBAN_TYPES}
 
 
 def _names(value: Any) -> list[str]:
@@ -248,6 +257,11 @@ async def pay_member_dues(db: AsyncSession, donation: Donation, metadata: dict) 
 async def on_donation_confirmed(db: AsyncSession, donation: Donation, donor: Donor, *,
                                 quantity: int = 1, metadata: Optional[dict] = None) -> dict:
     metadata = metadata or {}
+    if not intent_value(metadata):
+        # Nothing chosen: a kurban campaign's own type ("Kurban Türü") is the intention.
+        kind = (await campaign_kurban_types(db, [donation.campaign_id])).get(donation.campaign_id)
+        if kind:
+            metadata = {**metadata, "kurban_type": kind}
     label = intent_label(intent_value(metadata))
     if label:
         donation.payment_details = {**(donation.payment_details or {}), "niyet": label}

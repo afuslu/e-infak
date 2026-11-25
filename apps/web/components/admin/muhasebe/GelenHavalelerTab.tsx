@@ -25,6 +25,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { api } from '@/lib/axios';
+import { KURBAN_INTENTS, campaignIntents, type IntentCampaign } from '@/lib/campaign-intents';
 import { adminGet, apiErrorMessage, can, useAdminAccess, whatsappUrl } from '@/lib/admin-access';
 import { WhatsAppIcon, toast } from '@/components/admin/ui';
 import { type SmsTemplate, renderClientSmsTemplate, smsAmount, templatizeSmsText, updateSmsTemplateBody } from '@/lib/sms';
@@ -92,6 +93,10 @@ interface CampaignOption {
   id: string;
   title: string;
   category: string;
+  campaign_type?: IntentCampaign['campaign_type'];
+  donation_options?: IntentCampaign['donation_options'];
+  checkout_fields_schema?: IntentCampaign['checkout_fields_schema'];
+  type_details?: IntentCampaign['type_details'];
   price_per_share_cents?: number | null;
 }
 
@@ -118,15 +123,6 @@ interface SplitLine {
   /** Kurban kalemi: hisse başına hissedar adı, her satıra bir ad. */
   kurban_names: string;
 }
-
-const KURBAN_LABELS: Record<string, string> = {
-  vacip: 'Vacip',
-  adak: 'Adak',
-  akika: 'Akika',
-  sukur: 'Şükür',
-  nafile: 'Nafile',
-  sadaka: 'Sadaka',
-};
 
 const formatDateTime = (iso?: string | null) =>
   iso
@@ -278,7 +274,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
 
   useEffect(() => {
     api
-      .get('/campaigns', { params: { page_size: 100 } })
+      .get('/campaigns', { params: { page_size: 500 } })
       .then((res) => {
         const list = res.data.items || res.data || [];
         setCampaigns(
@@ -286,6 +282,10 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
             id: c.id,
             title: c.title,
             category: c.category,
+            campaign_type: c.campaign_type,
+            donation_options: c.donation_options,
+            checkout_fields_schema: c.checkout_fields_schema,
+            type_details: c.type_details,
             price_per_share_cents: c.price_per_share_cents,
           })),
         );
@@ -951,7 +951,7 @@ export const GelenHavalelerTab: React.FC<GelenHavalelerTabProps> = ({
                                 {s.campaign.title}
                                 {s.kurban_type ? (
                                   <span className="rounded bg-sky-100 px-1.5 text-[10px]">
-                                    {KURBAN_LABELS[s.kurban_type] || s.kurban_type}
+                                    {KURBAN_INTENTS[s.kurban_type] || s.kurban_type}
                                   </span>
                                 ) : null}
                               </span>
@@ -1141,6 +1141,12 @@ function ApproveDialog({
 }) {
   const s = transfer.suggestion || {};
   const totalLira = (transfer.amount_cents / 100).toFixed(2);
+  /** The intention read from the transfer note if the campaign offers it, else the campaign's own. */
+  const intentFor = (campaignId?: string, noted?: string | null) => {
+    const intents = campaignIntents(campaigns.find((c) => c.id === campaignId));
+    const label = KURBAN_INTENTS[noted || ''] || '';
+    return intents?.options.includes(label) ? label : intents?.initial || '';
+  };
   const [mode, setMode] = useState<'existing' | 'new'>(s.donor?.id ? 'existing' : 'new');
   const [donorId, setDonorId] = useState(s.donor?.id || '');
   const [donorLabel, setDonorLabel] = useState(s.donor?.name || '');
@@ -1154,7 +1160,7 @@ function ApproveDialog({
       campaign_id: s.campaign?.id || campaigns[0]?.id || '',
       amount: totalLira,
       on_behalf_of: s.on_behalf_of || '',
-      kurban_type: s.kurban_type || 'vacip',
+      kurban_type: intentFor(s.campaign?.id || campaigns[0]?.id, s.kurban_type),
       kurban_names: '',
     },
   ]);
@@ -1278,7 +1284,7 @@ function ApproveDialog({
         campaign_id: campaigns[0]?.id || '',
         amount: remaining > 0 ? (remaining / 100).toFixed(2) : '',
         on_behalf_of: s.on_behalf_of || '',
-        kurban_type: 'vacip',
+        kurban_type: intentFor(campaigns[0]?.id),
         kurban_names: '',
       },
     ]);
@@ -1301,6 +1307,10 @@ function ApproveDialog({
       onError('Kalemlerin toplamı havale tutarına eşit olmalıdır');
       return;
     }
+    if (lines.some((l) => campaignIntents(campaigns.find((c) => c.id === l.campaign_id))?.required && !l.kurban_type)) {
+      onError('Niyet seçin');
+      return;
+    }
     setSaving(true);
     try {
       const body: Record<string, any> = {
@@ -1310,7 +1320,7 @@ function ApproveDialog({
             campaign_id: l.campaign_id,
             amount_cents: toCents(l.amount),
             on_behalf_of: l.on_behalf_of.trim() || null,
-            kurban_type: isKurban(camp) ? l.kurban_type : null,
+            kurban_type: campaignIntents(camp) ? l.kurban_type || null : null,
             kurban_names: isKurban(camp)
               ? l.kurban_names.split(/\r?\n|;/).map((n) => n.trim()).filter(Boolean)
               : [],
@@ -1478,13 +1488,14 @@ function ApproveDialog({
             <div className="mt-2.5 space-y-2.5">
               {lines.map((line, idx) => {
                 const camp = campaigns.find((c) => c.id === line.campaign_id);
+                const intents = campaignIntents(camp);
                 return (
                   <div key={idx} className="rounded-xl border border-slate-200 bg-white p-2.5">
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
                       <div className="sm:col-span-7">
                         <select
                           value={line.campaign_id}
-                          onChange={(e) => updateLine(idx, { campaign_id: e.target.value })}
+                          onChange={(e) => updateLine(idx, { campaign_id: e.target.value, kurban_type: intentFor(e.target.value, s.kurban_type) })}
                           className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
                         >
                           <option value="">Kampanya seçin…</option>
@@ -1523,8 +1534,9 @@ function ApproveDialog({
                           className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm sm:col-span-4"
                           aria-label="Niyet"
                         >
-                          {Object.entries(KURBAN_LABELS).map(([key, label]) => (
-                            <option key={key} value={key}>{label}</option>
+                          <option value="">{intents?.required ? 'Niyet seçin' : 'Niyet (isteğe bağlı)'}</option>
+                          {(intents?.options || []).map((o) => (
+                            <option key={o} value={o}>{o}</option>
                           ))}
                         </select>
                         <textarea
@@ -1537,7 +1549,18 @@ function ApproveDialog({
                         />
                       </div>
                     ) : (
-                      <div className="mt-2">
+                      <div className="mt-2 space-y-2">
+                        {intents ? (
+                          <select
+                            value={line.kurban_type}
+                            onChange={(e) => updateLine(idx, { kurban_type: e.target.value })}
+                            className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
+                            aria-label="Niyet"
+                          >
+                            <option value="">{intents.required ? 'Niyet seçin' : 'Niyet (isteğe bağlı)'}</option>
+                            {intents.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        ) : null}
                         <input
                           value={line.on_behalf_of}
                           onChange={(e) => updateLine(idx, { on_behalf_of: e.target.value })}

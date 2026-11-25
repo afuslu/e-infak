@@ -12,10 +12,11 @@ import { CURRENCY_OPTIONS, Donor, PAYMENT_OPTIONS } from '@/api/types';
 import { Btn, Card, Chips, Field, ListItem, Notice, Screen, SearchBar, SectionTitle, Select, SwitchRow, useUi } from '@/components/ui';
 import { DateField } from '@/components/fields';
 import { notify } from '@/components/toast';
-import { useCampaignOptions } from '@/api/hooks';
+import { useCampaignOptions, useCampaigns } from '@/api/hooks';
+import { campaignIntents } from '@/lib/campaignIntents';
 import { space, useTheme } from '@/theme';
 
-type Line = { key: number; campaign_id: string | null; amount: string; on_behalf_of: string };
+type Line = { key: number; campaign_id: string | null; amount: string; on_behalf_of: string; intent: string };
 type Book = { id: string; name?: string; label?: string; series?: string; next_no?: number; is_active?: boolean; status?: string };
 type BankAccount = { id: string; label: string; iban?: string | null; enabled?: boolean };
 
@@ -28,6 +29,8 @@ export default function ManualReceipt() {
   const ui = useUi();
   const key = useRef(idempotencyKey('makbuz'));
   const campaigns = useCampaignOptions();
+  const campaignRows = useCampaigns().data?.items;
+  const intentsFor = (id: string | null) => campaignIntents(campaignRows?.find((c) => c.id === id));
 
   const [donorId, setDonorId] = useState<string | null>(params.donorId || null);
   const [donorName, setDonorName] = useState(params.donorName || '');
@@ -36,7 +39,7 @@ export default function ManualReceipt() {
   const [last, setLast] = useState('');
   const [phone, setPhone] = useState('');
   const [term, setTerm] = useState('');
-  const [lines, setLines] = useState<Line[]>([{ key: 1, campaign_id: null, amount: '', on_behalf_of: '' }]);
+  const [lines, setLines] = useState<Line[]>([{ key: 1, campaign_id: null, amount: '', on_behalf_of: '', intent: '' }]);
   const [currency, setCurrency] = useState('TRY');
   const [method, setMethod] = useState('cash');
   const [bankId, setBankId] = useState<string | null>(null);
@@ -72,7 +75,10 @@ export default function ManualReceipt() {
     for (const l of lines) {
       const cents = toCents(l.amount);
       if (!l.campaign_id || !cents) return setError('Her satır için bağış kalemi ve tutar girin.');
-      body_lines.push({ campaign_id: l.campaign_id, amount_cents: cents, currency, quantity: 1, on_behalf_of: l.on_behalf_of.trim() || undefined });
+      const intents = intentsFor(l.campaign_id);
+      if (intents?.required && !l.intent) return setError('Kurban kalemi için niyet seçin.');
+      body_lines.push({ campaign_id: l.campaign_id, amount_cents: cents, currency, quantity: 1, on_behalf_of: l.on_behalf_of.trim() || undefined,
+        metadata: intents && l.intent ? { niyet: l.intent } : {} });
     }
     if (!paidOn) return setError('Geçerli bir tarih girin.');
     setBusy(true);
@@ -148,13 +154,17 @@ export default function ManualReceipt() {
               </Pressable>
             ) : null}
           </View>
-          <Select label="Bağış kalemi" value={l.campaign_id} options={campaigns} onChange={(campaign_id) => setLine(l.key, { campaign_id })} searchable />
+          <Select label="Bağış kalemi" value={l.campaign_id} options={campaigns} onChange={(campaign_id) => setLine(l.key, { campaign_id, intent: intentsFor(campaign_id)?.initial || '' })} searchable />
+          {intentsFor(l.campaign_id) ? (
+            <Select label={intentsFor(l.campaign_id)!.required ? 'Niyet' : 'Niyet (isteğe bağlı)'} value={l.intent || null} allowClear
+              options={intentsFor(l.campaign_id)!.options.map((o) => ({ value: o, label: o }))} onChange={(intent) => setLine(l.key, { intent: intent || '' })} />
+          ) : null}
           <Field label="Tutar" value={l.amount} onChangeText={(amount) => setLine(l.key, { amount })} keyboardType="decimal-pad" placeholder="0" />
           <Field label="Kimin adına (isteğe bağlı)" value={l.on_behalf_of} onChangeText={(on_behalf_of) => setLine(l.key, { on_behalf_of })} />
         </Card>
       ))}
       <Btn title="Satır ekle" variant="outline" small icon={<Plus size={16} color={colors.primaryDark} />}
-        onPress={() => setLines((all) => [...all, { key: Date.now(), campaign_id: null, amount: '', on_behalf_of: '' }])} />
+        onPress={() => setLines((all) => [...all, { key: Date.now(), campaign_id: null, amount: '', on_behalf_of: '', intent: '' }])} />
 
       <SectionTitle>Ödeme</SectionTitle>
       <Card style={{ gap: space.md }}>
