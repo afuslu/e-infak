@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LogOut, MessageSquarePlus } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { df } from '@/lib/api';
 import { dateTime } from '@/lib/format';
-import { Badge, Btn, Card, Chips, Field, Screen, SectionTitle, Sheet, SwitchRow, useUi } from '@/components/ui';
-import { notify, notifyError } from '@/components/toast';
+import { pushEnabled, registerPush, sendTestPush, unregisterPush } from '@/lib/notifications';
+import { Badge, Btn, Card, Chips, Field, Notice, Screen, SectionTitle, Sheet, SwitchRow, useUi } from '@/components/ui';
+import { confirm, notify, notifyError } from '@/components/toast';
 import { space, useTheme } from '@/theme';
 
 type DonorRequestItem = {
@@ -33,7 +34,10 @@ export default function DonorSettingsScreen() {
   const [tcNo, setTcNo] = useState(donorMe?.tc_no || '');
   const [allowSms, setAllowSms] = useState(!donorMe?.sms_opt_out);
   const [allowEmail, setAllowEmail] = useState(!donorMe?.email_opt_out);
+  const [allowPush, setAllowPush] = useState(!donorMe?.push_opt_out);
+  const [devicePush, setDevicePush] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(!!donorMe?.is_anonymous);
+  const native = Platform.OS !== 'web';
 
   const [reqOpen, setReqOpen] = useState(false);
   const [reqCategory, setReqCategory] = useState<ReqCategory>('diger');
@@ -52,9 +56,35 @@ export default function DonorSettingsScreen() {
       setTcNo(donorMe.tc_no || '');
       setAllowSms(!donorMe.sms_opt_out);
       setAllowEmail(!donorMe.email_opt_out);
+      setAllowPush(!donorMe.push_opt_out);
       setIsAnonymous(!!donorMe.is_anonymous);
     }
   }, [donorMe]);
+
+  useEffect(() => {
+    pushEnabled('donor').then(setDevicePush);
+  }, []);
+
+  const toggleDonorPush = async (on: boolean) => {
+    try {
+      if (on) {
+        const res = await registerPush(true, 'donor');
+        notify(res.message, res.ok ? 'ok' : 'error');
+        setDevicePush(res.ok);
+        if (!res.ok) return;
+        setAllowPush(true);
+        await df('/me/profile', { method: 'PATCH', body: { push_opt_out: false } });
+      } else {
+        await unregisterPush('donor');
+        setDevicePush(false);
+        setAllowPush(false);
+        await df('/me/profile', { method: 'PATCH', body: { push_opt_out: true } });
+      }
+      await reload();
+    } catch (e) {
+      notifyError(e);
+    }
+  };
 
   const requests = useQuery({
     queryKey: ['donor', 'requests'],
@@ -119,6 +149,33 @@ export default function DonorSettingsScreen() {
     onError: notifyError,
   });
 
+  const deleteAccount = useMutation({
+    mutationFn: () => df<{ deleted: boolean; message?: string }>('/me/delete-account', { method: 'POST', body: {} }),
+    onSuccess: async (res) => {
+      notify(res?.message || 'Hesabınız silindi.');
+      await signOut();
+    },
+    onError: notifyError,
+  });
+
+  const handleDeleteAccount = async () => {
+    const firstConfirm = await confirm(
+      'Hesabınızı silmek istiyor musunuz?',
+      'Portal girişiniz kapatılır; kayıtlı kartlarınız, düzenli bağış talimatlarınız ve bildirim cihazlarınız kaldırılır. Yasal zorunluluk nedeniyle kesilmiş bağış makbuzlarınız kurum muhasebesinde saklanır.',
+      'Devam Et',
+      true,
+    );
+    if (!firstConfirm) return;
+    const secondConfirm = await confirm(
+      'Son Onay',
+      'Bu işlem geri alınamaz. Bağışçı hesabınız kalıcı olarak silinecek ve oturumunuz kapatılacaktır.',
+      'Hesabımı Kalıcı Olarak Sil',
+      true,
+    );
+    if (!secondConfirm) return;
+    deleteAccount.mutate();
+  };
+
   return (
     <Screen onRefresh={() => { reload(); requests.refetch(); }} refreshing={requests.isRefetching}>
       <SectionTitle>KİŞİSEL BİLGİLERİM</SectionTitle>
@@ -134,6 +191,24 @@ export default function DonorSettingsScreen() {
 
       <SectionTitle>İLETİŞİM TERCİHLERİM</SectionTitle>
       <Card>
+        {native ? (
+          <>
+            <SwitchRow
+              label="Mobil Uygulama Bildirimleri"
+              hint="Bağış makbuzu, kurban kesimi ve su kuyusu aşama bildirimleri"
+              value={allowPush && devicePush}
+              onValueChange={toggleDonorPush}
+            />
+            {allowPush && devicePush ? (
+              <Btn
+                title="Deneme bildirimi gönder"
+                variant="outline"
+                small
+                onPress={() => sendTestPush('donor').then(() => notify('Deneme bildirimi gönderildi.')).catch(notifyError).finally(() => pushEnabled('donor').then(setDevicePush))}
+              />
+            ) : null}
+          </>
+        ) : null}
         <SwitchRow label="SMS Bildirimleri" hint="Duyuru ve bilgilendirme SMS'leri" value={allowSms} onValueChange={setAllowSms} />
         <SwitchRow label="E-posta Bildirimleri" hint="Faaliyet bülteni ve duyurular" value={allowEmail} onValueChange={setAllowEmail} />
         <SwitchRow label="İsmim Gizli Kalsın" hint="Hayırsever listelerinde adınız gizlenir" value={isAnonymous} onValueChange={setIsAnonymous} />
@@ -184,10 +259,24 @@ export default function DonorSettingsScreen() {
 
       <Btn
         title="Oturumu Kapat"
-        variant="danger"
-        icon={<LogOut size={18} color={colors.danger} />}
+        variant="outline"
+        icon={<LogOut size={18} color={colors.primaryDark} />}
         onPress={() => signOut()}
       />
+
+      <SectionTitle>HESAP İŞLEMLERİ</SectionTitle>
+      <Card>
+        <Notice
+          tone="warn"
+          text="Hesabınızı sildiğinizde kayıtlı kartlarınız, düzenli bağış talimatlarınız ve iletişim izinleriniz iptal edilir; portal erişiminiz kapatılır. Yasal saklama süresi kapsamındaki bağış makbuzları dernek kayıtlarında korunur."
+        />
+        <Btn
+          title="Hesabımı Sil"
+          variant="danger"
+          loading={deleteAccount.isPending}
+          onPress={handleDeleteAccount}
+        />
+      </Card>
 
       <Sheet
         visible={reqOpen}

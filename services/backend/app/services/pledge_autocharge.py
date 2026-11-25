@@ -92,6 +92,24 @@ async def charge_installment(db: AsyncSession, pledge: Pledge, installment: Pled
         return {"status": "paid", "order_id": str(order.id)}
     order.failure_message = error
     pledge.last_charge_error = error
+    from app.services import staff_notify
+
+    staff_notify.queue(
+        db,
+        pledge.organization_id,
+        "push.recurring.failed",
+        "pledge_installment",
+        installment.id,
+        {
+            "subscription_id": str(sub.id) if sub else str(pledge.id),
+            "donor_id": str(pledge.donor_id) if pledge.donor_id else None,
+            "donor_name": (donor.full_name if donor else None) or "Bağışçı",
+            "amount_cents": installment.amount_cents,
+            "currency": pledge.currency,
+            "reason": error,
+            "label": f"{pledge.title or 'Taahhüt'} ({installment.seq}. taksit)",
+        },
+    )
     return {"status": "failed", "error": error}
 
 

@@ -613,6 +613,8 @@ async def update_water_well(request: Request, well_id: UUID, payload: WaterWellI
                             current_user: User = Depends(get_current_user)):
     org_id = _org_id(request)
     w = await _owned(db, WaterWell, org_id, well_id, "Su kuyusu", lock=True)
+    old_status = w.status
+    old_gallery_len = len(w.gallery_urls or [])
     if payload.funding_model == "hisseli" and payload.share_count:
         sold = (await db.execute(
             select(func.coalesce(func.sum(WellShare.share_count), 0)).where(WellShare.water_well_id == w.id)
@@ -622,6 +624,36 @@ async def update_water_well(request: Request, well_id: UUID, payload: WaterWellI
     await _apply_well(db, org_id, w, payload)
     _audit(db, org_id, current_user, "su_kuyusu_guncelle", {"well_id": str(w.id)})
     await db.commit()
+    status_changed = w.status != old_status and w.status in ("drilling", "completed")
+    photo_added = len(w.gallery_urls or []) > old_gallery_len
+    if status_changed or photo_added:
+        from app.services.push_service import notify_donor_push
+
+        donor_ids: set[UUID] = set()
+        if w.donor_id:
+            donor_ids.add(w.donor_id)
+        donor_ids.update((await db.execute(
+            select(WellShare.donor_id).where(WellShare.water_well_id == w.id, WellShare.donor_id.is_not(None))
+        )).scalars().all())
+        donor_ids.update((await db.execute(
+            select(Pledge.donor_id).where(Pledge.water_well_id == w.id, Pledge.donor_id.is_not(None))
+        )).scalars().all())
+        if w.status == "completed" and status_changed:
+            title = f"Su kuyunuz tamamlandı! · {w.name}"
+            body = f"{w.location_name} su kuyusu hizmete açıldı. Su Kuyularım ekranından detayları görebilirsiniz."
+        elif w.status == "drilling" and status_changed:
+            title = f"Su kuyusu sondajı başladı · {w.name}"
+            body = f"{w.location_name} su kuyusunda çalışma aşamasına geçildi."
+        else:
+            title = f"Su kuyusundan yeni fotoğraf · {w.name}"
+            body = "Su Kuyularım ekranından yüklenen güncel fotoğrafları inceleyebilirsiniz."
+        for d_id in donor_ids:
+            try:
+                await notify_donor_push(db, d_id, org_id, title=title, body=body, data={"route": "donor_wells", "well_id": str(w.id)})
+            except Exception:  # noqa: BLE001
+                pass
+        if donor_ids:
+            await db.commit()
     return await _well_out(db, w)
 
 

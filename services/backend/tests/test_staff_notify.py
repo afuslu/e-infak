@@ -56,8 +56,8 @@ async def _setup(db):
                         status=CampaignStatus.ACTIVE)
     donor = Donor(organization_id=org.id, first_name="Ali", last_name="Veli", phone="05321112233")
     db.add_all([campaign, donor])
-    db.add(DeviceToken(organization_id=org.id, user_id=admin.id, token="ExponentPushToken[admin]", platform="ios"))
-    db.add(DeviceToken(organization_id=org.id, user_id=crm.id, token="ExponentPushToken[crm]", platform="android"))
+    db.add(DeviceToken(organization_id=org.id, user_id=admin.id, token=f"ExponentPushToken[admin-{slug}]", platform="ios"))
+    db.add(DeviceToken(organization_id=org.id, user_id=crm.id, token=f"ExponentPushToken[crm-{slug}]", platform="android"))
     await db.flush()
     return org, admin, crm, campaign, donor
 
@@ -122,7 +122,8 @@ async def test_bank_transfer_reaches_staff_who_see_all_receipts(db_session, push
     assert [n.user_id for n in notes] == [admin.id]  # CRM staff cannot see receipts they did not write
     assert notes[0].title == "₺1.250 · Havale / EFT" and notes[0].channel == "transfer" and notes[0].pushed == 1
     assert "Ali Veli · Su Kuyusu" in notes[0].body and "otomatik eşleşti" in notes[0].body and "Ziraat TL" in notes[0].body
-    assert pushes[0]["tokens"] == ["ExponentPushToken[admin]"] and pushes[0]["data"]["donation_id"] == str(donation.id)
+    assert len(pushes[0]["tokens"]) == 1 and pushes[0]["tokens"][0].startswith("ExponentPushToken[admin-")
+    assert pushes[0]["data"]["donation_id"] == str(donation.id)
     assert pushes[0]["badge"] == 1
 
 
@@ -258,7 +259,8 @@ async def test_settings_api_shows_only_what_the_person_can_receive(db_session):
     assert saved["settings"]["online"] is False and saved["settings"]["min_amount_cents"] == 10000
     assert saved["available"]["digest"] is True
     crm_view = await api.get_notification_settings(db=db_session, current_user=crm)
-    assert crm_view["available"]["online"] is False and crm_view["available"]["offline"] is True
+    assert crm_view["available"]["online"] is True and crm_view["available"]["offline"] is True
+    assert crm_view["available"]["money_box_due"] is False and crm_view["available"]["digest"] is False
 
 
 @pytest.mark.asyncio
@@ -299,7 +301,7 @@ async def test_unmatched_transfers_reach_people_who_approve_them(db_session, pus
     db_session.add_all(rows)
     await db_session.flush()
     await svc._transfers_waiting(db_session, org.id, {"transaction_ids": [str(r.id) for r in rows]})
-    assert len(pushes) == 1 and pushes[0]["tokens"] == ["ExponentPushToken[admin]"]  # CRM cannot approve transfers
+    assert len(pushes) == 1 and pushes[0]["tokens"][0].startswith("ExponentPushToken[admin-")  # CRM cannot approve transfers
     assert pushes[0]["title"] == "2 havale eşleşme bekliyor · ₺2.500"
     assert pushes[0]["body"].startswith("En büyüğü: AYŞE KARA ₺2.000")
     assert pushes[0]["data"]["route"] == "transfers"
@@ -385,7 +387,7 @@ async def test_declined_card_payment_is_reported(db_session, pushes):
     order, _item = await _order(db_session, org, campaign, donor, status=PaymentOrderStatus.FAILED, cents=30000)
     await svc._payment_failed(db_session, org.id, {"order_id": str(order.id)})
     assert pushes[0]["title"] == "Başarısız ödeme · ₺300" and "Yetersiz bakiye" in pushes[0]["body"]
-    assert pushes[0]["tokens"] == ["ExponentPushToken[admin]"]
+    assert pushes[0]["tokens"][0].startswith("ExponentPushToken[admin-")
 
     order.status = PaymentOrderStatus.PAID  # paid by a later retry: no stale warning
     await svc._payment_failed(db_session, org.id, {"order_id": str(order.id)})
@@ -400,3 +402,70 @@ async def test_refund_is_reported(db_session, pushes):
     order, _item = await _order(db_session, org, campaign, donor, status=PaymentOrderStatus.REFUNDED, cents=80000)
     await svc._payment_refunded(db_session, org.id, {"order_id": str(order.id), "amount_cents": 20000})
     assert pushes[0]["title"] == "İade · ₺200" and "sipariş toplamı ₺800" in pushes[0]["body"]
+
+
+@pytest.mark.asyncio
+async def test_campaign_milestone_donor_push_and_operational_alerts(db_session, pushes, monkeypatch):
+    from datetime import date
+    from app.models.automation import BankAccount
+    from app.models.field_ops import Task
+
+    org, admin, crm, campaign, donor = await _setup(db_session)
+    campaign.target_cents = 100_000
+    campaign.collected_cents = 85_000
+    donor_tok = f"ExponentPushToken[donor-{uuid.uuid4().hex[:8]}]"
+    db_session.add(DeviceToken(organization_id=org.id, donor_id=donor.id, token=donor_tok, platform="android"))
+    await db_session.flush()
+
+    donation = _donation(org, campaign, donor, cents=85_000)
+    db_session.add(donation)
+    await db_session.flush()
+
+    await svc._donation_paid(db_session, org.id, {"donation_id": str(donation.id)})
+    titles = [p["title"] for p in pushes]
+    assert any("Kampanya %80 hedefine ulaştı!" in t for t in titles)
+    assert any("Bağışınız kaydedildi" in t and donor_tok in p["tokens"] for t, p in zip(titles, pushes))
+
+    # Recurring failure notifies both staff and donor:
+    pushes.clear()
+    await svc._recurring_failed(db_session, org.id, {
+        "subscription_id": str(uuid.uuid4()),
+        "donor_id": str(donor.id),
+        "donor_name": "Ali Veli",
+        "amount_cents": 25_000,
+        "currency": "TRY",
+        "reason": "Kart limiti yetersiz",
+        "label": "Düzenli bağış",
+    })
+    assert any("Düzenli bağış çekilemedi" in p["title"] for p in pushes)
+    assert any(donor_tok in p["tokens"] and p["data"]["route"] == "donor_subscriptions" for p in pushes)
+
+    # Task due date alert notifies assignee once per day:
+    pushes.clear()
+    due_task = Task(organization_id=org.id, created_by_id=admin.id, assigned_to_id=crm.id,
+                    title="Kumbara rotası kontrolü", status="todo", due_date=date.today())
+    db_session.add(due_task)
+    await db_session.flush()
+    assert await svc.send_task_due_alerts(db_session, org.id) == 1
+    assert await svc.send_task_due_alerts(db_session, org.id) == 0
+    assert pushes[0]["data"]["task_id"] == str(due_task.id)
+
+    # Bank sync error alert fires at most once per day per account:
+    pushes.clear()
+    acc = BankAccount(organization_id=org.id, bank_key="ziraat", label="Ziraat Ana", currency="TRY")
+    db_session.add(acc)
+    await db_session.flush()
+    assert await svc.notify_bank_sync_error(db_session, acc, "Zaman aşımı") == 1
+    assert await svc.notify_bank_sync_error(db_session, acc, "Zaman aşımı") == 0
+    assert "Banka senkron hatası · Ziraat Ana" in pushes[0]["title"]
+
+    # Low SMS balance alert fires once per day when org's own SMS account is low:
+    pushes.clear()
+
+    async def fake_balance(db, org_id):
+        return {"provider": "NetGSM", "own_account": True, "balance": {"text": "45 SMS", "amount": 45, "unit": "SMS"}}
+
+    monkeypatch.setattr("app.services.sms_service.provider_balance", fake_balance)
+    assert await svc.send_low_sms_balance_alerts(db_session, org.id) == 1
+    assert await svc.send_low_sms_balance_alerts(db_session, org.id) == 0
+    assert "SMS bakiyesi azaldı · 45 SMS" in pushes[0]["title"]

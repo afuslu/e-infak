@@ -208,6 +208,24 @@ async def charge(db: AsyncSession, sub: Subscription, now: Optional[datetime] = 
     order.failure_message = error
     sub.failed_attempts += 1
     sub.last_error = error
+    from app.services import staff_notify
+
+    staff_notify.queue(
+        db,
+        sub.organization_id,
+        "push.recurring.failed",
+        "subscription",
+        sub.id,
+        {
+            "subscription_id": str(sub.id),
+            "donor_id": str(sub.donor_id) if sub.donor_id else None,
+            "donor_name": (donor.full_name if donor else None) or "Bağışçı",
+            "amount_cents": sub.amount_cents,
+            "currency": sub.currency,
+            "reason": error,
+            "label": "Düzenli bağış",
+        },
+    )
     if sub.failed_attempts >= MAX_FAILURES:
         sub.status = "paused"
         await _notify(db, sub, "duzenli_basarisiz")

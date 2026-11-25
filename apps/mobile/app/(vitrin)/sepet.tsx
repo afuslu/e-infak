@@ -115,8 +115,8 @@ export default function DonationCartScreen() {
   const [phone, setPhone] = useState(donorMe?.phone || '');
   const [email, setEmail] = useState(donorMe?.email || '');
   const [isAnonymous, setIsAnonymous] = useState(!!donorMe?.is_anonymous);
-  const [kvkkAccepted, setKvkkAccepted] = useState(true);
-  const [termsAccepted, setTermsAccepted] = useState(true);
+  const [kvkkAccepted, setKvkkAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -166,8 +166,8 @@ export default function DonationCartScreen() {
           phone: ph,
           email: em || null,
           is_anonymous: isAnonymous,
-          allow_sms: false,
-          allow_email: false,
+          allow_sms: isDonor ? !!donorMe?.allow_sms : false,
+          allow_email: isDonor ? !!donorMe?.allow_email : false,
         },
         payment_method: paymentMethod,
         currency,

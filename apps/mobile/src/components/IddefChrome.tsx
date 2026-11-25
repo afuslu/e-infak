@@ -107,14 +107,14 @@ export function IddefHeader({
         {header.show_profile === false ? <View style={styles.iconBtn} /> : (
         <Pressable
           onPress={() => navigateFromDrawer(isDonor ? '/(vitrin)/hesabim' : '/login')}
-          style={[styles.profileBtn, { backgroundColor: 'rgba(0,0,0,0.22)' }]}
+          style={[styles.profileBtn, { backgroundColor: light ? 'rgba(15,23,42,0.08)' : 'rgba(0,0,0,0.22)' }]}
           accessibilityRole="button"
           accessibilityLabel={isDonor ? 'Hesabım' : 'Giriş Yap'}
         >
           {donorInitials ? (
-            <Text style={styles.profileInitials}>{donorInitials}</Text>
+            <Text style={[styles.profileInitials, { color: light ? primary : '#E8D8A0' }]}>{donorInitials}</Text>
           ) : (
-            <User size={22} color="#E8D8A0" />
+            <User size={22} color={light ? primary : '#E8D8A0'} />
           )}
         </Pressable>
         )}

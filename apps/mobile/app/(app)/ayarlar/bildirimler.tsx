@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Platform, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -36,6 +36,8 @@ const SUMMARY_ROWS = [
   { key: 'weekly_digest', label: 'Haftalık yönetici özeti', hint: 'Haftanın toplamı, en çok bağış alan kalemler ve geçen haftayla kıyas.' },
 ];
 
+const DEFAULT_LARGE_CENTS = 1_000_000;
+
 export default function NotificationSettings() {
   const queryClient = useQueryClient();
   const ui = useUi();
@@ -43,19 +45,22 @@ export default function NotificationSettings() {
   const [min, setMin] = useState('');
   const [largeMin, setLargeMin] = useState('');
   const [device, setDevice] = useState(false);
+  const dirtyRef = useRef<{ min?: string; large?: string }>({});
   const native = Platform.OS !== 'web';
 
   useEffect(() => {
     if (query.data) {
       const m = centsToInput(query.data.settings.min_amount_cents || 0);
       setMin(m === '0' ? '' : m);
-      const lm = centsToInput(query.data.settings.large_donation_cents ?? 1_000_000);
-      setLargeMin(lm === '0' ? '' : lm);
+      const rawLarge = query.data.settings.large_donation_cents ?? DEFAULT_LARGE_CENTS;
+      const lm = centsToInput(rawLarge > 0 ? rawLarge : DEFAULT_LARGE_CENTS);
+      setLargeMin(lm);
+      dirtyRef.current = {};
     }
   }, [query.data]);
 
   useEffect(() => {
-    pushEnabled().then(setDevice);
+    pushEnabled('tenant').then(setDevice);
   }, []);
 
   const save = async (patch: Settings) => {
@@ -67,14 +72,49 @@ export default function NotificationSettings() {
     }
   };
 
+  // Kullanıcı tutar yazıp doğrudan geri tuşuna basarsa yazılan eşik kaybolmasın.
+  useEffect(() => {
+    return () => {
+      const pending: Settings = {};
+      if (dirtyRef.current.min !== undefined) {
+        pending.min_amount_cents = toCents(dirtyRef.current.min) || 0;
+      }
+      if (dirtyRef.current.large !== undefined) {
+        const cents = toCents(dirtyRef.current.large);
+        pending.large_donation_cents = cents && cents > 0 ? cents : DEFAULT_LARGE_CENTS;
+      }
+      if (Object.keys(pending).length > 0) {
+        api<Response>('/mobile/notification-settings', { method: 'PUT', body: pending })
+          .then((next) => queryClient.setQueryData(['notification-settings'], next))
+          .catch(() => {});
+      }
+    };
+  }, [queryClient]);
+
+  const commitMin = () => {
+    dirtyRef.current.min = undefined;
+    void save({ min_amount_cents: toCents(min) || 0 });
+  };
+
+  const commitLarge = () => {
+    dirtyRef.current.large = undefined;
+    const cents = toCents(largeMin);
+    if (!cents || cents <= 0) {
+      setLargeMin(centsToInput(DEFAULT_LARGE_CENTS));
+      void save({ large_donation_cents: DEFAULT_LARGE_CENTS });
+    } else {
+      void save({ large_donation_cents: cents });
+    }
+  };
+
   const toggleDevice = async (on: boolean) => {
     try {
       if (on) {
-        const result = await registerPush();
+        const result = await registerPush(true, 'tenant');
         notify(result.message, result.ok ? 'ok' : 'error');
         setDevice(result.ok);
       } else {
-        await unregisterPush();
+        await unregisterPush('tenant');
         setDevice(false);
       }
     } catch (e) {
@@ -120,7 +160,7 @@ export default function NotificationSettings() {
                 title="Deneme bildirimi gönder"
                 variant="outline"
                 small
-                onPress={() => sendTestPush().then(() => notify('Deneme bildirimi gönderildi.')).catch(notifyError).finally(() => pushEnabled().then(setDevice))}
+                onPress={() => sendTestPush('tenant').then(() => notify('Deneme bildirimi gönderildi.')).catch(notifyError).finally(() => pushEnabled('tenant').then(setDevice))}
               />
             ) : null}
           </>
@@ -139,21 +179,23 @@ export default function NotificationSettings() {
               <Field
                 label="En az bildirim tutarı (TL)"
                 value={min}
-                onChangeText={setMin}
+                onChangeText={(v) => { setMin(v); dirtyRef.current.min = v; }}
                 keyboardType="decimal-pad"
                 placeholder="Hepsi"
                 hint="Bunun altındaki girişler telefona gelmez, kutuda görünür."
-                onBlur={() => save({ min_amount_cents: toCents(min) || 0 })}
+                onBlur={commitMin}
+                onSubmitEditing={commitMin}
               />
-              {data.available.large_donation !== false ? (
+              {data.available.large_donation !== false && data.settings.large_donation ? (
                 <Field
                   label="Büyük bağış alarm eşiği (TL)"
                   value={largeMin}
-                  onChangeText={setLargeMin}
+                  onChangeText={(v) => { setLargeMin(v); dirtyRef.current.large = v; }}
                   keyboardType="decimal-pad"
                   placeholder="10000"
-                  hint="Bu tutar ve üzerindeki bağışlar yüksek öncelikli kanaldan bildirilir."
-                  onBlur={() => save({ large_donation_cents: toCents(largeMin) || 0 })}
+                  hint="Bu tutar ve üzerindeki bağışlar gece sessiz modda bile yüksek öncelikli kanaldan bildirilir."
+                  onBlur={commitLarge}
+                  onSubmitEditing={commitLarge}
                 />
               ) : null}
               <SwitchRow

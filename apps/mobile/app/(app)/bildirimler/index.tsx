@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Banknote, BellOff, CreditCard, Landmark, Moon, PiggyBank, Settings, Undo2 } from 'lucide-react-native';
+import {
+  AlertTriangle, Banknote, BellOff, CalendarCheck, CreditCard, Landmark, Moon,
+  PhoneCall, PiggyBank, Repeat, Settings, ShieldAlert, Trophy, Undo2,
+} from 'lucide-react-native';
 import { api } from '@/lib/api';
 import { dateTime } from '@/lib/format';
 import { usePaged } from '@/lib/paged';
+import { syncBadgeCount } from '@/lib/notifications';
 import { openNotificationTarget } from '@/lib/notificationRoute';
 import { StaffNotification } from '@/api/inflow';
 import { Btn, Chips, Empty, ErrorView, Loading, useUi } from '@/components/ui';
@@ -16,22 +20,33 @@ const FILTERS = [
   { value: 'all', label: 'Tümü' },
   { value: 'money', label: 'Para girişleri' },
   { value: 'transfer_waiting', label: 'Bekleyen havale' },
-  { value: 'problems', label: 'Sorunlar' },
-  { value: 'digest', label: 'Gün sonu' },
+  { value: 'ops', label: 'Operasyon & Görev' },
+  { value: 'problems', label: 'Sorunlar & Uyarı' },
+  { value: 'digest', label: 'Özetler' },
 ];
 const KINDS: Record<string, string | undefined> = {
-  all: undefined, money: 'donation,online', transfer_waiting: 'transfer_waiting', problems: 'payment_failed,refund', digest: 'digest',
+  all: undefined,
+  money: 'donation,online',
+  transfer_waiting: 'transfer_waiting',
+  ops: 'task,donor_reminder,money_box_due,campaign_milestone',
+  problems: 'payment_failed,recurring_failed,refund,system_alert',
+  digest: 'digest,weekly_digest',
 };
 
 function Icon({ n }: { n: StaffNotification }) {
   const { colors } = useTheme();
   const size = 20;
   if (n.kind === 'payment_failed') return <AlertTriangle size={size} color={colors.danger} />;
+  if (n.kind === 'recurring_failed') return <Repeat size={size} color={colors.danger} />;
   if (n.kind === 'refund') return <Undo2 size={size} color={colors.danger} />;
-  if (n.kind === 'digest') return <Moon size={size} color={colors.primaryDark} />;
+  if (n.kind === 'system_alert') return <ShieldAlert size={size} color="#EA580C" />;
+  if (n.kind === 'digest' || n.kind === 'weekly_digest') return <Moon size={size} color={colors.primaryDark} />;
+  if (n.kind === 'task') return <CalendarCheck size={size} color="#0D9488" />;
+  if (n.kind === 'donor_reminder') return <PhoneCall size={size} color="#0284C7" />;
+  if (n.kind === 'campaign_milestone') return <Trophy size={size} color="#059669" />;
+  if (n.kind === 'money_box_due' || n.channel === 'money_box') return <PiggyBank size={size} color="#D97706" />;
   if (n.kind === 'transfer_waiting' || n.channel === 'transfer' || n.channel === 'online_transfer') return <Landmark size={size} color="#7C3AED" />;
   if (n.channel === 'online' || n.channel === 'pos') return <CreditCard size={size} color="#2563EB" />;
-  if (n.channel === 'money_box') return <PiggyBank size={size} color="#D97706" />;
   return <Banknote size={size} color={colors.primary} />;
 }
 
@@ -44,6 +59,10 @@ export default function Inbox() {
   const list = usePaged<StaffNotification>(['notifications', filter], '/mobile/notifications', { kind: KINDS[filter] }, 30);
   const unread: number = list.first?.unread ?? 0;
 
+  useEffect(() => {
+    if (list.first !== undefined) syncBadgeCount(list.first.unread ?? 0);
+  }, [list.first]);
+
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['notifications'] });
     queryClient.invalidateQueries({ queryKey: ['inflow'] });
@@ -51,6 +70,7 @@ export default function Inbox() {
 
   const open = async (n: StaffNotification) => {
     if (!n.read) {
+      syncBadgeCount(Math.max(0, unread - 1));
       api('/mobile/notifications/read', { method: 'POST', body: { ids: [n.id] } }).then(refresh).catch(() => {});
     }
     openNotificationTarget(router, n.data);
@@ -78,8 +98,10 @@ export default function Inbox() {
             {unread ? (
               <View style={[ui.rowGap, { justifyContent: 'space-between' }]}>
                 <Text style={ui.muted}>{unread} okunmamış</Text>
-                <Btn title="Tümünü okundu say" variant="ghost" small onPress={() =>
-                  api('/mobile/notifications/read', { method: 'POST', body: { all: true } }).then(refresh).catch(notifyError)} />
+                <Btn title="Tümünü okundu say" variant="ghost" small onPress={() => {
+                  syncBadgeCount(0);
+                  api('/mobile/notifications/read', { method: 'POST', body: { all: true } }).then(refresh).catch(notifyError);
+                }} />
               </View>
             ) : null}
           </View>

@@ -677,6 +677,52 @@ def send_money_box_due_alerts_task():
     return asyncio.run(_send_money_box_due_alerts())
 
 
+async def _send_task_due_alerts():
+    from app.models.organization import Organization
+    from app.services.staff_notify import send_task_due_alerts
+
+    sent = 0
+    async with AsyncSessionLocal() as session:
+        org_ids = (await session.execute(select(Organization.id).where(Organization.is_active.is_(True)))).scalars().all()
+    for org_id in org_ids:
+        async with AsyncSessionLocal() as session:
+            try:
+                sent += await send_task_due_alerts(session, org_id)
+                await session.commit()
+            except Exception:  # noqa: BLE001
+                await session.rollback()
+    return {"pushed": sent, "organizations": len(org_ids)}
+
+
+@celery_app.task(name="app.tasks.send_task_due_alerts_task")
+def send_task_due_alerts_task():
+    """Daily 09:05 in Türkiye: remind staff about tasks due today, tomorrow, or overdue."""
+    return asyncio.run(_send_task_due_alerts())
+
+
+async def _send_low_sms_balance_alerts():
+    from app.models.organization import Organization
+    from app.services.staff_notify import send_low_sms_balance_alerts
+
+    sent = 0
+    async with AsyncSessionLocal() as session:
+        org_ids = (await session.execute(select(Organization.id).where(Organization.is_active.is_(True)))).scalars().all()
+    for org_id in org_ids:
+        async with AsyncSessionLocal() as session:
+            try:
+                sent += await send_low_sms_balance_alerts(session, org_id)
+                await session.commit()
+            except Exception:  # noqa: BLE001
+                await session.rollback()
+    return {"pushed": sent, "organizations": len(org_ids)}
+
+
+@celery_app.task(name="app.tasks.send_low_sms_balance_alerts_task")
+def send_low_sms_balance_alerts_task():
+    """Daily 10:15 in Türkiye: alert staff if their own SMS provider balance is low."""
+    return asyncio.run(_send_low_sms_balance_alerts())
+
+
 async def _verify_pending_domains():
     from app.services import domains
     async with AsyncSessionLocal() as session:
@@ -925,6 +971,14 @@ celery_app.conf.beat_schedule = {
     "money-box-due-alerts": {
         "task": "app.tasks.send_money_box_due_alerts_task",
         "schedule": crontab(hour=6, minute=0),  # Her gün 09:00 TR
+    },
+    "task-due-alerts": {
+        "task": "app.tasks.send_task_due_alerts_task",
+        "schedule": crontab(hour=6, minute=5),  # Her gün 09:05 TR
+    },
+    "low-sms-balance-alerts": {
+        "task": "app.tasks.send_low_sms_balance_alerts_task",
+        "schedule": crontab(hour=7, minute=15),  # Her gün 10:15 TR
     },
         "process-outbox-every-minute": {
         "task": "app.tasks.process_outbox_task",

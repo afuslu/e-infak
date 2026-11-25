@@ -16,7 +16,7 @@ from app.models.device_token import DeviceToken
 from app.models.staff_notification import StaffNotification, StaffNotificationSetting
 from app.models.user import User
 from app.services import staff_notify
-from app.services.push_service import forget_tokens, push_messages, user_tokens
+from app.services.push_service import bind_device_token, forget_tokens, push_messages, unbind_device_token, user_tokens
 
 router = APIRouter(prefix="/mobile", tags=["mobile"])
 
@@ -35,26 +35,13 @@ async def register_device_token(
 ):
     org_id_raw = getattr(request.state, "organization_id", None)
     org_id = UUID(org_id_raw) if org_id_raw else current_user.organization_id
-    existing = (
-        await db.execute(
-            select(DeviceToken).where(
-                DeviceToken.user_id == current_user.id,
-                DeviceToken.token == payload.token,
-            )
-        )
-    ).scalar_one_or_none()
-    if existing:
-        existing.platform = payload.platform
-        existing.organization_id = org_id
-    else:
-        db.add(
-            DeviceToken(
-                organization_id=org_id,
-                user_id=current_user.id,
-                token=payload.token,
-                platform=payload.platform,
-            )
-        )
+    await bind_device_token(
+        db,
+        token=payload.token,
+        platform=payload.platform,
+        organization_id=org_id,
+        user_id=current_user.id,
+    )
     await db.commit()
     return {"registered": True}
 
@@ -65,12 +52,7 @@ async def unregister_device_token(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await db.execute(
-        delete(DeviceToken).where(
-            DeviceToken.user_id == current_user.id,
-            DeviceToken.token == payload.token,
-        )
-    )
+    await unbind_device_token(db, token=payload.token, user_id=current_user.id)
     await db.commit()
 
 
@@ -193,8 +175,9 @@ class SettingsIn(BaseModel):
 def _settings_out(user: User, values: dict) -> dict:
     # Only the switches this person can actually receive are shown in the app.
     sees_all = has_capability(user, "receipts.view_all")
+    can_donors = has_capability(user, "donors.view") or sees_all
     available = {
-        "online": sees_all,
+        "online": sees_all or can_donors,
         "transfer": True,
         "offline": True,
         "transfer_waiting": has_capability(user, "bank.approve"),
@@ -204,11 +187,11 @@ def _settings_out(user: User, values: dict) -> dict:
         "weekly_digest": sees_all,
         "tasks": True,
         "donor_reminders": True,
-        "money_box_due": True,
+        "money_box_due": has_capability(user, "operations.manage") or sees_all,
         "large_donation": sees_all,
         "recurring_failed": sees_all,
         "campaign_milestone": sees_all,
-        "system_alert": sees_all,
+        "system_alert": has_capability(user, "settings.manage") or sees_all,
     }
     return {"settings": values, "available": available}
 
@@ -538,6 +521,45 @@ async def widget_bundle(
     yesterday = await staff_notify.inflow_by_channel(db, org_id, day_start - timedelta(days=1), day_start, mine)
     month = await staff_notify.inflow_by_channel(db, org_id, month_start, day_end, mine)
 
+    # Last 7 days daily trend (oldest -> today) for widget sparkline / bar chart
+    from app.models.donation import Donation, DonationStatus
+    week_start = day_start - timedelta(days=6)
+    day_names_tr = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
+    daily_buckets: dict[str, dict] = {}
+    base_local_date = now.astimezone(staff_notify.TZ).date()
+    for offset in range(6, -1, -1):
+        d = base_local_date - timedelta(days=offset)
+        daily_buckets[d.isoformat()] = {
+            "date": d.isoformat(),
+            "label": day_names_tr[d.weekday()],
+            "total_cents": 0,
+            "count": 0,
+            "is_today": offset == 0,
+        }
+    week_q = select(
+        Donation.paid_at,
+        Donation.amount_cents,
+        Donation.currency,
+        Donation.payment_provider,
+    ).where(
+        Donation.organization_id == org_id,
+        Donation.status == DonationStatus.CONFIRMED,
+        Donation.paid_at >= week_start,
+        Donation.paid_at < day_end,
+    )
+    if mine:
+        week_q = week_q.where(Donation.issued_by_id == mine)
+    for paid_at, amount_cents, currency, provider in (await db.execute(week_q)).all():
+        if (provider or "") in staff_notify.SILENT_PROVIDERS:
+            continue
+        if (currency or "TRY") != "TRY" or not paid_at:
+            continue
+        d_key = paid_at.astimezone(staff_notify.TZ).date().isoformat()
+        if d_key in daily_buckets:
+            daily_buckets[d_key]["total_cents"] += int(amount_cents or 0)
+            daily_buckets[d_key]["count"] += 1
+    last_7_days = list(daily_buckets.values())
+
     # Pending bank transfers
     pending_transfers: dict = {"count": 0, "total_cents": 0, "items": []}
     if has_capability(user, "bank.approve") or sees_all:
@@ -548,7 +570,7 @@ async def widget_bundle(
         ]
         row = (await db.execute(select(func.count(), func.coalesce(func.sum(BankTransaction.amount_cents), 0)).where(*base_tx))).one()
         tx_rows = (await db.execute(
-            select(BankTransaction).where(*base_tx).order_by(BankTransaction.booked_at.desc()).limit(4)
+            select(BankTransaction).where(*base_tx).order_by(BankTransaction.booked_at.desc()).limit(5)
         )).scalars().all()
         pending_transfers = {
             "count": int(row[0] or 0),
@@ -559,6 +581,7 @@ async def widget_bundle(
                     "sender": (t.sender_name or t.description or "Havale")[:40],
                     "amount_cents": t.amount_cents,
                     "booked_at": t.booked_at,
+                    "status": t.status.value if hasattr(t.status, "value") else str(t.status),
                 }
                 for t in tx_rows
             ],
@@ -574,7 +597,7 @@ async def widget_bundle(
         select(func.count()).select_from(Task).where(*task_filters, Task.due_date.is_not(None), Task.due_date < today_date)
     )).scalar() or 0)
     task_rows = (await db.execute(
-        select(Task).where(*task_filters).order_by(Task.due_date.asc().nullslast(), Task.created_at.desc()).limit(4)
+        select(Task).where(*task_filters).order_by(Task.due_date.asc().nullslast(), Task.created_at.desc()).limit(5)
     )).scalars().all()
 
     # Featured / top active campaign with a target (excluding hidden system campaigns)
@@ -593,12 +616,14 @@ async def widget_bundle(
     )).scalar_one_or_none()
     campaign_out = None
     if camp:
-        pct = min(100, round((camp.collected_cents or 0) * 100 / max(1, camp.target_cents)))
+        collected = int(camp.collected_cents or 0)
+        pct = min(100, round(collected * 100 / max(1, camp.target_cents)))
         campaign_out = {
             "id": str(camp.id),
             "title": camp.title,
             "target_cents": camp.target_cents,
-            "collected_cents": camp.collected_cents or 0,
+            "collected_cents": collected,
+            "remaining_cents": max(0, int(camp.target_cents) - collected),
             "percent": pct,
         }
 
@@ -616,6 +641,7 @@ async def widget_bundle(
             "total_cents": month["total_cents"],
             "count": month["count"],
         },
+        "last_7_days": last_7_days,
         "pending_transfers": pending_transfers,
         "tasks": {
             "open_count": open_count,
@@ -624,6 +650,7 @@ async def widget_bundle(
                 {
                     "id": str(t.id),
                     "title": t.title,
+                    "status": t.status,
                     "due_date": t.due_date.isoformat() if t.due_date else None,
                     "overdue": bool(t.due_date and t.due_date < today_date),
                 }

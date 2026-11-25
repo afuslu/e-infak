@@ -69,7 +69,11 @@ class Donor(Base):
     # allow_*: explicit permission for commercial messages. *_opt_out: wants no announcements at all.
     sms_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
     email_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
+    push_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
     is_anonymous = Column(Boolean, default=False)
+    # Donor deleted their portal account in the app: tokens issued before this moment are rejected.
+    # Donation and receipt records stay for the legal retention period.
+    portal_closed_at = Column(DateTime(timezone=True))
     
     # Staff member (representative) responsible for this donor
     assigned_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)

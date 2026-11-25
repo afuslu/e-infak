@@ -115,7 +115,9 @@ def push_text(reminder: DonorReminder, donor: Optional[Donor]) -> tuple[str, str
 
 async def send_due(db: AsyncSession, now: Optional[datetime] = None, limit: int = 200) -> int:
     """Push every reminder whose time has come to the person who wrote it, once."""
-    from app.services.push_service import notify_user_push
+    from sqlalchemy.orm import selectinload
+    from app.models.user import User
+    from app.services import staff_notify
 
     now = now or datetime.now(TZ)
     rows = (await db.execute(
@@ -130,18 +132,45 @@ async def send_due(db: AsyncSession, now: Optional[datetime] = None, limit: int 
         .limit(limit)
         .with_for_update(of=DonorReminder, skip_locked=True)
     )).all()
+    if not rows:
+        return 0
     for reminder, donor in rows:
         # Mark first: a slow or failed push must not repeat every minute.
         reminder.notified_at = now
     await db.commit()
+    user_ids = {reminder.created_by_id for reminder, _ in rows if reminder.created_by_id}
+    users = {
+        u.id: u
+        for u in (
+            await db.execute(
+                select(User).options(selectinload(User.staff_role)).where(User.id.in_(user_ids), User.is_active.is_(True))
+            )
+        ).scalars().all()
+    } if user_ids else {}
     for reminder, donor in rows:
+        user = users.get(reminder.created_by_id)
+        if not user:
+            continue
         title, body = push_text(reminder, donor)
         try:
-            await notify_user_push(db, reminder.created_by_id, title, body, {
-                "type": "reminder", "reminder_id": str(reminder.id),
-                "donor_id": str(reminder.donor_id) if reminder.donor_id else None,
-            })
+            await staff_notify.deliver(
+                db,
+                reminder.organization_id,
+                [user],
+                kind="donor_reminder",
+                setting="donor_reminders",
+                title=title,
+                body=body,
+                data={
+                    "type": "reminder",
+                    "route": "donor" if reminder.donor_id else "search",
+                    "reminder_id": str(reminder.id),
+                    "donor_id": str(reminder.donor_id) if reminder.donor_id else None,
+                },
+            )
+            await db.commit()
         except Exception as exc:  # pragma: no cover - network
+            await db.rollback()
             logger.warning("Reminder push failed for %s: %s", reminder.id, exc)
     return len(rows)
 

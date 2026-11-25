@@ -170,17 +170,29 @@ async def test_complete_snooze_reopen_and_repeat(db_session):
 
 
 async def test_due_reminders_are_pushed_once(db_session, monkeypatch):
+    from app.models.device_token import DeviceToken
+    from app.models.staff_notification import StaffNotification, StaffNotificationSetting
+    from app.services import staff_notify
+
     org, admin = await _setup(db_session)
+    donor = Donor(organization_id=org.id, first_name="Yavuz", last_name="Yıldırım", phone="05551112233",
+                  total_donations=0, total_donated_cents=0)
+    tok = f"ExponentPushToken[rem-{uuid.uuid4().hex[:8]}]"
+    db_session.add_all([donor, DeviceToken(organization_id=org.id, user_id=admin.id, token=tok, platform="ios")])
+    await db_session.flush()
+
     sent = []
 
-    async def fake_push(db, user_id, title, body, data=None):
-        sent.append((user_id, title, body, data))
-        return 1
+    async def fake_push(tokens, title, body, data=None, *, badge=None, channel_id="default", category_id=None, errors=None):
+        tokens = list(tokens)
+        sent.append((tokens, title, body, data, channel_id))
+        return len(tokens), []
 
-    from app.services import push_service
-    monkeypatch.setattr(push_service, "notify_user_push", fake_push)
+    monkeypatch.setattr("app.services.push_service.push_messages", fake_push)
+    monkeypatch.setattr(staff_notify, "_quiet", lambda now=None: False)
+
     now = datetime.now(TZ)
-    due = DonorReminder(organization_id=org.id, created_by_id=admin.id, content="Ara: Yavuz", remind_at=now - timedelta(minutes=1))
+    due = DonorReminder(organization_id=org.id, created_by_id=admin.id, donor_id=donor.id, content="Ara: Yavuz", remind_at=now - timedelta(minutes=1))
     future = DonorReminder(organization_id=org.id, created_by_id=admin.id, content="Sonra", remind_at=now + timedelta(hours=1))
     done = DonorReminder(organization_id=org.id, created_by_id=admin.id, content="Bitti", remind_at=now - timedelta(hours=1), completed_at=now)
     db_session.add_all([due, future, done])
@@ -188,9 +200,23 @@ async def test_due_reminders_are_pushed_once(db_session, monkeypatch):
 
     await svc.send_due(db_session, now)
     await svc.send_due(db_session, now)
-    mine = [s for s in sent if s[0] == admin.id]
+    mine = [s for s in sent if tok in s[0]]
     assert len(mine) == 1
-    assert mine[0][2] == "Ara: Yavuz" and mine[0][3]["reminder_id"] == str(due.id)
+    assert "Ara: Yavuz" in mine[0][2]
+    assert mine[0][3]["reminder_id"] == str(due.id)
+    assert mine[0][3]["route"] == "donor" and mine[0][3]["donor_id"] == str(donor.id)
+    assert mine[0][4] == "tasks"
+
+    # Also stored in inbox, and turning donor_reminders off suppresses phone push while keeping inbox entry:
+    db_session.add(StaffNotificationSetting(user_id=admin.id, settings={"donor_reminders": False}))
+    muted_due = DonorReminder(organization_id=org.id, created_by_id=admin.id, content="Sessiz hatırlatma", remind_at=now - timedelta(seconds=10))
+    db_session.add(muted_due)
+    await db_session.commit()
+    await svc.send_due(db_session, now)
+    assert len([s for s in sent if tok in s[0]]) == 1  # no second phone push
+    notes = (await db_session.execute(select(StaffNotification).where(
+        StaffNotification.user_id == admin.id, StaffNotification.kind == "donor_reminder"))).scalars().all()
+    assert len(notes) == 2
 
 
 async def test_wise_reminder_import_matches_and_skips_duplicates(db_session):

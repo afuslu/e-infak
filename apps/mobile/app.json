@@ -78,8 +78,33 @@
           "widgets": [
             {
               "name": "EinfakInflow",
-              "displayName": "Bugün gelen para",
-              "description": "Kurumunuza bugün gelen bağışlar: toplam, kanal dağılımı ve bekleyen havaleler.",
+              "displayName": "Bugün Gelen & Kokpit",
+              "description": "Günlük tahsilat, 7 günlük grafik, kanal kırılımı ve büyük boyda tam Yönetici Kokpiti.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge",
+                  "accessoryCircular",
+                  "accessoryRectangular",
+                  "accessoryInline"
+                ]
+              }
+            },
+            {
+              "name": "EinfakQuickActions",
+              "displayName": "Hızlı İşlemler",
+              "description": "Tek dokunuşla makbuz kes, kumbara QR tara, havaleler ve bağışçı arama.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemMedium"
+                ]
+              }
+            },
+            {
+              "name": "EinfakTransfers",
+              "displayName": "Bekleyen Havaleler",
+              "description": "Eşleşmeyi bekleyen son banka havaleleri, saatleri ve toplam tutar.",
               "ios": {
                 "supportedFamilies": [
                   "systemSmall",
@@ -89,33 +114,14 @@
               }
             },
             {
-              "name": "EinfakQuickActions",
-              "displayName": "Hızlı işlemler",
-              "description": "Tek dokunuşla makbuz kes, kumbara QR tara, havaleler ve arama.",
-              "ios": {
-                "supportedFamilies": [
-                  "systemMedium"
-                ]
-              }
-            },
-            {
-              "name": "EinfakTransfers",
-              "displayName": "Bekleyen havaleler",
-              "description": "Eşleşmeyi bekleyen son havaleler ve toplam tutar.",
+              "name": "EinfakTasksGoals",
+              "displayName": "Kampanya & Görevler",
+              "description": "Aktif kampanya hedef çubuğu, kalan tutar ve açık/geciken görevleriniz.",
               "ios": {
                 "supportedFamilies": [
                   "systemSmall",
-                  "systemMedium"
-                ]
-              }
-            },
-            {
-              "name": "EinfakTasksGoals",
-              "displayName": "Kampanya ve görevler",
-              "description": "Öne çıkan kampanya hedef ilerlemesi ve açık görevleriniz.",
-              "ios": {
-                "supportedFamilies": [
-                  "systemMedium"
+                  "systemMedium",
+                  "accessoryCircular"
                 ]
               }
             }
@@ -129,19 +135,31 @@
             {
               "name": "EinfakInflow",
               "label": "e-İnfak · Bugün gelen para",
-              "description": "Bugün gelen bağışlar, kanal dağılımı ve bekleyen havaleler.",
+              "description": "Bugünkü tahsilat, 7 günlük trend grafiği, kanal dağılımı ve bekleyen havaleler.",
               "previewImage": "./assets/widgets/preview-inflow.png",
               "minWidth": "180dp",
               "minHeight": "110dp",
-              "targetCellWidth": 3,
+              "targetCellWidth": 4,
               "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "EinfakCockpit",
+              "label": "e-İnfak · Yönetici Kokpiti",
+              "description": "Tam özet: Bugün & bu ay tahsilat, 7 günlük grafik, kampanya çubuğu, havaleler ve görevler.",
+              "previewImage": "./assets/widgets/preview-cockpit.png",
+              "minWidth": "250dp",
+              "minHeight": "220dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 4,
               "resizeMode": "horizontal|vertical",
               "updatePeriodMillis": 1800000
             },
             {
               "name": "EinfakCompact",
               "label": "e-İnfak · Mini sayaç",
-              "description": "Bugünkü toplam bağış ve bekleyen havale rozeti.",
+              "description": "Bugünkü toplam bağış, 7 günlük mini grafik ve bekleyen havale rozeti.",
               "previewImage": "./assets/widgets/preview-compact.png",
               "minWidth": "110dp",
               "minHeight": "90dp",
@@ -153,19 +171,19 @@
             {
               "name": "EinfakQuickActions",
               "label": "e-İnfak · Hızlı işlemler",
-              "description": "Makbuz kes, kumbara QR tara, havaleler ve hızlı arama kısayolları.",
+              "description": "İkonlu kısayollar: Makbuz kes, kumbara QR tara, havaleler ve bağışçı ara.",
               "previewImage": "./assets/widgets/preview-quick.png",
               "minWidth": "250dp",
-              "minHeight": "60dp",
+              "minHeight": "65dp",
               "targetCellWidth": 4,
               "targetCellHeight": 1,
-              "resizeMode": "horizontal",
-              "updatePeriodMillis": 0
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
             },
             {
               "name": "EinfakTransfers",
               "label": "e-İnfak · Bekleyen havaleler",
-              "description": "Eşleşmeyi bekleyen havalelerin özeti ve son gelen satırlar.",
+              "description": "Eşleşmeyi bekleyen havalelerin saatli listesi, durumu ve toplam tutarı.",
               "previewImage": "./assets/widgets/preview-transfers.png",
               "minWidth": "220dp",
               "minHeight": "110dp",
@@ -177,7 +195,7 @@
             {
               "name": "EinfakTasksGoals",
               "label": "e-İnfak · Kampanya ve görevler",
-              "description": "Aktif kampanya hedef çubuğu ve açık görevleriniz.",
+              "description": "Aktif kampanya hedef çubuğu, kalan tutar ve tarihli görev listesi.",
               "previewImage": "./assets/widgets/preview-tasks.png",
               "minWidth": "220dp",
               "minHeight": "110dp",

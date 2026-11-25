@@ -123,11 +123,15 @@ async def _authenticated_donor(request: Request, org_id: UUID, db: AsyncSession)
         donor_uuid = UUID(str(data["sub"]))
     except ValueError:
         return None
-    return (
+    donor = (
         await db.execute(
             select(Donor).where(Donor.id == donor_uuid, Donor.organization_id == org_id)
         )
     ).scalar_one_or_none()
+    closed = getattr(donor, "portal_closed_at", None) if donor else None
+    if closed and (not isinstance(data.get("iat"), (int, float)) or data["iat"] <= closed.timestamp()):
+        return None
+    return donor
 
 
 async def _get_or_create_donor(

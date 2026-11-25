@@ -102,12 +102,26 @@ async def create_demo_request(payload: DemoRequestIn, request: Request, db: Asyn
     email = (payload.email or "").strip().lower() or None
     if email and ("@" not in email or "." not in email.split("@")[-1]):
         raise HTTPException(status_code=422, detail="Geçerli bir e-posta adresi girin")
+    org_name = sanitize_public_text(payload.organization) or ""
+    visitor_name = sanitize_public_text(payload.name) or ""
     db.add(DemoRequest(
-        name=sanitize_public_text(payload.name) or "", organization=sanitize_public_text(payload.organization) or "",
+        name=visitor_name, organization=org_name,
         phone=digits, email=email, plan=payload.plan if payload.plan in {p.value for p in Plan} else None,
         message=sanitize_public_text(payload.message), ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
+    try:
+        from app.services.push_service import notify_platform_push
+
+        await notify_platform_push(
+            db,
+            title=f"Yeni Demo Başvurusu · {org_name[:80]}",
+            body=f"{visitor_name} · {digits}",
+            data={"route": "platform_demos"},
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
     return {"status": "received"}
 
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, Text } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuth } from '@/context/AuthContext';
@@ -11,11 +11,17 @@ import { pushEnabled, registerPush, unregisterPush } from '@/lib/notifications';
 import { getItem } from '@/lib/storage';
 import { Btn, Card, Chips, Field, Notice, Row, Screen, SectionTitle, SwitchRow, useUi } from '@/components/ui';
 import { confirm, notify, notifyError } from '@/components/toast';
-import { space, useTheme, type ThemeMode } from '@/theme';
+import { radius, space, useTheme, type ThemeMode } from '@/theme';
+import { getSavedWidgetThemeStyle, refreshHomeWidgets, setWidgetThemeAndRefresh } from '@/widgets';
+import {
+  resolveWidgetPalette,
+  WIDGET_THEME_OPTIONS,
+  type WidgetThemeStyle,
+} from '@/widgets/palette';
 
 export default function Account() {
   const { me, site, signOut } = useAuth();
-  const { mode, setMode } = useTheme();
+  const { mode, dark, colors, setMode } = useTheme();
   const ui = useUi();
   const router = useRouter();
   const [current, setCurrent] = useState('');
@@ -26,13 +32,40 @@ export default function Account() {
   const [bioAvailable, setBioAvailable] = useState(false);
   const [bio, setBio] = useState(false);
   const [push, setPush] = useState(false);
+  const [widgetTheme, setWidgetTheme] = useState<WidgetThemeStyle>('system');
   const native = Platform.OS !== 'web';
 
   useEffect(() => {
     biometricAvailable().then(setBioAvailable);
     biometricEnabled().then(setBio);
-    pushEnabled().then(setPush);
+    pushEnabled('tenant').then(setPush);
+    getSavedWidgetThemeStyle().then(setWidgetTheme);
   }, []);
+
+  const changeWidgetTheme = async (style: WidgetThemeStyle) => {
+    setWidgetTheme(style);
+    await setWidgetThemeAndRefresh(style);
+    notify('Widget renk teması güncellendi.');
+  };
+
+  const refreshWidgetsNow = async () => {
+    setBusy('widgets');
+    try {
+      const ok = await refreshHomeWidgets(site?.name || undefined);
+      if (ok) {
+        notify('Ana ekran widget verileri yenilendi.');
+      } else {
+        notify('Sunucuya ulaşılamadı; son kayıtlı widget verileri korundu.', 'error');
+      }
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const previewPalette = resolveWidgetPalette(widgetTheme, dark, colors.primary);
+  const selectedThemeMeta = WIDGET_THEME_OPTIONS.find((o) => o.value === widgetTheme) || WIDGET_THEME_OPTIONS[0];
 
   const changePassword = async () => {
     setError(null);
@@ -64,11 +97,11 @@ export default function Account() {
   const togglePush = async (on: boolean) => {
     try {
       if (on) {
-        const result = await registerPush();
+        const result = await registerPush(true, 'tenant');
         notify(result.message, result.ok ? 'ok' : 'error');
         setPush(result.ok);
       } else {
-        await unregisterPush();
+        await unregisterPush('tenant');
         setPush(false);
       }
     } catch (e) {
@@ -100,6 +133,131 @@ export default function Account() {
           wrap
         />
       </Card>
+
+      {native ? (
+        <>
+          <SectionTitle>Ana Ekran Widget Teması</SectionTitle>
+          <Card style={{ gap: space.md }}>
+            <Text style={ui.muted}>
+              Ana ekran ve kilit ekranı widget'larınız için gündüz, koyu, zümrüt veya AMOLED renk stilini seçin.
+            </Text>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.sm }}>
+              {WIDGET_THEME_OPTIONS.map((opt) => {
+                const active = widgetTheme === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => changeWidgetTheme(opt.value)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 9,
+                      borderRadius: radius.md,
+                      borderWidth: active ? 2 : 1,
+                      borderColor: active ? colors.primary : colors.line,
+                      backgroundColor: active ? colors.primarySoft : colors.bg,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 9,
+                        backgroundColor: opt.swatchBg,
+                        borderWidth: 1,
+                        borderColor: colors.line,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: opt.swatchAccent,
+                        }}
+                      />
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: active ? '700' : '600',
+                        color: active ? colors.primary : colors.text,
+                      }}
+                    >
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Canlı Widget Önizleme Kartı */}
+            <View
+              style={{
+                backgroundColor: previewPalette.bg,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: previewPalette.border,
+                padding: 14,
+                gap: 8,
+              }}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: previewPalette.primary }}>
+                  {site?.name || 'e-İnfak'} · {selectedThemeMeta.label}
+                </Text>
+                <Text style={{ fontSize: 11, color: previewPalette.muted }}>Canlı Önizleme</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                <View>
+                  <Text style={{ fontSize: 11, color: previewPalette.muted }}>Bugün gelen para</Text>
+                  <Text style={{ fontSize: 24, fontWeight: '800', color: previewPalette.text }}>₺48.250</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: previewPalette.subtext }}>27 bağış</Text>
+                    <View
+                      style={{
+                        backgroundColor: previewPalette.primarySoft,
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 99,
+                      }}
+                    >
+                      <Text style={{ fontSize: 10, fontWeight: '700', color: previewPalette.primary }}>▲ %18</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 34 }}>
+                  {[12, 18, 15, 22, 19, 27, 34].map((h, i) => (
+                    <View
+                      key={i}
+                      style={{
+                        width: 6,
+                        height: h,
+                        borderRadius: 3,
+                        backgroundColor: i === 6 ? previewPalette.primary : previewPalette.track,
+                      }}
+                    />
+                  ))}
+                </View>
+              </View>
+              <Text style={{ fontSize: 11, color: previewPalette.muted }}>{selectedThemeMeta.hint}</Text>
+            </View>
+
+            <Btn
+              title="Widget'ları Şimdi Yenile"
+              variant="outline"
+              small
+              loading={busy === 'widgets'}
+              onPress={refreshWidgetsNow}
+            />
+          </Card>
+        </>
+      ) : null}
 
       <SectionTitle>Güvenlik</SectionTitle>
       <Card style={{ gap: space.md }}>

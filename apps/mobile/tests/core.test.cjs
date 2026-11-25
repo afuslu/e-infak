@@ -43,6 +43,7 @@ const access = require(path.join(dist, 'lib', 'access.js'));
 const format = require(path.join(dist, 'lib', 'format.js'));
 const api = require(path.join(dist, 'lib', 'api.js'));
 const offline = require(path.join(dist, 'lib', 'offlineQueue.js'));
+const notificationRoute = require(path.join(dist, 'lib', 'notificationRoute.js'));
 
 test('access: yetki ve paket kontrolleri', () => {
   const sample = {
@@ -158,4 +159,42 @@ test('offlineQueue: senkronizasyon sırasında eklenen kayıt korunur ve çıkı
 
   await offline.clearOfflineData();
   assert.equal((await offline.listOfflineQueue()).length, 0);
+});
+
+test('notificationRoute: personel, bağışçı ve platform bildirim yönlendirmeleri', () => {
+  const pushed = [];
+  const router = { push: (target) => pushed.push(target) };
+
+  // Personel: etkileşimli butonlar, hatırlatma ve modül rotaları
+  notificationRoute.openNotificationTarget(router, { donation_id: 'd1', receipt_number: 'BG-1' }, 'open_donation', 'tenant');
+  assert.deepEqual(pushed.pop(), { pathname: '/bagis/[id]', params: { id: 'd1', no: 'BG-1' } });
+
+  notificationRoute.openNotificationTarget(router, { type: 'reminder', donor_id: 'dn1' }, undefined, 'tenant');
+  assert.deepEqual(pushed.pop(), { pathname: '/bagisci/[id]', params: { id: 'dn1' } });
+
+  notificationRoute.openNotificationTarget(router, { type: 'reminder' }, undefined, 'tenant');
+  assert.equal(pushed.pop(), '/arama');
+
+  notificationRoute.openNotificationTarget(router, { route: 'recurring' }, undefined, 'tenant');
+  assert.equal(pushed.pop(), '/duzenli-odemeler');
+
+  // Bağışçı rotaları
+  notificationRoute.openNotificationTarget(router, { route: 'donor_kurban' }, undefined, 'donor');
+  assert.equal(pushed.pop(), '/(donor)/projelerim');
+
+  notificationRoute.openNotificationTarget(router, { route: 'donor_wells' }, undefined, 'donor');
+  assert.equal(pushed.pop(), '/(donor)/su-kuyularim');
+
+  notificationRoute.openNotificationTarget(router, { route: 'donor_subscriptions' }, undefined, 'donor');
+  assert.equal(pushed.pop(), '/(donor)/talimatlarim');
+
+  // Platform yöneticisi rotaları
+  notificationRoute.openNotificationTarget(router, { route: 'platform_ticket', ticket_id: 't9' }, undefined, 'platform');
+  assert.deepEqual(pushed.pop(), { pathname: '/talep/[id]', params: { id: 't9' } });
+
+  notificationRoute.openNotificationTarget(router, { route: 'platform_demos' }, undefined, 'platform');
+  assert.deepEqual(pushed.pop(), { pathname: '/(tabs)/talepler', params: { tab: 'demos' } });
+
+  notificationRoute.openNotificationTarget(router, { route: 'platform_org', org_id: 'o5' }, undefined, 'platform');
+  assert.deepEqual(pushed.pop(), { pathname: '/kurum/[id]', params: { id: 'o5' } });
 });

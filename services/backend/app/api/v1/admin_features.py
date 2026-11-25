@@ -2095,6 +2095,20 @@ async def create_tenant_ticket(
     )
     await db.commit()
     await db.refresh(ticket)
+    try:
+        from app.models.organization import Organization
+        from app.services.push_service import notify_platform_push
+
+        org = await db.get(Organization, org_id)
+        await notify_platform_push(
+            db,
+            title=f"Yeni Destek Talebi · {org.name if org else 'Kurum'}",
+            body=f"{ticket.subject} — {payload.message.strip()[:120]}",
+            data={"route": "platform_ticket", "ticket_id": str(ticket.id)},
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
     return {"id": str(ticket.id), "subject": ticket.subject, "status": ticket.status}
 
 
@@ -2173,6 +2187,20 @@ async def reply_tenant_ticket(
     ticket.status = "open"
     ticket.updated_at = datetime.now(timezone.utc)
     await db.commit()
+    try:
+        from app.models.organization import Organization
+        from app.services.push_service import notify_platform_push
+
+        org = await db.get(Organization, org_id)
+        await notify_platform_push(
+            db,
+            title=f"Destek Yanıtı · {org.name if org else 'Kurum'}",
+            body=f"{ticket.subject} — {payload.body.strip()[:120]}",
+            data={"route": "platform_ticket", "ticket_id": str(ticket.id)},
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
     return {"ok": True}
 
 

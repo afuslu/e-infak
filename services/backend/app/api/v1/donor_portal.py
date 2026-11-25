@@ -91,13 +91,27 @@ async def get_current_donor(
     )
     donor = result.scalar_one_or_none()
     
-    if not donor:
+    if not donor or _closed_for(donor, payload):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Bağışçı bulunamadı",
         )
         
     return donor
+
+
+def _donor_claims(donor: Donor) -> dict:
+    """Donor token claims; `iat` lets a deleted portal account reject tokens issued before it closed."""
+    return {"sub": str(donor.id), "role": "donor", "iat": int(datetime.now(timezone.utc).timestamp())}
+
+
+def _closed_for(donor: Donor, token_payload: dict) -> bool:
+    """True when the donor deleted their portal account after this token was issued."""
+    closed = getattr(donor, "portal_closed_at", None)
+    if not closed:
+        return False
+    issued = token_payload.get("iat")
+    return not isinstance(issued, (int, float)) or issued <= closed.timestamp()
 
 async def _donor_ids_for(db: AsyncSession, donor: Donor) -> list[UUID]:
     """Return all Donor IDs belonging to the same person in this organisation.
@@ -278,8 +292,8 @@ async def verify_portal_otp(
             await db.refresh(donor)
 
     # Generate access/refresh tokens specifically for donor
-    access_token = create_access_token({"sub": str(donor.id), "role": "donor"})
-    refresh_token = create_refresh_token({"sub": str(donor.id), "role": "donor"})
+    access_token = create_access_token(_donor_claims(donor))
+    refresh_token = create_refresh_token(_donor_claims(donor))
 
     return {
         "access_token": access_token,
@@ -336,8 +350,8 @@ async def login_portal_password(
             detail="Telefon/e-posta veya şifre hatalı. Şifreniz yoksa SMS/E-posta koduyla giriş yapabilirsiniz.",
         )
 
-    access_token = create_access_token({"sub": str(donor.id), "role": "donor"})
-    refresh_token = create_refresh_token({"sub": str(donor.id), "role": "donor"})
+    access_token = create_access_token(_donor_claims(donor))
+    refresh_token = create_refresh_token(_donor_claims(donor))
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -388,12 +402,12 @@ async def refresh_portal_token(
     if org_id:
         stmt = stmt.where(Donor.organization_id == UUID(str(org_id)))
     donor = (await db.execute(stmt)).scalar_one_or_none()
-    if not donor:
+    if not donor or _closed_for(donor, data):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bağışçı bulunamadı.")
     return {
-        "access_token": create_access_token({"sub": str(donor.id), "role": "donor"}),
+        "access_token": create_access_token(_donor_claims(donor)),
         "refresh_token": create_refresh_token(
-            {"sub": str(donor.id), "role": "donor"},
+            _donor_claims(donor),
             timedelta(days=settings.REMEMBERED_DONOR_SESSION_DAYS) if payload.remember else None),
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         "donor": {
@@ -1397,6 +1411,7 @@ class DonorProfileUpdate(BaseModel):
     allow_sms: Optional[bool] = None
     sms_opt_out: Optional[bool] = None
     email_opt_out: Optional[bool] = None
+    push_opt_out: Optional[bool] = None
     is_anonymous: Optional[bool] = None
 
 
@@ -1417,6 +1432,7 @@ def _serialize_donor_profile(donor: Donor) -> dict:
         "allow_sms": bool(donor.allow_sms),
         "sms_opt_out": bool(donor.sms_opt_out),
         "email_opt_out": bool(donor.email_opt_out),
+        "push_opt_out": bool(getattr(donor, "push_opt_out", False)),
         "is_anonymous": bool(donor.is_anonymous),
         "has_password": bool(donor.hashed_password),
         "total_donations": int(donor.total_donations or 0),
@@ -1471,12 +1487,76 @@ async def update_my_profile(
             setattr(current_donor, f"{channel}_opt_out", opt_out)
             if opt_out:
                 setattr(current_donor, f"allow_{channel}", False)
+    if payload.push_opt_out is not None:
+        current_donor.push_opt_out = bool(payload.push_opt_out)
     if payload.is_anonymous is not None:
         current_donor.is_anonymous = bool(payload.is_anonymous)
 
     await db.commit()
     await db.refresh(current_donor)
     return _serialize_donor_profile(current_donor)
+
+
+class DonorDeviceTokenIn(BaseModel):
+    token: str = Field(min_length=10, max_length=255)
+    platform: str = Field(default="expo", max_length=20)
+
+
+@router.post("/me/device-token", status_code=status.HTTP_201_CREATED)
+async def register_donor_device_token(
+    payload: DonorDeviceTokenIn,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.push_service import bind_device_token
+
+    await bind_device_token(
+        db,
+        token=payload.token,
+        platform=payload.platform if payload.platform in ("ios", "android", "expo") else "expo",
+        organization_id=current_donor.organization_id,
+        donor_id=current_donor.id,
+    )
+    await db.commit()
+    return {"registered": True}
+
+
+@router.delete("/me/device-token", status_code=status.HTTP_204_NO_CONTENT)
+async def unregister_donor_device_token(
+    payload: DonorDeviceTokenIn,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.push_service import unbind_device_token
+
+    await unbind_device_token(db, token=payload.token, donor_id=current_donor.id)
+    await db.commit()
+
+
+@router.post("/me/test-push")
+async def test_donor_push_notification(
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.push_service import donor_tokens, forget_tokens, push_messages
+
+    donor_ids = await _donor_ids_for(db, current_donor)
+    tokens = await donor_tokens(db, donor_ids, current_donor.organization_id)
+    errors: List[str] = []
+    sent, dead = await push_messages(
+        tokens,
+        title="Bildirim Testi",
+        body="Bağış, kurban ve su kuyusu bildirimleriniz bu telefona başarıyla ulaşacaktır.",
+        data={"route": "donor_donations", "type": "test"},
+        errors=errors,
+    )
+    await forget_tokens(db, dead)
+    await db.commit()
+    if sent == 0:
+        if errors:
+            raise HTTPException(status_code=409, detail=f"Bildirim gönderimi kabul edilmedi ({errors[0]}).")
+        raise HTTPException(status_code=404, detail="Bu hesaba kayıtlı telefon bulunamadı; bildirimleri kapatıp yeniden açın.")
+    return {"sent": sent}
 
 
 class DonorRequestCreate(BaseModel):
@@ -1554,6 +1634,19 @@ async def create_my_request(
     db.add(msg)
     await db.commit()
     await db.refresh(msg)
+    try:
+        from app.services import staff_notify
+
+        await staff_notify.notify_system_alert(
+            db,
+            current_donor.organization_id,
+            title=f"Bağışçı Talebi · {cat_label}",
+            body=f"{full_name}: {body[:140]}",
+            data={"route": "donor", "donor_id": str(current_donor.id)},
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
     return {
         "id": str(msg.id),
         "message": msg.message,
@@ -1699,3 +1792,100 @@ async def remove_my_saved_card(
         sub.mode = "reminder"
     await db.commit()
     return {"status": "success", "message": "Kayıtlı kart kaldırıldı."}
+
+
+class DonorAccountDeleteIn(BaseModel):
+    reason: Optional[str] = Field(default=None, max_length=500)
+
+
+@router.post("/me/delete-account")
+async def delete_my_account(
+    payload: DonorAccountDeleteIn,
+    current_donor: Donor = Depends(get_current_donor),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit("donor-account-delete", limit=5, window_seconds=3600)),
+):
+    """Delete the donor's portal account from the app (App Store 5.1.1(v) / Google Play).
+
+    Signs the donor out everywhere, removes the password, push devices and saved cards, cancels
+    recurring instructions, opts out of every message and clears contact details not needed on a
+    receipt. Donations and receipts stay because associations must keep them for the legal period;
+    the organisation is told so it can finish any further KVKK erasure request.
+    """
+    from app.models.device_token import DeviceToken
+    from sqlalchemy import delete as sa_delete
+
+    donor_ids = await _donor_ids_for(db, current_donor)
+    org_id = current_donor.organization_id
+    now = datetime.now(timezone.utc)
+    full_name = f"{current_donor.first_name or ''} {current_donor.last_name or ''}".strip() or "Bağışçı"
+    contact = current_donor.phone or current_donor.email or ""
+
+    subs = (
+        await db.execute(
+            select(Subscription).where(
+                Subscription.donor_id.in_(donor_ids),
+                Subscription.organization_id == org_id,
+                Subscription.status.notin_(("cancelled", "completed")),
+            )
+        )
+    ).scalars().all()
+    released: list[tuple[Subscription, str]] = []
+    for sub in subs:
+        sub.status = "cancelled"
+        if sub.card_ref and sub.provider == "vakifkatilim":
+            released.append((sub, sub.card_ref))
+        sub.card_ref = None
+        sub.card_token = None
+        sub.card_last_4 = None
+        sub.card_brand = None
+
+    await db.execute(sa_delete(DeviceToken).where(DeviceToken.donor_id.in_(donor_ids)))
+
+    donors = (
+        await db.execute(select(Donor).where(Donor.id.in_(donor_ids), Donor.organization_id == org_id))
+    ).scalars().all()
+    for donor in donors:
+        donor.hashed_password = None
+        donor.portal_closed_at = now
+        donor.allow_sms = False
+        donor.allow_email = False
+        donor.sms_opt_out = True
+        donor.email_opt_out = True
+        donor.push_opt_out = True
+        donor.is_anonymous = True
+        donor.address = None
+        donor.city = None
+        donor.district = None
+        donor.neighbourhood = None
+        donor.phone2 = None
+        donor.birth_date = None
+        donor.blood_group = None
+        donor.gender = None
+        donor.occupation = None
+    await db.commit()
+
+    for sub, ref in released:
+        await _release_card(db, sub, ref)
+
+    try:
+        from app.services import staff_notify
+
+        reason = (payload.reason or "").strip()
+        await staff_notify.notify_system_alert(
+            db,
+            org_id,
+            title="Bağışçı hesabını sildi",
+            body=f"{full_name} ({contact}) mobil uygulamadan hesabını sildi."
+            + (f" Sebep: {reason[:200]}" if reason else "")
+            + " Makbuz kayıtları yasal süre boyunca saklanır.",
+            data={"route": "donor", "donor_id": str(current_donor.id)},
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001 - the deletion itself already succeeded
+        await db.rollback()
+
+    return {
+        "deleted": True,
+        "message": "Hesabınız silindi. Yasal olarak saklanması gereken bağış makbuzlarınız dışında kişisel bilgileriniz kaldırıldı.",
+    }

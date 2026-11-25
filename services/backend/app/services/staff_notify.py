@@ -230,7 +230,7 @@ async def deliver(db: AsyncSession, organization_id: UUID, recipients: list[User
             continue
         if is_large or setting in {"payment_failed", "system_alert", "recurring_failed"}:
             push_channel = "urgent"
-        elif setting in {"online", "transfer", "transfer_waiting", "offline", "refund"}:
+        elif setting in {"online", "transfer", "transfer_waiting", "offline", "refund", "campaign_milestone"}:
             push_channel = "money_in"
         elif setting in {"tasks", "donor_reminders", "money_box_due"}:
             push_channel = "tasks"
@@ -331,6 +331,20 @@ async def _donation_paid(db: AsyncSession, organization_id: UUID, payload: dict)
         data={"donation_id": str(donation.id), "receipt_number": donation.receipt_number,
               "donor_id": str(donation.donor_id), "route": "donation"},
     )
+    for camp in {d.campaign_id: d.campaign for d in lines if d.campaign}.values():
+        await notify_campaign_milestone(db, camp)
+    if donation.donor_id:
+        from app.services.push_service import notify_donor_push
+
+        await notify_donor_push(
+            db,
+            donation.donor_id,
+            organization_id,
+            title=f"Bağışınız kaydedildi · {money(total, donation.currency)}",
+            body=f"{what} · Makbuz #{donation.receipt_number}. Allah kabul etsin.",
+            data={"route": "donor_donations", "donation_id": str(donation.id), "receipt_number": donation.receipt_number},
+            channel_id="money_in",
+        )
 
 
 async def _payment_paid(db: AsyncSession, organization_id: UUID, payload: dict) -> None:
@@ -374,6 +388,20 @@ async def _payment_paid(db: AsyncSession, organization_id: UUID, payload: dict) 
         data={"donation_id": str(first.id), "receipt_number": first.receipt_number, "donor_id": str(order.donor_id),
               "order_id": str(order.id), "route": "donation"},
     )
+    for camp in {d.campaign_id: d.campaign for d in donations if d.campaign}.values():
+        await notify_campaign_milestone(db, camp)
+    if order.donor_id:
+        from app.services.push_service import notify_donor_push
+
+        await notify_donor_push(
+            db,
+            order.donor_id,
+            organization_id,
+            title=f"Bağışınız ulaştı · {money(order.total_cents, order.currency)}",
+            body=f"{what} · Makbuz #{first.receipt_number}. Allah kabul etsin.",
+            data={"route": "donor_donations", "donation_id": str(first.id), "receipt_number": first.receipt_number},
+            channel_id="money_in",
+        )
 
 
 async def _payment_failed(db: AsyncSession, organization_id: UUID, payload: dict) -> None:
@@ -448,12 +476,33 @@ async def _transfers_waiting(db: AsyncSession, organization_id: UUID, payload: d
     )
 
 
+async def _recurring_failed(db: AsyncSession, organization_id: UUID, payload: dict) -> None:
+    donor_id_raw = payload.get("donor_id")
+    donor_name = payload.get("donor_name") or "Bağışçı"
+    amount_cents = int(payload.get("amount_cents") or 0)
+    currency = payload.get("currency") or "TRY"
+    reason = payload.get("reason") or "Otomatik kart çekimi başarısız oldu"
+    sub_id = UUID(payload["subscription_id"]) if payload.get("subscription_id") else UUID(int=0)
+    await notify_recurring_failed(
+        db,
+        organization_id,
+        donor_name,
+        amount_cents,
+        currency,
+        reason,
+        sub_id,
+        donor_id=UUID(donor_id_raw) if donor_id_raw else None,
+        label=payload.get("label"),
+    )
+
+
 HANDLERS = {
     "push.donation.paid": _donation_paid,
     "push.payment.paid": _payment_paid,
     "push.payment.failed": _payment_failed,
     "push.payment.refunded": _payment_refunded,
     "push.transfer.waiting": _transfers_waiting,
+    "push.recurring.failed": _recurring_failed,
 }
 
 
@@ -614,15 +663,31 @@ async def send_money_box_due_alerts(db: AsyncSession, organization_id: UUID, now
 
 
 async def notify_recurring_failed(db: AsyncSession, organization_id: UUID, donor_name: str, amount_cents: int,
-                                  currency: str, reason: str, subscription_id: UUID) -> int:
+                                  currency: str, reason: str, subscription_id: UUID,
+                                  *, donor_id: Optional[UUID] = None, label: Optional[str] = None) -> int:
     staff = [u for u in await _staff(db, organization_id) if _can(u, "receipts.view_all")]
-    return await deliver(
+    what = label or "Düzenli bağış"
+    pushed = await deliver(
         db, organization_id, staff, kind="recurring_failed", setting="recurring_failed",
-        title=f"Düzenli bağış çekilemedi · {money(amount_cents, currency)}",
+        title=f"{what} çekilemedi · {money(amount_cents, currency)}",
         body=f"{donor_name} · {reason[:120]}",
         amount_cents=amount_cents, currency=currency,
-        data={"route": "recurring", "subscription_id": str(subscription_id)},
+        data={"route": "recurring", "subscription_id": str(subscription_id),
+              **({"donor_id": str(donor_id)} if donor_id else {})},
     )
+    if donor_id:
+        from app.services.push_service import notify_donor_push
+
+        await notify_donor_push(
+            db,
+            donor_id,
+            organization_id,
+            title=f"{what} karttan çekilemedi · {money(amount_cents, currency)}",
+            body="Talimatlarım ekranından kart bilginizi veya ödeme durumunu kontrol edebilirsiniz.",
+            data={"route": "donor_subscriptions", "subscription_id": str(subscription_id)},
+            channel_id="urgent",
+        )
+    return pushed
 
 
 async def notify_campaign_milestone(db: AsyncSession, campaign: Campaign) -> int:
@@ -641,12 +706,13 @@ async def notify_campaign_milestone(db: AsyncSession, campaign: Campaign) -> int
     ).limit(1))).first()
     if already:
         return 0
+    cur = campaign.currency or "TRY"
     staff = [u for u in await _staff(db, campaign.organization_id) if _can(u, "receipts.view_all")]
     return await deliver(
         db, campaign.organization_id, staff, kind="campaign_milestone", setting="campaign_milestone",
         title=f"Kampanya %{milestone} hedefine ulaştı!",
-        body=f"{campaign.title} · {money(campaign.collected_cents or 0)} / {money(campaign.target_cents)}",
-        amount_cents=campaign.collected_cents or 0, currency=campaign.currency or "TRY",
+        body=f"{campaign.title} · {money(campaign.collected_cents or 0, cur)} / {money(campaign.target_cents, cur)}",
+        amount_cents=campaign.collected_cents or 0, currency=cur,
         data={"route": "campaign", "campaign_id": str(campaign.id), "milestone": str(milestone)},
     )
 
@@ -658,3 +724,107 @@ async def notify_system_alert(db: AsyncSession, organization_id: UUID, title: st
         db, organization_id, staff, kind="system_alert", setting="system_alert",
         title=title, body=body, data=data or {},
     )
+
+
+async def notify_bank_sync_error(db: AsyncSession, account: Any, error_text: str,
+                                 now: Optional[datetime] = None) -> int:
+    """Alert staff at most once per day per bank account when automatic bank sync fails."""
+    now = now or datetime.now(TZ)
+    date_key = now.astimezone(TZ).date().isoformat()
+    alert_key = f"bank_sync:{account.id}:{date_key}"
+    already = (await db.execute(select(StaffNotification.id).where(
+        StaffNotification.organization_id == account.organization_id,
+        StaffNotification.kind == "system_alert",
+        StaffNotification.data["alert_key"].astext == alert_key,
+    ).limit(1))).first()
+    if already:
+        return 0
+    return await notify_system_alert(
+        db,
+        account.organization_id,
+        title=f"Banka senkron hatası · {account.label}",
+        body=(error_text or "Banka hareketleri çekilemedi")[:200],
+        data={"route": "transfers", "bank_account_id": str(account.id), "alert_key": alert_key},
+    )
+
+
+async def send_low_sms_balance_alerts(db: AsyncSession, organization_id: UUID,
+                                      now: Optional[datetime] = None) -> int:
+    """Alert staff once per day if the organisation's own SMS balance drops below safety threshold."""
+    from app.services.sms_service import provider_balance
+
+    now = now or datetime.now(TZ)
+    info = await provider_balance(db, organization_id)
+    bal = info.get("balance") if info.get("own_account") else None
+    if not bal or bal.get("amount") is None:
+        return 0
+    unit = bal.get("unit") or "TL"
+    amount = float(bal["amount"])
+    low = (unit == "SMS" and amount < 250) or (unit != "SMS" and amount < 100)
+    if not low:
+        return 0
+    date_key = now.astimezone(TZ).date().isoformat()
+    alert_key = f"sms_low:{date_key}"
+    already = (await db.execute(select(StaffNotification.id).where(
+        StaffNotification.organization_id == organization_id,
+        StaffNotification.kind == "system_alert",
+        StaffNotification.data["alert_key"].astext == alert_key,
+    ).limit(1))).first()
+    if already:
+        return 0
+    provider_name = info.get("provider") or "SMS sağlayıcısı"
+    return await notify_system_alert(
+        db,
+        organization_id,
+        title=f"SMS bakiyesi azaldı · {bal.get('text')}",
+        body=f"{provider_name} hesabınızda kalan kredi kritik seviyenin altında. Kesintisiz bildirim için bakiye yükleyin.",
+        data={"alert_key": alert_key},
+    )
+
+
+async def send_task_due_alerts(db: AsyncSession, organization_id: UUID,
+                               now: Optional[datetime] = None) -> int:
+    """Daily morning reminder to staff for open tasks due today, due tomorrow, or overdue."""
+    from app.models.field_ops import Task
+
+    now = now or datetime.now(TZ)
+    today_local = now.astimezone(TZ).date()
+    horizon = today_local + timedelta(days=1)
+    date_key = today_local.isoformat()
+    due_tasks = (await db.execute(select(Task).where(
+        Task.organization_id == organization_id,
+        Task.status.in_(["todo", "in_progress"]),
+        Task.assigned_to_id.is_not(None),
+        Task.due_date.is_not(None),
+        Task.due_date <= horizon,
+    ).order_by(Task.due_date.asc()))).scalars().all()
+    if not due_tasks:
+        return 0
+    already = set((await db.execute(select(StaffNotification.user_id).where(
+        StaffNotification.organization_id == organization_id,
+        StaffNotification.kind == "task",
+        StaffNotification.data["due_alert_date"].astext == date_key,
+    ))).scalars().all())
+    staff_by_id = {u.id: u for u in await _staff(db, organization_id)}
+    by_user: dict[UUID, list[Any]] = {}
+    for t in due_tasks:
+        if t.assigned_to_id not in already and t.assigned_to_id in staff_by_id:
+            by_user.setdefault(t.assigned_to_id, []).append(t)
+    pushed = 0
+    for uid, tasks_list in by_user.items():
+        user = staff_by_id[uid]
+        if len(tasks_list) == 1:
+            t = tasks_list[0]
+            when = "gecikti" if t.due_date < today_local else ("bugün son gün" if t.due_date == today_local else "yarın son gün")
+            title = f"Görev hatırlatması ({when})"
+            body = t.title
+            data: dict[str, Any] = {"type": "task", "task_id": str(t.id), "due_alert_date": date_key}
+        else:
+            overdue = sum(1 for t in tasks_list if t.due_date < today_local)
+            title = f"{len(tasks_list)} görevin teslim zamanı geldi" + (f" ({overdue} gecikmiş)" if overdue else "")
+            body = " · ".join(t.title for t in tasks_list[:3]) + ("…" if len(tasks_list) > 3 else "")
+            data = {"type": "task", "due_alert_date": date_key}
+        pushed += await deliver(
+            db, organization_id, [user], kind="task", setting="tasks", title=title, body=body, data=data,
+        )
+    return pushed

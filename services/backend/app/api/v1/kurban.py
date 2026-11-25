@@ -778,12 +778,14 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
     slaughtered_at = _slaughter_moment(payload.slaughtered_on) if payload.slaughtered_on else now
     portal = _portal_url(getattr(request.state, "organization", None))
     marked, sms_queued, sms_failed = 0, 0, 0
+    push_targets: dict[UUID, tuple[str, str]] = {}
     for item in payload.items:
         animal = await _animal(db, org_id, item.animal_id, lock=True)
         if item.video_url:
             animal.video_url = item.video_url
         _set_video_status(animal, payload.video_status)
-        if animal.status != KurbanStatus.SLAUGHTERED:
+        was_slaughtered = animal.status == KurbanStatus.SLAUGHTERED
+        if not was_slaughtered:
             animal.status = KurbanStatus.SLAUGHTERED
             animal.slaughtered_at = slaughtered_at
             marked += 1
@@ -792,7 +794,10 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
         )).scalars().all()
         notified_phones: set[str] = set()
         for share in shares:
+            share_was_slaughtered = share.status == KurbanStatus.SLAUGHTERED
             share.status = KurbanStatus.SLAUGHTERED
+            if payload.notify and share.donor_id and (not share_was_slaughtered or not share.notified_at):
+                push_targets.setdefault(share.donor_id, (animal.animal_number, share.on_behalf_of or share.donor_name))
             if not notify or share.notified_at or not share.donor_phone:
                 continue
             if share.donor_phone in notified_phones:
@@ -820,6 +825,20 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
         "animals": [str(i.animal_id) for i in payload.items], "marked": marked, "sms_queued": sms_queued,
     })
     await db.commit()
+    if push_targets:
+        from app.services.push_service import notify_donor_push
+
+        for donor_id, (animal_no, behalf) in push_targets.items():
+            try:
+                await notify_donor_push(
+                    db, donor_id, org_id,
+                    title=f"Kurbanınız kesildi · {animal_no}",
+                    body=f"{behalf} adına kurban vekaletiniz yerine getirilmiştir. Allah kabul etsin.",
+                    data={"route": "donor_kurban", "animal_number": animal_no},
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        await db.commit()
     return {"marked": marked, "sms_queued": sms_queued, "sms_failed": sms_failed}
 
 
@@ -841,6 +860,7 @@ async def update_videos(request: Request, payload: VideoUpdate, db: AsyncSession
     org_id = _org_id(request)
     animals = (await db.execute(select(KurbanAnimal).where(
         KurbanAnimal.organization_id == org_id, KurbanAnimal.id.in_(payload.animal_ids)).with_for_update())).scalars().all()
+    newly_ready = [a for a in animals if payload.video_status == VideoStatus.READY and a.video_status != VideoStatus.READY]
     for animal in animals:
         animal.video_status = payload.video_status
         if payload.video_url:
@@ -848,6 +868,27 @@ async def update_videos(request: Request, payload: VideoUpdate, db: AsyncSession
     _audit(db, org_id, current_user, "kurban_video_durumu", {
         "animals": [str(a.id) for a in animals], "video_status": payload.video_status})
     await db.commit()
+    if newly_ready:
+        from app.services.push_service import notify_donor_push
+
+        donor_ids = set((await db.execute(
+            select(KurbanShare.donor_id).where(
+                KurbanShare.animal_id.in_([a.id for a in newly_ready]),
+                KurbanShare.donor_id.is_not(None),
+            )
+        )).scalars().all())
+        for donor_id in donor_ids:
+            try:
+                await notify_donor_push(
+                    db, donor_id, org_id,
+                    title="Kurban kesim videonuz hazır",
+                    body="Projelerim & Kurban ekranından kesim videonuzu izleyebilirsiniz.",
+                    data={"route": "donor_kurban"},
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        if donor_ids:
+            await db.commit()
     return {"updated": len(animals)}
 
 

@@ -5,7 +5,7 @@ import {
   MULTI_ORG_MESSAGE, pf, platformLogin, setSessionLostHandler, startOrgSimulation, verifyDonorOtp, type SimOrg, pub,
 } from '@/lib/api';
 import type { AdminAccess } from '@/lib/access';
-import { unregisterPush } from '@/lib/notifications';
+import { clearLocalPushState, unregisterPush } from '@/lib/notifications';
 import { clearOfflineData } from '@/lib/offlineQueue';
 import { updateHomeWidgets } from '@/widgets';
 
@@ -43,8 +43,11 @@ export type DonorMe = {
   address: string;
   city: string;
   country: string;
+  allow_email?: boolean;
+  allow_sms?: boolean;
   email_opt_out: boolean;
   sms_opt_out: boolean;
+  push_opt_out?: boolean;
   is_anonymous: boolean;
   has_password?: boolean;
   total_donations: number;
@@ -116,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const drop = useCallback(() => {
+    clearLocalPushState().catch(() => {});
     updateHomeWidgets(null).catch(() => {});
     clearOfflineData().catch(() => {});
     queryClient.clear();

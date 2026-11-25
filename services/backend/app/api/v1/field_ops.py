@@ -928,6 +928,7 @@ async def bulk_update_tasks(request: Request, payload: TaskBulkIn, db: AsyncSess
     if payload.action == "assign" and payload.assigned_to_id:
         await _staff(db, org_id, payload.assigned_to_id)
     changed = 0
+    newly_assigned: list[Task] = []
     now = datetime.now(timezone.utc)
     for t in rows:
         if payload.action == "delete":
@@ -944,10 +945,29 @@ async def bulk_update_tasks(request: Request, payload: TaskBulkIn, db: AsyncSess
         elif payload.action == "assign":
             if not (_is_manager(current_user) or t.created_by_id == current_user.id):
                 continue
+            if payload.assigned_to_id and payload.assigned_to_id != t.assigned_to_id:
+                newly_assigned.append(t)
             t.assigned_to_id = payload.assigned_to_id
             changed += 1
     _audit(db, org_id, current_user, "gorev_toplu", {"action": payload.action, "count": changed})
     await db.commit()
+    if newly_assigned and payload.assigned_to_id and payload.assigned_to_id != current_user.id:
+        from app.services import staff_notify
+
+        assignee = await db.get(User, payload.assigned_to_id)
+        if assignee:
+            if len(newly_assigned) == 1:
+                one = newly_assigned[0]
+                await staff_notify.deliver(
+                    db, org_id, [assignee], kind="task", title="Size Görev Atandı",
+                    body=one.title, setting="tasks", data={"type": "task", "task_id": str(one.id)},
+                )
+            else:
+                await staff_notify.deliver(
+                    db, org_id, [assignee], kind="task", title=f"{len(newly_assigned)} Görev Size Atandı",
+                    body=" · ".join(t.title for t in newly_assigned[:3]), setting="tasks", data={"type": "task"},
+                )
+            await db.commit()
     return {"updated": changed}
 
 
@@ -959,6 +979,7 @@ async def update_task(request: Request, task_id: UUID, payload: TaskIn, db: Asyn
     if not _can_edit(current_user, task):
         raise HTTPException(status_code=403, detail="Bu görevi düzenleme yetkiniz yok")
     old_status = task.status
+    old_assignee = task.assigned_to_id
     data = payload.model_dump(exclude_unset=True)
     data.pop("template_id", None)
     data.pop("parent_task_id", None)
@@ -1001,6 +1022,16 @@ async def update_task(request: Request, task_id: UUID, payload: TaskIn, db: Asyn
         ))
 
     await db.commit()
+    if task.assigned_to_id and task.assigned_to_id != old_assignee and task.assigned_to_id != current_user.id:
+        from app.services import staff_notify
+
+        assignee = await db.get(User, task.assigned_to_id)
+        if assignee:
+            await staff_notify.deliver(
+                db, org_id, [assignee], kind="task", title="Size Görev Atandı",
+                body=task.title, setting="tasks", data={"type": "task", "task_id": str(task.id)},
+            )
+            await db.commit()
     d_names = await _donor_names(db, org_id, {task.donor_id} if task.donor_id else set())
     return _task_out(task, await _names(db, org_id), donor_names=d_names)
 
@@ -1024,6 +1055,16 @@ async def add_task_comment(request: Request, task_id: UUID, payload: TaskComment
     })
     task.comments = comments
     await db.commit()
+    if task.assigned_to_id and task.assigned_to_id != current_user.id:
+        from app.services import staff_notify
+
+        assignee = await db.get(User, task.assigned_to_id)
+        if assignee:
+            await staff_notify.deliver(
+                db, org_id, [assignee], kind="task", title=f"Görev Notu · {task.title[:80]}",
+                body=payload.text[:160], setting="tasks", data={"type": "task", "task_id": str(task.id)},
+            )
+            await db.commit()
     d_names = await _donor_names(db, org_id, {task.donor_id} if task.donor_id else set())
     return _task_out(task, await _names(db, org_id), donor_names=d_names)
 

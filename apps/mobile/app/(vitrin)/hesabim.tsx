@@ -140,7 +140,7 @@ export default function AccountHubScreen() {
             icon={<Shield size={20} color="#475569" />}
             title="Dernek Yetkili Girişi"
             sub="Yönetici ve saha personeli paneli"
-            onPress={() => router.push('/login' as Href)}
+            onPress={() => router.push('/login?tab=staff' as Href)}
           />
         </View>
       </ScrollView>

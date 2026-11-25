@@ -76,11 +76,25 @@ async def sync_account(db: AsyncSession, account: BankAccount, *, until: Optiona
     except BankConnectorError as exc:
         account.last_error = str(exc)[:1000]
         await db.commit()
+        try:
+            from app.services import staff_notify
+
+            await staff_notify.notify_bank_sync_error(db, account, account.last_error)
+            await db.commit()
+        except Exception:  # noqa: BLE001
+            await db.rollback()
         return {"error": account.last_error}
     except Exception as exc:  # network errors, unexpected bank responses
         log.exception("bank sync failed for account %s", account.id)
         account.last_error = f"Bankaya ulaşılamadı: {type(exc).__name__}"
         await db.commit()
+        try:
+            from app.services import staff_notify
+
+            await staff_notify.notify_bank_sync_error(db, account, account.last_error)
+            await db.commit()
+        except Exception:  # noqa: BLE001
+            await db.rollback()
         return {"error": account.last_error}
 
     external_ids = [f"{account.bank_key}:{m.external_id}" for m in movements]

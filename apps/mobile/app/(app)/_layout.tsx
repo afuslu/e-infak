@@ -3,7 +3,7 @@ import { AppState, Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { useQueryClient } from '@tanstack/react-query';
-import { registerPush } from '@/lib/notifications';
+import { registerPush, watchPushTokenRefresh } from '@/lib/notifications';
 import { useLastNotificationData } from '@/lib/lastNotification';
 import { openNotificationTarget } from '@/lib/notificationRoute';
 import { syncOfflineQueue } from '@/lib/offlineQueue';
@@ -21,16 +21,19 @@ const KEY_ASKED = 'einfak_push_asked';
 function usePushWiring() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { simulatingOrg } = useAuth();
   const handled = useRef<string | null>(null);
   const last = useLastNotificationData();
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
+    // Platform yöneticisi bir kurumu simüle ederken kendi telefonu o kuruma bağlanmamalı.
+    if (Platform.OS === 'web' || simulatingOrg) return;
     (async () => {
       const asked = await getItem(KEY_ASKED);
-      await registerPush(!asked).catch(() => undefined);
+      await registerPush(!asked, 'tenant').catch(() => undefined);
       if (!asked) await setItem(KEY_ASKED, '1');
     })();
+    const stopTokenWatch = watchPushTokenRefresh('tenant');
     const received = Notifications.addNotificationReceivedListener(() => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['inflow'] });
@@ -38,8 +41,11 @@ function usePushWiring() {
       queryClient.invalidateQueries({ queryKey: ['stats'] });
       queryClient.invalidateQueries({ queryKey: ['donations'] });
     });
-    return () => received.remove();
-  }, [queryClient]);
+    return () => {
+      stopTokenWatch();
+      received.remove();
+    };
+  }, [queryClient, simulatingOrg]);
 
   // Uygulama kapalıyken dokunulan bildirim de dahil: her yanıt bir kez işlenir.
   useEffect(() => {

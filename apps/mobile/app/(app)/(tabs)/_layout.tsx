@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Href, Tabs, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -6,6 +6,7 @@ import { Bell, HandCoins, LayoutDashboard, Menu, Search, Users } from 'lucide-re
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { allowed } from '@/lib/access';
+import { syncBadgeCount } from '@/lib/notifications';
 import { useTheme } from '@/theme';
 
 export default function TabsLayout() {
@@ -20,6 +21,9 @@ export default function TabsLayout() {
     refetchInterval: 60_000,
   });
   const count = unread.data?.unread || 0;
+  useEffect(() => {
+    if (unread.data !== undefined) syncBadgeCount(count);
+  }, [unread.data, count]);
   const headerActions = () => (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 12, gap: 6 }}>
       <Pressable

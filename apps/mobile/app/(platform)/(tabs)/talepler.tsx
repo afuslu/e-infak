@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { Href, useRouter } from 'expo-router';
+import { Href, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { pf } from '@/lib/api';
 import { dateTime } from '@/lib/format';
@@ -47,9 +47,14 @@ const DEMO_STATUS: Record<string, { label: string; tone: 'warn' | 'info' | 'ok' 
 
 export default function PlatformTicketsAndDemosScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string }>();
   const queryClient = useQueryClient();
   const ui = useUi();
-  const [tab, setTab] = useState<'tickets' | 'demos'>('tickets');
+  const [tab, setTab] = useState<'tickets' | 'demos'>(params.tab === 'demos' ? 'demos' : 'tickets');
+
+  useEffect(() => {
+    if (params.tab === 'demos' || params.tab === 'tickets') setTab(params.tab);
+  }, [params.tab]);
   const [ticketFilter, setTicketFilter] = useState<'all' | 'open' | 'answered' | 'closed'>('all');
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
 

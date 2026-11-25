@@ -5,8 +5,9 @@ import Constants from 'expo-constants';
 import { useAuth } from '@/context/AuthContext';
 import { currentHost, pf, updatePlatformToken } from '@/lib/api';
 import { authenticate, biometricAvailable, biometricEnabled, setBiometricEnabled } from '@/lib/biometric';
+import { pushEnabled, registerPush, sendTestPush, unregisterPush } from '@/lib/notifications';
 import { Btn, Card, Chips, Field, Notice, Row, Screen, SectionTitle, SwitchRow, useUi } from '@/components/ui';
-import { confirm, notify } from '@/components/toast';
+import { confirm, notify, notifyError } from '@/components/toast';
 import { space, useTheme, type ThemeMode } from '@/theme';
 
 export default function PlatformAccountScreen() {
@@ -20,6 +21,7 @@ export default function PlatformAccountScreen() {
   const [error, setError] = useState<string | null>(null);
   const [bioAvailable, setBioAvailable] = useState(false);
   const [bio, setBio] = useState(false);
+  const [push, setPush] = useState(false);
   const [totpSecret, setTotpSecret] = useState<string | null>(null);
   const [totpCode, setTotpCode] = useState('');
   const [totpBusy, setTotpBusy] = useState(false);
@@ -28,7 +30,23 @@ export default function PlatformAccountScreen() {
   useEffect(() => {
     biometricAvailable().then(setBioAvailable);
     biometricEnabled().then(setBio);
+    pushEnabled('platform').then(setPush);
   }, []);
+
+  const togglePush = async (on: boolean) => {
+    try {
+      if (on) {
+        const res = await registerPush(true, 'platform');
+        notify(res.message, res.ok ? 'ok' : 'error');
+        setPush(res.ok);
+      } else {
+        await unregisterPush('platform');
+        setPush(false);
+      }
+    } catch (e) {
+      notifyError(e);
+    }
+  };
 
   const changePassword = async () => {
     setError(null);
@@ -123,6 +141,30 @@ export default function PlatformAccountScreen() {
           onChange={setMode}
           wrap
         />
+      </Card>
+
+      <SectionTitle>Bildirimler</SectionTitle>
+      <Card style={{ gap: space.md }}>
+        {native ? (
+          <>
+            <SwitchRow
+              label="Bu telefona platform bildirimleri gönder"
+              hint="Yeni destek talebi, demo başvurusu ve mağaza yayın başvuruları."
+              value={push}
+              onValueChange={togglePush}
+            />
+            {push ? (
+              <Btn
+                title="Deneme bildirimi gönder"
+                variant="outline"
+                small
+                onPress={() => sendTestPush('platform').then(() => notify('Deneme bildirimi gönderildi.')).catch(notifyError).finally(() => pushEnabled('platform').then(setPush))}
+              />
+            ) : null}
+          </>
+        ) : (
+          <Text style={ui.muted}>Telefon bildirimleri yalnızca mobil uygulamada açılır.</Text>
+        )}
       </Card>
 
       <SectionTitle>Güvenlik & 2FA</SectionTitle>

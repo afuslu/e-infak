@@ -335,7 +335,20 @@ async def submit_store(payload: StoreIn, request: Request, db: AsyncSession = De
     row.status, row.submitted_at, row.submitted_by = "submitted", _now(), user.email
     _log(db, org.id, user, "uygulama_basvurusu_gonder", package_id=payload.package_id)
     await db.commit()
-    return _request_out(row, org)
+    out = _request_out(row, org)
+    try:
+        from app.services.push_service import notify_platform_push
+
+        await notify_platform_push(
+            db,
+            title=f"Mağaza Yayın Başvurusu · {org.name}",
+            body=f"{payload.app_name} ({payload.package_id}) inceleme bekliyor.",
+            data={"route": "platform_org", "org_id": str(org.id)},
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
+    return out
 
 
 # --- Platform operators -------------------------------------------------------------------
@@ -370,13 +383,35 @@ async def _submitted(db: AsyncSession, request_id: UUID) -> tuple[MobileAppReque
 async def update_request(request_id: UUID, payload: RequestStatusIn, request: Request, db: AsyncSession = Depends(get_db),
                          operator: PlatformUser = Depends(get_platform_user)):
     row, org = await _submitted(db, request_id)
+    org_id = org.id
     note = (payload.note or "").strip() or None
     if payload.status == "changes_requested" and not note:
         raise HTTPException(status_code=422, detail="Düzeltme isterken not yazın")
     _audit(db, request, operator, "uygulama_basvurusu_durum", organization_id=org.id, old=row.status, new=payload.status)
     row.status, row.note = payload.status, note
     await db.commit()
-    return _platform_row(row, org)
+    out = _platform_row(row, org)
+    try:
+        from app.services import staff_notify
+
+        status_labels = {
+            "in_review": "İncelemeye alındı",
+            "built": "Uygulama paketi derlendi",
+            "in_store": "Mağazada yayına alındı!",
+            "changes_requested": "Düzeltme istendi",
+            "submitted": "Başvuru alındı",
+        }
+        label = status_labels.get(payload.status, payload.status)
+        await staff_notify.notify_system_alert(
+            db,
+            org_id,
+            title=f"Mobil Uygulama Başvurusu · {label}",
+            body=note or f"Mağaza yayın başvurunuzun durumu '{label}' olarak güncellendi.",
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
+    return out
 
 
 def _zip(manifest: dict, icon: Path, splash: Path) -> bytes:

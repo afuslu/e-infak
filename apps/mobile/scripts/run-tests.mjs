@@ -31,6 +31,7 @@ fs.writeFileSync(
       path.join(root, 'src/lib/storage.ts'),
       path.join(root, 'src/lib/api.ts'),
       path.join(root, 'src/lib/offlineQueue.ts'),
+      path.join(root, 'src/lib/notificationRoute.ts'),
     ],
   })
 );

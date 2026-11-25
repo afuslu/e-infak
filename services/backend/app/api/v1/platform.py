@@ -214,6 +214,68 @@ async def platform_disable_2fa(payload: PlatformTotpCodeIn, request: Request,
     return {"ok": True, "enabled": False}
 
 
+class PlatformDeviceTokenIn(BaseModel):
+    token: str = Field(min_length=10, max_length=255)
+    platform: str = Field(default="expo", max_length=20)
+
+
+@router.post("/me/device-token", status_code=status.HTTP_201_CREATED)
+async def register_platform_device_token(
+    payload: PlatformDeviceTokenIn,
+    db: AsyncSession = Depends(get_db),
+    operator: PlatformUser = Depends(get_platform_user),
+):
+    from app.services.push_service import bind_device_token
+
+    await bind_device_token(
+        db,
+        token=payload.token,
+        platform=payload.platform if payload.platform in ("ios", "android", "expo") else "expo",
+        platform_user_id=operator.id,
+    )
+    await db.commit()
+    return {"registered": True}
+
+
+@router.delete("/me/device-token", status_code=status.HTTP_204_NO_CONTENT)
+async def unregister_platform_device_token(
+    payload: PlatformDeviceTokenIn,
+    db: AsyncSession = Depends(get_db),
+    operator: PlatformUser = Depends(get_platform_user),
+):
+    from app.services.push_service import unbind_device_token
+
+    await unbind_device_token(db, token=payload.token, platform_user_id=operator.id)
+    await db.commit()
+
+
+@router.post("/me/test-push")
+async def test_platform_push_notification(
+    db: AsyncSession = Depends(get_db),
+    operator: PlatformUser = Depends(get_platform_user),
+):
+    from app.models.device_token import DeviceToken
+    from app.services.push_service import forget_tokens, push_messages
+
+    tokens = list((await db.execute(select(DeviceToken.token).where(DeviceToken.platform_user_id == operator.id))).scalars().all())
+    errors: List[str] = []
+    sent, dead = await push_messages(
+        tokens,
+        title="e-İnfak Platform Bildirim Testi",
+        body="Destek talepleri, demo ve mağaza başvuruları bu telefona anında bildirilecektir.",
+        data={"route": "platform_tickets", "type": "test"},
+        channel_id="urgent",
+        errors=errors,
+    )
+    await forget_tokens(db, dead)
+    await db.commit()
+    if sent == 0:
+        if errors:
+            raise HTTPException(status_code=409, detail=f"Bildirim gönderimi kabul edilmedi ({errors[0]}).")
+        raise HTTPException(status_code=404, detail="Bu hesaba kayıtlı telefon bulunamadı; bildirimleri kapatıp yeniden açın.")
+    return {"sent": sent}
+
+
 class PasswordIn(BaseModel):
     current_password: str
     new_password: str = Field(min_length=passwords.MIN_LENGTH, max_length=200)
@@ -1869,6 +1931,19 @@ async def reply_platform_ticket(ticket_id: UUID, payload: TicketReplyIn, request
     t.updated_at = datetime.now(timezone.utc)
     _audit(db, request, operator, "destek_talebi_yanitlandi", t.organization_id, subject=t.subject)
     await db.commit()
+    try:
+        from app.services import staff_notify
+
+        await staff_notify.notify_system_alert(
+            db,
+            t.organization_id,
+            title=f"Destek talebiniz yanıtlandı · {t.subject[:80]}",
+            body=payload.body.strip()[:160],
+            data={"ticket_id": str(t.id)},
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
     return {"ok": True}
 
 

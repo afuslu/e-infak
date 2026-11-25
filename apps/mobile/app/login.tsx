@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Check } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -28,6 +28,7 @@ function useTenantSite() {
 
 export default function Login() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string }>();
   const { signInUnified, signInDonor, signInDonorPassword } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -35,8 +36,17 @@ export default function Login() {
   const { site: tenantSite } = useTenantSite();
   const tenantLogo = resolveMediaUrl(tenantSite?.logo_url, tenantSite?.url);
   const brandName = ACTIVE_TENANT?.name || 'e-İnfak';
-  const [tab, setTab] = useState<EntryTab>(whiteLabel ? 'donor' : 'staff');
+  const [tab, setTab] = useState<EntryTab>(
+    params.tab === 'staff' ? 'staff' : (whiteLabel ? 'donor' : 'staff'),
+  );
   const activeTab: EntryTab = whiteLabel ? tab : 'staff';
+
+  useEffect(() => {
+    if (params.tab === 'staff' || params.tab === 'donor') {
+      setTab(params.tab);
+      setError(null);
+    }
+  }, [params.tab]);
 
   // Şifreli Giriş (Kurum & Platform ortak - E-posta veya Telefondan otomatik tanır)
   const [identifier, setIdentifier] = useState('');
