@@ -13,6 +13,7 @@ export type TenantBrandConfig = {
   name: string;
   fullName: string;
   tagline: string;
+  intro?: string;
   host: string;
   primaryColor: string;
   accentColor: string;

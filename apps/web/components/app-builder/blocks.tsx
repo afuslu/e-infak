@@ -470,7 +470,7 @@ function ContactCard({ props }: P) {
         {phone && <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: b.primary, fontSize: b.fs(15), fontWeight: 700 }}><Phone size={16} />{phone}</div>}
         {props.show_buttons !== false && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}>
-            <Button label="Makbuz Doğrula" kind="outline" always /><Button label="Hakkımızda" kind="outline" ink={b.text} always />
+            <Button label="Makbuz Doğrula" kind="outline" always /><Button label="Hakkımızda & İletişim" kind="outline" ink={b.text} always />
           </div>
         )}
       </div>

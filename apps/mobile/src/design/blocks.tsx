@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, ChevronUp, Heart, Phone, Play, Plus, Shoppin
 import {
   CATEGORY_LABELS, fetchCampaigns, fetchContentPosts, fetchDonationCategories, PublicCampaign, resolveMediaUrl,
 } from '@/api/public';
+import { ACTIVE_TENANT } from '@/config/tenant';
 import { notify } from '@/components/toast';
 import { useCart } from '@/context/CartContext';
 import { needsChoice } from '@/lib/donationOptions';
@@ -118,10 +119,10 @@ function Hero({ props }: P) {
         {(props.badge || b.name).toLocaleUpperCase('tr-TR')}
       </Text>
       <Text style={{ color: ink, fontSize: b.fs(23), lineHeight: b.fs(29), fontWeight: '800', textAlign: center ? 'center' : 'left' }}>
-        {props.title || b.site?.hero?.title || b.site?.tagline || 'Bir iyilik de sizden'}
+        {props.title || b.site?.hero?.title || b.site?.tagline || ACTIVE_TENANT?.tagline || 'Bir iyilik de sizden'}
       </Text>
       <Text style={{ color: ink, opacity: 0.88, fontSize: b.fs(13), lineHeight: b.fs(19), textAlign: center ? 'center' : 'left' }}>
-        {props.text || b.site?.hero?.subtitle || 'Bağışlarınızı güvenle uygulama içinden ulaştırabilirsiniz.'}
+        {props.text || b.site?.hero?.subtitle || ACTIVE_TENANT?.intro || 'Bağışlarınızı güvenle uygulama içinden ulaştırabilirsiniz.'}
       </Text>
       <View style={s.heroActions}>
         {props.primary_label && isKnown(props.primary_action) ? (
@@ -620,7 +621,7 @@ function ContactCard({ props }: P) {
         {props.show_buttons !== false ? (
           <View style={{ flexDirection: 'row', gap: space.sm, marginTop: 6 }}>
             <View style={{ flex: 1 }}><Button label="Makbuz Doğrula" action={screen('makbuz-dogrula')} kind="outline" /></View>
-            <View style={{ flex: 1 }}><Button label="Hakkımızda" action={screen('iletisim')} kind="outline" ink={b.text} /></View>
+            <View style={{ flex: 1 }}><Button label="Hakkımızda & İletişim" action={screen('iletisim')} kind="outline" ink={b.text} /></View>
           </View>
         ) : null}
       </View>
