@@ -156,6 +156,7 @@ class ZiraatKatilim(BankConnector):
                          "password": "Web servis şifresi"}
     secret_fields = ("password",)
     ready = True
+    poll_interval = timedelta(minutes=5)  # the documents give no limit; every answer carries all accounts
     account_no_label = "Hesap no (müşteri no-ek no ya da yalnızca ek no)"
 
     async def _query(self, client: httpx.AsyncClient, start: date, end: date) -> list[dict]:

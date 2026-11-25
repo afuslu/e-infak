@@ -105,3 +105,41 @@ async def test_errors(bank, reply, expected):
 async def test_missing_credentials():
     with pytest.raises(BankConnectorError, match="eksik"):
         await CONNECTORS["ziraatkatilim"]({}).fetch(ACCOUNT, NOW, NOW)
+
+
+@pytest.mark.parametrize("bank_key,wait,after", [("ziraatkatilim", 4, 5), ("vakifkatilim", 14, 15), ("kuveytturk", 9, 10)])
+def test_background_interval_per_bank(bank_key, wait, after):
+    from app.banking.sync import due, too_soon
+
+    account = SimpleNamespace(bank_key=bank_key, last_synced_at=NOW)
+    assert not due(account, NOW + timedelta(minutes=wait)) and due(account, NOW + timedelta(minutes=after))
+    assert due(SimpleNamespace(bank_key=bank_key, last_synced_at=None), NOW)
+    if bank_key == "ziraatkatilim":
+        assert too_soon(account, NOW + timedelta(seconds=5)) is None  # "Şimdi Çek" is not held back
+
+
+async def test_failing_account_is_paused(monkeypatch):
+    from app.banking import sync
+
+    ok, bad = (SimpleNamespace(id=i, bank_key="ziraatkatilim", last_synced_at=None) for i in ("ok", "bad"))
+    scalars = SimpleNamespace(all=lambda: [ok, bad])
+    calls, pauses = [], set()
+
+    class Db:
+        async def execute(self, _):
+            return SimpleNamespace(scalars=lambda: scalars)
+
+    async def fake_sync(_db, account):
+        calls.append(account.id)
+        return {"error": "x"} if account is bad else {"new": 0}
+
+    async def paused(account_id):
+        return account_id in pauses
+
+    async def pause(account_id):
+        pauses.add(account_id)
+
+    monkeypatch.setattr(sync, "sync_account", fake_sync)
+    await sync.sync_all(Db(), paused=paused, pause=pause)
+    await sync.sync_all(Db(), paused=paused, pause=pause)
+    assert calls == ["ok", "bad", "ok"]
