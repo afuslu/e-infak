@@ -1,6 +1,6 @@
 """Statement web services of the banks HAKDER and similar organisations use.
 
-Vakıf Katılım is connected (app.banking.vakifkatilim). Each other bank needs a signed application (account owner, server IP 31.97.159.228,
+Connected banks have their own module (vakifkatilim, kuveytturk, ziraatkatilim). Each other bank needs a signed application (account owner, server IP 31.97.159.228,
 authorised person) before it opens its web service and sends the technical
 specification. Until then ``ready`` is False and statements are uploaded as
 Excel/CSV files, which go through the same matcher.
@@ -20,15 +20,7 @@ class _PendingSpec(BankConnector):
 
 from app.banking import vakifkatilim  # noqa: E402,F401  (registers Vakıf Katılım first in the list)
 from app.banking import kuveytturk  # noqa: E402,F401  (registers Kuveyt Türk OAuth2 API connector)
-
-
-@register
-class ZiraatKatilim(_PendingSpec):
-    key = "ziraatkatilim"
-    label = "Ziraat Katılım"
-    credential_fields = {"customer_no": "Müşteri no", "username": "Web servis kullanıcı adı",
-                         "password": "Web servis şifresi"}
-    secret_fields = ("password",)
+from app.banking import ziraatkatilim  # noqa: E402,F401  (registers Ziraat Katılım)
 
 
 @register
