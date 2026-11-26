@@ -106,7 +106,7 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
       localStorage.removeItem('einfak_cart')
     }
     const add = (event: Event) => {
-      const item = (event as CustomEvent<CartItem>).detail
+      const { silent, ...item } = (event as CustomEvent<CartItem & { silent?: boolean }>).detail
       const stored: CartItem[] = (() => { try { return JSON.parse(localStorage.getItem('einfak_cart') || '[]') } catch { return [] } })()
       const cartCurrency = stored.find((entry) => entry.currency)?.currency
       // One checkout is paid in one currency: amounts typed in € must not be charged as ₺.
@@ -128,6 +128,8 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
       })
       if (item.currency) setCurrency(item.currency)
       trackConversion('add_to_cart', { campaign_id: item.campaignId })
+      // Blocks that open the checkout page themselves add without the drawer.
+      if (silent) return
       if (cartStyle === 'page_redirect') {
         setRedirectNotice(true)
         setTimeout(() => setRedirectNotice(false), 5000)

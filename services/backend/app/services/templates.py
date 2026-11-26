@@ -2312,6 +2312,65 @@ _section("layout-bento-4-pillars", "Düzen: 4'lü Şeffaflık & Güven İlkeleri
     ], tone="soft", top=52, bottom=52),
 ])
 
+
+# Sayfada ödeme alan bölümler: seçenekler kampanyaya bağlanır, kurum kendi kampanyalarını seçer.
+_section("inline-kurban-planner", "Kurban Planlayıcı (sayfada ödeme)", "Bağış",
+         "Fotoğraflı kurbanlık seçimi, niyet, ad-telefon ve canlı tutar. Kurbanlıklara kendi kampanyalarınızı bağlayın.", [
+    B("kurban_planner", title="Kurbanlık Tercihiniz", text="Bir iyilik, bin tebessüm için sadece birkaç adım.",
+      script_note="İyiliği seç, umudu büyüt.", options_label="Kurban Türü", intent_label="Niyet", button_label="Ödeme Yap",
+      consent_text="Kurban bağışımın doğruluğunu beyan eder, vekâleten kesim onayımı veririm.",
+      footnote="Tüm adımları tamamlayarak iyiliği başlatın.", terms_label="Sipariş koşulları", ask_intent=True, ask_donor=True),
+])
+_section("inline-product-bundle", "Çoklu Ürün Paketi (sayfada ödeme)", "Bağış",
+         "Ortada görsel, iki yanda adetli ürünler; hepsi tek ödemede. Ürünlere kendi kampanyalarınızı bağlayın.", [
+    B("product_bundle", kicker="KÜÇÜK BİR DESTEK, KOCAMAN BİR MUTLULUK", title="Bir çocuğun yüzünü birlikte güldürelim",
+      text="Ekmek, sıcak yemek ve küçük bir ikramla bir çocuğun gününü değiştirin.", badge_label="🌍 Saha", pill_label="Bir mutluluğa vesile ol",
+      image_url="/demo/orphan.webp", image_title="Bir çocuğun mutluluğu", image_text="Eklediğiniz her ürünle artar", goal_amount=3000,
+      goal_label="MUTLULUK", total_label="Toplam destek", empty_hint="Bir ürün seçerek başlayın", button_label="Ödemeye Geç", ask_donor=True),
+])
+_section("inline-share-project", "Hisseli Proje: Su Kuyusu (sayfada ödeme)", "Bağış",
+         "Hisse eklendikçe ilerleyen hikâye, kalan hisseli proje seçimi ve hissedar isimleri. Projelere kendi kampanyalarınızı bağlayın.", [
+    B("share_project", kicker="BİR KUYU, BİR KÖYÜN HAYATI", title="Kurak bir köye hayat verin",
+      text="Aldığınız her hisseyle kuyu adım adım hayat buluyor.", badge_label="💧 Hisseli Su Kuyusu", pill_label="Sadaka-i câriye",
+      slides=[
+          {"image_url": "/demo/water.webp", "title": "Kurak bir köy", "text": "Köyde içilecek temiz su yok; kuyular çoktan kurudu."},
+          {"image_url": "/demo/hands.webp", "title": "Sondaj başlıyor", "text": "Ekipler köye ulaştı, sondaj noktası belirlendi."},
+          {"image_url": "/demo/community.webp", "title": "Su yüzeye çıktı", "text": "İlk su geldiğinde bütün köy kuyunun başındaydı."},
+      ],
+      presets="1, 5, 10", allow_full=True, allow_names=True, button_label="Hisse Al",
+      plaque_label="Tabela ismini yalnızca projenin tamamını alanlar belirleyebilir."),
+])
+_section("certificate-showcase", "Sertifika & Kesim Görseli", "Güven",
+         "Polaroid fotoğraflar arasında örnek bağış sertifikası; kesim ve teslim sürecini anlatır.", [
+    B("certificate_showcase", kicker="HER KURBAN BİR HİKÂYE", title="Kesiminiz belgelenir",
+      text="Kesimler resmî kesimhanede yapılır. Kesim ve dağıtım videoları 48 saat içinde ayrı ayrı iletilir.",
+      button_label="Kurban bağışı yap", button_url="/kampanyalar", look="soft",
+      photos=[{"image_url": "/demo/kurban.webp", "caption": "Paylaştıkça çoğalır"}, {"image_url": "/demo/food.webp", "caption": "Umut hep var ♡"}],
+      cert_title="KURBAN SERTİFİKASI",
+      rows=[{"label": "Kurban sahibi", "value": "Ahmet Yılmaz"}, {"label": "Kurban türü", "value": "Koç"},
+            {"label": "Kesim yeri", "value": "Afrika"}, {"label": "Tarih", "value": "10 Haziran 2027"}],
+      signature="İyilik paylaştıkça çoğalır."),
+])
+_section("hero-trust-badges", "Güven rozetli kapak", "Kapak",
+         "Tam görsel kapak; güven etiketleri, doğrulama kartı, konum rozeti ve el yazısı slogan.", [
+    B("hero", variant="trust_badges_hero", image_url="/demo/kurban.webp", badge="AFRİKA · ASYA · ORTA DOĞU",
+      title="İyiliğiniz güvenle yerine ulaşır", subtitle="Kurban, su kuyusu, yemek ikramı ve daha fazlası; her teslimat videoyla size gelir.",
+      cta_label="Kurbanını planla", cta_url="/kampanyalar", show_form=False,
+      trust_chips=[{"icon": "🛡️", "label": "Güvenilir organizasyon"}, {"icon": "👥", "label": "Gerçek ihtiyaç sahiplerine ulaşım"},
+                   {"icon": "🎥", "label": "48 saat içinde kesim ve dağıtım videosu"}],
+      verify_title="Resmî kayıt", verify_text="Kurumumuzu sorgulayın", verify_code="Kayıt no: 0000000",
+      location_title="Afrika · Asya · Orta Doğu", location_text="Daha adil bir dünya için", script_text="Paylaştıkça çoğalır"),
+])
+_section("faq-script-split", "SSS: El yazısı başlıklı", "SSS & İletişim", "Solda el yazısı not, sağda kart görünümlü akordeon.", [
+    B("faq", look="script_split", script_text="Merak ettiklerinizi biz cevaplayalım.", title="Sıkça Sorulan Sorular",
+      text="En çok merak edilen soruların cevapları.", button_label="Başka sorunuz mu var?", button_url="/iletisim", open_first=True,
+      items=[
+          {"question": "Kurban kesimi nerede yapılır?", "answer": "Kesimler resmî kesimhanelerde, vekâletiniz alınarak yapılır."},
+          {"question": "Kesim videosu ne zaman gelir?", "answer": "Kesim ve dağıtım videoları genellikle 48 saat içinde telefonunuza gönderilir."},
+          {"question": "Makbuz alabilir miyim?", "answer": "Her bağış için makbuz düzenlenir ve e-postanıza gönderilir."},
+      ]),
+])
+
 SECTION_BY_KEY = {s["key"]: s for s in SECTIONS}
 
 PAGE_TEMPLATES += [

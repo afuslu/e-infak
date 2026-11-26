@@ -190,7 +190,7 @@ export type HeroVariant =
   | 'arch_gold_hero' | 'split_progress_hero' | 'dark_ticker_hero' | 'quick_donate_overlay_hero'
   | 'dark_sapphire_hero' | 'bento_stats_hero' | 'minimal_split_image_hero'
   | 'ruby_urgent_hero' | 'mosaic_4_hero' | 'warm_terracotta_hero'
-  | 'indigo_silver_hero' | 'plum_gold_hero' | 'forest_amber_hero'
+  | 'indigo_silver_hero' | 'plum_gold_hero' | 'forest_amber_hero' | 'trust_badges_hero'
 
 export function Hero({ data, variant, o = {}, editing = false }: {
   data: HomeData; variant: HeroVariant; o?: Overrides; editing?: boolean
@@ -205,6 +205,75 @@ export function Hero({ data, variant, o = {}, editing = false }: {
   const ef = o.effect || undefined
   const nv = o.nav || undefined
   const as = o.arrow_style || 'round'
+
+  if (variant === 'trust_badges_hero') {
+    const chips = (o.trust_chips || []).filter((c: Record<string, any>) => c.label)
+    const script = { fontFamily: 'var(--ff-script), "Segoe Script", cursive' }
+    const verify = o.verify_title || o.verify_text ? (
+      <div className="relative rounded-2xl bg-white/95 px-4 py-3 text-gray-900 shadow-xl backdrop-blur">
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-lg text-red-600">✓</span>
+          <div>
+            <div className="text-sm font-extrabold">{o.verify_title}</div>
+            {o.verify_text && <div className="text-[11px] text-gray-500">{o.verify_text}</div>}
+          </div>
+        </div>
+        {o.verify_code && <span className="absolute -bottom-3 start-4 rounded-md bg-red-600 px-2 py-0.5 text-[11px] font-bold tracking-wider text-white shadow">{o.verify_code}</span>}
+      </div>
+    ) : null
+    return (
+      <section className="relative isolate overflow-hidden">
+        {first?.image_url && (
+          <picture>
+            {first.mobile_image_url && <source media="(max-width: 767px)" srcSet={first.mobile_image_url} />}
+            <img src={first.image_url} alt={first.title || ''} className="absolute inset-0 -z-20 h-full w-full object-cover" />
+          </picture>
+        )}
+        <div className="absolute inset-0 -z-10 bg-gradient-to-b from-white/90 via-white/75 to-white/30 md:bg-gradient-to-r md:from-white/95 md:via-white/70 md:to-transparent" />
+        {o.script_text && (
+          <div className="pointer-events-none absolute end-[6%] top-[38%] hidden rotate-[-6deg] text-3xl text-white drop-shadow-lg lg:block" style={script}>
+            “{o.script_text}” <span className="text-2xl">♡</span>
+          </div>
+        )}
+        <div className={`${container} flex min-h-[520px] flex-col justify-center py-14 lg:min-h-[600px]`}>
+          <div className="max-w-xl text-gray-900">
+            {first?.badge && <div className="mb-3 text-xs font-extrabold uppercase tracking-[3px] text-primary-700">{first.badge}</div>}
+            <h1 className="font-heading text-4xl font-extrabold leading-[1.1] sm:text-5xl">{first?.title}</h1>
+            {first?.text && <p className="mt-4 text-lg leading-relaxed text-gray-700">{first.text}</p>}
+            {first?.button_url && (
+              <Link href={first.button_url} className="mt-7 inline-flex items-center gap-3 rounded-full bg-primary-700 py-2 pe-2 ps-6 font-bold text-white shadow-lg shadow-primary-700/25 transition hover:bg-primary-800">
+                {first.button_label || t('nav.donate')}
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-primary-700" aria-hidden>↓</span>
+              </Link>
+            )}
+            {chips.length > 0 && (
+              <ul className="mt-8 flex max-w-lg flex-wrap gap-2.5">
+                {chips.map((c: Record<string, any>, i: number) => (
+                  <li key={i} className="inline-flex items-center gap-2 rounded-full bg-white/90 px-3.5 py-2 text-xs font-semibold text-gray-800 shadow-sm ring-1 ring-gray-200/70">
+                    <span className="text-primary-600">{c.icon || '✓'}</span>{c.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {(verify || o.location_title) && (
+            <div className="mt-10 flex flex-wrap items-end gap-4 lg:absolute lg:bottom-10 lg:end-[6%] lg:mt-0">
+              {verify && (o.verify_url ? <a href={o.verify_url} target="_blank" rel="noopener noreferrer">{verify}</a> : verify)}
+              {o.location_title && (
+                <div className="flex items-center gap-3 rounded-2xl bg-primary-700/90 px-4 py-3 text-white shadow-xl backdrop-blur">
+                  <span className="text-lg" aria-hidden>📍</span>
+                  <div>
+                    <div className="text-sm font-extrabold">{o.location_title}</div>
+                    {o.location_text && <div className="text-[11px] text-white/75">{o.location_text}</div>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+    )
+  }
 
   if (variant === 'indigo_silver_hero') {
     return (

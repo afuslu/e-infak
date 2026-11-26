@@ -113,6 +113,7 @@ BLOCKS: dict[str, dict] = {
                 "indigo_silver_hero": "İndigo & gümüş kurumsal kapak",
                 "plum_gold_hero": "Mürdüm & altın klasik vakıf kapağı",
                 "forest_amber_hero": "Orman yeşili & amber kapak",
+                "trust_badges_hero": "Güven rozetli tam görsel kapak (doğrulama kartı + el yazısı)",
             }, default="klasik"),
             "badge": F("text", "Üst etiket", max=80, translatable=True),
             "title": F("text", "Başlık", max=160, translatable=True, placeholder="Boşsa site kapak başlığı"),
@@ -151,6 +152,17 @@ BLOCKS: dict[str, dict] = {
             "show_form": F("bool", "Bağış formunu göster", default=True),
             "focal_x": F("number", "Görsel odak noktası X (%)", min=0, max=100, default=50, unit="%"),
             "focal_y": F("number", "Görsel odak noktası Y (%)", min=0, max=100, default=50, unit="%"),
+            "trust_chips": F("list", "Güven etiketleri (Güven rozetli kapak)", max_items=6, item_label="label", fields={
+                "icon": F("text", "Simge (emoji)", max=4),
+                "label": F("text", "Yazı", max=60, translatable=True),
+            }),
+            "verify_title": F("text", "Doğrulama kartı başlığı (ör. e-Devlet)", max=40, translatable=True),
+            "verify_text": F("text", "Doğrulama kartı yazısı", max=60, translatable=True),
+            "verify_code": F("text", "Doğrulama kodu / numara", max=30),
+            "verify_url": F("url", "Doğrulama bağlantısı"),
+            "location_title": F("text", "Konum rozeti başlığı", max=60, translatable=True),
+            "location_text": F("text", "Konum rozeti yazısı", max=60, translatable=True),
+            "script_text": F("text", "El yazısı slogan", max=40, translatable=True),
             "overlay_items": F("list", "Serbest Konumlu Öğeler (Buton / Görsel / Rozet)", max_items=10, item_label="label", fields={
                 "kind": F("select", "Tür", choices={"button": "Buton", "image": "Görsel / Logo", "badge": "Rozet"}, default="button"),
                 "label": F("text", "Yazı", max=60, translatable=True),
@@ -1275,6 +1287,7 @@ BLOCKS: dict[str, dict] = {
                 "two_column_accordion": "İki sütunlu akordeon",
                 "dark_bordered_faq": "Koyu zemin çerçeveli SSS",
                 "pill_category_faq": "Hap etiketli sade SSS",
+                "script_split": "Sol el yazısı başlık + sağ akordeon",
             }, default="accordion"),
             "open_first": F("bool", "İlk soru açık başlasın", default=False),
             "items": F("list", "Sorular", max_items=40, min_items=1, item_label="question", fields={
@@ -1284,6 +1297,7 @@ BLOCKS: dict[str, dict] = {
             }),
             "button_label": F("text", "Destek butonu metni", max=40, translatable=True),
             "button_url": F("url", "Destek butonu linki"),
+            "script_text": F("text", "El yazısı başlık (sol el yazısı düzeni)", max=60, translatable=True),
         },
     },
     "news": {
@@ -4037,6 +4051,124 @@ EXTRA_BLOCKS: dict[str, dict] = {
     },
 }
 BLOCKS.update(EXTRA_BLOCKS)
+
+
+# --- Blocks that take the donation on the page -----------------------------------
+# Each choice is a campaign, so the price, quantity limits and intentions are the
+# campaign's own and the server checks them again at checkout (donation_options.py).
+
+CHECKOUT_LOOKS = {"card": "Beyaz kart", "soft": "Açık ana renk zemin", "dark": "Koyu zemin"}
+
+INLINE_CHECKOUT_BLOCKS: dict[str, dict] = {
+    "kurban_planner": {
+        "label": "Kurban Planlayıcı", "group": "Bağış", "icon": "🐐",
+        "help": "Fotoğraflı kurbanlık seçimi, niyet, ad-telefon ve canlı tutarla sayfadan ayrılmadan ödemeye geçer. Her kurbanlık bir kampanyadır; tutar ve niyetler kampanyadan gelir.",
+        "fields": _head(
+            text=F("textarea", "Açıklama", max=300, translatable=True),
+            script_note=F("text", "El yazısı not (sağ üst)", max=60, translatable=True, placeholder="İyiliği seç, umudu büyüt."),
+            look=F("select", "Görünüm", choices=CHECKOUT_LOOKS, default="card"),
+            options_label=F("text", "Seçim başlığı", max=40, default="Kurban Türü", translatable=True),
+            options=F("list", "Kurbanlıklar", max_items=8, min_items=1, item_label="title", fields={
+                "campaign_id": F("campaign", "Kampanya (tutar buradan gelir)", required=True),
+                "title": F("text", "Ad (boşsa kampanya adı)", max=40, translatable=True),
+                "image_url": F("image", "Fotoğraf (boşsa kampanya görseli)"),
+                "note": F("text", "Kısa not (ör. 7 hisse)", max=40, translatable=True),
+            }),
+            ask_intent=F("bool", "Niyet sorulsun", default=True),
+            intent_label=F("text", "Niyet başlığı", max=40, default="Niyet", translatable=True),
+            intents=F("text", "Niyetler (virgülle, kampanyada yoksa)", max=200, placeholder="Adak, Şükür, Şifa, Akika"),
+            ask_donor=F("bool", "Ad soyad ve telefon sorulsun", default=True),
+            consent_text=F("text", "Vekâlet onayı (boşsa sorulmaz)", max=200, translatable=True,
+                           default="Kurban bağışımın doğruluğunu beyan eder, vekâleten kesim onayımı veririm."),
+            button_label=F("text", "Buton", max=40, default="Ödeme Yap", translatable=True),
+            footnote=F("text", "Buton altı not", max=100, translatable=True, default="Tüm adımları tamamlayarak iyiliği başlatın."),
+            terms_label=F("text", "Koşullar bağlantı metni", max=40, default="Sipariş koşulları", translatable=True),
+            terms_url=F("url", "Koşullar bağlantısı"),
+        ),
+    },
+    "product_bundle": {
+        "label": "Çoklu Ürün Paketi", "group": "Bağış", "icon": "🧺",
+        "help": "Ortada bir görsel, iki yanda adet seçilen ürünler (ekmek, yemek, pasta…). Seçilen her ürün sepete ayrı satır olarak eklenir ve tek ödemede alınır.",
+        "fields": _head(
+            text=F("textarea", "Açıklama", max=300, translatable=True),
+            badge_label=F("text", "Sol üst etiket (ör. ülke)", max=40, translatable=True),
+            pill_label=F("text", "Sağ üst etiket", max=40, translatable=True),
+            look=F("select", "Görünüm", choices=CHECKOUT_LOOKS, default="card"),
+            image_url=F("image", "Orta görsel"),
+            image_title=F("text", "Görsel altı başlık", max=60, translatable=True),
+            image_text=F("text", "Görsel altı yazı", max=100, translatable=True),
+            goal_amount=F("number", "Hedef tutar (₺, mutluluk yüzdesi için; 0 = gizli)", min=0, max=10_000_000, default=0),
+            goal_label=F("text", "Yüzde yazısı", max=24, default="MUTLULUK", translatable=True),
+            items=F("list", "Ürünler", max_items=8, min_items=1, item_label="title", fields={
+                "campaign_id": F("campaign", "Kampanya", required=True),
+                "title": F("text", "Ad (boşsa kampanya adı)", max=40, translatable=True),
+                "icon": F("text", "Simge (emoji)", max=4),
+                "image_url": F("image", "Simge yerine görsel"),
+                "unit_text": F("text", "Birim yazısı (ör. 50 Adet · 450 ₺)", max=40, translatable=True),
+                "unit_amount": F("number", "Birim tutar (₺, kampanyada sabit tutar yoksa)", min=0, max=1_000_000, default=0),
+                "min_qty": F("number", "En az adet", min=1, max=100, default=1),
+            }),
+            total_label=F("text", "Toplam yazısı", max=30, default="Toplam destek", translatable=True),
+            empty_hint=F("text", "Seçim yokken yazı", max=60, default="Bir ürün seçerek başlayın", translatable=True),
+            ask_donor=F("bool", "Ad soyad ve telefon sorulsun", default=True),
+            button_label=F("text", "Buton", max=40, default="Ödemeye Geç", translatable=True),
+            terms_label=F("text", "Koşullar bağlantı metni", max=40, default="Sipariş koşulları", translatable=True),
+            terms_url=F("url", "Koşullar bağlantısı"),
+        ),
+    },
+    "share_project": {
+        "label": "Hisseli Proje (su kuyusu vb.)", "group": "Bağış", "icon": "💧",
+        "help": "Hisse ekledikçe ilerleyen hikâye görselleri, hazır hisse sayıları, proje seçimi (kalan hisse ile) ve hissedar isimleri. Her proje bir kampanyadır.",
+        "fields": _head(
+            text=F("textarea", "Açıklama", max=300, translatable=True),
+            badge_label=F("text", "Sol üst etiket", max=40, translatable=True),
+            pill_label=F("text", "Sağ üst etiket", max=40, translatable=True),
+            look=F("select", "Görünüm", choices=CHECKOUT_LOOKS, default="card"),
+            slides=F("list", "Hikâye görselleri (hisse eklendikçe ilerler)", max_items=20, item_label="title", fields={
+                "image_url": F("image", "Görsel"),
+                "title": F("text", "Başlık", max=60, translatable=True),
+                "text": F("text", "Yazı", max=160, translatable=True),
+            }),
+            projects=F("list", "Projeler", max_items=12, min_items=1, item_label="title", fields={
+                "campaign_id": F("campaign", "Kampanya (hisse tutarı buradan gelir)", required=True),
+                "title": F("text", "Ad (boşsa kampanya adı)", max=60, translatable=True),
+                "total_shares": F("number", "Toplam hisse", min=1, max=10_000, default=30),
+                "taken_shares": F("number", "Alınmış hisse (bağışlardan büyükse o kullanılır)", min=0, max=10_000, default=0),
+                "unit_amount": F("number", "Hisse tutarı (₺, kampanyada yoksa)", min=0, max=1_000_000, default=0),
+            }),
+            presets=F("text", "Hazır hisse sayıları (virgülle)", max=40, default="1, 5, 10"),
+            allow_full=F("bool", "“Tamamı” seçeneği", default=True),
+            plaque_label=F("text", "Tabela ismi yazısı (tamamını alana sorulur; boşsa sorulmaz)", max=120, translatable=True,
+                           default="Tabela ismini yalnızca projenin tamamını alanlar belirleyebilir."),
+            allow_names=F("bool", "Hissedar isimleri sorulsun", default=True),
+            button_label=F("text", "Buton", max=40, default="Hisse Al", translatable=True),
+            list_label=F("text", "Liste bağlantı metni", max=40, translatable=True, placeholder="Kuyular ve hissedarlar"),
+            list_url=F("url", "Liste bağlantısı"),
+        ),
+    },
+    "certificate_showcase": {
+        "label": "Sertifika & Kesim Görseli", "group": "Güven & etki", "icon": "📜",
+        "help": "Polaroid fotoğraflar ve örnek bağış sertifikası ile kesim/teslim sürecini anlatan bölüm.",
+        "fields": _head(
+            text=F("textarea", "Açıklama", max=400, translatable=True),
+            button_label=F("text", "Buton", max=40, translatable=True),
+            button_url=F("url", "Buton bağlantısı"),
+            look=F("select", "Görünüm", choices={"soft": "Açık ana renk zemin", "light": "Beyaz", "dark": "Koyu zemin"}, default="soft"),
+            photos=F("list", "Fotoğraflar", max_items=2, item_label="caption", fields={
+                "image_url": F("image", "Fotoğraf"),
+                "caption": F("text", "El yazısı not", max=40, translatable=True),
+            }),
+            cert_logo_url=F("image", "Sertifika logosu (boşsa site logosu)"),
+            cert_title=F("text", "Sertifika başlığı", max=40, default="BAĞIŞ SERTİFİKASI", translatable=True),
+            rows=F("list", "Sertifika satırları", max_items=6, item_label="label", fields={
+                "label": F("text", "Alan", max=30, translatable=True),
+                "value": F("text", "Örnek değer", max=60, translatable=True),
+            }),
+            signature=F("text", "El yazısı alt not", max=60, translatable=True),
+        ),
+    },
+}
+BLOCKS.update(INLINE_CHECKOUT_BLOCKS)
 HEADER_TOP_LEVEL = frozenset({"header_row", "announcement_bar"})
 
 

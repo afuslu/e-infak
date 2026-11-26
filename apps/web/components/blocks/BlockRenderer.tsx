@@ -16,6 +16,8 @@ import { donationOptions, unitPrice } from '../../lib/donation-options'
 import { AnnouncementBar, CartButton, ContactFormBlock, CurrencySwitcher, DonationCards, MobileTabBar, type DonationCardView } from './DonationBlocks'
 import { defaultFooterLinks, defaultHeaderLinks } from '../../lib/default-links'
 import { extraContent } from './ExtraBlocks'
+import { KurbanPlanner, ProductBundle, ShareProject } from './CheckoutBlocks'
+import { campaignUnit, intentsFor, quantityLimits, sharesTaken } from '../../lib/inline-checkout'
 import { DismissibleNotice, SearchableFaq, VideoPosterPlayer } from './ExtraClient'
 
 /**
@@ -279,6 +281,49 @@ function Dropdown({ item, locale, itemCls = 'py-2 transition-opacity hover:opaci
 function money(c: Campaign, locale: string, cents: 'collected' | 'target') {
   const value = cents === 'collected' ? c.collected_lira : c.target_lira
   return `${(value || 0).toLocaleString(locale)} ${CURRENCY[c.currency || 'TRY'] || '₺'}`
+}
+
+const SCRIPT_FONT = { fontFamily: 'var(--ff-script), "Segoe Script", cursive' }
+
+/** Polaroid photos around a sample certificate (how a kurban / delivery is documented). */
+function CertificateShowcase({ o, logo, siteName }: { o: Record<string, any>; logo: string; siteName: string }) {
+  const look = o.look || 'soft'
+  const bg = look === 'dark' ? 'bg-primary-950 text-white' : look === 'light' ? 'bg-white text-gray-900' : 'bg-primary-50/70 text-gray-900'
+  const muted = look === 'dark' ? 'text-white/70' : 'text-gray-600'
+  const photos = (o.photos || []).filter((p: Record<string, any>) => p.image_url).slice(0, 2)
+  const rows = (o.rows || []).filter((r: Record<string, any>) => r.label)
+  const polaroid = (p: Record<string, any>, i: number) => (
+    <figure key={i} className={`absolute top-6 w-[42%] max-w-[230px] rounded-sm bg-white p-2.5 pb-9 shadow-xl ${i === 0 ? 'start-0 -rotate-6' : 'end-0 rotate-6'}`}>
+      <img src={p.image_url} alt={p.caption || ''} className="aspect-[4/5] w-full object-cover" loading="lazy" />
+      {p.caption && <figcaption className="absolute inset-x-0 bottom-1.5 text-center text-lg text-gray-700" style={SCRIPT_FONT}>{p.caption}</figcaption>}
+    </figure>
+  )
+  return (
+    <div className={`relative overflow-hidden py-14 sm:py-20 ${bg}`}>
+      <div className={`${container} grid items-center gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]`}>
+        <div>
+          {o.kicker && <div className="mb-2 text-xs font-extrabold uppercase tracking-[2px] text-primary-600">{o.kicker}</div>}
+          {o.title && <h2 className="font-heading text-3xl font-bold leading-tight sm:text-[40px]">{o.title}</h2>}
+          {o.text && <BlockText text={o.text} className={`mt-4 text-base leading-relaxed ${muted}`} />}
+          {o.button_label && o.button_url && <div className="mt-7"><Btn href={o.button_url} variant={look === 'dark' ? 'accent' : 'primary'}>{o.button_label} →</Btn></div>}
+        </div>
+        <div className="relative mx-auto h-[360px] w-full max-w-[620px] sm:h-[400px]">
+          {photos.map(polaroid)}
+          <div className="absolute inset-x-[22%] top-0 z-10 rounded-md border border-primary-100 bg-[#fdfbf6] p-5 text-center text-gray-900 shadow-2xl sm:p-6">
+            {logo ? <img src={logo} alt={siteName} className="mx-auto h-10 w-auto object-contain" /> : <div className="font-heading text-lg font-bold text-primary-700">{siteName}</div>}
+            <div className="mt-3 text-xs font-extrabold tracking-[3px] text-primary-700">{o.cert_title || 'BAĞIŞ SERTİFİKASI'}</div>
+            <div className="mx-auto my-3 h-px w-16 bg-primary-200" />
+            <dl className="space-y-1.5 text-start text-[13px]">
+              {rows.map((r: Record<string, any>, i: number) => (
+                <div key={i} className="grid grid-cols-[minmax(0,42%)_1fr] gap-2"><dt className="text-gray-500">{r.label}</dt><dd className="font-semibold">: {r.value}</dd></div>
+              ))}
+            </dl>
+            {o.signature && <div className="mt-4 text-lg text-primary-700" style={SCRIPT_FONT}>{o.signature}</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function Btn({ href, children, variant = 'primary', newTab, extraCls = '' }: { href: string; children: ReactNode; variant?: string; newTab?: boolean; extraCls?: string }) {
@@ -1313,6 +1358,42 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
           />
         </div>
       )
+    case 'kurban_planner': {
+      const options = (o.options || []).map((it: Record<string, any>) => {
+        const c = campaignById(it.campaign_id)
+        if (!c) return null
+        return {
+          campaignId: c.id, title: it.title || c.title, image: it.image_url || c.cover_image_url, note: it.note,
+          unit: campaignUnit(c), intents: intentsFor(c, o.intents), campaign: c,
+        }
+      }).filter(Boolean)
+      return <KurbanPlanner o={o} options={options} container={container} locale={data.locale} editing={opts.editing} />
+    }
+    case 'product_bundle': {
+      const items = (o.items || []).map((it: Record<string, any>) => {
+        const c = campaignById(it.campaign_id)
+        if (!c) return null
+        const limits = quantityLimits(c, Number(it.min_qty) || 1)
+        return {
+          campaignId: c.id, title: it.title || c.title, icon: it.icon, image: it.image_url, unitText: it.unit_text,
+          unit: campaignUnit(c, Number(it.unit_amount) || 0), min: limits.min, max: limits.max, campaign: c,
+        }
+      }).filter(Boolean)
+      return <ProductBundle o={o} items={items} container={container} locale={data.locale} editing={opts.editing} />
+    }
+    case 'share_project': {
+      const projects = (o.projects || []).map((it: Record<string, any>) => {
+        const c = campaignById(it.campaign_id)
+        if (!c) return null
+        const unit = campaignUnit(c, Number(it.unit_amount) || 0)
+        const total = Math.max(1, Number(it.total_shares) || 30)
+        return { campaignId: c.id, title: it.title || c.title, total, taken: sharesTaken(total, Number(it.taken_shares) || 0, c.collected_lira || 0, unit), unit, campaign: c }
+      }).filter(Boolean)
+      const slides = (o.slides || []).filter((x: Record<string, any>) => x.image_url || x.title).map((x: Record<string, any>) => ({ image: x.image_url, title: x.title, text: x.text }))
+      return <ShareProject o={o} projects={projects} slides={slides} container={container} locale={data.locale} editing={opts.editing} />
+    }
+    case 'certificate_showcase':
+      return <CertificateShowcase o={o} logo={o.cert_logo_url || data.site.logo_url || ''} siteName={data.site.name || ''} />
     case 'announcement_bar':
       return (
         <AnnouncementBar
@@ -2041,6 +2122,41 @@ function content(block: Block, o: Record<string, any>, opts: RenderOptions, dept
                 }))}
               />
               {faqCta}
+            </div>
+          </div>
+        )
+      }
+
+      if (look === 'script_split') {
+        return (
+          <div className={container}>
+            <div className="grid items-start gap-8 lg:grid-cols-12">
+              <div className="lg:col-span-4 lg:pt-10">
+                {o.script_text && <div className="-rotate-3 text-4xl leading-tight text-primary-700 sm:text-5xl" style={SCRIPT_FONT}>{o.script_text}</div>}
+              </div>
+              <div className="lg:col-span-8">
+                <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    {o.kicker && <div className="mb-1.5 text-xs font-bold tracking-[2px] text-primary-600">{o.kicker}</div>}
+                    {o.title && <h2 className="font-heading text-3xl font-bold">{o.title}</h2>}
+                    {o.text && <p className="mt-1.5 text-base opacity-75">{o.text}</p>}
+                  </div>
+                  {o.button_label && o.button_url && (
+                    <Link href={o.button_url} className="text-sm font-bold text-primary-700 hover:underline">{o.button_label} →</Link>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {faqItems.map((item: any, i: number) => (
+                    <details key={i} className="group rounded-2xl border border-gray-200 bg-white px-5 py-4 text-gray-900 shadow-sm open:shadow-md" open={openFirst && i === 0}>
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
+                        <span>{item.question}</span>
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-700 transition-transform group-open:rotate-45">+</span>
+                      </summary>
+                      <BlockText text={item.answer} className="mt-3 text-[15px] text-gray-700" />
+                    </details>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )

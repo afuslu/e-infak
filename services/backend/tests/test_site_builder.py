@@ -467,3 +467,30 @@ def test_hero_takes_its_own_slides():
     assert slides[1]["campaign_id"] == cid
     with pytest.raises(BlockError):
         validate_blocks([{"id": "b-hero", "type": "hero", "props": {"slides": [{"button_url": "javascript:alert(1)"}]}}])
+
+
+def test_inline_checkout_blocks():
+    from app.services.templates import SECTION_BY_KEY
+    cid = str(uuid.uuid4())
+    blocks = validate_blocks([
+        {"id": "kp-1234", "type": "kurban_planner", "props": {"options": [{"campaign_id": cid, "title": "Koç <b>x</b>", "x": 1}], "intents": "Adak, Şükür"}},
+        {"id": "pb-1234", "type": "product_bundle", "props": {"goal_amount": 3000, "items": [{"campaign_id": cid, "min_qty": 10, "unit_amount": 9}]}},
+        {"id": "sp-1234", "type": "share_project", "props": {"projects": [{"campaign_id": cid, "total_shares": 30}], "slides": [{"image_url": "/demo/water.webp"}]}},
+        {"id": "cs-1234", "type": "certificate_showcase", "props": {"rows": [{"label": "Kurban sahibi", "value": "Ahmet"}]}},
+        {"id": "hr-1234", "type": "hero", "props": {"variant": "trust_badges_hero", "trust_chips": [{"label": "Güvenilir"}], "verify_url": "https://www.turkiye.gov.tr"}},
+        {"id": "fq-1234", "type": "faq", "props": {"look": "script_split", "script_text": "Merak ettikleriniz", "items": [{"question": "S", "answer": "C"}]}},
+    ])
+    assert blocks[0]["props"]["options"] == [{"campaign_id": cid, "title": "Koç x"}]
+    assert blocks[1]["props"]["items"][0]["min_qty"] == 10
+    low = validate_blocks([{"id": "pb-1234", "type": "product_bundle", "props": {"items": [{"campaign_id": cid, "min_qty": 0}]}}])
+    assert low[0]["props"]["items"][0]["min_qty"] == 1                                       # clamped, never below one
+    assert blocks[2]["props"]["projects"][0]["total_shares"] == 30
+    for bad in (
+        [{"id": "kp-1234", "type": "kurban_planner", "props": {"options": [{"title": "Koç"}]}}],          # needs a campaign
+        [{"id": "sp-1234", "type": "share_project", "props": {"projects": [{"campaign_id": cid}], "list_url": "javascript:alert(1)"}}],
+        [{"id": "hr-1234", "type": "hero", "props": {"variant": "nope_hero"}}],
+    ):
+        with pytest.raises(BlockError):
+            validate_blocks(bad)
+    for key in ("inline-kurban-planner", "inline-product-bundle", "inline-share-project", "certificate-showcase", "hero-trust-badges", "faq-script-split"):
+        assert validate_blocks(SECTION_BY_KEY[key]["blocks"])
