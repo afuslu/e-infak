@@ -115,6 +115,13 @@ interface ReceiptBookOption {
   remaining: number;
 }
 
+interface StaffOption {
+  id: string;
+  first_name: string;
+  last_name: string;
+  is_active: boolean;
+}
+
 interface SplitLine {
   campaign_id: string;
   amount: string;
@@ -1166,6 +1173,9 @@ function ApproveDialog({
   ]);
   const { data: access } = useAdminAccess();
   const canSaveTemplate = can(access, 'sms.templates');
+  const canPickStaff = can(access, 'receipts.for_others');
+  const [staff, setStaff] = useState<StaffOption[]>([]);
+  const [staffId, setStaffId] = useState('');
   const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>([]);
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [note, setNote] = useState(transfer.description || '');
@@ -1177,6 +1187,13 @@ function ApproveDialog({
 
   const selectedBook = books.find((b) => b.id === bookId);
   const nextPaperNo = selectedBook ? `${selectedBook.series}-${String(selectedBook.next_no).padStart(4, '0')}` : undefined;
+
+  useEffect(() => {
+    if (!canPickStaff) return;
+    adminGet<StaffOption[]>('/users')
+      .then((res) => setStaff((res.data || []).filter((p) => p.is_active)))
+      .catch(() => setStaff([]));
+  }, [canPickStaff]);
 
   useEffect(() => {
     adminGet<SmsTemplate[]>('/sms/templates')
@@ -1330,6 +1347,7 @@ function ApproveDialog({
         on_behalf_of: lines[0].on_behalf_of.trim() || null,
         note: note.trim() || null,
         receipt_book_id: bookId || null,
+        issued_by_id: staffId || null,
         send_receipt: sendReceipt,
         sms_body: sendReceipt && smsBody.trim() ? smsBody.trim() : null,
       };
@@ -1586,6 +1604,24 @@ function ApproveDialog({
               )}
             </div>
           </div>
+
+          {canPickStaff && staff.length > 1 ? (
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Personel</label>
+              <select
+                value={staffId || access?.me.id || ''}
+                onChange={(e) => setStaffId(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800"
+              >
+                {staff.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.first_name} {p.last_name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-500">Bağış ve makbuz bu personelin adına yazılır.</p>
+            </div>
+          ) : null}
 
           {books.length > 0 ? (
             <div>

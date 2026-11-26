@@ -10,7 +10,7 @@ from sqlalchemy import func, literal_column, or_, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import Permission, mask_phone, require_capability, require_feature, require_permission, require_module
+from app.api.deps import Permission, ensure_capability, mask_phone, require_capability, require_feature, require_permission, require_module
 from app.banking import CONNECTORS, BankConnectorError, credential_key
 from app.banking.matching import Matcher, analyse, approve, transfer_donations, unmatch
 from app.banking.parsers import fold
@@ -381,6 +381,8 @@ class ApproveIn(BaseModel):
     send_receipt: bool = True
     # SMS text staff wrote while matching; sent instead of the automatic "bağış ulaştı" SMS
     sms_body: Optional[str] = Field(default=None, max_length=1500)
+    # "Personel": staff member the donation is credited to; defaults to the approver
+    issued_by_id: Optional[UUID] = None
 
 
 async def _transfer(db: AsyncSession, org_id: UUID, transfer_id: UUID) -> BankTransaction:
@@ -425,6 +427,14 @@ async def approve_transfer(transfer_id: UUID, payload: ApproveIn, request: Reque
         await db.flush()
     else:
         raise HTTPException(status_code=422, detail="Bağışçı seçin veya yeni bağışçı bilgisi girin")
+    issuer_id = current_user.id
+    if payload.issued_by_id and payload.issued_by_id != current_user.id:
+        ensure_capability(current_user, "receipts.for_others", "Başka personel adına makbuz kesme yetkiniz yok")
+        staff = (await db.execute(select(User).where(
+            User.id == payload.issued_by_id, User.organization_id == org_id, User.is_active.is_(True)))).scalar_one_or_none()
+        if not staff:
+            raise HTTPException(status_code=404, detail="Personel bulunamadı")
+        issuer_id = staff.id
     donations = []
     try:
         for index, (line, campaign) in enumerate(zip(lines, campaigns)):
@@ -434,7 +444,7 @@ async def approve_transfer(transfer_id: UUID, payload: ApproveIn, request: Reque
                 on_behalf_of=line.on_behalf_of or payload.on_behalf_of, kurban_type=line.kurban_type,
                 kurban_names=[n.strip()[:200] for n in line.kurban_names], note=payload.note,
                 receipt_book_id=payload.receipt_book_id, send_receipt=payload.send_receipt and index == 0,
-                amount_cents=line.amount_cents, line=index,
+                amount_cents=line.amount_cents, line=index, issued_by_id=issuer_id,
                 official_receipt_no=donations[0].official_receipt_no if donations else None))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

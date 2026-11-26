@@ -287,6 +287,7 @@ async def approve(
     amount_cents: Optional[int] = None,
     line: int = 0,
     official_receipt_no: Optional[str] = None,
+    issued_by_id: Optional[UUID] = None,
 ) -> Donation:
     """Record the transfer as a confirmed donation; the caller commits.
 
@@ -304,13 +305,14 @@ async def approve(
     donation, _ = await record_offline_donation(
         db, organization_id=transaction.organization_id, campaign=campaign, donor=donor,
         amount_cents=amount_cents or transaction.amount_cents, currency=transaction.currency or "TRY",
-        method=PaymentMethod.BANK_TRANSFER, paid_at=transaction.booked_at, issued_by_id=user_id,
+        method=PaymentMethod.BANK_TRANSFER, paid_at=transaction.booked_at, issued_by_id=issued_by_id or user_id,
         provider=f"bank:{bank_key}", transaction_id=transaction.external_id,
         idempotency_key=f"bank:{transaction.id}" + (f":{line}" if line else ""),
         details={"bank_transaction_id": str(transaction.id),
                  "bank_account_id": str(transaction.bank_account_id) if transaction.bank_account_id else None,
                  "sender": suggestion.get("sender"),
-                 "description": transaction.description, "automatic": automatic, "line": line},
+                 "description": transaction.description, "automatic": automatic, "line": line,
+                 **({"written_by": str(user_id)} if issued_by_id and issued_by_id != user_id else {})},
         note=(note if note is not None else suggestion.get("note")) or None,
         on_behalf_of=on_behalf_of, send_receipt=send_receipt,
         # Hissedar adları: hisse başına bir ad; verilmezse hepsi "kimin adına"/bağışçı adını alır.
