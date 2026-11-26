@@ -68,6 +68,7 @@ export function useCheckoutLegal() {
   return {
     legal: data?.legal ?? FALLBACK_LEGAL,
     cardPayments: data?.card_payments !== false,
+    whatsappOptin: Boolean(data?.whatsapp_optin),
     ibanPageUrl: data?.iban_page_url || '/hesap-numaralarimiz',
   }
 }
@@ -93,7 +94,7 @@ function DocLink({ href, children }: { href: string; children: React.ReactNode }
 }
 
 export function ConsentChecks({
-  legal, kvkk, onKvkk, onTerms, className = '',
+  legal, kvkk, onKvkk, onTerms, className = '', whatsapp, onWhatsapp,
 }: {
   legal: Pick<OrgLegalInfo, 'kvkk_url' | 'terms_url' | 'preinfo_url'>
   kvkk: boolean
@@ -102,6 +103,9 @@ export function ConsentChecks({
   onTerms?: (v: boolean) => void
   requireTerms?: boolean
   className?: string
+  /** Optional WhatsApp opt-in; shown only when `onWhatsapp` is given. */
+  whatsapp?: boolean
+  onWhatsapp?: (v: boolean) => void
 }) {
   return (
     <div className={`space-y-2 ${className}`}>
@@ -116,6 +120,12 @@ export function ConsentChecks({
         />
         <span><DocLink href={legal.kvkk_url}>KVKK Aydınlatma Metni</DocLink>&apos;ni okudum. *</span>
       </label>
+      {onWhatsapp && (
+        <label className="flex gap-2 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-900">
+          <input type="checkbox" checked={Boolean(whatsapp)} onChange={(e) => onWhatsapp(e.target.checked)} />
+          <span>Bağışım ve projeler hakkında WhatsApp&apos;tan bilgilendirilmek istiyorum. (İstediğiniz zaman DUR yazarak çıkabilirsiniz.)</span>
+        </label>
+      )}
     </div>
   )
 }

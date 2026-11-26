@@ -549,6 +549,7 @@ def public_site(org, settings_row, lang: Optional[str]) -> dict:
             "address": settings_row.contact_address if settings_row else None,
         },
         "legal": legal_of(org, settings_row),
+        "whatsapp_optin": bool((((org.settings or {}).get("whatsapp") or {}).get("consent") or {}).get("checkout_checkbox")),
     }
 
 

@@ -1,13 +1,22 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCheck, Copy, KeyRound, ListChecks, RefreshCw, Send, Users } from 'lucide-react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import {
+  Bell, CheckCheck, Copy, FileText, Inbox as InboxIcon, KeyRound, Link2, ListChecks, MessageSquareReply, Phone,
+  RefreshCw, Send, ShieldCheck, Users,
+} from 'lucide-react'
 import { Card } from '@e-infak/ui'
-import { adminGet, adminSend, apiErrorMessage } from '../../../../lib/admin-access'
+import { adminGet, adminSend, apiErrorMessage, hasModule, useAdminAccess } from '../../../../lib/admin-access'
 import { Label, ghostButton, inputClass, primaryButton } from '../../../../components/admin/FormKit'
 import {
   EmptyState, PageHeader, Pagination, StatCard, TBody, THead, Table, Tabs, Td, Th, Tr, WhatsAppIcon, confirmDialog, toast,
 } from '../../../../components/admin/ui'
+import { EventsTab, TemplatesTab } from '../../../../components/admin/whatsapp/Automations'
+import { CallProvider, CallsTab } from '../../../../components/admin/whatsapp/Calls'
+import { Inbox } from '../../../../components/admin/whatsapp/Inbox'
+import { AutoReplyTab, ConsentTab, LinksTab } from '../../../../components/admin/whatsapp/Settings'
+import { Message, STATUS, Template, TemplateFields, when } from '../../../../components/admin/whatsapp/shared'
 
 interface Account {
   configured: boolean
@@ -15,119 +24,113 @@ interface Account {
   webhook_url: string | null
   verify_token: string | null
   can_list_templates: boolean
+  signed_webhooks: boolean
 }
-interface Template { name: string; language: string; category: string; body: string; param_count: number }
-interface Message {
-  id: string; phone: string; donor_name: string | null; kind: string; template_name: string | null; body: string | null
-  status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed'; error: string | null; created_at: string | null
-  batch_id: string | null
+interface Health {
+  display_phone_number?: string; verified_name?: string; quality_rating?: string; messaging_limit_tier?: string
+  name_status?: string; code_verification_status?: string; error?: string
 }
 interface Options { kinds: { key: string; label: string }[]; lists?: { id: string; name: string; count: number }[]; tags: string[]; cities: string[]; campaigns: { id: string; title: string }[]; kurban_years: number[] }
-interface Stats { counts: Record<string, number>; total: number }
+interface Stats { counts: Record<string, number>; total: number; received: number; unread_conversations: number }
 
-type Tab = 'send' | 'bulk' | 'log' | 'account'
-const STATUS: Record<Message['status'], [string, string]> = {
-  queued: ['Kuyrukta', 'bg-gray-100 text-gray-700'],
-  sent: ['Gönderildi', 'bg-sky-100 text-sky-800'],
-  delivered: ['İletildi', 'bg-emerald-100 text-emerald-800'],
-  read: ['Okundu', 'bg-emerald-600 text-white'],
-  failed: ['Başarısız', 'bg-red-100 text-red-700'],
-}
+type Tab = 'inbox' | 'send' | 'bulk' | 'events' | 'templates' | 'auto' | 'consent' | 'links' | 'calls' | 'log' | 'account'
+const TABS: Tab[] = ['inbox', 'send', 'bulk', 'events', 'templates', 'auto', 'consent', 'links', 'calls', 'log', 'account']
 const FIELDS: [string, string, boolean][] = [
   ['phone_number_id', 'Telefon numarası kimliği (Phone number ID)', false],
   ['access_token', 'Kalıcı erişim anahtarı (System user token)', true],
   ['business_account_id', 'WhatsApp Business hesap kimliği (WABA ID)', false],
+  ['app_secret', 'Uygulama gizli anahtarı (App secret) — webhook imzası', true],
   ['default_language', 'Şablon dili (ör. tr)', false],
 ]
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }) : '—')
+const TIER: Record<string, string> = {
+  TIER_50: 'Günde 50 kişi', TIER_250: 'Günde 250 kişi', TIER_1K: 'Günde 1.000 kişi', TIER_10K: 'Günde 10.000 kişi',
+  TIER_100K: 'Günde 100.000 kişi', TIER_UNLIMITED: 'Sınırsız',
+}
+const QUALITY: Record<string, [string, string]> = {
+  GREEN: ['Yüksek', 'text-emerald-700'], YELLOW: ['Orta', 'text-amber-700'], RED: ['Düşük', 'text-red-700'], UNKNOWN: ['Bilinmiyor', 'text-gray-600'],
+}
 
-function TemplateFields({ templates, name, setName, params, setParams }: {
-  templates: Template[]; name: string; setName: (v: string) => void; params: string[]; setParams: (v: string[]) => void
-}) {
-  const current = templates.find((t) => t.name === name)
+export default function WhatsAppPageWrapper() {
   return (
-    <div className="space-y-3">
-      <Label label="Onaylı şablon" hint={templates.length ? undefined : 'Şablonlar Meta Business Manager’da onaylanır; listelemek için WABA ID gerekir. Adını elle de yazabilirsiniz.'}>
-        {templates.length ? (
-          <select className={inputClass} value={name} onChange={(e) => {
-            setName(e.target.value)
-            const t = templates.find((x) => x.name === e.target.value)
-            setParams(Array.from({ length: t?.param_count || 0 }, () => ''))
-          }}>
-            <option value="">Şablon seçin</option>
-            {templates.map((t) => <option key={`${t.name}-${t.language}`} value={t.name}>{t.name} ({t.language}, {t.category})</option>)}
-          </select>
-        ) : (
-          <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="ör. kurban_kesildi" />
-        )}
-      </Label>
-      {current?.body && <p className="whitespace-pre-wrap rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">{current.body}</p>}
-      {params.map((p, i) => (
-        <Label key={i} label={`Değişken {{${i + 1}}}`} hint={i === 0 ? '{ad}, {ad_soyad}, {kurum}, {portal} gibi SMS değişkenleri kullanılabilir.' : undefined}>
-          <input className={inputClass} value={p} onChange={(e) => setParams(params.map((x, j) => (j === i ? e.target.value : x)))} />
-        </Label>
-      ))}
-      <button type="button" className={ghostButton} onClick={() => setParams([...params, ''])}>+ Değişken ekle</button>
-    </div>
+    <Suspense fallback={<p className="py-12 text-center text-sm text-gray-500">Yükleniyor…</p>}>
+      <WhatsAppPage />
+    </Suspense>
   )
 }
 
-export default function WhatsAppPage() {
-  const [tab, setTab] = useState<Tab>('send')
+function WhatsAppPage() {
+  const params = useSearchParams()
+  const initialTab = params.get('tab') as Tab | null
+  const [tab, setTab] = useState<Tab>(initialTab && TABS.includes(initialTab) ? initialTab : 'inbox')
   const [account, setAccount] = useState<Account | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [log, setLog] = useState<{ status: string; days?: number }>({ status: '' })
+  const { data: access } = useAdminAccess()
+  const canManage = !access || hasModule(access, 'settings')
   const openLog = (status: string) => { setLog({ status, days: 30 }); setTab('log') }
 
+  const loadTemplates = useCallback(() => {
+    adminGet<Template[]>('/whatsapp/templates').then((r) => setTemplates(r.data)).catch((err) => toast.error(apiErrorMessage(err, 'Şablonlar alınamadı')))
+  }, [])
   const loadAccount = useCallback(async () => {
     try {
       const acc = (await adminGet<Account>('/whatsapp/account')).data
       setAccount(acc)
       if (!acc.configured) setTab('account')
-      if (acc.can_list_templates) {
-        adminGet<Template[]>('/whatsapp/templates').then((r) => setTemplates(r.data)).catch((err) => toast.error(apiErrorMessage(err, 'Şablonlar alınamadı')))
-      }
+      if (acc.can_list_templates) loadTemplates()
     } catch (err) {
       toast.error(apiErrorMessage(err, 'WhatsApp hesabı okunamadı'))
     }
-  }, [])
+  }, [loadTemplates])
   useEffect(() => {
     loadAccount()
     adminGet<Stats>('/whatsapp/stats').then((r) => setStats(r.data)).catch(() => {})
   }, [loadAccount])
 
+  const configured = !!account?.configured
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={<span className="flex items-center gap-2"><WhatsAppIcon className="h-6 w-6 text-emerald-600" /> WhatsApp Business</span>}
-        description="Bağışçılara Meta’nın onayladığı şablonlarla tekli ve toplu WhatsApp mesajı gönderin; iletildi/okundu durumunu izleyin."
-      />
-      {stats && (
-        <div className="grid gap-3 sm:grid-cols-4">
-          <StatCard label="Son 30 gün" value={stats.total.toLocaleString('tr-TR')} icon={Send} onClick={() => openLog('')} />
-          <StatCard label="İletildi" value={(stats.counts.delivered + stats.counts.read).toLocaleString('tr-TR')} tone="good" icon={CheckCheck} detail={{
-            title: 'İletilen mesajlar',
-            content: () => <Table><THead><Tr><Th>Durum</Th><Th className="text-right">Adet</Th></Tr></THead><TBody>
-              <Tr><Td>İletildi, henüz okunmadı</Td><Td className="text-right tabular-nums">{stats.counts.delivered}</Td></Tr>
-              <Tr><Td>Okundu</Td><Td className="text-right tabular-nums">{stats.counts.read}</Td></Tr>
-            </TBody></Table>,
-          }} />
-          <StatCard label="Okundu" value={stats.counts.read.toLocaleString('tr-TR')} tone="brand" icon={CheckCheck} onClick={() => openLog('read')} />
-          <StatCard label="Başarısız" value={stats.counts.failed.toLocaleString('tr-TR')} tone={stats.counts.failed ? 'bad' : 'neutral'} onClick={() => openLog('failed')} />
-        </div>
-      )}
-      <Tabs<Tab> value={tab} onChange={setTab} tabs={[
-        { key: 'send', label: 'Tekli Gönder', icon: Send },
-        { key: 'bulk', label: 'Toplu Gönderim', icon: Users },
-        { key: 'log', label: 'Mesajlar', icon: ListChecks },
-        { key: 'account', label: 'Hesap Ayarları', icon: KeyRound },
-      ]} />
-      {tab === 'send' && <SingleSend templates={templates} configured={!!account?.configured} />}
-      {tab === 'bulk' && <BulkSend templates={templates} configured={!!account?.configured} onSent={() => setTab('log')} />}
-      {tab === 'log' && <MessageLog key={`${log.status}-${log.days}`} initialStatus={log.status} initialDays={log.days} />}
-      {tab === 'account' && account && <AccountForm account={account} onSaved={loadAccount} />}
-    </div>
+    <CallProvider enabled={configured}>
+      <div className="space-y-6">
+        <PageHeader
+          title={<span className="flex items-center gap-2"><WhatsAppIcon className="h-6 w-6 text-emerald-600" /> WhatsApp Business</span>}
+          description="Bağışçılarla WhatsApp’tan yazışın, bağış ve makbuz bildirimlerini otomatik gönderin, şablon ve toplu mesajları yönetin, gelen aramaları cevaplayın."
+        />
+        {stats && (
+          <div className="grid gap-3 sm:grid-cols-5">
+            <StatCard label="Okunmamış konuşma" value={stats.unread_conversations.toLocaleString('tr-TR')} tone={stats.unread_conversations ? 'brand' : 'neutral'} icon={InboxIcon} onClick={() => setTab('inbox')} />
+            <StatCard label="Gelen mesaj (30 gün)" value={stats.received.toLocaleString('tr-TR')} icon={MessageSquareReply} onClick={() => setTab('inbox')} />
+            <StatCard label="Giden (30 gün)" value={stats.total.toLocaleString('tr-TR')} icon={Send} onClick={() => openLog('')} />
+            <StatCard label="Okundu" value={stats.counts.read.toLocaleString('tr-TR')} tone="good" icon={CheckCheck} onClick={() => openLog('read')} />
+            <StatCard label="Başarısız" value={stats.counts.failed.toLocaleString('tr-TR')} tone={stats.counts.failed ? 'bad' : 'neutral'} onClick={() => openLog('failed')} />
+          </div>
+        )}
+        <Tabs<Tab> value={tab} onChange={setTab} tabs={[
+          { key: 'inbox', label: 'Gelen Kutusu', icon: InboxIcon, count: stats?.unread_conversations || undefined },
+          { key: 'send', label: 'Tekli Gönder', icon: Send },
+          { key: 'bulk', label: 'Toplu Gönderim', icon: Users },
+          { key: 'events', label: 'Otomatik Bildirimler', icon: Bell },
+          { key: 'templates', label: 'Şablonlar', icon: FileText },
+          { key: 'auto', label: 'Otomatik Cevaplar', icon: MessageSquareReply },
+          { key: 'consent', label: 'İzinler', icon: ShieldCheck },
+          { key: 'links', label: 'Bağlantı & QR', icon: Link2 },
+          { key: 'calls', label: 'Aramalar', icon: Phone },
+          { key: 'log', label: 'Gönderim Kaydı', icon: ListChecks },
+          { key: 'account', label: 'Hesap Ayarları', icon: KeyRound },
+        ]} />
+        {tab === 'inbox' && <Inbox templates={templates} configured={configured} initialId={params.get('c')} />}
+        {tab === 'send' && <SingleSend templates={templates} configured={configured} />}
+        {tab === 'bulk' && <BulkSend templates={templates} configured={configured} onSent={() => setTab('log')} />}
+        {tab === 'events' && <EventsTab templates={templates} onTemplatesChanged={loadTemplates} />}
+        {tab === 'templates' && <TemplatesTab canManage={canManage} />}
+        {tab === 'auto' && <AutoReplyTab canManage={canManage} />}
+        {tab === 'consent' && <ConsentTab canManage={canManage} />}
+        {tab === 'links' && <LinksTab canManage={canManage} />}
+        {tab === 'calls' && <CallsTab configured={configured} />}
+        {tab === 'log' && <MessageLog key={`${log.status}-${log.days}`} initialStatus={log.status} initialDays={log.days} />}
+        {tab === 'account' && account && <AccountForm account={account} onSaved={loadAccount} />}
+      </div>
+    </CallProvider>
   )
 }
 
@@ -246,6 +249,7 @@ function BulkSend({ templates, configured, onSent }: { templates: Template[]; co
             <b>{preview.recipients.toLocaleString('tr-TR')}</b> kişiye gidecek
             {preview.stats.no_phone ? ` · ${preview.stats.no_phone} kişinin telefonu yok` : ''}
             {preview.stats.no_consent ? ` · ${preview.stats.no_consent} kişi mesaj istemiyor` : ''}
+            {preview.stats.no_whatsapp_consent ? ` · ${preview.stats.no_whatsapp_consent} kişi WhatsApp izni vermedi / DUR yazdı` : ''}
           </p>
         )}
         <button type="button" className={`${primaryButton} flex items-center gap-2`} disabled={busy || !configured || !preview?.recipients} onClick={send}>
@@ -303,7 +307,7 @@ function MessageLog({ initialStatus, initialDays }: { initialStatus: string; ini
                 <Td className="whitespace-nowrap text-gray-500">{when(m.created_at)}</Td>
                 <Td><div className="font-medium">{m.donor_name || '—'}</div><div className="text-xs text-gray-500">{m.phone}</div></Td>
                 <Td className="max-w-md">
-                  <div className="text-xs font-semibold text-gray-500">{m.kind === 'template' ? `Şablon: ${m.template_name}` : 'Serbest metin'}</div>
+                  <div className="text-xs font-semibold text-gray-500">{m.kind === 'template' ? `Şablon: ${m.template_name}` : m.kind === 'text' ? 'Serbest metin' : m.kind}{m.source === 'event' ? ' · otomatik bildirim' : ''}{m.fallback_sms ? ' · yerine SMS gitti' : ''}</div>
                   <div className="truncate text-sm">{m.body}</div>
                   {m.error && <div className="text-xs text-red-600">{m.error}</div>}
                 </Td>
@@ -335,6 +339,11 @@ function AccountForm({ account, onSaved }: { account: Account; onSaved: () => vo
       setBusy(false)
     }
   }
+  const [health, setHealth] = useState<Health | null>(null)
+  const checkHealth = useCallback(() => {
+    adminGet<Health>('/whatsapp/account/health').then((r) => setHealth(r.data)).catch((err) => setHealth({ error: apiErrorMessage(err) }))
+  }, [])
+  useEffect(() => { if (account.configured) checkHealth() }, [account.configured, checkHealth])
   const copy = (text: string) => navigator.clipboard.writeText(text).then(() => toast.ok('Kopyalandı'))
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -347,16 +356,30 @@ function AccountForm({ account, onSaved }: { account: Account; onSaved: () => vo
           </Label>
         ))}
         <button type="button" className={primaryButton} disabled={busy} onClick={save}>{busy ? 'Kaydediliyor…' : 'Kaydet'}</button>
+        {health && (
+          <div className="space-y-1 rounded-xl border p-3 text-sm">
+            <div className="flex items-center justify-between"><b>Numara durumu</b><button type="button" className={`${ghostButton} flex items-center gap-1`} onClick={checkHealth}><RefreshCw className="h-3.5 w-3.5" /> Kontrol et</button></div>
+            {health.error ? <p className="text-red-700">{health.error}</p> : (
+              <>
+                <div>{health.verified_name} · {health.display_phone_number}</div>
+                <div>Kalite: <span className={QUALITY[health.quality_rating || 'UNKNOWN']?.[1]}>{QUALITY[health.quality_rating || 'UNKNOWN']?.[0] || health.quality_rating}</span></div>
+                <div>Mesaj limiti: {TIER[health.messaging_limit_tier || ''] || health.messaging_limit_tier || '—'}</div>
+                {health.name_status && health.name_status !== 'APPROVED' && <div className="text-amber-700">Görünen ad onayı: {health.name_status}</div>}
+              </>
+            )}
+          </div>
+        )}
       </Card>
       <Card className="space-y-4 p-6 text-sm text-gray-700">
         <h2 className="font-bold text-gray-900">Kurulum</h2>
         <ol className="list-decimal space-y-2 pl-5">
-          <li>business.facebook.com’da bir Meta uygulaması açıp WhatsApp ürününü ekleyin ve kurumun numarasını bağlayın.</li>
+          <li><b>developers.facebook.com</b>’da bir Meta uygulaması açıp <b>WhatsApp</b> ürününü ekleyin; kurumun (WhatsApp uygulamasına bağlı olmayan) numarasını tanımlayın.</li>
           <li>Business Manager › Sistem kullanıcıları’ndan <b>whatsapp_business_messaging</b> ve <b>whatsapp_business_management</b> izinli kalıcı bir anahtar üretin.</li>
-          <li>Telefon numarası kimliğini ve WABA kimliğini buraya girip kaydedin.</li>
-          <li>Uygulamanın WhatsApp › Yapılandırma sayfasında Webhook adresini ve doğrulama anahtarını girin, <b>messages</b> alanına abone olun.</li>
-          <li>Mesaj şablonlarını WhatsApp Manager’da oluşturup onaya gönderin.</li>
+          <li>Telefon numarası kimliğini, WABA kimliğini ve Uygulama › Ayarlar › Temel’deki <b>App secret</b>’ı buraya girip kaydedin.</li>
+          <li>WhatsApp › Yapılandırma’da aşağıdaki Webhook adresini ve doğrulama anahtarını girin; <b>messages</b>, <b>message_template_status_update</b> ve (arama için) <b>calls</b> alanlarına abone olun.</li>
+          <li>“Otomatik Bildirimler” sekmesinden hazır şablonları tek tıkla onaya gönderin.</li>
         </ol>
+        {!account.signed_webhooks && account.configured && <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">App secret girilmedi: gelen webhook’ların Meta’dan geldiği imzayla doğrulanamıyor.</p>}
         {account.webhook_url ? (
           <div className="space-y-2">
             <Label label="Webhook adresi (Callback URL)">

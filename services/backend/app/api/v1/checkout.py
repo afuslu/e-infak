@@ -148,6 +148,7 @@ async def _get_or_create_donor(
     email = str(payload.email).strip().lower() if payload.email else None
     phone = phone_digits(payload.phone) or payload.phone
     values = payload.model_dump()
+    values.pop("allow_whatsapp", None)  # recorded by the caller as a WhatsApp opt-in
     values["email"] = email
     values["phone"] = phone
 
@@ -459,11 +460,15 @@ async def create_checkout_session(
 
     auth_donor = await _authenticated_donor(request, org_id, db)
     donor, payer_contact = await _get_or_create_donor(org_id, payload.donor, db, authenticated_donor=auth_donor)
+    if payload.donor.allow_whatsapp and not donor.whatsapp_opt_in_at:
+        from app.services.whatsapp_inbox import set_consent
+        await set_consent(db, org_id, phone=donor.phone, donor=donor, opt_in=True, source="checkout")
     for consent_type, granted in (
         ("kvkk_notice", payload.kvkk_accepted),
         ("distance_contract", payload.terms_accepted),
         ("email_marketing", payload.donor.allow_email),
         ("sms_marketing", payload.donor.allow_sms),
+        *((("whatsapp_marketing", True),) if payload.donor.allow_whatsapp else ()),
     ):
         db.add(
             ConsentRecord(

@@ -49,7 +49,8 @@ from app.models.automation import (
 )
 from app.models.water_well import WaterWell
 from app.models.payment import PaymentOrder, PaymentOrderItem, PaymentAttempt, PaymentOrderStatus
-from app.models.channels import CallLog, DonationVideo, SmsDonationRecord, VideoView, WhatsAppMessage
+from app.models.channels import (CallLog, DonationVideo, SmsDonationRecord, VideoView, WhatsAppCall,
+                                 WhatsAppConversation, WhatsAppMessage)
 from app.models.data_export import DataExport, OrganizationOffboarding
 from app.models.device_token import DeviceToken
 from app.models.staff_notification import StaffNotification, StaffNotificationSetting

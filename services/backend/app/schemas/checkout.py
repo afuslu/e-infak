@@ -12,6 +12,7 @@ class CheckoutDonor(BaseModel):
     is_anonymous: bool = False
     allow_email: bool = False
     allow_sms: bool = False
+    allow_whatsapp: bool = False  # "WhatsApp'tan bilgilendirilmek istiyorum" (shown when the org uses WhatsApp)
 
     @field_validator("email", mode="before")
     @classmethod

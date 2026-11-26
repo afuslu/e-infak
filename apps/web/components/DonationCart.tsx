@@ -65,7 +65,8 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
   const currencySymbol = CURRENCY_SYMBOL[currency]
   const [kvkk, setKvkk] = useState(false)
   const [terms, setTerms] = useState(false)
-  const { legal, cardPayments, ibanPageUrl } = useCheckoutLegal()
+  const { legal, cardPayments, ibanPageUrl, whatsappOptin } = useCheckoutLegal()
+  const [allowWhatsapp, setAllowWhatsapp] = useState(false)
   const { isLoggedIn, donor: loggedInDonor } = useLoggedInDonor()
   useCardFallback(cardPayments, paymentMethod, setPaymentMethod)
   useEffect(() => {
@@ -216,6 +217,7 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
           is_anonymous: false,
           allow_email: false,
           allow_sms: false,
+          allow_whatsapp: whatsappOptin && allowWhatsapp,
         },
         payment_method: paymentMethod,
         currency,
@@ -486,7 +488,7 @@ export function DonationCart({ cartStyle: propCartStyle = 'drawer' }: { cartStyl
                       onChange={(e) => setOnBehalfOfPhone(e.target.value)} className="w-full rounded-xl border p-3" />
                   </div>
                 )}
-                <ConsentChecks legal={legal} kvkk={kvkk} onKvkk={setKvkk} terms={terms} onTerms={setTerms}
+                <ConsentChecks whatsapp={allowWhatsapp} onWhatsapp={whatsappOptin ? setAllowWhatsapp : undefined} legal={legal} kvkk={kvkk} onKvkk={setKvkk} terms={terms} onTerms={setTerms}
                   requireTerms={paymentMethod === 'credit_card'} />
                 {paymentMethod === 'credit_card' && (
                   <div className="space-y-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">

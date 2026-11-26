@@ -109,6 +109,7 @@ export interface CheckoutSessionCreate {
     is_anonymous: boolean
     allow_email: boolean
     allow_sms: boolean
+    allow_whatsapp?: boolean
   }
   payment_method: 'credit_card' | 'bank_transfer'
   currency: 'TRY' | 'EUR' | 'USD'
@@ -248,6 +249,8 @@ export interface OrgSettingsInfo {
   legal?: OrgLegalInfo
   /** False when the organisation has no card provider credentials: offer bank transfer only. */
   card_payments?: boolean
+  /** The donation forms offer "keep me informed on WhatsApp" (organisation uses WhatsApp Business). */
+  whatsapp_optin?: boolean
   /** Public page listing the organisation's bank accounts / IBANs. */
   iban_page_url?: string
 }

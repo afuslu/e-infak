@@ -112,7 +112,9 @@ export async function middleware(request: NextRequest) {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', allowSameOriginFrame ? 'SAMEORIGIN' : 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  // The admin panel answers WhatsApp calls in the browser, so it may ask for the microphone.
+  const microphone = url.pathname.startsWith('/admin/whatsapp') ? 'microphone=(self)' : 'microphone=()'
+  response.headers.set('Permissions-Policy', `camera=(), ${microphone}, geolocation=()`)
   if (process.env.NODE_ENV === 'production') {
     response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
   }

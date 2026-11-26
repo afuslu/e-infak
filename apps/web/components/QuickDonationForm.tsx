@@ -259,7 +259,8 @@ export function QuickDonationForm({
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [kvkkAccepted, setKvkkAccepted] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
-  const { legal, cardPayments, ibanPageUrl } = useCheckoutLegal()
+  const { legal, cardPayments, ibanPageUrl, whatsappOptin } = useCheckoutLegal()
+  const [allowWhatsapp, setAllowWhatsapp] = useState(false)
   const { isLoggedIn, donor: loggedInDonor } = useLoggedInDonor()
   useCardFallback(cardPayments, paymentMethod, setPaymentMethod)
   useEffect(() => {
@@ -364,6 +365,7 @@ export function QuickDonationForm({
           is_anonymous: isAnonymous,
           allow_email: false,
           allow_sms: false,
+          allow_whatsapp: whatsappOptin && allowWhatsapp,
         },
         payment_method: paymentMethod,
         currency,
@@ -570,7 +572,7 @@ export function QuickDonationForm({
         </div>
       )}
       <label className="flex gap-2 text-xs text-slate-600"><input type="checkbox" checked={isAnonymous} onChange={(e) => setIsAnonymous(e.target.checked)} /> {ex.hideName}</label>
-      <ConsentChecks legal={legal} kvkk={kvkkAccepted} onKvkk={setKvkkAccepted}
+      <ConsentChecks whatsapp={allowWhatsapp} onWhatsapp={whatsappOptin ? setAllowWhatsapp : undefined} legal={legal} kvkk={kvkkAccepted} onKvkk={setKvkkAccepted}
         terms={termsAccepted} onTerms={setTermsAccepted} requireTerms={paymentMethod === 'credit_card'} />
       {paymentMethod === 'credit_card' && (
         <div className="space-y-2 rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800">

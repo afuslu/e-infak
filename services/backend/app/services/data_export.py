@@ -71,7 +71,8 @@ DATASETS: dict[str, tuple[str, dict[str, str]]] = {
         "stock_items": "Stok kartları", "stock_moves": "Stok hareketleri"}),
     "mesajlar": ("SMS, WhatsApp ve e-posta", {
         "sms_messages": "SMS", "sms_batches": "Toplu SMS", "sms_templates": "SMS şablonları",
-        "sms_donation_records": "SMS bağışları", "whatsapp_messages": "WhatsApp", "mail_messages": "E-postalar",
+        "sms_donation_records": "SMS bağışları", "whatsapp_messages": "WhatsApp", "whatsapp_conversations": "WhatsApp konuşmaları",
+        "whatsapp_calls": "WhatsApp aramaları", "mail_messages": "E-postalar",
         "mail_batches": "Toplu e-posta", "mail_templates": "E-posta şablonları", "call_logs": "Çağrılar"}),
     "web-sitesi": ("Web sitesi ve formlar", {
         "site_pages": "Sayfalar", "site_page_revisions": "Sayfa geçmişi", "site_menu_items": "Menü",

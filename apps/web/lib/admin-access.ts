@@ -144,6 +144,12 @@ export function adminSend<T>(method: 'post' | 'put' | 'patch' | 'delete', path: 
   )
 }
 
+/** An admin-features file (image, PDF, SVG) as a Blob, with the staff token. */
+export async function adminBlob(path: string, params?: Record<string, unknown>) {
+  const res = await withAuthRetry(() => axios.get<Blob>(`${adminApiBase()}/api/v1/admin-features${path}`, { headers: adminAuthHeaders(), responseType: 'blob', params }))
+  return res.data
+}
+
 /** Turns FastAPI error payloads (string, object or validation list) into one message. */
 export function apiErrorMessage(err: unknown, fallback = 'İşlem tamamlanamadı') {
   const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail

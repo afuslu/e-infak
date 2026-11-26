@@ -28,6 +28,7 @@ const OPS_ROWS = [
   { key: 'donor_reminders', label: 'Bağışçı arama hatırlatmaları', hint: 'Planlanmış bağışçı arama / takip zamanı geldiğinde.' },
   { key: 'money_box_due', label: 'Kumbara toplama zamanı', hint: 'Değişim/toplama günü gelen kumbaralar için hatırlatma.' },
   { key: 'campaign_milestone', label: 'Kampanya hedef bildirimleri', hint: 'Aktif bir kampanya %50, %80 veya %100 hedefine ulaştığında.' },
+  { key: 'whatsapp_inbox', label: 'WhatsApp mesaj ve aramaları', hint: 'Bağışçı WhatsApp’tan yazdığında veya aradığında.' },
   { key: 'system_alert', label: 'Sistem & SMS bakiye uyarıları', hint: 'SMS kredisi azaldığında veya banka senkron bağlantısı koptuğunda.' },
 ];
 

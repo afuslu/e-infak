@@ -70,6 +70,10 @@ class Donor(Base):
     sms_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
     email_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
     push_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
+    # WhatsApp: opt-in moment (needed for announcements), opt-out ("DUR") stops every business message.
+    whatsapp_opt_in_at = Column(DateTime(timezone=True))
+    whatsapp_opt_out = Column(Boolean, nullable=False, default=False, server_default="false")
+    whatsapp_consent_source = Column(String(30))  # checkout | keyword | staff | import | portal
     is_anonymous = Column(Boolean, default=False)
     # Donor deleted their portal account in the app: tokens issued before this moment are rejected.
     # Donation and receipt records stay for the legal retention period.

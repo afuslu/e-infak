@@ -30,10 +30,11 @@ INTEGRATIONS: dict[str, dict] = {
             "access_token": "Kalıcı erişim anahtarı (System user access token)",
             "business_account_id": "WhatsApp Business hesap kimliği (WABA ID)",
             "default_language": "Şablon dili (ör. tr)",
+            "app_secret": "Uygulama gizli anahtarı (App secret, webhook imzası için)",
             HOOK_SECRET: "Webhook doğrulama anahtarı",
         },
-        "secret_fields": {"access_token"},
-        "optional_fields": {"business_account_id", "default_language", HOOK_SECRET},
+        "secret_fields": {"access_token", "app_secret"},
+        "optional_fields": {"business_account_id", "default_language", "app_secret", HOOK_SECRET},
     },
     "netsantral": {
         "label": "NetGSM Netsantral (Bulut Santral)",

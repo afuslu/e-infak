@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ExternalLink, Send } from 'lucide-react'
 import { adminGet, adminSend, apiErrorMessage, hasFeature, useAdminAccess, whatsappUrl } from '../../lib/admin-access'
 import { ghostButton, inputClass, primaryButton } from './FormKit'
@@ -103,6 +104,16 @@ export function QuickWhatsAppDialog({
     }
   }
 
+  const router = useRouter()
+  const openThread = async () => {
+    try {
+      const res = await adminSend<{ id: string }>('post', '/whatsapp/conversations', { donor_id: target.donorId || undefined, phone: phone || target.phone || undefined })
+      onClose()
+      router.push(`/admin/whatsapp?tab=inbox&c=${res.data.id}`)
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Sohbet açılamadı'))
+    }
+  }
   const waWebLink = whatsappUrl(phone || target.phone, kind === 'text' ? text : `Merhaba ${target.name || ''}`)
 
   const sendApi = async (e: React.FormEvent) => {
@@ -311,6 +322,7 @@ export function QuickWhatsAppDialog({
               </a>
             ) : <span />}
             <div className="flex items-center gap-2">
+              <button type="button" onClick={openThread} className={ghostButton}>Sohbeti aç</button>
               <button type="button" onClick={onClose} className={ghostButton}>Vazgeç</button>
               <button type="submit" disabled={busy} className={primaryButton}>
                 <Send className="h-4 w-4" /> {busy ? 'Gönderiliyor…' : 'API ile Gönder'}

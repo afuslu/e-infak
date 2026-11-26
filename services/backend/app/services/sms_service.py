@@ -436,15 +436,43 @@ async def send_event_sms(
     transfer=None, extra: Optional[dict] = None, related: Optional[tuple[str, UUID]] = None,
     source: str = "auto", dedupe_key: Optional[str] = None, campaign_id: Optional[UUID] = None,
 ) -> Optional[SmsMessage]:
-    """Queue the SMS of an event if the organisation sends it automatically; once per related record."""
+    """Queue the SMS of an event if the organisation sends it automatically; once per related record.
+
+    When the organisation sends the event on WhatsApp the WhatsApp message is returned instead
+    (callers only check that something was queued).
+    """
     if not phone:
         return None
     if campaign_id is None and donation is not None and event_key in RECEIPT_EVENTS:
         campaign_id = donation.campaign_id
     body, mode, template_id = await event_template(db, org_id, event_key, campaign_id)
-    if mode != "auto":
-        return None
-    context = await build_context(db, org_id, donor=donor, donation=donation, transfer=transfer, extra=extra)
+    context: Optional[dict] = None
+
+    async def context_factory() -> dict:
+        nonlocal context
+        if context is None:
+            context = await build_context(db, org_id, donor=donor, donation=donation, transfer=transfer, extra=extra)
+        return context
+
+    # WhatsApp first: the organisation may send this event on WhatsApp instead of, or next to, the SMS.
+    whatsapp_message, send_sms = None, True
+    try:
+        from app.models.organization import Organization
+        from app.services.whatsapp_events import route_event
+
+        org = await db.get(Organization, org_id)
+        if org is not None:
+            whatsapp_message, send_sms = await route_event(
+                db, org, event_key, phone, donor=donor, context_factory=context_factory,
+                sms_body_factory=lambda ctx: (render_template(body, ctx) if mode == "auto" else None, template_id),
+                related=related, dedupe_key=dedupe_key, source=source,
+            )
+    except Exception:  # noqa: BLE001 - WhatsApp trouble never stops the SMS
+        logger.exception("%s WhatsApp bildirimi kuyruğa alınamadı", event_key)
+        whatsapp_message, send_sms = None, True
+    if not send_sms or mode != "auto":
+        return whatsapp_message
+    context = await context_factory()
     try:
         return await enqueue_sms(
             db, org_id, phone, render_template(body, context), donor_id=getattr(donor, "id", None),

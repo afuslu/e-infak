@@ -81,7 +81,8 @@ export function CartPageClient({
   const [transfer, setTransfer] = useState<CheckoutSessionResponse | null>(null)
 
   const { data: orgSettings } = useOrgSettings()
-  const { legal, cardPayments, ibanPageUrl } = useCheckoutLegal()
+  const { legal, cardPayments, ibanPageUrl, whatsappOptin } = useCheckoutLegal()
+  const [allowWhatsapp, setAllowWhatsapp] = useState(false)
   const { isLoggedIn, donor: loggedInDonor } = useLoggedInDonor()
   const checkout = useCreateCheckout()
   useCardFallback(cardPayments, paymentMethod, setPaymentMethod)
@@ -261,6 +262,7 @@ export function CartPageClient({
           is_anonymous: items.some((it) => Boolean(it.metadata?.anonim)),
           allow_email: false,
           allow_sms: false,
+          allow_whatsapp: whatsappOptin && allowWhatsapp,
         },
         payment_method: paymentMethod,
         currency,
@@ -585,7 +587,7 @@ export function CartPageClient({
         </div>
       )}
       <div className={isDark ? 'rounded-2xl bg-white p-4 text-gray-900' : ''}>
-        <ConsentChecks legal={legal} kvkk={kvkk} onKvkk={setKvkk} terms={terms} onTerms={setTerms} requireTerms={paymentMethod === 'credit_card'} />
+        <ConsentChecks whatsapp={allowWhatsapp} onWhatsapp={whatsappOptin ? setAllowWhatsapp : undefined} legal={legal} kvkk={kvkk} onKvkk={setKvkk} terms={terms} onTerms={setTerms} requireTerms={paymentMethod === 'credit_card'} />
       </div>
       {paymentMethod === 'credit_card' && (
         <div className={`space-y-2 rounded-2xl p-3.5 text-xs ${isDark ? 'bg-white/10 text-white/85' : 'bg-emerald-50 text-emerald-800'}`}>

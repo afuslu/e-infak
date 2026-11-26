@@ -55,6 +55,7 @@ DEFAULTS: dict[str, Any] = {
     "recurring_failed": True,    # düzenli bağış / aidat tahsilat uyarısı
     "campaign_milestone": True,  # kampanya hedefi %50 / %80 / %100 bildirimi
     "system_alert": True,        # SMS kredisi azaldı / banka senkron koptu
+    "whatsapp_inbox": True,      # WhatsApp'tan gelen bağışçı mesajı ve araması
     "min_amount_cents": 0,       # bunun altındaki girişler yalnız kutuya düşer, telefona gelmez
     "quiet_hours": False,        # 22:00–08:00 arası sessiz (kutuya düşer, telefona gelmez)
 }
