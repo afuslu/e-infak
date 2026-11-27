@@ -183,8 +183,9 @@ def iter_file(path: Path, start: int, end: int):
             yield block
 
 
-def watch_page(org_name: str, title: str, src: str, primary: str = "#065f46") -> str:
+def watch_page(org_name: str, title: str, src: str, primary: str = "#065f46", card: Optional[str] = None) -> str:
     esc = html.escape
+    card_html = (f'<img class="c" src="{esc(card)}" alt="Kurban isim kartı">' if card else "")
     return f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>{esc(title)} · {esc(org_name)}</title>
@@ -193,7 +194,8 @@ min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-c
 h1{{font-size:18px;margin:0 0 4px}}p{{margin:0 0 16px;color:#9ca3af;font-size:14px}}
 video{{width:100%;max-width:960px;border-radius:14px;background:#000;box-shadow:0 10px 40px rgba(0,0,0,.5)}}
 .b{{display:inline-block;margin-top:16px;color:#fff;background:{esc(primary)};padding:10px 18px;border-radius:999px;
-text-decoration:none;font-weight:600;font-size:14px}}</style></head>
-<body><h1>{esc(title)}</h1><p>{esc(org_name)}</p>
+text-decoration:none;font-weight:600;font-size:14px}}
+.c{{width:100%;max-width:960px;border-radius:14px;margin-bottom:16px;background:#fff}}</style></head>
+<body><h1>{esc(title)}</h1><p>{esc(org_name)}</p>{card_html}
 <video src="{esc(src)}" controls playsinline preload="metadata"></video>
 <a class="b" href="{esc(src)}" download>Videoyu indir</a></body></html>"""

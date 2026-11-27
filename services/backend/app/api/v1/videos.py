@@ -131,6 +131,10 @@ async def upload_chunk(video_id: UUID, request: Request, index: int = PathParam(
             animal = await db.get(KurbanAnimal, video.kurban_animal_id)
             if animal:
                 await _attach_to_animal(db, video, animal)
+                # Kasap tableti kesimi bildirimsiz işaretler; hissedarlar SMS'i video hazır olunca alır.
+                from app.services.kurban_notify import notify_on_video
+
+                await notify_on_video(db, animal, await db.get(Organization, org_id))
     await db.commit()
     return {"received_bytes": video.received_bytes, "status": video.status}
 
@@ -373,8 +377,36 @@ async def watch(token: str, db: AsyncSession = Depends(get_db)):
     await db.commit()
     org = await db.get(Organization, video.organization_id)
     title = video.title or "Bağış videonuz"
-    return HTMLResponse(vs.watch_page(org.name if org else "", title, f"/api/v1/media/video/{token}/file"),
+    card = f"/api/v1/media/video/{token}/card.png" if await _donor_share(db, video, donor_id) else None
+    return HTMLResponse(vs.watch_page(org.name if org else "", title, f"/api/v1/media/video/{token}/file", card=card),
                         headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+
+
+async def _donor_share(db: AsyncSession, video: DonationVideo, donor_id: Optional[UUID]) -> Optional[KurbanShare]:
+    """Kişiye özel linkte, o bağışçının bu hayvandaki ilk hissesi (kart için)."""
+    if not donor_id or not video.kurban_animal_id:
+        return None
+    return (await db.execute(select(KurbanShare).where(
+        KurbanShare.animal_id == video.kurban_animal_id, KurbanShare.donor_id == donor_id,
+    ).order_by(KurbanShare.share_number).limit(1))).scalars().first()
+
+
+@public_router.get("/{token}/card.png")
+async def watch_card(token: str, db: AsyncSession = Depends(get_db)):
+    """İzleme sayfasındaki isim kartı: imzalı linkteki bağışçının hissesi."""
+    from fastapi.responses import Response
+
+    from app.api.v1.kurban import _card_data
+    from app.utils.kurban_card_image import render_share_card
+
+    video, donor_id = await _public_video(db, token)
+    share = await _donor_share(db, video, donor_id)
+    if not share:
+        raise HTTPException(status_code=404, detail="Kart bulunamadı")
+    org = await db.get(Organization, video.organization_id)
+    card = (await _card_data(db, [share]))[0]
+    return Response(content=render_share_card(card, org.name if org else "", organization=org),
+                    media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 
 @public_router.get("/{token}/file")

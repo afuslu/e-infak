@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Href, Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Mail, MessageSquare, Phone, Receipt } from 'lucide-react-native';
+import { BellPlus, Mail, MessageSquare, Phone, Receipt } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { af } from '@/lib/api';
 import { allowed, can } from '@/lib/access';
 import { call, date, dateTime, initials, isDialable, mail, money, whatsapp } from '@/lib/format';
 import { remember } from '@/lib/selected';
 import { activity, DonorCard, SMS_STATUS, STATUS } from '@/api/types';
+import { REMINDERS_KEY, Reminder } from '@/lib/reminders';
+import { ReminderItem } from '@/components/ReminderItem';
 import { Avatar, Badge, Btn, Card, Chips, Field, ListItem, QueryView, Row, Screen, useUi } from '@/components/ui';
 import { SmsSheet } from '@/components/SmsSheet';
 import { confirm, notify, notifyError } from '@/components/toast';
@@ -17,6 +19,7 @@ import { font, space, useTheme } from '@/theme';
 const TABS = [
   { value: 'donations', label: 'Bağışlar' },
   { value: 'notes', label: 'Notlar' },
+  { value: 'reminders', label: 'Hatırlatma' },
   { value: 'sms', label: 'SMS' },
   { value: 'info', label: 'Bilgiler' },
 ];
@@ -40,6 +43,14 @@ export default function DonorDetail() {
     enabled: tab === 'sms' && smsAllowed,
     queryFn: () => af<{ items: any[] }>('/sms/messages', { query: { donor_id: id, page_size: 30 } }),
   });
+
+  const remindersAllowed = can(access, 'donors.notes_view');
+  const reminders = useQuery({
+    queryKey: [...REMINDERS_KEY, 'donor', id],
+    enabled: tab === 'reminders' && remindersAllowed,
+    queryFn: () => af<Reminder[]>(`/donors/${id}/reminders`),
+  });
+  const tabs = TABS.filter((t) => (t.value !== 'sms' || smsAllowed) && (t.value !== 'reminders' || remindersAllowed));
 
   const addNote = async () => {
     if (!note.trim()) return;
@@ -113,7 +124,7 @@ export default function DonorDetail() {
                 ) : null}
               </View>
 
-              <Chips options={smsAllowed ? TABS : TABS.filter((t) => t.value !== 'sms')} value={tab} onChange={setTab} />
+              <Chips options={tabs} value={tab} onChange={setTab} />
 
               {tab === 'donations' ? (
                 <>
@@ -155,6 +166,25 @@ export default function DonorDetail() {
                       <Text style={ui.muted}>{n.author || 'Personel'} · {dateTime(n.created_at)}</Text>
                     </Card>
                   )) : <Text style={ui.muted}>{can(access, 'donors.notes_view') ? 'Not yok.' : 'Notları görme yetkiniz yok.'}</Text>}
+                </>
+              ) : null}
+
+              {tab === 'reminders' ? (
+                <>
+                  <Btn title="Hatırlatma ekle" variant="outline" small icon={<BellPlus size={16} color={colors.primaryDark} />}
+                    onPress={() => router.push({ pathname: '/hatirlatici/form', params: { donorId: d.id, donorName: d.full_name } } as unknown as Href)} />
+                  <QueryView query={reminders}>
+                    {(list) => list.length ? (
+                      <View style={ui.listCard}>
+                        {list.map((r, i) => (
+                          <View key={r.id}>
+                            {i ? <View style={ui.separator} /> : null}
+                            <ReminderItem reminder={r} showDonor={false} />
+                          </View>
+                        ))}
+                      </View>
+                    ) : <Text style={ui.muted}>Bu bağışçı için hatırlatma yok.</Text>}
+                  </QueryView>
                 </>
               ) : null}
 

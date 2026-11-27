@@ -173,7 +173,10 @@ test('notificationRoute: personel, bağışçı ve platform bildirim yönlendirm
   assert.deepEqual(pushed.pop(), { pathname: '/bagisci/[id]', params: { id: 'dn1' } });
 
   notificationRoute.openNotificationTarget(router, { type: 'reminder' }, undefined, 'tenant');
-  assert.equal(pushed.pop(), '/arama');
+  assert.equal(pushed.pop(), '/hatirlatici');
+
+  notificationRoute.openNotificationTarget(router, { type: 'reminder', route: 'search', donor_id: null }, undefined, 'tenant');
+  assert.equal(pushed.pop(), '/hatirlatici');
 
   notificationRoute.openNotificationTarget(router, { route: 'recurring' }, undefined, 'tenant');
   assert.equal(pushed.pop(), '/duzenli-odemeler');

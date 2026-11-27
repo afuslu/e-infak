@@ -56,7 +56,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Kumbara QR kodlarını okutmak için kamera izni gereklidir."
+          "cameraPermission": "Kumbara QR kodlarını okutmak ve kurban kesim videosu çekmek için kamera izni gereklidir.",
+          "microphonePermission": "Kurban kesim videosunda sesin (tekbir, niyet) kaydedilmesi için mikrofon izni gereklidir.",
+          "recordAudioAndroid": true
         }
       ],
       [

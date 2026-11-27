@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Text, View } from 'react-native';
 import { Href, useFocusEffect, useRouter } from 'expo-router';
 import {
-  Activity, BarChart3, Beef, Bell, Building2, CalendarCheck, CloudOff, CreditCard, Droplets, ExternalLink,
+  Activity, BarChart3, Beef, Bell, BellRing, Building2, CalendarCheck, CloudOff, CreditCard, Droplets, ExternalLink,
   HandHeart, Landmark, Megaphone, MessageSquare, PiggyBank, Repeat, Search, Send, Smartphone, Tags, UserCog, UserRound, UsersRound,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
@@ -10,6 +10,7 @@ import { allowed, ROLE_LABELS } from '@/lib/access';
 import { webBase } from '@/lib/api';
 import { initials, openUrl } from '@/lib/format';
 import { listOfflineQueue } from '@/lib/offlineQueue';
+import { useReminderSummary } from '@/lib/reminders';
 import { Avatar, Badge, Btn, Card, ListItem, Notice, Screen, SectionTitle, useUi } from '@/components/ui';
 import { font, useTheme } from '@/theme';
 
@@ -30,6 +31,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     title: 'Saha ve operasyon',
     items: [
       { title: 'Kumbaralar', subtitle: 'QR ile tahsilat', href: '/kumbara', icon: PiggyBank, feature: 'money_box', modules: 'operations' },
+      { title: 'Hatırlatıcı', subtitle: 'Arama ve takip hatırlatmalarım', href: '/hatirlatici' as Href, icon: BellRing },
       { title: 'Görevler', href: '/gorevler', icon: CalendarCheck, feature: 'tasks' },
       { title: 'Kurban takibi', subtitle: 'Hisse ve kesim durumu', href: '/kurban' as Href, icon: Beef, feature: 'kurban' },
       { title: 'Yoksul / Aile takip', subtitle: 'İhtiyaç sahibi aile kayıtları', href: '/yoksul-takip' as Href, icon: HandHeart, feature: 'poverty_tracking' },
@@ -71,12 +73,15 @@ export default function MenuScreen() {
   const { colors } = useTheme();
   const ui = useUi();
   const [pendingOffline, setPendingOffline] = useState(0);
+  const reminders = useReminderSummary();
+  const dueReminders = reminders.data?.vadesi_gelen || 0;
   const listCardStyle = ui.listCard;
   const sepStyle = ui.separator;
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      reminders.refetch();
       listOfflineQueue()
         .then((items) => { if (alive) setPendingOffline(items.length); })
         .catch(() => {});
@@ -116,7 +121,8 @@ export default function MenuScreen() {
                     subtitle={item.subtitle}
                     chevron
                     left={<item.icon size={22} color={colors.primary} />}
-                    right={item.href === ('/cevrimdisi' as Href) && pendingOffline > 0 ? <Badge label={`${pendingOffline} bekliyor`} tone="warn" /> : undefined}
+                    right={item.href === ('/cevrimdisi' as Href) && pendingOffline > 0 ? <Badge label={`${pendingOffline} bekliyor`} tone="warn" />
+                      : item.href === ('/hatirlatici' as Href) && dueReminders > 0 ? <Badge label={`${dueReminders} vakti geldi`} tone="danger" /> : undefined}
                     onPress={() => router.push(item.href)}
                   />
                 </View>

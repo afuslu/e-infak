@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { allowed } from '@/lib/access';
 import { syncBadgeCount } from '@/lib/notifications';
+import { useReminderSummary } from '@/lib/reminders';
 import { useTheme } from '@/theme';
 
 export default function TabsLayout() {
@@ -21,6 +22,7 @@ export default function TabsLayout() {
     refetchInterval: 60_000,
   });
   const count = unread.data?.unread || 0;
+  const dueReminders = useReminderSummary().data?.vadesi_gelen || 0;
   useEffect(() => {
     if (unread.data !== undefined) syncBadgeCount(count);
   }, [unread.data, count]);
@@ -80,7 +82,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Genel Bakış', headerTitle: site?.name || 'Genel Bakış', tabBarIcon: ({ color, size }) => <LayoutDashboard color={color} size={size} /> }} />
       <Tabs.Screen name="bagislar" options={{ title: 'Bağışlar', href: donations ? undefined : null, tabBarIcon: ({ color, size }) => <HandCoins color={color} size={size} /> }} />
       <Tabs.Screen name="bagiscilar" options={{ title: 'Bağışçılar', href: donors ? undefined : null, tabBarIcon: ({ color, size }) => <Users color={color} size={size} /> }} />
-      <Tabs.Screen name="menu" options={{ title: 'Menü', tabBarIcon: ({ color, size }) => <Menu color={color} size={size} /> }} />
+      <Tabs.Screen name="menu" options={{ title: 'Menü', tabBarBadge: dueReminders ? (dueReminders > 99 ? '99+' : dueReminders) : undefined, tabBarIcon: ({ color, size }) => <Menu color={color} size={size} /> }} />
     </Tabs>
   );
 }

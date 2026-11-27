@@ -129,6 +129,8 @@ export default function AdminDonationsPage() {
   const [filters, setFilters] = useState(emptyFilters)
   const [showFilters, setShowFilters] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [selectAllMatching, setSelectAllMatching] = useState(false)
+  const [preparingBulkSms, setPreparingBulkSms] = useState(false)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const view = QUICK_VIEWS.find(([key]) => key === params.get('gorunum'))
@@ -202,6 +204,7 @@ export default function AdminDonationsPage() {
       const res = await adminGet<SearchResult>('/donations', buildParams())
       setResult(res.data)
       setPicked(new Set())
+      setSelectAllMatching(false)
     } catch (err) {
       toast.error(apiErrorMessage(err, 'Bağışlar yüklenemedi'))
     } finally {
@@ -225,20 +228,25 @@ export default function AdminDonationsPage() {
     setFilters((f) => ({ ...f, [key]: value }))
   }
 
+  const fetchAllMatchingRows = async () => {
+    const first = await adminGet<SearchResult>('/donations', buildParams({ page: 1, page_size: 500 }))
+    const all: Row[] = [...first.data.items]
+    const totalPages = Math.min(20, Math.ceil((first.data.total || all.length) / 500))
+    if (totalPages > 1 && first.data.items.length === 500) {
+      const rest = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, idx) =>
+          adminGet<SearchResult>('/donations', buildParams({ page: idx + 2, page_size: 500 })),
+        ),
+      )
+      for (const r of rest) all.push(...r.data.items)
+    }
+    return all
+  }
+
   const handleExport = async (fmt: 'xlsx' | 'pdf') => {
     setExporting(true)
     try {
-      const first = await adminGet<SearchResult>('/donations', buildParams({ page: 1, page_size: 500 }))
-      const all: Row[] = [...first.data.items]
-      const totalPages = Math.min(20, Math.ceil((first.data.total || all.length) / 500))
-      if (totalPages > 1 && first.data.items.length === 500) {
-        const rest = await Promise.all(
-          Array.from({ length: totalPages - 1 }, (_, idx) =>
-            adminGet<SearchResult>('/donations', buildParams({ page: idx + 2, page_size: 500 })),
-          ),
-        )
-        for (const r of rest) all.push(...r.data.items)
-      }
+      const all = await fetchAllMatchingRows()
       const headers = ['Makbuz No', 'Resmi Koçan No', 'Tarih', 'Bağışçı', 'Telefon', 'Kampanya', 'Adına', 'Ödeme', 'Personel', 'Durum', 'Tutar', 'Para Birimi']
       const rows = all.map((r) => [
         r.receipt_number,
@@ -314,22 +322,32 @@ export default function AdminDonationsPage() {
     }
   }
 
-  const sendBulkSms = () => {
+  const sendBulkSms = async () => {
     if (!result) return
-    const phones = Array.from(new Set(
-      result.items
-        .filter((r) => picked.has(r.id) && r.donor_phone)
-        .map((r) => r.donor_phone!.trim())
-        .filter(Boolean)
-    ))
-    if (!phones.length) {
-      toast.error('Seçili bağışlarda kayıtlı telefon numarası yok')
-      return
-    }
+    setPreparingBulkSms(true)
     try {
-      sessionStorage.setItem('broadcast_prefill_numbers', phones.join('\n'))
-    } catch { /* ignore */ }
-    router.push('/admin/broadcast?kind=numbers')
+      const sourceRows = selectAllMatching
+        ? await fetchAllMatchingRows()
+        : result.items.filter((r) => picked.has(r.id))
+      const phones = Array.from(new Set(
+        sourceRows
+          .filter((r) => r.donor_phone)
+          .map((r) => r.donor_phone!.trim())
+          .filter(Boolean)
+      ))
+      if (!phones.length) {
+        toast.error('Seçili bağışlarda kayıtlı telefon numarası yok')
+        return
+      }
+      try {
+        sessionStorage.setItem('broadcast_prefill_numbers', phones.join('\n'))
+      } catch { /* ignore */ }
+      router.push('/admin/broadcast?kind=numbers')
+    } catch (err) {
+      toast.error(apiErrorMessage(err, 'Bağışçı telefonları alınamadı'))
+    } finally {
+      setPreparingBulkSms(false)
+    }
   }
 
   const pages = result ? Math.max(1, Math.ceil(result.total / PAGE_SIZE)) : 1
@@ -620,20 +638,44 @@ export default function AdminDonationsPage() {
       <Card className="space-y-3 border border-slate-200 bg-white p-4 shadow-sm">
         {picked.size > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary-200 bg-primary-50/70 px-3 py-2 text-xs">
-            <span className="font-bold text-primary-900">{picked.size} bağış seçildi</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-primary-900">
+                {selectAllMatching && result
+                  ? `Filtrelenen tüm ${result.total.toLocaleString('tr-TR')} bağış seçildi`
+                  : `${picked.size.toLocaleString('tr-TR')} bağış seçildi`}
+              </span>
+              {!selectAllMatching &&
+                result &&
+                result.total > result.items.length &&
+                result.items.length > 0 &&
+                result.items.every((r) => picked.has(r.id)) && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectAllMatching(true)}
+                    className="cursor-pointer font-semibold text-primary-700 underline decoration-primary-400 underline-offset-2 hover:text-primary-900"
+                  >
+                    Filtrelenen tüm {result.total.toLocaleString('tr-TR')} bağışı seç
+                  </button>
+                )}
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               {canBulkSms && (
                 <button
                   type="button"
+                  disabled={preparingBulkSms}
                   onClick={sendBulkSms}
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1.5 font-semibold text-white hover:bg-primary-700"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-primary-600 px-2.5 py-1.5 font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <MessageSquare className="h-3.5 w-3.5" /> Seçilen Bağışçılara Toplu SMS
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  {preparingBulkSms ? 'Hazırlanıyor...' : 'Seçilen Bağışçılara Toplu SMS'}
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => setPicked(new Set())}
+                onClick={() => {
+                  setPicked(new Set())
+                  setSelectAllMatching(false)
+                }}
                 className="cursor-pointer font-semibold text-gray-500 hover:text-gray-800"
               >
                 Temizle
@@ -658,6 +700,7 @@ export default function AdminDonationsPage() {
                       checked={result.items.length > 0 && result.items.every((r) => picked.has(r.id))}
                       onChange={(e) => {
                         const ids = result.items.map((r) => r.id)
+                        if (!e.target.checked) setSelectAllMatching(false)
                         setPicked((prev) => {
                           const next = new Set(prev)
                           if (e.target.checked) ids.forEach((id) => next.add(id))
@@ -689,7 +732,10 @@ export default function AdminDonationsPage() {
                         <input
                           type="checkbox"
                           checked={picked.has(r.id)}
-                          onChange={() => setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })}
+                          onChange={() => {
+                            if (picked.has(r.id)) setSelectAllMatching(false)
+                            setPicked((p) => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n })
+                          }}
                         />
                       </Td>
                       <Td className="whitespace-nowrap">

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, FileText, Phone } from 'lucide-react-native';
+import { CheckCircle2, FileText, Phone, Video } from 'lucide-react-native';
+import { useAuth } from '@/context/AuthContext';
+import { can } from '@/lib/access';
 import { api } from '@/lib/api';
 import { openPdf } from '@/lib/files';
 import { call, dateTime, isDialable, whatsapp } from '@/lib/format';
@@ -42,6 +44,8 @@ export default function KurbanScreen() {
   const { colors } = useTheme();
   const ui = useUi();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const { access } = useAuth();
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'waiting' | 'done'>('all');
   const [q, setQ] = useState('');
@@ -121,6 +125,14 @@ export default function KurbanScreen() {
           options={campList.map((c) => ({ value: c.id, label: c.title }))}
           value={activeCampId}
           onChange={setSelectedCampaign}
+        />
+      ) : null}
+      {can(access, 'kurban.slaughter') ? (
+        <Btn
+          title="Kesim modu (kasap tableti)"
+          variant="outline"
+          icon={<Video size={18} color={colors.primaryDark} />}
+          onPress={() => router.push('/kurban/kesim')}
         />
       ) : null}
       <SearchBar value={q} onChangeText={setQ} placeholder="Hayvan kodu, grup veya hissedar ara…" />

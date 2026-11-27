@@ -1483,6 +1483,7 @@ function KurbanAdminInner() {
               />
             </Card>
           )}
+          {tab === 'settings' && <TabletSettingsCard />}
 
           <MuhasebeStatModal
             isOpen={statModal !== null}
@@ -1831,5 +1832,49 @@ function CampaignForm({
         <Button type="submit">{isNew ? 'Oluştur' : 'Kaydet'}</Button>
       </div>
     </form>
+  )
+}
+
+
+/** Kasap tableti: kesim bildirimsiz işaretlenir, "kesildi" SMS'i video yüklenince gider (kurum geneli ayar). */
+function TabletSettingsCard() {
+  const [value, setValue] = useState<boolean | null>(null)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    v1Get<{ auto_notify_video: boolean }>('/kurban/settings')
+      .then((r) => setValue(r.data.auto_notify_video))
+      .catch(() => setValue(null))
+  }, [])
+  const toggle = async (next: boolean) => {
+    setSaving(true)
+    try {
+      const r = await v1Send<{ auto_notify_video: boolean }>('put', '/kurban/settings', { auto_notify_video: next })
+      setValue(r.data.auto_notify_video)
+      toast.ok('Kaydedildi')
+    } catch (e) {
+      toast.error(apiErrorMessage(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+  if (value === null) return null
+  return (
+    <Card className="mt-4 rounded-2xl border border-slate-200/80 p-6 shadow-xs">
+      <h3 className="text-base font-semibold text-slate-900">Kasap tableti (mobil uygulama → Kurban → Kesim modu)</h3>
+      <p className="mt-1 text-sm text-slate-600">
+        Tablet her hayvanın kartını gösterir, kesimi kaydeder ve videoyu otomatik yükler. Kesim SMS&apos;siz işaretlenir;
+        hissedarlara kişiye özel video linki video yüklenince gider.
+      </p>
+      <label className="mt-4 flex items-center gap-3 text-sm font-medium text-slate-800">
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-slate-300"
+          checked={value}
+          disabled={saving}
+          onChange={(e) => toggle(e.target.checked)}
+        />
+        Video yüklenince hissedarlara &quot;kurbanınız kesildi&quot; SMS&apos;ini otomatik gönder
+      </label>
+    </Card>
   )
 }

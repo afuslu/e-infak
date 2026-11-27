@@ -17,7 +17,6 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import Permission, require_capability, require_feature, require_permission, require_module, masked
-from app.core.config import settings
 from app.core.db import get_db
 from app.core.plans import Feature
 from app.models.audit_log import AuditLog
@@ -760,20 +759,22 @@ class SlaughterRequest(BaseModel):
 
 
 def _portal_url(organization) -> str:
-    if settings.ENVIRONMENT == "production" and getattr(organization, "primary_domain", None):
-        return f"https://{organization.primary_domain}/portal"
-    return f"{settings.PUBLIC_WEB_URL.rstrip('/')}/portal"
+    from app.services.kurban_notify import portal_url
+
+    return portal_url(organization)
 
 
 @router.post("/animals/slaughter", dependencies=[Depends(require_capability("kurban.slaughter"))])
 async def slaughter_animals(request: Request, payload: SlaughterRequest, db: AsyncSession = Depends(get_db),
                             current_user: User = WRITE):
-    """Kesildi işaretleme (tekli veya toplu) ve hissedarlara bir kez 'kesildi' SMS'i."""
-    from app.services.sms_service import event_template, send_event_sms
+    """Kesildi işaretleme (tekli veya toplu) ve hissedarlara bir kez 'kesildi' SMS'i.
+
+    notify=false (kasap tableti): yalnız işaretlenir; SMS, video yüklemesi tamamlanınca gider.
+    """
+    from app.services.kurban_notify import push_slaughtered, sms_enabled, sms_for_shares
 
     org_id = _org_id(request)
-    # The organisation can switch the "kurban kesildi" SMS off in its SMS templates.
-    notify = payload.notify and (await event_template(db, org_id, "kurban_kesildi"))[1] == "auto"
+    notify = payload.notify and await sms_enabled(db, org_id)
     now = datetime.now(timezone.utc)
     slaughtered_at = _slaughter_moment(payload.slaughtered_on) if payload.slaughtered_on else now
     portal = _portal_url(getattr(request.state, "organization", None))
@@ -792,52 +793,22 @@ async def slaughter_animals(request: Request, payload: SlaughterRequest, db: Asy
         shares = (await db.execute(
             select(KurbanShare).where(KurbanShare.animal_id == animal.id).with_for_update()
         )).scalars().all()
-        notified_phones: set[str] = set()
         for share in shares:
             share_was_slaughtered = share.status == KurbanStatus.SLAUGHTERED
             share.status = KurbanStatus.SLAUGHTERED
             if payload.notify and share.donor_id and (not share_was_slaughtered or not share.notified_at):
                 push_targets.setdefault(share.donor_id, (animal.animal_number, share.on_behalf_of or share.donor_name))
-            if not notify or share.notified_at or not share.donor_phone:
-                continue
-            if share.donor_phone in notified_phones:
-                share.notified_at = now
-                continue
-            # {video}: kesim videosunun bağlantısı; yoksa bağışçı paneli. Sunucuya yüklenmiş videoda
-            # bağışçıya özel bağlantı gider, izleyip izlemediği görülür.
-            from app.services.videos import video_for_animal, watch_url
-            stored_video = await video_for_animal(db, animal.id)
-            video_link = (await watch_url(db, org_id, stored_video.id, share.donor_id) if stored_video
-                          else animal.video_url or portal)
-            queued = await send_event_sms(
-                db, org_id, "kurban_kesildi", share.donor_phone, related=("kurban_share", share.id), source="kurban",
-                extra={"ad_soyad": share.donor_name, "kimin_adina": share.on_behalf_of or share.donor_name,
-                       "kurban_no": animal.animal_number, "portal": portal, "video": video_link},
-            )
-            if queued:
-                queued.donor_id = share.donor_id
-                share.notified_at = now
-                notified_phones.add(share.donor_phone)
-                sms_queued += 1
-            else:
-                sms_failed += 1
+        if notify:
+            queued, failed = await sms_for_shares(db, org_id, animal, shares, portal, now)
+            sms_queued += queued
+            sms_failed += failed
     _audit(db, org_id, current_user, "kurban_kesim", {
         "animals": [str(i.animal_id) for i in payload.items], "marked": marked, "sms_queued": sms_queued,
+        "notify": payload.notify,
     })
     await db.commit()
     if push_targets:
-        from app.services.push_service import notify_donor_push
-
-        for donor_id, (animal_no, behalf) in push_targets.items():
-            try:
-                await notify_donor_push(
-                    db, donor_id, org_id,
-                    title=f"Kurbanınız kesildi · {animal_no}",
-                    body=f"{behalf} adına kurban vekaletiniz yerine getirilmiştir. Allah kabul etsin.",
-                    data={"route": "donor_kurban", "animal_number": animal_no},
-                )
-            except Exception:  # noqa: BLE001
-                pass
+        await push_slaughtered(db, org_id, push_targets)
         await db.commit()
     return {"marked": marked, "sms_queued": sms_queued, "sms_failed": sms_failed}
 
@@ -892,10 +863,8 @@ async def update_videos(request: Request, payload: VideoUpdate, db: AsyncSession
     return {"updated": len(animals)}
 
 
-async def _cards(db: AsyncSession, shares: list[KurbanShare], organization=None) -> Response:
-    """Kişiye özel isim kartları: hissedar başına bir sayfa."""
-    from app.utils.kurban_pdf import build_kurban_cards
-
+async def _card_data(db: AsyncSession, shares: list[KurbanShare]) -> list[dict]:
+    """İsim kartı satırları (PDF ve PNG kartlar aynı veriyi kullanır)."""
     animal_ids = {s.animal_id for s in shares if s.animal_id}
     animals = {a.id: a for a in (await db.execute(
         select(KurbanAnimal).where(KurbanAnimal.id.in_(animal_ids)))).scalars().all()} if animal_ids else {}
@@ -917,6 +886,14 @@ async def _cards(db: AsyncSession, shares: list[KurbanShare], organization=None)
             "share_number": s.share_number if animal and animal.capacity > 1 else None,
             "capacity": animal.capacity if animal else None,
         })
+    return data
+
+
+async def _cards(db: AsyncSession, shares: list[KurbanShare], organization=None) -> Response:
+    """Kişiye özel isim kartları: hissedar başına bir sayfa."""
+    from app.utils.kurban_pdf import build_kurban_cards
+
+    data = await _card_data(db, shares)
     pdf = build_kurban_cards(getattr(organization, "name", "") or "", data, organization=organization)
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="kurban-isim-kartlari.pdf"'})
@@ -963,9 +940,8 @@ async def share_cards(request: Request, payload: CardsRequest, db: AsyncSession 
     return await _cards(db, list(shares), organization=getattr(request.state, "organization", None))
 
 
-async def _papers(db: AsyncSession, org_id: UUID, animals: list[KurbanAnimal], org_name: str, organization=None) -> Response:
-    from app.utils.kurban_pdf import build_kurban_papers
-
+async def _paper_data(db: AsyncSession, animals: list[KurbanAnimal]) -> list[dict]:
+    """Hayvan başına numara + hissedar listesi (kurban kağıdı PDF'i ve hayvan kartı PNG'si)."""
     shares = (await db.execute(
         select(KurbanShare).where(KurbanShare.animal_id.in_([a.id for a in animals]))
     )).scalars().all() if animals else []
@@ -984,10 +960,18 @@ async def _papers(db: AsyncSession, org_id: UUID, animals: list[KurbanAnimal], o
             "country": a.country or (kc.country if kc else ""),
             "season": f"Kurban {kc.season_year}" if kc and kc.season_year else "",
             "shares": [
-                {"name": s.on_behalf_of or s.donor_name, "kurban_type": KURBAN_TYPES.get(s.kurban_type, s.kurban_type)}
+                {"share_number": s.share_number, "name": s.on_behalf_of or s.donor_name,
+                 "kurban_type": KURBAN_TYPES.get(s.kurban_type, s.kurban_type)}
                 for s in sorted(by_animal.get(a.id, []), key=lambda s: s.share_number or 0)
             ],
         })
+    return data
+
+
+async def _papers(db: AsyncSession, org_id: UUID, animals: list[KurbanAnimal], org_name: str, organization=None) -> Response:
+    from app.utils.kurban_pdf import build_kurban_papers
+
+    data = await _paper_data(db, animals)
     pdf = build_kurban_papers(org_name, data, organization=organization)
     return Response(content=pdf, media_type="application/pdf",
                     headers={"Content-Disposition": 'attachment; filename="kurban-kagitlari.pdf"'})
@@ -1018,6 +1002,96 @@ async def campaign_papers(
     animals = (await db.execute(query.order_by(KurbanAnimal.animal_number))).scalars().all()
     org = getattr(request.state, "organization", None)
     return await _papers(db, org_id, list(animals), getattr(org, "name", ""), organization=org)
+
+
+# --- Kasap tableti: kart görselleri ve kesim sırası ---------------------------------------
+
+PNG_HEADERS = {"Cache-Control": "private, no-cache"}
+
+
+@router.get("/animals/{animal_id}/card.png", dependencies=[Depends(require_capability("kurban.slaughter"))])
+async def animal_card_png(request: Request, animal_id: UUID, db: AsyncSession = Depends(get_db), _: User = READ):
+    """Hayvan kartı görseli: numara + hissedarlar ve niyetleri; tablette tam ekran gösterilir."""
+    from app.utils.kurban_card_image import render_animal_card
+
+    org_id = _org_id(request)
+    animal = await _animal(db, org_id, animal_id)
+    org = getattr(request.state, "organization", None)
+    data = (await _paper_data(db, [animal]))[0]
+    return Response(content=render_animal_card(data, getattr(org, "name", "") or "", organization=org),
+                    media_type="image/png", headers=PNG_HEADERS)
+
+
+@router.get("/shares/{share_id}/card.png", dependencies=[Depends(require_capability("kurban.pdf"))])
+async def share_card_png(request: Request, share_id: UUID, db: AsyncSession = Depends(get_db), _: User = READ):
+    """Tek hissedarın isim kartı görseli (bağışçıya gönderilebilir)."""
+    from app.utils.kurban_card_image import render_share_card
+
+    org_id = _org_id(request)
+    share = (await db.execute(select(KurbanShare).where(
+        KurbanShare.id == share_id, KurbanShare.organization_id == org_id))).scalar_one_or_none()
+    if not share:
+        raise HTTPException(status_code=404, detail="Hisse bulunamadı")
+    org = getattr(request.state, "organization", None)
+    card = (await _card_data(db, [share]))[0]
+    return Response(content=render_share_card(card, getattr(org, "name", "") or "", organization=org),
+                    media_type="image/png", headers=PNG_HEADERS)
+
+
+@router.get("/campaigns/{campaign_id}/queue", dependencies=[Depends(require_capability("kurban.slaughter"))])
+async def slaughter_queue(request: Request, campaign_id: UUID, db: AsyncSession = Depends(get_db), _: User = READ):
+    """Kasap tableti için kesim sırası: hissesi olan bekleyen hayvanlar numara sırasıyla,
+    ardından bugün kesilip videosu henüz gelmeyenler (yükleme takibi için)."""
+    org_id = _org_id(request)
+    kc = await _campaign(db, org_id, campaign_id)
+    animals = (await db.execute(select(KurbanAnimal).where(
+        KurbanAnimal.campaign_id == kc.id,
+        KurbanAnimal.id.in_(select(KurbanShare.animal_id).where(KurbanShare.campaign_id == kc.id)),
+    ).order_by(KurbanAnimal.animal_number))).scalars().all()
+    shares = (await db.execute(
+        select(KurbanShare).where(KurbanShare.animal_id.in_([a.id for a in animals]))
+    )).scalars().all() if animals else []
+    by_animal: dict = {}
+    for s in shares:
+        by_animal.setdefault(s.animal_id, []).append(s)
+    waiting = [_animal_out(a, by_animal.get(a.id, []), kc) for a in animals if a.status == KurbanStatus.WAITING]
+    done = [_animal_out(a, by_animal.get(a.id, []), kc) for a in animals if a.status == KurbanStatus.SLAUGHTERED]
+    org = await _org(db, org_id)
+    return {
+        "campaign": {"id": str(kc.id), "title": kc.title},
+        "waiting": waiting,
+        "slaughtered": done,
+        "auto_notify_video": _auto_notify_video(org),
+    }
+
+
+async def _org(db: AsyncSession, org_id: UUID):
+    from app.models.organization import Organization
+
+    return await db.get(Organization, org_id)
+
+
+def _auto_notify_video(org) -> bool:
+    """Video yüklenince hissedarlara 'kesildi' SMS'i otomatik gitsin mi (varsayılan: evet)."""
+    return bool(((org.settings or {}) if org else {}).get("kurban_settings", {}).get("auto_notify_video", True))
+
+
+class KurbanSettingsIn(BaseModel):
+    auto_notify_video: bool = True
+
+
+@router.get("/settings", dependencies=[READ])
+async def get_settings(request: Request, db: AsyncSession = Depends(get_db)):
+    return {"auto_notify_video": _auto_notify_video(await _org(db, _org_id(request)))}
+
+
+@router.put("/settings", dependencies=[Depends(require_capability("kurban.manage"))])
+async def save_settings(payload: KurbanSettingsIn, request: Request, db: AsyncSession = Depends(get_db)):
+    org = await _org(db, _org_id(request))
+    current = (org.settings or {}).get("kurban_settings") or {}
+    org.settings = {**(org.settings or {}), "kurban_settings": {**current, **payload.model_dump()}}
+    await db.commit()
+    return {"auto_notify_video": _auto_notify_video(org)}
 
 
 # --- Shares ---------------------------------------------------------------------------

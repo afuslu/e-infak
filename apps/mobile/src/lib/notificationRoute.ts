@@ -61,6 +61,12 @@ export function openNotificationTarget(
   }
 
   if (!data) return router.push('/bildirimler');
+  // Hatırlatma: bağışçı varsa kartı, yoksa Hatırlatıcı (sunucu route=search gönderse de).
+  if (data.type === 'reminder') {
+    return data.donor_id
+      ? router.push({ pathname: '/bagisci/[id]', params: { id: data.donor_id } })
+      : router.push('/hatirlatici' as Href);
+  }
   switch (data.route) {
     case 'donation':
       if (data.donation_id) {
@@ -95,11 +101,6 @@ export function openNotificationTarget(
       return router.push('/yoksul-takip' as Href);
     case 'search':
       return router.push('/arama' as Href);
-  }
-  if (data.type === 'reminder') {
-    return data.donor_id
-      ? router.push({ pathname: '/bagisci/[id]', params: { id: data.donor_id } })
-      : router.push('/arama' as Href);
   }
   if (data.type === 'task' || data.task_id) {
     return data.task_id
