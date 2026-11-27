@@ -76,7 +76,7 @@ def build_certificate_pdf(
 
     org_name = (getattr(organization, "name", None) or "").strip() or "E-İnfak"
     legal_name = (getattr(organization, "legal_name", None) or "").strip()
-    date_str = (paid_at or datetime.now()).strftime("%d.%m.%Y")
+    date_str = receipt_pdf.to_local(paid_at).strftime("%d.%m.%Y")
     amount_str = receipt_pdf._fmt_amount(int(amount_cents or 0), currency or "TRY")
     donor_display = (donor_name or "").strip() or "Değerli Bağışçımız"
     camp_display = (campaign_title or "").strip() or "Genel Hayır Faaliyetleri"

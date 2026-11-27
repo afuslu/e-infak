@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
@@ -17,11 +17,33 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.lib.utils import ImageReader
+from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
+from zoneinfo import ZoneInfo
+
+LOCAL_TZ = ZoneInfo("Europe/Istanbul")
+
+
+def to_local(dt: datetime | None) -> datetime:
+    """Belgelerde gösterilecek zamanı Türkiye saatine çevirir (naive değerler UTC kabul edilir)."""
+    if dt is None:
+        return datetime.now(LOCAL_TZ)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(LOCAL_TZ)
+
+
+def _fit_text(pdf, text: str, font: str, size: float, max_w: float) -> str:
+    """Metni verilen genişliğe sığdırır; taşarsa sonuna '…' ekleyerek kısaltır."""
+    if pdf.stringWidth(text, font, size) <= max_w:
+        return text
+    while text and pdf.stringWidth(text + "…", font, size) > max_w:
+        text = text[:-1]
+    return text.rstrip(" ·,") + "…"
+
 
 FONT = "Helvetica"
 FONT_BOLD = "Helvetica-Bold"
@@ -369,9 +391,20 @@ def build_receipt_pdf(
         draw_org_monogram(pdf, margin, top - logo_size - 1 * mm, logo_size, org_name, primary)
     header_x = margin + logo_size + 4 * mm
 
+    # Sağ üstteki başlık ve rozet alanı; sol metinler bu alana taşmamalı.
+    title_text = "BAĞIŞ MAKBUZU"
+    title_w = pdf.stringWidth(title_text, FONT_BOLD, 14)
+    badge_text_preview = status_label or {
+        "refunded": "İADE EDİLDİ",
+        "cancelled": "İPTAL EDİLDİ",
+    }.get(status, "GEÇERLİ / ONAYLANDI")
+    badge_w_preview = pdf.stringWidth(badge_text_preview, FONT_BOLD, 8) + 8 * mm
+    name_max_w = (width - margin - title_w - 4 * mm) - header_x
+    text_max_w = (width - margin - badge_w_preview - 3 * mm) - header_x
+
     pdf.setFillColor(ink)
     pdf.setFont(FONT_BOLD, 16)
-    pdf.drawString(header_x, top - 6 * mm, org_name[:42])
+    pdf.drawString(header_x, top - 6 * mm, _fit_text(pdf, org_name, FONT_BOLD, 16, name_max_w))
 
     pdf.setFont(FONT, 8.5)
     pdf.setFillColor(muted)
@@ -382,8 +415,17 @@ def build_receipt_pdf(
             (getattr(organization, "address", None) or "").strip() or None,
         ) if part
     )
+    contact_y = top - 15.5 * mm
     if meta_line:
-        pdf.drawString(header_x, top - 11 * mm, meta_line[:85])
+        meta_lines = simpleSplit(meta_line, FONT, 8.5, text_max_w)
+        if len(meta_lines) > 2:
+            meta_lines = [meta_lines[0], _fit_text(pdf, " ".join(meta_lines[1:]), FONT, 8.5, text_max_w)]
+        if len(meta_lines) == 1:
+            pdf.drawString(header_x, top - 11 * mm, meta_lines[0])
+        else:
+            pdf.drawString(header_x, top - 10.5 * mm, meta_lines[0])
+            pdf.drawString(header_x, top - 14 * mm, meta_lines[1])
+            contact_y = top - 18 * mm
 
     contact = " · ".join(
         part for part in (
@@ -393,12 +435,12 @@ def build_receipt_pdf(
         ) if part
     )
     if contact:
-        pdf.drawString(header_x, top - 15.5 * mm, contact[:85])
+        pdf.drawString(header_x, contact_y, _fit_text(pdf, contact, FONT, 8.5, text_max_w))
 
     # --- Sağ üst: Belge Başlığı & Durum Rozeti ---
     pdf.setFillColor(primary)
     pdf.setFont(FONT_BOLD, 14)
-    pdf.drawRightString(width - margin, top - 6 * mm, "BAĞIŞ MAKBUZU")
+    pdf.drawRightString(width - margin, top - 6 * mm, title_text)
 
     badge_text = status_label or {
         "refunded": "İADE EDİLDİ",
@@ -441,7 +483,7 @@ def build_receipt_pdf(
         *([("Adet", str(quantity))] if quantity and not lines else []),
         *([("Niyet", intent[:80])] if intent and not lines else []),
         ("Ödeme Yöntemi", _PAYMENT_LABEL.get(payment_method, payment_method)),
-        ("Düzenlenme Tarihi", (paid_at or datetime.now()).strftime("%d.%m.%Y %H:%M")),
+        ("Düzenlenme Tarihi", to_local(paid_at).strftime("%d.%m.%Y %H:%M")),
     ]
 
     y -= 6 * mm
