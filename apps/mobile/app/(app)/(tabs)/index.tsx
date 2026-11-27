@@ -78,12 +78,13 @@ export default function Dashboard() {
   return (
     <Screen onRefresh={() => { query.refetch(); inflow.refetch(); }} refreshing={query.isRefetching}>
       <Text style={ui.title}>Merhaba, {me?.first_name}</Text>
-      <View style={{ flexDirection: 'row', gap: space.xs }}>
-        <Btn title="Bağışçılar" variant="ghost" style={{ flex: 1 }} onPress={() => router.push('/bagiscilar')} />
-        <Btn title="Bağışlar" variant="ghost" style={{ flex: 1 }} onPress={() => router.push('/bagislar')} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.xs }}>
+        <Btn title="Bağışçılar" variant="ghost" small style={{ flexGrow: 1, paddingHorizontal: space.sm }} onPress={() => router.push('/bagiscilar')} />
+        <Btn title="Bağışlar" variant="ghost" small style={{ flexGrow: 1, paddingHorizontal: space.sm }} onPress={() => router.push('/bagislar')} />
         {allowed(access, undefined, 'bank') ? (
-          <Btn title="Havaleler" variant="ghost" style={{ flex: 1 }} onPress={() => router.push('/havaleler')} />
+          <Btn title="Havaleler" variant="ghost" small style={{ flexGrow: 1, paddingHorizontal: space.sm }} onPress={() => router.push('/havaleler')} />
         ) : null}
+        <Btn title="Online Bağış" variant="ghost" small style={{ flexGrow: 1, paddingHorizontal: space.sm }} onPress={() => router.push({ pathname: '/bagislar', params: { gorunum: 'online' } })} />
       </View>
       <Chips options={CURRENCIES} value={currency} onChange={setCurrency} />
       {inflow.data ? (
